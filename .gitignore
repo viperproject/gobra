@@ -1,0 +1,12 @@
+
+
+.idea/
+project/project/
+project/target/
+target/
+tmp/
+
+carbon
+silver
+silicon
+logger.log

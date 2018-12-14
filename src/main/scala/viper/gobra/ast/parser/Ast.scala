@@ -117,7 +117,7 @@ case class PExprSwitchDflt(body: PBlock) extends PExprSwitchClause
 
 case class PExprSwitchCase(left: Vector[PExpression], body: PBlock) extends PExprSwitchClause
 
-case class PTypeSwitchStmt(pre: PSimpleStatement, exp: PrimaryExp, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Option[PBlock]) extends PStatement
+case class PTypeSwitchStmt(pre: PSimpleStatement, exp: PPrimaryExp, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Option[PBlock]) extends PStatement
 
 sealed trait PTypeSwitchClause extends PNode
 
@@ -133,7 +133,7 @@ case class PAssForRange(ass: Vector[PAssignee], range: PExpression, body: PBlock
 
 case class PShortForRange(shorts: Vector[PIdnUnknown], range: PExpression, body: PBlock) extends PStatement
 
-case class PGoStmt(exp: PCallable) extends PStatement
+case class PGoStmt(exp: PLazyComputation) extends PStatement
 
 case class PSelectStmt(clauses: Vector[PSelectClause]) extends PStatement
 
@@ -155,10 +155,9 @@ case class PContinue(label: Option[PIdnUse]) extends PStatement
 
 case class PGoto(label: PIdnUse) extends PStatement
 
-case class PDeferStmt(exp: PCallable) extends PStatement
+case class PDeferStmt(exp: PLazyComputation) extends PStatement
 
 // case class PFallThrough() extends PStatement
-
 
 
 case class PBlock(stmts: Vector[PStatement]) extends PNode
@@ -167,15 +166,108 @@ case class PBlock(stmts: Vector[PStatement]) extends PNode
   * Expressions
   */
 
+
 sealed trait PExpression extends PNode
 
-sealed trait PCallable extends PExpression
+sealed trait PLazyComputation extends PExpression
 
 sealed trait PAssignee extends PExpression
 
-sealed trait PrimaryExp extends PExpression
+sealed trait PUnaryExpr extends PExpression {
+  def operand: PExpression
+}
 
-case class PReceive(exp: PExpression) extends PExpression
+sealed trait PPrimaryExp extends PUnaryExpr {
+  def operand: PExpression = this
+}
+
+sealed trait POperand extends PPrimaryExp
+
+case class PNamedOperand(id: PIdnUse) extends POperand with PAssignee
+
+sealed trait PLiteral extends POperand
+
+sealed trait PBasicLiteral extends PLiteral
+
+case class PBoolLit(lit: Boolean) extends PBasicLiteral
+
+case class PIntLit(lit: Int) extends PBasicLiteral
+
+// TODO: add other literals
+
+case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
+
+case class PLiteralValue(elems: Vector[(PKeyedElement)]) extends PNode
+
+case class PKeyedElement(key: Option[PCompositeVal], exp: PCompositeVal) extends PNode
+
+sealed trait PCompositeVal extends PNode
+
+case class PExpCompositeVal(exp: PExpression) extends PCompositeVal
+
+case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
+
+case class PFunctionLiteral(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral
+
+case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PPrimaryExp with PLazyComputation
+
+case class PCall(callee: PPrimaryExp, args: Vector[PExpression]) extends PPrimaryExp with PLazyComputation
+
+// TODO: Check Arguments in language specification, also allows preceding type
+
+case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUnqualifiedUse) extends PPrimaryExp with PAssignee
+
+case class PMethodExpr(base: PMethodRecv, id: PIdnUnqualifiedUse) extends PPrimaryExp
+
+case class PSelection(base: PPrimaryExp, id: PIdnUnqualifiedUse) extends PPrimaryExp with PAssignee
+
+case class PIndexedExp(base: PPrimaryExp, index: PExpression) extends PPrimaryExp with PAssignee
+
+case class PSliceExp(base: PPrimaryExp, low: PExpression, high: PExpression, cap: Option[PExpression] = None) extends PPrimaryExp
+
+case class PTypeAssertion(base: PPrimaryExp, typ: PType) extends PPrimaryExp
+
+case class PReceive(operand: PExpression) extends PUnaryExpr
+
+case class PReference(operand: PExpression) extends PUnaryExpr
+
+case class PDereference(operand: PExpression) extends PUnaryExpr with PAssignee
+
+case class PUnaryMinus(operand: PExpression) extends PUnaryExpr
+
+case class PNegation(operand: PExpression) extends PUnaryExpr
+
+sealed trait PBinaryExp extends PExpression {
+  def left: PExpression
+
+  def right: PExpression
+}
+
+case class PEquals(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PUnequals(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class POr(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PLess(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PAtMost(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PGreater(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PAtLeast(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PSub(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PMul(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PMod(left: PExpression, right: PExpression) extends PBinaryExp
+
+case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
 
 
 /**
@@ -184,9 +276,11 @@ case class PReceive(exp: PExpression) extends PExpression
 
 sealed trait PType extends PNode
 
+sealed trait PLiteralType extends PType
+
 sealed trait PNamedType extends PType
 
-case class PDeclaredType(id: PIdnUse) extends PNamedType
+case class PDeclaredType(id: PIdnUse) extends PNamedType with PLiteralType
 
 sealed trait PPredeclaredType extends PNamedType
 
@@ -200,11 +294,11 @@ case class PIntType() extends PPredeclaredType
 
 sealed trait PTypeLit extends PType
 
-case class PArrayType(len: PExpression, elem: PType) extends PTypeLit
+case class PArrayType(len: PExpression, elem: PType) extends PTypeLit with PLiteralType
 
-case class PSliceType(elem: PType) extends PTypeLit
+case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 
-case class PMapType(elem: PType, key: PType) extends PTypeLit
+case class PMapType(elem: PType, key: PType) extends PTypeLit with PLiteralType
 
 case class PPointerType(base: PType) extends PTypeLit
 
@@ -219,25 +313,28 @@ case class PSendChannelType(elem: PType) extends PChannelType
 case class PRecvChannelType(elem: PType) extends PChannelType
 
 
-case class PStructType(embedded: Vector[PEmbeddedDecl], fields: Vector[PFieldDecl]) extends PTypeLit
+case class PStructType(embedded: Vector[PEmbeddedDecl], fields: Vector[PFieldDecl]) extends PTypeLit with PLiteralType
 
 sealed trait PStructClause extends PNode
 
 case class PFieldDecl(id: PIdnDef, typ: PType) extends PStructClause
 
-sealed trait PEmbeddedDecl extends PStructClause {
+sealed trait PMethodRecv extends PNode
+
+sealed trait PEmbeddedDecl extends PNode with PMethodRecv {
   def typ: PNamedType
 }
 
 case class PEmbeddedName(typ: PNamedType) extends PEmbeddedDecl
 
 case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedDecl
+
 // TODO: Named type is not allowed to be an interface
 
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit
 
-case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSpec])
+case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSpec]) extends PTypeLit
 
 sealed trait PInterfaceClause extends PNode
 

@@ -31,12 +31,90 @@ object Parser {
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
+
+    lazy val expression: Parser[PExpression] = ???
+
     /**
       * Types
       */
 
-    lazy val namedType: Parser[PNamedType] = ???
+    lazy val typ: Parser[PType] = ???
 
+    lazy val typeLit: Parser[PTypeLit] =
+      "*" ~> typ ^^ PPointerType |
+        "[]" ~> typ ^^ PSliceType |
+        ("[" ~> expression <~ "]") ~ typ ^^ PArrayType |
+        ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType |
+        ("chan" ~> "<-") ~> typ ^^ PRecvChannelType |
+        ("<-" ~> "chan") ~> typ ^^ PSendChannelType |
+        "chan" ~> typ ^^ PBiChannelType |
+        "func" ~> signature ^^ PFunctionType.tupled
+
+    lazy val structType: Parser[PStructType] =
+      repsep(structClause, eos) ^^ { clauses =>
+        val embedded = clauses collect { case v: PEmbeddedDecl => v }
+        val declss = clauses collect { case v: PFieldDecls => v }
+
+        PStructType(embedded, declss flatMap (_.fields))
+      }
+
+    lazy val structClause: Parser[PStructClause] =
+      embeddedDecl | fieldDecls
+
+    lazy val embeddedDecl: Parser[PEmbeddedDecl] =
+      "*".? ~ namedType ^^ {
+        case None ~ t => PEmbeddedName(t)
+        case _ ~ t => PEmbeddedPointer(t)
+      }
+
+    lazy val fieldDecls: Parser[PFieldDecls] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+          PFieldDecls(ids map (PFieldDecl(_, t)))
+      }
+
+
+    lazy val namedType: Parser[PNamedType] =
+      predeclaredType |
+        declaredType
+
+    lazy val predeclaredType: Parser[PPredeclaredType] =
+      "bool" ^^^ PBoolType() |
+        "int" ^^^ PIntType()
+
+    lazy val declaredType: Parser[PDeclaredType] =
+      idnUse ^^ PDeclaredType
+
+    /**
+      * Misc
+      */
+
+    lazy val signature: Parser[(Vector[PParameter], PResult)] =
+      parameters ~ result
+
+    lazy val result: Parser[PResult] =
+      parameters ^^ PResultClause |
+        typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t)))) |
+        success(PVoidResult())
+
+    lazy val parameters: Parser[Vector[PParameter]] =
+      "(" ~> (parameters <~ ",".?).? <~ ")" ^^ {
+        case None => Vector.empty
+        case Some(ps) => ps
+      }
+
+    lazy val parameterList: Parser[Vector[PParameter]] =
+      rep1sep(parameterDecl, ",") ^^ Vector.concat
+
+    lazy val parameterDecl: Parser[Vector[PParameter]] =
+      repsep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+
+        val names = ids filter (!PIdnNode.isWildcard(_))
+        if (names.isEmpty) {
+          Vector(PUnnamedParameter(t))
+        } else {
+          ids map (PNamedParameter(_, t))
+        }
+      }
 
     /**
       * Identifiers
@@ -61,7 +139,16 @@ object Parser {
         else
           success(s)
       })
+
+    /**
+      * EOS
+      */
+
+    lazy val eos: Parser[String] =
+      ";"
   }
+
+
 
 }
 

@@ -73,9 +73,9 @@ case class PTypeAlias(id: PIdnDef, typ: PType) extends PTypeDecl
 
 sealed trait PParameter extends PNode
 
-case class PNamedParameter(id: PIdnDef, typ: PType) extends PNode
+case class PNamedParameter(id: PIdnDef, typ: PType) extends PParameter
 
-case class PUnnamedParameter(typ: PType) extends PNode
+case class PUnnamedParameter(typ: PType) extends PParameter
 
 
 sealed trait PResult extends PNode
@@ -317,11 +317,13 @@ case class PStructType(embedded: Vector[PEmbeddedDecl], fields: Vector[PFieldDec
 
 sealed trait PStructClause extends PNode
 
-case class PFieldDecl(id: PIdnDef, typ: PType) extends PStructClause
+case class PFieldDecls(fields: Vector[PFieldDecl]) extends PStructClause
+
+case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
 
 sealed trait PMethodRecv extends PNode
 
-sealed trait PEmbeddedDecl extends PNode with PMethodRecv {
+sealed trait PEmbeddedDecl extends PStructClause with PMethodRecv {
   def typ: PNamedType
 }
 
@@ -349,6 +351,10 @@ case class PMethodSpec(id: PIdnDef, args: Vector[PParameter], result: PResult) e
 
 sealed trait PIdnNode extends PNode {
   def name: String
+}
+
+object PIdnNode {
+  def isWildcard(id: PIdnNode): Boolean = id.name.equals("_")
 }
 
 case class PIdnUnknown(name: String) extends PIdnNode

@@ -26,6 +26,11 @@ lazy val server = (project in file("."))
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
     // libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
 
+    scalacOptions ++= Seq(
+      "-Ypartial-unification",
+      "-Ypatmat-exhaust-depth", "40"
+    ),
+    
     // Run settings
     run / javaOptions += "-Xss128m",
 

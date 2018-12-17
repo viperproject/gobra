@@ -93,23 +93,35 @@ sealed trait PStatement extends PNode
 case class PLabeledStmt(label: PIdnDef, stmt: PStatement)
 
 
-sealed trait PSimpleStatement extends PStatement
+sealed trait PSimpleStmt extends PStatement
 
-case class PEmptyStmt() extends PSimpleStatement
+case class PEmptyStmt() extends PSimpleStmt
 
-case class PExpressionStmt(exp: PExpression) extends PSimpleStatement
+case class PExpressionStmt(exp: PExpression) extends PSimpleStmt
 
-case class PSendStmt(channel: PExpression, msg: PExpression) extends PSimpleStatement
+case class PSendStmt(channel: PExpression, msg: PExpression) extends PSimpleStmt
 
-case class PAssignment(ass: Vector[(PAssignee, PExpression)]) extends PSimpleStatement
+case class PAssignment(ass: Vector[(PAssignee, PExpression)]) extends PSimpleStmt
 
-case class PShortVarDecl(shorts: Vector[(PIdnUnknown, PExpression)]) extends PSimpleStatement
+sealed trait PAssOp extends PNode
+
+case class PAddOp() extends PAssOp
+
+case class PSubOp() extends PAssOp
+
+case class PMulOp() extends PAssOp
+
+case class PDivOp() extends PAssOp
+
+case class PModOp() extends PAssOp
+
+case class PShortVarDecl(shorts: Vector[(PIdnUnknown, PExpression)]) extends PSimpleStmt
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PStatement
 
-case class PIfClause(pre: PSimpleStatement, condition: PExpression, body: PBlock) extends PNode
+case class PIfClause(pre: PSimpleStmt, condition: PExpression, body: PBlock) extends PNode
 
-case class PExprSwitchStmt(pre: PSimpleStatement, exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Option[PBlock]) extends PStatement
+case class PExprSwitchStmt(pre: PSimpleStmt, exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Option[PBlock]) extends PStatement
 
 sealed trait PExprSwitchClause extends PNode
 
@@ -117,7 +129,7 @@ case class PExprSwitchDflt(body: PBlock) extends PExprSwitchClause
 
 case class PExprSwitchCase(left: Vector[PExpression], body: PBlock) extends PExprSwitchClause
 
-case class PTypeSwitchStmt(pre: PSimpleStatement, exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Option[PBlock]) extends PStatement
+case class PTypeSwitchStmt(pre: PSimpleStmt, exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Option[PBlock]) extends PStatement
 
 sealed trait PTypeSwitchClause extends PNode
 
@@ -127,7 +139,7 @@ case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PExprSwitc
 
 case class PWhileStmt(condition: PExpression, body: PBlock) extends PStatement
 
-case class PForStmt(pre: PSimpleStatement, cond: PExpression, post: PSimpleStatement, body: PBlock) extends PStatement
+case class PForStmt(pre: PSimpleStmt, cond: PExpression, post: PSimpleStmt, body: PBlock) extends PStatement
 
 case class PAssForRange(ass: Vector[PAssignee], range: PExpression, body: PBlock) extends PStatement
 

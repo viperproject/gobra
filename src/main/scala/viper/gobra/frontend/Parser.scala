@@ -19,7 +19,7 @@ object Parser {
     Left(Vector.empty)
   }
 
-  private class SyntaxAnalyzer(positions: Positions) extends Parsers(positions) {
+  private class PureSyntaxAnalyzer(positions: Positions) extends Parsers(positions) {
 
     val reservedWords: Set[String] = Set(
       "break", "default", "func", "interface", "select",
@@ -37,8 +37,24 @@ object Parser {
 
     lazy val statement: Parser[PStatement] = ???
 
+    lazy val simpleStmt: Parser[PSimpleStmt] = ???
+
+    lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
+      simpleStmt | emptyStmt
+
+    lazy val emptyStmt: Parser[PEmptyStmt] = /* parse last because always succeeds */
+      success(PEmptyStmt())
+
     lazy val expressionStmt: Parser[PExpressionStmt] =
       expression ^^ PExpressionStmt
+
+    lazy val sendStmt: Parser[PSendStmt] =
+      (expression <~ "<-") ~ expression ^^ PSendStmt
+
+    lazy val assignment: Parser[PAssignment] = ???
+
+    lazy val assignee: Parser[PAssignee] =
+      selectionOrMethodExpr | selection | indexedExp | "&" ~> unaryExp ^^ PDereference
 
     /**
       * Expressions

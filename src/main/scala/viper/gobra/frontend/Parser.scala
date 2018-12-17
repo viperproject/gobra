@@ -15,6 +15,20 @@ import viper.gobra.reporting.VerifierError
 
 object Parser {
 
+  /**
+    * Parses file and returns either the parsed program if the file was parsed successfully,
+    * otherwise returns list of error messages
+    *
+    * @param file
+    * @return
+    *
+    * The following transformations are performed by the parser:
+    *   l1, ..., ln X= r1, ..., rn  ~>  l1, ..., ln = l1 X r1, ..., ln X rn
+    *   -e  ~>  0 - e
+    *   +e  ~>  0 + e
+    *   l != r  ~>  !(l == r)
+    */
+
   def parse(file: File): Either[Vector[VerifierError], PProgram] = {
     Left(Vector.empty)
   }
@@ -239,7 +253,7 @@ object Parser {
 
     lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        PFieldDecls(ids map (PFieldDecl(_, t)))
+        PFieldDecls(ids map (id => PFieldDecl(id, t).at(id)))
       }
 
     lazy val interfaceType: Parser[PInterfaceType] =
@@ -290,7 +304,7 @@ object Parser {
 
     lazy val result: Parser[PResult] =
       parameters ^^ PResultClause |
-        typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t)))) |
+        typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t).at(t)))) |
         success(PVoidResult())
 
     lazy val parameters: Parser[Vector[PParameter]] =
@@ -307,9 +321,9 @@ object Parser {
 
         val names = ids filter (!PIdnNode.isWildcard(_))
         if (names.isEmpty) {
-          Vector(PUnnamedParameter(t))
+          Vector(PUnnamedParameter(t).at(t))
         } else {
-          ids map (PNamedParameter(_, t))
+          ids map (id => PNamedParameter(id, t).at(id))
         }
       }
 
@@ -350,6 +364,18 @@ object Parser {
 
     lazy val eos: Parser[String] =
       ";"
+
+
+    implicit class PositionedPAstNode[N <: PNode](node: N) {
+      def at(other: PNode): N = {
+        positions.dupPos(other, node)
+      }
+
+      def range(from: PNode, to: PNode): N = {
+        positions.dupRangePos(from, to, node)
+      }
+    }
+
   }
 
 

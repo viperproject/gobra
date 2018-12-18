@@ -22,11 +22,12 @@ object Parser {
     * @param file
     * @return
     *
-    * The following transformations are performed by the parser:
-    *   l1, ..., ln X= r1, ..., rn  ~>  l1, ..., ln = l1 X r1, ..., ln X rn
-    *   -e  ~>  0 - e
-    *   +e  ~>  0 + e
-    *   l != r  ~>  !(l == r)
+    * The following transformations are performed:
+    * e++  ~>  e += 1
+    * e--  ~>  e -= 1
+    * +e   ~>  0 + e
+    * -e   ~>  0 - e
+    *
     */
 
   def parse(file: File): Either[Vector[VerifierError], PProgram] = {
@@ -45,13 +46,16 @@ object Parser {
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
+    lazy val declaration: Parser[PStatement] = ???
+
     /**
       * Statements
       */
 
     lazy val statement: Parser[PStatement] = ???
 
-    lazy val simpleStmt: Parser[PSimpleStmt] = ???
+    lazy val simpleStmt: Parser[PSimpleStmt] =
+      expressionStmt | sendStmt | assignmentWithOp | assignment | shortVarDecl
 
     lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
       simpleStmt | emptyStmt
@@ -65,10 +69,107 @@ object Parser {
     lazy val sendStmt: Parser[PSendStmt] =
       (expression <~ "<-") ~ expression ^^ PSendStmt
 
-    lazy val assignment: Parser[PAssignment] = ???
+    lazy val assignment: Parser[PAssignment] =
+      (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ PAssignment
+
+    lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
+      assignee ~ (assOp <~ "=") ~ expression ^^ PAssignmentWithOp |
+        assignee <~ "++" ^^ (e => PAssignmentWithOp(e, PAddOp().at(e), e).at(e)) |
+        assignee <~ "--" ^^ (e => PAssignmentWithOp(e, PSubOp().at(e), e).at(e))
+
+    lazy val assOp: Parser[PAssOp] =
+      "+" ^^^ PAddOp() |
+        "-" ^^^ PSubOp() |
+        "*" ^^^ PMulOp() |
+        "/" ^^^ PDivOp() |
+        "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
       selectionOrMethodExpr | selection | indexedExp | "&" ~> unaryExp ^^ PDereference
+
+    lazy val shortVarDecl: Parser[PShortVarDecl] =
+      (rep1sep(idnUnknown, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ PShortVarDecl
+
+    lazy val labeledStmt: Parser[PLabeledStmt] =
+      (idnDef <~ ":") ~ statement ^^ PLabeledStmt
+
+    lazy val goStmt: Parser[PGoStmt] =
+      "go" ~> expression ^^ PGoStmt
+
+    lazy val returnStmt: Parser[PReturn] =
+      "return" ~> repsep(expression, ",") ^^ PReturn
+
+    lazy val breakStmt: Parser[PBreak] =
+      "break" ~> idnUse.? ^^ PBreak
+
+    lazy val continueStmt: Parser[PContinue] =
+      "continue" ~> idnUse.? ^^ PContinue
+
+    lazy val gotoStmt: Parser[PGoto] =
+      "goto" ~> idnUse ^^ PGoto
+
+    lazy val deferStmt: Parser[PDeferStmt] =
+      "defer" ~> expression ^^ PDeferStmt
+
+    lazy val block: Parser[PBlock] =
+      "{" ~> repsep(statement, eos) <~ "}" ^^ PBlock
+
+    lazy val ifStmt: Parser[PIfStmt] =
+      ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
+        ifClause ~ ("else" ~> block).? ^^ { case clause ~ els => PIfStmt(Vector(clause), els) }
+
+    lazy val ifClause: Parser[PIfClause] =
+      ("if" ~> (simpleStmt <~ ";").?) ~ expression ~ block ^^ PIfClause
+
+    lazy val exprSwitchStmt: Parser[PExprSwitchStmt] =
+      ("switch" ~> (simpleStmt <~ ";").?) ~ pos(expression.?) ~ ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+        case pre ~ cond ~ clauses =>
+          val cases = clauses collect { case v: PExprSwitchCase => v }
+          val dflt = clauses collect { case v: PExprSwitchDflt => v.body }
+
+          cond.get match {
+            case None => PExprSwitchStmt(pre, PBoolLit(true).at(cond), cases, dflt)
+            case Some(c) => PExprSwitchStmt(pre, c, cases, dflt)
+          }
+      }
+
+    lazy val exprSwitchClause: Parser[PExprSwitchClause] =
+      exprSwitchCase | exprSwitchDflt
+
+    lazy val exprSwitchCase: Parser[PExprSwitchCase] =
+      ("case" ~> rep1sep(expression, ",") <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case guards ~ stmts => PExprSwitchCase(guards, PBlock(stmts.get).at(stmts))
+      }
+
+    lazy val exprSwitchDflt: Parser[PExprSwitchDflt] =
+      "default" ~> ":" ~> pos(repsep(statement, eos))^^ (stmts => PExprSwitchDflt(PBlock(stmts.get).at(stmts)) )
+
+    lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
+      ("switch" ~> (simpleStmt <~ ";").?) ~
+        (idnDef <~ ":=").? ~ (primaryExp <~ "." <~ "(" <~ "type" <~ ")") ~
+        ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+        case pre ~ binder ~ exp ~ clauses =>
+          val cases = clauses collect { case v: PTypeSwitchCase => v }
+          val dflt = clauses collect { case v: PTypeSwitchDflt => v.body }
+
+          PTypeSwitchStmt(pre, exp, binder, cases, dflt)
+      }
+
+    lazy val typeSwitchClause: Parser[PTypeSwitchClause] =
+      typeSwitchCase | typeSwitchDflt
+
+    lazy val typeSwitchCase: Parser[PTypeSwitchCase] =
+      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case guards ~ stmts => PTypeSwitchCase(guards, PBlock(stmts.get).at(stmts))
+      }
+
+    lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
+      "default" ~> ":" ~> pos(repsep(statement, eos))^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)) )
+
+    lazy val selectDflt: Parser[PSelectDflt] =
+      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)) )
+
+    def pos[T](p : => Parser[T]): Parser[PPos[T]] = p ^^ PPos[T]
 
     /**
       * Expressions
@@ -110,8 +211,8 @@ object Parser {
 
 
     lazy val unaryExp: Parser[PExpression] =
-      "+" ~> unaryExp ^^ PUnaryPlus |
-        "-" ~> unaryExp ^^ PUnaryMinus |
+      "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
+        "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
         "*" ~> unaryExp ^^ PReference |
         "&" ~> unaryExp ^^ PDereference |
@@ -298,9 +399,6 @@ object Parser {
     lazy val signature: Parser[(Vector[PParameter], PResult)] =
       parameters ~ result
 
-    lazy val block: Parser[PBlock] =
-      "{" ~> repsep(statement, eos) <~ "}" ^^ PBlock
-
 
     lazy val result: Parser[PResult] =
       parameters ^^ PResultClause |
@@ -332,7 +430,6 @@ object Parser {
 
     lazy val methodRecv: Parser[PMethodRecv] =
       "(" ~> methodRecv <~ ")" | embeddedDecl
-
 
     /**
       * Identifiers

@@ -101,7 +101,10 @@ case class PExpressionStmt(exp: PExpression) extends PSimpleStmt
 
 case class PSendStmt(channel: PExpression, msg: PExpression) extends PSimpleStmt
 
-case class PAssignment(ass: Vector[(PAssignee, PExpression)]) extends PSimpleStmt
+case class PAssignment(left: Vector[PAssignee], right: Vector[PExpression]) extends PSimpleStmt
+
+/* Careful: left is only evaluated once */
+case class PAssignmentWithOp(left: PAssignee, op: PAssOp, right: PExpression) extends PSimpleStmt
 
 sealed trait PAssOp extends PNode
 
@@ -115,13 +118,13 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PShortVarDecl(shorts: Vector[(PIdnUnknown, PExpression)]) extends PSimpleStmt
+case class PShortVarDecl(left: Vector[PIdnUnknown], right: Vector[PExpression]) extends PSimpleStmt
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PStatement
 
-case class PIfClause(pre: PSimpleStmt, condition: PExpression, body: PBlock) extends PNode
+case class PIfClause(pre: Option[PSimpleStmt], condition: PExpression, body: PBlock) extends PNode
 
-case class PExprSwitchStmt(pre: PSimpleStmt, exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Option[PBlock]) extends PStatement
+case class PExprSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, cases: Vector[PExprSwitchCase], dflt: Vector[PBlock]) extends PStatement
 
 sealed trait PExprSwitchClause extends PNode
 
@@ -129,25 +132,25 @@ case class PExprSwitchDflt(body: PBlock) extends PExprSwitchClause
 
 case class PExprSwitchCase(left: Vector[PExpression], body: PBlock) extends PExprSwitchClause
 
-case class PTypeSwitchStmt(pre: PSimpleStmt, exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Option[PBlock]) extends PStatement
+case class PTypeSwitchStmt(pre: Option[PSimpleStmt], exp: PExpression, binder: Option[PIdnDef], cases: Vector[PTypeSwitchCase], dflt: Vector[PBlock]) extends PStatement
 
 sealed trait PTypeSwitchClause extends PNode
 
-case class PTypeSwitchDflt(body: PBlock) extends PExprSwitchClause
+case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
-case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PExprSwitchClause
+case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
 
 case class PWhileStmt(condition: PExpression, body: PBlock) extends PStatement
 
-case class PForStmt(pre: PSimpleStmt, cond: PExpression, post: PSimpleStmt, body: PBlock) extends PStatement
+case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: PSimpleStmt, body: PBlock) extends PStatement
 
 case class PAssForRange(ass: Vector[PAssignee], range: PExpression, body: PBlock) extends PStatement
 
 case class PShortForRange(shorts: Vector[PIdnUnknown], range: PExpression, body: PBlock) extends PStatement
 
-case class PGoStmt(exp: PLazyComputation) extends PStatement
+case class PGoStmt(exp: PExpression) extends PStatement
 
-case class PSelectStmt(clauses: Vector[PSelectClause]) extends PStatement
+case class PSelectStmt(send: Vector[PSelectSend], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PStatement
 
 sealed trait PSelectClause extends PNode
 
@@ -167,12 +170,12 @@ case class PContinue(label: Option[PIdnUse]) extends PStatement
 
 case class PGoto(label: PIdnUse) extends PStatement
 
-case class PDeferStmt(exp: PLazyComputation) extends PStatement
+case class PDeferStmt(exp: PExpression) extends PStatement
 
 // case class PFallThrough() extends PStatement
 
 
-case class PBlock(stmts: Vector[PStatement]) extends PNode
+case class PBlock(stmts: Vector[PStatement]) extends PStatement
 
 /**
   * Expressions
@@ -180,8 +183,6 @@ case class PBlock(stmts: Vector[PStatement]) extends PNode
 
 
 sealed trait PExpression extends PNode
-
-sealed trait PLazyComputation extends PExpression
 
 sealed trait PAssignee extends PExpression
 
@@ -217,11 +218,11 @@ case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
 case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral
 
-case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PExpression with PLazyComputation
+case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PExpression
 
 case class PConversion(typ: PType, arg: PExpression) extends PExpression
 
-case class PCall(callee: PExpression, args: Vector[PExpression]) extends PExpression with PLazyComputation
+case class PCall(callee: PExpression, args: Vector[PExpression]) extends PExpression
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
@@ -242,10 +243,6 @@ case class PReceive(operand: PExpression) extends PUnaryExp
 case class PReference(operand: PExpression) extends PUnaryExp
 
 case class PDereference(operand: PExpression) extends PUnaryExp with PAssignee
-
-case class PUnaryPlus(operand: PExpression) extends PUnaryExp
-
-case class PUnaryMinus(operand: PExpression) extends PUnaryExp
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
@@ -379,4 +376,8 @@ case class PIdnQualifiedUse(name: String, pkg: PPkg) extends PIdnUse
 
 case class PIdnUnqualifiedUse(name: String) extends PIdnUse
 
+/**
+  * Util
+  */
 
+case class PPos[T](get: T) extends PNode

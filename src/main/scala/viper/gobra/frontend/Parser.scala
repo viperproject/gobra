@@ -46,13 +46,79 @@ object Parser {
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
-    lazy val declaration: Parser[PStatement] = ???
+
+    /**
+      * Member
+      */
+
+    lazy val declarationStmt: Parser[PStatement] =
+      (constDecl | varDecl | typeDecl) ^^ PSeq
+
+    lazy val constDecl: Parser[Vector[PConstDecl]] =
+      "const" ~> constSpec ^^ (decl => Vector(decl)) |
+        "const" ~> "(" ~> (constSpec <~ eos).* <~ ")"
+
+    lazy val constSpec: Parser[PConstDecl] =
+      rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
+        case left ~ None => PConstDecl(left, None, Vector.empty)
+        case left ~ Some(typ ~ right) => PConstDecl(left, typ, right)
+      }
+
+    lazy val varDecl: Parser[Vector[PVarDecl]] =
+      "var" ~> varSpec ^^ (decl => Vector(decl)) |
+        "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
+
+    lazy val varSpec: Parser[PVarDecl] =
+      rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+        case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
+        case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
+      } |
+        rep1sep(idnDef, ",") ~ ("=" ~> rep1sep(expression, ",")) ^^ {
+          case left ~ right => PVarDecl(left, None, right)
+        }
+
+    lazy val typeDecl: Parser[Vector[PTypeDecl]] =
+      "type" ~> typeSpec ^^ (decl => Vector(decl)) |
+        "type" ~> "(" ~> (typeSpec <~ eos).* <~ ")"
+
+    lazy val typeSpec: Parser[PTypeDecl] =
+      typeDefSpec | typeAliasSpec
+
+    lazy val typeDefSpec: Parser[PTypeDef] =
+      idnDef ~ typ ^^ PTypeDef
+
+    lazy val typeAliasSpec: Parser[PTypeAlias] =
+      (idnDef <~ "=") ~ typ ^^ PTypeAlias
+
+    lazy val functionDecl: Parser[PFunctionDecl] =
+      ("func" ~> idnDef) ~ signature ~ block.? ^^ {
+        case name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, body)
+      }
+
+    lazy val methodDecl: Parser[PMethodDecl] =
+      ("func" ~> idnDef) ~ receiver ~ signature ~ block.? ^^ {
+        case name ~ receiver ~ sig ~ body => PMethodDecl(name, receiver, sig._1, sig._2, body)
+      }
 
     /**
       * Statements
       */
 
-    lazy val statement: Parser[PStatement] = ???
+
+    lazy val statement: Parser[PStatement] =
+      declarationStmt |
+        goStmt |
+        deferStmt |
+        returnStmt |
+        controlStmt |
+        ifStmt |
+        anyForStmt |
+        exprSwitchStmt |
+        typeSwitchStmt |
+        block |
+        simpleStmt |
+        emptyStmt
+
 
     lazy val simpleStmt: Parser[PSimpleStmt] =
       expressionStmt | sendStmt | assignmentWithOp | assignment | shortVarDecl
@@ -93,11 +159,14 @@ object Parser {
     lazy val labeledStmt: Parser[PLabeledStmt] =
       (idnDef <~ ":") ~ statement ^^ PLabeledStmt
 
+    lazy val returnStmt: Parser[PReturn] =
+      "return" ~> repsep(expression, ",") ^^ PReturn
+
     lazy val goStmt: Parser[PGoStmt] =
       "go" ~> expression ^^ PGoStmt
 
-    lazy val returnStmt: Parser[PReturn] =
-      "return" ~> repsep(expression, ",") ^^ PReturn
+    lazy val controlStmt: Parser[PStatement] =
+      breakStmt | continueStmt | gotoStmt
 
     lazy val breakStmt: Parser[PBreak] =
       "break" ~> idnUse.? ^^ PBreak
@@ -142,7 +211,7 @@ object Parser {
       }
 
     lazy val exprSwitchDflt: Parser[PExprSwitchDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos))^^ (stmts => PExprSwitchDflt(PBlock(stmts.get).at(stmts)) )
+      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PExprSwitchDflt(PBlock(stmts.get).at(stmts)))
 
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
@@ -164,12 +233,59 @@ object Parser {
       }
 
     lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos))^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)) )
+      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
+
+    lazy val selectStmt: Parser[PSelectStmt] =
+      "select" ~> "{" ~> selectClause.* <~ "}" ^^ { clauses =>
+        val send = clauses collect { case v: PSelectSend => v }
+        val rec = clauses collect { case v: PSelectRecv => v }
+        val arec = clauses collect { case v: PSelectAssRecv => v }
+        val srec = clauses collect { case v: PSelectShortRecv => v }
+        val dflt = clauses collect { case v: PSelectDflt => v }
+
+        PSelectStmt(send, rec, arec, srec, dflt)
+      }
+
+    lazy val selectClause: Parser[PSelectClause] =
+      selectDflt | selectShortRecv | selectAssRecv | selectRecv
+
+    lazy val selectRecv: Parser[PSelectRecv] =
+      ("case" ~> receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case receive ~ stmts => PSelectRecv(receive, PBlock(stmts.get).at(stmts))
+      }
+
+    lazy val selectAssRecv: Parser[PSelectAssRecv] =
+      ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case left ~ receive ~ stmts => PSelectAssRecv(left, receive, PBlock(stmts.get).at(stmts))
+      }
+
+    lazy val selectShortRecv: Parser[PSelectShortRecv] =
+      ("case" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case left ~ receive ~ stmts => PSelectShortRecv(left, receive, PBlock(stmts.get).at(stmts))
+      }
+
+    lazy val selectSend: Parser[PSelectSend] =
+      ("case" ~> sendStmt <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+        case send ~ stmts => PSelectSend(send, PBlock(stmts.get).at(stmts))
+      }
 
     lazy val selectDflt: Parser[PSelectDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)) )
+      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)))
 
-    def pos[T](p : => Parser[T]): Parser[PPos[T]] = p ^^ PPos[T]
+    lazy val anyForStmt: Parser[PStatement] =
+      forStmt | assForRange | shortForRange
+
+    lazy val forStmt: Parser[PForStmt] =
+      ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
+        case pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, body)
+        case pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, body)
+      }
+
+    lazy val assForRange: Parser[PAssForRange] =
+      ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^ PAssForRange
+
+    lazy val shortForRange: Parser[PShortForRange] =
+      ("for" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ ("range" ~> expression) ~ block ^^ PShortForRange
 
     /**
       * Expressions
@@ -216,8 +332,11 @@ object Parser {
         "!" ~> unaryExp ^^ PNegation |
         "*" ~> unaryExp ^^ PReference |
         "&" ~> unaryExp ^^ PDereference |
-        "<-" ~> unaryExp ^^ PReceive |
+        receiveExp |
         primaryExp
+
+    lazy val receiveExp: Parser[PReceive] =
+      "<-" ~> unaryExp ^^ PReceive
 
 
     lazy val primaryExp: Parser[PExpression] =
@@ -289,7 +408,7 @@ object Parser {
       nestedIdnUse ~ ("." ~> idnUnqualifiedUse) ^^ PSelectionOrMethodExpr
 
     lazy val methodExpr: Parser[PMethodExpr] =
-      methodRecv ~ ("." ~> idnUnqualifiedUse) ^^ PMethodExpr
+      methodRecvType ~ ("." ~> idnUnqualifiedUse) ^^ PMethodExpr
 
     lazy val selection: Parser[PSelection] =
       primaryExp ~ ("." ~> idnUnqualifiedUse) ^^ PSelection
@@ -347,10 +466,7 @@ object Parser {
       embeddedDecl | fieldDecls
 
     lazy val embeddedDecl: Parser[PEmbeddedDecl] =
-      "*".? ~ namedType ^^ {
-        case None ~ t => PEmbeddedName(t)
-        case _ ~ t => PEmbeddedPointer(t)
-      }
+      methodRecvType ^^ PEmbeddedDecl
 
     lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
@@ -396,6 +512,12 @@ object Parser {
       * Misc
       */
 
+    lazy val receiver: Parser[PReceiver] =
+      "(" ~> idnDef.? ~ methodRecvType <~ ")" ^^ {
+        case None ~ typ => PUnnamedReceiver(typ)
+        case Some(name) ~ typ => PNamedReceiver(name, typ)
+      }
+
     lazy val signature: Parser[(Vector[PParameter], PResult)] =
       parameters ~ result
 
@@ -406,7 +528,7 @@ object Parser {
         success(PVoidResult())
 
     lazy val parameters: Parser[Vector[PParameter]] =
-      "(" ~> (parameters <~ ",".?).? <~ ")" ^^ {
+      "(" ~> (parameterList <~ ",".?).? <~ ")" ^^ {
         case None => Vector.empty
         case Some(ps) => ps
       }
@@ -428,8 +550,12 @@ object Parser {
     lazy val nestedIdnUse: Parser[PIdnUse] =
       "(" ~> nestedIdnUse <~ ")" | idnUse
 
-    lazy val methodRecv: Parser[PMethodRecv] =
-      "(" ~> methodRecv <~ ")" | embeddedDecl
+    lazy val methodRecvType: Parser[PMethodRecvType] =
+      "(" ~> methodRecvType <~ ")" |
+        "*".? ~ namedType ^^ {
+          case None ~ t => PMethodReceiveName(t)
+          case _ ~ t => PMethodReceivePointer(t)
+        }
 
     /**
       * Identifiers
@@ -437,6 +563,7 @@ object Parser {
 
     lazy val idnUnknown: Parser[PIdnUnknown] =
       identifier ^^ PIdnUnknown
+
 
     lazy val idnDef: Parser[PIdnDef] =
       identifier ^^ PIdnDef
@@ -472,6 +599,8 @@ object Parser {
         positions.dupRangePos(from, to, node)
       }
     }
+
+    def pos[T](p: => Parser[T]): Parser[PPos[T]] = p ^^ PPos[T]
 
   }
 

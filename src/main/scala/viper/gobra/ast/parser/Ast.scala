@@ -40,9 +40,9 @@ case class PUnqualifiedImport(pkg: PPkg)
 
 sealed trait PMember extends PNode
 
-case class PConstDecl(id: PIdnDef, typ: Option[PType], exp: PExpression) extends PMember with PStatement
+case class PConstDecl(left: Vector[PIdnDef], typ: Option[PType], right: Vector[PExpression]) extends PMember with PStatement
 
-case class PVarDecl(id: PIdnDef, typ: Option[PType], exp: PExpression) extends PMember with PStatement
+case class PVarDecl(left: Vector[PIdnDef], typ: Option[PType], right: Vector[PExpression]) extends PMember with PStatement
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -53,7 +53,7 @@ case class PFunctionDecl(
 
 case class PMethodDecl(
                         id: PIdnDef,
-                        receiver: PParameter,
+                        receiver: PReceiver,
                         args: Vector[PParameter],
                         result: PResult,
                         body: Option[PBlock]
@@ -61,14 +61,14 @@ case class PMethodDecl(
 
 sealed trait PTypeDecl extends PMember with PStatement {
 
-  def id: PIdnDef
+  def left: PIdnDef
 
-  def typ: PType
+  def right: PType
 }
 
-case class PTypeDef(id: PIdnDef, typ: PType) extends PTypeDecl
+case class PTypeDef(left: PIdnDef, right: PType) extends PTypeDecl
 
-case class PTypeAlias(id: PIdnDef, typ: PType) extends PTypeDecl
+case class PTypeAlias(left: PIdnDef, right: PType) extends PTypeDecl
 
 
 sealed trait PParameter extends PNode
@@ -76,6 +76,12 @@ sealed trait PParameter extends PNode
 case class PNamedParameter(id: PIdnDef, typ: PType) extends PParameter
 
 case class PUnnamedParameter(typ: PType) extends PParameter
+
+sealed trait PReceiver extends PNode
+
+case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType) extends PReceiver
+
+case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 
 
 sealed trait PResult extends PNode
@@ -140,9 +146,7 @@ case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
 case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
 
-case class PWhileStmt(condition: PExpression, body: PBlock) extends PStatement
-
-case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: PSimpleStmt, body: PBlock) extends PStatement
+case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], body: PBlock) extends PStatement
 
 case class PAssForRange(ass: Vector[PAssignee], range: PExpression, body: PBlock) extends PStatement
 
@@ -150,13 +154,15 @@ case class PShortForRange(shorts: Vector[PIdnUnknown], range: PExpression, body:
 
 case class PGoStmt(exp: PExpression) extends PStatement
 
-case class PSelectStmt(send: Vector[PSelectSend], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PStatement
+case class PSelectStmt(send: Vector[PSelectSend], rec: Vector[PSelectRecv], aRec: Vector[PSelectAssRecv], sRec: Vector[PSelectShortRecv], dflt: Vector[PSelectDflt]) extends PStatement
 
 sealed trait PSelectClause extends PNode
 
 case class PSelectDflt(body: PBlock) extends PSelectClause
 
 case class PSelectSend(send: PSendStmt, body: PBlock) extends PSelectClause
+
+case class PSelectRecv(recv: PReceive, body: PBlock) extends PSelectClause
 
 case class PSelectAssRecv(ass: Vector[PAssignee], recv: PReceive, body: PBlock) extends PSelectClause
 
@@ -176,6 +182,8 @@ case class PDeferStmt(exp: PExpression) extends PStatement
 
 
 case class PBlock(stmts: Vector[PStatement]) extends PStatement
+
+case class PSeq(stmts: Vector[PStatement]) extends PStatement
 
 /**
   * Expressions
@@ -228,7 +236,7 @@ case class PCall(callee: PExpression, args: Vector[PExpression]) extends PExpres
 
 case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUnqualifiedUse) extends PExpression with PAssignee
 
-case class PMethodExpr(base: PMethodRecv, id: PIdnUnqualifiedUse) extends PExpression
+case class PMethodExpr(base: PMethodRecvType, id: PIdnUnqualifiedUse) extends PExpression
 
 case class PSelection(base: PExpression, id: PIdnUnqualifiedUse) extends PExpression with PAssignee
 
@@ -332,13 +340,13 @@ case class PFieldDecls(fields: Vector[PFieldDecl]) extends PStructClause
 
 case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
 
-sealed trait PMethodRecv extends PNode
+case class PEmbeddedDecl(typ: PMethodRecvType) extends PStructClause
 
-sealed trait PEmbeddedDecl extends PStructClause with PMethodRecv
+sealed trait PMethodRecvType extends PType
 
-case class PEmbeddedName(typ: PNamedType) extends PEmbeddedDecl
+case class PMethodReceiveName(typ: PNamedType) extends PMethodRecvType
 
-case class PEmbeddedPointer(base: PNamedType) extends PEmbeddedDecl
+case class PMethodReceivePointer(typ: PNamedType) extends PMethodRecvType
 
 // TODO: Named type is not allowed to be an interface
 

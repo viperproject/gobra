@@ -6,6 +6,19 @@
 
 package viper.gobra.reporting
 
+import viper.silver.ast.SourcePosition
+
 sealed trait VerifierError {
-  def formattedMessage: String
+  def position: SourcePosition
+  def message: String
+  def id: String
+
+  def formattedMessage: String =
+    s"$message (${position.line}:${position.column})"
+
+  override def toString: String = formattedMessage
+}
+
+case class ParserError(message: String, position: SourcePosition) extends VerifierError {
+  val id = "parser_error"
 }

@@ -6,14 +6,19 @@
 
 package viper.gobra.ast.parser
 
-import org.bitbucket.inkytonik.kiama.util.Positions
+import java.nio.file.Paths
+
+import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
+import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.parser.PNode.PPkg
+import viper.gobra.reporting.VerifierError
+import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 
 sealed trait PNode extends Product
 
 object PNode {
-  type PPkg = String
+  type PPkg = PIdnPackage
 
 }
 
@@ -22,20 +27,41 @@ case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImportDecl],
                      declarations: Vector[PMember],
-                     positions: Positions
+                     positions: PositionManager
                    ) extends PNode
 
 
-case class PPackageClause() extends PNode
+class PositionManager extends PositionStore with Messaging {
+
+  def translate[E <: VerifierError](
+                                     messages: Messages,
+                                     errorFactory: (String, SourcePosition) => E
+                                   ): Vector[VerifierError] = {
+    messages.sorted map { m =>
+      errorFactory(formatMessage(m), translate(positions.getStart(m.value).get))
+    }
+  }
+
+  def translate(position: Position): SourcePosition = {
+    val filename = position.source.asInstanceOf[FileSource].filename
+    new SourcePosition(
+      Paths.get(filename),
+      LineColumnPosition(position.line, position.column),
+      None
+    )
+  }
+}
+
+case class PPackageClause(id: PIdnDef) extends PNode
 
 
 sealed trait PImportDecl extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg)
+case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
 
-case class PUnqualifiedImport(pkg: PPkg)
+case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 
 
 sealed trait PMember extends PNode
@@ -383,6 +409,10 @@ sealed trait PIdnUse extends PIdnNode
 case class PIdnQualifiedUse(name: String, pkg: PPkg) extends PIdnUse
 
 case class PIdnUnqualifiedUse(name: String) extends PIdnUse
+
+case class PIdnPackage(name: String) extends PIdnNode {
+  def ref: String = ???
+}
 
 /**
   * Util

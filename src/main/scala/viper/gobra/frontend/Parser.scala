@@ -54,6 +54,20 @@ object Parser {
 
   private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
 
+    override val whitespace: Parser[String] =
+      """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*""".r
+
+    //    """(\s|(//.*\s*\n)|/\*(?s:(.*)?)\*/)*""".r
+    // The above regex matches the same whitespace strings as this one:
+    //   (\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*
+    // but (hopefully) avoids potential stack overflows caused by an issue
+    // of Oracle's JDK. Note: the issue was reported for Java 6 and 7, it
+    // appears to not affect Java 8.
+    // See also:
+    //   - http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6882582
+    //   - https://stackoverflow.com/a/31691056
+    //
+
     val reservedWords: Set[String] = Set(
       "break", "default", "func", "interface", "select",
       "case", "defer", "go", "map", "struct",
@@ -111,14 +125,14 @@ object Parser {
       }
 
     lazy val varDecl: Parser[Vector[PVarDecl]] =
-      "var" ~> varSpec ^^ (decl => Vector(decl)) |
-        "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
+    "var" ~> varSpec ^^ (decl => Vector(decl)) |
+      "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
-        case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
-        case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
-      } |
+        rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+          case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
+          case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
+        } |
         (rep1sep(idnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right => PVarDecl(left, None, right)
         }
@@ -227,7 +241,7 @@ object Parser {
       "defer" ~> expression ^^ PDeferStmt
 
     lazy val block: Parser[PBlock] =
-      "{" ~> repsep(statement, eos) <~ "}" ^^ PBlock
+      "{" ~> (statement <~ eos).* <~ "}" ^^ PBlock
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
@@ -252,12 +266,12 @@ object Parser {
       exprSwitchCase | exprSwitchDflt
 
     lazy val exprSwitchCase: Parser[PExprSwitchCase] =
-      ("case" ~> rep1sep(expression, ",") <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> rep1sep(expression, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case guards ~ stmts => PExprSwitchCase(guards, PBlock(stmts.get).at(stmts))
       }
 
     lazy val exprSwitchDflt: Parser[PExprSwitchDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PExprSwitchDflt(PBlock(stmts.get).at(stmts)))
+      "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PExprSwitchDflt(PBlock(stmts.get).at(stmts)))
 
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
@@ -274,12 +288,12 @@ object Parser {
       typeSwitchCase | typeSwitchDflt
 
     lazy val typeSwitchCase: Parser[PTypeSwitchCase] =
-      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case guards ~ stmts => PTypeSwitchCase(guards, PBlock(stmts.get).at(stmts))
       }
 
     lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
+      "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
 
     lazy val selectStmt: Parser[PSelectStmt] =
       "select" ~> "{" ~> selectClause.* <~ "}" ^^ { clauses =>
@@ -296,27 +310,27 @@ object Parser {
       selectDflt | selectShortRecv | selectAssRecv | selectRecv
 
     lazy val selectRecv: Parser[PSelectRecv] =
-      ("case" ~> receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case receive ~ stmts => PSelectRecv(receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectAssRecv: Parser[PSelectAssRecv] =
-      ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case left ~ receive ~ stmts => PSelectAssRecv(left, receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectShortRecv: Parser[PSelectShortRecv] =
-      ("case" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case left ~ receive ~ stmts => PSelectShortRecv(left, receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectSend: Parser[PSelectSend] =
-      ("case" ~> sendStmt <~ ":") ~ pos(repsep(statement, eos)) ^^ {
+      ("case" ~> sendStmt <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case send ~ stmts => PSelectSend(send, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectDflt: Parser[PSelectDflt] =
-      "default" ~> ":" ~> pos(repsep(statement, eos)) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)))
+      "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)))
 
     lazy val anyForStmt: Parser[PStatement] =
       forStmt | assForRange | shortForRange
@@ -360,7 +374,7 @@ object Parser {
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
       precedence4 ~ ("+" ~> precedence5) ^^ PAdd |
         precedence4 ~ ("-" ~> precedence5) ^^ PSub |
-        precedence3
+        precedence5
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
       precedence5 ~ ("*" ~> precedence6) ^^ PMul |
@@ -501,7 +515,7 @@ object Parser {
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
 
     lazy val structType: PackratParser[PStructType] =
-      "struct" ~> "{" ~> repsep(structClause, eos) <~ "}" ^^ { clauses =>
+      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PEmbeddedDecl => v }
         val declss = clauses collect { case v: PFieldDecls => v }
 
@@ -509,7 +523,7 @@ object Parser {
       }
 
     lazy val structClause: PackratParser[PStructClause] =
-      embeddedDecl | fieldDecls
+      fieldDecls | embeddedDecl
 
     lazy val embeddedDecl: PackratParser[PEmbeddedDecl] =
       methodRecvType ^^ PEmbeddedDecl
@@ -520,7 +534,7 @@ object Parser {
       }
 
     lazy val interfaceType: PackratParser[PInterfaceType] =
-      "interface" ~> "{" ~> repsep(interfaceClause, eos) <~ "}" ^^ { clauses =>
+      "interface" ~> "{" ~> (interfaceClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PInterfaceName => v }
         val decls = clauses collect { case v: PMethodSpec => v }
 

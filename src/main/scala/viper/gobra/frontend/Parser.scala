@@ -78,7 +78,6 @@ object Parser {
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
-
     /**
       * Member
       */
@@ -109,7 +108,7 @@ object Parser {
 
     lazy val member: Parser[Vector[PMember]] =
       (functionDecl | methodDecl) ^^ (Vector(_)) |
-        constDecl | varDecl | typeDecl
+      constDecl | varDecl | typeDecl
 
     lazy val declarationStmt: Parser[PStatement] =
       (constDecl | varDecl | typeDecl) ^^ PSeq
@@ -125,14 +124,14 @@ object Parser {
       }
 
     lazy val varDecl: Parser[Vector[PVarDecl]] =
-    "var" ~> varSpec ^^ (decl => Vector(decl)) |
-      "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
+      "var" ~> varSpec ^^ (decl => Vector(decl)) |
+        "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-        rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
-          case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
-          case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
-        } |
+      rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+        case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
+        case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
+      } |
         (rep1sep(idnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right => PVarDecl(left, None, right)
         }
@@ -157,7 +156,7 @@ object Parser {
 
     lazy val methodDecl: Parser[PMethodDecl] =
       ("func" ~> idnDef) ~ receiver ~ signature ~ block.? ^^ {
-        case name ~ receiver ~ sig ~ body => PMethodDecl(name, receiver, sig._1, sig._2, body)
+        case name ~ rcv ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, body)
       }
 
     /**
@@ -351,7 +350,7 @@ object Parser {
       * Expressions
       */
 
-    lazy val expression: PackratParser[PExpression] =
+    lazy val expression: Parser[PExpression] =
       precedence1
 
     lazy val precedence1: PackratParser[PExpression] = /* Left-associative */
@@ -386,7 +385,7 @@ object Parser {
       unaryExp
 
 
-    lazy val unaryExp: PackratParser[PExpression] =
+    lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
@@ -395,13 +394,12 @@ object Parser {
         receiveExp |
         primaryExp
 
-    lazy val receiveExp: PackratParser[PReceive] =
+    lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive
 
 
-    lazy val primaryExp: PackratParser[PExpression] =
-      operand |
-        conversionOrUnaryCall |
+    lazy val primaryExp: Parser[PExpression] =
+      conversionOrUnaryCall |
         conversion |
         call |
         selectionOrMethodExpr |
@@ -409,53 +407,54 @@ object Parser {
         selection |
         indexedExp |
         sliceExp |
-        typeAssertion
+        typeAssertion |
+        operand
 
-    lazy val operand: PackratParser[PExpression] =
+    lazy val operand: Parser[PExpression] =
       literal | namedOperand | "(" ~> expression <~ ")"
 
-    lazy val namedOperand: PackratParser[PNamedOperand] =
+    lazy val namedOperand: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand
 
-    lazy val literal: PackratParser[PLiteral] =
+    lazy val literal: Parser[PLiteral] =
       basicLit | compositeLit | functionLit
 
-    lazy val basicLit: PackratParser[PBasicLiteral] =
+    lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit)))
 
-    lazy val compositeLit: PackratParser[PCompositeLit] =
+    lazy val compositeLit: Parser[PCompositeLit] =
       literalType ~ literalValue ^^ PCompositeLit
 
-    lazy val literalValue: PackratParser[PLiteralValue] =
+    lazy val literalValue: Parser[PLiteralValue] =
       "{" ~> (rep1sep(keyedElement, ",") <~ ",".?).? <~ "}" ^^ {
         case None => PLiteralValue(Vector.empty)
         case Some(ps) => PLiteralValue(ps)
       }
 
-    lazy val keyedElement: PackratParser[PKeyedElement] =
+    lazy val keyedElement: Parser[PKeyedElement] =
       (compositeVal <~ ":").? ~ compositeVal ^^ PKeyedElement
 
-    lazy val compositeVal: PackratParser[PCompositeVal] =
+    lazy val compositeVal: Parser[PCompositeVal] =
       expCompositeLiteral | litCompositeLiteral
 
-    lazy val expCompositeLiteral: PackratParser[PExpCompositeVal] =
+    lazy val expCompositeLiteral: Parser[PExpCompositeVal] =
       expression ^^ PExpCompositeVal
 
-    lazy val litCompositeLiteral: PackratParser[PLitCompositeVal] =
+    lazy val litCompositeLiteral: Parser[PLitCompositeVal] =
       literalValue ^^ PLitCompositeVal
 
-    lazy val functionLit: PackratParser[PFunctionLit] =
+    lazy val functionLit: Parser[PFunctionLit] =
       "func" ~> signature ~ block ^^ { case sig ~ body => PFunctionLit(sig._1, sig._2, body) }
 
-    lazy val conversionOrUnaryCall: PackratParser[PConversionOrUnaryCall] =
+    lazy val conversionOrUnaryCall: Parser[PConversionOrUnaryCall] =
       nestedIdnUse ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
         PConversionOrUnaryCall
       }
 
-    lazy val conversion: PackratParser[PConversion] =
+    lazy val conversion: Parser[PConversion] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ PConversion
 
     lazy val call: PackratParser[PCall] =
@@ -464,10 +463,10 @@ object Parser {
         case base ~ Some(args) => PCall(base, args)
       }
 
-    lazy val selectionOrMethodExpr: PackratParser[PSelectionOrMethodExpr] =
+    lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
       nestedIdnUse ~ ("." ~> idnUnqualifiedUse) ^^ PSelectionOrMethodExpr
 
-    lazy val methodExpr: PackratParser[PMethodExpr] =
+    lazy val methodExpr: Parser[PMethodExpr] =
       methodRecvType ~ ("." ~> idnUnqualifiedUse) ^^ PMethodExpr
 
     lazy val selection: PackratParser[PSelection] =
@@ -487,34 +486,34 @@ object Parser {
       * Types
       */
 
-    lazy val typ: PackratParser[PType] =
+    lazy val typ: Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | namedType
 
-    lazy val typeLit: PackratParser[PTypeLit] =
+    lazy val typeLit: Parser[PTypeLit] =
       pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
 
 
-    lazy val pointerType: PackratParser[PPointerType] =
+    lazy val pointerType: Parser[PPointerType] =
       "*" ~> typ ^^ PPointerType
 
-    lazy val sliceType: PackratParser[PSliceType] =
+    lazy val sliceType: Parser[PSliceType] =
       "[]" ~> typ ^^ PSliceType
 
-    lazy val mapType: PackratParser[PMapType] =
+    lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
 
-    lazy val channelType: PackratParser[PChannelType] =
+    lazy val channelType: Parser[PChannelType] =
       ("chan" ~> "<-") ~> typ ^^ PRecvChannelType |
         ("<-" ~> "chan") ~> typ ^^ PSendChannelType |
         "chan" ~> typ ^^ PBiChannelType
 
-    lazy val functionType: PackratParser[PFunctionType] =
+    lazy val functionType: Parser[PFunctionType] =
       "func" ~> signature ^^ PFunctionType.tupled
 
-    lazy val arrayType: PackratParser[PArrayType] =
+    lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
 
-    lazy val structType: PackratParser[PStructType] =
+    lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PEmbeddedDecl => v }
         val declss = clauses collect { case v: PFieldDecls => v }
@@ -522,18 +521,18 @@ object Parser {
         PStructType(embedded, declss flatMap (_.fields))
       }
 
-    lazy val structClause: PackratParser[PStructClause] =
+    lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl
 
-    lazy val embeddedDecl: PackratParser[PEmbeddedDecl] =
-      methodRecvType ^^ PEmbeddedDecl
+    lazy val embeddedDecl: Parser[PEmbeddedDecl] =
+      embeddedType ^^ PEmbeddedDecl
 
-    lazy val fieldDecls: PackratParser[PFieldDecls] =
+    lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
         PFieldDecls(ids map (id => PFieldDecl(id, t).at(id)))
       }
 
-    lazy val interfaceType: PackratParser[PInterfaceType] =
+    lazy val interfaceType: Parser[PInterfaceType] =
       "interface" ~> "{" ~> (interfaceClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PInterfaceName => v }
         val decls = clauses collect { case v: PMethodSpec => v }
@@ -541,38 +540,38 @@ object Parser {
         PInterfaceType(embedded, decls)
       }
 
-    lazy val interfaceClause: PackratParser[PInterfaceClause] =
+    lazy val interfaceClause: Parser[PInterfaceClause] =
       methodSpec | interfaceName
 
-    lazy val interfaceName: PackratParser[PInterfaceName] =
-      namedType ^^ PInterfaceName
+    lazy val interfaceName: Parser[PInterfaceName] =
+      declaredType ^^ PInterfaceName
 
-    lazy val methodSpec: PackratParser[PMethodSpec] =
+    lazy val methodSpec: Parser[PMethodSpec] =
       idnDef ~ signature ^^ { case id ~ sig => PMethodSpec(id, sig._1, sig._2) }
 
 
-    lazy val namedType: PackratParser[PNamedType] =
+    lazy val namedType: Parser[PNamedType] =
       predeclaredType |
         declaredType
 
-    lazy val predeclaredType: PackratParser[PPredeclaredType] =
+    lazy val predeclaredType: Parser[PPredeclaredType] =
       "bool" ^^^ PBoolType() |
         "int" ^^^ PIntType()
 
-    lazy val declaredType: PackratParser[PDeclaredType] =
+    lazy val declaredType: Parser[PDeclaredType] =
       idnUse ^^ PDeclaredType
 
-    lazy val literalType: PackratParser[PLiteralType] =
+    lazy val literalType: Parser[PLiteralType] =
       sliceType | arrayType | implicitSizeArrayType | mapType | structType
 
-    lazy val implicitSizeArrayType: PackratParser[PImplicitSizeArrayType] =
+    lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
 
     /**
       * Misc
       */
 
-    lazy val receiver: Parser[PReceiver] =
+    lazy val receiver: PackratParser[PReceiver] =
       "(" ~> idnDef.? ~ methodRecvType <~ ")" ^^ {
         case None ~ typ => PUnnamedReceiver(typ)
         case Some(name) ~ typ => PNamedReceiver(name, typ)
@@ -582,21 +581,21 @@ object Parser {
       parameters ~ result
 
 
-    lazy val result: Parser[PResult] =
+    lazy val result: PackratParser[PResult] =
       parameters ^^ PResultClause |
         typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t).at(t)))) |
         success(PVoidResult())
 
-    lazy val parameters: Parser[Vector[PParameter]] =
+    lazy val parameters: PackratParser[Vector[PParameter]] =
       "(" ~> (parameterList <~ ",".?).? <~ ")" ^^ {
         case None => Vector.empty
         case Some(ps) => ps
       }
 
-    lazy val parameterList: Parser[Vector[PParameter]] =
+    lazy val parameterList: PackratParser[Vector[PParameter]] =
       rep1sep(parameterDecl, ",") ^^ Vector.concat
 
-    lazy val parameterDecl: Parser[Vector[PParameter]] =
+    lazy val parameterDecl: PackratParser[Vector[PParameter]] =
       repsep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
 
         val names = ids filter (!PIdnNode.isWildcard(_))
@@ -607,12 +606,20 @@ object Parser {
         }
       }
 
-    lazy val nestedIdnUse: Parser[PIdnUse] =
+    lazy val nestedIdnUse: PackratParser[PIdnUse] =
       "(" ~> nestedIdnUse <~ ")" | idnUse
 
-    lazy val methodRecvType: Parser[PMethodRecvType] =
-      "(" ~> methodRecvType <~ ")" |
+    lazy val embeddedType: PackratParser[PEmbeddedType] =
+      "(" ~> embeddedType <~ ")" |
         "*".? ~ namedType ^^ {
+          case None ~ t => PEmbeddedName(t)
+          case _ ~ t => PEmbeddedPointer(t)
+        }
+
+
+    lazy val methodRecvType: PackratParser[PMethodRecvType] =
+      "(" ~> methodRecvType <~ ")" |
+        "*".? ~ declaredType ^^ {
           case None ~ t => PMethodReceiveName(t)
           case _ ~ t => PMethodReceivePointer(t)
         }
@@ -652,7 +659,10 @@ object Parser {
       */
 
     lazy val eos: Parser[String] =
-      ";" | "\n"
+      ";"
+
+    def eol[T](p: => Parser[T]): Parser[T] =
+      p into (r => eos ^^^ r)
 
 
     implicit class PositionedPAstNode[N <: PNode](node: N) {

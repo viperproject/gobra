@@ -3,9 +3,9 @@ package viper.gobra.frontend
 import viper.gobra.ast.parser.PProgram
 import viper.gobra.ast.internal.Program
 
-object Enricher {
+object Desugar {
 
-  def enrich(program: PProgram, info: TypeInfo): Program = {
+  def desugar(program: PProgram, info: TypeInfo): Program = {
     Program()
   }
 }

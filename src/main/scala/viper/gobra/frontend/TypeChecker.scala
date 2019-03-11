@@ -109,14 +109,17 @@ object TypeChecker {
 
     lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
+
       case tree.parent.pair(id: PIdnUnqualifiedUse, e: PSelectionOrMethodExpr) =>
-        findMember(idExpTipe(e.base), id).map(_._1).getOrElse(UnknownEntity())
+        resolveSelectionOrMethodExpr(e)
+        { case (b,i) => findSelection(idExpTipe(b), i).getOrElse(UnknownEntity()) }
+        { case (b,i) => findMember   (idExpTipe(b), i).getOrElse(UnknownEntity()) }
 
       case tree.parent.pair(id: PIdnUnqualifiedUse, e: PMethodExpr) =>
-        findMember(abstractType(e.base), id).map(_._1).getOrElse(UnknownEntity())
+        findMember(abstractType(e.base), id).getOrElse(UnknownEntity())
 
       case tree.parent.pair(id: PIdnUnqualifiedUse, e: PSelection) =>
-        findMember(tipe(e.base), id).map(_._1).getOrElse(UnknownEntity())
+        findSelection(tipe(e.base), id).getOrElse(UnknownEntity())
 
       case n =>
         lookup(scopedDefenv(n), serialize(n), UnknownEntity())
@@ -124,15 +127,6 @@ object TypeChecker {
 
     import Type._
 
-    private lazy val receiverSetMap: Map[DeclaredT, Set[MethodImpl]] = {
-      tree.root.declarations
-        .collect { case m: PMethodDecl => MethodImpl(m) }.toSet
-        .groupBy { m =>
-          entity(m.decl.receiver.typ.typ.id) match {
-            case NamedType(decl) => DeclaredT(decl)
-          }
-        }
-    }
 
     class MemberSet(private val internal: Map[String, (TypeMember, Vector[MemberPath], Int)]) {
 
@@ -182,10 +176,15 @@ object TypeChecker {
 
       def filter(f: TypeMember => Boolean): MemberSet = new MemberSet( internal.filterKeys( n => f(internal(n)._1)) )
 
+      def methodSet: MemberSet = filter(m => m.isInstanceOf[Method])
+
       def implements(other: MemberSet): Boolean = other.internal.keySet.forall(internal.contains)
+
+      def toMap: Map[String, TypeMember] = internal.mapValues(_._1)
     }
 
     object MemberSet {
+
       def empty: MemberSet = new MemberSet(Map.empty[String, (TypeMember, Vector[MemberPath], Int)])
 
       def union(mss: Vector[MemberSet]): MemberSet = mss.size match {
@@ -193,6 +192,15 @@ object TypeChecker {
         case 1 => mss.head
         case _ => mss.tail.fold(mss.head){ case (l,r) => l union r }
       }
+    }
+
+    sealed trait MemberPath
+
+    object MemberPath {
+      case object Underlying extends MemberPath
+      case object Deref      extends MemberPath
+      case object Ref        extends MemberPath
+      case class  Next(decl: Embbed) extends MemberPath
     }
 
     private lazy val receiverMethodSetMap: Map[Type, MemberSet] = {
@@ -203,6 +211,18 @@ object TypeChecker {
     }
 
     def receiverMethodSet(recv: Type): MemberSet = receiverMethodSetMap(recv)
+
+    lazy val interfaceMethodSet: InterfaceT => MemberSet =
+      attr[InterfaceT, MemberSet] {
+        case InterfaceT(PInterfaceType(es, specs)) =>
+          new MemberSet(specs.map(m => MethodSpec(m))) union MemberSet.union {
+            es.map( e => interfaceMethodSet(
+              entity(e.typ.id) match {
+                case NamedType(PTypeDef(_, t: PInterfaceType)) => InterfaceT(t)
+              }
+            ))
+          }
+      }
 
     lazy val memberSet: Type => MemberSet =
       attr[Type, MemberSet] {
@@ -216,38 +236,32 @@ object TypeChecker {
         case _ => MemberSet.empty
       }
 
-    lazy val promotedMemberSet: Type => MemberSet =
+    def promotedMemberSetGen(transformer: Type => Type): Type => MemberSet = {
+      lazy val rec: Type => MemberSet = promotedMemberSetGen(transformer)
+
       attr[Type, MemberSet] {
 
         case StructT(PStructType(es, fields)) =>
-          new MemberSet(fields map Field) union
-            new MemberSet(es map Embbed) union
-            MemberSet.union(es.map{ e => memberSet(miscTipe(e.typ)).promote(Embbed(e)) })
+          new MemberSet(fields map Field) union new MemberSet(es map Embbed) union
+            MemberSet.union(es.map{ e => memberSet(transformer(miscTipe(e.typ))).promote(Embbed(e)) })
 
-        case DeclaredT(decl)  => promotedMemberSet(abstractType(decl.right)).surface
+        case DeclaredT(decl)  => rec(abstractType(decl.right)).surface
         case inf: InterfaceT  => interfaceMethodSet(inf)
 
         case _ => MemberSet.empty
       }
+    }
 
-    lazy val promotedMemberSetRef: Type => MemberSet =
-      attr[Type, MemberSet] {
+    lazy val promotedMemberSet: Type => MemberSet = promotedMemberSetGen(identity)
 
-        case StructT(PStructType(es, fields)) =>
-          def maybeRef(t: Type): Type = t match {
-            case t: PointerT => t
-            case t           => PointerT(t)
-          }
-
-          new MemberSet(fields map Field) union
-            new MemberSet(es map Embbed) union
-            MemberSet.union(es.map{ e => memberSet(maybeRef(miscTipe(e.typ))).promote(Embbed(e)) })
-
-        case DeclaredT(decl)  => promotedMemberSetRef(abstractType(decl.right)).surface
-        case inf: InterfaceT  => interfaceMethodSet(inf)
-
-        case _ => MemberSet.empty
+    lazy val promotedMemberSetRef: Type => MemberSet = {
+      def maybeRef(t: Type): Type = t match {
+        case _: PointerT => t
+        case _           => PointerT(t)
       }
+
+      promotedMemberSetGen(maybeRef)
+    }
 
     lazy val selectionSet: Type => MemberSet =
       attr[Type, MemberSet] {
@@ -265,160 +279,12 @@ object TypeChecker {
 
     def findSelection(t: Type, id: PIdnUnqualifiedUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
 
-    // def findMember(t: Type, id: PIdnUnqualifiedUse): Option[TypeMember] = memberSet(t).lookup(id.name)
-
-    def receiverSet(decl: DeclaredT): Set[MethodImpl] = receiverSetMap(decl)
-
-    lazy val interfaceMethodSet: InterfaceT => MemberSet =
-      attr[InterfaceT, MemberSet] {
-        case InterfaceT(PInterfaceType(es, specs)) =>
-          new MemberSet(specs.map(m => MethodSpec(m))) union MemberSet.union {
-            es.map( e => interfaceMethodSet(
-              entity(e.typ.id) match {
-                case NamedType(PTypeDef(_, t: PInterfaceType)) => InterfaceT(t)
-              }
-            ))
-          }
-      }
-
-    lazy val interfaceSpec: PInterfaceType => PIdnUnqualifiedUse => Option[MethodSpec] =
-      paramAttr[PInterfaceType, PIdnUnqualifiedUse, Option[MethodSpec]] { inf => id =>
-          lookup(scopedDefenv(inf), serialize(id), UnknownEntity()) match {
-            case m: MethodSpec => Some(m)
-            case _: UnknownEntity =>
-              inf.embedded.flatMap{ e =>
-                interfaceSpec(
-                  entity(e.typ.id) match {
-                    case NamedType(PTypeDef(_, t: PInterfaceType)) => t
-                  }
-                )(id)
-              }.headOption
-          }
-      }
-
-    def findInterfaceSpec(inf: PInterfaceType, id: PIdnUnqualifiedUse): Option[MethodSpec] =
-      interfaceSpec(inf)(id)
-
-    private lazy val underlyingTypeWithDepth: Type => (Type, Int) =
-      attr[Type, (Type, Int)] {
-
-        case DeclaredT(decl) =>
-          val (t, c) = underlyingTypeWithDepth(abstractType(decl.right))
-          (t, c+1)
-
-        case t => (t, 0)
-      }
-
-    private def underlyingType(t: Type): Type = underlyingTypeWithDepth(t)._1
-
-    private def underlyingTypeWithPath(t: Type): (Type, Vector[MemberPath]) = {
-      val (ut, c) = underlyingTypeWithDepth(t)
-      (ut, (1 to c).map(_ => MemberPath.Underlying).toVector)
-    }
-
-    private lazy val localMethod: Type => PIdnUnqualifiedUse => Option[(TypeMember, Vector[MemberPath])] =
-      paramAttr[Type, PIdnUnqualifiedUse, Option[(TypeMember, Vector[MemberPath])]] { base => id => base match {
-
-          case t: DeclaredT =>
-            receiverSet(t).find(_.decl.id.name == id.name).map{ m =>
-              if (isRefMethod(m.decl)) (m, Vector(MemberPath.Ref)) else (m, Vector.empty)
-            }
-
-          case PointerT(t: DeclaredT) =>
-            receiverSet(t).find(_.decl.id.name == id.name).map{ m =>
-              if (isRefMethod(m.decl)) (m, Vector.empty) else (m, Vector(MemberPath.Deref))
-            }
-
-          case t => underlyingTypeWithPath(t) match {
-
-            case (InterfaceT(decl), path) =>
-              findInterfaceSpec(decl, id).map{ (_, path) }
-
-            case _ => None
-          }
-        }
-      }
-
-
-    def findField(t: PStructType, id: PIdnUnqualifiedUse): Option[Field] =
-      lookup(scopedDefenv(t), serialize(id), UnknownEntity()) match {
-        case f: Field => Some(f)
-        case _        => None
-      }
-
-    private lazy val localField: Type => PIdnUnqualifiedUse => Option[(TypeMember, Vector[MemberPath])] =
-      paramAttr[Type, PIdnUnqualifiedUse, Option[(TypeMember, Vector[MemberPath])]] { base => id =>
-        underlyingTypeWithPath(base) match {
-
-          case (StructT(decl), path) =>
-            findField(decl, id).map{ (_, path) }
-
-          case (PointerT(t), path) => underlyingTypeWithPath(t) match {
-            case (StructT(decl), path2) =>
-              findField(decl, id).map { (_, (path :+ MemberPath.Deref) ++ path2) }
-
-            case _ => None
-          }
-
-          case _ => None
-        }
-      }
+    def findMember(t: Type, id: PIdnUnqualifiedUse): Option[TypeMember] = memberSet(t).lookup(id.name)
 
     def isRefMethod(m: PMethodDecl): Boolean = m.receiver.typ match {
       case _: PMethodReceiveName    => false
       case _: PMethodReceivePointer => true
     }
-
-    private lazy val findMember: Type => PIdnUnqualifiedUse => Option[(TypeMember, Vector[MemberPath])] =
-      paramAttr[Type, PIdnUnqualifiedUse, Option[(TypeMember, Vector[MemberPath])]] { t => id =>
-          localField(t)(id) \> localMethod(t)(id) \> {
-            val strippedT = t match {
-              case PointerT(typ) => typ
-              case typ => typ
-            }
-
-            underlyingTypeWithPath(strippedT) match {
-              case (StructT(decl), path) =>
-                val options = decl.embedded.flatMap {
-                  case e@ PEmbeddedDecl(PEmbeddedName(t)) =>
-                    findMember(abstractType(t))(id).map {
-                      case (m, path2) =>
-                        (m, (path :+ MemberPath.Next(Embbed(e))) ++ path2)
-                    }
-
-                  case e@ PEmbeddedDecl(PEmbeddedPointer(t)) =>
-                    findMember(PointerT(abstractType(t)))(id).map {
-                      case (m, path2) =>
-                        (m, (path :+ MemberPath.Next(Embbed(e))) ++ path2)
-                    }
-                }
-
-                if (options.isEmpty) {
-                  None
-                } else {
-                  Some(
-                    options.map {
-                      case (m, p) => (p.collect{ case x: MemberPath.Next => x }.size, (m, p))
-                    }.minBy(_._1)._2
-                  )
-                }
-
-              case _ => None
-            }
-          }
-      }
-
-    sealed trait MemberPath
-
-    object MemberPath {
-      case object Underlying extends MemberPath
-      case object Deref      extends MemberPath
-      case object Ref        extends MemberPath
-      case class  Next(decl: Embbed) extends MemberPath
-    }
-
-    def findMember(base: Type.Type, id: PIdnUnqualifiedUse): Option[(TypeMember, Vector[MemberPath])] =
-      findMember(base)(id)
 
     lazy val abstractType: PType => Type =
       attr[PType, Type] {
@@ -574,43 +440,65 @@ object TypeChecker {
         case PConversion(t, _) => abstractType(t)
 
         case PCall(callee, paras) => tipe(callee) match {
-          case FunctionT(args, res) if assignable(args, paras map tipe) => res
+          case FunctionT(args, res) if assignableTo(args, paras map tipe) => res
           case _ => UnknownType
         }
 
-        case n@ PConversionOrUnaryCall(base, arg) =>
+        case PConversionOrUnaryCall(base, arg) =>
           idExpTipe(base) match {
-            case t: DeclaredT => t // conversion
+            case t: DeclaredT => t // conversion // TODO: add additional constraints
             case FunctionT(args, res) // unary call
-              if args.size == 1 && assignable(args.head, tipe(arg)) => res
+              if args.size == 1 && assignableTo(args.head, tipe(arg)) => res
             case _ => UnknownType
           }
 
-        case PSelectionOrMethodExpr(base, id) =>
-          (entity(base), findMember(idExpTipe(base), id).map{ case (m, _) => (m, memberTipe(m)) }) match {
-
-          case (_: NamedType, Some((MethodImpl(m), FunctionT(args, res)))) if !isRefMethod(m) => // method expr
-            FunctionT(miscTipe(m.receiver) +: args, res)
-
-          case (_, Some((_, t))) => t // selection
-
-          case _ => UnknownType // member not found
-        }
+        case n: PSelectionOrMethodExpr =>
+          resolveSelectionOrMethodExpr(n)
+          { case (base, id) => findSelection(idExpTipe(base), id) }
+          { case (base, id) => findMember   (idExpTipe(base), id) }
+            .map(memberTipe).getOrElse(UnknownType)
 
         case PMethodExpr(base, id) =>
-          val baseT = abstractType(base)
-          findMember(baseT, id).map{ case (m, _) => (m, memberTipe(m)) } match {
-            case Some((MethodImpl(m), FunctionT(args, res)))
-              if miscTipe(m.receiver) == baseT =>
-          }
-          findMember(abstractType(base), id).map{ case (m, _) => memberTipe(m) }.getOrElse(UnknownType)
+          findMember(abstractType(base), id).map(memberTipe).getOrElse(UnknownType)
 
         case PSelection(base, id) =>
-          findMember(tipe(base), id).map{ case (m, _) => memberTipe(m) }.getOrElse(UnknownType)
+          findSelection(tipe(base), id).map(memberTipe).getOrElse(UnknownType)
+
+        case PIndexedExp(base, index) => (tipe(base), tipe(index)) match {
+          case (          ArrayT(_, elem), IntT) => elem // TODO: constant indexes have to be within range
+          case (PointerT(ArrayT(_, elem)), IntT) => elem
+          case (SliceT(elem), IntT) => elem
+          case (MapT(key, elem), indexT) if assignableTo(indexT, key) => elem
+          case _ => UnknownType
+        }
+
+        case PSliceExp(base, low, high, cap) => (tipe(base), tipe(low), tipe(high), cap map tipe) match {
+          case (          ArrayT(_, elem), IntT, IntT, None | Some(IntT)) if addressable(base) => SliceT(elem)
+          case (PointerT(ArrayT(_, elem)), IntT, IntT, None | Some(IntT)) => SliceT(elem)
+          case (SliceT(elem), IntT, IntT, None | Some(IntT)) => SliceT(elem)
+          case _ => UnknownType
+        }
+
+        case PTypeAssertion(base, typ) => abstractType(typ) // TODO: add additional constraints
+
+        case PReceive(e) => tipe(e) match {
+          case ChannelT(elem, ChannelModus.Bi | ChannelModus.Recv) => elem
+          case _ => UnknownType
+        }
+
+        case PReference(exp) if addressable(exp) => PointerT(tipe(exp))
+
+        case PDereference(exp) => tipe(exp) match {
+          case PointerT(t) => t
+          case _ => UnknownType
+        }
+
 
         case _ => UnknownType
 
       }
+
+
 
     lazy val memberTipe: TypeMember => Type =
       attr[TypeMember, Type] {
@@ -631,6 +519,85 @@ object TypeChecker {
 
     lazy val exptipe: PExpression => Type = ???
 
+
+
+    def resolveSelectionOrMethodExpr[T](n: PSelectionOrMethodExpr)
+                                       (selection: (PIdnUse, PIdnUnqualifiedUse) => T)
+                                       (methodExp: (PIdnUse, PIdnUnqualifiedUse) => T): T =
+      entity(n.base) match {
+        case _: NamedType => methodExp(n.base, n.id)
+        case _            => selection(n.base, n.id)
+      }
+
+    def assignableTo(self: Vector[Type], other: Vector[Type]): Boolean =
+      self.size == other.size && self.zip(other).forall{ case (l,r) => assignableTo(l,r)}
+
+    def assignableTo(self: Type.Type, other: Type.Type): Boolean = assignableToTypes(self)(other)
+
+    lazy val assignableToTypes: Type => Type => Boolean =
+      paramAttr[Type, Type, Boolean] { left => right => (left, right) match {
+        case (l, r) if identicalTypes(l)(r) => true
+        case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
+                    && identicalTypes(underlyingType(l))(underlyingType(r)) => true
+        // TODO: interface is implemented
+        case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le)(re) => true
+        case (NilType, _: PointerT | _: FunctionT | _: SliceT | _: MapT | _: ChannelT | _: InterfaceT) => true
+        case _ => false
+      }}
+
+    lazy val methodSubSet: Type => InterfaceT => Boolean =
+      paramAttr[Type, InterfaceT, Boolean] { left => right =>
+        memberSet(left).methodSet.implements(interfaceMethodSet(right))
+      }
+
+    lazy val underlyingType: Type => Type =
+      attr[Type, Type] {
+        case DeclaredT(t: PTypeDecl) => abstractType(t.right)
+        case t => t
+      }
+
+    lazy val identicalTypes: Type => Type => Boolean =
+      paramAttr[Type, Type, Boolean] { left => right => (left, right) match {
+
+        case (DeclaredT(l), DeclaredT(r)) => l == r
+
+        case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l)(r)
+
+        case (SliceT(l), SliceT(r)) => identicalTypes(l)(r)
+
+        case (StructT(PStructType(les, lfs)), StructT(PStructType(res, rfs))) =>
+          les.size == res.size && les.zip(res).forall{
+            case (l,r) => identicalTypes(miscTipe(l.typ))(miscTipe(r.typ))
+          } && lfs.size == rfs.size && lfs.zip(rfs).forall{
+            case (l,r) => l.id.name == r.id.name && identicalTypes(abstractType(l.typ))(abstractType(r.typ))
+          }
+
+        case (l: InterfaceT, r: InterfaceT) =>
+          val lm = interfaceMethodSet(l).toMap
+          val rm = interfaceMethodSet(r).toMap
+          lm.keySet.forall( k => rm.get(k).exists( m => identicalTypes(memberTipe(m))(memberTipe(lm(k))) ) ) &&
+            rm.keySet.forall( k => lm.get(k).exists( m => identicalTypes(memberTipe(m))(memberTipe(rm(k))) ) )
+
+        case (PointerT(l), PointerT(r)) => identicalTypes(l)(r)
+
+        case (FunctionT(larg, lr), FunctionT(rarg, rr)) =>
+          larg.size == rarg.size && larg.zip(rarg).forall{
+            case (l, r) => identicalTypes(l)(r)
+          } && identicalTypes(lr)(rr)
+
+        case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk)(rk) && identicalTypes(le)(re)
+
+        case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le)(re) && lm == rm
+
+        case (InternalTupleT(lv), InternalTupleT(rv)) =>
+          lv.size == rv.size && lv.zip(rv).forall{
+            case (l, r) => identicalTypes(l)(r)
+          }
+
+        case _ => false
+      }}
+
+    def addressable(e: PExpression): Boolean = ???
 
   }
 
@@ -694,7 +661,7 @@ object TypeChecker {
 
     case class SliceT(elem: Type) extends Type
 
-    case class MapT(elem: Type, key: Type) extends Type
+    case class MapT(key: Type, elem: Type) extends Type
 
     case class PointerT(elem: Type) extends Type
 
@@ -716,10 +683,7 @@ object TypeChecker {
 
     case class InternalTupleT(ts: Vector[Type]) extends Type
 
-    def assignable(self: Vector[Type], other: Vector[Type]): Boolean =
-      self.size == other.size && self.zip(other).forall{ case (l,r) => assignable(l,r)}
 
-    def assignable(self: Type, other: Type): Boolean = self == other
 
   }
 

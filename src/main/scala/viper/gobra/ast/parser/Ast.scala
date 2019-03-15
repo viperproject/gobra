@@ -225,7 +225,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PStatement
   */
 
 
-sealed trait PExpression extends PNode
+sealed trait PExpression extends PNode with Typable
 
 sealed trait PAssignee extends PExpression
 
@@ -326,7 +326,7 @@ case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
   * Types
   */
 
-sealed trait PType extends PNode
+sealed trait PType extends PNode with Typable
 
 sealed trait PLiteralType extends PNode
 
@@ -382,7 +382,7 @@ case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
 
 case class PEmbeddedDecl(typ: PEmbeddedType) extends PStructClause
 
-sealed trait PEmbeddedType extends PNode with PIdnNamespace with NonExpression {
+sealed trait PEmbeddedType extends PNode with PDefLike with NonExpression {
   def typ: PNamedType
   def name: String = typ.name
 }
@@ -417,7 +417,7 @@ case class PMethodSpec(id: PIdnDef, args: Vector[PParameter], result: PResult) e
   * Identifiers
   */
 
-sealed trait PIdnNode extends PNode {
+sealed trait PIdnNode extends PNode with Typable {
   def name: String
 }
 
@@ -425,13 +425,15 @@ object PIdnNode {
   def isWildcard(id: PIdnNode): Boolean = id.name.equals("_")
 }
 
-case class PIdnUnknown(name: String) extends PIdnNode
+trait PDefLike extends PIdnNode
 
-trait PIdnNamespace extends PIdnNode
+trait PUseLike extends PIdnNode
 
-case class PIdnDef(name: String) extends PIdnNode with PIdnNamespace
+case class PIdnUnknown(name: String) extends PIdnNode with PDefLike with PUseLike
 
-sealed trait PIdnUse extends PIdnNode
+case class PIdnDef(name: String) extends PIdnNode with PDefLike
+
+sealed trait PIdnUse extends PIdnNode with PUseLike
 
 case class PIdnQualifiedUse(name: String, pkg: PPkg) extends PIdnUse
 
@@ -446,3 +448,5 @@ case class PIdnPackage(name: String) extends PIdnNode {
   */
 
 case class PPos[T](get: T) extends PNode
+
+sealed trait Typable extends PNode

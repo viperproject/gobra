@@ -249,7 +249,7 @@ case class PNilLit() extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
-case class PLiteralValue(elems: Vector[(PKeyedElement)]) extends PNode
+case class PLiteralValue(elems: Vector[PKeyedElement]) extends PNode
 
 case class PKeyedElement(key: Option[PCompositeVal], exp: PCompositeVal) extends PNode
 
@@ -372,7 +372,10 @@ case class PRecvChannelType(elem: PType) extends PChannelType
 
 
 
-case class PStructType(embedded: Vector[PEmbeddedDecl], fields: Vector[PFieldDecl]) extends PTypeLit with PLiteralType with PScope
+case class PStructType(clauses: Vector[PStructClause]) extends PTypeLit with PLiteralType with PScope {
+  lazy val embedded: Vector[PEmbeddedDecl] = clauses.collect{ case x: PEmbeddedDecl => x }
+  def fields: Vector[PFieldDecl]=  clauses.collect{ case x: PFieldDecls => x.fields }.flatten
+}
 
 sealed trait PStructClause extends PNode
 

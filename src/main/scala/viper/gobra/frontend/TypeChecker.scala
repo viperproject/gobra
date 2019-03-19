@@ -263,7 +263,7 @@ object TypeChecker {
       case e: PExpression => wellDefExpr.valid(e)
       case t: PType       => wellDefType.valid(t)
       case i: PIdnNode    => wellDefID.valid(i)
-      case _ => true
+      case n: PNode       => childrenWellDefined(n)
     }
 
     def createWellDef[T <: PNode](check: T => Messages): WellDefinedness[T] =
@@ -406,7 +406,37 @@ object TypeChecker {
       */
 
     private implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef{
-      ???
+
+      case _: PNamedOperand => noMessages
+      case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
+
+      case n@ PCompositeLit(t, lit) =>
+        val bt = t match {
+          case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
+          case t: PType => typeType(t)
+        }
+
+        literalAssignableTo.errors(lit, bt)(n)
+
+      case _: PFunctionLit => noMessages
+
+      case n@ PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
+
+      case n@ PCall(base, paras) => exprType(base) match {
+        case FunctionT(args, _) => multiAssignableTo.errors(paras map exprType, args)(n)
+        case t => message(n, s"type error: got $t but expected function type")
+      }
+
+      case n: PConversionOrUnaryCall =>
+        resolveConversionOrUnaryCall(n){
+          case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
+        } {
+          case (id, arg) => idType(id) match {
+            case FunctionT(args, _) => multiAssignableTo.errors(Vector(exprType(arg)), args)(n)
+            case t => message(n, s"type error: got $t but expected function type")
+          }
+        }
+
     }
 
     private lazy val exprType: Typing[PExpression] = createTyping{
@@ -608,6 +638,23 @@ object TypeChecker {
     def createBinaryProperty[A](name: String)(check: A => Boolean): Property[A] =
       createFlatProperty((n: A) => s"got $n that is not $name")(check)
 
+    /**
+      * Convertibility
+      */
+
+      // TODO: check where convertibility and where assignability is required.
+
+    lazy val convertibleTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
+      case (left, right) => s"$left is not convertible to $right"
+    } {
+      case (left, right) if assignableTo(left, right) => true
+      case (left, right) => (underlyingType(left), underlyingType(right)) match {
+        case (l, r) if identicalTypes(l, r) => true
+        case (PointerT(l), PointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
+                                           !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
+        case _ => false
+      }
+    }
 
     /**
       * Comparability
@@ -643,8 +690,6 @@ object TypeChecker {
     case object MultiAssign extends AssignModi
     case object ErrorAssign extends AssignModi
 
-
-
     def assignModi(left: Int, right: Int): AssignModi =
       if (left > 0 && left == right) SingleAssign
       else if (left > right && right == 1) MultiAssign
@@ -672,6 +717,7 @@ object TypeChecker {
     lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
       case (left, right) => s"$left is not assignable to $right"
     }{
+      case (_: InternalTupleT, _) => false
       case (l, r) if identicalTypes(l, r) => true
       case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
@@ -692,6 +738,89 @@ object TypeChecker {
       case (IntT, PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() ) => true
       case _ => false
     }
+
+    lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)]{
+      case (PExpCompositeVal(exp), t) => assignableTo.result(exprType(exp), t)
+      case (PLitCompositeVal(lit), t) => literalAssignableTo.result(lit, t)
+    }
+
+    lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)]{
+      case (PLiteralValue(elems), right) =>
+        underlyingType(right) match {
+          case StructT(decl) =>
+            if (elems.isEmpty) {
+              successProp
+            } else if (elems.exists(_.key.nonEmpty)) {
+              val tmap = (
+                decl.embedded.map(e => (e.typ.name, miscTipe(e.typ))) ++
+                  decl.fields.map(f => (f.id.name, typeType(f.typ)))
+                ).toMap
+
+              failedProp("for struct literals either all or none elements must be keyed"
+                , !elems.forall(_.key.nonEmpty)) and
+              propForall(elems, createProperty[PKeyedElement]{ e => e.key.map{
+                case PExpCompositeVal(PNamedOperand(id)) if tmap.contains(id.name) =>
+                  compositeValAssignableTo.result(e.exp, tmap(id.name))
+
+                case v => failedProp(s"got $v but expected field name")
+              }.getOrElse(successProp)})
+            } else if (elems.size == decl.embedded.size + decl.fields.size) {
+              propForall(
+                elems.map(_.exp).zip(decl.clauses.flatMap{
+                  case PEmbeddedDecl(typ) => Vector(miscTipe(typ))
+                  case PFieldDecls(fields) => fields map (f => typeType(f.typ))
+                }),
+                compositeValAssignableTo
+              )
+            } else {
+              failedProp("number of arguments does not match structure")
+            }
+
+          case ArrayT(len, elem) =>
+            failedProp("expected integer as keys for array literal"
+              , elems.exists(_.key.exists{
+                case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
+                case _ => true
+              })) and
+            propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
+            failedProp("found overlapping or out-of-bound index arguments"
+              , {
+                val idxs = constantIndexes(elems)
+                idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0 && i < len)
+              })
+
+          case SliceT(elem) =>
+            failedProp("expected integer as keys for slice literal"
+              , elems.exists(_.key.exists{
+                case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
+                case _ => true
+              })) and
+              propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
+              failedProp("found overlapping or out-of-bound index arguments"
+                , {
+                  val idxs = constantIndexes(elems)
+                  idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0)
+                })
+
+          case MapT(key, elem) =>
+            failedProp("for map literals all elements must be keyed"
+              , elems.exists(_.key.isEmpty)) and
+            propForall(elems.flatMap(_.key), compositeValAssignableTo.before((c: PCompositeVal) => (c, key))) and
+              propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem)))
+
+          case t => failedProp(s"cannot assign literal to $t")
+        }
+    }
+
+    def constantIndexes(vs: Vector[PKeyedElement]): List[BigInt] =
+      vs.foldLeft(List(-1: BigInt)){
+        case (last :: rest, PKeyedElement(Some(PExpCompositeVal(exp)), _)) =>
+          intConstantEval(exp).getOrElse(last + 1) :: last :: rest
+
+        case (last :: rest, _) => last + 1 :: last :: rest
+
+        case _ => violation("left argument must be non-nil element")
+      }.tail
 
     /**
       * Addressability
@@ -737,7 +866,9 @@ object TypeChecker {
 
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
 
-      case (StructT(PStructType(les, lfs)), StructT(PStructType(res, rfs))) =>
+      case (StructT(l), StructT(r)) =>
+        val (les, lfs, res, rfs) = (l.embedded, l.fields, r.embedded, r.fields)
+
         les.size == res.size && les.zip(res).forall{
           case (l,r) => identicalTypes(miscTipe(l.typ), miscTipe(r.typ))
         } && lfs.size == rfs.size && lfs.zip(rfs).forall{
@@ -802,6 +933,26 @@ object TypeChecker {
 
         case tree.parent(p) => typeSwitchConstraintsLookup(id)(p)
       }}
+
+    /**
+      * Resolver
+      */
+
+    def resolveConversionOrUnaryCall[T](n: PConversionOrUnaryCall)
+                                       (conversion: (PIdnUse, PExpression) => T)
+                                       (unaryCall:  (PIdnUse, PExpression) => T): T =
+      entity(n.base) match {
+        case _: NamedType => conversion(n.base, n.arg)
+        case _            =>  unaryCall(n.base, n.arg)
+      }
+
+    def resolveSelectionOrMethodExpr[T](n: PSelectionOrMethodExpr)
+                                       (selection: (PIdnUse, PIdnUnqualifiedUse) => T)
+                                       (methodExp: (PIdnUse, PIdnUnqualifiedUse) => T): T =
+      entity(n.base) match {
+        case _: NamedType => methodExp(n.base, n.id)
+        case _            => selection(n.base, n.id)
+      }
 
     /**
       * Method and Selection Set
@@ -924,7 +1075,8 @@ object TypeChecker {
 
       attr[Type, MemberSet] {
 
-        case StructT(PStructType(es, fields)) =>
+        case StructT(t) =>
+          val (es, fields) = (t.embedded, t.fields)
           new MemberSet(fields map Field) union new MemberSet(es map Embbed) union
             MemberSet.union(es.map{ e => memberSet(transformer(miscTipe(e.typ))).promote(Embbed(e)) })
 
@@ -1057,13 +1209,7 @@ object TypeChecker {
 
 
 
-    def resolveSelectionOrMethodExpr[T](n: PSelectionOrMethodExpr)
-                                       (selection: (PIdnUse, PIdnUnqualifiedUse) => T)
-                                       (methodExp: (PIdnUse, PIdnUnqualifiedUse) => T): T =
-      entity(n.base) match {
-        case _: NamedType => methodExp(n.base, n.id)
-        case _            => selection(n.base, n.id)
-      }
+
 
 
 

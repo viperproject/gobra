@@ -514,12 +514,7 @@ object Parser {
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ { clauses =>
-        val embedded = clauses collect { case v: PEmbeddedDecl => v }
-        val declss = clauses collect { case v: PFieldDecls => v }
-
-        PStructType(embedded, declss flatMap (_.fields))
-      }
+      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
 
     lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl

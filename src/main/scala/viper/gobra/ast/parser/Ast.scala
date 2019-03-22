@@ -14,22 +14,25 @@ import viper.gobra.ast.parser.PNode.PPkg
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
+// TODO: comment describing identifier positions (resolution)
+
 
 sealed trait PNode extends Product
 
 object PNode {
-  type PPkg = PIdnPackage
+  type PPkg = String
 
 }
 
 sealed trait PScope extends PNode
+sealed trait PUnorderedScope extends PScope
 
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImportDecl],
                      declarations: Vector[PMember],
                      positions: PositionManager
-                   ) extends PNode with PScope
+                   ) extends PNode with PUnorderedScope
 
 
 class PositionManager extends PositionStore with Messaging {
@@ -67,20 +70,18 @@ case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 
 sealed trait PMember extends PNode
 
-sealed trait PLocalDeclaration extends PNode
+sealed trait PTopLevel extends PMember
 
-sealed trait NonExpression extends PNode
+case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PMember with PStatement
 
-case class PConstDecl(left: Vector[PIdnDef], typ: Option[PType], right: Vector[PExpression]) extends PMember with PStatement with PLocalDeclaration
-
-case class PVarDecl(left: Vector[PIdnDef], typ: Option[PType], right: Vector[PExpression]) extends PMember with PStatement with PLocalDeclaration
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PMember with PStatement
 
 case class PFunctionDecl(
                           id: PIdnDef,
                           args: Vector[PParameter],
                           result: PResult,
                           body: Option[PBlock]
-                        ) extends PMember with PScope with PLocalDeclaration
+                        ) extends PMember with PTopLevel with PScope
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -88,42 +89,19 @@ case class PMethodDecl(
                         args: Vector[PParameter],
                         result: PResult,
                         body: Option[PBlock]
-                      ) extends PMember with PScope
+                      ) extends PMember with PTopLevel with PScope
 
-sealed trait PTypeDecl extends PMember with PStatement with PLocalDeclaration {
+sealed trait PTypeDecl extends PMember with PStatement {
 
   def left: PIdnDef
 
   def right: PType
 }
 
-case class PTypeDef(left: PIdnDef, right: PType) extends PTypeDecl
+case class PTypeDef(right: PType, left: PIdnDef) extends PTypeDecl
 
-case class PTypeAlias(left: PIdnDef, right: PType) extends PTypeDecl
+case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
 
-
-sealed trait PParameter extends PNode with NonExpression {
-  def typ: PType
-}
-
-case class PNamedParameter(id: PIdnDef, typ: PType) extends PParameter
-
-case class PUnnamedParameter(typ: PType) extends PParameter
-
-sealed trait PReceiver extends PNode with NonExpression {
-  def typ: PMethodRecvType
-}
-
-case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType) extends PReceiver
-
-case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
-
-
-sealed trait PResult extends PNode with NonExpression
-
-case class PVoidResult() extends PResult
-
-case class PResultClause(outs: Vector[PParameter]) extends PResult
 
 /**
   * Statements
@@ -159,7 +137,7 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PShortVarDecl(left: Vector[PIdnUnknown], right: Vector[PExpression]) extends PSimpleStmt
+case class PShortVarDecl(right: Vector[PExpression], left: Vector[PIdnUnk]) extends PSimpleStmt
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PStatement with PScope
 
@@ -183,9 +161,9 @@ case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitc
 
 case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], body: PBlock) extends PStatement with PScope
 
-case class PAssForRange(ass: Vector[PAssignee], range: PExpression, body: PBlock) extends PStatement with PScope
+case class PAssForRange(range: PRange, ass: Vector[PAssignee], body: PBlock) extends PStatement with PScope
 
-case class PShortForRange(shorts: Vector[PIdnUnknown], range: PExpression, body: PBlock) extends PStatement with PScope
+case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], body: PBlock) extends PStatement with PScope
 
 case class PGoStmt(exp: PExpression) extends PStatement
 
@@ -201,7 +179,7 @@ case class PSelectRecv(recv: PReceive, body: PBlock) extends PSelectClause
 
 case class PSelectAssRecv(ass: Vector[PAssignee], recv: PReceive, body: PBlock) extends PSelectClause
 
-case class PSelectShortRecv(shorts: Vector[PIdnUnknown], recv: PReceive, body: PBlock) extends PSelectClause
+case class PSelectShortRecv(recv: PReceive, shorts: Vector[PIdnUnk], body: PBlock) extends PSelectClause
 
 case class PReturn(exps: Vector[PExpression]) extends PStatement
 
@@ -226,6 +204,8 @@ case class PSeq(stmts: Vector[PStatement]) extends PStatement
 
 
 sealed trait PExpression extends PNode with Typable
+
+sealed trait PBuildIn extends PExpression
 
 sealed trait PAssignee extends PExpression
 
@@ -269,11 +249,11 @@ case class PCall(callee: PExpression, args: Vector[PExpression]) extends PExpres
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUnqualifiedUse) extends PExpression with PAssignee
+case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse) extends PExpression with PAssignee
 
-case class PMethodExpr(base: PMethodRecvType, id: PIdnUnqualifiedUse) extends PExpression
+case class PMethodExpr(base: PMethodRecvType, id: PIdnUse) extends PExpression
 
-case class PSelection(base: PExpression, id: PIdnUnqualifiedUse) extends PExpression with PAssignee
+case class PSelection(base: PExpression, id: PIdnUse) extends PExpression with PAssignee
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PExpression with PAssignee
 
@@ -372,7 +352,7 @@ case class PRecvChannelType(elem: PType) extends PChannelType
 
 
 
-case class PStructType(clauses: Vector[PStructClause]) extends PTypeLit with PLiteralType with PScope {
+case class PStructType(clauses: Vector[PStructClause]) extends PTypeLit with PLiteralType with PUnorderedScope {
   lazy val embedded: Vector[PEmbeddedDecl] = clauses.collect{ case x: PEmbeddedDecl => x }
   def fields: Vector[PFieldDecl]=  clauses.collect{ case x: PFieldDecls => x.fields }.flatten
 }
@@ -383,16 +363,9 @@ case class PFieldDecls(fields: Vector[PFieldDecl]) extends PStructClause
 
 case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
 
-case class PEmbeddedDecl(typ: PEmbeddedType) extends PStructClause
-
-sealed trait PEmbeddedType extends PNode with PDefLike with NonExpression {
-  def typ: PNamedType
-  def name: String = typ.name
+case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PStructClause {
+  require(id.name == typ.name)
 }
-
-case class PEmbeddedName(typ: PNamedType) extends PEmbeddedType
-
-case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
 
 sealed trait PMethodRecvType extends PType {
   def typ: PDeclaredType
@@ -407,7 +380,7 @@ case class PMethodReceivePointer(typ: PDeclaredType) extends PMethodRecvType
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
 
-case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSpec]) extends PTypeLit with PScope
+case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSpec]) extends PTypeLit with PUnorderedScope
 
 sealed trait PInterfaceClause extends PNode
 
@@ -420,35 +393,95 @@ case class PMethodSpec(id: PIdnDef, args: Vector[PParameter], result: PResult) e
   * Identifiers
   */
 
-sealed trait PIdnNode extends PNode with Typable {
+
+sealed trait PIdnNode extends PNode {
   def name: String
 }
 
-object PIdnNode {
-  def isWildcard(id: PIdnNode): Boolean = id.name.equals("_")
+trait PDefLikeId extends PIdnNode
+trait PUseLikeId extends PIdnNode
+
+case class PIdnDef(name: String) extends PDefLikeId
+case class PIdnUse(name: String) extends PUseLikeId
+case class PIdnUnk(name: String) extends PIdnNode
+
+
+sealed trait PLabelNode extends PNode {
+  def name: String
 }
 
-trait PDefLike extends PIdnNode
+trait PDefLikeLabel extends PLabelNode
+trait PUseLikeLabel extends PLabelNode
 
-trait PUseLike extends PIdnNode
+case class PLabelDef(name: String) extends PDefLikeLabel
+case class PLabelUse(name: String) extends PUseLikeLabel
 
-case class PIdnUnknown(name: String) extends PIdnNode with PDefLike with PUseLike
 
-case class PIdnDef(name: String) extends PIdnNode with PDefLike
-
-sealed trait PIdnUse extends PIdnNode with PUseLike
-
-case class PIdnQualifiedUse(name: String, pkg: PPkg) extends PIdnUse
-
-case class PIdnUnqualifiedUse(name: String) extends PIdnUse
-
-case class PIdnPackage(name: String) extends PIdnNode {
-  def ref: String = ???
+sealed trait PPackegeNode extends PNode {
+  def name: String
 }
+
+trait PDefLikePkg extends PPackegeNode
+trait PUseLikePkg extends PPackegeNode
+
+case class PPkgDef(name: String) extends PDefLikePkg
+case class PPkgUse(name: String) extends PUseLikePkg
+
+
+case class PWildcard() extends PDefLikeId with PUseLikeId {
+  override def name: String = "_"
+}
+
+
+/**
+  * Miscellaneous
+  */
+
+sealed trait PMisc extends PNode
+
+case class PRange(exp: PExpression) extends PMisc
+
+sealed trait PParameter extends PNode with PMisc {
+  def typ: PType
+}
+
+case class PNamedParameter(id: PIdnDef, typ: PType) extends PParameter
+
+case class PUnnamedParameter(typ: PType) extends PParameter
+
+sealed trait PReceiver extends PNode with PMisc {
+  def typ: PMethodRecvType
+}
+
+case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType) extends PReceiver
+
+case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
+
+
+sealed trait PResult extends PNode with PMisc
+
+case class PVoidResult() extends PResult
+
+case class PResultClause(outs: Vector[PParameter]) extends PResult
+
+sealed trait PEmbeddedType extends PNode with PMisc {
+  def typ: PNamedType
+  def name: String = typ.name
+}
+
+case class PEmbeddedName(typ: PNamedType) extends PEmbeddedType
+
+case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
+
+/**
+  * Ghost
+  */
+
 
 /**
   * Util
   */
+
 
 case class PPos[T](get: T) extends PNode
 

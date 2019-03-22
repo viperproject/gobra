@@ -103,7 +103,7 @@ object Parser {
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
       idnDef.? ~ idnPackage ^^ {
-        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(pkg.ref).at(pkg)), pkg)
+        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =
@@ -119,8 +119,8 @@ object Parser {
 
     lazy val constSpec: Parser[PConstDecl] =
       rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
-        case left ~ None => PConstDecl(left, None, Vector.empty)
-        case left ~ Some(typ ~ right) => PConstDecl(left, typ, right)
+        case left ~ None => PConstDecl(None, Vector.empty, left)
+        case left ~ Some(t ~ right) => PConstDecl(t, right, left)
       }
 
     lazy val varDecl: Parser[Vector[PVarDecl]] =
@@ -129,11 +129,11 @@ object Parser {
 
     lazy val varSpec: Parser[PVarDecl] =
       rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
-        case left ~ typ ~ None => PVarDecl(left, Some(typ), Vector.empty)
-        case left ~ typ ~ Some(right) => PVarDecl(left, Some(typ), right)
+        case left ~ t ~ None => PVarDecl(Some(t), Vector.empty, left)
+        case left ~ t ~ Some(right) => PVarDecl(Some(t), right, left)
       } |
         (rep1sep(idnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
-          case left ~ right => PVarDecl(left, None, right)
+          case left ~ right => PVarDecl(None, right, left)
         }
 
     lazy val typeDecl: Parser[Vector[PTypeDecl]] =
@@ -144,10 +144,10 @@ object Parser {
       typeDefSpec | typeAliasSpec
 
     lazy val typeDefSpec: Parser[PTypeDef] =
-      idnDef ~ typ ^^ PTypeDef
+      idnDef ~ typ ^^ { case left ~ right => PTypeDef(right, left)}
 
     lazy val typeAliasSpec: Parser[PTypeAlias] =
-      (idnDef <~ "=") ~ typ ^^ PTypeAlias
+      (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
       ("func" ~> idnDef) ~ signature ~ block.? ^^ {
@@ -213,7 +213,8 @@ object Parser {
       selectionOrMethodExpr | selection | indexedExp | "&" ~> unaryExp ^^ PDereference
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(idnUnknown, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ PShortVarDecl
+      (rep1sep(idnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^
+        { case lefts ~ rights => PShortVarDecl(rights, lefts) }
 
     lazy val labeledStmt: Parser[PLabeledStmt] =
       (idnDef <~ ":") ~ statement ^^ PLabeledStmt
@@ -319,8 +320,8 @@ object Parser {
       }
 
     lazy val selectShortRecv: Parser[PSelectShortRecv] =
-      ("case" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
-        case left ~ receive ~ stmts => PSelectShortRecv(left, receive, PBlock(stmts.get).at(stmts))
+      ("case" ~> rep1sep(idnUnk, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
+        case left ~ receive ~ stmts => PSelectShortRecv(receive, left, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectSend: Parser[PSelectSend] =
@@ -341,10 +342,12 @@ object Parser {
       }
 
     lazy val assForRange: Parser[PAssForRange] =
-      ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^ PAssForRange
+      ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^
+        { case lefts ~ exp ~ bod => PAssForRange(PRange(exp).at(exp), lefts, bod) }
 
     lazy val shortForRange: Parser[PShortForRange] =
-      ("for" ~> rep1sep(idnUnknown, ",") <~ ":=") ~ ("range" ~> expression) ~ block ^^ PShortForRange
+      ("for" ~> rep1sep(idnUnk, ",") <~ ":=") ~ ("range" ~> expression) ~ block ^^
+        { case lefts ~ exp ~ bod => PShortForRange(PRange(exp).at(exp), lefts, bod) }
 
     /**
       * Expressions
@@ -464,13 +467,13 @@ object Parser {
       }
 
     lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
-      nestedIdnUse ~ ("." ~> idnUnqualifiedUse) ^^ PSelectionOrMethodExpr
+      nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
 
     lazy val methodExpr: Parser[PMethodExpr] =
-      methodRecvType ~ ("." ~> idnUnqualifiedUse) ^^ PMethodExpr
+      methodRecvType ~ ("." ~> idnUse) ^^ PMethodExpr
 
     lazy val selection: PackratParser[PSelection] =
-      primaryExp ~ ("." ~> idnUnqualifiedUse) ^^ PSelection
+      primaryExp ~ ("." ~> idnUse) ^^ PSelection
 
     lazy val indexedExp: PackratParser[PIndexedExp] =
       primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
@@ -520,7 +523,7 @@ object Parser {
       fieldDecls | embeddedDecl
 
     lazy val embeddedDecl: Parser[PEmbeddedDecl] =
-      embeddedType ^^ PEmbeddedDecl
+      embeddedType ^^ (et => PEmbeddedDecl(et, PIdnDef(et.name).at(et)))
 
     lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
@@ -568,8 +571,8 @@ object Parser {
 
     lazy val receiver: PackratParser[PReceiver] =
       "(" ~> idnDef.? ~ methodRecvType <~ ")" ^^ {
-        case None ~ typ => PUnnamedReceiver(typ)
-        case Some(name) ~ typ => PNamedReceiver(name, typ)
+        case None ~ t => PUnnamedReceiver(t)
+        case Some(name) ~ t => PNamedReceiver(name, t)
       }
 
     lazy val signature: Parser[(Vector[PParameter], PResult)] =
@@ -593,7 +596,7 @@ object Parser {
     lazy val parameterDecl: PackratParser[Vector[PParameter]] =
       repsep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
 
-        val names = ids filter (!PIdnNode.isWildcard(_))
+        val names = ids // TODO: filter (!_.isInstanceOf[PWildcard])
         if (names.isEmpty) {
           Vector(PUnnamedParameter(t).at(t))
         } else {
@@ -623,20 +626,21 @@ object Parser {
       * Identifiers
       */
 
-    lazy val idnUnknown: Parser[PIdnUnknown] =
-      identifier ^^ PIdnUnknown
+    lazy val idnDef: Parser[PIdnDef] = identifier ^^ PIdnDef
+    lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
+    lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
+    lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
+    lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
 
-    lazy val idnDef: Parser[PIdnDef] =
-      identifier ^^ PIdnDef
+    lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
+    lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
 
-    lazy val idnUse: Parser[PIdnUse] =
-      idnUnqualifiedUse
+    lazy val pkgDef: Parser[PPkgDef] = identifier ^^ PPkgDef
+    lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
 
-    lazy val idnUnqualifiedUse: Parser[PIdnUnqualifiedUse] =
-      identifier ^^ PIdnUnqualifiedUse
+    lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
 
-    lazy val idnQualifiedUse: Parser[PIdnQualifiedUse] = ???
 
     lazy val identifier: Parser[String] =
       "[a-zA-Z_][a-zA-Z0-9_]*".r into (s => {
@@ -646,7 +650,7 @@ object Parser {
           success(s)
       })
 
-    lazy val idnPackage: Parser[PIdnPackage] = ???
+    lazy val idnPackage: Parser[String] = ???
 
 
     /**

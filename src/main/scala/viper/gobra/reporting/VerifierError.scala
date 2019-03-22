@@ -22,3 +22,7 @@ sealed trait VerifierError {
 case class ParserError(message: String, position: SourcePosition) extends VerifierError {
   val id = "parser_error"
 }
+
+case class TypeError(message: String, position: SourcePosition) extends VerifierError {
+  val id = "type_error"
+}

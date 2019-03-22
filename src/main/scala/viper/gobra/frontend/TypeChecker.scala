@@ -10,9 +10,9 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.attribution.{Attribution, Decorators}
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import org.bitbucket.inkytonik.kiama.util.Messaging._
-import org.bitbucket.inkytonik.kiama.util.{Entity, Environments, UnknownEntity}
+import org.bitbucket.inkytonik.kiama.util.{Entity, Environments, MultipleEntity, UnknownEntity}
 import viper.gobra.ast.parser._
-import viper.gobra.reporting.VerifierError
+import viper.gobra.reporting.{TypeError, VerifierError}
 
 import scala.collection.breakOut
 
@@ -28,7 +28,12 @@ object TypeChecker {
     val tree = new GoTree(program)
     val info = new TypeInfoImpl(tree)
 
-    Right(info)
+    val errors = info.errors
+    if (errors.isEmpty) {
+      Right(info)
+    } else {
+      Left(program.positions.translate(errors, TypeError))
+    }
   }
 
   private class TypeInfoImpl(tree: TypeChecker.GoTree) extends Attribution with TypeInfo {
@@ -39,185 +44,176 @@ object TypeChecker {
 
     import decorators._
 
-    lazy val defentity: PDefLike => (String, Entity) =
-      attr[PDefLike, (String, Entity)] {
-        case id@ tree.parent(p) =>
-          val entity = p match { // TODO: unknown cases
-            case decl: PConstDecl => Constant(decl, decl.left.zipWithIndex.find(_._1 == id).get._2)
-            case decl: PVarDecl => LocalVariable(decl, decl.left.zipWithIndex.find(_._1 == id).get._2)
-            case decl: PTypeDef => NamedType(decl)
-            case decl: PTypeAlias => TypeAlias(decl)
-            case decl: PFunctionDecl => Function(decl)
-            case decl: PMethodDecl => MethodImpl(decl)
-            case spec: PMethodSpec => MethodSpec(spec)
 
-            case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl)
-            case decl: PNamedParameter => InParameter(decl)
-
-            case decl: PTypeSwitchStmt => TypeSwitchVariable(decl)
-
-            case decl: PLabeledStmt => Label(decl)
-            case decl: PQualifiedImport => Package(decl)
-          }
-
-          (serialize(id), entity)
+    lazy val errors: Messages =
+      collectMessages(tree) {
+        case n: PTopLevel   => wellDefTop(n)
+        case n: PStatement  => wellDefStmt(n)
+        case n: PExpression => wellDefExpr(n)
+        case n: PType       => wellDefType(n)
+        case n: PIdnNode    => wellDefID(n)
+        case n: PMisc       => wellDefMisc(n)
       }
 
+    lazy val defEntity: PDefLikeId => Entity =
+      attr[PDefLikeId, Entity] {
+        case PWildcard() => Wildcard()
+        case id@tree.parent(p) => p match {
 
-    // TODO: namespace split
-    def serialize(id: PIdnNode): String = s"non_${id.name}"
+          case decl: PConstDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+
+            assignModi(decl.left.size, decl.right.size) match {
+              case SingleAssign => SingleConstant(decl.right(idx), decl.typ)
+              case MultiAssign => MultiConstant(idx, decl.right.head)
+              case _ => UnknownEntity()
+            }
+
+          case decl: PVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+
+            assignModi(decl.left.size, decl.right.size) match {
+              case SingleAssign => SingleConstant(decl.right(idx), decl.typ)
+              case MultiAssign => MultiConstant(idx, decl.right.head)
+              case _ => UnknownEntity()
+            }
+
+          case decl: PTypeDef => NamedType(decl)
+          case decl: PTypeAlias => TypeAlias(decl)
+          case decl: PFunctionDecl => Function(decl)
+          case decl: PMethodDecl => violation("method decl entities must be created by method resolution")
+          case spec: PMethodSpec => MethodSpec(spec)
+
+          case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl)
+          case decl: PNamedParameter => InParameter(decl)
+
+          case decl: PTypeSwitchStmt => TypeSwitchVariable(decl)
+        }
+      }
+
+    lazy val unkEntity: PIdnUnk => Entity =
+      attr[PIdnUnk, Entity] {
+        case id@tree.parent(p) => p match {
+          case decl: PShortVarDecl =>
+            val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+
+            assignModi(decl.left.size, decl.right.size) match {
+              case SingleAssign => SingleConstant(decl.right(idx), None)
+              case MultiAssign => MultiConstant(idx, decl.right.head)
+              case _ => UnknownEntity()
+            }
+
+          case decl: PShortForRange =>
+            val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
+            val len = decl.shorts.size
+            RangeVariable(idx, decl.range)
+
+          case decl: PSelectShortRecv =>
+            val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
+            val len = decl.shorts.size
+
+            assignModi(len, 1) match {
+              case SingleAssign => SingleConstant(decl.recv, None)
+              case MultiAssign => MultiConstant(idx, decl.recv)
+              case _ => UnknownEntity()
+            }
+
+          case _ => violation("unexpected parent of unknown id")
+        }
+      }
+
+    def serialize(id: PIdnNode): String = id.name
 
     lazy val sequentialDefenv: Chain[Environment] =
       chain(defenvin, defenvout)
 
     def defenvin(in: PNode => Environment): PNode ==> Environment = {
-      case _: PProgram => rootenv()
+      case n: PProgram => addShallowDefToEnv(rootenv())(n)
+      case scope: PUnorderedScope => enter(addShallowDefToEnv(in(scope))(scope))
       case scope: PScope => enter(in(scope))
     }
 
     def defenvout(out: PNode => Environment): PNode ==> Environment = {
 
-      case idef: PDefLike if doesAddEntry(idef) =>
-        val (key, entity) = defentity(idef)
-        defineIfNew(out(idef), key, entity)
+      case id: PIdnDef if doesAddEntry(id) && !isUnorderDef(id) =>
+        defineIfNew(out(id), serialize(id), defEntity(id))
+
+      case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
+        define(out(id), serialize(id), unkEntity(id))
 
       case scope: PScope =>
         enter(out(scope))
     }
 
-    lazy val doesAddEntry: PDefLike => Boolean =
-      attr[PDefLike, Boolean] {
-        case tree.parent(p) =>
-          p match {
-            case _: PMethodDecl => false
-            case _              => true
-          }
+    lazy val doesAddEntry: PIdnDef => Boolean =
+      attr[PIdnDef, Boolean] {
+        case tree.parent(_: PMethodDecl) => false
+        case _ => true
       }
 
-    /**
-      * The environment to use to lookup names at a node. Defined to be the
-      * completed defining environment for the smallest enclosing scope.
-      */
-    lazy val scopedDefenv: PNode => Environment =
-      attr[PNode, Environment] {
+    def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
-        case tree.lastChild.pair(_: PScope, c) =>
-          sequentialDefenv(c)
+      def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
+        case n: PProgram => n.declarations flatMap {
+          case d: PConstDecl => d.left
+          case d: PVarDecl => d.left
+          case d: PFunctionDecl => Vector(d.id)
+          case d: PTypeDecl => Vector(d.left)
+          case _: PMethodDecl => Vector.empty
+        }
 
-        case tree.parent(p) =>
-          scopedDefenv(p)
+        case n: PStructType => n.clauses.flatMap {
+          case d: PFieldDecls => d.fields map (_.id)
+          case d: PEmbeddedDecl => Vector(d.id)
+        }
+
+        case n: PInterfaceType => n.specs map (_.id)
       }
+
+      shallowDefs(n).foldLeft(env) {
+        case (e, id) => defineIfNew(e, serialize(id), defEntity(id))
+      }
+    }
+
+    def isUnorderDef(id: PIdnDef): Boolean = enclosingScope(id).isInstanceOf[PUnorderedScope]
+
+
+    //    /**
+    //      * The environment to use to lookup names at a node. Defined to be the
+    //      * completed defining environment for the smallest enclosing scope.
+    //      */
+    //    lazy val scopedDefenv: PNode => Environment =
+    //      attr[PNode, Environment] {
+    //
+    //        case tree.lastChild.pair(_: PScope, c) =>
+    //          sequentialDefenv(c)
+    //
+    //        case tree.parent(p) =>
+    //          scopedDefenv(p)
+    //      }
 
     lazy val entity: PIdnNode => Entity =
-    attr[PIdnNode, Entity] {
+      attr[PIdnNode, Entity] {
 
-      case tree.parent.pair(id: PIdnUnqualifiedUse, e: PSelectionOrMethodExpr) =>
-        resolveSelectionOrMethodExpr(e)
-        { case (b,i) => findSelection(idType(b), i).getOrElse(UnknownEntity()) }
-        { case (b,i) => findMember   (idType(b), i).getOrElse(UnknownEntity()) }
+        case tree.parent.pair(id: PIdnUse, e@ PSelectionOrMethodExpr(_, f)) if id == f =>
+          resolveSelectionOrMethodExpr(e)
+          { case (b, i) => findSelection(idType(b), i) }
+          { case (b, i) => findMember(idType(b), i) }
+            .flatten.getOrElse(UnknownEntity())
 
-      case tree.parent.pair(id: PIdnUnqualifiedUse, e: PMethodExpr) =>
-        findMember(typeType(e.base), id).getOrElse(UnknownEntity())
+        case tree.parent.pair(id: PIdnUse, e: PMethodExpr) =>
+          findMember(typeType(e.base), id).getOrElse(UnknownEntity())
 
-      case tree.parent.pair(id: PIdnUnqualifiedUse, e: PSelection) =>
-        findSelection(exprType(e.base), id).getOrElse(UnknownEntity())
+        case tree.parent.pair(id: PIdnUse, e: PSelection) =>
+          findSelection(exprType(e.base), id).getOrElse(UnknownEntity())
 
-      case n =>
-        lookup(scopedDefenv(n), serialize(n), UnknownEntity())
-    }
+        case n =>
+          lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
+      }
+
+
 
     import Type._
-
-
-
-    def isRefMethod(m: PMethodDecl): Boolean = m.receiver.typ match {
-      case _: PMethodReceiveName    => false
-      case _: PMethodReceivePointer => true
-    }
-
-
-
-    lazy val intConstantEval: PExpression => Option[BigInt] =
-      attr[PExpression, Option[BigInt]] {
-        case PIntLit(lit) => Some(lit)
-        case e: PBinaryExp =>
-          def aux(f: BigInt => BigInt => BigInt): Option[BigInt] =
-            (intConstantEval(e.left), intConstantEval(e.right)) match {
-              case (Some(a), Some(b)) => Some(f(a)(b))
-              case _ => None
-            }
-
-          e match {
-            case _: PAdd => aux(x => y => x + y)
-            case _: PSub => aux(x => y => x - y)
-            case _: PMul => aux(x => y => x * y)
-            case _: PMod => aux(x => y => x % y)
-            case _: PDiv => aux(x => y => x / y)
-            case _ => None
-          }
-        case PNamedOperand(id) => entity(id) match {
-          case Constant(PConstDecl(_, _, right), idx) if idx < right.size =>
-            intConstantEval(right(idx))
-
-          case _ => None
-        }
-
-        case _ => None
-      }
-
-    lazy val miscTipe: NonExpression => Type =
-      attr[NonExpression, Type] {
-        case p: PParameter => typeType(p.typ)
-        case r: PReceiver  => typeType(r.typ)
-        case PVoidResult() => VoidType
-        case PResultClause(outs) => InternalTupleT(outs.map(miscTipe))
-        case PEmbeddedName(t) => typeType(t)
-        case PEmbeddedPointer(t) => PointerT(typeType(t))
-      }
-
-    // post typed
-    def leftSideType(i: Int, right: Vector[PExpression]): Type = { // TODO: export decision to different function
-      if (right.size == 1) {
-        exprType(right.head) match {
-          case InternalTupleT(ts) if i < ts.size => ts(i)
-          case t: Type =>
-            violation(i == 0, "index exceeds right side elements")
-            t // TODO: (message(src, s"expected no more assignees but got $src"))
-        }
-      } else {
-        violation(i < right.size, "index exceeds right side elements")
-        exprType(right(i)) // TODO: (message(src, s"expected no more assignees but got $src"))
-      }
-    }
-
-
-
-
-    lazy val memberTipe: TypeMember => Type =
-      attr[TypeMember, Type] {
-
-        case MethodImpl(PMethodDecl(_, _, args, result, _)) => FunctionT(args map miscTipe, miscTipe(result))
-
-        case MethodSpec(PMethodSpec(_, args, result)) => FunctionT(args map miscTipe, miscTipe(result))
-
-        case Field(PFieldDecl(_, typ)) => typeType(typ)
-
-        case Embbed(PEmbeddedDecl(typ)) => miscTipe(typ)
-      }
-
-    lazy val isConversionOrMethodExpr: PConversionOrUnaryCall => Boolean =
-      attr[PConversionOrUnaryCall, Boolean] { n => entity(n.base).isInstanceOf[NamedType] }
-
-
-
-
-    private def useKnown(t: Type)(thn: Type => Messages): Messages = t match {
-      case UnknownType => noMessages
-      case _ => thn(t)
-    }
-
-    private def useWith[B](t: B)(thn: B ==> Messages): Messages =
-      thn.lift.apply(t).getOrElse(noMessages)
 
 
     trait Computation[-A, +R] extends (A => R) {
@@ -236,6 +232,7 @@ object TypeChecker {
 
     trait Safety[-A, +R] extends Computation[A, R] {
       def safe(n: A): Boolean
+
       def unsafe: R
 
       override def apply(n: A): R = if (safe(n)) super.apply(n) else unsafe
@@ -259,11 +256,12 @@ object TypeChecker {
       tree.child(n)
 
     def childrenWellDefined(n: PNode): Boolean = children(n) forall {
-      case s: PStatement  => wellDefStmt.valid(s)
+      case s: PStatement => wellDefStmt.valid(s)
       case e: PExpression => wellDefExpr.valid(e)
-      case t: PType       => wellDefType.valid(t)
-      case i: PIdnNode    => wellDefID.valid(i)
-      case n: PNode       => childrenWellDefined(n)
+      case t: PType => wellDefType.valid(t)
+      case i: PIdnNode => wellDefID.valid(i)
+      case o: PMisc => wellDefMisc.valid(o)
+      case n: PNode => childrenWellDefined(n)
     }
 
     def createWellDef[T <: PNode](check: T => Messages): WellDefinedness[T] =
@@ -291,106 +289,101 @@ object TypeChecker {
         override def compute(n: T): Type = inference(n)
       }
 
+
+    /**
+      * Top Level
+      */
+
+    private lazy val wellDefTop: WellDefinedness[PTopLevel] = createWellDef {
+
+      case _: PFunctionDecl => noMessages
+
+      case m: PMethodDecl => miscType(m.receiver) match {
+        case DeclaredT(_) | PointerT(DeclaredT(_)) => noMessages
+        case _ => message(m, s"method cannot have non-defined receiver")
+      }
+    }
+
     /**
       * Statements
       */
 
-    private lazy val wellDefStmt: WellDefinedness[PStatement] = createWellDef{
+    private lazy val wellDefStmt: WellDefinedness[PStatement] = createWellDef {
 
-      case n@ PConstDecl(left, typ, right) =>
+      case n@PConstDecl(typ, right, left) =>
         declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-      case n@ PVarDecl(left, typ, right)   =>
+      case n@PVarDecl(typ, right, left) =>
         declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-      case n@ PExpressionStmt(exp) => isExecutable.errors(exp)(n)
+      case n@PExpressionStmt(exp) => isExecutable.errors(exp)(n)
 
-      case n@ PSendStmt(chn, msg)  => (exprType(chn), exprType(msg)) match {
+      case n@PSendStmt(chn, msg) => (exprType(chn), exprType(msg)) match {
         case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => assignableTo.errors(t, elem)(n)
         case (chnt, _) => message(n, s"type error: got $chnt but expected send-permitting channel")
       }
 
-      case n@ PAssignment(lefts, rights) =>
+      case n@PAssignment(lefts, rights) =>
         lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
 
-      case n@ PAssignmentWithOp(left, op, right) =>
+      case n@PAssignmentWithOp(left, op, right) =>
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
           assignableTo.errors(exprType(right), exprType(left))(n)
 
-      case n@ PShortVarDecl(lefts, rights) => multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
+      case n@PShortVarDecl(rights, lefts) =>
+        if (lefts.forall(pointsToData)) multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
+        else message(n, s"at least one assignee in $lefts points to a type")
 
       case n: PIfStmt => n.ifs.flatMap(ic => comparableTypes.errors(exprType(ic.condition), BooleanT)(ic))
 
-      case n@ PExprSwitchStmt(_, exp, _, dflt) =>
+      case n@PExprSwitchStmt(_, exp, _, dflt) =>
         message(n, s"found more than one default case", dflt.size > 1) ++
-        comparableType.errors(exprType(exp))(n)
+          comparableType.errors(exprType(exp))(n)
 
       case _: PExprSwitchDflt => noMessages
 
-      case n@ tree.parent.pair(PExprSwitchCase(left, _), sw: PExprSwitchStmt) =>
+      case n@tree.parent.pair(PExprSwitchCase(left, _), sw: PExprSwitchStmt) =>
         left.flatMap(e => comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 
       case n: PTypeSwitchStmt =>
-        message(n, s"found more than one default case", n.dflt.size > 1) ++
-          {
-            val et = exprType(n.exp)
-            val ut = underlyingType(et)
-            message(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
-          } // TODO: also check that cases have type that could implement the type
+        message(n, s"found more than one default case", n.dflt.size > 1) ++ {
+          val et = exprType(n.exp)
+          val ut = underlyingType(et)
+          message(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
+        } // TODO: also check that cases have type that could implement the type
 
-      case n@ PForStmt(_, cond, _, _) => comparableTypes.errors(exprType(cond), BooleanT)(n)
+      case n@PForStmt(_, cond, _, _) => comparableTypes.errors(exprType(cond), BooleanT)(n)
 
-      case n@ (_: PShortForRange | _: PAssForRange) =>
-        val (lefts, exp) = n match {
-          case PShortForRange(ls, e, _) => (ls map idType, e)
-          case PAssForRange(ls, e, _) => (ls map exprType, e)
-          case _ => violation("node must be a for comprehension")
-        }
+      case n@PShortForRange(exp, lefts, _) =>
+        if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)
+        else message(n, s"at least one assignee in $lefts points to a type")
 
-        ((exprType(exp), lefts) match {
-          case (ArrayT(_, e),  Vector(v)) => assignableTo.errors(e, v)(n)
-          case (SliceT(e), Vector(v)) => assignableTo.errors(e, v)(n)
-          case (PointerT(ArrayT(_, e)), Vector(v)) => assignableTo.errors(e, v)(n)
-          case (MapT(_, e), Vector(v)) => assignableTo.errors(e, v)(n)
-          case (ChannelT(e, ChannelModus.Recv | ChannelModus.Bi), Vector(v)) => assignableTo.errors(e, v)(n)
 
-          case (ArrayT(_, e),  Vector(_, v)) => assignableTo.errors(e, v)(n)
-          case (SliceT(e), Vector(_, v)) => assignableTo.errors(e, v)(n)
-          case (PointerT(ArrayT(_, e)), Vector(_, v)) => assignableTo.errors(e, v)(n)
-          case (MapT(k, e), Vector(i, v)) => assignableTo.errors(e, v)(n) ++ assignableTo.errors(k, i)(n)
+      case n@PAssForRange(exp, lefts, _) =>
+        multiAssignableTo.errors(Vector(miscType(exp)), lefts map exprType)(n) ++
+          lefts.flatMap(t => addressable.errors(t)(t))
 
-          case (t, lts) => message(n, s"type error: $lts do not range over $t")
-        }) ++ (n match {
-          case PAssForRange(ls, _, _) => ls.flatMap(t => addressable.errors(t)(t))
-          case _ => noMessages
-        })
-
-      case n@ PGoStmt(exp) => isExecutable.errors(exp)(n)
+      case n@PGoStmt(exp) => isExecutable.errors(exp)(n)
 
       case n: PSelectStmt =>
         n.aRec.flatMap(rec =>
-          ((exprType(rec.recv.operand), rec.ass map exprType) match {
-            case (ChannelT(t, ChannelModus.Recv | ChannelModus.Bi), Vector(v))    => assignableTo.errors(t, v)(n)
-            case (ChannelT(t, ChannelModus.Recv | ChannelModus.Bi), Vector(v, b)) => assignableTo.errors(t, v)(n) ++ assignableTo.errors(BooleanT, b)(n)
-            case (_, as) if !Set(1,2).contains(as.size) => message(n, "receive clauses require either 1 or 2 assignees")
-            case (_, _) => violation("sub receive expression requires receive channel type")
-          }) ++ rec.ass.flatMap(a => assignable.errors(a)(a))
-        ) ++ n.sRec.flatMap{rec =>
-          (exprType(rec.recv.operand), rec.shorts map idType) match {
-            case (ChannelT(t, ChannelModus.Recv | ChannelModus.Bi), Vector(v))    => assignableTo.errors(t, v)(n)
-            case (ChannelT(t, ChannelModus.Recv | ChannelModus.Bi), Vector(v, b)) => assignableTo.errors(t, v)(n) ++ assignableTo.errors(BooleanT, b)(n)
-            case (_, as) if !Set(1,2).contains(as.size) => message(n, "receive clauses require either 1 or 2 assignees")
-            case (_, _) => violation("sub receive expression requires receive channel type")
-          }
-        }
+          multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.ass.map(exprType))(rec) ++
+            rec.ass.flatMap(a => assignable.errors(a)(a))
+        ) ++ n.sRec.flatMap(rec =>
+          if (rec.shorts.forall(pointsToData))
+            multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType)(rec)
+          else message(n, s"at least one assignee in ${rec.shorts} points to a type")
 
-      case n@ PReturn(exps) =>
+        )
+
+
+      case n@PReturn(exps) =>
         enclosingMethod(n).result match {
           case PVoidResult() => message(n, s"expected no agruments but got $exps", exps.nonEmpty)
-          case PResultClause(outs) => multiAssignableTo.errors(exps map exprType, outs map miscTipe)(n)
+          case PResultClause(outs) => multiAssignableTo.errors(exps map exprType, outs map miscType)(n)
         }
 
-      case n@ PDeferStmt(exp) => isExecutable.errors(exp)(n)
+      case n@PDeferStmt(exp) => isExecutable.errors(exp)(n)
 
       case _: PBlock => noMessages
       case _: PSeq => noMessages
@@ -400,17 +393,16 @@ object TypeChecker {
     }
 
 
-
     /**
       * Expressions
       */
 
-    private implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef{
+    private implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef {
 
-      case _: PNamedOperand => noMessages
+      case n@ PNamedOperand(id) => pointsToType.errors(id)(n)
       case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
 
-      case n@ PCompositeLit(t, lit) =>
+      case n@PCompositeLit(t, lit) =>
         val bt = t match {
           case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
           case t: PType => typeType(t)
@@ -420,32 +412,112 @@ object TypeChecker {
 
       case _: PFunctionLit => noMessages
 
-      case n@ PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
+      case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
 
-      case n@ PCall(base, paras) => exprType(base) match {
+      case n@PCall(base, paras) => exprType(base) match {
         case FunctionT(args, _) => multiAssignableTo.errors(paras map exprType, args)(n)
         case t => message(n, s"type error: got $t but expected function type")
       }
 
       case n: PConversionOrUnaryCall =>
-        resolveConversionOrUnaryCall(n){
+        resolveConversionOrUnaryCall(n) {
           case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
         } {
           case (id, arg) => idType(id) match {
             case FunctionT(args, _) => multiAssignableTo.errors(Vector(exprType(arg)), args)(n)
             case t => message(n, s"type error: got $t but expected function type")
           }
-        }
+        }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
+
+      case n@PMethodExpr(t, id) => // Soundness: check if id is correct member done by findMember
+        message(n, s"type ${typeType(t)} does not have method ${id.name}"
+          , !findMember(typeType(t), id).exists(_.isInstanceOf[Method]))
+
+      case n@PSelection(base, id) => // Soundness: check if id is correct member done by findMember
+        message(n, s"type ${exprType(base)} does not have method ${id.name}"
+          , findMember(exprType(base), id).isEmpty)
+
+      case n: PSelectionOrMethodExpr => // Soundness: check if id is correct member done by findMember
+        message(n, s"type ${idType(n.base)} does not have method ${n.id.name}"
+          , resolveSelectionOrMethodExpr(n)
+          { case (base, id) => findMember(idType(base), id).isEmpty }
+          { case (t, id) => !findMember(idType(t), id).exists(_.isInstanceOf[Method]) }
+            .getOrElse(false)
+        )
+
+      case n@PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
+        case (ArrayT(l, elem), IntT) =>
+          val idxOpt = intConstantEval(index)
+          message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+
+        case (PointerT(ArrayT(l, elem)), IntT) =>
+          val idxOpt = intConstantEval(index)
+          message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+
+        case (SliceT(elem), IntT) => noMessages
+        case (MapT(key, elem), indexT) =>
+          message(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+
+        case (bt, it) => message(n, s"$it index is not a proper index of $bt")
+      }
+
+      case n@PSliceExp(base, low, high, cap) => (exprType(base), exprType(low), exprType(high), cap map exprType) match {
+        case (ArrayT(l, elem), IntT, IntT, None | Some(IntT)) =>
+          val (lowOpt, highOpt, capOpt) = (intConstantEval(low), intConstantEval(high), cap map intConstantEval)
+          message(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
+            message(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
+            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l))) ++
+            message(n, s"array $base is not addressable", !addressable(base))
+
+        case (PointerT(ArrayT(l, elem)), IntT, IntT, None | Some(IntT)) =>
+          val (lowOpt, highOpt, capOpt) = (intConstantEval(low), intConstantEval(high), cap map intConstantEval)
+          message(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
+            message(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
+            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+
+        case (SliceT(elem), IntT, IntT, None | Some(IntT)) => noMessages
+        case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
+      }
+
+      case n@PTypeAssertion(base, typ) => exprType(base) match {
+        case t: InterfaceT =>
+          val at = typeType(typ)
+          message(n, s"type error: expression $base of type $at does not implement $typ", implements(at, t))
+        case t => message(n, s"type error: got $t expected interface")
+      }
+
+      case n@PReceive(e) => exprType(e) match {
+        case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages
+        case t => message(n, s"expected receive-permitting channel but got $t")
+      }
+
+      case n@PReference(e) => addressable.errors(e)(n)
+
+      case n@PDereference(exp) => exprType(exp) match {
+        case PointerT(t) => noMessages
+        case t => message(n, s"expected pointer but got $t")
+      }
+
+      case n@PNegation(e) => assignableTo.errors(exprType(e), BooleanT)(n)
+
+      case n: PBinaryExp => (n, exprType(n.left), exprType(n.right)) match {
+        case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
+        case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, BooleanT)(n) ++ assignableTo.errors(r, BooleanT)(n)
+        case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
+        , l, r) => assignableTo.errors(l, IntT)(n) ++ assignableTo.errors(r, IntT)(n)
+        case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
+      }
+
 
     }
 
-    private lazy val exprType: Typing[PExpression] = createTyping{
+    private lazy val exprType: Typing[PExpression] = createTyping {
 
       case PNamedOperand(id) => idType(id)
 
       case _: PBoolLit => BooleanT
-      case _: PIntLit  => IntT
-      case _: PNilLit  => NilType
+      case _: PIntLit => IntT
+      case _: PNilLit => NilType
 
       case PCompositeLit(PImplicitSizeArrayType(e), lit) =>
         ArrayT(lit.elems.size, typeType(e))
@@ -453,19 +525,18 @@ object TypeChecker {
       case PCompositeLit(t: PType, _) => typeType(t)
 
       case PFunctionLit(args, r, _) =>
-        FunctionT(args map miscTipe, miscTipe(r))
+        FunctionT(args map miscType, miscType(r))
 
       case PConversion(t, _) => typeType(t)
 
-      case n@ PCall(callee, _) => exprType(callee) match {
-        // case FunctionT(args, res) if assignableTo(args, paras map tipe) => res TODO: Move to expTipe
+      case n@PCall(callee, _) => exprType(callee) match {
         case FunctionT(_, res) => res
         case t => violation(s"expected function type but got $t") //(message(n, s""))
       }
 
       case PConversionOrUnaryCall(base, arg) =>
         idType(base) match {
-          case t: DeclaredT => t // conversion // TODO: add additional constraints
+          case t: DeclaredT => t // conversion
           case FunctionT(args, res) // unary call
             if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
           case t => violation(s"expected function or declared type but got $t")
@@ -474,34 +545,36 @@ object TypeChecker {
       case n: PSelectionOrMethodExpr =>
         resolveSelectionOrMethodExpr(n)
         { case (base, id) => findSelection(idType(base), id) }
-        { case (base, id) => findMember   (idType(base), id) }
-          .map(memberTipe).getOrElse(violation("no selection found"))
+        { case (base, id) => findMember(idType(base), id) }
+          .flatten.map(memberType).getOrElse(violation("no selection found"))
 
       case PMethodExpr(base, id) =>
-        findMember(typeType(base), id).map(memberTipe).getOrElse(violation("no function found"))
+        findMember(typeType(base), id).map(memberType).getOrElse(violation("no function found"))
 
       case PSelection(base, id) =>
-        findSelection(exprType(base), id).map(memberTipe).getOrElse(violation("no selection found"))
+        findSelection(exprType(base), id).map(memberType).getOrElse(violation("no selection found"))
 
       case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
-        case (          ArrayT(_, elem), IntT) => elem // TODO: constant indexes have to be within range
+        case (ArrayT(_, elem), IntT) => elem
         case (PointerT(ArrayT(_, elem)), IntT) => elem
         case (SliceT(elem), IntT) => elem
-        case (MapT(key, elem), indexT) if assignableTo(indexT, key) => elem
+        case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
         case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
       }
 
       case PSliceExp(base, low, high, cap) => (exprType(base), exprType(low), exprType(high), cap map exprType) match {
-        case (          ArrayT(_, elem), IntT, IntT, None | Some(IntT)) if addressable(base) => SliceT(elem)
+        case (ArrayT(_, elem), IntT, IntT, None | Some(IntT)) if addressable(base) => SliceT(elem)
         case (PointerT(ArrayT(_, elem)), IntT, IntT, None | Some(IntT)) => SliceT(elem)
         case (SliceT(elem), IntT, IntT, None | Some(IntT)) => SliceT(elem)
         case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       }
 
-      case PTypeAssertion(base, typ) => typeType(typ) // TODO: add additional constraints
+      case PTypeAssertion(_, typ) => typeType(typ)
 
       case PReceive(e) => exprType(e) match {
-        case ChannelT(elem, ChannelModus.Bi | ChannelModus.Recv) => elem
+        case ChannelT(elem, ChannelModus.Bi | ChannelModus.Recv) =>
+          InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
         case t => violation(s"expected receive-permitting channel but got $t")
       }
 
@@ -512,30 +585,48 @@ object TypeChecker {
         case t => violation(s"expected pointer but got $t")
       }
 
-      case _ => ???
+      case _: PNegation | _: PEquals | _: PUnequals | _: PAnd | _: POr |
+           _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
+        BooleanT
+
+      case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => IntT
+
+      case e => violation(s"unexpected expression $e")
     }
 
     /**
       * Types
       */
 
-    private implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef{
-      ???
+    private implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef {
+
+      case n@ PDeclaredType(id) => pointsToType.errors(id)(n)
+
+      case _: PBoolType | _: PIntType => noMessages
+
+      case n@PArrayType(len, _) =>
+        message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty)
+
+      case _: PSliceType | _: PMapType | _: PPointerType |
+           _: PBiChannelType | _: PSendChannelType | _: PRecvChannelType |
+           _: PMethodReceiveName | _: PMethodReceivePointer | _: PFunctionType => noMessages
+
+
+      case t: PStructType => memberSet(StructT(t)).errors(t)
+
+      case t: PInterfaceType => memberSet(InterfaceT(t)).errors(t)
     }
 
-    private lazy val typeType: Typing[PType] = createTyping{
+    private lazy val typeType: Typing[PType] = createTyping {
 
-      case PDeclaredType(id) =>
-        entity(id) match {
-          case NamedType(decl) => DeclaredT(decl)
-        }
+      case PDeclaredType(id) => idType(id)
 
       case PBoolType() => BooleanT
       case PIntType() => IntT
 
       case PArrayType(len, elem) =>
         val lenOpt = intConstantEval(len)
-        violation(lenOpt.isDefined, s"expected constant epxression but got $len")
+        violation(lenOpt.isDefined, s"expected constant expression but got $len")
         ArrayT(lenOpt.get, typeType(elem))
 
       case PSliceType(elem) => SliceT(typeType(elem))
@@ -556,7 +647,7 @@ object TypeChecker {
 
       case PMethodReceivePointer(t) => PointerT(typeType(t))
 
-      case PFunctionType(args, r) => FunctionT(args map miscTipe, miscTipe(r))
+      case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
       case t: PInterfaceType => InterfaceT(t)
     }
@@ -565,23 +656,95 @@ object TypeChecker {
       * Identifiers
       */
 
-    private implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDef{
-      ???
+    private implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDef {
+      id => entity(id) match {
+        case _: UnknownEntity => message(id, s"got unknown identifier $id")
+        case _: MultipleEntity => message(id, s"got duplicate identifier $id")
+
+        case SingleConstant(exp, opt) => message(id, s"variable $id is not defined", ! {
+          opt.forall(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+        })
+
+        case MultiConstant(idx, exp) => message(id, s"variable $id is not defined", ! {
+          wellDefExpr.valid(exp) && (exprType(exp) match {
+            case Assign(InternalTupleT(ts)) if idx < ts.size => true
+            case _ => false
+          })
+        })
+
+        case SingleLocalVariable(exp, opt) => message(id, s"variable $id is not defined", ! {
+          opt.forall(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+        })
+
+        case MultiLocalVariable(idx, exp) => message(id, s"variable $id is not defined", ! {
+          wellDefExpr.valid(exp) && (exprType(exp) match {
+            case Assign(InternalTupleT(ts)) if idx < ts.size => true
+            case _ => false
+          })
+        })
+
+        case Function(PFunctionDecl(_, args, r, _)) => message(id, s"variable $id is not defined", ! {
+          args.forall(wellDefMisc.valid) && miscType.valid(r)
+        })
+
+        case NamedType(_) => noMessages
+
+        case TypeAlias(PTypeAlias(right, _)) => message(id, s"variable $id is not defined", ! {
+          wellDefType.valid(right)
+        })
+
+        case InParameter(p) => message(id, s"variable $id is not defined", ! {
+          wellDefType.valid(p.typ)
+        })
+
+        case OutParameter(p) => message(id, s"variable $id is not defined",! {
+          wellDefType.valid(p.typ)
+        })
+
+        case TypeSwitchVariable(decl) => message(id, s"variable $id is not defined", ! {
+          val constraints = typeSwitchConstraints(id)
+          if (constraints.size == 1) wellDefType.valid(constraints.head) else wellDefExpr.valid(decl.exp)
+        })
+
+        case RangeVariable(idx, range) => message(id, s"variable $id is not defined",! {
+          miscType(range) match {
+            case Assign(InternalTupleT(ts)) if idx < ts.size => true
+            case t => false
+          }
+        })
+      }
     }
 
-    private lazy val idType: Typing[PIdnNode] = createTyping{ id =>
+    private lazy val idType: Typing[PIdnNode] = createTyping { id =>
       entity(id) match {
 
-        case Constant(n@ PConstDecl(_, t, right), i) =>
-          t.map(typeType).getOrElse(ifTypable(n)(leftSideType(i, right)))
+        case SingleConstant(exp, opt) => opt.map(typeType)
+          .getOrElse(exprType(exp) match {
+            case Single(t) => t
+            case t => violation(s"expected single Type but got $t")
+          })
 
-        case LocalVariable(n@ PVarDecl(_, t, right), i) =>
-          t.map(typeType).getOrElse(ifTypable(n)(leftSideType(i, right)))
+        case MultiConstant(idx, exp) => exprType(exp) match {
+          case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+          case t => violation(s"expected tuple but got $t")
+        }
+
+        case SingleLocalVariable(exp, opt) => opt.map(typeType)
+          .getOrElse(exprType(exp) match {
+            case Single(t) => t
+            case t => violation(s"expected single Type but got $t")
+          })
+
+        case MultiLocalVariable(idx, exp) => exprType(exp) match {
+          case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+          case t => violation(s"expected tuple but got $t")
+        }
 
         case Function(PFunctionDecl(_, args, r, _)) =>
-          FunctionT(args map miscTipe, miscTipe(r))
+          FunctionT(args map miscType, miscType(r))
 
         case NamedType(decl) => DeclaredT(decl)
+        case TypeAlias(PTypeAlias(right, _)) => typeType(right)
 
         case InParameter(p) => typeType(p.typ)
 
@@ -589,42 +752,100 @@ object TypeChecker {
 
         case TypeSwitchVariable(decl) =>
           val constraints = typeSwitchConstraints(id)
-          if (constraints.size == 1) constraints.head else exprType(decl.exp)
+          if (constraints.size == 1) typeType(constraints.head) else exprType(decl.exp)
+
+        case RangeVariable(idx, range) => miscType(range) match {
+          case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
+          case t => violation(s"expected tuple but got $t")
+        }
+
       }
     }
+
+    /**
+      * Miscellaneous
+      */
+
+    private implicit lazy val wellDefMisc: WellDefinedness[PMisc] = createWellDef {
+
+      case n@PRange(exp) => exprType(exp) match {
+        case _: ArrayT | PointerT(_: ArrayT) | _: SliceT |
+             _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
+        case t => message(n, s"type error: got $t but expected rangable type")
+      }
+
+      case _: PParameter | _: PReceiver | _: PResult | _: PEmbeddedType => noMessages
+
+    }
+
+    private lazy val miscType: Typing[PMisc] = createTyping {
+
+      case PRange(exp) => exprType(exp) match {
+        case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+        case PointerT(ArrayT(len, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+        case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+        case MapT(key, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+        case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
+        case t => violation(s"unexpected range type $t")
+      }
+
+      case p: PParameter => typeType(p.typ)
+      case r: PReceiver => typeType(r.typ)
+      case PVoidResult() => VoidType
+      case PResultClause(outs) => InternalTupleT(outs.map(miscType))
+
+      case PEmbeddedName(t) => typeType(t)
+      case PEmbeddedPointer(t) => PointerT(typeType(t))
+    }
+
+    lazy val memberType: TypeMember => Type =
+      attr[TypeMember, Type] {
+
+        case MethodImpl(PMethodDecl(_, _, args, result, _)) => FunctionT(args map miscType, miscType(result))
+
+        case MethodSpec(PMethodSpec(_, args, result)) => FunctionT(args map miscType, miscType(result))
+
+        case Field(PFieldDecl(_, typ)) => typeType(typ)
+
+        case Embbed(PEmbeddedDecl(typ, _)) => miscType(typ)
+      }
 
     /**
       * Error Reporting
       */
 
     case class PropertyResult(opt: Option[PNode => Messages]) {
-      def errors(src: PNode): Messages = opt.fold(noMessages)( _.apply(src) )
+      def errors(src: PNode): Messages = opt.fold(noMessages)(_.apply(src))
+
       def holds: Boolean = opt.isEmpty
 
       def and(other: PropertyResult): PropertyResult = PropertyResult((opt, other.opt) match {
         case (Some(l), Some(r)) => Some(src => l(src) ++ r(src))
-        case (Some(l), None   ) => Some(l)
-        case (None   , Some(r)) => Some(r)
-        case (None   , None   ) => None
+        case (Some(l), None) => Some(l)
+        case (None, Some(r)) => Some(r)
+        case (None, None) => None
       })
 
       def or(other: PropertyResult): PropertyResult = PropertyResult((opt, other.opt) match {
         case (Some(l), Some(r)) => Some(src => l(src) ++ r(src))
-        case _                  => None
+        case _ => None
       })
     }
 
     def propForall[A](base: Traversable[A], prop: Property[A]): PropertyResult =
-      base.foldLeft(successProp){ case (l,r) => l and prop.result(r) }
+      base.foldLeft(successProp) { case (l, r) => l and prop.result(r) }
 
 
     def successProp: PropertyResult = PropertyResult(None)
+
     def failedProp(label: => String, cond: Boolean = true): PropertyResult =
       PropertyResult(if (cond) Some(src => message(src, label)) else None)
 
     case class Property[A](gen: A => PropertyResult) extends (A => Boolean) {
       def result(n: A): PropertyResult = gen(n)
+
       def errors(n: A)(src: PNode): Messages = result(n).errors(src)
+
       override def apply(n: A): Boolean = result(n).holds
 
       def before[Z](f: Z => A): Property[Z] = Property[Z](n => gen(f(n)))
@@ -633,52 +854,59 @@ object TypeChecker {
     def createProperty[A](gen: A => PropertyResult): Property[A] = Property[A](gen)
 
     def createFlatProperty[A](msg: A => String)(check: A => Boolean): Property[A] =
-      Property[A]( n => failedProp(s"property error: ${msg(n)}", check(n)) )
+      createProperty[A](n => failedProp(s"property error: ${msg(n)}", check(n)))
 
     def createBinaryProperty[A](name: String)(check: A => Boolean): Property[A] =
       createFlatProperty((n: A) => s"got $n that is not $name")(check)
+
 
     /**
       * Convertibility
       */
 
-      // TODO: check where convertibility and where assignability is required.
+    // TODO: check where convertibility and where assignability is required.
 
-    lazy val convertibleTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
+    lazy val convertibleTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
       case (left, right) => s"$left is not convertible to $right"
     } {
-      case (left, right) if assignableTo(left, right) => true
-      case (left, right) => (underlyingType(left), underlyingType(right)) match {
-        case (l, r) if identicalTypes(l, r) => true
-        case (PointerT(l), PointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
-                                           !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
-        case _ => false
+      case (Single(lst), Single(rst)) => (lst, rst) match {
+        case (left, right) if assignableTo(left, right) => true
+        case (left, right) => (underlyingType(left), underlyingType(right)) match {
+          case (l, r) if identicalTypes(l, r) => true
+          case (PointerT(l), PointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
+            !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
+          case _ => false
+        }
       }
+      case _ => false
     }
 
     /**
       * Comparability
       */
 
-    lazy val comparableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
+    lazy val comparableTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
       case (left, right) => s"$left is not comparable with $right"
-    }{
-      case (left, right) =>
+    } {
+      case (Single(left), Single(right)) =>
         assignableTo(left, right) && assignableTo(right, left) && ((left, right) match {
           case (l, r) if comparableType(l) && comparableType(r) => true
           case (NilType, _: SliceT | _: MapT | _: FunctionT) => true
           case (_: SliceT | _: MapT | _: FunctionT, NilType) => true
           case _ => false
         })
+      case _ => false
     }
 
-    lazy val comparableType: Property[Type] = createBinaryProperty("comparable"){
-      case t: StructT =>
-        memberSet(t).collect{ case (_, f: Field) => typeType(f.decl.typ) }.forall(comparableType)
+    lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
+      case Single(st) => st match {
+        case t: StructT =>
+          memberSet(t).collect { case (_, f: Field) => typeType(f.decl.typ) }.forall(comparableType)
 
-      case _: SliceT | _: MapT | _: FunctionT => false
-
-      case _ =>  true
+        case _: SliceT | _: MapT | _: FunctionT => false
+        case _ => true
+      }
+      case _ => false
     }
 
     /**
@@ -686,8 +914,11 @@ object TypeChecker {
       */
 
     sealed trait AssignModi
+
     case object SingleAssign extends AssignModi
+
     case object MultiAssign extends AssignModi
+
     case object ErrorAssign extends AssignModi
 
     def assignModi(left: Int, right: Int): AssignModi =
@@ -696,78 +927,89 @@ object TypeChecker {
       else ErrorAssign
 
     lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
-      createProperty[(Vector[Type], Option[Type], Vector[Type])]{
-        case (right, None,    left) => multiAssignableTo.result(right, left)
+      createProperty[(Vector[Type], Option[Type], Vector[Type])] {
+        case (right, None, left) => multiAssignableTo.result(right, left)
         case (right, Some(t), left) => failedProp("", left.nonEmpty) and
           propForall(right, assignableTo.before((l: Type) => (l, t)))
       }
 
-    lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])]{
+    lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
       case (left, right) =>
         assignModi(left.size, right.size) match {
           case SingleAssign => propForall(right.zip(left), assignableTo)
-          case MultiAssign  => right.head match {
-            case InternalTupleT(ts) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
+          case MultiAssign => right.head match {
+            case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
             case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
           }
-          case _ => failedProp("left and right expressions do not match")
+          case ErrorAssign => failedProp("left and right expressions do not match")
         }
     }
 
-    lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
+    lazy val parameterAssignableTo: Property[(Type, Type)] = createProperty[(Type, Type)] {
+      case (Argument(InternalTupleT(ls)), Argument(InternalTupleT(rs))) if ls.size == rs.size =>
+        propForall(ls zip rs, assignableTo)
+
+      case (l, r) => assignableTo.result(l, r)
+    }
+
+    lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
       case (left, right) => s"$left is not assignable to $right"
-    }{
-      case (_: InternalTupleT, _) => false
-      case (l, r) if identicalTypes(l, r) => true
-      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
-        && identicalTypes(underlyingType(l), underlyingType(r)) => true
-      // TODO: interface is implemented
-      case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (NilType, _: PointerT | _: FunctionT | _: SliceT | _: MapT | _: ChannelT | _: InterfaceT) => true
+    } {
+      case (Single(lst), Single(rst)) => (lst, rst) match {
+        case (l, r) if identicalTypes(l, r) => true
+        case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
+          && identicalTypes(underlyingType(l), underlyingType(r)) => true
+        case (l, r: InterfaceT) if implements(l, r) => true
+        case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
+        case (NilType, _: PointerT | _: FunctionT | _: SliceT | _: MapT | _: ChannelT | _: InterfaceT) => true
+        case _ => false
+      }
       case _ => false
     }
 
-    lazy val assignable: Property[PExpression] = createBinaryProperty("assignable"){
+    lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
       case PIndexedExp(b, _) if exprType(b).isInstanceOf[MapT] => true
       case e => addressable(e)
     }
 
-    lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)]{
+    lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {
       case (t, op) => s"type error: got $t, but expected type compatible with $op"
-    }{
-      case (IntT, PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() ) => true
+    } {
+      case (Single(IntT), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp()) => true
       case _ => false
     }
 
-    lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)]{
+    lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)] {
       case (PExpCompositeVal(exp), t) => assignableTo.result(exprType(exp), t)
       case (PLitCompositeVal(lit), t) => literalAssignableTo.result(lit, t)
     }
 
-    lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)]{
-      case (PLiteralValue(elems), right) =>
+    lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)] {
+      case (PLiteralValue(elems), Single(right)) =>
         underlyingType(right) match {
           case StructT(decl) =>
             if (elems.isEmpty) {
               successProp
             } else if (elems.exists(_.key.nonEmpty)) {
               val tmap = (
-                decl.embedded.map(e => (e.typ.name, miscTipe(e.typ))) ++
+                decl.embedded.map(e => (e.typ.name, miscType(e.typ))) ++
                   decl.fields.map(f => (f.id.name, typeType(f.typ)))
                 ).toMap
 
               failedProp("for struct literals either all or none elements must be keyed"
                 , !elems.forall(_.key.nonEmpty)) and
-              propForall(elems, createProperty[PKeyedElement]{ e => e.key.map{
-                case PExpCompositeVal(PNamedOperand(id)) if tmap.contains(id.name) =>
-                  compositeValAssignableTo.result(e.exp, tmap(id.name))
+                propForall(elems, createProperty[PKeyedElement] { e =>
+                  e.key.map {
+                    case PExpCompositeVal(PNamedOperand(id)) if tmap.contains(id.name) =>
+                      compositeValAssignableTo.result(e.exp, tmap(id.name))
 
-                case v => failedProp(s"got $v but expected field name")
-              }.getOrElse(successProp)})
+                    case v => failedProp(s"got $v but expected field name")
+                  }.getOrElse(successProp)
+                })
             } else if (elems.size == decl.embedded.size + decl.fields.size) {
               propForall(
-                elems.map(_.exp).zip(decl.clauses.flatMap{
-                  case PEmbeddedDecl(typ) => Vector(miscTipe(typ))
+                elems.map(_.exp).zip(decl.clauses.flatMap {
+                  case PEmbeddedDecl(typ, _) => Vector(miscType(typ))
                   case PFieldDecls(fields) => fields map (f => typeType(f.typ))
                 }),
                 compositeValAssignableTo
@@ -778,20 +1020,20 @@ object TypeChecker {
 
           case ArrayT(len, elem) =>
             failedProp("expected integer as keys for array literal"
-              , elems.exists(_.key.exists{
+              , elems.exists(_.key.exists {
                 case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
                 case _ => true
               })) and
-            propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
-            failedProp("found overlapping or out-of-bound index arguments"
-              , {
-                val idxs = constantIndexes(elems)
-                idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0 && i < len)
-              })
+              propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
+              failedProp("found overlapping or out-of-bound index arguments"
+                , {
+                  val idxs = constantIndexes(elems)
+                  idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0 && i < len)
+                })
 
           case SliceT(elem) =>
             failedProp("expected integer as keys for slice literal"
-              , elems.exists(_.key.exists{
+              , elems.exists(_.key.exists {
                 case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
                 case _ => true
               })) and
@@ -805,15 +1047,16 @@ object TypeChecker {
           case MapT(key, elem) =>
             failedProp("for map literals all elements must be keyed"
               , elems.exists(_.key.isEmpty)) and
-            propForall(elems.flatMap(_.key), compositeValAssignableTo.before((c: PCompositeVal) => (c, key))) and
+              propForall(elems.flatMap(_.key), compositeValAssignableTo.before((c: PCompositeVal) => (c, key))) and
               propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem)))
 
           case t => failedProp(s"cannot assign literal to $t")
         }
+      case (l, t) => failedProp(s"cannot assign literal $l to $t")
     }
 
     def constantIndexes(vs: Vector[PKeyedElement]): List[BigInt] =
-      vs.foldLeft(List(-1: BigInt)){
+      vs.foldLeft(List(-1: BigInt)) {
         case (last :: rest, PKeyedElement(Some(PExpCompositeVal(exp)), _)) =>
           intConstantEval(exp).getOrElse(last + 1) :: last :: rest
 
@@ -826,15 +1069,15 @@ object TypeChecker {
       * Addressability
       */
 
-    lazy val effAddressable: Property[PExpression] = createBinaryProperty("effective addressable"){
-      case _: PCompositeLit  => true
+    lazy val effAddressable: Property[PExpression] = createBinaryProperty("effective addressable") {
+      case _: PCompositeLit => true
       case e => addressable(e)
     }
 
     // depends on: entity, tipe
-    lazy val addressable: Property[PExpression] = createBinaryProperty("addressable"){
+    lazy val addressable: Property[PExpression] = createBinaryProperty("addressable") {
       case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
-      case _: PReference     => true
+      case _: PReference => true
       case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && addressable(b))
       case PSelection(b, id) => entity(id).isInstanceOf[Field] && addressable(b)
       case PSelectionOrMethodExpr(_, id) => entity(id).isInstanceOf[Field] // variables are always addressable
@@ -848,7 +1091,7 @@ object TypeChecker {
     // depends on: typeType
     lazy val underlyingType: Type => Type =
     attr[Type, Type] {
-      case DeclaredT(t: PTypeDecl) => typeType(t.right)
+      case Single(DeclaredT(t: PTypeDecl)) => typeType(t.right)
       case t => t
     }
 
@@ -857,46 +1100,49 @@ object TypeChecker {
       */
 
     // depends on: abstractType, interfaceMethodSet, memberTipe
-    lazy val identicalTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)]{
+    lazy val identicalTypes: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
       case (left, right) => s"$left is not identical to $right"
-    }{
-      case (DeclaredT(l), DeclaredT(r)) => l == r
+    } {
+      case (Single(lst), Single(rst)) => (lst, rst) match {
+        case (DeclaredT(l), DeclaredT(r)) => l == r
 
-      case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
+        case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
 
-      case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
+        case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
 
-      case (StructT(l), StructT(r)) =>
-        val (les, lfs, res, rfs) = (l.embedded, l.fields, r.embedded, r.fields)
+        case (StructT(l), StructT(r)) =>
+          val (les, lfs, res, rfs) = (l.embedded, l.fields, r.embedded, r.fields)
 
-        les.size == res.size && les.zip(res).forall{
-          case (l,r) => identicalTypes(miscTipe(l.typ), miscTipe(r.typ))
-        } && lfs.size == rfs.size && lfs.zip(rfs).forall{
-          case (l,r) => l.id.name == r.id.name && identicalTypes(typeType(l.typ), typeType(r.typ))
-        }
+          les.size == res.size && les.zip(res).forall {
+            case (lm, rm) => identicalTypes(miscType(lm.typ), miscType(rm.typ))
+          } && lfs.size == rfs.size && lfs.zip(rfs).forall {
+            case (lm, rm) => lm.id.name == rm.id.name && identicalTypes(typeType(lm.typ), typeType(rm.typ))
+          }
 
-      case (l: InterfaceT, r: InterfaceT) =>
-        val lm = interfaceMethodSet(l).toMap
-        val rm = interfaceMethodSet(r).toMap
-        lm.keySet.forall( k => rm.get(k).exists( m => identicalTypes(memberTipe(m), memberTipe(lm(k))) ) ) &&
-          rm.keySet.forall( k => lm.get(k).exists( m => identicalTypes(memberTipe(m), memberTipe(rm(k))) ) )
+        case (l: InterfaceT, r: InterfaceT) =>
+          val lm = interfaceMethodSet(l).toMap
+          val rm = interfaceMethodSet(r).toMap
+          lm.keySet.forall(k => rm.get(k).exists(m => identicalTypes(memberType(m), memberType(lm(k))))) &&
+            rm.keySet.forall(k => lm.get(k).exists(m => identicalTypes(memberType(m), memberType(rm(k)))))
 
-      case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
+        case (PointerT(l), PointerT(r)) => identicalTypes(l, r)
 
-      case (FunctionT(larg, lr), FunctionT(rarg, rr)) =>
-        larg.size == rarg.size && larg.zip(rarg).forall{
-          case (l, r) => identicalTypes(l, r)
-        } && identicalTypes(lr, rr)
+        case (FunctionT(larg, lr), FunctionT(rarg, rr)) =>
+          larg.size == rarg.size && larg.zip(rarg).forall {
+            case (l, r) => identicalTypes(l, r)
+          } && identicalTypes(lr, rr)
 
-      case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk, rk) && identicalTypes(le, re)
+        case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk, rk) && identicalTypes(le, re)
 
-      case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
+        case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
 
-      case (InternalTupleT(lv), InternalTupleT(rv)) =>
-        lv.size == rv.size && lv.zip(rv).forall{
-          case (l, r) => identicalTypes(l, r)
-        }
+        case (InternalTupleT(lv), InternalTupleT(rv)) =>
+          lv.size == rv.size && lv.zip(rv).forall {
+            case (l, r) => identicalTypes(l, r)
+          }
 
+        case _ => false
+      }
       case _ => false
     }
 
@@ -904,35 +1150,85 @@ object TypeChecker {
       * Executability
       */
 
-    lazy val isExecutable: Property[PExpression] = createBinaryProperty("executable"){
+    lazy val isExecutable: Property[PExpression] = createBinaryProperty("executable") {
       case PCall(callee, _) => !isBuildIn(callee)
       case _ => false
     }
 
-    lazy val isBuildIn: Property[PExpression] = createBinaryProperty("buit-in"){
-      case _ => true
+    lazy val isBuildIn: Property[PExpression] = createBinaryProperty("buit-in") {
+      case t: PBuildIn => true
+      case _ => false
+    }
+
+    /**
+      * Constant Evaluation
+      */
+
+    lazy val intConstantEval: PExpression => Option[BigInt] =
+      attr[PExpression, Option[BigInt]] {
+        case PIntLit(lit) => Some(lit)
+        case e: PBinaryExp =>
+          def aux(f: BigInt => BigInt => BigInt): Option[BigInt] =
+            (intConstantEval(e.left), intConstantEval(e.right)) match {
+              case (Some(a), Some(b)) => Some(f(a)(b))
+              case _ => None
+            }
+
+          e match {
+            case _: PAdd => aux(x => y => x + y)
+            case _: PSub => aux(x => y => x - y)
+            case _: PMul => aux(x => y => x * y)
+            case _: PMod => aux(x => y => x % y)
+            case _: PDiv => aux(x => y => x / y)
+            case _ => None
+          }
+        case PNamedOperand(id) => entity(id) match {
+          case SingleConstant(exp, _) => intConstantEval(exp)
+          case _ => None
+        }
+
+        case _ => None
+      }
+
+    /**
+      * Reference Identity
+      */
+
+    def satisfies(n: PIdnNode)(f: Entity ==> Boolean): Boolean = f.lift(entity(n)).getOrElse(false)
+
+    lazy val pointsToData: Property[PIdnNode] = createBinaryProperty("use of a variable or constant"){
+      n => satisfies(n){ case _: DataEntity => true}
+    }
+
+    lazy val pointsToType: Property[PIdnNode] = createBinaryProperty("use of a Type"){
+      n => satisfies(n){ case _: TypeEntity => true}
     }
 
     /**
       * Enclosing
       */
 
-    lazy val enclosingMethod: PStatement => PMethodDecl =
-      down( (_: PNode) => violation("Statement does not root in a method")){ case m: PMethodDecl => m }
+    lazy val enclosingScope: PNode => PScope =
+      down((_: PNode) => violation("node does not root in a scope")) { case s: PScope => s }
 
-    def typeSwitchConstraints(id: PIdnNode): Vector[Type] =
+
+    lazy val enclosingMethod: PStatement => PMethodDecl =
+      down((_: PNode) => violation("Statement does not root in a method")) { case m: PMethodDecl => m }
+
+    def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
       typeSwitchConstraintsLookup(id)(id)
 
-    lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[Type] =
-      paramAttr[PIdnNode, PNode, Vector[Type]] { id => {
+    lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[PType] =
+      paramAttr[PIdnNode, PNode, Vector[PType]] { id => {
         case tree.parent.pair(PTypeSwitchCase(left, _), s: PTypeSwitchStmt)
-          if s.binder.exists(_.name == id.name) => left.map(typeType)
+          if s.binder.exists(_.name == id.name) => left
 
         case s: PTypeSwitchStmt // Default case
           if s.binder.exists(_.name == id.name) => Vector.empty
 
         case tree.parent(p) => typeSwitchConstraintsLookup(id)(p)
-      }}
+      }
+      }
 
     /**
       * Resolver
@@ -940,119 +1236,149 @@ object TypeChecker {
 
     def resolveConversionOrUnaryCall[T](n: PConversionOrUnaryCall)
                                        (conversion: (PIdnUse, PExpression) => T)
-                                       (unaryCall:  (PIdnUse, PExpression) => T): T =
-      entity(n.base) match {
-        case _: NamedType => conversion(n.base, n.arg)
-        case _            =>  unaryCall(n.base, n.arg)
-      }
+                                       (unaryCall: (PIdnUse, PExpression) => T): Option[T] =
+      if (pointsToType(n.base))      Some(conversion(n.base, n.arg))
+      else if (pointsToData(n.base)) Some(unaryCall(n.base, n.arg))
+      else None
 
     def resolveSelectionOrMethodExpr[T](n: PSelectionOrMethodExpr)
-                                       (selection: (PIdnUse, PIdnUnqualifiedUse) => T)
-                                       (methodExp: (PIdnUse, PIdnUnqualifiedUse) => T): T =
-      entity(n.base) match {
-        case _: NamedType => methodExp(n.base, n.id)
-        case _            => selection(n.base, n.id)
-      }
+                                       (selection: (PIdnUse, PIdnUse) => T)
+                                       (methodExp: (PIdnUse, PIdnUse) => T): Option[T] =
+      if (pointsToType(n.base))      Some(methodExp(n.base, n.id))
+      else if (pointsToData(n.base)) Some(selection(n.base, n.id))
+      else None
+
+    def isDef[T](n: PIdnUnk): Boolean = !isDefinedInEnv(sequentialDefenv.in(n), serialize(n))
+
+    /**
+      * Implements
+      */
+
+    def implements(l: Type, r: Type): Boolean = false
 
     /**
       * Method and Selection Set
       */
 
-    class MemberSet(private val internal: Map[String, (TypeMember, Vector[MemberPath], Int)]) {
+    class MemberSet private(
+                             private val internal: Map[String, (TypeMember, Vector[MemberPath], Int)]
+                             , private val duplicates: Set[String]
+                           ) {
 
       type Record = (TypeMember, Vector[MemberPath], Int)
 
-      def this(init: TraversableOnce[TypeMember]) = this(
-        init.map( m =>
-          (m match {
-            case MethodImpl(PMethodDecl(id, _, _, _, _)) => id.name
-            case MethodSpec(PMethodSpec(id, _, _))       => id.name
-            case Field(PFieldDecl(id, _))                => id.name
-            case Embbed(PEmbeddedDecl(typ))              => typ.name
-          }) -> (m, Vector.empty[MemberPath], 0)
-        ).toMap
-      )
-
-      def rank(path: Vector[MemberPath]): Int = path.count{
+      def rank(path: Vector[MemberPath]): Int = path.count {
         case _: MemberPath.Next => true
-        case _                  => false
+        case _ => false
       }
 
-      def union(other: MemberSet): MemberSet = new MemberSet(
-        (internal.keySet ++ other.internal.keySet).map[(String, Record), Map[String, Record]]( k =>
-          (internal.get(k), other.internal.get(k)) match {
-            case (Some(l@ (_, _, rl)), Some(r@ (_, _, rr))) => k -> (if (rl < rr) l else r)
-            case (Some(l), None) => k -> l
-            case (None, Some(r)) => k -> r
-            case (None, None) => throw new IllegalStateException("Key not used by operand of union")
-          })(breakOut)
-      )
+      def union(other: MemberSet): MemberSet = {
+        val keys = internal.keySet ++ other.internal.keySet
+        val (newMap, newDups) = keys.map{k => (internal.get(k), other.internal.get(k)) match {
+          case (Some(l@(_, _, rl)), Some(r@(_, _, rr))) =>
+            (k -> (if (rl < rr) l else r), if (rl == rr) Some(k) else None)
+
+          case (Some(l), None) => (k -> l, None)
+          case (None, Some(r)) => (k -> r, None)
+          case (None, None) => violation("Key not used by operand of union")
+        }}.unzip
+
+        new MemberSet(newMap.toMap, duplicates ++ other.duplicates ++ newDups.flatten)
+      }
 
       private def updatePath(f: (TypeMember, Vector[MemberPath], Int) => (TypeMember, Vector[MemberPath], Int)): MemberSet =
-        new MemberSet(internal.mapValues( f.tupled ))
+        new MemberSet(internal.mapValues(f.tupled), duplicates)
 
-      def surface: MemberSet = updatePath{ case (m,p,l) => (m, MemberPath.Underlying +: p, l) }
+      def surface: MemberSet = updatePath { case (m, p, l) => (m, MemberPath.Underlying +: p, l) }
 
-      def promote(f: Embbed): MemberSet = updatePath{ case (m,p,l) => (m, MemberPath.Next(f) +: p, l + 1) }
+      def promote(f: Embbed): MemberSet = updatePath { case (m, p, l) => (m, MemberPath.Next(f) +: p, l + 1) }
 
-      def ref: MemberSet = updatePath{ case (m,p,l) => (m, MemberPath.Deref +: p, l) }
+      def ref: MemberSet = updatePath { case (m, p, l) => (m, MemberPath.Deref +: p, l) }
 
-      def deref: MemberSet = updatePath{ case (m,p,l) => (m, MemberPath.Ref +: p, l) }
+      def deref: MemberSet = updatePath { case (m, p, l) => (m, MemberPath.Ref +: p, l) }
+
 
       def lookup(key: String): Option[TypeMember] = internal.get(key).map(_._1)
 
       def lookupWithPath(key: String): Option[(TypeMember, Vector[MemberPath])] =
-        internal.get(key).map( r => (r._1, r._2) )
+        internal.get(key).map(r => (r._1, r._2))
 
-      def filter(f: TypeMember => Boolean): MemberSet = new MemberSet( internal.filterKeys( n => f(internal(n)._1)) )
+      def filter(f: TypeMember => Boolean): MemberSet =
+        new MemberSet(internal.filterKeys(n => f(internal(n)._1)), duplicates)
 
       def methodSet: MemberSet = filter(m => m.isInstanceOf[Method])
 
-      def collect[T](f: (String, TypeMember) ==> T): Vector[T] = internal.collect{
+      def collect[T](f: (String, TypeMember) ==> T): Vector[T] = internal.collect {
         case (n, (m, _, _)) if f.isDefinedAt(n, m) => f(n, m)
       }(breakOut)
 
       def implements(other: MemberSet): Boolean = other.internal.keySet.forall(internal.contains)
 
       def toMap: Map[String, TypeMember] = internal.mapValues(_._1)
+
+      def valid: Boolean = duplicates.isEmpty
+
+      def errors(src: PType): Messages = {
+        duplicates.flatMap(n => message(src, s"type $src has member $n more than once"))(breakOut)
+      }
     }
 
     object MemberSet {
 
-      def empty: MemberSet = new MemberSet(Map.empty[String, (TypeMember, Vector[MemberPath], Int)])
+      def init(s: TraversableOnce[TypeMember]): MemberSet = {
+        val nmp: Vector[(String, TypeMember)] = s.map {
+          case e@ MethodImpl(m) => m.id.name -> e
+          case e@ MethodSpec(m) => m.id.name -> e
+          case e@ Field(m)      => m.id.name -> e
+          case e@ Embbed(m)     => m.id.name -> e
+        }.toVector
+
+        val groups = nmp.unzip._1.groupBy(identity)
+        val member = nmp.toMap
+
+        val dups: Set[String] = groups.collect{ case (x, ys) if ys.size > 1 => x }(breakOut)
+        val distinct = groups.keySet
+
+        new MemberSet(distinct.map(n => n -> (member(n), Vector.empty[MemberPath], 0)).toMap, dups)
+      }
+
+      def empty: MemberSet = new MemberSet(Map.empty[String, (TypeMember, Vector[MemberPath], Int)], Set.empty[String])
 
       def union(mss: Vector[MemberSet]): MemberSet = mss.size match {
         case 0 => empty
         case 1 => mss.head
-        case _ => mss.tail.fold(mss.head){ case (l,r) => l union r }
+        case _ => mss.tail.fold(mss.head) { case (l, r) => l union r }
       }
     }
+
 
     sealed trait MemberPath
 
     object MemberPath {
+
       case object Underlying extends MemberPath
-      case object Deref      extends MemberPath
-      case object Ref        extends MemberPath
-      case class  Next(decl: Embbed) extends MemberPath
+      case object Deref extends MemberPath
+      case object Ref extends MemberPath
+      case class Next(decl: Embbed) extends MemberPath
     }
 
     private lazy val receiverMethodSetMap: Map[Type, MemberSet] = {
       tree.root.declarations
         .collect { case m: PMethodDecl => MethodImpl(m) }(breakOut)
-        .groupBy { m: MethodImpl => miscTipe(m.decl.receiver) }
-        .mapValues( ms => new MemberSet(ms) )
+        .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
+        .mapValues(ms => MemberSet.init(ms))
     }
 
-    def receiverMethodSet(recv: Type): MemberSet = receiverMethodSetMap(recv)
+    def receiverMethodSet(recv: Type): MemberSet =
+      receiverMethodSetMap.getOrElse(recv, MemberSet.empty)
 
     lazy val interfaceMethodSet: InterfaceT => MemberSet =
       attr[InterfaceT, MemberSet] {
         case InterfaceT(PInterfaceType(es, specs)) =>
-          new MemberSet(specs.map(m => MethodSpec(m))) union MemberSet.union {
-            es.map( e => interfaceMethodSet(
+          MemberSet.init(specs.map(m => MethodSpec(m))) union MemberSet.union {
+            es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {
-                case NamedType(PTypeDef(_, t: PInterfaceType)) => InterfaceT(t)
+                case NamedType(PTypeDef(t: PInterfaceType, _)) => InterfaceT(t)
               }
             ))
           }
@@ -1060,14 +1386,8 @@ object TypeChecker {
 
     lazy val memberSet: Type => MemberSet =
       attr[Type, MemberSet] {
-
-        case t: DeclaredT           =>
-          receiverMethodSet(t) union promotedMemberSet(t)
-
-        case PointerT(t: DeclaredT) =>
-          receiverMethodSet(PointerT(t)) union receiverMethodSet(t).ref union promotedMemberSetRef(t)
-
-        case _ => MemberSet.empty
+        case PointerT(t) => receiverMethodSet(PointerT(t)) union receiverMethodSet(t).ref union promotedMemberSetRef(t)
+        case t => receiverMethodSet(t) union promotedMemberSet(t)
       }
 
     def promotedMemberSetGen(transformer: Type => Type): Type => MemberSet = {
@@ -1077,11 +1397,11 @@ object TypeChecker {
 
         case StructT(t) =>
           val (es, fields) = (t.embedded, t.fields)
-          new MemberSet(fields map Field) union new MemberSet(es map Embbed) union
-            MemberSet.union(es.map{ e => memberSet(transformer(miscTipe(e.typ))).promote(Embbed(e)) })
+          MemberSet.init(fields map Field) union MemberSet.init(es map Embbed) union
+            MemberSet.union(es.map { e => memberSet(transformer(miscType(e.typ))).promote(Embbed(e)) })
 
-        case DeclaredT(decl)  => rec(typeType(decl.right)).surface
-        case inf: InterfaceT  => interfaceMethodSet(inf)
+        case DeclaredT(decl) => rec(typeType(decl.right)).surface
+        case inf: InterfaceT => interfaceMethodSet(inf)
 
         case _ => MemberSet.empty
       }
@@ -1092,7 +1412,7 @@ object TypeChecker {
     lazy val promotedMemberSetRef: Type => MemberSet = {
       def maybeRef(t: Type): Type = t match {
         case _: PointerT => t
-        case _           => PointerT(t)
+        case _ => PointerT(t)
       }
 
       promotedMemberSetGen(maybeRef)
@@ -1100,129 +1420,37 @@ object TypeChecker {
 
     lazy val selectionSet: Type => MemberSet =
       attr[Type, MemberSet] {
-        case t: DeclaredT => memberSet(PointerT(t)).deref union promotedSelectionSet(t)
-        case t@ PointerT(_: DeclaredT) => memberSet(t)
-        case _ => MemberSet.empty
+        case t: PointerT => memberSet(t)
+        case t => memberSet(PointerT(t)).deref union promotedSelectionSet(t)
       }
 
     lazy val promotedSelectionSet: Type => MemberSet =
       attr[Type, MemberSet] {
-        case DeclaredT(decl)  => promotedSelectionSet(typeType(decl.right)).surface
-        case PointerT(t: DeclaredT)  => promotedMemberSetRef(t)
+        case DeclaredT(decl) => promotedSelectionSet(typeType(decl.right)).surface
+        case PointerT(t: DeclaredT) => promotedMemberSetRef(t)
         case _ => MemberSet.empty
       }
 
-    def findSelection(t: Type, id: PIdnUnqualifiedUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
+    def findSelection(t: Type, id: PIdnUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
 
-    def findMember(t: Type, id: PIdnUnqualifiedUse): Option[TypeMember] = memberSet(t).lookup(id.name)
+    def findMember(t: Type, id: PIdnUse): Option[TypeMember] = memberSet(t).lookup(id.name)
 
+    /**
+      * Debug
+      */
 
+    def containsUse(n: PNode, ref: String): Boolean = n match {
+      case PIdnUse(`ref`) => true
+      case _ => children(n) exists (containsUse(_, ref))
+    }
 
-
-
-
-
-
-
-
-    @scala.annotation.elidable(scala.annotation.elidable.ASSERTION) @inline
+    @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)
+    @inline
     def violation(cond: Boolean, msg: => String): Unit = if (!cond) violation(msg)
 
-    @scala.annotation.elidable(scala.annotation.elidable.ASSERTION) @inline
+    @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)
+    @inline
     def violation(msg: String): Nothing = throw new java.lang.IllegalStateException(s"Logic error: $msg")
-
-    def ifTypable[T <: PNode](n: T)(block: => Type): Type = {
-      if (children(n) forall isTypable)
-        block
-      else
-        UnknownType
-    }
-
-    def ifTypable[T <: PNode](block: T => Type): T => Type = n => ifTypable(n)(block(n))
-
-    def isTypable(n: PNode): Boolean = n match {
-      case e: PExpression => typable(e).isEmpty
-      case i: PIdnNode => validID(i).isEmpty
-      case t: PType    => validType(t).isEmpty
-      case _ => true
-    }
-
-    lazy val validID: PIdnNode => Messages = ???
-
-    lazy val validType: PType => Messages = ???
-
-    lazy val typable: PExpression => Messages =
-      attr[PExpression, Messages] { e =>
-
-        val act = exprType(e)
-
-        def typeMsg(msg: String, cond: Boolean = true): Messages =
-          message(e, s"type error: $cond")
-
-        def satisfies(pred: Type => Boolean)(msg: String): Messages =
-          typeMsg(s"got $act, but expected $msg", !pred(act))
-
-        def satisfiesP(pred: Type ==> Boolean)(msg: String): Messages =
-          satisfies(pred.lift(_).getOrElse(false))(msg)
-
-        def satisfiedForOneOf(pred: Type => Type => Boolean)(msg: String)(es: Seq[Type]): Messages = {
-          require(es.nonEmpty)
-
-          if (es contains UnknownType) {
-            noMessages
-          } else {
-            val postMsg = if (es.size == 1) s"${es.head}" else s"one of $es"
-            satisfies( t => es exists (pred(_)(t)) )(msg ++ postMsg)
-          }
-        }
-
-        def isOneOf(es: Type*): Messages = satisfiedForOneOf(l => r => l == r)("")(es)
-
-        def assignableToOneOf(es: Type*): Messages =
-          satisfiedForOneOf(l => r => assignableTo(r, l))("type assignable to")(es)
-
-        (e, act) match {
-          case (_, UnknownType) => noMessages
-          case (tree.parent(p), _) => p match {
-
-
-            case _: PGoStmt | _: PDeferStmt =>
-              typeMsg(s"got $e but expected non-build-in expression", isExecutable(e)) ++
-              satisfies(_.isInstanceOf[FunctionT])("function type")
-
-            case ret@ PReturn(rs) =>
-              val idx  = rs indexOf e
-              enclosingMethod(ret).result match {
-                case PVoidResult() =>
-              }
-              val mrts = ???
-              val rts  = if (rs.isEmpty) VoidType
-              ???
-
-            case _ => noMessages
-          }
-        }
-      }
-
-
-
-
-
-
-
-
-
-
-
-
-    lazy val methodSubSet: Type => InterfaceT => Boolean =
-      paramAttr[Type, InterfaceT, Boolean] { left => right =>
-        memberSet(left).methodSet.implements(interfaceMethodSet(right))
-      }
-
-
-
-
 
   }
 
@@ -1230,39 +1458,47 @@ object TypeChecker {
 
     sealed trait Regular extends Entity with Product
 
-    case class Constant(decl: PConstDecl, idx: Int) extends Regular
+    sealed trait DataEntity extends Regular
 
-    sealed trait Variable extends Regular
+    case class Function(decl: PFunctionDecl) extends DataEntity
 
-    case class LocalVariable(decl: PVarDecl, idx: Int) extends Variable
+    sealed trait Constant extends DataEntity
 
-    case class NamedType(decl: PTypeDef) extends Regular
+    case class SingleConstant(exp: PExpression, opt: Option[PType]) extends Constant
+    case class MultiConstant(idx: Int, exp: PExpression) extends Constant
 
-    case class TypeAlias(decl: PTypeAlias) extends Regular
+    sealed trait Variable extends DataEntity
 
-    case class Function(decl: PFunctionDecl) extends Regular
+    case class SingleLocalVariable(exp: PExpression, opt: Option[PType]) extends Variable
+    case class MultiLocalVariable(idx: Int, exp: PExpression) extends Variable
+    case class InParameter(decl: PNamedParameter) extends Variable
+    case class OutParameter(decl: PNamedParameter) extends Variable
+    case class TypeSwitchVariable(decl: PTypeSwitchStmt) extends Variable
+    case class RangeVariable(idx: Int, exp: PRange) extends Variable
+
+
+    sealed trait TypeEntity extends Regular
+
+    case class NamedType(decl: PTypeDef) extends TypeEntity
+    case class TypeAlias(decl: PTypeAlias) extends TypeEntity
+
 
     sealed trait TypeMember extends Regular
+
+    case class Field(decl: PFieldDecl) extends TypeMember
+    case class Embbed(decl: PEmbeddedDecl) extends TypeMember
 
     sealed trait Method extends TypeMember
 
     case class MethodImpl(decl: PMethodDecl) extends Method
-
     case class MethodSpec(spec: PMethodSpec) extends Method
 
-    case class Field(decl: PFieldDecl) extends TypeMember
-
-    case class Embbed(decl: PEmbeddedDecl) extends TypeMember
-
-    case class InParameter(decl: PNamedParameter) extends Variable
-
-    case class OutParameter(decl: PNamedParameter) extends Variable
-
-    case class TypeSwitchVariable(decl: PTypeSwitchStmt) extends Variable
 
     case class Package(decl: PQualifiedImport) extends Regular
 
     case class Label(decl: PLabeledStmt) extends Regular
+
+    case class Wildcard() extends Regular
 
   }
 
@@ -1297,9 +1533,13 @@ object TypeChecker {
     sealed trait ChannelModus
 
     object ChannelModus {
+
       case object Bi extends ChannelModus
+
       case object Recv extends ChannelModus
+
       case object Send extends ChannelModus
+
     }
 
     case class StructT(decl: PStructType) extends Type
@@ -1308,25 +1548,57 @@ object TypeChecker {
 
     case class InterfaceT(decl: PInterfaceType) extends Type
 
+
     case class InternalTupleT(ts: Vector[Type]) extends Type
 
+    case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
+
+    sealed trait TypeContext {
+      def unapply(arg: Type): Option[Type]
+    }
+
+    case object Argument extends TypeContext {
+      override def unapply(arg: Type): Option[Type] = arg match {
+        case t: InternalSingleMulti => Some(t.sin)
+        case UnknownType => None
+        case t => Some(t)
+      }
+    }
+
+    case object Assign extends TypeContext {
+      override def unapply(arg: Type): Option[Type] = arg match {
+        case t: InternalSingleMulti => Some(t.mul)
+        case UnknownType => None
+        case t => Some(t)
+      }
+    }
+
+    case object Single extends TypeContext {
+      override def unapply(arg: Type): Option[Type] = arg match {
+        case InternalSingleMulti(sin, _) => Some(sin)
+        case _: InternalTupleT => None
+        case UnknownType => None
+        case t => Some(t)
+      }
+    }
+
+    //    case class InternalSumT(ts: Vector[Type]) extends Type {
+    //      lazy val flattenedTs: Vector[Type] = ts flatMap {
+    //        case t: InternalSumT => t.flattenedTs
+    //        case t => Vector(t)
+    //      }
+    //      def find[T](f: Type ==> T): Option[T] = flattenedTs.collectFirst(f)
+    //    }
 
   }
 
   private implicit class OptionPlus[A](self: Option[A]) {
-    def \> (other: => Option[A]): Option[A] = if (self.isDefined) self else other
+    def \>(other: => Option[A]): Option[A] = if (self.isDefined) self else other
   }
 
   private implicit class OptionJoin[A](self: Option[Option[A]]) {
     def join: Option[A] = if (self.isDefined) self.get else None
   }
 
-  private implicit class CoupleTuple[A](self: A) {
-    def couple[B](f: A => B): (A, B) = (self, f(self))
-  }
-
 }
-
-
-

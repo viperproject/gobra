@@ -27,6 +27,8 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
+sealed trait PUncheckedUse extends PNode
+
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImportDecl],
@@ -56,7 +58,7 @@ class PositionManager extends PositionStore with Messaging {
   }
 }
 
-case class PPackageClause(id: PIdnDef) extends PNode
+case class PPackageClause(id: PPkgDef) extends PNode
 
 
 sealed trait PImportDecl extends PNode {
@@ -72,6 +74,8 @@ sealed trait PMember extends PNode
 
 sealed trait PTopLevel extends PMember
 
+sealed trait PCodeRoot extends PNode
+
 case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PMember with PStatement
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PMember with PStatement
@@ -81,7 +85,7 @@ case class PFunctionDecl(
                           args: Vector[PParameter],
                           result: PResult,
                           body: Option[PBlock]
-                        ) extends PMember with PTopLevel with PScope
+                        ) extends PMember with PTopLevel with PScope with PCodeRoot
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -89,7 +93,7 @@ case class PMethodDecl(
                         args: Vector[PParameter],
                         result: PResult,
                         body: Option[PBlock]
-                      ) extends PMember with PTopLevel with PScope
+                      ) extends PMember with PTopLevel with PScope with PCodeRoot
 
 sealed trait PTypeDecl extends PMember with PStatement {
 
@@ -183,11 +187,11 @@ case class PSelectShortRecv(recv: PReceive, shorts: Vector[PIdnUnk], body: PBloc
 
 case class PReturn(exps: Vector[PExpression]) extends PStatement
 
-case class PBreak(label: Option[PIdnUse]) extends PStatement
+case class PBreak(label: Option[PLabelUse]) extends PStatement
 
-case class PContinue(label: Option[PIdnUse]) extends PStatement
+case class PContinue(label: Option[PLabelUse]) extends PStatement
 
-case class PGoto(label: PIdnUse) extends PStatement
+case class PGoto(label: PLabelDef) extends PStatement
 
 case class PDeferStmt(exp: PExpression) extends PStatement
 
@@ -231,15 +235,19 @@ case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
 case class PLiteralValue(elems: Vector[PKeyedElement]) extends PNode
 
-case class PKeyedElement(key: Option[PCompositeVal], exp: PCompositeVal) extends PNode
+case class PKeyedElement(key: Option[PCompositeKey], exp: PCompositeVal) extends PNode
 
-sealed trait PCompositeVal extends PNode
+sealed trait PCompositeKey extends PNode
 
-case class PExpCompositeVal(exp: PExpression) extends PCompositeVal
+case class PIdentifierKey(id: PIdnUse) extends PCompositeKey with PUncheckedUse
+
+sealed trait PCompositeVal extends PCompositeKey
+
+case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is never a named operand
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral
+case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRoot with PScope
 
 case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PExpression
 

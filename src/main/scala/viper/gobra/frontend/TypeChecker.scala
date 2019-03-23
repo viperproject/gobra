@@ -26,6 +26,9 @@ object TypeChecker {
 
   def check(program: PProgram): Either[Vector[VerifierError], TypeInfo] = {
     val tree = new GoTree(program)
+//    println(program.declarations.head)
+//    println("-------------------")
+//    println(tree)
     val info = new TypeInfoImpl(tree)
 
     val errors = info.errors
@@ -47,12 +50,14 @@ object TypeChecker {
 
     lazy val errors: Messages =
       collectMessages(tree) {
-        case n: PTopLevel   => wellDefTop(n)
-        case n: PStatement  => wellDefStmt(n)
-        case n: PExpression => wellDefExpr(n)
-        case n: PType       => wellDefType(n)
-        case n: PIdnNode    => wellDefID(n)
-        case n: PMisc       => wellDefMisc(n)
+        case n: PTopLevel   => wellDefTop(n).out
+        case n: PStatement  => wellDefStmt(n).out
+        case n: PExpression => wellDefExpr(n).out
+        case n: PType       => wellDefType(n).out
+        case n: PIdnNode    => wellDefID(n).out
+//        case n: PIdnDef     => wellDefID(n).out
+//        case n: PIdnUnk if isDef(n) => wellDefID(n).out
+        case n: PMisc       => wellDefMisc(n).out
       }
 
     lazy val defEntity: PDefLikeId => Entity =
@@ -81,11 +86,15 @@ object TypeChecker {
           case decl: PTypeDef => NamedType(decl)
           case decl: PTypeAlias => TypeAlias(decl)
           case decl: PFunctionDecl => Function(decl)
-          case decl: PMethodDecl => violation("method decl entities must be created by method resolution")
+          case decl: PMethodDecl => MethodImpl(decl)
           case spec: PMethodSpec => MethodSpec(spec)
+
+          case decl: PFieldDecl => Field(decl)
+          case decl: PEmbeddedDecl => Embbed(decl)
 
           case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl)
           case decl: PNamedParameter => InParameter(decl)
+          case decl: PNamedReceiver => ReceiverParameter(decl)
 
           case decl: PTypeSwitchStmt => TypeSwitchVariable(decl)
         }
@@ -129,20 +138,22 @@ object TypeChecker {
 
     def defenvin(in: PNode => Environment): PNode ==> Environment = {
       case n: PProgram => addShallowDefToEnv(rootenv())(n)
-      case scope: PUnorderedScope => enter(addShallowDefToEnv(in(scope))(scope))
-      case scope: PScope => enter(in(scope))
+      case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
+      case scope: PScope => println("enter scope"); enter(in(scope))
     }
 
     def defenvout(out: PNode => Environment): PNode ==> Environment = {
 
-      case id: PIdnDef if doesAddEntry(id) && !isUnorderDef(id) =>
+      case id: PIdnDef if doesAddEntry(id) && !isUnorderedDef(id) =>
+        println(s"add ${id.name} to" + out(id).map(_.keySet))
         defineIfNew(out(id), serialize(id), defEntity(id))
 
       case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
         define(out(id), serialize(id), unkEntity(id))
 
       case scope: PScope =>
-        enter(out(scope))
+        println("leave scope");
+        leave(out(scope))
     }
 
     lazy val doesAddEntry: PIdnDef => Boolean =
@@ -175,7 +186,9 @@ object TypeChecker {
       }
     }
 
-    def isUnorderDef(id: PIdnDef): Boolean = enclosingScope(id).isInstanceOf[PUnorderedScope]
+    def isUnorderedDef(id: PIdnDef): Boolean = id match { // TODO: a bit hacky, clean up at some point
+      case tree.parent(tree.parent(c)) => enclosingScope(c).isInstanceOf[PUnorderedScope]
+    }
 
 
     //    /**
@@ -207,7 +220,10 @@ object TypeChecker {
         case tree.parent.pair(id: PIdnUse, e: PSelection) =>
           findSelection(exprType(e.base), id).getOrElse(UnknownEntity())
 
+        case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
+
         case n =>
+          println(s"lookup of ${n.name} in" + sequentialDefenv(n).map(_.keySet))
           lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
       }
 
@@ -245,9 +261,22 @@ object TypeChecker {
       def valid(n: A): Boolean = !invalid(apply(n))
     }
 
-    trait Error[-A] extends Validity[A, Messages] {
+    sealed trait ValidityMessages {
+      def out: Messages
+      def valid: Boolean
+    }
 
-      override def invalid(ret: Messages): Boolean = ret.nonEmpty
+    case object UnsafeForwardMessage extends ValidityMessages {
+      override val out: Messages = noMessages
+      override val valid: Boolean = false
+    }
+
+    case class LocalMessages(override val out: Messages) extends ValidityMessages {
+      override def valid: Boolean = out.isEmpty
+    }
+
+    trait Error[-A] extends Validity[A, ValidityMessages] {
+      override def invalid(ret: ValidityMessages): Boolean = !ret.valid
     }
 
     trait WellDefinedness[-A] extends Error[A]
@@ -265,13 +294,13 @@ object TypeChecker {
     }
 
     def createWellDef[T <: PNode](check: T => Messages): WellDefinedness[T] =
-      new WellDefinedness[T] with Safety[T, Messages] with Memoization[T, Messages] {
+      new WellDefinedness[T] with Safety[T, ValidityMessages] with Memoization[T, ValidityMessages] {
 
         override def safe(n: T): Boolean = childrenWellDefined(n)
 
-        override def unsafe: Messages = noMessages
+        override def unsafe: ValidityMessages = UnsafeForwardMessage
 
-        override def compute(n: T): Messages = check(n)
+        override def compute(n: T): ValidityMessages = LocalMessages(check(n))
       }
 
     trait Typing[-A] extends Safety[A, Type] with Validity[A, Type] {
@@ -296,7 +325,7 @@ object TypeChecker {
 
     private lazy val wellDefTop: WellDefinedness[PTopLevel] = createWellDef {
 
-      case _: PFunctionDecl => noMessages
+      case n: PFunctionDecl => noMessages
 
       case m: PMethodDecl => miscType(m.receiver) match {
         case DeclaredT(_) | PointerT(DeclaredT(_)) => noMessages
@@ -315,6 +344,8 @@ object TypeChecker {
 
       case n@PVarDecl(typ, right, left) =>
         declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
+
+      case n: PTypeDecl => noMessages
 
       case n@PExpressionStmt(exp) => isExecutable.errors(exp)(n)
 
@@ -378,9 +409,16 @@ object TypeChecker {
 
 
       case n@PReturn(exps) =>
-        enclosingMethod(n).result match {
-          case PVoidResult() => message(n, s"expected no agruments but got $exps", exps.nonEmpty)
-          case PResultClause(outs) => multiAssignableTo.errors(exps map exprType, outs map miscType)(n)
+        (enclosingCodeRoot(n) match {
+          case f: PFunctionDecl  => f.result
+          case f: PFunctionLit   => f.result
+          case m: PMethodDecl    => m.result
+        }) match {
+          case PVoidResult() => message(n, s"expected no arguments but got $exps", exps.nonEmpty)
+          case PResultClause(outs) =>
+            if (outs forall wellDefMisc.valid)
+              multiAssignableTo.errors(exps map exprType, outs map miscType)(n)
+            else message(n, s"return cannot be checked because the enclosing signature is incorrect")
         }
 
       case n@PDeferStmt(exp) => isExecutable.errors(exp)(n)
@@ -388,8 +426,7 @@ object TypeChecker {
       case _: PBlock => noMessages
       case _: PSeq => noMessages
 
-      case _ => ???
-
+      case s => violation(s"$s was not handled")
     }
 
 
@@ -399,7 +436,7 @@ object TypeChecker {
 
     private implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef {
 
-      case n@ PNamedOperand(id) => pointsToType.errors(id)(n)
+      case n@ PNamedOperand(id) => pointsToData.errors(id)(n)
       case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
 
       case n@PCompositeLit(t, lit) =>
@@ -407,7 +444,6 @@ object TypeChecker {
           case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
           case t: PType => typeType(t)
         }
-
         literalAssignableTo.errors(lit, bt)(n)
 
       case _: PFunctionLit => noMessages
@@ -415,7 +451,9 @@ object TypeChecker {
       case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
 
       case n@PCall(base, paras) => exprType(base) match {
-        case FunctionT(args, _) => multiAssignableTo.errors(paras map exprType, args)(n)
+        case FunctionT(args, _) =>
+          if (paras.isEmpty && args.isEmpty) noMessages
+          else multiAssignableTo.errors(paras map exprType, args)(n) // TODO: add special assignment
         case t => message(n, s"type error: got $t but expected function type")
       }
 
@@ -491,7 +529,7 @@ object TypeChecker {
         case t => message(n, s"expected receive-permitting channel but got $t")
       }
 
-      case n@PReference(e) => addressable.errors(e)(n)
+      case n@PReference(e) => effAddressable.errors(e)(n)
 
       case n@PDereference(exp) => exprType(exp) match {
         case PointerT(t) => noMessages
@@ -578,7 +616,7 @@ object TypeChecker {
         case t => violation(s"expected receive-permitting channel but got $t")
       }
 
-      case PReference(exp) if addressable(exp) => PointerT(exprType(exp))
+      case PReference(exp) if effAddressable(exp) => PointerT(exprType(exp))
 
       case PDereference(exp) => exprType(exp) match {
         case PointerT(t) => t
@@ -607,10 +645,11 @@ object TypeChecker {
       case n@PArrayType(len, _) =>
         message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty)
 
-      case _: PSliceType | _: PMapType | _: PPointerType |
+      case _: PSliceType | _: PPointerType |
            _: PBiChannelType | _: PSendChannelType | _: PRecvChannelType |
            _: PMethodReceiveName | _: PMethodReceivePointer | _: PFunctionType => noMessages
 
+      case n@ PMapType(key, _) => message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
 
       case t: PStructType => memberSet(StructT(t)).errors(t)
 
@@ -657,12 +696,13 @@ object TypeChecker {
       */
 
     private implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDef {
-      id => entity(id) match {
+      case tree.parent(_: PUncheckedUse) => noMessages
+      case id => entity(id) match {
         case _: UnknownEntity => message(id, s"got unknown identifier $id")
         case _: MultipleEntity => message(id, s"got duplicate identifier $id")
 
         case SingleConstant(exp, opt) => message(id, s"variable $id is not defined", ! {
-          opt.forall(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+          opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
         })
 
         case MultiConstant(idx, exp) => message(id, s"variable $id is not defined", ! {
@@ -673,7 +713,7 @@ object TypeChecker {
         })
 
         case SingleLocalVariable(exp, opt) => message(id, s"variable $id is not defined", ! {
-          opt.forall(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+          opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
         })
 
         case MultiLocalVariable(idx, exp) => message(id, s"variable $id is not defined", ! {
@@ -697,6 +737,10 @@ object TypeChecker {
           wellDefType.valid(p.typ)
         })
 
+        case ReceiverParameter(p) => message(id, s"variable $id is not defined", ! {
+          wellDefType.valid(p.typ)
+        })
+
         case OutParameter(p) => message(id, s"variable $id is not defined",! {
           wellDefType.valid(p.typ)
         })
@@ -712,6 +756,16 @@ object TypeChecker {
             case t => false
           }
         })
+
+        case Field(PFieldDecl(_, typ)) => message(id, s"variable $id is not defined", ! {
+          wellDefType.valid(typ)
+        })
+
+        case Embbed(PEmbeddedDecl(_, id)) => message(id, s"variable $id is not defined", ! {
+          wellDefID.valid(id)
+        })
+
+        case _: MethodImpl => noMessages // not typed
       }
     }
 
@@ -748,6 +802,8 @@ object TypeChecker {
 
         case InParameter(p) => typeType(p.typ)
 
+        case ReceiverParameter(p) => typeType(p.typ)
+
         case OutParameter(p) => typeType(p.typ)
 
         case TypeSwitchVariable(decl) =>
@@ -758,6 +814,10 @@ object TypeChecker {
           case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
           case t => violation(s"expected tuple but got $t")
         }
+
+        case Field(PFieldDecl(_, typ)) => typeType(typ)
+
+        case Embbed(PEmbeddedDecl(_, id)) => idType(id)
 
       }
     }
@@ -792,7 +852,8 @@ object TypeChecker {
       case p: PParameter => typeType(p.typ)
       case r: PReceiver => typeType(r.typ)
       case PVoidResult() => VoidType
-      case PResultClause(outs) => InternalTupleT(outs.map(miscType))
+      case PResultClause(outs) =>
+        if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
       case PEmbeddedName(t) => typeType(t)
       case PEmbeddedPointer(t) => PointerT(typeType(t))
@@ -854,7 +915,7 @@ object TypeChecker {
     def createProperty[A](gen: A => PropertyResult): Property[A] = Property[A](gen)
 
     def createFlatProperty[A](msg: A => String)(check: A => Boolean): Property[A] =
-      createProperty[A](n => failedProp(s"property error: ${msg(n)}", check(n)))
+      createProperty[A](n => failedProp(s"property error: ${msg(n)}", !check(n)))
 
     def createBinaryProperty[A](name: String)(check: A => Boolean): Property[A] =
       createFlatProperty((n: A) => s"got $n that is not $name")(check)
@@ -929,27 +990,26 @@ object TypeChecker {
     lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
       createProperty[(Vector[Type], Option[Type], Vector[Type])] {
         case (right, None, left) => multiAssignableTo.result(right, left)
-        case (right, Some(t), left) => failedProp("", left.nonEmpty) and
-          propForall(right, assignableTo.before((l: Type) => (l, t)))
+        case (right, Some(t), _) => propForall(right, assignableTo.before((l: Type) => (l, t)))
       }
 
     lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
-      case (left, right) =>
+      case (right, left) =>
         assignModi(left.size, right.size) match {
           case SingleAssign => propForall(right.zip(left), assignableTo)
           case MultiAssign => right.head match {
             case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
             case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
           }
-          case ErrorAssign => failedProp("left and right expressions do not match")
+          case ErrorAssign => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
         }
     }
 
     lazy val parameterAssignableTo: Property[(Type, Type)] = createProperty[(Type, Type)] {
-      case (Argument(InternalTupleT(ls)), Argument(InternalTupleT(rs))) if ls.size == rs.size =>
-        propForall(ls zip rs, assignableTo)
+      case (Argument(InternalTupleT(rs)), Argument(InternalTupleT(ls))) if rs.size == ls.size =>
+        propForall(rs zip ls, assignableTo)
 
-      case (l, r) => assignableTo.result(l, r)
+      case (r, l) => assignableTo.result(r, l)
     }
 
     lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
@@ -979,6 +1039,11 @@ object TypeChecker {
       case _ => false
     }
 
+    lazy val compositeKeyAssignableTo: Property[(PCompositeKey, Type)] = createProperty[(PCompositeKey, Type)] {
+      case (PIdentifierKey(id), t) => assignableTo.result(idType(id), t)
+      case (k: PCompositeVal, t) => compositeValAssignableTo.result(k, t)
+    }
+
     lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)] {
       case (PExpCompositeVal(exp), t) => assignableTo.result(exprType(exp), t)
       case (PLitCompositeVal(lit), t) => literalAssignableTo.result(lit, t)
@@ -1000,7 +1065,7 @@ object TypeChecker {
                 , !elems.forall(_.key.nonEmpty)) and
                 propForall(elems, createProperty[PKeyedElement] { e =>
                   e.key.map {
-                    case PExpCompositeVal(PNamedOperand(id)) if tmap.contains(id.name) =>
+                    case PIdentifierKey(id) if tmap.contains(id.name) =>
                       compositeValAssignableTo.result(e.exp, tmap(id.name))
 
                     case v => failedProp(s"got $v but expected field name")
@@ -1047,7 +1112,7 @@ object TypeChecker {
           case MapT(key, elem) =>
             failedProp("for map literals all elements must be keyed"
               , elems.exists(_.key.isEmpty)) and
-              propForall(elems.flatMap(_.key), compositeValAssignableTo.before((c: PCompositeVal) => (c, key))) and
+              propForall(elems.flatMap(_.key), compositeKeyAssignableTo.before((c: PCompositeKey) => (c, key))) and
               propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem)))
 
           case t => failedProp(s"cannot assign literal to $t")
@@ -1104,6 +1169,9 @@ object TypeChecker {
       case (left, right) => s"$left is not identical to $right"
     } {
       case (Single(lst), Single(rst)) => (lst, rst) match {
+
+        case (IntT, IntT) | (BooleanT, BooleanT) => true
+
         case (DeclaredT(l), DeclaredT(r)) => l == r
 
         case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
@@ -1136,10 +1204,10 @@ object TypeChecker {
 
         case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
 
-        case (InternalTupleT(lv), InternalTupleT(rv)) =>
-          lv.size == rv.size && lv.zip(rv).forall {
-            case (l, r) => identicalTypes(l, r)
-          }
+//        case (InternalTupleT(lv), InternalTupleT(rv)) =>
+//          lv.size == rv.size && lv.zip(rv).forall {
+//            case (l, r) => identicalTypes(l, r)
+//          }
 
         case _ => false
       }
@@ -1154,6 +1222,8 @@ object TypeChecker {
       case PCall(callee, _) => !isBuildIn(callee)
       case _ => false
     }
+
+    // TODO: probably will be unneccessary because build int functions always have to be called
 
     lazy val isBuildIn: Property[PExpression] = createBinaryProperty("buit-in") {
       case t: PBuildIn => true
@@ -1212,8 +1282,8 @@ object TypeChecker {
       down((_: PNode) => violation("node does not root in a scope")) { case s: PScope => s }
 
 
-    lazy val enclosingMethod: PStatement => PMethodDecl =
-      down((_: PNode) => violation("Statement does not root in a method")) { case m: PMethodDecl => m }
+    lazy val enclosingCodeRoot: PStatement => PCodeRoot =
+      down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot => m }
 
     def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
       typeSwitchConstraintsLookup(id)(id)
@@ -1472,6 +1542,7 @@ object TypeChecker {
     case class SingleLocalVariable(exp: PExpression, opt: Option[PType]) extends Variable
     case class MultiLocalVariable(idx: Int, exp: PExpression) extends Variable
     case class InParameter(decl: PNamedParameter) extends Variable
+    case class ReceiverParameter(decl: PNamedReceiver) extends Variable
     case class OutParameter(decl: PNamedParameter) extends Variable
     case class TypeSwitchVariable(decl: PTypeSwitchStmt) extends Variable
     case class RangeVariable(idx: Int, exp: PRange) extends Variable
@@ -1600,5 +1671,6 @@ object TypeChecker {
   private implicit class OptionJoin[A](self: Option[Option[A]]) {
     def join: Option[A] = if (self.isDefined) self.get else None
   }
+
 
 }

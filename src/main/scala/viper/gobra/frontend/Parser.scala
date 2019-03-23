@@ -9,7 +9,8 @@ package viper.gobra.frontend
 import java.io.File
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
+import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.message
 import viper.gobra.ast.parser._
 import viper.gobra.reporting.{ParserError, VerifierError}
@@ -54,6 +55,8 @@ object Parser {
 
   private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
 
+    lazy val rewriter = new PRewriter(pom.positions)
+
     override val whitespace: Parser[String] =
       """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*""".r
 
@@ -89,7 +92,7 @@ object Parser {
       }
 
     lazy val packageClause: Parser[PPackageClause] =
-      "package" ~> idnDef ^^ PPackageClause
+      "package" ~> pkgDef ^^ PPackageClause
 
     lazy val importDecl: Parser[Vector[PImportDecl]] =
       "import" ~> importSpec ^^ (decl => Vector(decl)) |
@@ -107,7 +110,7 @@ object Parser {
       }
 
     lazy val member: Parser[Vector[PMember]] =
-      (functionDecl | methodDecl) ^^ (Vector(_)) |
+      (methodDecl | functionDecl) ^^ (Vector(_)) |
       constDecl | varDecl | typeDecl
 
     lazy val declarationStmt: Parser[PStatement] =
@@ -155,8 +158,8 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      ("func" ~> idnDef) ~ receiver ~ signature ~ block.? ^^ {
-        case name ~ rcv ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, body)
+      ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
+        case rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, body)
       }
 
     /**
@@ -180,7 +183,7 @@ object Parser {
 
 
     lazy val simpleStmt: Parser[PSimpleStmt] =
-      expressionStmt | sendStmt | assignmentWithOp | assignment | shortVarDecl
+      sendStmt | assignmentWithOp | assignment | shortVarDecl | expressionStmt
 
     lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
       simpleStmt | emptyStmt
@@ -210,7 +213,7 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selectionOrMethodExpr | selection | indexedExp | "&" ~> unaryExp ^^ PDereference
+      selectionOrMethodExpr | selection | indexedExp | "*" ~> unaryExp ^^ PDereference
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(idnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^
@@ -229,13 +232,13 @@ object Parser {
       breakStmt | continueStmt | gotoStmt
 
     lazy val breakStmt: Parser[PBreak] =
-      "break" ~> idnUse.? ^^ PBreak
+      "break" ~> labelUse.? ^^ PBreak
 
     lazy val continueStmt: Parser[PContinue] =
-      "continue" ~> idnUse.? ^^ PContinue
+      "continue" ~> labelUse.? ^^ PContinue
 
     lazy val gotoStmt: Parser[PGoto] =
-      "goto" ~> idnUse ^^ PGoto
+      "goto" ~> labelDef ^^ PGoto
 
     lazy val deferStmt: Parser[PDeferStmt] =
       "defer" ~> expression ^^ PDeferStmt
@@ -392,8 +395,8 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
-        "*" ~> unaryExp ^^ PReference |
-        "&" ~> unaryExp ^^ PDereference |
+        "&" ~> unaryExp ^^ PReference |
+        "*" ~> unaryExp ^^ PDereference |
         receiveExp |
         primaryExp
 
@@ -438,7 +441,13 @@ object Parser {
       }
 
     lazy val keyedElement: Parser[PKeyedElement] =
-      (compositeVal <~ ":").? ~ compositeVal ^^ PKeyedElement
+      (compositeKey <~ ":").? ~ compositeVal ^^ PKeyedElement
+
+    lazy val compositeKey: Parser[PCompositeKey] =
+      compositeVal ^^ {
+        case n@ PExpCompositeVal(PNamedOperand(id)) => PIdentifierKey(id).at(n)
+        case n => n
+      }
 
     lazy val compositeVal: Parser[PCompositeVal] =
       expCompositeLiteral | litCompositeLiteral
@@ -527,7 +536,7 @@ object Parser {
 
     lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        PFieldDecls(ids map (id => PFieldDecl(id, t).at(id)))
+        PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id)))
       }
 
     lazy val interfaceType: Parser[PInterfaceType] =
@@ -560,7 +569,7 @@ object Parser {
       idnUse ^^ PDeclaredType
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType
+      sliceType | arrayType | implicitSizeArrayType | mapType | structType | declaredType
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
@@ -584,25 +593,20 @@ object Parser {
         typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t).at(t)))) |
         success(PVoidResult())
 
-    lazy val parameters: PackratParser[Vector[PParameter]] =
+    lazy val parameters: Parser[Vector[PParameter]] =
       "(" ~> (parameterList <~ ",".?).? <~ ")" ^^ {
         case None => Vector.empty
         case Some(ps) => ps
       }
 
-    lazy val parameterList: PackratParser[Vector[PParameter]] =
+    lazy val parameterList: Parser[Vector[PParameter]] =
       rep1sep(parameterDecl, ",") ^^ Vector.concat
 
-    lazy val parameterDecl: PackratParser[Vector[PParameter]] =
-      repsep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+    lazy val parameterDecl: Parser[Vector[PParameter]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
+      } |  typ ^^ (t => Vector(PUnnamedParameter(t)))
 
-        val names = ids // TODO: filter (!_.isInstanceOf[PWildcard])
-        if (names.isEmpty) {
-          Vector(PUnnamedParameter(t).at(t))
-        } else {
-          ids map (id => PNamedParameter(id, t).at(id))
-        }
-      }
 
     lazy val nestedIdnUse: PackratParser[PIdnUse] =
       "(" ~> nestedIdnUse <~ ")" | idnUse
@@ -672,9 +676,15 @@ object Parser {
       def range(from: PNode, to: PNode): N = {
         pom.positions.dupRangePos(from, to, node)
       }
+
+      def copy: N = rewriter.deepclone(node)
     }
 
     def pos[T](p: => Parser[T]): Parser[PPos[T]] = p ^^ PPos[T]
+
+  }
+
+  private class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
 
   }
 

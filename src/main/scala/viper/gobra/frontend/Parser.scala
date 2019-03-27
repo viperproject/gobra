@@ -12,7 +12,7 @@ import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.message
-import viper.gobra.ast.parser._
+import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
 
 object Parser {

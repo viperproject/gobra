@@ -4,13 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-package viper.gobra.ast.parser
+package viper.gobra.ast.frontend
 
 import java.nio.file.Paths
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
-import viper.gobra.ast.parser.PNode.PPkg
+import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 

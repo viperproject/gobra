@@ -1,18 +1,18 @@
 package wap;
 
-// type t int;
+type t int;
 
-// // type r = int;
+// type r = int;
 
-// var q int = test(420, x);
+var q int = test(420, x);
 
-// var z, r = (func (x, t int) (int, int) { return x + t, 42; })(3,4);
+var z, r = (func (x, t int) (int, int) { return x + t, 42; })(3,4);
 
-// var (
-// 	q11, w11 int = 9, 19;
+var (
+	q11, w11 int = 9, 19;
 
-// 	q22 int = 8;
-// );
+	q22 int = 8;
+);
 
 
 type freed struct{
@@ -38,12 +38,12 @@ func foo() {
 var f = 5;
 
 
-// func test(x, y int) int {
-// 	v, q := x + y, test(v, x);
-// 	return q;
-// };
+func test(x, y int) int {
+	v, q := x + y, test(y, x);
+	return q;
+};
 
-// const x = 42;
+const x = 42;
 
 
 

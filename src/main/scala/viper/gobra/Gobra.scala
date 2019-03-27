@@ -12,7 +12,8 @@ import ch.qos.logback.classic.Logger
 import com.typesafe.scalalogging.StrictLogging
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.ViperVerifier
-import viper.gobra.frontend.{Config, Desugar, Parser, TypeChecker}
+import viper.gobra.frontend.info.Info
+import viper.gobra.frontend.{Config, Desugar, Parser}
 import viper.gobra.reporting.{BackTranslator, VerifierResult}
 import viper.gobra.translator.Translator
 
@@ -47,7 +48,7 @@ class Gobra extends GoVerifier {
 
     val result = for {
       parsedProgram <- Parser.parse(file)
-      typeInfo <- TypeChecker.check(parsedProgram)
+      typeInfo <- Info.check(parsedProgram)
       program = Desugar.desugar(parsedProgram, typeInfo)
       viperTask = Translator.translate(program)
       verifierResult = ViperVerifier.verify(viperTask)

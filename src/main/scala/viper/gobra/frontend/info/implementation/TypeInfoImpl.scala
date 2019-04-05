@@ -1,6 +1,9 @@
 package viper.gobra.frontend.info.implementation
 
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
+import viper.gobra.ast.frontend.{PExpression, PNode, PType}
+import viper.gobra.ast.internal.Origin
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
@@ -35,5 +38,9 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 {
   import org.bitbucket.inkytonik.kiama.attribution.Decorators
   protected val decorators = new Decorators(tree)
+
+  override def typ(expr: PExpression): Type.Type = exprType(expr)
+
+  override def typ(typ: PType): Type.Type = typeType(typ)
 }
 

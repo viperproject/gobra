@@ -13,7 +13,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDef {
     case tree.parent(_: PUncheckedUse) => noMessages
-    case id => entity(id) match {
+    case id => regular(id) match {
       case _: UnknownEntity => message(id, s"got unknown identifier $id")
       case _: MultipleEntity => message(id, s"got duplicate identifier $id")
 
@@ -86,7 +86,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val idType: Typing[PIdnNode] = createTyping { id =>
-    entity(id) match {
+    regular(id) match {
 
       case SingleConstant(exp, opt) => opt.map(typeType)
         .getOrElse(exprType(exp) match {

@@ -25,7 +25,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case InterfaceT(PInterfaceType(es, specs)) =>
         MemberSet.init(specs.map(m => MethodSpec(m))) union MemberSet.union {
           es.map(e => interfaceMethodSet(
-            entity(e.typ.id) match {
+            regular(e.typ.id) match {
               case NamedType(PTypeDef(t: PInterfaceType, _)) => InterfaceT(t)
             }
           ))

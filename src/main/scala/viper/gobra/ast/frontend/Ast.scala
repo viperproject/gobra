@@ -6,7 +6,7 @@
 
 package viper.gobra.ast.frontend
 
-import java.nio.file.Paths
+import java.nio.file.{Path, Paths}
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
@@ -44,16 +44,19 @@ class PositionManager extends PositionStore with Messaging {
                                      errorFactory: (String, SourcePosition) => E
                                    ): Vector[VerifierError] = {
     messages.sorted map { m =>
-      errorFactory(formatMessage(m), translate(positions.getStart(m.value).get))
+      errorFactory(
+        formatMessage(m),
+        translate(positions.getStart(m.value).get, positions.getFinish(m.value).get)
+      )
     }
   }
 
-  def translate(position: Position): SourcePosition = {
-    val filename = position.source.asInstanceOf[FileSource].filename
+  def translate(start: Position, end: Position): SourcePosition = {
+    val filename = start.source.asInstanceOf[FileSource].filename
     new SourcePosition(
       Paths.get(filename),
-      LineColumnPosition(position.line, position.column),
-      None
+      LineColumnPosition(start.line, start.column),
+      Some(LineColumnPosition(end.line, end.column))
     )
   }
 }
@@ -69,8 +72,26 @@ case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
 
 case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 
+/**
+  * Layer
+  */
 
-sealed trait PMember extends PNode
+sealed trait PJMember extends PNode
+
+sealed trait PJStatement extends PNode
+
+sealed trait PJExpression extends PNode
+
+sealed trait PJType extends PNode
+
+sealed trait PJIdnNode extends PNode
+
+
+
+
+
+
+sealed trait PMember extends PJMember
 
 sealed trait PTopLevel extends PMember
 
@@ -111,9 +132,9 @@ case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
   * Statements
   */
 
-sealed trait PStatement extends PNode
+sealed trait PStatement extends PJStatement
 
-case class PLabeledStmt(label: PIdnDef, stmt: PStatement)
+case class PLabeledStmt(label: PIdnDef, stmt: PStatement) extends PStatement
 
 
 sealed trait PSimpleStmt extends PStatement
@@ -207,7 +228,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PStatement
   */
 
 
-sealed trait PExpression extends PNode with Typable
+sealed trait PExpression extends PJExpression
 
 sealed trait PBuildIn extends PExpression
 
@@ -314,7 +335,7 @@ case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
   * Types
   */
 
-sealed trait PType extends PNode with Typable
+sealed trait PType extends PJType
 
 sealed trait PLiteralType extends PNode
 
@@ -485,12 +506,43 @@ case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
   * Ghost
   */
 
+sealed trait PGhostNode extends PNode
 
 /**
-  * Util
+  * Ghost Member
+  */
+
+sealed trait PGhostMember extends PJMember with PGhostNode
+
+/**
+  * Ghost Statement
+  */
+
+sealed trait PGhostStatement extends PJStatement with PGhostNode
+
+case class PAssert(exp: PGhostExpression) extends PGhostStatement
+
+case class PAssume(exp: PGhostExpression) extends PGhostStatement
+
+case class PExhale(exp: PGhostExpression) extends PGhostStatement
+
+case class PInhale(exp: PGhostExpression) extends PGhostStatement
+
+/**
+  * Ghost Expression
+  */
+
+sealed trait PGhostExpression extends PJExpression with PGhostNode
+
+sealed trait PAccessible extends PGhostExpression
+
+case class PAccess(exp: PAccessible) extends PGhostExpression
+
+
+/**
+  * Ghost Member
   */
 
 
-case class PPos[T](get: T) extends PNode
 
-sealed trait Typable extends PNode
+case class PPos[T](get: T) extends PNode

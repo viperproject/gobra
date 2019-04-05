@@ -14,7 +14,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
-      case PWildcard() => Wildcard()
+      case PWildcard() => ???
       case id@ tree.parent(p) => p match {
 
         case decl: PConstDecl =>
@@ -178,4 +178,5 @@ trait NameResolution { this: TypeInfoImpl =>
         println(s"lookup of ${n.name} in" + sequentialDefenv(n).map(_.keySet))
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
     }
+
 }

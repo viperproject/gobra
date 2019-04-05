@@ -7,6 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.File
+import java.nio.file.Path
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
@@ -37,7 +38,7 @@ object Parser {
   }
 
   private def parse(source: Source): Either[Vector[VerifierError], PProgram] = {
-    val pom = new PositionManager()
+    val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
     parsers.parseAll(parsers.program, source) match {

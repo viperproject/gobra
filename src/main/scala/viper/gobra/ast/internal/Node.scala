@@ -6,6 +6,6 @@
 
 package viper.gobra.ast.internal
 
-trait Node {
+trait Node extends Sourced {
 
 }

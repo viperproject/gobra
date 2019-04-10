@@ -7,11 +7,11 @@
 package viper.gobra.ast.internal
 
 case class Program(
-                  types: Vector[Type],
-                  variables: Vector[GlobalVarDecl],
-                  constants: Vector[GlobalConst],
-                  methods: Vector[Method],
-                  functions: Vector[Function]
+                  types: Set[TopType],
+                  variables: Set[GlobalVarDecl],
+                  constants: Set[GlobalConst],
+                  methods: Set[Method],
+                  functions: Set[Function]
                   )(var src: Source) extends Node {
 
 }
@@ -74,6 +74,7 @@ object Assignee {
 case class Return()(var src: Source) extends Stmt
 
 
+case class Assert(ass: Assertion)
 
 
 sealed trait Assertion extends Node
@@ -112,6 +113,16 @@ object Addressable {
 
 
 
+sealed trait Lit extends Expr
+
+case class IntLit(v: BigInt)(var src: Source) extends Lit {
+  override def typ: Type = IntT
+}
+
+case class BoolLit(b: Boolean)(var src: Source) extends Lit {
+  override def typ: Type = BoolT
+}
+
 
 sealed trait Var extends Expr {
   def id: String
@@ -146,14 +157,22 @@ sealed trait Typed {
   def typ: Type
 }
 
+sealed trait TopType extends Type
+
 
 sealed trait Type
 
-case object IntT extends Type
+case object BoolT extends TopType
 
-case object FracT extends Type
+case object IntT extends TopType
 
-case class PointerT(t: Type) extends Type
+case object VoidT extends TopType
+
+case object FracT extends TopType
+
+case class DefinedT(name: String, right: Type) extends TopType
+
+case class PointerT(t: Type) extends TopType
 
 
 

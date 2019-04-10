@@ -543,7 +543,7 @@ object Parser {
     lazy val interfaceType: Parser[PInterfaceType] =
       "interface" ~> "{" ~> (interfaceClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PInterfaceName => v }
-        val decls = clauses collect { case v: PMethodSpec => v }
+        val decls = clauses collect { case v: PMethodSig => v }
 
         PInterfaceType(embedded, decls)
       }
@@ -554,8 +554,8 @@ object Parser {
     lazy val interfaceName: Parser[PInterfaceName] =
       declaredType ^^ PInterfaceName
 
-    lazy val methodSpec: Parser[PMethodSpec] =
-      idnDef ~ signature ^^ { case id ~ sig => PMethodSpec(id, sig._1, sig._2) }
+    lazy val methodSpec: Parser[PMethodSig] =
+      idnDef ~ signature ^^ { case id ~ sig => PMethodSig(id, sig._1, sig._2) }
 
 
     lazy val namedType: Parser[PNamedType] =

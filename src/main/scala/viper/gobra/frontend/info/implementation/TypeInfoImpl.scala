@@ -1,9 +1,10 @@
 package viper.gobra.frontend.info.implementation
 
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import viper.gobra.ast.frontend.{PExpression, PNode, PType}
+import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal.Origin
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
@@ -36,11 +37,61 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   with Errors
 {
+  import viper.gobra.util.Violation._
+
   import org.bitbucket.inkytonik.kiama.attribution.Decorators
   protected val decorators = new Decorators(tree)
 
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
   override def typ(typ: PType): Type.Type = typeType(typ)
+
+  override def typ(id: PIdnNode): Type.Type = idType(id)
+
+  override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
+
+  lazy val hasAddressedUse: PIdnNode => Boolean =
+    attr[PIdnNode, Boolean] { id =>
+      uses(id) exists isAddressedUse
+    }
+
+  lazy val isAddressedUse: PIdnUse => Boolean =
+    attr[PIdnUse, Boolean] {
+      case tree.parent(tree.parent(_: PReference)) => true
+      case id => enclosingCodeRoot(id) match {
+        case f: PFunctionLit if !containedIn(enclosingIdScope(id), f) => true
+        case _ => false
+      }
+    }
+
+  override def addressed(id: PIdnNode): Boolean = hasAddressedUse(id)
+
+  override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
+    case r: Regular => r
+    case _ => violation("found non-regular entity")
+  }
+
+  private lazy val variablesMap: Map[PScope, Vector[PIdnNode]] = {
+    val ids: Vector[PIdnNode] = tree.nodes collect {
+      case id: PIdnDef              => id
+      case id: PIdnUnk if isDef(id) => id
+    }
+
+    ids.groupBy(enclosingIdScope)
+  }
+
+  override def variables(s: PScope): Vector[PIdnNode] = variablesMap(s)
+
+
+  private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
+    val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse => id }
+    ids.groupBy(uniqueRegular)
+  }
+
+  def uses(id: PIdnNode): Vector[PIdnUse] = usesMap(uniqueRegular(id))
+
+  case class UniqueRegular(r: Regular, s: PScope)
+
+  def uniqueRegular(id: PIdnNode): UniqueRegular = UniqueRegular(regular(id), enclosingIdScope(id))
 }
 

@@ -73,7 +73,7 @@ object SymbolTable extends Environments {
   case class MethodImpl(decl: PMethodDecl) extends Method {
     override def rep: PNode = decl
   }
-  case class MethodSpec(spec: PMethodSpec) extends Method {
+  case class MethodSpec(spec: PMethodSig) extends Method {
     override def rep: PNode = spec
   }
 

@@ -39,7 +39,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PTypeAlias => TypeAlias(decl)
         case decl: PFunctionDecl => Function(decl)
         case decl: PMethodDecl => MethodImpl(decl)
-        case spec: PMethodSpec => MethodSpec(spec)
+        case spec: PMethodSig => MethodSpec(spec)
 
         case decl: PFieldDecl => Field(decl)
         case decl: PEmbeddedDecl => Embbed(decl)
@@ -143,19 +143,19 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
 
-  //    /**
-  //      * The environment to use to lookup names at a node. Defined to be the
-  //      * completed defining environment for the smallest enclosing scope.
-  //      */
-  //    lazy val scopedDefenv: PNode => Environment =
-  //      attr[PNode, Environment] {
-  //
-  //        case tree.lastChild.pair(_: PScope, c) =>
-  //          sequentialDefenv(c)
-  //
-  //        case tree.parent(p) =>
-  //          scopedDefenv(p)
-  //      }
+  /**
+    * The environment to use to lookup names at a node. Defined to be the
+    * completed defining environment for the smallest enclosing scope.
+    */
+  lazy val scopedDefenv: PNode => Environment =
+    attr[PNode, Environment] {
+
+      case tree.lastChild.pair(_: PScope, c) =>
+        sequentialDefenv(c)
+
+      case tree.parent(p) =>
+        scopedDefenv(p)
+    }
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {

@@ -48,7 +48,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case MethodImpl(PMethodDecl(_, _, args, result, _)) => FunctionT(args map miscType, miscType(result))
 
-      case MethodSpec(PMethodSpec(_, args, result)) => FunctionT(args map miscType, miscType(result))
+      case MethodSpec(PMethodSig(_, args, result)) => FunctionT(args map miscType, miscType(result))
 
       case Field(PFieldDecl(_, typ)) => typeType(typ)
 

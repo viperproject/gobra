@@ -3,16 +3,18 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal._
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.base.Type.{IntT, PointerT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, IntT, PointerT, Type, DeclaredT, VoidType}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 
 object Desugar {
 
   def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo): in.Program = {
-    in.Program()
+    new Desugarer(program.positions, info).programD(program)
   }
 
   private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
+
+    // TODO: clean initialization
 
     import viper.gobra.util.Violation._
 
@@ -36,13 +38,27 @@ object Desugar {
         substitutions.updated(abstraction(from), to)
     }
 
-    def programD(p: PProgram): in.Program = ???
+    def programD(p: PProgram): in.Program = {
+      val globalVarDecls = p.declarations.collect{ case x: PVarDecl => varDeclGD(x) }.flatten.toSet
+      val globalConstDecls = p.declarations.collect{ case x: PConstDecl => constDeclD(x) }.flatten.toSet
+      val methods = p.declarations.collect{ case x: PMethodDecl => methodD(x) }.toSet
+      val functions = p.declarations collect { case x: PFunctionDecl => functionD(x) }
+      p.declarations collect { case x: PTypeDef => typeDefD(x) }
+
+      in.Program(
+        types,
+        globalVarDecls,
+        globalConstDecls,
+        methods,
+        functions.toSet
+      )(Source.Single(origin(p)))
+    }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConst] = ???
 
-    def typeDefD(decl: PTypeDef): in.Type = ???
+    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl))
 
     def functionD(decl: PFunctionDecl): in.Function = {
 
@@ -130,6 +146,8 @@ object Desugar {
       val srcN = Source.Multi(origin(stmt))
       def single(s: Source => in.Stmt): Vector[in.Stmt] = Vector(s(src1))
 
+      import PrepM.{sequence, unit}
+
       stmt match {
         case _: PEmptyStmt => single(in.Seq(Vector.empty))
 
@@ -139,84 +157,196 @@ object Desugar {
           val vars = info.variables(s) map localVarD(ctx)
           single(in.Block(vars, stmts flatMap go))
 
-        case PExpressionStmt(e) => exprD(ctx)(e)._1 // TODO: check this translation
+        case PExpressionStmt(e) => exprD(ctx)(e).pre // TODO: check this translation
 
         case PAssignment(left, right) =>
           if (left.size == right.size) {
             (left zip right).flatMap{ case (l, r) =>
-                val (lpre, lelem) = assigneeD(ctx)(l)
-                val (rpre, relem) = exprD(ctx)(r)
-                lpre ++ rpre :+ in.SingleAss(lelem, relem)(srcN)
+              (for{
+                le <- assigneeD(ctx)(l)
+                re <- exprD(ctx)(r)
+              } yield in.SingleAss(le, re)(srcN) ).combine
             }
           } else if (right.size == 1) {
-            val (lpres, lelems) = left.map{ assigneeD(ctx) }.unzip
-            val (rpre, relem) = exprD(ctx)(right.head)
-            lpres.flatten ++ rpre :+ in.MultiAss(lelems, relem)(src1)
-
+            (for{
+              les <- sequence(left map assigneeD(ctx))
+              re  <- exprD(ctx)(right.head)
+            } yield in.MultiAss(les, re)(src1) ).combine
           } else { violation("invalid assignment") }
 
         case PShortVarDecl(right, left) =>
 
           if (left.size == right.size) {
             (left zip right).flatMap{ case (l, r) =>
-              val lelem = Assignee.Var(localVarD(ctx)(l))
-              val (rpre, relem) = exprD(ctx)(r)
-              rpre :+ in.SingleAss(lelem, relem)(srcN)
+              (for{
+                le <- unit(Assignee.Var(localVarD(ctx)(l)))
+                re <- exprD(ctx)(r)
+              } yield in.SingleAss(le, re)(srcN) ).combine
             }
           } else if (right.size == 1) {
-            val lelems = left.map{l =>  Assignee.Var(localVarD(ctx)(l))}
-            val (rpre, relem) = exprD(ctx)(right.head)
-            rpre :+ in.MultiAss(lelems, relem)(src1)
-
+            (for{
+              les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
+              re  <- exprD(ctx)(right.head)
+            } yield in.MultiAss(les, re)(src1) ).combine
           } else { violation("invalid assignment") }
 
         case PVarDecl(typOpt, right, left) =>
 
           if (left.size == right.size) {
             (left zip right).flatMap{ case (l, r) =>
-              val lelem = Assignee.Var(localVarD(ctx)(l))
-              val (rpre, relem) = exprD(ctx)(r)
-              rpre :+ in.SingleAss(lelem, relem)(srcN)
+              (for{
+                le <- unit(Assignee.Var(localVarD(ctx)(l)))
+                re <- exprD(ctx)(r)
+              } yield in.SingleAss(le, re)(srcN) ).combine
             }
           } else if (right.size == 1) {
-            val lelems = left.map { l => Assignee.Var(localVarD(ctx)(l)) }
-            val (rpre, relem) = exprD(ctx)(right.head)
-            rpre :+ in.MultiAss(lelems, relem)(src1)
-
+            (for{
+              les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
+              re  <- exprD(ctx)(right.head)
+            } yield in.MultiAss(les, re)(src1) ).combine
           } else if (right.isEmpty && typOpt.nonEmpty) {
             val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
             val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(Source.Multi(origin(l))) }
             (lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(srcN) }
 
           } else { violation("invalid declaration") }
-      }
-    }
 
-    // Expressions
+        case s@ PReturn(exps) =>
+          (for{
+            elems <- sequence(exps map exprD(ctx))
+          } yield ctx.ret(elems)(origin(s)) ).combine
 
-    def assigneeD(ctx: FunctionContext)(expr: PExpression): (Vector[in.Stmt], in.Assignee) = {
-      expr match {
-        case PNamedOperand(id) => (Vector.empty, Assignee.Var(varD(ctx)(id)))
 
-        case n@ PDereference(e) =>
-          val typ = typeD(info.typ(n))
-          val (ss, ed) = exprD(ctx)(e)
-          (ss, Assignee.Ref(Deref(ed, typ)(Source.Single(origin(expr)))))
+        case PAssert(ass) => ???
 
         case _ => ???
       }
     }
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): (Vector[in.Stmt], in.Expr) = ???
+    case class PrepM[+R](pre: Vector[in.Stmt], res: R) {
+
+      def map[Q](fun: R => Q): PrepM[Q] = PrepM(pre, fun(res))
+
+      def star[Q](fun: PrepM[R => Q]): PrepM[Q] = fun match {
+        case PrepM(opre, ores) => PrepM(pre ++ opre, ores(res))
+      }
+
+      def flatMap[Q](fun: R => PrepM[Q]): PrepM[Q] = fun(res) match {
+        case PrepM(opre, ores) => PrepM(pre ++ opre, ores)
+      }
+
+
+      def unwrap: (Vector[in.Stmt], R) = (pre, res)
+    }
+
+    object PrepM {
+
+      def unit[R](res: R): PrepM[R] = new PrepM(Vector.empty, res)
+
+      def sequence[R](ws: Vector[PrepM[R]]): PrepM[Vector[R]] = {
+        val (ss, rs) = ws.map(_.unwrap).unzip
+        PrepM(ss.flatten, rs)
+      }
+
+      implicit class WamboFunctor[A,R](fun: A => R) {
+        def <#>(w: PrepM[A]): PrepM[R] = w.map(fun)
+      }
+
+      implicit class WamboApplicable[A,R](fun: PrepM[A => R]) {
+        def <*>(w: PrepM[A]): PrepM[R] = w.star(fun)
+      }
+
+      implicit class WamboFinish(w: PrepM[in.Stmt]) {
+        def combine: Vector[in.Stmt] = w.pre :+ w.res
+      }
+    }
+
+
+    // Expressions
+
+    def assigneeD(ctx: FunctionContext)(expr: PExpression): PrepM[in.Assignee] = {
+
+      import PrepM._
+
+      expr match {
+        case PNamedOperand(id) => unit(Assignee.Var(varD(ctx)(id)))
+
+        case n@ PDereference(e) =>
+          val typ = typeD(info.typ(n))
+          for { eD <- exprD(ctx)(e) } yield Assignee.Ref(Deref(eD, typ)(Source.Single(origin(expr))))
+
+        case _ => ???
+      }
+    }
+
+    def exprD(ctx: FunctionContext)(expr: PExpression): PrepM[in.Expr] = {
+
+      import PrepM._
+
+      def go(e: PExpression): PrepM[in.Expr] = exprD(ctx)(e)
+
+      val src1 = Source.Single(origin(expr))
+      val srcN = Source.Multi(origin(expr))
+      def single(s: PrepM[Source => in.Expr]): PrepM[in.Expr] = s.map(_(src1))
+
+      val typ = typeD(info.typ(expr))
+
+      expr match {
+        case PNamedOperand(id) => unit(varD(ctx)(id))
+        case PDereference(exp) => single(go(exp) map (in.Deref(_, typ)))
+      }
+    }
+
+
+    def litD(ctx: FunctionContext)(lit: PLiteral): (Vector[in.Stmt], in.Expr) = {
+
+      val src1 = Source.Single(origin(lit))
+      val srcN = Source.Multi(origin(lit))
+      def single(s: Source => in.Expr): (Vector[in.Stmt], in.Expr) = (Vector.empty, s(src1))
+
+      lit match {
+        case PIntLit(v) => single(in.IntLit(v))
+        case PBoolLit(b) => single(in.BoolLit(b))
+        case _ => ???
+      }
+    }
+
+
 
     // Type
 
+    var types: Set[in.TopType] = Set.empty
+
     // TODO split into two phases to aggregate inlined struct and interface types
-    def typeD(t: Type): in.Type = t match {
-      case IntT => in.IntT
-      case PointerT(st) => in.PointerT(typeD(st))
-      case _ => ???
+    def typeD(t: Type): in.TopType = {
+
+      def typeDInner(t: Type): in.TopType = t match {
+        case BooleanT => in.BoolT
+        case IntT => in.IntT
+        case PointerT(st) => in.PointerT(typeD(st))
+        case VoidType => in.VoidT
+        case DeclaredT(decl) => in.DefinedT(idName(decl.left), typeDInnermost(info.typ(decl.right)))
+        case _ => ???
+      }
+
+      def typeDInnermost(t: Type): in.Type = t match { // TODO translate struct and interface type
+        case _ => typeDInner(t)
+      }
+
+      val inT = t match {
+          // if struct then change it to declared type
+        case _ => typeDInner(t)
+      }
+
+      if (!(types contains inT)) {
+        types += inT
+      }
+
+      inT
     }
+
+
+
 
     // Identifier
 
@@ -266,6 +396,10 @@ object Desugar {
         (in.Parameter(nm.fresh, typeD(info.typ(typ)))(Source.Single(origin(p))), None)
     }
 
+    // Ghost Statements
+
+
+
 
 
     private def origin(n: PNode): in.Origin = {
@@ -300,7 +434,7 @@ object Desugar {
 
     private var substitutions: Map[(String, PScope), String] = Map.empty
 
-    private def name(pre: String)(n: String, s: PScope): String = s{
+    private def name(pre: String)(n: String, s: PScope): String = {
       maybeRegister(s)
       pre + scopeMap(s) + "_" + n // deterministic
     }

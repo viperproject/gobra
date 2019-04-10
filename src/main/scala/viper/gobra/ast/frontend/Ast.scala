@@ -72,26 +72,10 @@ case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
 
 case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 
-/**
-  * Layer
-  */
-
-sealed trait PJMember extends PNode
-
-sealed trait PJStatement extends PNode
-
-sealed trait PJExpression extends PNode
-
-sealed trait PJType extends PNode
-
-sealed trait PJIdnNode extends PNode
 
 
 
-
-
-
-sealed trait PMember extends PJMember
+sealed trait PMember extends PNode
 
 sealed trait PTopLevel extends PMember
 
@@ -132,7 +116,7 @@ case class PTypeAlias(right: PType, left: PIdnDef) extends PTypeDecl
   * Statements
   */
 
-sealed trait PStatement extends PJStatement
+sealed trait PStatement extends PNode
 
 case class PLabeledStmt(label: PIdnDef, stmt: PStatement) extends PStatement
 
@@ -228,7 +212,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PStatement
   */
 
 
-sealed trait PExpression extends PJExpression
+sealed trait PExpression extends PNode
 
 sealed trait PBuildIn extends PExpression
 
@@ -335,7 +319,7 @@ case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
   * Types
   */
 
-sealed trait PType extends PJType
+sealed trait PType extends PNode
 
 sealed trait PLiteralType extends PNode
 
@@ -409,13 +393,13 @@ case class PMethodReceivePointer(typ: PDeclaredType) extends PMethodRecvType
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
 
-case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSpec]) extends PTypeLit with PUnorderedScope
+case class PInterfaceType(embedded: Vector[PInterfaceName], specs: Vector[PMethodSig]) extends PTypeLit with PUnorderedScope
 
 sealed trait PInterfaceClause extends PNode
 
 case class PInterfaceName(typ: PDeclaredType) extends PInterfaceClause
 
-case class PMethodSpec(id: PIdnDef, args: Vector[PParameter], result: PResult) extends PInterfaceClause with PScope
+case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult) extends PInterfaceClause with PScope
 
 
 /**
@@ -508,40 +492,55 @@ case class PEmbeddedPointer(typ: PNamedType) extends PEmbeddedType
 
 sealed trait PGhostNode extends PNode
 
+
+
+/**
+  * Specification
+  */
+
+sealed trait PSpecification extends PGhostNode
+
+case class PMethodSpec() extends PSpecification
+
+case class PFunctionSpec() extends PSpecification
+
+
 /**
   * Ghost Member
   */
 
-sealed trait PGhostMember extends PJMember with PGhostNode
+sealed trait PGhostMember extends PMember with PGhostNode
 
 /**
   * Ghost Statement
   */
 
-sealed trait PGhostStatement extends PJStatement with PGhostNode
+sealed trait PGhostStatement extends PStatement with PGhostNode
 
-case class PAssert(exp: PGhostExpression) extends PGhostStatement
+case class PAssert(exp: PAssertion) extends PGhostStatement
 
-case class PAssume(exp: PGhostExpression) extends PGhostStatement
+case class PAssume(exp: PAssertion) extends PGhostStatement
 
-case class PExhale(exp: PGhostExpression) extends PGhostStatement
+case class PExhale(exp: PAssertion) extends PGhostStatement
 
-case class PInhale(exp: PGhostExpression) extends PGhostStatement
+case class PInhale(exp: PAssertion) extends PGhostStatement
 
 /**
   * Ghost Expression
   */
 
-sealed trait PGhostExpression extends PJExpression with PGhostNode
-
-sealed trait PAccessible extends PGhostExpression
-
-case class PAccess(exp: PAccessible) extends PGhostExpression
-
+sealed trait PGhostExpression extends PExpression with PGhostNode
 
 /**
-  * Ghost Member
+  * Assertions
   */
+
+
+sealed trait PAssertion extends PGhostNode
+
+sealed trait PAccessible extends PAssertion
+
+case class PAccess(exp: PAccessible) extends PAssertion
 
 
 

@@ -13,7 +13,7 @@ trait TypeInfo {
 
   def typ(id: PIdnNode): Type
 
-  def scope(n: PNode): PScope
+  def scope(n: PIdnNode): PScope
 
   def addressed(id: PIdnNode): Boolean
 

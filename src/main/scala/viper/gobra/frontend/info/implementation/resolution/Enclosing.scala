@@ -1,6 +1,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Enclosing { this: TypeInfoImpl =>
@@ -12,9 +13,15 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingScope: PNode => PScope =
     down((_: PNode) => violation("node does not root in a scope")) { case s: PScope => s }
 
-  def enclosingIdScope(id: PIdnNode): PScope = enclosingScope(regular(id).rep)
+  def enclosingIdScope(id: PIdnNode): PScope = enclosingScope(entity(id) match {
+    case r: Regular => r.rep
+    case _ => id
+  })
 
   lazy val enclosingCodeRoot: PStatement => PCodeRoot =
+    down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot => m }
+
+  lazy val enclosingIdCodeRoot: PIdnNode => PCodeRoot =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot => m }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
@@ -31,7 +38,7 @@ trait Enclosing { this: TypeInfoImpl =>
       case tree.parent(p) => typeSwitchConstraintsLookup(id)(p)
     }}
 
-  def containedIn(n: PNode, s: PNode): Boolean = contained(n, s)
+  def containedIn(n: PNode, s: PNode): Boolean = contained(n)(s)
 
   private lazy val contained: PNode => PNode => Boolean =
     paramAttr[PNode, PNode, Boolean] { l => r => l match {

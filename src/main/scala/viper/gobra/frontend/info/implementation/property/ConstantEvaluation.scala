@@ -24,7 +24,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
           case _: PDiv => aux(x => y => x / y)
           case _ => None
         }
-      case PNamedOperand(id) => regular(id) match {
+      case PNamedOperand(id) => entity(id) match {
         case SingleConstant(exp, _) => intConstantEval(exp)
         case _ => None
       }

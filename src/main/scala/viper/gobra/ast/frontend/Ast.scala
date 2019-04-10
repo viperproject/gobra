@@ -6,7 +6,7 @@
 
 package viper.gobra.ast.frontend
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.Paths
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._

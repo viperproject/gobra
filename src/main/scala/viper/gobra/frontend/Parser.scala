@@ -7,7 +7,6 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.Path
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}

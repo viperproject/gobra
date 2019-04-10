@@ -294,6 +294,7 @@ object Desugar {
       expr match {
         case PNamedOperand(id) => unit(varD(ctx)(id))
         case PDereference(exp) => single(go(exp) map (in.Deref(_, typ)))
+        case _ => ???
       }
     }
 

@@ -2,7 +2,6 @@ package viper.gobra.frontend.info.implementation
 
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
-import viper.gobra.ast.internal.Origin
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
@@ -58,7 +57,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   lazy val isAddressedUse: PIdnUse => Boolean =
     attr[PIdnUse, Boolean] {
       case tree.parent(tree.parent(_: PReference)) => true
-      case id => enclosingCodeRoot(id) match {
+      case id => enclosingIdCodeRoot(id) match {
         case f: PFunctionLit if !containedIn(enclosingIdScope(id), f) => true
         case _ => false
       }
@@ -84,14 +83,20 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
-    val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse => id }
-    ids.groupBy(uniqueRegular)
+    val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
+    ids.groupBy(uniqueRegular(_).get)
   }
 
-  def uses(id: PIdnNode): Vector[PIdnUse] = usesMap(uniqueRegular(id))
+  def uses(id: PIdnNode): Vector[PIdnUse] = {
+    uniqueRegular(id).fold(Vector.empty[PIdnUse])(usesMap)
+  }
+
 
   case class UniqueRegular(r: Regular, s: PScope)
 
-  def uniqueRegular(id: PIdnNode): UniqueRegular = UniqueRegular(regular(id), enclosingIdScope(id))
+  def uniqueRegular(id: PIdnNode): Option[UniqueRegular] = entity(id) match {
+    case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
+    case _ => None
+  }
 }
 

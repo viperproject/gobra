@@ -32,7 +32,7 @@ object Parser {
     *
     */
 
-  def parse(file: File): Either[Vector[VerifierError], PProgram] = {
+  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
     parse(FileSource(file.getPath))
   }
 

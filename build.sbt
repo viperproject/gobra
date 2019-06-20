@@ -24,6 +24,7 @@ lazy val server = (project in file("."))
 
     libraryDependencies += "org.bitbucket.inkytonik.kiama" %% "kiama" % "2.2.0", // Parsing
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
+    libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
     // libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
 
     scalacOptions ++= Seq(

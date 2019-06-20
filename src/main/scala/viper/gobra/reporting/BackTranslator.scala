@@ -5,10 +5,14 @@
  */
 
 package viper.gobra.reporting
-import viper.gobra.backend.ViperVerifier
+import viper.gobra.backend.BackendVerifier
+import viper.gobra.frontend.Config
+import viper.silver
 
 object BackTranslator {
 
-  def backTranslate(result: ViperVerifier.Result): VerifierResult = VerifierResult.Success
+  type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerifierError]
+  type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerifierError]
 
+  def backTranslate(result: BackendVerifier.Result)(config: Config) = VerifierResult.Success
 }

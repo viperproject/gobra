@@ -67,27 +67,34 @@ sealed trait Assignee
 object Assignee {
   case class Var(v: BodyVar) extends Assignee
   // case class Field(f: FieldAccess) extends Assignee
-  case class Ref(e: Deref) extends Assignee
+  case class Pointer(e: Deref) extends Assignee
   // TODO: Index
 }
 
 case class Return()(var src: Source) extends Stmt
 
 
-case class Assert(ass: Assertion)
+case class Assert(ass: Assertion)(var src: Source) extends Stmt
+case class Assume(ass: Assertion)(var src: Source) extends Stmt
+case class Inhale(ass: Assertion)(var src: Source) extends Stmt
+case class Exhale(ass: Assertion)(var src: Source) extends Stmt
 
 
 sealed trait Assertion extends Node
 
-case class Access(e: Accessible, frac: Expr)(var src: Source) extends Assertion
+case class Star(left: Assertion, right: Assertion)(var src: Source) extends Assertion
+
+case class ExprAssertion(exp: Expr)(var src: Source) extends Assertion
+
+case class Implication(left: Expr, right: Assertion)(var src: Source) extends Assertion
+
+case class Access(e: Accessible)(var src: Source) extends Assertion
 
 sealed trait Accessible
 
 object Accessible {
-  case class Deref(der: Deref) extends Accessible
+  case class Ref(der: Deref) extends Accessible
 }
-
-
 
 
 

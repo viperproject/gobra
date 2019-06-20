@@ -2,13 +2,14 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend.{PNode, PProgram}
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{TypeError, VerifierError}
 
 object Info {
   type GoTree = Tree[PNode, PProgram]
 
-  def check(program: PProgram): Either[Vector[VerifierError], TypeInfo] = {
+  def check(program: PProgram)(config: Config): Either[Vector[VerifierError], TypeInfo] = {
     val tree = new GoTree(program)
     //    println(program.declarations.head)
     //    println("-------------------")

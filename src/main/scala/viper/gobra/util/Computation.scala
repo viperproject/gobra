@@ -31,3 +31,10 @@ trait Validity[-A, R] extends Computation[A, R] {
 
   def valid(n: A): Boolean = !invalid(apply(n))
 }
+
+object Computation {
+  def cashedComputation[A, R](f: A => R): A => R = new Attribution with Memoization[A, R] {
+    override def compute(n: A): R = f(n)
+  }
+}
+

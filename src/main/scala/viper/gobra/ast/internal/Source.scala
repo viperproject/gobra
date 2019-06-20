@@ -1,6 +1,8 @@
 package viper.gobra.ast.internal
 
 import viper.silver.ast.SourcePosition
+import cats.Monoid
+import viper.silver.{ast => vpr}
 
 trait Sourced {
   def src: Source
@@ -19,13 +21,37 @@ case class Factory[T](f: () => T) {
   def create: T = f()
 }
 
-sealed trait Source
 
-object Source {
-  case class Single(src: Origin) extends Source
-  case class Multi(src: Origin) extends Source
-  case object Internal extends Source
+
+sealed trait Source {
+  def origins: Vector[Origin]
+  // TODO: unify position setting
+  def vprSrc: vpr.Position = if (origins.isEmpty) vpr.NoPosition else origins.head.pos
 }
 
-case class Origin(code: String, pos: SourcePosition)
+object Source {
+
+  final case object Internal extends Source {
+    override lazy val origins: Vector[Origin] = Vector.empty
+  }
+
+  final case class Single(src: Origin) extends Source {
+    override lazy val origins: Vector[Origin] = Vector(src)
+  }
+
+  final case class Multi(origins: Vector[Origin]) extends Source
+
+  implicit val sourceMonoid: Monoid[Source] = new Monoid[Source]{
+    override def empty: Source = Internal
+    override def combine(x: Source, y: Source): Source = (x.origins ++ y.origins) match {
+      case os if os.isEmpty => Internal
+      case os if os.size == 1 => Single(os.head)
+      case os => Multi(os)
+    }
+  }
+}
+
+case class Origin(pos: SourcePosition)
+
+
 

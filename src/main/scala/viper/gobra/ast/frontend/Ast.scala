@@ -278,7 +278,7 @@ case class PReceive(operand: PExpression) extends PUnaryExp
 
 case class PReference(operand: PExpression) extends PUnaryExp
 
-case class PDereference(operand: PExpression) extends PUnaryExp with PAssignee
+case class PDereference(operand: PExpression) extends PUnaryExp with PAssignee with PAccessible
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
@@ -531,6 +531,12 @@ case class PInhale(exp: PAssertion) extends PGhostStatement
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
 
+sealed trait PPermission extends PGhostExpression
+
+case class PFullPerm() extends PPermission
+
+case class PNoPerm() extends PPermission
+
 /**
   * Assertions
   */
@@ -538,9 +544,17 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 
 sealed trait PAssertion extends PGhostNode
 
-sealed trait PAccessible extends PAssertion
+case class PStar(left: PAssertion, right: PAssertion) extends PAssertion
+
+case class PExprAssertion(exp: PExpression) extends PAssertion
+
+case class PImplication(left: PExpression, right: PAssertion) extends PAssertion
+
+
 
 case class PAccess(exp: PAccessible) extends PAssertion
+
+sealed trait PAccessible extends PGhostNode
 
 
 

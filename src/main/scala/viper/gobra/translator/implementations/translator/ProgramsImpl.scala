@@ -2,6 +2,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
 import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
@@ -25,11 +26,12 @@ class ProgramsImpl extends Programs {
       methods = col.methods ++ functions
     )(program.src.vprSrc)
 
+    val backTrackInfo = BackTrackInfo(col.errorT, col.reasonT)
+
 
     BackendVerifier.Task(
       program = vProgram,
-      errorT = col.errorT,
-      reasonT = col.reasonT
+      backtrack = backTrackInfo
     )
   }
 }

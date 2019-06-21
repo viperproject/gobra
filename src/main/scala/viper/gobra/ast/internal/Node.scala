@@ -7,5 +7,5 @@
 package viper.gobra.ast.internal
 
 trait Node extends Sourced {
-
+  def info: Source.Parser.Info
 }

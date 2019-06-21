@@ -11,8 +11,18 @@ import viper.silver
 
 object BackTranslator {
 
+  case class BackTrackInfo(
+                            errorT: Seq[BackTranslator.ErrorTransformer],
+                            reasonT: Seq[BackTranslator.ReasonTransformer]
+                          )
+
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerifierError]
   type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerifierError]
 
-  def backTranslate(result: BackendVerifier.Result)(config: Config) = VerifierResult.Success
+  def backTranslate(result: BackendVerifier.Result)(config: Config): VerifierResult = result match {
+    case BackendVerifier.Success => VerifierResult.Success
+    case BackendVerifier.Failure(errors, backtrack) =>
+
+      ???
+  }
 }

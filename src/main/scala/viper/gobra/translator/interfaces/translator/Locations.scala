@@ -20,6 +20,6 @@ trait Locations extends Generator {
 
   def deref(ref: in.Deref)(ctx: Context): ExprWriter[vpr.FieldAccess]
 
-  def assignment(left: in.Assignee, right: vpr.Exp)(ctx: Context)(src: in.Source): StmtWriter[vpr.Stmt]
+  def assignment(left: in.Assignee, right: vpr.Exp)(ctx: Context)(src: in.Node): StmtWriter[vpr.Stmt]
 
 }

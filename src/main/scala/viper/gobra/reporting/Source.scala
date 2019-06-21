@@ -1,9 +1,8 @@
 package viper.gobra.reporting
 
-import viper.gobra.ast.internal.{Node, Origin, Source}
-import viper.gobra.reporting.Source.Parser.Info
+import viper.gobra.ast.internal.Node
 import viper.silver.ast.SourcePosition
-import viper.silver.{ast, ast => vpr}
+import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
 
 object Source {
@@ -17,6 +16,12 @@ object Source {
       def toInfo(node: internal.Node): vpr.Info
     }
 
+    object Unsourced extends Info {
+      override def origin: Option[Origin] = throw new IllegalStateException()
+      override def toInfo(node: Node): vpr.Info = throw new IllegalStateException()
+      def unapplySeq(u: Unsourced.type): Option[Seq[Nothing]] = throw new IllegalStateException()
+    }
+
     case object Internal extends Info {
       override lazy val origin: Option[Origin] = None
       override def toInfo(node: Node): vpr.Info = vpr.NoInfo
@@ -24,7 +29,7 @@ object Source {
 
     case class Single(pnode: frontend.PNode, src: Origin) extends Info {
       override lazy val origin: Option[Origin] = Some(src)
-      override def toInfo(node: Node): ast.Info = Verifier.Info(pnode, node, src)
+      override def toInfo(node: Node): vpr.Info = Verifier.Info(pnode, node, src)
     }
   }
 
@@ -36,9 +41,27 @@ object Source {
     }
   }
 
+  def unapply(node: vpr.Node): Option[(frontend.PNode)] = {
+    val info = node.getPrettyMetadata._2
+    info.getUniqueInfo[Verifier.Info]
+  }
+
+  def withInfo[N <: vpr.Node](n: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => N)(source: internal.Node): N = {
+    source.info match {
+      case Parser.Internal => n(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+
+      case Parser.Single(pnode, origin) =>
+
+        val newInfo = Verifier.Info(pnode, source, origin)
+        val newPos  = vpr.TranslatedPosition(origin.pos)
+
+        n(newPos, newInfo, vpr.NoTrafos)
+    }
+  }
+
   implicit class RichViperNode[N <: vpr.Node](node: N) {
 
-    def withSource(source: internal.Node): N = {
+    def withInfo(source: internal.Node): N = {
       val (pos, info, errT) = node.getPrettyMetadata
 
       def message(fieldName: String) = {
@@ -49,7 +72,7 @@ object Source {
       require(info == vpr.NoInfo, message("info"))
       require(pos == vpr.NoPosition, message("pos"))
 
-      source.src match {
+      source.info match {
         case Parser.Internal => node
 
         case Parser.Single(pnode, origin) =>

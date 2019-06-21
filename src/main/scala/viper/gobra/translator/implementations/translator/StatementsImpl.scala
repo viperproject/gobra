@@ -22,8 +22,6 @@ class StatementsImpl extends Statements {
     def goE(e: in.Expr): ExprWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    val src = x.src.vprSrc
-
     x match {
       case in.Block(vars, stmts) => // TODO: maybe eliminate block variables
         val pre = ExprWriter.sequence(
@@ -35,26 +33,26 @@ class StatementsImpl extends Statements {
         unit(vpr.Seqn(
           pre.written ++ bod.res,
           pre.local ++ pre.global ++ bod.global
-        )(src))
+        )())
 
-      case in.Seq(stmts) => sequence(stmts map goS) map (vpr.Seqn(_, Vector.empty)(src))
+      case in.Seqn(stmts) => sequence(stmts map goS) map (vpr.Seqn(_, Vector.empty)())
 
       case in.SingleAss(left, right) =>
         (for {
           r <- goE(right)
-          ass <- ctx.loc.assignment(left, r)(ctx)(x.src).open
+          ass <- ctx.loc.assignment(left, r)(ctx)(x).open
         } yield ass).close
 
-      case in.Assert(ass) => (for {v <- goA(ass)} yield vpr.Assert(v)(src)).close
-      case in.Assume(ass) => (for {v <- goA(ass)} yield vpr.Assume(v)(src)).close
-      case in.Inhale(ass) => (for {v <- goA(ass)} yield vpr.Inhale(v)(src)).close
-      case in.Exhale(ass) => (for {v <- goA(ass)} yield vpr.Exhale(v)(src)).close
+      case in.Assert(ass) => (for {v <- goA(ass)} yield vpr.Assert(v)()).close
+      case in.Assume(ass) => (for {v <- goA(ass)} yield vpr.Assume(v)()).close
+      case in.Inhale(ass) => (for {v <- goA(ass)} yield vpr.Inhale(v)()).close
+      case in.Exhale(ass) => (for {v <- goA(ass)} yield vpr.Exhale(v)()).close
 
-      case in.Return() => unit(vpr.Goto(Names.returnLabel)(src))
+      case in.Return() => unit(vpr.Goto(Names.returnLabel)())
 
 
     }
-  }
+  }.withInfo(x)
 
 
 }

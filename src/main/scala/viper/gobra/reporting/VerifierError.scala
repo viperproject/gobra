@@ -26,3 +26,13 @@ case class ParserError(message: String, position: SourcePosition) extends Verifi
 case class TypeError(message: String, position: SourcePosition) extends VerifierError {
   val id = "type_error"
 }
+
+sealed trait VerificationError extends VoilaError {
+  type OffendingNode <: PAstNode
+  def offendingNode: OffendingNode
+  def localId: String
+  def localMessage: String
+  def detail: Option[VerificationError]
+  def dueTo(detailToAppend: VerificationError): VerificationError
+  def dueTo(detailToAppend: Option[VerificationError]): VerificationError
+}

@@ -1,6 +1,7 @@
 package viper.gobra.util
 //import cats.{Monad, Traverse}
 //import cats.data.Writer
+import viper.gobra.reporting.Source.RichViperNode
 
 class Writer[A, +R](val out: Vector[A], val res: R) {
 
@@ -45,6 +46,10 @@ object ViperWriter {
     def sequence[R](ws: Vector[StmtWriter[R]]): StmtWriter[Vector[R]] = {
       val (outs, results) = ws.map(_.run).unzip
       new StmtWriter[Vector[R]](outs.flatten, results)
+    }
+
+    implicit class SourcedStmtWriter[R <: vpr.Node](w: StmtWriter[R]) {
+      def withInfo(source: in.Node): StmtWriter[R] = w.map(_.withInfo(source))
     }
   }
 
@@ -93,8 +98,12 @@ object ViperWriter {
 
     def unit[R](res: R): ExprWriter[R] = new ExprWriter(Vector.empty, Vector.empty, Vector.empty, res)
 
-    def complete[R <: vpr.Stmt](w: ExprWriter[R])(src: in.Source): StmtWriter[vpr.Stmt] =
-      new StmtWriter[vpr.Stmt](w.global, vpr.Seqn(w.written :+ w.res, w.local)(src.vprSrc))
+//    def complete[R <: vpr.Stmt](w: ExprWriter[R])(src: in.Source): StmtWriter[vpr.Stmt] =
+//      new StmtWriter[vpr.Stmt](w.global, vpr.Seqn(w.written :+ w.res, w.local)(src.vprSrc))
+
+    implicit class SourcedExprWriter[R <: vpr.Node](w: ExprWriter[R]) {
+      def withInfo(source: in.Node): ExprWriter[R] = w.map(_.withInfo(source))
+    }
 
     def sequence[R](ws: Vector[ExprWriter[R]]): ExprWriter[Vector[R]] = {
       val (locals, globals, writtens, results) = ws.map(_.run)

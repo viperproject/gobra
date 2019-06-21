@@ -11,6 +11,11 @@ import viper.silver
 
 object BackTranslator {
 
+  trait ErrorBackTranslator {
+    def translate(error: silver.verifier.VerificationError): VerifierError
+    def translate(reason: silver.verifier.ErrorReason): VerifierError
+  }
+
   case class BackTrackInfo(
                             errorT: Seq[BackTranslator.ErrorTransformer],
                             reasonT: Seq[BackTranslator.ReasonTransformer]

@@ -8,9 +8,7 @@ package viper.gobra.backend
 
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator
-import viper.gobra.util.Violation
 import viper.silver
-import viper.silver.verifier.errors
 import viper.silver.{ast => vpr}
 
 object BackendVerifier {
@@ -41,7 +39,7 @@ object BackendVerifier {
           .partition(_.isInstanceOf[silver.verifier.VerificationError])
           .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-        Violation.checkAbstractViperErrors(otherError)
+        checkAbstractViperErrors(otherError)
 
         Failure(verificationError, task.backtrack)
     }
@@ -61,6 +59,18 @@ object BackendVerifier {
     options ++= Vector("--logLevel", "ERROR")
 
     new Carbon(options)
+  }
+
+  @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)
+  private def checkAbstractViperErrors(errors: Seq[silver.verifier.AbstractError]): Unit = {
+    if (errors.nonEmpty) {
+      var messages: Vector[String] = Vector.empty
+      messages += "Found non-verification-failures"
+      messages ++= errors map (_.readableMessage)
+
+      val completeMessage = messages.mkString("\n")
+      throw new java.lang.IllegalStateException(completeMessage)
+    }
   }
 
 }

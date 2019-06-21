@@ -7,6 +7,7 @@ import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
 import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.silver.{ast => vpr}
+import viper.gobra.reporting.Source.withInfo
 
 class ProgramsImpl extends Programs {
   override def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task = {
@@ -18,13 +19,13 @@ class ProgramsImpl extends Programs {
     val col = new CollectorImpl()
     ctx.finalize(col)
 
-    val vProgram = vpr.Program(
+    val vProgram = withInfo(vpr.Program(
       domains = col.domains,
       fields = col.fields,
       predicates = col.predicate,
       functions = col.functions,
       methods = col.methods ++ functions
-    )(program.src.vprSrc)
+    ))(program)
 
     val backTrackInfo = BackTrackInfo(col.errorT, col.reasonT)
 

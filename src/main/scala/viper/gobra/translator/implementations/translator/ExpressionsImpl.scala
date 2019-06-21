@@ -19,26 +19,22 @@ class ExpressionsImpl extends Expressions {
     def goE(e: in.Expr): ExprWriter[vpr.Exp] = translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    val src = x.src.vprSrc
-
     x match {
-      case in.DfltVal(t) => unit(defaultValue(t)(src))
+      case in.DfltVal(t) => unit(defaultValue(t)())
       case p: in.Deref => ctx.loc.deref(p)(ctx)
       case in.Ref(r, _) => ctx.loc.address(r)(ctx)
       case l: in.Lit => literal(l)(ctx)
       case v: in.Var => ctx.loc.value(v)(ctx)
     }
-  }
+  }.withInfo(x)
 
   def literal(l: in.Lit)(ctx: Context): ExprWriter[vpr.Exp] = {
 
-    val src = l.src.vprSrc
-
     l match {
-      case in.IntLit(v) => unit(vpr.IntLit(v)(src))
-      case in.BoolLit(b) => unit(vpr.BoolLit(b)(src))
+      case in.IntLit(v) => unit(vpr.IntLit(v)())
+      case in.BoolLit(b) => unit(vpr.BoolLit(b)())
     }
-  }
+  }.withInfo(l)
 
   def defaultValue(t: in.Type)(src: vpr.Position): vpr.Exp = t match {
     case in.BoolT => vpr.TrueLit()(src)

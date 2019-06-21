@@ -3,8 +3,8 @@ package viper.gobra.translator.implementations.translator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.util.ViperWriter.{ExprWriter => ew, StmtWriter => sw}
 import viper.silver.{ast => vpr}
+import viper.gobra.reporting.Source.withInfo
 
 class FunctionsImpl extends Functions {
 
@@ -23,13 +23,13 @@ class FunctionsImpl extends Functions {
 
     val vBody = wBody map (w => vpr.Seqn(Vector(w.res), w.global)(w.res.pos))
 
-    vpr.Method(
+    withInfo(vpr.Method(
       name = x.name,
       formalArgs = args,
       formalReturns = results,
       pres = pres,
       posts = posts,
       body = vBody
-    )(x.src.vprSrc)
+    ))(x)
   }
 }

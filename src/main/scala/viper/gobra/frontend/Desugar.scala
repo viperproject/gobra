@@ -5,6 +5,7 @@ import viper.gobra.ast.internal._
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type.{BooleanT, DeclaredT, IntT, PointerT, Type, VoidType}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
+import viper.gobra.reporting.Source
 import viper.gobra.util.{Writer, WriterUtil}
 
 object Desugar {
@@ -17,49 +18,45 @@ object Desugar {
 
     // TODO: clean initialization
 
+    type Meta = Source.Parser.Info
+
     import viper.gobra.util.Violation._
 
     private val nm = new NameManager
 
-    class FunctionContext(val ret: Vector[in.Expr] => Source => in.Stmt) {
+    class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
 
-      type VarIdentity = Source
+      type VarIdentity = Meta
 
       private def abstraction(id: PIdnNode): VarIdentity = {
-        source(info.regular(id).rep)
+        meta(info.regular(id).rep)
       }
 
-      private var substitutions: Map[VarIdentity, Source => in.BodyVar] = Map.empty
+      private var substitutions: Map[VarIdentity, Meta => in.BodyVar] = Map.empty
 
       def apply(id: PIdnNode): Option[in.BodyVar] =
-        substitutions.get(abstraction(id)).map(_(source(id)))
+        substitutions.get(abstraction(id)).map(_(meta(id)))
 
 
-      def addSubst(from: PIdnNode, to: Source => in.BodyVar): Unit =
+      def addSubst(from: PIdnNode, to: Meta => in.BodyVar): Unit =
         substitutions.updated(abstraction(from), to)
     }
 
     def programD(p: PProgram): in.Program = {
-      val globalVarDecls = p.declarations.collect{ case x: PVarDecl => varDeclGD(x) }.flatten.toSet
-      val globalConstDecls = p.declarations.collect{ case x: PConstDecl => constDeclD(x) }.flatten.toSet
-      val methods = p.declarations.collect{ case x: PMethodDecl => methodD(x) }.toSet
-      val functions = p.declarations collect { case x: PFunctionDecl => functionD(x) }
-      p.declarations collect { case x: PTypeDef => typeDefD(x) }
+      val globalVarDecls = p.declarations.collect { case x: PVarDecl => varDeclGD(x) }.flatten.distinct
+      val globalConstDecls = p.declarations.collect{ case x: PConstDecl => constDeclD(x) }.flatten.distinct
+      val methods = p.declarations.collect{ case x: PMethodDecl => methodD(x) }.distinct
+      val functions = p.declarations.collect{ case x: PFunctionDecl => functionD(x) }.distinct
+      val types = p.declarations.collect{ case x: PTypeDef => typeDefD(x) }.distinct
 
-      in.Program(
-        types,
-        globalVarDecls,
-        globalConstDecls,
-        methods,
-        functions.toSet
-      )(source(p))
+      in.Program(types, globalVarDecls, globalConstDecls, methods, functions)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConst] = ???
 
-    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl))
+    def typeDefD(decl: PTypeDef): in.TopType = typeD(DeclaredT(decl))
 
     def functionD(decl: PFunctionDecl): in.Function = {
 
@@ -72,27 +69,27 @@ object Desugar {
       val returnLinks = decl.result match {
         case PVoidResult() => Vector.empty
         case PResultClause(outs) =>
-          outs.map(parameterD).map{ case (p, r) => (in.LocalVar.Val(p.id,p.typ)(p.src), r) }
+          outs.map(parameterD).map{ case (p, r) => (in.LocalVar.Val(p.id,p.typ)(p.info), r) }
       }
       val (returnAssign, returnVars) = returnLinks.unzip
 
 
-      def assignReturns(rets: Vector[in.Expr])(src: Source): in.Stmt = {
+      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
-          in.Seq(
+          in.Seqn(
             returnLinks.map{
               case (_, None) => violation("found empty return and unnamed returns")
               case (p, Some(v)) => in.SingleAss(in.Assignee.Var(p), v(src))(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == returnAssign.size) {
-          in.Seq(
+          in.Seqn(
             returnAssign.zip(rets).map{
               case (p, v) => in.SingleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
-          in.Seq(Vector(
+          in.Seqn(Vector(
             in.MultiAss(returnAssign.map(v => in.Assignee.Var(v)), rets.head)(src),
             in.Return()(src)
           ))(src)
@@ -107,7 +104,7 @@ object Desugar {
       // p1' := p1; ... ; pn' := pn
       val argInits = argLinks.flatMap{
         case (_, None) => None
-        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q(Source.Internal)), p)(Source.Internal))
+        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q(Source.Parser.Internal)), p)(Source.Parser.Internal))
       }
 
       (decl.args zip argLinks).foreach{
@@ -117,8 +114,8 @@ object Desugar {
 
       // r1' := _; ... ; rn' := _
       val returnInits = returnVars.flatten.map{l =>
-        val sl = l(Source.Internal)
-        in.SingleAss(in.Assignee.Var(sl), in.DfltVal(sl.typ)(Source.Internal))(sl.src)
+        val sl = l(Source.Parser.Internal)
+        in.SingleAss(in.Assignee.Var(sl), in.DfltVal(sl.typ)(Source.Parser.Internal))(sl.info)
       }
 
       (decl.args zip argLinks).foreach{
@@ -130,10 +127,10 @@ object Desugar {
       val bodyOpt = decl.body.map{ s =>
         val vars = info.variables(s) map localVarD(ctx)
         val body = argInits ++ returnInits :+ stmtD(ctx)(s)
-        in.Block(vars, body)(source(s))
+        in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, arg, returnAssign, Vector.empty, Vector.empty, bodyOpt)(source(decl))
+      in.Function(name, arg, returnAssign, Vector.empty, Vector.empty, bodyOpt)(meta(decl))
     }
 
     def methodD(decl: PMethodDecl): in.Method = ???
@@ -149,22 +146,22 @@ object Desugar {
 
       import writerUtil.Syntax._
 
-      val src: Source = source(stmt)
+      val src: Meta = meta(stmt)
 
       stmt match {
-        case _: PEmptyStmt => in.Seq(Vector.empty)(src)
+        case _: PEmptyStmt => in.Seqn(Vector.empty)(src)
 
-        case PSeq(stmts) => in.Seq(stmts map goS)(src)
+        case PSeq(stmts) => in.Seqn(stmts map goS)(src)
 
         case s@ PBlock(stmts) =>
           val vars = info.variables(s) map localVarD(ctx)
           in.Block(vars, stmts map goS)(src)
 
-        case PExpressionStmt(e) => in.Seq(goE(e).written)(src) // TODO: check this translation
+        case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
 
         case PAssignment(left, right) =>
           if (left.size == right.size) {
-            in.Seq((left zip right).map{ case (l, r) =>
+            in.Seqn((left zip right).map{ case (l, r) =>
               complete(for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src))
             })(src)
           } else if (right.size == 1) {
@@ -177,7 +174,7 @@ object Desugar {
         case PShortVarDecl(right, left) =>
 
           if (left.size == right.size) {
-            in.Seq((left zip right).map{ case (l, r) =>
+            in.Seqn((left zip right).map{ case (l, r) =>
               complete(for{
                 le <- unit(Assignee.Var(localVarD(ctx)(l)))
                 re <- goE(r)
@@ -193,7 +190,7 @@ object Desugar {
         case PVarDecl(typOpt, right, left) =>
 
           if (left.size == right.size) {
-            in.Seq((left zip right).map{ case (l, r) =>
+            in.Seqn((left zip right).map{ case (l, r) =>
               complete(for{
                 le <- unit(Assignee.Var(localVarD(ctx)(l)))
                 re <- goE(r)
@@ -206,8 +203,8 @@ object Desugar {
             } yield in.MultiAss(les, re)(src))
           } else if (right.isEmpty && typOpt.nonEmpty) {
             val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
-            val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(source(l)) }
-            in.Seq((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src)
+            val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
+            in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src)
 
           } else { violation("invalid declaration") }
 
@@ -235,7 +232,7 @@ object Desugar {
 
       import writerUtil.Syntax._
 
-      val src: Source = source(expr)
+      val src: Meta = meta(expr)
 
       val typ: in.Type = typeD(info.typ(expr))
 
@@ -253,7 +250,7 @@ object Desugar {
 
       import writerUtil.Syntax._
 
-      val src: Source = source(expr)
+      val src: Meta = meta(expr)
 
       val typ: in.Type = typeD(info.typ(expr))
 
@@ -273,8 +270,8 @@ object Desugar {
 
       import writerUtil.Syntax._
 
-      val src: Source = source(lit)
-      def single[E <: in.Expr](gen: Source => E): Agg[in.Expr] = unit[in.Expr](gen(src))
+      val src: Meta = meta(lit)
+      def single[E <: in.Expr](gen: Meta => E): Agg[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
@@ -344,7 +341,7 @@ object Desugar {
     def localVarContextFreeD(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
-      val src: Source = source(id)
+      val src: Meta = meta(id)
 
       val typ = typeD(info.typ(id))
 
@@ -357,24 +354,24 @@ object Desugar {
 
     // Miscellaneous
 
-    def parameterD(p: PParameter): (in.Parameter, Option[Source => in.LocalVar]) = p match {
+    def parameterD(p: PParameter): (in.Parameter, Option[Meta => in.LocalVar]) = p match {
       case PNamedParameter(id, typ) =>
-        val ip = in.Parameter(idName(id), typeD(info.typ(typ)))(source(p))
-        (ip, Some(Sourced.unsource(Factory(() => localVarContextFreeD(id))))) // TODO: replace with copy
+        val ip = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+        (ip, Some(m => localVarContextFreeD(id).withInfo(m))) // TODO: replace with copy
 
       case PUnnamedParameter(typ) =>
-        (in.Parameter(nm.fresh, typeD(info.typ(typ)))(source(p)), None)
+        (in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p)), None)
     }
 
     // Ghost Statements
 
-    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seq(xs :+ x)(x.src)}
+    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): in.Stmt = {
 
       def goA(ass: PAssertion): Agg[in.Assertion] = assertionD(ctx)(ass)
 
-      val src: Source = source(stmt)
+      val src: Meta = meta(stmt)
 
       stmt match {
         case PAssert(exp) => complete(for {e <- goA(exp)} yield in.Assert(e)(src))
@@ -391,7 +388,7 @@ object Desugar {
 
       def go(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
 
-      val src: Source = source(expr)
+      val src: Meta = meta(expr)
 
       val typ = typeD(info.typ(expr))
 
@@ -413,7 +410,7 @@ object Desugar {
       def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
       def goA(a: PAssertion): Agg[in.Assertion] = assertionD(ctx)(a)
 
-      val src: Source = source(ass)
+      val src: Meta = meta(ass)
 
       ass match {
         case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.Star(l, r)(src)
@@ -429,7 +426,7 @@ object Desugar {
 
       def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
 
-      val src: Source = source(acc)
+      val src: Meta = meta(acc)
 
       acc match {
         case n@ PDereference(e) =>
@@ -450,12 +447,12 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def source(n: PNode): Source = {
+    private def meta(n: PNode): Meta = {
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)
 //      val code = pom.positions.substring(start, finish).get
-      Source.Single(in.Origin(pos))
+      Source.Parser.Single(n, Source.Origin(pos))
     }
   }
 

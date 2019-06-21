@@ -6,13 +6,16 @@
 
 package viper.gobra.ast.internal
 
+import viper.gobra.reporting.Source
+
+
 case class Program(
-                  types: Set[TopType],
-                  variables: Set[GlobalVarDecl],
-                  constants: Set[GlobalConst],
-                  methods: Set[Method],
-                  functions: Set[Function]
-                  )(var src: Source) extends Node {
+                    types: Vector[TopType],
+                    variables: Vector[GlobalVarDecl],
+                    constants: Vector[GlobalConst],
+                    methods: Vector[Method],
+                    functions: Vector[Function]
+                  )(val info: Source.Parser.Info) extends Node {
 
 }
 
@@ -34,7 +37,7 @@ case class Method(
                  pres: Vector[Assertion],
                  posts: Vector[Assertion],
                  body: Option[Block]
-                 )(var src: Source) extends Node
+                 )(val info: Source.Parser.Info) extends Node
 
 case class Function(
                      name: String,
@@ -43,7 +46,7 @@ case class Function(
                      pres: Vector[Assertion],
                      posts: Vector[Assertion],
                      body: Option[Block]
-                   )(var src: Source) extends Node
+                   )(val info: Source.Parser.Info) extends Node
 
 
 sealed trait Stmt extends Node
@@ -51,15 +54,15 @@ sealed trait Stmt extends Node
 case class Block(
                 variables: Vector[LocalVar],
                 stmts: Vector[Stmt]
-                )(var src: Source) extends Stmt
+                )(val info: Source.Parser.Info) extends Stmt
 
-case class Seq(stmts: Vector[Stmt])(var src: Source) extends Stmt
+case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assignment extends Stmt
 
-case class SingleAss(left: Assignee, right: Expr)(var src: Source) extends Assignment
+case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
 
-case class MultiAss(lefts: Vector[Assignee], right: Expr)(var src: Source) extends Assignment
+case class MultiAss(lefts: Vector[Assignee], right: Expr)(val info: Source.Parser.Info) extends Assignment
 
 
 sealed trait Assignee
@@ -71,24 +74,24 @@ object Assignee {
   // TODO: Index
 }
 
-case class Return()(var src: Source) extends Stmt
+case class Return()(val info: Source.Parser.Info) extends Stmt
 
 
-case class Assert(ass: Assertion)(var src: Source) extends Stmt
-case class Assume(ass: Assertion)(var src: Source) extends Stmt
-case class Inhale(ass: Assertion)(var src: Source) extends Stmt
-case class Exhale(ass: Assertion)(var src: Source) extends Stmt
+case class Assert(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
+case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
+case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
+case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
 
 sealed trait Assertion extends Node
 
-case class Star(left: Assertion, right: Assertion)(var src: Source) extends Assertion
+case class Star(left: Assertion, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class ExprAssertion(exp: Expr)(var src: Source) extends Assertion
+case class ExprAssertion(exp: Expr)(val info: Source.Parser.Info) extends Assertion
 
-case class Implication(left: Expr, right: Assertion)(var src: Source) extends Assertion
+case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Access(e: Accessible)(var src: Source) extends Assertion
+case class Access(e: Accessible)(val info: Source.Parser.Info) extends Assertion
 
 sealed trait Accessible
 
@@ -103,13 +106,13 @@ sealed trait Expr extends Node with Typed
 
 // case class FieldAccess() extends Expr
 
-case class DfltVal(typ: Type)(var src: Source) extends Expr
+case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class Deref(exp: Expr, typ: Type)(var src: Source) extends Expr {
+case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr {
   require(exp.typ.isInstanceOf[PointerT])
 }
 
-case class Ref(ref: Addressable, typ: PointerT)(var src: Source) extends Expr
+case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr
 
 sealed trait Addressable
 
@@ -122,11 +125,11 @@ object Addressable {
 
 sealed trait Lit extends Expr
 
-case class IntLit(v: BigInt)(var src: Source) extends Lit {
+case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT
 }
 
-case class BoolLit(b: Boolean)(var src: Source) extends Lit {
+case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT
 }
 
@@ -135,7 +138,7 @@ sealed trait Var extends Expr {
   def id: String
 }
 
-case class Parameter(id: String, typ: Type)(var src: Source) extends Var
+case class Parameter(id: String, typ: Type)(val info: Source.Parser.Info) extends Var
 
 sealed trait BodyVar extends Var
 
@@ -145,8 +148,8 @@ sealed trait LocalVar extends BodyVar {
 }
 
 object LocalVar {
-  case class Ref(id: String, typ: Type)(var src: Source) extends LocalVar
-  case class Val(id: String, typ: Type)(var src: Source) extends LocalVar
+  case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
+  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
 }
 
 //sealed trait GlobalVar extends Var {

@@ -1,6 +1,6 @@
 package viper.gobra.translator.implementations
 
-import viper.gobra.translator.interfaces.{Collector, Context, TranslatorConfig}
+import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator._
 
 case class ContextImpl(

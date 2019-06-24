@@ -7,6 +7,7 @@
 package viper.gobra.ast.internal
 
 import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.Parser
 
 
 case class Program(
@@ -65,12 +66,16 @@ case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) 
 case class MultiAss(lefts: Vector[Assignee], right: Expr)(val info: Source.Parser.Info) extends Assignment
 
 
-sealed trait Assignee
+sealed trait Assignee extends Node
 
 object Assignee {
-  case class Var(v: BodyVar) extends Assignee
+  case class Var(v: BodyVar) extends Assignee {
+    override def info: Parser.Info = v.info
+  }
   // case class Field(f: FieldAccess) extends Assignee
-  case class Pointer(e: Deref) extends Assignee
+  case class Pointer(e: Deref) extends Assignee {
+    override def info: Parser.Info = e.info
+  }
   // TODO: Index
 }
 
@@ -93,10 +98,12 @@ case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Inf
 
 case class Access(e: Accessible)(val info: Source.Parser.Info) extends Assertion
 
-sealed trait Accessible
+sealed trait Accessible extends Node
 
 object Accessible {
-  case class Ref(der: Deref) extends Accessible
+  case class Ref(der: Deref) extends Accessible {
+    override def info: Parser.Info = der.info
+  }
 }
 
 
@@ -114,10 +121,12 @@ case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Exp
 
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr
 
-sealed trait Addressable
+sealed trait Addressable extends Node
 
 object Addressable {
-  case class Var(v: LocalVar.Ref) extends Addressable
+  case class Var(v: LocalVar.Ref) extends Addressable {
+    override def info: Parser.Info = v.info
+  }
   // TODO: Field, Global
 }
 

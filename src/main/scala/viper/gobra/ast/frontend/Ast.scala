@@ -531,11 +531,11 @@ case class PInhale(exp: PAssertion) extends PGhostStatement
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
 
-sealed trait PPermission extends PGhostExpression
-
-case class PFullPerm() extends PPermission
-
-case class PNoPerm() extends PPermission
+//sealed trait PPermission extends PGhostExpression
+//
+//case class PFullPerm() extends PPermission
+//
+//case class PNoPerm() extends PPermission
 
 /**
   * Assertions

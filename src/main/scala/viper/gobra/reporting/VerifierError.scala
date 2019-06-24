@@ -14,7 +14,7 @@ sealed trait VerifierError {
   def id: String
 
   def formattedMessage: String =
-    s"$message (${position.line}:${position.column})"
+    s"<${position.line}:${position.column}> $message"
 
   override def toString: String = formattedMessage
 }
@@ -27,12 +27,118 @@ case class TypeError(message: String, position: SourcePosition) extends Verifier
   val id = "type_error"
 }
 
-sealed trait VerificationError extends VoilaError {
-  type OffendingNode <: PAstNode
-  def offendingNode: OffendingNode
+
+
+sealed trait VerificationError extends VerifierError {
+
+  def info: Source.Verifier.Info
+
+  override def position: SourcePosition = info.origin.pos
+
   def localId: String
   def localMessage: String
-  def detail: Option[VerificationError]
-  def dueTo(detailToAppend: VerificationError): VerificationError
-  def dueTo(detailToAppend: Option[VerificationError]): VerificationError
+
+  override def id: String = (localId :: reasons.map(_.id)).mkString(":")
+
+  override def message: String = {
+    val reasonsMsg = if (reasons.nonEmpty) s"\n${reasons.mkString("\n")}" else ""
+    val detailsMsg = if (details.nonEmpty) s"\n${details.mkString("\n")}" else ""
+
+    s"$localMessage. $reasonsMsg$detailsMsg"
+  }
+
+  protected var _reasons: List[VerificationErrorReason] = List.empty
+
+  def reasons: List[VerificationErrorReason] = _reasons
+
+  def dueTo(reasonToAppend: VerificationErrorReason): VerificationError = {
+    _reasons ::= reasonToAppend
+    this
+  }
+
+  def dueTo(reasonToAppend: Option[VerificationErrorReason]): VerificationError = reasonToAppend match {
+    case Some(reason) => dueTo(reason)
+    case None => this
+  }
+
+  protected var _details: List[VerificationErrorClarification] = List.empty
+
+  def details: List[VerificationErrorClarification] = _details
+
+  def withDetail(detailToAppend: VerificationErrorClarification): VerificationError = {
+    _details ::= detailToAppend
+    this
+  }
+
+  def withDetail(detailToAppend: Option[VerificationErrorClarification]): VerificationError = detailToAppend match {
+    case Some(detail) => withDetail(detail)
+    case None => this
+  }
 }
+
+case class AssignmentError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assignment_error"
+  override def localMessage: String = "Assignment might fail"
+}
+
+case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "postcondition_error"
+  override def localMessage: String = "Postcondition might not hold"
+}
+
+case class PreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "precondition_error"
+  override def localMessage: String = "Precondition of call might not hold"
+}
+
+case class AssertError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "assert_error"
+  override def localMessage: String = "Assert might fail"
+}
+
+case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "exhale_error"
+  override def localMessage: String = "Exhale might fail"
+}
+
+case class FoldError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "fold_error"
+  override def localMessage: String = "Fold might fail"
+}
+
+case class UnfoldError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "unfold_error"
+  override def localMessage: String = "Unfold might fail"
+}
+
+case class LoopInvariantPreservationError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_preservation_error"
+  override def localMessage: String = "Loop invariant might not be preserved"
+}
+
+case class LoopInvariantEstablishmentError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_establishment_error"
+  override def localMessage: String = "Loop invariant might not be established"
+}
+
+sealed trait VerificationErrorReason {
+  def id: String
+  def message: String
+  override def toString: String = message
+}
+
+case class InsufficientPermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "permission_error"
+  override def message: String = s"permission to ${info.origin.tag} might not suffice"
+}
+
+case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assertion_error"
+  override def message: String = s"Assertion ${info.origin.tag} might not hold"
+}
+
+sealed trait VerificationErrorClarification {
+  def message: String
+  override def toString: String = message
+}
+

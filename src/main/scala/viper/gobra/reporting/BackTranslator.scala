@@ -12,8 +12,8 @@ import viper.silver
 object BackTranslator {
 
   trait ErrorBackTranslator {
-    def translate(error: silver.verifier.VerificationError): VerifierError
-    def translate(reason: silver.verifier.ErrorReason): VerifierError
+    def translate(error: silver.verifier.VerificationError): VerificationError
+    def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason
   }
 
   case class BackTrackInfo(
@@ -21,13 +21,13 @@ object BackTranslator {
                             reasonT: Seq[BackTranslator.ReasonTransformer]
                           )
 
-  type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerifierError]
-  type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerifierError]
+  type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
+  type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerificationErrorReason]
 
   def backTranslate(result: BackendVerifier.Result)(config: Config): VerifierResult = result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) =>
-
-      ???
+      val errorTranslator = new DefaultErrorBackTranslator(backtrack)
+      VerifierResult.Failure(errors map errorTranslator.translate)
   }
 }

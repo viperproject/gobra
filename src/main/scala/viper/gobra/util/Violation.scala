@@ -1,7 +1,5 @@
 package viper.gobra.util
 
-import viper.silver.verifier.AbstractError
-
 object Violation {
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

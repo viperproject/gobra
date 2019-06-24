@@ -7,7 +7,7 @@ import viper.gobra.ast.{frontend, internal}
 
 object Source {
 
-  case class Origin(pos: SourcePosition)
+  case class Origin(pos: SourcePosition, tag: String)
 
   object Parser {
 
@@ -19,7 +19,6 @@ object Source {
     object Unsourced extends Info {
       override def origin: Option[Origin] = throw new IllegalStateException()
       override def toInfo(node: Node): vpr.Info = throw new IllegalStateException()
-      def unapplySeq(u: Unsourced.type): Option[Seq[Nothing]] = throw new IllegalStateException()
     }
 
     case object Internal extends Info {
@@ -41,7 +40,7 @@ object Source {
     }
   }
 
-  def unapply(node: vpr.Node): Option[(frontend.PNode)] = {
+  def unapply(node: vpr.Node): Option[Verifier.Info] = {
     val info = node.getPrettyMetadata._2
     info.getUniqueInfo[Verifier.Info]
   }
@@ -49,6 +48,7 @@ object Source {
   def withInfo[N <: vpr.Node](n: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => N)(source: internal.Node): N = {
     source.info match {
       case Parser.Internal => n(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+      case Parser.Unsourced => throw new IllegalStateException()
 
       case Parser.Single(pnode, origin) =>
 
@@ -74,6 +74,7 @@ object Source {
 
       source.info match {
         case Parser.Internal => node
+        case Parser.Unsourced => throw new IllegalStateException()
 
         case Parser.Single(pnode, origin) =>
 

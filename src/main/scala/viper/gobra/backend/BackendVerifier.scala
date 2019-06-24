@@ -21,7 +21,7 @@ object BackendVerifier {
   sealed trait Result
   case object Success extends Result
   case class Failure(
-                    errors: Seq[silver.verifier.VerificationError],
+                    errors: Vector[silver.verifier.VerificationError],
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
@@ -37,7 +37,7 @@ object BackendVerifier {
 
         val (verificationError, otherError) = failure.errors
           .partition(_.isInstanceOf[silver.verifier.VerificationError])
-          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
+          .asInstanceOf[(Vector[silver.verifier.VerificationError], Vector[silver.verifier.AbstractError])]
 
         checkAbstractViperErrors(otherError)
 
@@ -65,7 +65,7 @@ object BackendVerifier {
   private def checkAbstractViperErrors(errors: Seq[silver.verifier.AbstractError]): Unit = {
     if (errors.nonEmpty) {
       var messages: Vector[String] = Vector.empty
-      messages += "Found non-verification-failures"
+      messages ++= Vector("Found non-verification-failures")
       messages ++= errors map (_.readableMessage)
 
       val completeMessage = messages.mkString("\n")

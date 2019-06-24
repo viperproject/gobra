@@ -5,6 +5,8 @@ import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
 import viper.gobra.reporting.Source.withInfo
+import viper.gobra.translator.Names
+import viper.gobra.reporting.Source.RichViperNode
 
 class FunctionsImpl extends Functions {
 
@@ -21,7 +23,12 @@ class FunctionsImpl extends Functions {
     val wBody = x.body map (ctx.stmt.translate(_)(ctx))
     assert(wBody forall (_.global.isEmpty))
 
-    val vBody = wBody map (w => vpr.Seqn(Vector(w.res), w.global)(w.res.pos))
+    val vBody = wBody map { w =>
+      vpr.Seqn(Vector(
+        w.res,
+        vpr.Label(Names.returnLabel, Vector.empty)()
+      ), w.global)().withInfo(x)
+    }
 
     withInfo(vpr.Method(
       name = x.name,

@@ -451,8 +451,8 @@ object Desugar {
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)
-//      val code = pom.positions.substring(start, finish).get
-      Source.Parser.Single(n, Source.Origin(pos))
+      val tag = pom.positions.substring(start, finish).get
+      Source.Parser.Single(n, Source.Origin(pos, tag))
     }
   }
 

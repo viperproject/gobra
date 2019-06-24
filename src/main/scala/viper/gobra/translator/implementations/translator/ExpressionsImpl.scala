@@ -20,7 +20,7 @@ class ExpressionsImpl extends Expressions {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     x match {
-      case in.DfltVal(t) => unit(defaultValue(t)())
+      case in.DfltVal(t) => unit(defaultValue(t))
       case p: in.Deref => ctx.loc.deref(p)(ctx)
       case in.Ref(r, _) => ctx.loc.address(r)(ctx)
       case l: in.Lit => literal(l)(ctx)
@@ -36,12 +36,12 @@ class ExpressionsImpl extends Expressions {
     }
   }.withInfo(l)
 
-  def defaultValue(t: in.Type)(src: vpr.Position): vpr.Exp = t match {
-    case in.BoolT => vpr.TrueLit()(src)
-    case in.IntT => vpr.IntLit(0)(src)
-    case in.FracT => vpr.NoPerm()(src)
-    case in.DefinedT(_, t2) => defaultValue(t2)(src)
-    case in.PointerT(_) => vpr.NullLit()(src)
+  def defaultValue(t: in.Type): vpr.Exp = t match {
+    case in.BoolT => vpr.TrueLit()()
+    case in.IntT => vpr.IntLit(0)()
+    case in.FracT => vpr.NoPerm()()
+    case in.DefinedT(_, t2) => defaultValue(t2)
+    case in.PointerT(_) => vpr.NullLit()()
     case _ => ???
   }
 

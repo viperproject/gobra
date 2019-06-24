@@ -43,6 +43,8 @@ class StatementsImpl extends Statements {
           ass <- ctx.loc.assignment(left, r)(ctx)(x).open
         } yield ass).close
 
+      case in.MultiAss(left, right) => ??? // TODO
+
       case in.Assert(ass) => (for {v <- goA(ass)} yield vpr.Assert(v)()).close
       case in.Assume(ass) => (for {v <- goA(ass)} yield vpr.Assume(v)()).close
       case in.Inhale(ass) => (for {v <- goA(ass)} yield vpr.Inhale(v)()).close

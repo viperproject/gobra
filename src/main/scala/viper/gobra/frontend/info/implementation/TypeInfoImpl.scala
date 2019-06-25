@@ -7,6 +7,7 @@ import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
+import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.{Info, TypeInfo}
 
 class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInfo
@@ -16,12 +17,20 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with AmbiguityResolution
   with Enclosing
 
-  with TopLevelTyping
+  with MemberTyping
   with StmtTyping
   with ExprTyping
   with TypeTyping
   with IdTyping
   with MiscTyping
+
+  with AssertionTyping
+  with GhostMemberTyping
+  with GhostStmtTyping
+  with GhostExprTyping
+  with GhostTypeTyping
+  with GhostIdTyping
+  with GhostMiscTyping
 
   with Convertibility
   with Comparability
@@ -62,6 +71,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
         case _ => false
       }
     }
+
+
 
   override def addressed(id: PIdnNode): Boolean = hasAddressedUse(id)
 

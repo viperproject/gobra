@@ -107,9 +107,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               })
           } else if (elems.size == decl.embedded.size + decl.fields.size) {
             propForall(
-              elems.map(_.exp).zip(decl.clauses.flatMap {
-                case PEmbeddedDecl(typ, _) => Vector(miscType(typ))
-                case PFieldDecls(fields) => fields map (f => typeType(f.typ))
+              elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
+                def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
+                  case PEmbeddedDecl(typ, _) => Vector(miscType(typ))
+                  case PFieldDecls(fields) => fields map (f => typeType(f.typ))
+                }
+
+                cl match {
+                  case PExplicitGhostStructClause(c) => clauseInducedTypes(c)
+                  case c: PActualStructClause => clauseInducedTypes(c)
+                }
               }),
               compositeValAssignableTo
             )

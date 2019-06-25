@@ -77,11 +77,19 @@ object MemberSet {
   import scala.collection.breakOut
 
   def init(s: TraversableOnce[TypeMember]): MemberSet = {
-    val nmp: Vector[(String, TypeMember)] = s.map {
-      case e@ MethodImpl(m) => m.id.name -> e
-      case e@ MethodSpec(m) => m.id.name -> e
-      case e@ Field(m)      => m.id.name -> e
-      case e@ Embbed(m)     => m.id.name -> e
+    val nmp: Vector[(String, TypeMember)] = s.map { tm =>
+
+      def extractMemberName(tm: ActualTypeMember): String = tm match {
+              case e@ ActualMethodImpl(m) => m.id.name
+              case e@ ActualMethodSpec(m) => m.id.name
+              case e@ ActualField(m)      => m.id.name
+              case e@ ActualEmbbed(m)     => m.id.name
+      }
+
+      tm match {
+        case a: ActualTypeMember => extractMemberName(a) -> a
+        case g@ GhostifiedEntity(a: ActualTypeMember) => extractMemberName(a) -> g
+      }
     }.toVector
 
     val groups = nmp.unzip._1.groupBy(identity)

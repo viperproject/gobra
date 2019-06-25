@@ -24,6 +24,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingIdCodeRoot: PIdnNode => PCodeRoot =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot => m }
 
+  lazy val isEnclosingExplicitGhost: PNode => Boolean =
+    down(false){ case g: PGhostifier[_] => true }
+
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
     typeSwitchConstraintsLookup(id)(id)
 

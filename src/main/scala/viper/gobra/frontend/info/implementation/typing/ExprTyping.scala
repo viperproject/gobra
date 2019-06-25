@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Method
 import viper.gobra.frontend.info.base.Type._
@@ -11,6 +11,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef {
+    case expr: PActualExpression => wellDefActualExpr(expr)
+    case expr: PGhostExpression  => wellDefGhostExpr(expr)
+  }
+
+  private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
     case n@ PNamedOperand(id) => pointsToData.errors(id)(n)
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
@@ -126,6 +131,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprType: Typing[PExpression] = createTyping {
+    case expr: PActualExpression => actualExprType(expr)
+    case expr: PGhostExpression => ghostExprType(expr)
+  }
+
+  private def actualExprType(expr: PActualExpression): Type = expr match {
 
     case PNamedOperand(id) => idType(id)
 

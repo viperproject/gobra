@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -10,6 +10,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   lazy val wellDefStmt: WellDefinedness[PStatement] = createWellDef {
+    case stmt: PActualStatement => wellDefActualStmt(stmt)
+    case stmt: PGhostStatement  => wellDefGhostStmt(stmt)
+  }
+
+  private[typing] def wellDefActualStmt(stmt: PActualStatement): Messages = stmt match {
 
     case n@PConstDecl(typ, right, left) =>
       declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)

@@ -14,6 +14,13 @@ object Desugar {
     new Desugarer(program.positions, info).programD(program)
   }
 
+  object NoGhost {
+    def unapply(arg: PNode): Option[PNode] = arg match {
+      case PGhostifier(x) => Some(x)
+      case x => Some(x)
+    }
+  }
+
   private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
 
     // TODO: clean initialization
@@ -43,11 +50,11 @@ object Desugar {
     }
 
     def programD(p: PProgram): in.Program = {
-      val globalVarDecls = p.declarations.collect { case x: PVarDecl => varDeclGD(x) }.flatten.distinct
-      val globalConstDecls = p.declarations.collect{ case x: PConstDecl => constDeclD(x) }.flatten.distinct
-      val methods = p.declarations.collect{ case x: PMethodDecl => methodD(x) }.distinct
-      val functions = p.declarations.collect{ case x: PFunctionDecl => functionD(x) }.distinct
-      val types = p.declarations.collect{ case x: PTypeDef => typeDefD(x) }.distinct
+      val globalVarDecls = p.declarations.collect { case NoGhost(x: PVarDecl) => varDeclGD(x) }.flatten.distinct
+      val globalConstDecls = p.declarations.collect{ case NoGhost(x: PConstDecl) => constDeclD(x) }.flatten.distinct
+      val methods = p.declarations.collect{ case NoGhost(x: PMethodDecl) => methodD(x) }.distinct
+      val functions = p.declarations.collect{ case NoGhost(x: PFunctionDecl) => functionD(x) }.distinct
+      val types = p.declarations.collect{ case NoGhost(x: PTypeDef) => typeDefD(x) }.distinct
 
       in.Program(types, globalVarDecls, globalConstDecls, methods, functions)(meta(p))
     }
@@ -67,8 +74,8 @@ object Desugar {
 
 
       val returnLinks = decl.result match {
-        case PVoidResult() => Vector.empty
-        case PResultClause(outs) =>
+        case NoGhost(PVoidResult()) => Vector.empty
+        case NoGhost(PResultClause(outs)) =>
           outs.map(parameterD).map{ case (p, r) => (in.LocalVar.Val(p.id,p.typ)(p.info), r) }
       }
       val (returnAssign, returnVars) = returnLinks.unzip
@@ -108,7 +115,7 @@ object Desugar {
       }
 
       (decl.args zip argLinks).foreach{
-        case (PNamedParameter(id, _), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
@@ -119,7 +126,7 @@ object Desugar {
       }
 
       (decl.args zip argLinks).foreach{
-        case (PNamedParameter(id, _), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
@@ -149,75 +156,78 @@ object Desugar {
       val src: Meta = meta(stmt)
 
       stmt match {
-        case _: PEmptyStmt => in.Seqn(Vector.empty)(src)
+        case NoGhost(noGhost) => noGhost match {
+          case _: PEmptyStmt => in.Seqn(Vector.empty)(src)
 
-        case PSeq(stmts) => in.Seqn(stmts map goS)(src)
+          case PSeq(stmts) => in.Seqn(stmts map goS)(src)
 
-        case s@ PBlock(stmts) =>
-          val vars = info.variables(s) map localVarD(ctx)
-          in.Block(vars, stmts map goS)(src)
+          case s@ PBlock(stmts) =>
+            val vars = info.variables(s) map localVarD(ctx)
+            in.Block(vars, stmts map goS)(src)
 
-        case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
+          case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
 
-        case PAssignment(left, right) =>
-          if (left.size == right.size) {
-            in.Seqn((left zip right).map{ case (l, r) =>
-              complete(for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src))
-            })(src)
-          } else if (right.size == 1) {
-            complete(
-              for{les <- sequence(left map goL); re  <- goE(right.head)}
-                yield in.MultiAss(les, re)(src)
-            )
-          } else { violation("invalid assignment") }
+          case PAssignment(left, right) =>
+            if (left.size == right.size) {
+              in.Seqn((left zip right).map{ case (l, r) =>
+                complete(for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src))
+              })(src)
+            } else if (right.size == 1) {
+              complete(
+                for{les <- sequence(left map goL); re  <- goE(right.head)}
+                  yield in.MultiAss(les, re)(src)
+              )
+            } else { violation("invalid assignment") }
 
-        case PShortVarDecl(right, left) =>
+          case PShortVarDecl(right, left) =>
 
-          if (left.size == right.size) {
-            in.Seqn((left zip right).map{ case (l, r) =>
+            if (left.size == right.size) {
+              in.Seqn((left zip right).map{ case (l, r) =>
+                complete(for{
+                  le <- unit(Assignee.Var(localVarD(ctx)(l)))
+                  re <- goE(r)
+                } yield in.SingleAss(le, re)(src))
+              })(src)
+            } else if (right.size == 1) {
               complete(for{
-                le <- unit(Assignee.Var(localVarD(ctx)(l)))
-                re <- goE(r)
-              } yield in.SingleAss(le, re)(src))
-            })(src)
-          } else if (right.size == 1) {
-            complete(for{
-              les <- unit(left.map{l => Assignee.Var(localVarD(ctx)(l))})
-              re  <- goE(right.head)
-            } yield in.MultiAss(les, re)(src))
-          } else { violation("invalid assignment") }
+                les <- unit(left.map{l => Assignee.Var(localVarD(ctx)(l))})
+                re  <- goE(right.head)
+              } yield in.MultiAss(les, re)(src))
+            } else { violation("invalid assignment") }
 
-        case PVarDecl(typOpt, right, left) =>
+          case PVarDecl(typOpt, right, left) =>
 
-          if (left.size == right.size) {
-            in.Seqn((left zip right).map{ case (l, r) =>
+            if (left.size == right.size) {
+              in.Seqn((left zip right).map{ case (l, r) =>
+                complete(for{
+                  le <- unit(Assignee.Var(localVarD(ctx)(l)))
+                  re <- goE(r)
+                } yield in.SingleAss(le, re)(src))
+              })(src)
+            } else if (right.size == 1) {
               complete(for{
-                le <- unit(Assignee.Var(localVarD(ctx)(l)))
-                re <- goE(r)
-              } yield in.SingleAss(le, re)(src))
-            })(src)
-          } else if (right.size == 1) {
-            complete(for{
-              les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
-              re  <- goE(right.head)
-            } yield in.MultiAss(les, re)(src))
-          } else if (right.isEmpty && typOpt.nonEmpty) {
-            val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
-            val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
-            in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src)
+                les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
+                re  <- goE(right.head)
+              } yield in.MultiAss(les, re)(src))
+            } else if (right.isEmpty && typOpt.nonEmpty) {
+              val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
+              val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
+              in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src)
 
-          } else { violation("invalid declaration") }
+            } else { violation("invalid declaration") }
 
-        case PReturn(exps) =>
-          complete(for{es <- sequence(exps map goE)} yield ctx.ret(es)(src))
-//            for{
-//            elems <- sequence(exps map goE)
-//          } yield ctx.ret(elems))
+          case PReturn(exps) =>
+            complete(for{es <- sequence(exps map goE)} yield ctx.ret(es)(src))
+          //            for{
+          //            elems <- sequence(exps map goE)
+          //          } yield ctx.ret(elems))
 
 
-        case g: PGhostStatement => ghostStmtD(ctx)(g)
+          case g: PGhostStatement => ghostStmtD(ctx)(g)
 
-        case _ => ???
+          case _ => ???
+        }
+
       }
     }
 
@@ -237,10 +247,12 @@ object Desugar {
       val typ: in.Type = typeD(info.typ(expr))
 
       expr match {
-        case PNamedOperand(id) => unit[in.Assignee](Assignee.Var(varD(ctx)(id)))
-        case PDereference(exp) => for { e <- exprD(ctx)(exp) } yield Assignee.Pointer(in.Deref(e, typ)(src))
+        case NoGhost(noGhost) => noGhost match {
+          case PNamedOperand(id) => unit[in.Assignee](Assignee.Var(varD(ctx)(id)))
+          case PDereference(exp) => for { e <- exprD(ctx)(exp) } yield Assignee.Pointer(in.Deref(e, typ)(src))
 
-        case _ => ???
+          case _ => ???
+        }
       }
     }
 
@@ -255,12 +267,14 @@ object Desugar {
       val typ: in.Type = typeD(info.typ(expr))
 
       expr match {
-        case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
-        case PDereference(exp) => go(exp) map (in.Deref(_, typ)(src))
+        case NoGhost(noGhost) => noGhost match {
+          case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
+          case PDereference(exp) => go(exp) map (in.Deref(_, typ)(src))
 
-        case g: PGhostExpression => ghostExprD(ctx)(g)
+          case g: PGhostExpression => ghostExprD(ctx)(g)
 
-        case _ => ???
+          case _ => ???
+        }
       }
     }
 
@@ -316,10 +330,12 @@ object Desugar {
     // Identifier
 
     def idName(id: PIdnNode): String = info.regular(id) match {
-      case _: st.Function => nm.function(id.name, info.scope(id))
-      case _: st.Variable => nm.variable(id.name, info.scope(id))
-      case _: st.NamedType => nm.typ(id.name, info.scope(id))
-      case _ => ???
+      case st.NoGhost(noGhost) => noGhost match {
+        case _: st.Function => nm.function(id.name, info.scope(id))
+        case _: st.Variable => nm.variable(id.name, info.scope(id))
+        case _: st.NamedType => nm.typ(id.name, info.scope(id))
+        case _ => ???
+      }
     }
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.BodyVar = {
@@ -355,12 +371,14 @@ object Desugar {
     // Miscellaneous
 
     def parameterD(p: PParameter): (in.Parameter, Option[Meta => in.LocalVar]) = p match {
-      case PNamedParameter(id, typ) =>
-        val ip = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-        (ip, Some(m => localVarContextFreeD(id).withInfo(m))) // TODO: replace with copy
+      case NoGhost(noGhost: PActualParameter) => noGhost match {
+        case PNamedParameter(id, typ) =>
+          val ip = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+          (ip, Some(m => localVarContextFreeD(id).withInfo(m))) // TODO: replace with copy
 
-      case PUnnamedParameter(typ) =>
-        (in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p)), None)
+        case PUnnamedParameter(typ) =>
+          (in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p)), None)
+      }
     }
 
     // Ghost Statements
@@ -378,6 +396,7 @@ object Desugar {
         case PAssume(exp) => complete(for {e <- goA(exp)} yield in.Assume(e)(src))
         case PInhale(exp) => complete(for {e <- goA(exp)} yield in.Inhale(e)(src))
         case PExhale(exp) => complete(for {e <- goA(exp)} yield in.Exhale(e)(src))
+        case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
     }

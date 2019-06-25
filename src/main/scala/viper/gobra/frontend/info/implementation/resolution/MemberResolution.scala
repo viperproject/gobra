@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.resolution
 
-import viper.gobra.ast.frontend.{PIdnUse, PInterfaceType, PMethodDecl, PTypeDef}
+import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -10,9 +10,22 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   import scala.collection.breakOut
 
+  private def createField(decl: PFieldDecl): Field =
+    if (isEnclosingExplicitGhost(decl)) GhostField(ActualField(decl)) else ActualField(decl)
+
+  private def createEmbbed(decl: PEmbeddedDecl): Embbed =
+    if (isEnclosingExplicitGhost(decl)) GhostEmbbed(ActualEmbbed(decl)) else ActualEmbbed(decl)
+
+  private def createMethodImpl(decl: PMethodDecl): MethodImpl =
+    if (isEnclosingExplicitGhost(decl)) GhostMethodImpl(ActualMethodImpl(decl)) else ActualMethodImpl(decl)
+
+  private def createMethodSpec(spec: PMethodSig): MethodSpec =
+    if (isEnclosingExplicitGhost(spec)) GhostMethodSpec(ActualMethodSpec(spec)) else ActualMethodSpec(spec)
+
+
   private lazy val receiverMethodSetMap: Map[Type, MemberSet] = {
     tree.root.declarations
-      .collect { case m: PMethodDecl => MethodImpl(m) }(breakOut)
+      .collect { case m: PMethodDecl => createMethodImpl(m) }(breakOut)
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
       .mapValues(ms => MemberSet.init(ms))
   }
@@ -23,7 +36,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val interfaceMethodSet: InterfaceT => MemberSet =
     attr[InterfaceT, MemberSet] {
       case InterfaceT(PInterfaceType(es, specs)) =>
-        MemberSet.init(specs.map(m => MethodSpec(m))) union MemberSet.union {
+        MemberSet.init(specs.map(m => createMethodSpec(m))) union MemberSet.union {
           es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
               case NamedType(PTypeDef(t: PInterfaceType, _)) => InterfaceT(t)
@@ -45,8 +58,8 @@ trait MemberResolution { this: TypeInfoImpl =>
 
       case StructT(t) =>
         val (es, fields) = (t.embedded, t.fields)
-        MemberSet.init(fields map Field) union MemberSet.init(es map Embbed) union
-          MemberSet.union(es.map { e => memberSet(transformer(miscType(e.typ))).promote(Embbed(e)) })
+        MemberSet.init(fields map createField) union MemberSet.init(es map createEmbbed) union
+          MemberSet.union(es.map { e => memberSet(transformer(miscType(e.typ))).promote(createEmbbed(e)) })
 
       case DeclaredT(decl) => rec(typeType(decl.right)).surface
       case inf: InterfaceT => interfaceMethodSet(inf)

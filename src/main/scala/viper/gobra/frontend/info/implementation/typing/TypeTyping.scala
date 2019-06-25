@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -10,6 +10,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef {
+    case typ: PActualType => wellDefActualType(typ)
+    case typ: PGhostType  => wellDefGhostType(typ)
+  }
+
+  private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
     case n@ PDeclaredType(id) => pointsToType.errors(id)(n)
 
@@ -30,6 +35,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val typeType: Typing[PType] = createTyping {
+    case typ: PActualType => actualTypeType(typ)
+    case typ: PGhostType  => ghostTypeType(typ)
+  }
+
+  private[typing] def actualTypeType(typ: PActualType): Type = typ match {
 
     case PDeclaredType(id) => idType(id)
 

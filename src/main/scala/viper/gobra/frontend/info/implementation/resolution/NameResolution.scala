@@ -15,7 +15,9 @@ trait NameResolution { this: TypeInfoImpl =>
   private lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
       case PWildcard() => ???
-      case id@ tree.parent(p) => p match {
+      case id@ tree.parent(p) =>
+
+        val actualEntity = p match {
 
         case decl: PConstDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
@@ -30,19 +32,19 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleConstant(decl.right(idx), decl.typ)
-            case MultiAssign => MultiConstant(idx, decl.right.head)
+            case SingleAssign => SingleLocalVariable(decl.right(idx), decl.typ)
+            case MultiAssign => MultiLocalVariable(idx, decl.right.head)
             case _ => UnknownEntity()
           }
 
         case decl: PTypeDef => NamedType(decl)
         case decl: PTypeAlias => TypeAlias(decl)
-        case decl: PFunctionDecl => Function(decl)
-        case decl: PMethodDecl => MethodImpl(decl)
-        case spec: PMethodSig => MethodSpec(spec)
+        case decl: PFunctionDecl => ActualFunction(decl)
+        case decl: PMethodDecl => ActualMethodImpl(decl)
+        case spec: PMethodSig => ActualMethodSpec(spec)
 
-        case decl: PFieldDecl => Field(decl)
-        case decl: PEmbeddedDecl => Embbed(decl)
+        case decl: PFieldDecl => ActualField(decl)
+        case decl: PEmbeddedDecl => ActualEmbbed(decl)
 
         case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl)
         case decl: PNamedParameter => InParameter(decl)
@@ -50,11 +52,17 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl)
       }
+
+      ghostifyIfGhostDef(actualEntity, id)
     }
+
+
 
   private lazy val unkEntity: PIdnUnk => Entity =
     attr[PIdnUnk, Entity] {
-      case id@tree.parent(p) => p match {
+      case id@tree.parent(p) =>
+
+        val actualEntity = p match {
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
@@ -81,7 +89,16 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case _ => violation("unexpected parent of unknown id")
       }
+
+      ghostifyIfGhostDef(actualEntity, id)
     }
+
+  private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
+
+  private def ghostifyIfGhostDef(entity: Entity, ref: PIdnNode): Entity = entity match {
+    case a: ActualRegular if isGhostDef(ref) => ghostify(a)
+    case x => x
+  }
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
@@ -117,17 +134,32 @@ trait NameResolution { this: TypeInfoImpl =>
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PProgram => n.declarations flatMap {
-        case d: PConstDecl => d.left
-        case d: PVarDecl => d.left
-        case d: PFunctionDecl => Vector(d.id)
-        case d: PTypeDecl => Vector(d.left)
-        case _: PMethodDecl => Vector.empty
+      case n: PProgram => n.declarations flatMap { m =>
+
+        def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
+          case d: PConstDecl => d.left
+          case d: PVarDecl => d.left
+          case d: PFunctionDecl => Vector(d.id)
+          case d: PTypeDecl => Vector(d.left)
+          case _: PMethodDecl => Vector.empty
+        }
+
+        m match {
+          case a: PActualMember => actualMember(a)
+          case PExplicitGhostMember(a) => actualMember(a)
+        }
       }
 
-      case n: PStructType => n.clauses.flatMap {
-        case d: PFieldDecls => d.fields map (_.id)
-        case d: PEmbeddedDecl => Vector(d.id)
+      case n: PStructType => n.clauses.flatMap { c =>
+        def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
+          case d: PFieldDecls => d.fields map (_.id)
+          case d: PEmbeddedDecl => Vector(d.id)
+        }
+
+        c match {
+          case clause: PActualStructClause => collectStructIds(clause)
+          case PExplicitGhostStructClause(clause) => collectStructIds(clause)
+        }
       }
 
       case n: PInterfaceType => n.specs map (_.id)

@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
@@ -11,6 +11,11 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   implicit lazy val wellDefMisc: WellDefinedness[PMisc] = createWellDef {
+    case misc: PActualMisc => wellDefActualMisc(misc)
+    case misc: PGhostMisc  => wellDefGhostMisc(misc)
+  }
+
+  private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
     case n@PRange(exp) => exprType(exp) match {
       case _: ArrayT | PointerT(_: ArrayT) | _: SliceT |
@@ -23,6 +28,11 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
+    case misc: PActualMisc => actualMiscType(misc)
+    case misc: PGhostMisc  => ghostMiscType(misc)
+  }
+
+  private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
     case PRange(exp) => exprType(exp) match {
       case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
@@ -45,13 +55,18 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val memberType: TypeMember => Type =
     attr[TypeMember, Type] {
-
-      case MethodImpl(PMethodDecl(_, _, args, result, _)) => FunctionT(args map miscType, miscType(result))
-
-      case MethodSpec(PMethodSig(_, args, result)) => FunctionT(args map miscType, miscType(result))
-
-      case Field(PFieldDecl(_, typ)) => typeType(typ)
-
-      case Embbed(PEmbeddedDecl(typ, _)) => miscType(typ)
+      case mt: ActualTypeMember => actualMemberType(mt)
+      case mt: GhostTypeMember  => ghostMemberType(mt)
     }
+
+  private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
+
+    case ActualMethodImpl(PMethodDecl(_, _, args, result, _)) => FunctionT(args map miscType, miscType(result))
+
+    case ActualMethodSpec(PMethodSig(_, args, result)) => FunctionT(args map miscType, miscType(result))
+
+    case ActualField(PFieldDecl(_, typ)) => typeType(typ)
+
+    case ActualEmbbed(PEmbeddedDecl(typ, _)) => miscType(typ)
+  }
 }

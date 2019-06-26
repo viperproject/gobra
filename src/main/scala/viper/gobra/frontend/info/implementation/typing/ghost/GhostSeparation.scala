@@ -103,6 +103,25 @@ trait GhostSeparation extends BaseTyping { this: TypeInfoImpl =>
       tree.child(node).forall(selfAndChildNotGhostDataDependent)
     }
 
+  lazy val classifiedGhostStmt: PStatement => Boolean =
+    attr[PStatement, Boolean] {
+      case _: PGhostStatement => true
+      case s if stmtGhostContext(s) => true
+      case PAssignment(left, _) => left.forall(classifiedGhostAssignee)
+      case PAssignmentWithOp(left, _, _) => classifiedGhostAssignee(left)
+      case PShortVarDecl(_, left) => left.forall(classifiedGhostId)
+      case _ => false
+    }
+
+  private lazy val classifiedGhostAssignee: PAssignee => Boolean =
+    attr[PAssignee, Boolean] {
+      case PNamedOperand(id) => classifiedGhostId(id)
+      case PSelection(base, id) => classifiedGhostId(id) || classifiedGhostExpr(base)
+      case PSelectionOrMethodExpr(base, id) => classifiedGhostId(id) || classifiedGhostId(base)
+      case _: PIndexedExp => false
+      case _: PDereference => false
+    }
+
   /** returns true iff expression is classified as ghost */
   private lazy val classifiedGhostExpr: PExpression => Boolean =
     attr[PExpression, Boolean] {

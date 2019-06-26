@@ -11,16 +11,16 @@ trait MemberResolution { this: TypeInfoImpl =>
   import scala.collection.breakOut
 
   private def createField(decl: PFieldDecl): Field =
-    if (isEnclosingExplicitGhost(decl)) GhostField(ActualField(decl)) else ActualField(decl)
+    defEntity(decl.id).asInstanceOf[Field]
 
   private def createEmbbed(decl: PEmbeddedDecl): Embbed =
-    if (isEnclosingExplicitGhost(decl)) GhostEmbbed(ActualEmbbed(decl)) else ActualEmbbed(decl)
+    defEntity(decl.id).asInstanceOf[Embbed]
 
   private def createMethodImpl(decl: PMethodDecl): MethodImpl =
-    if (isEnclosingExplicitGhost(decl)) GhostMethodImpl(ActualMethodImpl(decl)) else ActualMethodImpl(decl)
+    defEntity(decl.id).asInstanceOf[MethodImpl]
 
   private def createMethodSpec(spec: PMethodSig): MethodSpec =
-    if (isEnclosingExplicitGhost(spec)) GhostMethodSpec(ActualMethodSpec(spec)) else ActualMethodSpec(spec)
+    defEntity(spec.id).asInstanceOf[MethodSpec]
 
 
   private lazy val receiverMethodSetMap: Map[Type, MemberSet] = {
@@ -39,7 +39,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         MemberSet.init(specs.map(m => createMethodSpec(m))) union MemberSet.union {
           es.map(e => interfaceMethodSet(
             entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _)) => InterfaceT(t)
+              case NamedType(PTypeDef(t: PInterfaceType, _), _) => InterfaceT(t)
             }
           ))
         }

@@ -330,12 +330,10 @@ object Desugar {
     // Identifier
 
     def idName(id: PIdnNode): String = info.regular(id) match {
-      case st.NoGhost(noGhost) => noGhost match {
-        case _: st.Function => nm.function(id.name, info.scope(id))
-        case _: st.Variable => nm.variable(id.name, info.scope(id))
-        case _: st.NamedType => nm.typ(id.name, info.scope(id))
-        case _ => ???
-      }
+      case _: st.Function => nm.function(id.name, info.scope(id))
+      case _: st.Variable => nm.variable(id.name, info.scope(id))
+      case _: st.NamedType => nm.typ(id.name, info.scope(id))
+      case _ => ???
     }
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.BodyVar = {

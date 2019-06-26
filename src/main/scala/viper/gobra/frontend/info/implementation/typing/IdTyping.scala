@@ -24,67 +24,67 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualRegular(entity: ActualRegular, id: PIdnNode): Messages = entity match {
 
 
-    case SingleConstant(exp, opt) => message(id, s"variable $id is not defined", ! {
+    case SingleConstant(exp, opt, _) => message(id, s"variable $id is not defined", ! {
       opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
     })
 
-    case MultiConstant(idx, exp) => message(id, s"variable $id is not defined", ! {
+    case MultiConstant(idx, exp, _) => message(id, s"variable $id is not defined", ! {
       wellDefExpr.valid(exp) && (exprType(exp) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
         case _ => false
       })
     })
 
-    case SingleLocalVariable(exp, opt) => message(id, s"variable $id is not defined", ! {
+    case SingleLocalVariable(exp, opt, _) => message(id, s"variable $id is not defined", ! {
       opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
     })
 
-    case MultiLocalVariable(idx, exp) => message(id, s"variable $id is not defined", ! {
+    case MultiLocalVariable(idx, exp, _) => message(id, s"variable $id is not defined", ! {
       wellDefExpr.valid(exp) && (exprType(exp) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
         case _ => false
       })
     })
 
-    case ActualFunction(PFunctionDecl(_, args, r, _)) => message(id, s"variable $id is not defined", ! {
+    case Function(PFunctionDecl(_, args, r, _), _) => message(id, s"variable $id is not defined", ! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
 
-    case NamedType(_) => noMessages
+    case NamedType(_, _) => noMessages
 
-    case TypeAlias(PTypeAlias(right, _)) => message(id, s"variable $id is not defined", ! {
+    case TypeAlias(PTypeAlias(right, _), _) => message(id, s"variable $id is not defined", ! {
       wellDefType.valid(right)
     })
 
-    case InParameter(p) => message(id, s"variable $id is not defined", ! {
+    case InParameter(p, _) => message(id, s"variable $id is not defined", ! {
       wellDefType.valid(p.typ)
     })
 
-    case ReceiverParameter(p) => message(id, s"variable $id is not defined", ! {
+    case ReceiverParameter(p, _) => message(id, s"variable $id is not defined", ! {
       wellDefType.valid(p.typ)
     })
 
-    case OutParameter(p) => message(id, s"variable $id is not defined",! {
+    case OutParameter(p, _) => message(id, s"variable $id is not defined",! {
       wellDefType.valid(p.typ)
     })
 
-    case TypeSwitchVariable(decl) => message(id, s"variable $id is not defined", ! {
+    case TypeSwitchVariable(decl, _) => message(id, s"variable $id is not defined", ! {
       val constraints = typeSwitchConstraints(id)
       if (constraints.size == 1) wellDefType.valid(constraints.head) else wellDefExpr.valid(decl.exp)
     })
 
-    case RangeVariable(idx, range) => message(id, s"variable $id is not defined",! {
+    case RangeVariable(idx, range, _) => message(id, s"variable $id is not defined",! {
       miscType(range) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
         case t => false
       }
     })
 
-    case ActualField(PFieldDecl(_, typ)) => message(id, s"variable $id is not defined", ! {
+    case Field(PFieldDecl(_, typ), _) => message(id, s"variable $id is not defined", ! {
       wellDefType.valid(typ)
     })
 
-    case ActualEmbbed(PEmbeddedDecl(_, id)) => message(id, s"variable $id is not defined", ! {
+    case Embbed(PEmbeddedDecl(_, id), _) => message(id, s"variable $id is not defined", ! {
       wellDefID.valid(id)
     })
 
@@ -102,52 +102,52 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualEntityType(entity: ActualRegular, id: PIdnNode): Type = entity match {
 
-    case SingleConstant(exp, opt) => opt.map(typeType)
+    case SingleConstant(exp, opt, _) => opt.map(typeType)
       .getOrElse(exprType(exp) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case MultiConstant(idx, exp) => exprType(exp) match {
+    case MultiConstant(idx, exp, _) => exprType(exp) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case SingleLocalVariable(exp, opt) => opt.map(typeType)
+    case SingleLocalVariable(exp, opt, _) => opt.map(typeType)
       .getOrElse(exprType(exp) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case MultiLocalVariable(idx, exp) => exprType(exp) match {
+    case MultiLocalVariable(idx, exp, _) => exprType(exp) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case ActualFunction(PFunctionDecl(_, args, r, _)) =>
+    case Function(PFunctionDecl(_, args, r, _), _) =>
       FunctionT(args map miscType, miscType(r))
 
-    case NamedType(decl) => DeclaredT(decl)
-    case TypeAlias(PTypeAlias(right, _)) => typeType(right)
+    case NamedType(decl, _) => DeclaredT(decl)
+    case TypeAlias(PTypeAlias(right, _), _) => typeType(right)
 
-    case InParameter(p) => typeType(p.typ)
+    case InParameter(p, _) => typeType(p.typ)
 
-    case ReceiverParameter(p) => typeType(p.typ)
+    case ReceiverParameter(p, _) => typeType(p.typ)
 
-    case OutParameter(p) => typeType(p.typ)
+    case OutParameter(p, _) => typeType(p.typ)
 
-    case TypeSwitchVariable(decl) =>
+    case TypeSwitchVariable(decl, _) =>
       val constraints = typeSwitchConstraints(id)
       if (constraints.size == 1) typeType(constraints.head) else exprType(decl.exp)
 
-    case RangeVariable(idx, range) => miscType(range) match {
+    case RangeVariable(idx, range, _) => miscType(range) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case ActualField(PFieldDecl(_, typ)) => typeType(typ)
+    case Field(PFieldDecl(_, typ), _) => typeType(typ)
 
-    case ActualEmbbed(PEmbeddedDecl(_, id)) => idType(id)
+    case Embbed(PEmbeddedDecl(_, id), _) => idType(id)
 
     case _ => violation("untypable")
   }

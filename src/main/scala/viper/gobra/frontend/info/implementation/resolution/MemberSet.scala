@@ -80,15 +80,14 @@ object MemberSet {
     val nmp: Vector[(String, TypeMember)] = s.map { tm =>
 
       def extractMemberName(tm: ActualTypeMember): String = tm match {
-              case e@ ActualMethodImpl(m) => m.id.name
-              case e@ ActualMethodSpec(m) => m.id.name
-              case e@ ActualField(m)      => m.id.name
-              case e@ ActualEmbbed(m)     => m.id.name
+              case e@ MethodImpl(m, _) => m.id.name
+              case e@ MethodSpec(m, _) => m.id.name
+              case e@ Field(m, _)      => m.id.name
+              case e@ Embbed(m, _)     => m.id.name
       }
 
       tm match {
         case a: ActualTypeMember => extractMemberName(a) -> a
-        case g@ GhostifiedEntity(a: ActualTypeMember) => extractMemberName(a) -> g
       }
     }.toVector
 

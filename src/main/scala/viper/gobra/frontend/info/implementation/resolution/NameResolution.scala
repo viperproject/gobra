@@ -12,19 +12,21 @@ trait NameResolution { this: TypeInfoImpl =>
 
   import decorators._
 
-  private lazy val defEntity: PDefLikeId => Entity =
+  private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
       case PWildcard() => ???
       case id@ tree.parent(p) =>
 
-        val actualEntity = p match {
+        val isGhost = isGhostDef(id)
+
+        p match {
 
         case decl: PConstDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleConstant(decl.right(idx), decl.typ)
-            case MultiAssign => MultiConstant(idx, decl.right.head)
+            case SingleAssign => SingleConstant(decl.right(idx), decl.typ, isGhost)
+            case MultiAssign => MultiConstant(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -32,28 +34,26 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleLocalVariable(decl.right(idx), decl.typ)
-            case MultiAssign => MultiLocalVariable(idx, decl.right.head)
+            case SingleAssign => SingleLocalVariable(decl.right(idx), decl.typ, isGhost)
+            case MultiAssign => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
-        case decl: PTypeDef => NamedType(decl)
-        case decl: PTypeAlias => TypeAlias(decl)
-        case decl: PFunctionDecl => ActualFunction(decl)
-        case decl: PMethodDecl => ActualMethodImpl(decl)
-        case spec: PMethodSig => ActualMethodSpec(spec)
+        case decl: PTypeDef => NamedType(decl, isGhost)
+        case decl: PTypeAlias => TypeAlias(decl, isGhost)
+        case decl: PFunctionDecl => Function(decl, isGhost)
+        case decl: PMethodDecl => MethodImpl(decl, isGhost)
+        case spec: PMethodSig => MethodSpec(spec, isGhost)
 
-        case decl: PFieldDecl => ActualField(decl)
-        case decl: PEmbeddedDecl => ActualEmbbed(decl)
+        case decl: PFieldDecl => Field(decl, isGhost)
+        case decl: PEmbeddedDecl => Embbed(decl, isGhost)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl)
-        case decl: PNamedParameter => InParameter(decl)
-        case decl: PNamedReceiver => ReceiverParameter(decl)
+        case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl, isGhost)
+        case decl: PNamedParameter => InParameter(decl, isGhost)
+        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost)
 
-        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl)
+        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost)
       }
-
-      ghostifyIfGhostDef(actualEntity, id)
     }
 
 
@@ -62,43 +62,38 @@ trait NameResolution { this: TypeInfoImpl =>
     attr[PIdnUnk, Entity] {
       case id@tree.parent(p) =>
 
-        val actualEntity = p match {
+        val isGhost = isGhostDef(id)
+
+        p match {
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleConstant(decl.right(idx), None)
-            case MultiAssign => MultiConstant(idx, decl.right.head)
+            case SingleAssign => SingleConstant(decl.right(idx), None, isGhost)
+            case MultiAssign => MultiConstant(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
         case decl: PShortForRange =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
-          RangeVariable(idx, decl.range)
+          RangeVariable(idx, decl.range, isGhost)
 
         case decl: PSelectShortRecv =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
           assignModi(len, 1) match {
-            case SingleAssign => SingleConstant(decl.recv, None)
-            case MultiAssign => MultiConstant(idx, decl.recv)
+            case SingleAssign => SingleConstant(decl.recv, None, isGhost)
+            case MultiAssign => MultiConstant(idx, decl.recv, isGhost)
             case _ => UnknownEntity()
           }
 
         case _ => violation("unexpected parent of unknown id")
       }
-
-      ghostifyIfGhostDef(actualEntity, id)
     }
 
   private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
-
-  private def ghostifyIfGhostDef(entity: Entity, ref: PIdnNode): Entity = entity match {
-    case a: ActualRegular if isGhostDef(ref) => ghostify(a)
-    case x => x
-  }
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 

@@ -10,28 +10,25 @@ object SymbolTable extends Environments {
     def isGhost: Boolean
   }
 
-  sealed trait ActualRegular extends Regular {
-    override def isGhost: Boolean = false
-  }
+  sealed trait ActualRegular extends Regular
+
   sealed trait DataEntity extends Regular
 
   sealed trait ActualDataEntity extends DataEntity with ActualRegular
 
-  sealed trait Function extends DataEntity
-
-  case class ActualFunction(decl: PFunctionDecl) extends Function with ActualDataEntity {
+  case class Function(decl: PFunctionDecl, isGhost: Boolean) extends ActualDataEntity {
     override def rep: PNode = decl
   }
 
   sealed trait Constant extends DataEntity
 
-  sealed trait ActualConstant extends Constant with ActualRegular
+  sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  case class SingleConstant(exp: PExpression, opt: Option[PType]) extends ActualConstant {
+  case class SingleConstant(exp: PExpression, opt: Option[PType], isGhost: Boolean) extends ActualConstant {
     override def rep: PNode = exp
   }
 
-  case class MultiConstant(idx: Int, exp: PExpression) extends ActualConstant {
+  case class MultiConstant(idx: Int, exp: PExpression, isGhost: Boolean) extends ActualConstant {
     override def rep: PNode = exp
   }
 
@@ -39,25 +36,25 @@ object SymbolTable extends Environments {
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
-  case class SingleLocalVariable(exp: PExpression, opt: Option[PType]) extends ActualVariable {
+  case class SingleLocalVariable(exp: PExpression, opt: Option[PType], isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = exp
   }
-  case class MultiLocalVariable(idx: Int, exp: PExpression) extends ActualVariable {
+  case class MultiLocalVariable(idx: Int, exp: PExpression, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = exp
   }
-  case class InParameter(decl: PNamedParameter) extends ActualVariable {
+  case class InParameter(decl: PNamedParameter, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class ReceiverParameter(decl: PNamedReceiver) extends ActualVariable {
+  case class ReceiverParameter(decl: PNamedReceiver, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class OutParameter(decl: PNamedParameter) extends ActualVariable {
+  case class OutParameter(decl: PNamedParameter, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class TypeSwitchVariable(decl: PTypeSwitchStmt) extends ActualVariable {
+  case class TypeSwitchVariable(decl: PTypeSwitchStmt, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = decl
   }
-  case class RangeVariable(idx: Int, exp: PRange) extends ActualVariable {
+  case class RangeVariable(idx: Int, exp: PRange, isGhost: Boolean) extends ActualVariable {
     override def rep: PNode = exp
   }
 
@@ -66,10 +63,10 @@ object SymbolTable extends Environments {
 
   sealed trait ActualTypeEntity extends TypeEntity with ActualRegular
 
-  case class NamedType(decl: PTypeDef) extends ActualTypeEntity {
+  case class NamedType(decl: PTypeDef, isGhost: Boolean) extends ActualTypeEntity {
     override def rep: PNode = decl
   }
-  case class TypeAlias(decl: PTypeAlias) extends ActualTypeEntity {
+  case class TypeAlias(decl: PTypeAlias, isGhost: Boolean) extends ActualTypeEntity {
     override def rep: PNode = decl
   }
 
@@ -82,49 +79,34 @@ object SymbolTable extends Environments {
 
   sealed trait ActualStructMember extends StructMember with ActualTypeMember
 
-  sealed trait Field extends StructMember {
-    def decl: PFieldDecl
-  }
-
-  case class ActualField(decl: PFieldDecl) extends Field with ActualStructMember {
+  case class Field(decl: PFieldDecl, isGhost: Boolean) extends ActualStructMember {
     override def rep: PNode = decl
   }
 
-  sealed trait Embbed extends StructMember {
-    def decl: PEmbeddedDecl
-  }
-
-  case class ActualEmbbed(decl: PEmbeddedDecl) extends Embbed with ActualStructMember {
+  case class Embbed(decl: PEmbeddedDecl, isGhost: Boolean) extends ActualStructMember {
     override def rep: PNode = decl
   }
 
-  sealed trait Method extends TypeMember
+  sealed trait Method extends ActualTypeMember
 
-  sealed trait ActualMethod extends Method with ActualTypeMember
-
-  sealed trait MethodImpl extends Method {
-    def decl: PMethodDecl
-  }
-
-  case class ActualMethodImpl(decl: PMethodDecl) extends MethodImpl with ActualMethod {
+  case class MethodImpl(decl: PMethodDecl, isGhost: Boolean) extends Method {
     override def rep: PNode = decl
   }
 
-  sealed trait MethodSpec extends Method {
-    def spec: PMethodSig
-  }
-
-  case class ActualMethodSpec(spec: PMethodSig) extends MethodSpec with ActualMethod {
+  case class MethodSpec(spec: PMethodSig, isGhost: Boolean) extends Method {
     override def rep: PNode = spec
   }
 
-
   case class Package(decl: PQualifiedImport) extends ActualRegular {
     override def rep: PNode = decl
+    // TODO: requires checks that no actual entity from package is taken
+    override def isGhost: Boolean = false
   }
 
   case class Label(decl: PLabeledStmt) extends ActualRegular {
     override def rep: PNode = decl
+    // TODO: requires check that label is not used in any goto (can still be used for old expressions)
+    override def isGhost: Boolean = false
   }
 
   /**
@@ -135,71 +117,14 @@ object SymbolTable extends Environments {
     override def isGhost: Boolean = true
   }
 
-  sealed trait GhostifiedEntity[T <: ActualRegular] extends GhostRegular {
-    def actual: T
-    override def rep: PNode = actual.rep
-  }
-
-  object GhostifiedEntity {
-    def unapply[T <: ActualRegular](arg: GhostifiedEntity[T]): Option[T] = Some(arg.actual)
-  }
-
-  object NoGhost {
-    def unapply(arg: Entity): Option[Entity] = arg match {
-      case GhostifiedEntity(x) => Some(x)
-      case x => Some(x)
-    }
-  }
-
   sealed trait GhostDataEntity extends DataEntity with GhostRegular
 
-  case class GhostFunction(actual: ActualFunction) extends Function with GhostDataEntity with GhostifiedEntity[ActualFunction]
+  sealed trait GhostConstant extends Constant with GhostDataEntity
 
-  case class GhostConstant(actual: ActualConstant) extends Constant with GhostDataEntity with GhostifiedEntity[ActualConstant]
-
-  case class GhostVariable(actual: ActualVariable) extends Variable with GhostDataEntity with GhostifiedEntity[ActualVariable]
-
-  case class GhostTypeEntity(actual: ActualTypeEntity) extends TypeEntity with GhostRegular with GhostifiedEntity[ActualTypeEntity]
+  sealed trait GhostVariable extends Variable with GhostDataEntity
 
   sealed trait GhostTypeMember extends TypeMember with GhostRegular
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
-
-  case class GhostField(actual: ActualField) extends Field with GhostStructMember with GhostifiedEntity[ActualField] {
-    override def decl: PFieldDecl = actual.decl
-  }
-
-  case class GhostEmbbed(actual: ActualEmbbed) extends Embbed with GhostStructMember with GhostifiedEntity[ActualEmbbed] {
-    override def decl: PEmbeddedDecl = actual.decl
-  }
-
-  sealed trait GhostMethod extends Method with GhostTypeMember
-
-  case class GhostMethodImpl(actual: ActualMethodImpl) extends MethodImpl with GhostMethod with GhostifiedEntity[ActualMethodImpl] {
-    override def decl: PMethodDecl = actual.decl
-  }
-
-  case class GhostMethodSpec(actual: ActualMethodSpec) extends MethodSpec with GhostMethod with GhostifiedEntity[ActualMethodSpec] {
-    override def spec: PMethodSig = actual.spec
-  }
-
-  case class GhostPackage(actual: Package) extends GhostRegular with GhostifiedEntity[Package]
-  // TODO: requires checks that no actual entity from package is taken
-
-  case class GhostLabel(actual: Label) extends GhostRegular with GhostifiedEntity[Label]
-  // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-
-  def ghostify(r: ActualRegular): GhostRegular = r match {
-    case a: ActualFunction => GhostFunction(a)
-    case a: ActualConstant => GhostConstant(a)
-    case a: ActualVariable => GhostVariable(a)
-    case a: ActualTypeEntity => GhostTypeEntity(a)
-    case a: ActualField => GhostField(a)
-    case a: ActualEmbbed => GhostEmbbed(a)
-    case a: ActualMethodImpl => GhostMethodImpl(a)
-    case a: ActualMethodSpec => GhostMethodSpec(a)
-    case a: Package => GhostPackage(a)
-    case a: Label   => GhostLabel(a)
-  }
 
 }

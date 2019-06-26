@@ -76,7 +76,9 @@ object Parser {
       "case", "defer", "go", "map", "struct",
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
-      "continue", "for", "import", "return", "var"
+      "continue", "for", "import", "return", "var",
+      // new keywords introduced by Gobra
+      "ghost", "acc", "assert", "exhale", "assume", "inhale"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -111,7 +113,7 @@ object Parser {
 
     lazy val member: Parser[Vector[PMember]] =
       (methodDecl | functionDecl) ^^ (Vector(_)) |
-      constDecl | varDecl | typeDecl
+      constDecl | varDecl | typeDecl | ghostMember
 
     lazy val declarationStmt: Parser[PStatement] =
       (constDecl | varDecl | typeDecl) ^^ PSeq
@@ -168,6 +170,7 @@ object Parser {
 
 
     lazy val statement: Parser[PStatement] =
+      ghostStatement |
       declarationStmt |
         goStmt |
         deferStmt |
@@ -603,9 +606,10 @@ object Parser {
       rep1sep(parameterDecl, ",") ^^ Vector.concat
 
     lazy val parameterDecl: Parser[Vector[PParameter]] =
+      ghostParameter |
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
         ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
-      } |  typ ^^ (t => Vector(PUnnamedParameter(t)))
+      } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
 
 
     lazy val nestedIdnUse: PackratParser[PIdnUse] =
@@ -656,6 +660,49 @@ object Parser {
 
     lazy val idnPackage: Parser[String] = ???
 
+
+    /**
+      * Ghost
+      */
+
+    lazy val ghostMember: Parser[Vector[PGhostMember]] =
+      "ghost" ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
+        "ghost" ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
+
+    lazy val ghostStatement: Parser[PGhostStatement] =
+      "ghost" ~> statement ^^ PExplicitGhostStatement |
+      "assert" ~> assertion ^^ PAssert |
+      "exhale" ~> assertion ^^ PExhale |
+      "assume" ~> assertion ^^ PAssume |
+      "inhale" ~> assertion ^^ PInhale
+
+
+    lazy val assertion: Parser[PAssertion] =
+      assertionPrecedence1
+
+    lazy val assertionPrecedence1: PackratParser[PAssertion] =
+      assertionPrecedence1 ~ ("&&" ~> assertionPrecedence2) ^^ PStar |
+        assertionPrecedence2
+
+    lazy val assertionPrecedence2: PackratParser[PAssertion] =
+      expression ~ ("==>" ~> assertionPrecedence3) ^^ PImplication |
+        assertionPrecedence3
+
+    lazy val assertionPrecedence3: PackratParser[PAssertion] =
+      unaryAssertion
+
+    lazy val unaryAssertion: Parser[PAssertion] =
+      "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
+      "(" ~> assertion <~ ")" |
+      expression ^^ PExprAssertion
+
+    lazy val accessible: Parser[PAccessible] =
+      "*" ~> unaryExp ^^ PDereference
+
+    lazy val ghostParameter: Parser[Vector[PParameter]] =
+      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
+      } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     /**
       * EOS

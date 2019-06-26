@@ -100,7 +100,7 @@ case class PMethodDecl(
                         args: Vector[PParameter],
                         result: PResult,
                         body: Option[PBlock]
-                      ) extends PActualMember with PScope with PCodeRoot
+                      ) extends PActualMember with PScope with PCodeRoot with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 
@@ -553,7 +553,7 @@ case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMembe
 
 sealed trait PGhostStatement extends PStatement with PGhostNode
 
-case class PExplicitGhostStatement(actual: PGhostifiableStatement) extends PGhostStatement with PGhostifier[PGhostifiableStatement]
+case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement with PGhostifier[PStatement]
 
 case class PAssert(exp: PAssertion) extends PGhostStatement
 

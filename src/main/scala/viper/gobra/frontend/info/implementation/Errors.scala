@@ -8,7 +8,7 @@ trait Errors { this: TypeInfoImpl =>
   lazy val errors: Messages =
     collectMessages(tree) {
       case n: PMember   => wellDefMember(n).out
-      case n: PStatement  => wellDefStmt(n).out
+      case n: PStatement  => wellDefStmt(n).out ++ wellDefStmtGhostSeparated(n).out
       case n: PExpression => wellDefExpr(n).out
       case n: PType       => wellDefType(n).out
       case n: PIdnNode    => wellDefID(n).out

@@ -64,9 +64,11 @@ object SymbolTable extends Environments {
   sealed trait ActualTypeEntity extends TypeEntity with ActualRegular
 
   case class NamedType(decl: PTypeDef, isGhost: Boolean) extends ActualTypeEntity {
+    require(!isGhost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
   }
   case class TypeAlias(decl: PTypeAlias, isGhost: Boolean) extends ActualTypeEntity {
+    require(!isGhost, "type entities are not supported to be ghost yet") // TODO
     override def rep: PNode = decl
   }
 

@@ -1,5 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
+import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{Type, UnknownType}
@@ -35,7 +36,7 @@ trait BaseTyping { this: TypeInfoImpl =>
   private def children[T <: PNode](n: T): Vector[PNode] =
     tree.child(n)
 
-  private def childrenWellDefined(n: PNode): Boolean = children(n) forall {
+  private[typing] def childrenWellDefined(n: PNode): Boolean = children(n) forall {
     case s: PStatement => wellDefStmt.valid(s)
     case e: PExpression => wellDefExpr.valid(e)
     case t: PType => wellDefType.valid(t)
@@ -54,6 +55,17 @@ trait BaseTyping { this: TypeInfoImpl =>
 
       override def compute(n: T): ValidityMessages = LocalMessages(check(n))
     }
+
+  private[typing] def createIndependentWellDef(check: PNode ==> Messages)(pre: PNode => Boolean): WellDefinedness[PNode] =
+    new Attribution with WellDefinedness[PNode] with Safety[PNode, ValidityMessages] with Memoization[PNode, ValidityMessages] {
+
+    override def safe(n: PNode): Boolean = pre(n) && children(n).forall(valid)
+
+    override def unsafe: ValidityMessages = UnsafeForwardMessage
+
+    override def compute(n: PNode): ValidityMessages =
+      LocalMessages(if (check.isDefinedAt(n)) check(n) else noMessages)
+  }
 
   trait Typing[-A] extends Safety[A, Type] with Validity[A, Type] {
 

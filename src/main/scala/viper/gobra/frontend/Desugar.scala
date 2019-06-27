@@ -167,7 +167,7 @@ object Desugar {
 
           case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
 
-          case PAssignment(left, right) =>
+          case PAssignment(right, left) =>
             if (left.size == right.size) {
               in.Seqn((left zip right).map{ case (l, r) =>
                 complete(for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src))

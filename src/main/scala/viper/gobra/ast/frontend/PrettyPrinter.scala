@@ -42,7 +42,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PLiteralValue => showLiteralValue(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
-    case n: PCompositeVal => showCompositeVal(n)
     case n: PKeyedElement => showKeyedElement(n)
 
     case n: PIfClause => showIfClause(n)
@@ -144,8 +143,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PEmptyStmt() => emptyDoc
       case PExpressionStmt(exp) => showExpr(exp)
       case PSendStmt(channel, msg) => showExpr(channel) <+> "<-" <+> showExpr(msg)
-      case PAssignment(left, right) => showExprList(left) <+> "=" <+> showExprList(right)
-      case PAssignmentWithOp(left, op, right) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
+      case PAssignment(right, left) => showExprList(left) <+> "=" <+> showExprList(right)
+      case PAssignmentWithOp(right, op, left) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
       case PIfStmt(ifs, els) =>
         ssep(ifs map showIfClause, line) <>
           opt(els)("else" <+> showStmt(_) <> line)
@@ -226,7 +225,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "case" <+> showStmt(send) <> ":" <> showNestedStmtList(body.stmts)
     case PSelectRecv(recv, body) =>
       "case" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
-    case PSelectAssRecv(ass, recv, body) =>
+    case PSelectAssRecv(recv, ass, body) =>
       "case" <+> showExprList(ass) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
     case PSelectShortRecv(recv, shorts, body) =>
       "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)

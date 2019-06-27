@@ -135,10 +135,10 @@ case class PExpressionStmt(exp: PExpression) extends PSimpleStmt with PGhostifia
 
 case class PSendStmt(channel: PExpression, msg: PExpression) extends PSimpleStmt
 
-case class PAssignment(left: Vector[PAssignee], right: Vector[PExpression]) extends PSimpleStmt with PGhostifiableStatement
+case class PAssignment(right: Vector[PExpression], left: Vector[PAssignee]) extends PSimpleStmt with PGhostifiableStatement
 
 /* Careful: left is only evaluated once */
-case class PAssignmentWithOp(left: PAssignee, op: PAssOp, right: PExpression) extends PSimpleStmt with PGhostifiableStatement
+case class PAssignmentWithOp(right: PExpression, op: PAssOp, left: PAssignee) extends PSimpleStmt with PGhostifiableStatement
 
 sealed trait PAssOp extends PNode
 
@@ -192,7 +192,7 @@ case class PSelectSend(send: PSendStmt, body: PBlock) extends PSelectClause
 
 case class PSelectRecv(recv: PReceive, body: PBlock) extends PSelectClause
 
-case class PSelectAssRecv(ass: Vector[PAssignee], recv: PReceive, body: PBlock) extends PSelectClause
+case class PSelectAssRecv(recv: PReceive, ass: Vector[PAssignee], body: PBlock) extends PSelectClause
 
 case class PSelectShortRecv(recv: PReceive, shorts: Vector[PIdnUnk], body: PBlock) extends PSelectClause
 

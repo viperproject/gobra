@@ -201,12 +201,12 @@ object Parser {
       (expression <~ "<-") ~ expression ^^ PSendStmt
 
     lazy val assignment: Parser[PAssignment] =
-      (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ PAssignment
+      (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ { case left ~ right => PAssignment(right, left) }
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
-      assignee ~ (assOp <~ "=") ~ expression ^^ PAssignmentWithOp |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(e, PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(e, PSubOp().at(e), e).at(e))
+      assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
+        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1), PAddOp().at(e), e).at(e)) |
+        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |
@@ -322,7 +322,7 @@ object Parser {
 
     lazy val selectAssRecv: Parser[PSelectAssRecv] =
       ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
-        case left ~ receive ~ stmts => PSelectAssRecv(left, receive, PBlock(stmts.get).at(stmts))
+        case receive ~ left ~ stmts => PSelectAssRecv(left, receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectShortRecv: Parser[PSelectShortRecv] =

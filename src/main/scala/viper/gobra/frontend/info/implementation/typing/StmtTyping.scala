@@ -31,10 +31,10 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       case (chnt, _) => message(n, s"type error: got $chnt but expected send-permitting channel")
     }
 
-    case n@PAssignment(lefts, rights) =>
+    case n@PAssignment(rights, lefts) =>
       lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
 
-    case n@PAssignmentWithOp(left, op, right) =>
+    case n@PAssignmentWithOp(right, op, left) =>
       assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
         assignableTo.errors(exprType(right), exprType(left))(n)
 

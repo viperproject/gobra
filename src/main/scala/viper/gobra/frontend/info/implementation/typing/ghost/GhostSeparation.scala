@@ -39,8 +39,8 @@ trait GhostSeparation extends BaseTyping { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noClassifiedGhostChildDataDependent(n))
 
-    case n@ PAssignment(left, right) => left.zip(right).flatMap{ case (l, r) => assignableTo(r, l) }
-    case n@ PAssignmentWithOp(left, _, right) => assignableTo(right, left)
+    case n@ PAssignment(right, left) => left.zip(right).flatMap{ case (l, r) => assignableTo(r, l) }
+    case n@ PAssignmentWithOp(right, _, left) => assignableTo(right, left)
 
     case n@ PShortVarDecl(right, left) => left.zip(right).flatMap{ case (l, r) => assignableTo(r, l) }
 
@@ -107,8 +107,8 @@ trait GhostSeparation extends BaseTyping { this: TypeInfoImpl =>
     attr[PStatement, Boolean] {
       case _: PGhostStatement => true
       case s if stmtGhostContext(s) => true
-      case PAssignment(left, _) => left.forall(classifiedGhostAssignee)
-      case PAssignmentWithOp(left, _, _) => classifiedGhostAssignee(left)
+      case PAssignment(_, left) => left.forall(classifiedGhostAssignee)
+      case PAssignmentWithOp(_, _, left) => classifiedGhostAssignee(left)
       case PShortVarDecl(_, left) => left.forall(classifiedGhostId)
       case _ => false
     }

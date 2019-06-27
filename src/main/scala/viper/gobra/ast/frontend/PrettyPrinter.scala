@@ -13,6 +13,8 @@ trait PrettyPrinterCombinators { this: kiama.output.PrettyPrinter =>
   def block(doc: Doc): Doc = {
     braces(nest(doc) <> line)
   }
+
+  def sequence(doc: Doc): Doc = nest(line <> doc)
 }
 
 class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter with PrettyPrinterCombinators {
@@ -23,138 +25,179 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override def format(node: PNode): String = pretty(show(node)).layout
 
   def show(node: PNode): Doc = node match {
-    case n: PPackageClause => show(n)
-    case n: PImportDecl => show(n)
-    case n: PMember => show(n)
-    case n: PStatement => show(n)
-    case n: PExpression => show(n)
-    case n: PType => show(n)
-    case n: PIdnNode => show(n)
-    case _ => ???
+    case n: PProgram => showProgram(n)
+    case n: PPackageClause => showPackage(n)
+    case n: PImportDecl => showImport(n)
+    case n: PMember => showMember(n)
+    case n: PStatement => showStmt(n)
+    case n: PExpression => showExpr(n)
+    case n: PAssertion => showAssertion(n)
+    case n: PType => showType(n)
+    case n: PIdnNode => showId(n)
+    case n: PLabelNode => showLabel(n)
+    case n: PPackegeNode => showPackageId(n)
+    case n: PMisc => showMisc(n)
+
+    case n: PAssOp => showAssOp(n)
+    case n: PLiteralValue => showLiteralValue(n)
+    case n: PLiteralType => showLiteralType(n)
+    case n: PCompositeKey => showCompositeKey(n)
+    case n: PCompositeVal => showCompositeVal(n)
+    case n: PKeyedElement => showKeyedElement(n)
+
+    case n: PIfClause => showIfClause(n)
+    case n: PExprSwitchClause => showExprSwitchClause(n)
+    case n: PTypeSwitchClause => showTypeSwitchClause(n)
+    case n: PSelectClause => showSelectClause(n)
+
+    case n: PStructClause => showStructClause(n)
+    case n: PInterfaceClause => showInterfaceClause(n)
+
+    case PPos(_) => emptyDoc
   }
 
   // program
 
-  def show(p: PProgram): Doc = p match {
-    case PProgram(packageClause, imports, declarations, _) =>
-      show(packageClause) <> line <> line <>
-        ssep(imports map show, line) <> line <>
-        ssep(declarations map show, line <> line) <> line
+  def showProgram(p: PProgram): Doc = p match {
+    case PProgram(packages, imports, declarations, _) =>
+      showPackage(packages) <> line <> line <>
+        ssep(imports map showImport, line) <> line <>
+        ssep(declarations map showMember, line <> line) <> line
   }
 
   // package
 
-  def show(node: PPackageClause): Doc = "package" <+> show(node.id)
-  def show(id: PPackegeNode): Doc = id.name
+  def showPackage(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
+  def showPackageId(id: PPackegeNode): Doc = id.name
 
   // imports
 
-  def show(decl: PImportDecl): Doc = decl match {
-    case PQualifiedImport(qualifier, pkg) => "import" <+> show(qualifier) <+> pkg
+  def showImport(decl: PImportDecl): Doc = decl match {
+    case PQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 
   // members
 
-  def show(member: PMember): Doc = member match {
-    case member: PActualMember => member match {
-      case n: PConstDecl => constDecl(n)
-      case n: PVarDecl => varDecl(n)
-      case n: PTypeDecl => typeDecl(n)
+  def showMember(mem: PMember): Doc = mem match {
+    case mem: PActualMember => mem match {
+      case n: PConstDecl => showConstDecl(n)
+      case n: PVarDecl => showVarDecl(n)
+      case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, result, body) =>
-        "func" <+> show(id) <> parens(ssep(args map show, comma)) <> show(result) <> opt(body)(b => space <> block(show(b)))
-      case PMethodDecl(id, receiver, args, result, body) =>
-        "func" <+> show(receiver) <+> show(id) <> parens(ssep(args map show, comma)) <> show(result) <> opt(body)(b => space <> block(show(b)))
+        "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result) <> opt(body)(b => space <> block(showStmt(b)))
+      case PMethodDecl(id, rec, args, res, body) =>
+        "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> block(showStmt(b)))
     }
     case member: PGhostMember => member match {
-      case PExplicitGhostMember(m) => "ghost" <+> show(m)
+      case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
     }
   }
 
-  def varDecl(decl: PVarDecl): Doc = decl match {
-    case PVarDecl(typ, right, left) => "var" <+> ssep(left map show, comma) <> opt(typ)(space <> show(_)) <+> "=" <+> ssep(right map show, comma)
+  def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))
+  def showStmtList[T <: PStatement](list: Vector[T]): Doc = ssep(list map showStmt, line)
+  def showParameterList[T <: PParameter](list: Vector[T]): Doc = showList(list)(showParameter)
+  def showExprList[T <: PExpression](list: Vector[T]): Doc = showList(list)(showExpr)
+  def showTypeList[T <: PType](list: Vector[T]): Doc = showList(list)(showType)
+  def showIdList[T <: PIdnNode](list: Vector[T]): Doc = showList(list)(showId)
+
+  def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma)
+
+  def showVarDecl(decl: PVarDecl): Doc = decl match {
+    case PVarDecl(typ, right, left) => "var" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
-  def constDecl(decl: PConstDecl): Doc = decl match {
-    case PConstDecl(typ, right, left) => "const" <+> ssep(left map show, comma) <> opt(typ)(space <> show(_)) <+> "=" <+> ssep(right map show, comma)
+  def showConstDecl(decl: PConstDecl): Doc = decl match {
+    case PConstDecl(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
-  def typeDecl(decl: PTypeDecl): Doc = decl match {
-    case PTypeDef(right, left) => "type" <+> show(left) <+> show(right)
-    case PTypeAlias(right, left) => "type" <+> show(left) <+> "=" <+> show(right)
+  def showTypeDecl(decl: PTypeDecl): Doc = decl match {
+    case PTypeDef(right, left) => "type" <+> showId(left) <+> showType(right)
+    case PTypeAlias(right, left) => "type" <+> showId(left) <+> "=" <+> showType(right)
   }
 
-  def show(para: PParameter): Doc = para match {
-    case PExplicitGhostParameter(p) => "ghost" <+> show(p)
-    case PUnnamedParameter(typ) => show(typ)
-    case PNamedParameter(id, typ) => show(id) <+> show(typ)
+  def showParameter(para: PParameter): Doc = para match {
+    case PExplicitGhostParameter(p) => "ghost" <+> showParameter(p)
+    case PUnnamedParameter(typ) => showType(typ)
+    case PNamedParameter(id, typ) => showId(id) <+> showType(typ)
   }
 
-  def show(rec: PReceiver): Doc = rec match {
-    case PNamedReceiver(id, typ) => parens(show(id) <+> show(typ))
-    case PUnnamedReceiver(typ) => parens(show(typ))
+  def showReceiver(rec: PReceiver): Doc = rec match {
+    case PNamedReceiver(id, typ) => parens(showId(id) <+> showType(typ))
+    case PUnnamedReceiver(typ) => parens(showType(typ))
   }
 
-  def show(res: PResult): Doc = res match {
+  def showResult(res: PResult): Doc = res match {
     case PVoidResult() => emptyDoc
-    case PResultClause(outs) => space <> (if (outs.size == 1) show(outs.head) else parens(ssep(outs map show, comma)))
+    case PResultClause(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
   }
 
   // statements
 
-  def show(stmt: PStatement): Doc = stmt match {
-    case statement: PActualStatement => statement match {
-      case n: PConstDecl => constDecl(n)
-      case n: PVarDecl => varDecl(n)
-      case n: PTypeDecl => typeDecl(n)
-      case PShortVarDecl(right, left) => ssep(left map show, comma) <+> ":=" <+> ssep(right map show, comma)
-      case PLabeledStmt(label, stmt) => show(label) <> ":" <+> show(stmt)
+  def showStmt(stmt: PStatement): Doc = stmt match {
+    case stmt: PActualStatement => stmt match {
+      case n: PConstDecl => showConstDecl(n)
+      case n: PVarDecl => showVarDecl(n)
+      case n: PTypeDecl => showTypeDecl(n)
+      case PShortVarDecl(right, left) => showIdList(left) <+> ":=" <+> showExprList(right)
+      case PLabeledStmt(label, s) => showId(label) <> ":" <+> showStmt(s)
       case PEmptyStmt() => emptyDoc
-      case PExpressionStmt(exp) => show(exp)
-      case PSendStmt(channel, msg) => show(channel) <+> "<-" <+> show(msg)
-      case PAssignment(left, right) => ssep(left map show, comma) <+> "=" <+> ssep(right map show, comma)
-      case PAssignmentWithOp(left, op, right) => show(left) <+> show(op) <> "=" <+> show(right)
+      case PExpressionStmt(exp) => showExpr(exp)
+      case PSendStmt(channel, msg) => showExpr(channel) <+> "<-" <+> showExpr(msg)
+      case PAssignment(left, right) => showExprList(left) <+> "=" <+> showExprList(right)
+      case PAssignmentWithOp(left, op, right) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
       case PIfStmt(ifs, els) =>
-        ssep(
-          ifs map (f => "if" <> preStmt(f.pre) <+> show(f.condition) <+> show(f.body)),
-        line) <> opt(els)("else" <+> show(_) <> line)
+        ssep(ifs map showIfClause, line) <>
+          opt(els)("else" <+> showStmt(_) <> line)
       case PExprSwitchStmt(pre, exp, cases, dflt) =>
-        "switch" <> preStmt(pre) <+> block(ssep(cases map {
-          case PExprSwitchCase(left, body) => "case" <+> ssep(left map show, comma) <> ":" <> nest (line <> ssep(body.stmts map show, line))
-        }, line)) <> ssep(dflt map {
-          d => "default"  <> ":" <> nest (line <> ssep(d.stmts map show, line))
-        }, line)
+        "switch" <> showPreStmt(pre) <+> block(
+          ssep(cases map showExprSwitchClause, line) <>
+            ssep(dflt map { d =>
+              "default"  <> ":" <> showNestedStmtList(d.stmts)
+            }, line)
+        )
       case PTypeSwitchStmt(pre, exp, binder, cases, dflt) =>
-        "switch" <> preStmt(pre) <> opt(binder)(space <> show(_) <+> ":=") <+> show(exp) <> ".(type)" <+> block(ssep(cases map {
-          case PTypeSwitchCase(left, body) => "case" <+> ssep(left map show, comma) <> ":" <> nest (line <> ssep(body.stmts map show, line))
-        }, line)) <> ssep(dflt map {
-          d => "default"  <> ":" <> nest (line <> ssep(d.stmts map show, line))
-        }, line)
-      case PForStmt(pre, cond, post, body) =>
+        "switch" <> showPreStmt(pre) <> opt(binder)(space <> showId(_) <+> ":=") <+> showExpr(exp) <> ".(type)" <+> block(
+          ssep(cases map showTypeSwitchClause, line)) <>
+          ssep(dflt map {d => "default"  <> ":" <> showNestedStmtList(d.stmts) }, line)
+      case PForStmt(pre, cond, post, body) => (pre, cond, post) match {
+        case (None, PBoolLit(true), None) => "for" <+> block(showStmt(body))
+        case (None, _, None) => "for" <+> showExpr(cond) <+> block(showStmt(body))
+        case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> block(showStmt(body))
+      }
       case PAssForRange(range, ass, body) =>
+        "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
       case PShortForRange(range, shorts, body) =>
-      case PGoStmt(exp) =>
+        "for" <+> showIdList(shorts) <+> ":=" <+> showRange(range) <+> block(showStmt(body))
+      case PGoStmt(exp) => "go" <+> showExpr(exp)
       case PSelectStmt(send, rec, aRec, sRec, dflt) =>
-      case PReturn(exps) =>
-      case PBreak(label) =>
-      case PContinue(label) =>
-      case PGoto(label) =>
-      case PDeferStmt(exp) =>
-      case PBlock(stmts) =>
-      case PSeq(stmts) =>
+        "select" <+> block(
+          ssep(send map showSelectClause, line) <>
+            ssep(rec map showSelectClause, line) <>
+            ssep(aRec map showSelectClause, line) <>
+            ssep(sRec map showSelectClause, line) <>
+            ssep(dflt map showSelectClause, line)
+        )
+      case PReturn(exps) => "return" <+> showExprList(exps)
+      case PBreak(label) => "break" <> opt(label)(space <> showLabel(_))
+      case PContinue(label) => "continue" <> opt(label)(space <> showLabel(_))
+      case PGoto(label) => "goto" <+> showLabel(label)
+      case PDeferStmt(exp) => "defer" <+> showExpr(exp)
+      case PBlock(stmts) => block(showStmtList(stmts))
+      case PSeq(stmts) => showStmtList(stmts)
     }
     case statement: PGhostStatement => statement match {
-      case PExplicitGhostStatement(actual) =>
-      case PAssert(exp) =>
-      case PAssume(exp) =>
-      case PExhale(exp) =>
-      case PInhale(exp) =>
+      case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
+      case PAssert(exp) => "assert" <+> showAssertion(exp)
+      case PAssume(exp) => "assume" <+> showAssertion(exp)
+      case PExhale(exp) => "exhale" <+> showAssertion(exp)
+      case PInhale(exp) => "inhale" <+> showAssertion(exp)
     }
   }
 
-  def preStmt(n: Option[PSimpleStmt]): Doc = opt(n)(space <> show(_) <> ";")
+  def showPreStmt(n: Option[PSimpleStmt]): Doc = opt(n)(space <> showStmt(_) <> ";")
 
-  def show(n: PAssOp): Doc = n match {
+  def showAssOp(n: PAssOp): Doc = n match {
     case PAddOp() => "+"
     case PSubOp() => "-"
     case PMulOp() => "*"
@@ -162,15 +205,174 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PModOp() => "%"
   }
 
+  def showIfClause(n: PIfClause): Doc = n match {
+    case PIfClause(pre, condition, body) => "if" <> showPreStmt(pre) <+> showExpr(condition) <+> showStmt(body)
+  }
+
+  def showExprSwitchClause(n: PExprSwitchClause): Doc = n match {
+    case PExprSwitchDflt(body) => "default"  <> ":" <> showNestedStmtList(body.stmts)
+    case PExprSwitchCase(left, body) => "case" <+> showExprList(left) <> ":" <> showNestedStmtList(body.stmts)
+  }
+
+  def showTypeSwitchClause(n: PTypeSwitchClause): Doc = n match {
+    case PTypeSwitchDflt(body) => "default"  <> ":" <> showNestedStmtList(body.stmts)
+    case PTypeSwitchCase(left, body) => "case" <+> showTypeList(left) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
+  }
+
+  def showSelectClause(n: PSelectClause): Doc = n match {
+    case PSelectDflt(body) =>
+      "default" <> ":" <> showNestedStmtList(body.stmts)
+    case PSelectSend(send, body) =>
+      "case" <+> showStmt(send) <> ":" <> showNestedStmtList(body.stmts)
+    case PSelectRecv(recv, body) =>
+      "case" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
+    case PSelectAssRecv(ass, recv, body) =>
+      "case" <+> showExprList(ass) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
+    case PSelectShortRecv(recv, shorts, body) =>
+      "case" <+> showIdList(shorts) <+> "=" <+> showExpr(recv) <> ":" <> showNestedStmtList(body.stmts)
+  }
+
+  def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp)
+
   // expressions
 
-  def show(expr: PExpression): Doc = ???
+  def showExpr(expr: PExpression): Doc = expr match {
+    case expr: PActualExpression => expr match {
+      case PReceive(operand) => "<-" <> showExpr(operand)
+      case PReference(operand) => "&" <> showExpr(operand)
+      case PDereference(operand) => "*" <> showExpr(operand)
+      case PNegation(operand) => "!" <> showExpr(operand)
+      case PNamedOperand(id) => showId(id)
+      case PBoolLit(lit) => if(lit) "true" else "false"
+      case PIntLit(lit) => lit.toString
+      case PNilLit() => "nil"
+      case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
+      case PFunctionLit(args, result, body) =>
+        "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
+      case PConversionOrUnaryCall(base, arg) => showId(base) <> parens(showExpr(arg))
+      case PConversion(typ, arg) => showType(typ) <> parens(showExpr(arg))
+      case PCall(callee, args) => showExpr(callee) <> parens(showExprList(args))
+      case PSelectionOrMethodExpr(base, id) => showId(base) <> "." <> showId(id)
+      case PMethodExpr(base, id) => showType(base) <> "." <> showId(id)
+      case PSelection(base, id) => showExpr(base) <> "." <>  showId(id)
+      case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+      case PSliceExp(base, low, high, cap) => (low, high, cap) match {
+        case (l, h, None)    => showExpr(base) <> brackets(showExprList(Vector(l, h)))
+        case (l, h, Some(c)) => showExpr(base) <> brackets(showExprList(Vector(l, h, c)))
+      }
+      case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
+      case PEquals(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PUnequals(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PAnd(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case POr(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PLess(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PAtMost(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PGreater(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PAtLeast(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
+      case PAdd(left, right) => showExpr(left) <+> "+" <+> showExpr(right)
+      case PSub(left, right) => showExpr(left) <+> "-" <+> showExpr(right)
+      case PMul(left, right) => showExpr(left) <+> "*" <+> showExpr(right)
+      case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
+      case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
+    }
+    case expression: PGhostExpression => ???
+  }
+
+  def showLiteralType(typ: PLiteralType): Doc = typ match {
+    case t: PType => showType(t)
+    case PImplicitSizeArrayType(elem) => "[...]" <> showType(elem)
+  }
+
+  def showCompositeKey(n: PCompositeKey): Doc = n match {
+    case PIdentifierKey(id) => showId(id)
+    case cv: PCompositeVal => showCompositeVal(cv)
+  }
+
+  def showCompositeVal(n: PCompositeVal): Doc = n match {
+    case PExpCompositeVal(exp) => showExpr(exp)
+    case PLitCompositeVal(l) => showLiteralValue(l)
+  }
+
+  def showLiteralValue(lit: PLiteralValue): Doc = braces(ssep(lit.elems map showKeyedElement, comma))
+
+  def showKeyedElement(n: PKeyedElement): Doc = n match {
+    case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
+  }
+
+  //
+
+  def showAssertion(ass: PAssertion): Doc = ass match {
+    case PStar(left, right) => showAssertion(left) <+> "&&" <+> showAssertion(right)
+    case PExprAssertion(exp) => showExpr(exp)
+    case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
+    case PAccess(exp) => exp match {
+      case n: PDereference => "acc" <> parens(showExpr(n))
+    }
+  }
 
   // types
 
-  def show(typ: PType): Doc = ???
+  def showType(typ: PType): Doc = typ match {
+    case actualType: PActualType => actualType match {
+      case PDeclaredType(id) => showId(id)
+      case PBoolType() => "bool"
+      case PIntType() => "int"
+      case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
+      case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
+      case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
+      case PPointerType(base) => "*" <> showType(base)
+      case channelType: PChannelType => channelType match {
+        case PBiChannelType(elem)   => "chan" <+> showType(elem)
+        case PSendChannelType(elem) => "<-" <> "chan" <+> showType(elem)
+        case PRecvChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      }
+      case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
+      case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
+      case PInterfaceType(embedded, specs) =>
+        "interface" <+> block(
+          ssep(embedded map showInterfaceClause, line) <>
+          ssep(specs map showInterfaceClause, line)
+        )
+      case PMethodReceiveName(t) => showType(t)
+      case PMethodReceivePointer(t) => "*" <> showType(t)
+    }
+    case ghostType: PGhostType => ???
+  }
+
+  def showStructClause(c: PStructClause): Doc = c match {
+    case clause: PActualStructClause => clause match {
+      case PFieldDecls(fields) =>
+        require(fields.nonEmpty && fields.forall(_.typ == fields.head.typ))
+        showIdList(fields map (_.id)) <+> showType(fields.head.typ)
+      case PEmbeddedDecl(typ, _) => showEmbeddedType(typ)
+    }
+    case PExplicitGhostStructClause(actual) => showStructClause(actual)
+  }
+
+  def showEmbeddedType(t: PEmbeddedType): Doc = t match {
+    case PEmbeddedName(typ) => showType(typ)
+    case PEmbeddedPointer(typ) => "*" <> showType(typ)
+  }
+
+  def showInterfaceClause(n: PInterfaceClause): Doc = n match {
+    case PInterfaceName(typ) => showType(typ)
+    case PMethodSig(id, args, result) => "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result)
+  }
 
   // ids
 
-  def show(id: PIdnNode): Doc = id.name
+  def showId(id: PIdnNode): Doc = id.name
+
+  def showLabel(id: PLabelNode): Doc = id.name
+
+  // misc
+
+  def showMisc(id: PMisc): Doc = id match {
+    case n: PRange => showRange(n)
+    case receiver: PReceiver => showReceiver(receiver)
+    case result: PResult => showResult(result)
+    case embeddedType: PEmbeddedType => showEmbeddedType(embeddedType)
+    case parameter: PParameter => showParameter(parameter)
+    case misc: PGhostMisc => ???
+  }
 }

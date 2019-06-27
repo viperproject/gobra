@@ -342,6 +342,7 @@ object Parser {
       forStmt | assForRange | shortForRange
 
     lazy val forStmt: Parser[PForStmt] =
+      pos("for") ~ block ^^ { case pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, b) } |
       ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
         case pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, body)
         case pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, body)

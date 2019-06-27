@@ -53,6 +53,8 @@ object Type {
 
   case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
+  sealed trait GhostType extends Type
+
 
   /**
     * Type Contexts

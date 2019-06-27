@@ -8,6 +8,7 @@ import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
+import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{Info, TypeInfo}
 
 class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInfo

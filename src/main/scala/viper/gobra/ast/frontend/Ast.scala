@@ -17,11 +17,18 @@ import viper.silver.ast.{LineColumnPosition, SourcePosition}
 // TODO: comment describing identifier positions (resolution)
 
 
-sealed trait PNode extends Product
+sealed trait PNode extends Product {
+
+  def pretty(prettyPrinter: PrettyPrinter = PNode.defaultPrettyPrinter): String = prettyPrinter.format(this)
+
+  lazy val formatted: String = pretty()
+
+  override def toString: PPkg = formatted
+}
 
 object PNode {
   type PPkg = String
-
+  val defaultPrettyPrinter = new DefaultPrettyPrinter
 }
 
 sealed trait PScope extends PNode

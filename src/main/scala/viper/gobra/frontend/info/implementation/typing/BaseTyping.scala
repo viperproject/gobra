@@ -33,17 +33,19 @@ trait BaseTyping { this: TypeInfoImpl =>
 
   trait WellDefinedness[-A] extends Error[A]
 
-  private def children[T <: PNode](n: T): Vector[PNode] =
+  private[typing] def children[T <: PNode](n: T): Vector[PNode] =
     tree.child(n)
 
-  private[typing] def childrenWellDefined(n: PNode): Boolean = children(n) forall {
+  private[typing] def childrenWellDefined(n: PNode): Boolean = children(n) forall selfWellDefined
+
+  private[typing] def selfWellDefined(n: PNode): Boolean = n match {
     case s: PStatement => wellDefStmt.valid(s)
     case e: PExpression => wellDefExpr.valid(e)
     case t: PType => wellDefType.valid(t)
     case i: PIdnNode => wellDefID.valid(i)
     case o: PMisc => wellDefMisc.valid(o)
     case a: PAssertion => wellDefAssertion.valid(a)
-    case n: PNode => childrenWellDefined(n)
+    case m: PNode => childrenWellDefined(m)
   }
 
   private[typing] def createWellDef[T <: PNode](check: T => Messages): WellDefinedness[T] =
@@ -59,7 +61,7 @@ trait BaseTyping { this: TypeInfoImpl =>
   private[typing] def createIndependentWellDef(check: PNode ==> Messages)(pre: PNode => Boolean): WellDefinedness[PNode] =
     new Attribution with WellDefinedness[PNode] with Safety[PNode, ValidityMessages] with Memoization[PNode, ValidityMessages] {
 
-    override def safe(n: PNode): Boolean = pre(n) && children(n).forall(valid)
+    override def safe(n: PNode): Boolean = pre(n)
 
     override def unsafe: ValidityMessages = UnsafeForwardMessage
 

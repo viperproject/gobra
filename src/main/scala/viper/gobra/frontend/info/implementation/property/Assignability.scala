@@ -8,19 +8,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
 
-  sealed trait AssignModi
-
-  case object SingleAssign extends AssignModi
-
-  case object MultiAssign extends AssignModi
-
-  case object ErrorAssign extends AssignModi
-
-  def assignModi(left: Int, right: Int): AssignModi =
-    if (left > 0 && left == right) SingleAssign
-    else if (left > right && right == 1) MultiAssign
-    else ErrorAssign
-
   lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
     createProperty[(Vector[Type], Option[Type], Vector[Type])] {
       case (right, None, left) => multiAssignableTo.result(right, left)
@@ -29,13 +16,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      assignModi(left.size, right.size) match {
-        case SingleAssign => propForall(right.zip(left), assignableTo)
-        case MultiAssign => right.head match {
+      AssignModi(left.size, right.size) match {
+        case AssignModi.Single => propForall(right.zip(left), assignableTo)
+        case AssignModi.Multi => right.head match {
           case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
-        case ErrorAssign => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+        case AssignModi.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
       }
   }
 

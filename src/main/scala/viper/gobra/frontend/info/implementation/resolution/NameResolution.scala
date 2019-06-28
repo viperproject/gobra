@@ -3,6 +3,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.AssignModi
 
 trait NameResolution { this: TypeInfoImpl =>
 
@@ -24,18 +25,18 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PConstDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleConstant(decl.right(idx), decl.typ, isGhost)
-            case MultiAssign => MultiConstant(idx, decl.right.head, isGhost)
+          AssignModi(decl.left.size, decl.right.size) match {
+            case AssignModi.Single => SingleConstant(decl.right(idx), decl.typ, isGhost)
+            case AssignModi.Multi => MultiConstant(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
         case decl: PVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleLocalVariable(decl.right(idx), decl.typ, isGhost)
-            case MultiAssign => MultiLocalVariable(idx, decl.right.head, isGhost)
+          AssignModi(decl.left.size, decl.right.size) match {
+            case AssignModi.Single => SingleLocalVariable(decl.right(idx), decl.typ, isGhost)
+            case AssignModi.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -68,9 +69,9 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          assignModi(decl.left.size, decl.right.size) match {
-            case SingleAssign => SingleConstant(decl.right(idx), None, isGhost)
-            case MultiAssign => MultiConstant(idx, decl.right.head, isGhost)
+          AssignModi(decl.left.size, decl.right.size) match {
+            case AssignModi.Single => SingleConstant(decl.right(idx), None, isGhost)
+            case AssignModi.Multi => MultiConstant(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -83,9 +84,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
-          assignModi(len, 1) match {
-            case SingleAssign => SingleConstant(decl.recv, None, isGhost)
-            case MultiAssign => MultiConstant(idx, decl.recv, isGhost)
+          AssignModi(len, 1) match {
+            case AssignModi.Single => SingleConstant(decl.recv, None, isGhost)
+            case AssignModi.Multi  => MultiConstant(idx, decl.recv, isGhost)
             case _ => UnknownEntity()
           }
 

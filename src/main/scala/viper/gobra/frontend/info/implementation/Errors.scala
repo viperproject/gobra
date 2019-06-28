@@ -22,7 +22,7 @@ trait Errors { this: TypeInfoImpl =>
       }
 
 
-      val ghostSeparated = wellDefGhostSeparated(m).out
+      val ghostSeparated = wellGhostSeparated(m).out
 
       wellDef ++ ghostSeparated
     }

@@ -36,6 +36,27 @@ class Config(arguments: Seq[String])
     noshort = true
   )(singleArgConverter(arg => Level.toLevel(arg.toUpperCase)))
 
+  val unparse: ScallopOption[Boolean] = opt[Boolean](
+    name = "unparse",
+    descr = "Print the parsed program",
+    default = Some(false),
+    noshort = true
+  )
+
+  val unparseGhostLess: ScallopOption[Boolean] = opt[Boolean](
+    name = "unparseGhostLess",
+    descr = "Print the input program without ghost code",
+    default = Some(false),
+    noshort = true
+  )
+
+  val unparseInternal: ScallopOption[Boolean] = opt[Boolean](
+    name = "unparseInternal",
+    descr = "Print the internal program representation",
+    default = Some(false),
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -47,7 +68,7 @@ class Config(arguments: Seq[String])
   requireOne(inputFile)
 
   /** File Validation */
-  def validateFileIsReadable(fileOption: ScallopOption[File]) = addValidation {
+  def validateFileIsReadable(fileOption: ScallopOption[File]): Unit = addValidation {
     fileOption.toOption
       .map(file => {
         if (!Files.isReadable(file.toPath)) Left(Util.format("File '%s' is not readable", file))

@@ -95,4 +95,26 @@ trait MemberResolution { this: TypeInfoImpl =>
   def findSelection(t: Type, id: PIdnUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
 
   def findMember(t: Type, id: PIdnUse): Option[TypeMember] = memberSet(t).lookup(id.name)
+
+  def calleeEntity(callee: PExpression): Option[Regular] = callee match {
+    case PNamedOperand(id)     => Some(regular(id))
+    case PMethodExpr(base, id) => Some(findSelection(typeType(base), id).get)
+    case PSelection(base, id)  => Some(findSelection(exprType(base), id).get)
+    case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
+      case (base, id) => findSelection(idType(base), id).get // selection
+    } {
+      case (base, id) => findSelection(idType(base), id).get // methodExpr
+    }
+    case _ => None
+  }
+
+  def isCalleeMethodExpr(callee: PExpression): Boolean = callee match {
+    case PMethodExpr(base, id) => true
+    case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
+      case (base, id) => false // selection
+    } {
+      case (base, id) => true // methodExpr
+    }.get
+    case _ => false
+  }
 }

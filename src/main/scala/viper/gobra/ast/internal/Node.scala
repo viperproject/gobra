@@ -15,7 +15,7 @@ import viper.silver.{ast => vpr}
 
 import scala.reflect.ClassTag
 
-trait Node extends Rewritable {
+trait Node extends Rewritable with Product {
 
   def info: Source.Parser.Info
 

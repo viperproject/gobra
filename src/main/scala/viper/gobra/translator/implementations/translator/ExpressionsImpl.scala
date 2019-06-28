@@ -39,7 +39,7 @@ class ExpressionsImpl extends Expressions {
   def defaultValue(t: in.Type): vpr.Exp = t match {
     case in.BoolT => vpr.TrueLit()()
     case in.IntT => vpr.IntLit(0)()
-    case in.FracT => vpr.NoPerm()()
+    case in.PermissionT => vpr.NoPerm()()
     case in.DefinedT(_, t2) => defaultValue(t2)
     case in.PointerT(_) => vpr.NullLit()()
     case _ => ???

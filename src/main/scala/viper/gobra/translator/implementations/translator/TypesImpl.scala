@@ -21,7 +21,7 @@ class TypesImpl extends Types {
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
     case in.BoolT => vpr.Bool
     case in.IntT  => vpr.Int
-    case in.FracT => vpr.Perm
+    case in.PermissionT => vpr.Perm
     case in.DefinedT(_, t) => translate(t)(ctx)
     case in.PointerT(_) => vpr.Ref
 

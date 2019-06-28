@@ -154,8 +154,8 @@ object GobraStrategy {
     val node: Node = (x, args) match {
         // Members
       case (p: Program, Seq(t: Vector[TopType@unchecked], v: Vector[GlobalVarDecl@unchecked], c: Vector[GlobalConst@unchecked], m: Vector[Method@unchecked], f: Vector[Function@unchecked])) => Program(t,v,c,m,f)(meta)
-      case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
-      case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
+      case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
+      case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
         // Statements
       case (b: Block, Seq(v: Vector[LocalVar@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)

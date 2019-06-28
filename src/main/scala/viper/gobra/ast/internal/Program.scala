@@ -34,7 +34,7 @@ case class Method(
                  receiver: Parameter,
                  name: String,
                  args: Vector[Parameter],
-                 results: Vector[LocalVar],
+                 results: Vector[LocalVar.Val],
                  pres: Vector[Assertion],
                  posts: Vector[Assertion],
                  body: Option[Block]
@@ -43,7 +43,7 @@ case class Method(
 case class Function(
                      name: String,
                      args: Vector[Parameter],
-                     results: Vector[LocalVar],
+                     results: Vector[LocalVar.Val],
                      pres: Vector[Assertion],
                      posts: Vector[Assertion],
                      body: Option[Block]
@@ -187,7 +187,7 @@ case object IntT extends TopType
 
 case object VoidT extends TopType
 
-case object FracT extends TopType
+case object PermissionT extends TopType
 
 case class DefinedT(name: String, right: Type) extends TopType
 

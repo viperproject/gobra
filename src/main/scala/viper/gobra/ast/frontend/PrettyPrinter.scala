@@ -1,20 +1,10 @@
 package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
+import viper.gobra.ast.printing.PrettyPrinterCombinators
 
 trait PrettyPrinter {
   def format(node: PNode): String
-}
-
-trait PrettyPrinterCombinators { this: kiama.output.PrettyPrinter =>
-
-  def opt[T](x: Option[T])(f: T => Doc): Doc = x.fold(emptyDoc)(f)
-
-  def block(doc: Doc): Doc = {
-    braces(nest(doc) <> line)
-  }
-
-  def sequence(doc: Doc): Doc = nest(line <> doc)
 }
 
 class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter with PrettyPrinterCombinators {
@@ -50,6 +40,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PSelectClause => showSelectClause(n)
 
     case n: PStructClause => showStructClause(n)
+    case n: PFieldDecl => showFieldDecl(n)
     case n: PInterfaceClause => showInterfaceClause(n)
 
     case PPos(_) => emptyDoc
@@ -100,7 +91,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTypeList[T <: PType](list: Vector[T]): Doc = showList(list)(showType)
   def showIdList[T <: PIdnNode](list: Vector[T]): Doc = showList(list)(showId)
 
-  def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma)
+  def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left) => "var" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
@@ -346,6 +337,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PEmbeddedDecl(typ, _) => showEmbeddedType(typ)
     }
     case PExplicitGhostStructClause(actual) => showStructClause(actual)
+  }
+
+  def showFieldDecl(f: PFieldDecl): Doc = f match {
+    case PFieldDecl(id, typ) => showId(id) <+> showType(typ)
   }
 
   def showEmbeddedType(t: PEmbeddedType): Doc = t match {

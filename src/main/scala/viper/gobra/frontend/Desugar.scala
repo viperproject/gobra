@@ -1,17 +1,32 @@
 package viper.gobra.frontend
 
+import java.nio.charset.StandardCharsets.UTF_8
+
+import org.apache.commons.io.FileUtils
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal._
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type.{BooleanT, DeclaredT, IntT, PointerT, Type, VoidType}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.reporting.Source
-import viper.gobra.util.{Writer, WriterUtil}
+import viper.gobra.util.{OutputUtil, Violation, Writer, WriterUtil}
 
 object Desugar {
 
   def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    new Desugarer(program.positions, info).programD(program)
+    val internalProgram = new Desugarer(program.positions, info).programD(program)
+
+    // print internal if set in config
+    if (config.printInternal()) {
+      val outputFile = OutputUtil.postfixFile(config.inputFile(), "internal")
+      FileUtils.writeStringToFile(
+        outputFile,
+        internalProgram.formatted,
+        UTF_8
+      )
+    }
+
+    internalProgram
   }
 
   object NoGhost {
@@ -271,9 +286,13 @@ object Desugar {
           case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
           case PDereference(exp) => go(exp) map (in.Deref(_, typ)(src))
 
+          case PEquals(left, right) => for {l <- go(left); r <- go(right)} yield in.EqCmp(l, r)(src)
+
+          case l: PLiteral => litD(ctx)(l)
+
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
-          case _ => ???
+          case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
     }

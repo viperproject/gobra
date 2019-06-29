@@ -6,8 +6,12 @@
 
 package viper.gobra.backend
 
+import java.nio.charset.StandardCharsets.UTF_8
+
+import org.apache.commons.io.FileUtils
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator
+import viper.gobra.util.OutputUtil
 import viper.silver
 import viper.silver.{ast => vpr}
 
@@ -26,6 +30,18 @@ object BackendVerifier {
                     ) extends Result
 
   def verify(task: Task)(config: Config): Result = {
+
+
+    // print generated viper file if set in config
+    if (config.printVpr()) {
+      val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
+      FileUtils.writeStringToFile(
+        outputFile,
+        silver.ast.pretty.FastPrettyPrinter.pretty(task.program),
+        UTF_8
+      )
+    }
+
     val verifier = setupSilicon(config)
     verifier.start()
     val verificationResult = verifier.handle(task.program)
@@ -35,13 +51,15 @@ object BackendVerifier {
       case silver.verifier.Success => Success
       case failure: silver.verifier.Failure =>
 
+
+
         val (verificationError, otherError) = failure.errors
           .partition(_.isInstanceOf[silver.verifier.VerificationError])
-          .asInstanceOf[(Vector[silver.verifier.VerificationError], Vector[silver.verifier.AbstractError])]
+          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
         checkAbstractViperErrors(otherError)
 
-        Failure(verificationError, task.backtrack)
+        Failure(verificationError.toVector, task.backtrack)
     }
   }
 

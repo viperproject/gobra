@@ -10,6 +10,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
 import viper.gobra.reporting.{TypeError, VerifierError}
+import viper.gobra.util.OutputUtil
 
 object Info {
   type GoTree = Tree[PNode, PProgram]
@@ -24,9 +25,10 @@ object Info {
     val errors = info.errors
     if (errors.isEmpty) {
 
-      if (config.unparseGhostLess()) {
+      // print program with ghost code erased
+      if (config.printGhostLess()) {
         val ghostLessPrinter = new GhostLessPrinter(info)
-        val outputFile = new File(s"${config.inputFile().getName}.ghostLess") // TODO: check
+        val outputFile = OutputUtil.postfixFile(config.inputFile(), "ghostLess")
         FileUtils.writeStringToFile(
           outputFile,
           ghostLessPrinter.format(program),

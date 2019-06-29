@@ -43,17 +43,24 @@ class Config(arguments: Seq[String])
     noshort = true
   )
 
-  val unparseGhostLess: ScallopOption[Boolean] = opt[Boolean](
-    name = "unparseGhostLess",
+  val printGhostLess: ScallopOption[Boolean] = opt[Boolean](
+    name = "printGhostLess",
     descr = "Print the input program without ghost code",
     default = Some(false),
     noshort = true
   )
 
-  val unparseInternal: ScallopOption[Boolean] = opt[Boolean](
-    name = "unparseInternal",
+  val printInternal: ScallopOption[Boolean] = opt[Boolean](
+    name = "printInternal",
     descr = "Print the internal program representation",
-    default = Some(false),
+    default = Some(true),
+    noshort = true
+  )
+
+  val printVpr: ScallopOption[Boolean] = opt[Boolean](
+    name = "printVpr",
+    descr = "Print the encoded Viper program",
+    default = Some(true),
     noshort = true
   )
 

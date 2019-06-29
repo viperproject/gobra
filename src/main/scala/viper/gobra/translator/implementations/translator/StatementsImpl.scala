@@ -11,6 +11,7 @@ import viper.silver.{ast => vpr}
 class StatementsImpl extends Statements {
 
   import StmtWriter._
+  import viper.gobra.reporting.Source.RichViperNode
 
   override def finalize(col: Collector): Unit = ()
 
@@ -41,14 +42,14 @@ class StatementsImpl extends Statements {
         (for {
           r <- goE(right)
           ass <- ctx.loc.assignment(left, r)(ctx)(x).open
-        } yield ass).close
+        } yield ass).withInfo(x).close
 
       case in.MultiAss(left, right) => ??? // TODO
 
-      case in.Assert(ass) => (for {v <- goA(ass)} yield vpr.Assert(v)()).close
-      case in.Assume(ass) => (for {v <- goA(ass)} yield vpr.Assume(v)()).close
-      case in.Inhale(ass) => (for {v <- goA(ass)} yield vpr.Inhale(v)()).close
-      case in.Exhale(ass) => (for {v <- goA(ass)} yield vpr.Exhale(v)()).close
+      case in.Assert(ass) => (for {v <- goA(ass)} yield vpr.Assert(v)().withInfo(x)).close
+      case in.Assume(ass) => (for {v <- goA(ass)} yield vpr.Assume(v)().withInfo(x)).close
+      case in.Inhale(ass) => (for {v <- goA(ass)} yield vpr.Inhale(v)().withInfo(x)).close
+      case in.Exhale(ass) => (for {v <- goA(ass)} yield vpr.Exhale(v)().withInfo(x)).close
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)())
 

@@ -69,8 +69,8 @@ object Source {
           s"field '$fieldName' set"
       }
 
-      require(info == vpr.NoInfo, message("info"))
-      require(pos == vpr.NoPosition, message("pos"))
+      // require(info == vpr.NoInfo, message("info"))
+      // require(pos == vpr.NoPosition, message("pos"))
 
       source.info match {
         case Parser.Internal => node

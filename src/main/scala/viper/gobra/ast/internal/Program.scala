@@ -6,8 +6,19 @@
 
 package viper.gobra.ast.internal
 
+/**
+  * When adding a new node:
+  * - extend @see [[viper.gobra.ast.internal.utility.Nodes.subnodes]]
+  * - extend @see [[viper.gobra.ast.internal.utility.GobraStrategy.gobraDuplicator]]
+  * - extend @see [[DefaultPrettyPrinter.show]]
+  * - extend desugar
+  * - extend translator
+  */
+
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
+
+
 
 
 case class Program(
@@ -129,6 +140,17 @@ object Addressable {
   }
   // TODO: Field, Global
 }
+
+sealed trait BinaryExpr extends Expr {
+  def left: Expr
+  def right: Expr
+}
+
+case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr {
+  override def typ: Type = BoolT
+}
+
+
 
 
 

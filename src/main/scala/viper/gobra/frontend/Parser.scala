@@ -7,13 +7,16 @@
 package viper.gobra.frontend
 
 import java.io.File
+import java.nio.charset.StandardCharsets.UTF_8
 
+import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.message
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
+import viper.gobra.util.OutputUtil
 
 object Parser {
 
@@ -33,16 +36,28 @@ object Parser {
     */
 
   def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    parse(FileSource(file.getPath))
+    parse(FileSource(file.getPath))(config)
   }
 
-  private def parse(source: Source): Either[Vector[VerifierError], PProgram] = {
+  private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
     parsers.parseAll(parsers.program, source) match {
       case Success(ast, _) =>
+
+        // print parsed program if set in config
+        if (config.unparse()) {
+          val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
+          FileUtils.writeStringToFile(
+            outputFile,
+            ast.formatted,
+            UTF_8
+          )
+        }
+
         Right(ast)
+
       case ns@NoSuccess(label, next) =>
         val pos = next.position
         pom.positions.setStart(ns, pos)

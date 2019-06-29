@@ -23,6 +23,12 @@ trait Node extends Rewritable with Product {
 
   def undefinedMeta: Boolean = getMeta == Source.Parser.Unsourced
 
+  def pretty(prettyPrinter: PrettyPrinter = Node.defaultPrettyPrinter): String = prettyPrinter.format(this)
+
+  lazy val formatted: String = pretty()
+
+  override def toString: String = formatted
+
   /**
     * Duplicate children. Children list must be in the same order as in getChildren
     *
@@ -123,6 +129,8 @@ trait Node extends Rewritable with Product {
 }
 
 object Node {
+
+  val defaultPrettyPrinter = new DefaultPrettyPrinter()
 
   type Meta = Source.Parser.Info
 

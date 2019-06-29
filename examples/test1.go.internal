@@ -1,0 +1,7 @@
+func F0_test() ()
+  {
+  decl V1_x: int
+  decl V1_x: int
+  V1_x = 5
+  assert V1_x == 6
+}

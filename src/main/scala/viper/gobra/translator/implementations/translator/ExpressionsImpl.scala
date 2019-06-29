@@ -1,5 +1,6 @@
 package viper.gobra.translator.implementations.translator
 
+import viper.gobra.ast.internal.EqCmp
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
@@ -23,6 +24,7 @@ class ExpressionsImpl extends Expressions {
       case in.DfltVal(t) => unit(defaultValue(t))
       case p: in.Deref => ctx.loc.deref(p)(ctx)
       case in.Ref(r, _) => ctx.loc.address(r)(ctx)
+      case EqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.EqCmp(vl, vr)()
       case l: in.Lit => literal(l)(ctx)
       case v: in.Var => ctx.loc.value(v)(ctx)
     }

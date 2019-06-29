@@ -68,7 +68,6 @@ class DefaultErrorBackTranslator(
     errorTransformer.lift.apply(viperError).getOrElse{
       val message: String =
         s"""
-          |Found non-verification-failures
           |Failed to back-translate a Viper error
           |  ${viperError.readableMessage}
           |    error is ${viperError.getClass.getSimpleName}
@@ -87,7 +86,6 @@ class DefaultErrorBackTranslator(
     reasonTransformer.lift.apply(viperReason).getOrElse{
       val message: String =
         s"""
-           |Found non-verification-failures
            |Failed to back-translate a Viper reason
            |  ${viperReason.readableMessage}
            |    error is ${viperReason.getClass.getSimpleName}

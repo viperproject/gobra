@@ -178,6 +178,7 @@ object GobraStrategy {
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
       case (r: Ref, Seq(ref: Addressable, t: PointerT)) => Ref(ref, t)(meta)
+      case (e: EqCmp, Seq(l: Expr, r: Expr)) => EqCmp(l, r)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
       case (p: Parameter, Seq()) => Parameter(p.id, p.typ)(meta)

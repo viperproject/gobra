@@ -41,13 +41,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showFunction(f: Function): Doc = f match {
     case Function(name, args, results, pres, posts, body) =>
       "func" <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(showStmt)
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
     case Method(receiver, name, args, results, pres, posts, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(showStmt)
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showTypeDecl(t: DefinedT): Doc =
@@ -109,6 +109,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DfltVal(typ) => "dflt" <> braces(showType(typ))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
+    case EqCmp(l, r) => showExpr(l) <+> "==" <+> showExpr(r)
     case lit: Lit => showLit(lit)
     case v: Var   => showVar(v)
   }

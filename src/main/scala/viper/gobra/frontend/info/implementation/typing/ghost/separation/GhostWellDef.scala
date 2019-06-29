@@ -77,6 +77,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
          |  _: PIndexedExp
          |  _: PSliceExp
          |  _: PTypeAssertion
+         |  _: PNamedOperand
          |  _: PNegation
          |  _: PBinaryExp
     => noMessages

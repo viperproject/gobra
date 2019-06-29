@@ -12,6 +12,7 @@ import viper.gobra.reporting.Source.withInfo
 class LocationsImpl extends Locations {
 
   import ExprWriter._
+  import viper.gobra.reporting.Source.RichViperNode
 
   override def finalize(col: Collector): Unit = {
     _pointerField.finalize(col)
@@ -63,7 +64,7 @@ class LocationsImpl extends Locations {
           yield vpr.FieldAssign(l, right)()
 
       case in.Assignee.Pointer(p) =>
-        for {l <- deref(p)(ctx)} yield vpr.FieldAssign(l, right)()
+        for {l <- deref(p)(ctx)} yield vpr.FieldAssign(l, right)().withInfo(src)
     }).close.withInfo(src)
 
   /**

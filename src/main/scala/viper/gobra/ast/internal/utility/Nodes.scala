@@ -17,7 +17,7 @@ object Nodes {
     * As a consequence, it is not sufficient to compare the subnodes of two
     * nodes for equality if one has to compare those two nodes for equality.
     */
-  def subnodes(n: Node): Seq[Node] = {
+  def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(types, variables, constants, methods, functions) => variables ++ constants ++ methods ++ functions
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver) ++ args ++ results ++ pres ++ posts ++ body
@@ -46,6 +46,7 @@ object Nodes {
         case DfltVal(typ) => Seq()
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
+        case EqCmp(l, r) => Seq(l, r)
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()

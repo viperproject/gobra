@@ -63,6 +63,10 @@ case class Function(
 
 sealed trait Stmt extends Node
 
+sealed trait Declaration extends Node
+
+sealed trait BlockDeclaration extends Declaration // TODO: use later for block
+
 case class Block(
                 variables: Vector[LocalVar],
                 stmts: Vector[Stmt]
@@ -173,7 +177,7 @@ case class Parameter(id: String, typ: Type)(val info: Source.Parser.Info) extend
 
 sealed trait BodyVar extends Var
 
-sealed trait LocalVar extends BodyVar {
+sealed trait LocalVar extends BodyVar with BlockDeclaration {
   def unapply(arg: LocalVar): Option[(String, Type)] =
     Some((arg.id, arg.typ))
 }

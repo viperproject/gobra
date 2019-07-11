@@ -1,0 +1,6 @@
+method F0_test()
+{
+  V1_x := 5
+  assert V1_x == 6
+  label returnLabel
+}

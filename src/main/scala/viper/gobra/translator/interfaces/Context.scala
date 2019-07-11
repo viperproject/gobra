@@ -1,6 +1,7 @@
 package viper.gobra.translator.interfaces
 
 import viper.gobra.translator.interfaces.translator._
+import viper.silver.{ast => vpr}
 
 trait Context {
 
@@ -15,6 +16,8 @@ trait Context {
   def loc: Locations
 
   // mapping
+
+  def addVars(vars: vpr.LocalVarDecl*): Context
 
   /** copy constructor */
   def :=(

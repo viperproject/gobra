@@ -1,7 +1,7 @@
 package viper.gobra.translator.interfaces.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.util.ViperWriter.ExprWriter
+import viper.gobra.translator.util.ViperWriter.ExprWriter
 import viper.silver.{ast => vpr}
 
 trait Expressions

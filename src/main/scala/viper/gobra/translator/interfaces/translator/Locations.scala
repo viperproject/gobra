@@ -2,17 +2,18 @@ package viper.gobra.translator.interfaces.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.util.ViperWriter.{ExprWriter, StmtWriter}
+import viper.gobra.translator.util.ViperWriter.{ExprWriter, StmtWriter}
 import viper.silver.{ast => vpr}
 
 trait Locations extends Generator {
 
   def variable(v: in.Var)(ctx: Context): ExprWriter[vpr.LocalVar]
 
-  // TODO: use specialized writer
-  def formalArg(v: in.Parameter)(ctx: Context): vpr.LocalVarDecl
+  def declaration(v: in.LocalVar)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)]
 
-  def formalRes(v: in.LocalVar)(ctx: Context): vpr.LocalVarDecl
+  def formalArg(v: in.Parameter)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)]
+
+  def formalRes(v: in.LocalVar)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)]
 
   def value(v: in.Var)(ctx: Context): ExprWriter[vpr.Exp]
 
@@ -20,6 +21,6 @@ trait Locations extends Generator {
 
   def deref(ref: in.Deref)(ctx: Context): ExprWriter[vpr.FieldAccess]
 
-  def assignment(left: in.Assignee, right: vpr.Exp)(ctx: Context)(src: in.Node): StmtWriter[vpr.Stmt]
+  def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt]
 
 }

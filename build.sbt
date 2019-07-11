@@ -36,6 +36,7 @@ lazy val server = (project in file("."))
     run / javaOptions += "-Xss128m",
 
     fork := true,
+    
 
     // Test settings
     Test / javaOptions ++= (run / javaOptions).value,
@@ -54,4 +55,4 @@ lazy val server = (project in file("."))
     assembly / test := {}
   )
 
-val LogbackConfigurationFilePattern = """logback.*?\.xml""".r
+lazy val LogbackConfigurationFilePattern = """logback.*?\.xml""".r

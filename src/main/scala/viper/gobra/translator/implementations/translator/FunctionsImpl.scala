@@ -4,39 +4,45 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
-import viper.gobra.reporting.Source.withInfo
-import viper.gobra.translator.Names
-import viper.gobra.reporting.Source.RichViperNode
 
 class FunctionsImpl extends Functions {
 
+  import viper.gobra.translator.util.ViperWriter.{ExprLevel => el, StmtLevel => sl, _}
+  import MemberLevel._
+
   override def finalize(col: Collector): Unit = ()
 
-  override def translate(x: in.Function)(ctx: Context): vpr.Method = {
+  override def translate(x: in.Function)(ctx: Context): MemberWriter[vpr.Method] = withDeepInfo(x){
 
-    val args    = x.args    map (ctx.loc.formalArg(_)(ctx))
-    val results = x.results map (ctx.loc.formalRes(_)(ctx))
+      def init[R](ws: Vector[ExprWriter[R]]): MemberWriter[(StmtSum, (vpr.Seqn, Vector[R]))] =
+        memberS(sl.stmtSplitE(el.sequence(ws)))
 
-    val pres  = x.pres  map (ctx.ass.precondition(_)(ctx))
-    val posts = x.posts map (ctx.ass.postcondition(_)(ctx))
+      def declInit[R](ctx: Context)(ws: )
 
-    val wBody = x.body map (ctx.stmt.translate(_)(ctx))
-    assert(wBody forall (_.global.isEmpty))
+      for {
+        (argsSS, (argsPre, args)) <- init(x.args map (ctx.loc.formalArg(_)(ctx)))
+        (ressSS, (ressPre, ress)) <- init(x.results map (ctx.loc.formalRes(_)(ctx)))
 
-    val vBody = wBody map { w =>
-      vpr.Seqn(Vector(
-        w.res,
-        vpr.Label(Names.returnLabel, Vector.empty)()
-      ), w.global)().withInfo(x)
-    }
+        (presSS, (presPre, pres)) <- init(x.pres map (ctx.ass.precondition(_)(ctx)))
+        (possSS, (possPre, poss)) <- init(x.posts map (ctx.ass.postcondition(_)(ctx)))
 
-    withInfo(vpr.Method(
-      name = x.name,
-      formalArgs = args,
-      formalReturns = results,
-      pres = pres,
-      posts = posts,
-      body = vBody
-    ))(x)
+        body <- option(x.body.map{ b => blockE{
+          for {
+            nextCtx <- el.addGlobals(ctx, argsSS.global ++ ressSS.global ++ presSS.global ++ possSS.global: _*)
+            _ <- el.addStatements(argsPre, ressPre, presPre, possPre)
+            core <- el.exprS(ctx.stmt.translate(b)(nextCtx))
+          } yield core
+        }})
+
+        method = vpr.Method(
+          name = x.name,
+          formalArgs = args,
+          formalReturns = ress,
+          pres = pres,
+          posts = poss,
+          body = body
+        )()
+
+      } yield method
   }
 }

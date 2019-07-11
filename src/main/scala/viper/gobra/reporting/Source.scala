@@ -1,9 +1,10 @@
 package viper.gobra.reporting
 
-import viper.gobra.ast.internal.Node
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
+import viper.silver.ast.utility.Rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
+import viper.silver.ast.utility.Rewriter.Traverse.Traverse
 
 object Source {
 
@@ -18,17 +19,17 @@ object Source {
 
     object Unsourced extends Info {
       override def origin: Option[Origin] = throw new IllegalStateException()
-      override def toInfo(node: Node): vpr.Info = throw new IllegalStateException()
+      override def toInfo(node: internal.Node): vpr.Info = throw new IllegalStateException()
     }
 
     case object Internal extends Info {
       override lazy val origin: Option[Origin] = None
-      override def toInfo(node: Node): vpr.Info = vpr.NoInfo
+      override def toInfo(node: internal.Node): vpr.Info = vpr.NoInfo
     }
 
     case class Single(pnode: frontend.PNode, src: Origin) extends Info {
       override lazy val origin: Option[Origin] = Some(src)
-      override def toInfo(node: Node): vpr.Info = Verifier.Info(pnode, node, src)
+      override def toInfo(node: internal.Node): vpr.Info = Verifier.Info(pnode, node, src)
     }
   }
 
@@ -69,8 +70,8 @@ object Source {
           s"field '$fieldName' set"
       }
 
-      // require(info == vpr.NoInfo, message("info"))
-      // require(pos == vpr.NoPosition, message("pos"))
+      require(info == vpr.NoInfo, message("info"))
+      require(pos == vpr.NoPosition, message("pos"))
 
       source.info match {
         case Parser.Internal => node
@@ -82,6 +83,24 @@ object Source {
           val newPos  = vpr.TranslatedPosition(origin.pos)
 
           node.duplicateMeta((newPos, newInfo, errT)).asInstanceOf[N]
+      }
+    }
+
+    def transformWithNoRec(pre: PartialFunction[vpr.Node, vpr.Node] = PartialFunction.empty,
+                  recurse: Traverse = Traverse.TopDown)
+    : N = {
+      val strategy: Strategy[vpr.Node, SimpleContext[vpr.Node]] = StrategyBuilder.Slim[vpr.Node]({ case n: vpr.Node =>
+        if (pre.isDefinedAt(n)) pre(n)
+        else strategy.noRec(n)
+      }, recurse)
+      strategy.execute[N](node)
+    }
+
+    def withDeepInfo(source: internal.Node): N = {
+      node.transformWithNoRec{
+        case n: vpr.Node
+          if {val m = n.getPrettyMetadata; m._1 == vpr.NoPosition && m._2 == vpr.NoInfo} =>
+          n.withInfo(source)
       }
     }
   }

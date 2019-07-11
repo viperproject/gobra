@@ -2,6 +2,7 @@ package viper.gobra.translator.implementations
 
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator._
+import viper.silver.ast.LocalVarDecl
 
 case class ContextImpl(
                         ass: Assertions,
@@ -30,4 +31,5 @@ case class ContextImpl(
     assN, exprN, funcN, methodN, stmtN, typN
   )
 
+  override def addVars(vars: LocalVarDecl*): Context = this
 }

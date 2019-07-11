@@ -34,6 +34,7 @@ object BackendVerifier {
 
     // print generated viper file if set in config
     if (config.printVpr()) {
+      println("Hallo aus der Nachbarschaft")
       val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
       FileUtils.writeStringToFile(
         outputFile,

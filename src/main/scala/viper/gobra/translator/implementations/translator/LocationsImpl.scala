@@ -1,20 +1,18 @@
 package viper.gobra.translator.implementations.translator
 
-import viper.gobra.ast.internal.LocalVar
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{PrimitiveGenerator, ViperUtil}
-import viper.gobra.translator.util.ViperWriter.{ExprWriter, StmtWriter}
+import viper.gobra.translator.util.ViperWriter.{ExprWriter, MemberWriter, StmtWriter}
 import viper.silver.{ast => vpr}
-import viper.gobra.reporting.Source.withInfo
-import viper.silver.ast.LocalVar
+import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
 
 class LocationsImpl extends Locations {
 
   import viper.gobra.translator.util.ViperWriter.ExprLevel._
-  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl}
+  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl, MemberLevel => ml}
 
   override def finalize(col: Collector): Unit = {
     _pointerField.finalize(col)
@@ -45,22 +43,23 @@ class LocationsImpl extends Locations {
   }
 
 
-  override def declaration(v: in.LocalVar)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)] =
-    for {
-      l <- variable(v)(ctx)
-      d = ViperUtil.toVarDecl(l)
-      _ <- addGlobals(d)
-    } yield (d, ctx)
+  override def topDecl(v: in.TopDeclaration)(ctx: Context): MemberWriter[((vpr.LocalVarDecl, StmtWriter[vpr.Stmt]), Context)] = {
+    v match {
+      case v: in.Var =>
+        ml.splitE(variable(v)(ctx)).map{ case (e, w) =>
+          ((ViperUtil.toVarDecl(e), sl.closeE(w)(e)), ctx)
+        }
+    }
+  }
 
-  override def formalArg(v: in.Parameter)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)] =
-    for {
-      l <- variable(v)(ctx)
-      d = ViperUtil.toVarDecl(l)
-      _ <- addGlobals(d)
-    } yield (d, ctx)
+  override def bottomDecl(v: in.BottomDeclaration)(ctx: Context): StmtWriter[((vpr.Declaration, vpr.Stmt), Context)] = {
+    v match {
+      case v: in.Var =>
+        val (x, u) = variable(v)(ctx).cut
+        sl.closeE(u)(x).map{ s => ((ViperUtil.toVarDecl(x), s), ctx)}
+    }
+  }
 
-  override def formalRes(v: in.LocalVar)(ctx: Context): ExprWriter[(vpr.LocalVarDecl, Context)] =
-    declaration(v)(ctx)
 
   override def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt] = sl.withDeepInfo(ass){sl.seqnE{
     for {
@@ -105,5 +104,5 @@ class LocationsImpl extends Locations {
     * [*e]w -> ([e]w).val
     */
   override def deref(ref: in.Deref)(ctx: Context): ExprWriter[vpr.FieldAccess] =
-    for {rcv <- ctx.expr.translate(ref.exp)(ctx)} yield withInfo(vpr.FieldAccess(rcv, pointerField(ref.typ)(ctx)))(ref)
+    for {rcv <- ctx.expr.translate(ref.exp)(ctx)} yield nodeWithInfo(vpr.FieldAccess(rcv, pointerField(ref.typ)(ctx)))(ref)
 }

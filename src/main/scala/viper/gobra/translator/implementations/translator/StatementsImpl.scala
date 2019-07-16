@@ -9,7 +9,6 @@ import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
 
-  import viper.gobra.translator.util.ViperWriter.{ExprLevel => el}
   import viper.gobra.translator.util.ViperWriter.StmtLevel._
 
   override def finalize(col: Collector): Unit = ()
@@ -25,11 +24,8 @@ class StatementsImpl extends Statements {
     x match {
       case in.Block(vars, stmts) => block{
         for {
-          (declsWithPre, nextCtx) <- sequence(ctx)(vars map { v => (c: Context) =>
-            val (w, nc) = ctx.loc.declaration(v)(c).isolate(identity)
-            stmtSplitE(w).map((_, nc))
-          })
-          (pre, decls) = declsWithPre.unzip
+          (declsWithPre, nextCtx) <- sequence(ctx)(vars map ctx.loc.bottomDecl)
+          (decls, pre) = declsWithPre.unzip
           body <- sequence(stmts map ctx.stmt.translateF(nextCtx))
         } yield vpr.Seqn(pre ++ body, decls)()
       }

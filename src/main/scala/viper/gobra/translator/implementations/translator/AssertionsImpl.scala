@@ -3,13 +3,14 @@ package viper.gobra.translator.implementations.translator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
-import viper.gobra.translator.util.ViperWriter.ExprWriter
+import viper.gobra.translator.util.ViperWriter.{ExprWriter, MemberWriter, StmtWriter}
 import viper.silver.{ast => vpr}
 
 
 class AssertionsImpl extends Assertions {
 
   import viper.gobra.translator.util.ViperWriter.ExprLevel._
+  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl, MemberLevel => ml}
 
   override def finalize(col: Collector): Unit = ()
 
@@ -34,11 +35,11 @@ class AssertionsImpl extends Assertions {
     }
   }
 
-  private def specification(x: in.Assertion)(ctx: Context): ExprWriter[vpr.Exp] = {
-    translate(x)(ctx)
+  private def specification(x: in.Assertion)(ctx: Context): MemberWriter[(vpr.Exp, StmtWriter[vpr.Stmt])] = {
+    ml.splitE(translate(x)(ctx)).map{ case (e, w) => (e, sl.closeE(w)(e))}
   }
 
-  override def precondition(x: in.Assertion)(ctx: Context): ExprWriter[vpr.Exp] = specification(x)(ctx)
+  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[(vpr.Exp, StmtWriter[vpr.Stmt])] = specification(x)(ctx)
 
-  override def postcondition(x: in.Assertion)(ctx: Context): ExprWriter[vpr.Exp] = specification(x)(ctx)
+  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[(vpr.Exp, StmtWriter[vpr.Stmt])] = specification(x)(ctx)
 }

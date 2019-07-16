@@ -7,39 +7,40 @@ import viper.silver.{ast => vpr}
 
 class FunctionsImpl extends Functions {
 
-  import viper.gobra.translator.util.ViperWriter.{ExprLevel => el, StmtLevel => sl, _}
+  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl, _}
   import MemberLevel._
 
   override def finalize(col: Collector): Unit = ()
 
   override def translate(x: in.Function)(ctx: Context): MemberWriter[vpr.Method] = withDeepInfo(x){
 
-      def init[R](ws: Vector[ExprWriter[R]]): MemberWriter[(StmtSum, (vpr.Seqn, Vector[R]))] =
-        memberS(sl.stmtSplitE(el.sequence(ws)))
+      def declInit[R <: in.TopDeclaration](ds: Vector[R])(ctx: Context)
+      : MemberWriter[((Vector[vpr.LocalVarDecl], Vector[sl.Writer[vpr.Stmt]]), Context)] =
+        sequence(ctx)(ds map ctx.loc.topDecl).map{ case (declWithW, c) => (declWithW.unzip, c) }
 
-      def declInit[R](ctx: Context)(ws: )
+      def clauseInit[R](ws: Vector[MemberWriter[(R, sl.Writer[vpr.Stmt])]]): MemberWriter[(Vector[R], Vector[sl.Writer[vpr.Stmt]])] =
+        sequence(ws).map{ _.unzip }
 
       for {
-        (argsSS, (argsPre, args)) <- init(x.args map (ctx.loc.formalArg(_)(ctx)))
-        (ressSS, (ressPre, ress)) <- init(x.results map (ctx.loc.formalRes(_)(ctx)))
+        ((args, argW), ctx2) <- declInit(x.args)(ctx)
+        ((res, resW), ctx3) <- declInit(x.args)(ctx2)
 
-        (presSS, (presPre, pres)) <- init(x.pres map (ctx.ass.precondition(_)(ctx)))
-        (possSS, (possPre, poss)) <- init(x.posts map (ctx.ass.postcondition(_)(ctx)))
+        (pres, presW) <- clauseInit(x.pres map (ctx.ass.precondition(_)(ctx3)))
+        (posts, postW) <- clauseInit(x.posts map (ctx.ass.postcondition(_)(ctx3)))
 
-        body <- option(x.body.map{ b => blockE{
+        body <- option(x.body.map{ b => blockS{
           for {
-            nextCtx <- el.addGlobals(ctx, argsSS.global ++ ressSS.global ++ presSS.global ++ possSS.global: _*)
-            _ <- el.addStatements(argsPre, ressPre, presPre, possPre)
-            core <- el.exprS(ctx.stmt.translate(b)(nextCtx))
-          } yield core
+            pres <- sl.sequence(argW ++ argW ++ presW ++ postW)
+            core <- ctx.stmt.translate(b)(ctx3)
+          } yield vpr.Seqn(pres :+ core, Vector.empty)()
         }})
 
         method = vpr.Method(
           name = x.name,
           formalArgs = args,
-          formalReturns = ress,
+          formalReturns = res,
           pres = pres,
-          posts = poss,
+          posts = posts,
           body = body
         )()
 

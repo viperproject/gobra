@@ -89,7 +89,8 @@ object Source {
     def transformWithNoRec(pre: PartialFunction[vpr.Node, vpr.Node] = PartialFunction.empty,
                   recurse: Traverse = Traverse.TopDown)
     : N = {
-      val strategy: Strategy[vpr.Node, SimpleContext[vpr.Node]] = StrategyBuilder.Slim[vpr.Node]({ case n: vpr.Node =>
+      var strategy: Strategy[vpr.Node, SimpleContext[vpr.Node]] = null
+      strategy = StrategyBuilder.Slim[vpr.Node]({ case n: vpr.Node =>
         if (pre.isDefinedAt(n)) pre(n)
         else strategy.noRec(n)
       }, recurse)

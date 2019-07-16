@@ -5,7 +5,6 @@ import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.StmtKindCompanion.Global
 
 
 object ViperWriter {
@@ -143,6 +142,9 @@ object ViperWriter {
     def create[R](sum: Vector[DataKind], res: R): Writer[R] =
       Writer(companion.container(sum), res)
 
+    def forceTo[R, K <: DataKind, S <: DataSum](w: Writer[R])(lvw: LeveledViperWriter[K, S]): lvw.Writer[R] =
+      lvw.create(w.sum.all, w.res)
+
     def sequence[R](ws: Vector[Writer[R]]): Writer[Vector[R]] = {
       val (sums, ress) = ws.map(w => (w.sum, w.res)).unzip
       Writer(DataContainer.combine(sums), ress)
@@ -163,18 +165,22 @@ object ViperWriter {
 
     case class Writer[+R](sum: DataContainer[K], res: R) {
 
+      def execute: (S, R) = (companion.sum(sum.data), res)
+
       def run: (Vector[DataKind], R) = (sum.all, res)
 
       def foreach(fun: R => Unit): Unit = fun(res)
 
       def map[Q](fun: R => Q): Writer[Q] = copy(sum, fun(res))
 
-      def isolate[Q, Z](fun: R => (Q, Z)): (Writer[Q], Z) = {
+      def isolate[Q, Z](fun: R => (Q, Z)): (Z, Writer[Q]) = {
         val (l, r) = fun(res)
-        (map(_ => l), r)
+        (r, map(_ => l))
       }
 
-      def cut: (Writer[Unit], R) = isolate(((), _))
+      def cut: (R, Writer[Unit]) = isolate(((), _))
+
+
 
       def flatMap[Q](fun: R => Writer[Q]): Writer[Q] = {
         val next = fun(res)
@@ -191,6 +197,13 @@ object ViperWriter {
       }
 
       def flush: Writer[(S, R)] = copy(companion.container(sum.remainder), (companion.sum(sum.data), res))
+
+      def partitionData(f: DataKind => Boolean): Writer[(R, Writer[Unit])] = {
+        val (keep, remove) = sum.all.partition(f)
+        create(keep, (res, create(remove, ())))
+      }
+
+      def flushW: Writer[(R, Writer[Unit])] = create(sum.remainder, (res, create(sum.data, ())))
     }
 
     def addGlobals(ctx: Context, globals: vpr.LocalVarDecl*): Writer[Context] =
@@ -213,9 +226,15 @@ object ViperWriter {
 
 
 
-  sealed case object MemberLevel extends LeveledViperWriter[MemberKind, MemberSum](MemberKindCompanion) {
+  case object MemberLevel extends LeveledViperWriter[MemberKind, MemberSum](MemberKindCompanion) {
 
     def memberS[R](w: StmtLevel.Writer[R]): Writer[(StmtSum, R)] = StmtLevel.up(w)(s => r => (s, r))
+
+    def splitE[R](w: ExprLevel.Writer[R]): Writer[(R, ExprLevel.Writer[Unit])] =
+      ExprLevel.forceTo(w.partitionData{
+        case _: MemberKind => true
+        case _ => false
+      })(this)
 
     def blockS(w: StmtLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = memberS(w).map{
       case (ss, s) => vpr.Seqn(Vector(s), ss.global)(s.pos, s.info, s.errT)
@@ -226,18 +245,23 @@ object ViperWriter {
 
   type MemberWriter[R] = MemberLevel.Writer[R]
 
-  sealed case object StmtLevel extends LeveledViperWriter[StmtKind, StmtSum](StmtKindCompanion) {
+  case object StmtLevel extends LeveledViperWriter[StmtKind, StmtSum](StmtKindCompanion) {
 
     def up[Q, R](w: Writer[R])(f: StmtSum => R => Q): MemberLevel.Writer[Q] =
       upWithWriter(MemberLevel)(w)(f)
 
     def stmtE[R](w: ExprLevel.Writer[R]): Writer[(ExprSum, R)] = ExprLevel.up(w)(s => r => (s, r))
 
-    def stmtSplitE[R <: vpr.Node](w: ExprLevel.Writer[R]): Writer[(vpr.Seqn, R)] = stmtE(w).map{
-      case (es, e) =>
-        val (pos, info, _) = e.getPrettyMetadata
-        (vpr.Seqn(es.stmt, es.local)(pos, info), e)
+    def closeE(w: ExprLevel.Writer[Unit])(src: vpr.Node): Writer[vpr.Stmt] = {
+      stmtE(w).map{ case (es, _) =>
+        val (pos, info, _) = src.getPrettyMetadata
+        vpr.Seqn(es.stmt, es.local)(pos, info)
+      }
     }
+
+
+    def splitE[R](w: ExprLevel.Writer[R]): Writer[(R, ExprLevel.Writer[Unit])] =
+      ExprLevel.up(w.flushW)(s => r => r)
 
     def seqnE(w: ExprLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = stmtE(w).map {
       case (es, s) => vpr.Seqn(es.stmt :+ s, es.local)(s.pos, s.info, s.errT)
@@ -252,7 +276,7 @@ object ViperWriter {
 
   type StmtWriter[R] = StmtLevel.Writer[R]
 
-  sealed case object ExprLevel extends LeveledViperWriter[ExprKind, ExprSum](ExprKindCompanion) {
+  case object ExprLevel extends LeveledViperWriter[ExprKind, ExprSum](ExprKindCompanion) {
     def up[R, Q](w: Writer[R])(f: ExprSum => R => Q): StmtLevel.Writer[Q] =
       upWithWriter(StmtLevel)(w)(f)
 

@@ -150,6 +150,9 @@ object Desugar {
         in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
       }
 
+      val pres = decl.spec.pres map preconditionD(ctx)
+      val posts = decl.spec.posts map postconditionD(ctx)
+
       decl.result match {
         case PVoidResult() =>
         case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
@@ -166,7 +169,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, args, returns, Vector.empty, Vector.empty, bodyOpt)(meta(decl))
+      in.Function(name, args, returns, pres, posts, bodyOpt)(meta(decl))
     }
 
     def methodD(decl: PMethodDecl): in.Method = ???
@@ -471,6 +474,21 @@ object Desugar {
 //    import cats.instances.vector._
     type Agg[R] = Writer[in.Stmt, R]
     val writerUtil: WriterUtil[in.Stmt] = new WriterUtil[in.Stmt]
+
+    def prePostConditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+      val condition = assertionD(ctx)(ass)
+      Violation.violation(condition.out.isEmpty, s"assertion is not supported as a condition $ass")
+      condition.res
+    }
+
+    def preconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+      prePostConditionD(ctx)(ass)
+    }
+
+    def postconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+      prePostConditionD(ctx)(ass)
+    }
+
 
     def assertionD(ctx: FunctionContext)(ass: PAssertion): Agg[in.Assertion] = {
 

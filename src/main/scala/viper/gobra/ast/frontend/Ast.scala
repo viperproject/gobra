@@ -98,6 +98,7 @@ case class PFunctionDecl(
                           id: PIdnDef,
                           args: Vector[PParameter],
                           result: PResult,
+                          spec: PFunctionSpec,
                           body: Option[PBlock]
                         ) extends PActualMember with PScope with PCodeRoot with PGhostifiableMember
 
@@ -541,9 +542,10 @@ object PGhostifier {
 
 sealed trait PSpecification extends PGhostNode
 
-case class PMethodSpec() extends PSpecification
-
-case class PFunctionSpec() extends PSpecification
+case class PFunctionSpec(
+                      pres: Vector[PAssertion],
+                      posts: Vector[PAssertion]
+                      ) extends PSpecification
 
 
 /**

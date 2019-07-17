@@ -22,6 +22,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStatement => showStmt(n)
     case n: PExpression => showExpr(n)
     case n: PAssertion => showAssertion(n)
+    case n: PSpecification => showSpec(n)
     case n: PType => showType(n)
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
@@ -74,7 +75,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, result, body) =>
+      case PFunctionDecl(id, args, result, spec, body) =>
+        showSpec(spec) <>
         "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result) <> opt(body)(b => space <> block(showStmt(b)))
       case PMethodDecl(id, rec, args, res, body) =>
         "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> block(showStmt(b)))
@@ -82,6 +84,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
     }
+  }
+
+  def showSpec(spec: PSpecification): Doc = spec match {
+    case PFunctionSpec(pres, posts) =>
+      ssep(pres map (p => "requires" <+> showAssertion(p)), line) <>
+        ssep(posts map (p => "ensures" <+> showAssertion(p)), line)
+
   }
 
   def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))

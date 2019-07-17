@@ -11,8 +11,8 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PMethodDecl(id, rec, args, res, body) =>
       super.showMember(PMethodDecl(id, rec, filterParamList(args), filterResult(res), body))
 
-    case PFunctionDecl(id, args, res, body) =>
-      super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), body))
+    case PFunctionDecl(id, args, res, _, body) =>
+      super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
 
     case m if classifier.isMemberGhost(m) => emptyDoc
     case m => super.showMember(m)

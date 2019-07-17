@@ -170,8 +170,13 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      ("func" ~> idnDef) ~ signature ~ block.? ^^ {
-        case name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, body)
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ block.? ^^ {
+        case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
+      }
+
+    lazy val functionSpec: Parser[PFunctionSpec] =
+      ("requires" ~> assertion).* ~ ("ensures" ~> assertion).* ^^ {
+        case pres ~ posts => PFunctionSpec(pres, posts)
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =

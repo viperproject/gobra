@@ -46,7 +46,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       })
     })
 
-    case Function(PFunctionDecl(_, args, r, _), _) => message(id, s"variable $id is not defined", ! {
+    case Function(PFunctionDecl(_, args, r, _, _), _) => message(id, s"variable $id is not defined", ! {
       args.forall(wellDefMisc.valid) && miscType.valid(r)
     })
 
@@ -124,7 +124,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected tuple but got $t")
     }
 
-    case Function(PFunctionDecl(_, args, r, _), _) =>
+    case Function(PFunctionDecl(_, args, r, _, _), _) =>
       FunctionT(args map miscType, miscType(r))
 
     case NamedType(decl, _) => DeclaredT(decl)

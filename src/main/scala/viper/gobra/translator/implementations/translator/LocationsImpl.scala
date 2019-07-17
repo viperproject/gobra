@@ -54,8 +54,30 @@ class LocationsImpl extends Locations {
 
   override def bottomDecl(v: in.BottomDeclaration)(ctx: Context): StmtWriter[((vpr.Declaration, vpr.Stmt), Context)] = {
     v match {
-      case v: in.Var =>
-        val (x, u) = variable(v)(ctx).cut
+      case v: in.BodyVar =>
+        val declaration = for {
+          r <- variable(v)(ctx)
+
+          // inhale permissions if necessary
+          _ <- v match {
+            case v: in.LocalVar.Ref =>
+              val inhalePermissions =
+                in.Inhale(in.Access(
+                  in.Accessible.Ref(in.Deref(in.Ref(in.Addressable.Var(v), in.PointerT(v.typ))(v.info), v.typ)(v.info))
+                )(v.info))(v.info)
+
+              prelim(ctx.stmt.translate(inhalePermissions)(ctx))
+            case _ => unit(())
+          }
+
+          // assign default Value
+          _ <- {
+            val init = in.SingleAss(in.Assignee.Var(v), in.DfltVal(v.typ)(v.info))(v.info)
+            prelim(ctx.stmt.translate(init)(ctx))
+          }
+        } yield r
+
+        val (x, u) = declaration.cut
         sl.closeE(u)(x).map{ s => ((ViperUtil.toVarDecl(x), s), ctx)}
     }
   }
@@ -104,5 +126,8 @@ class LocationsImpl extends Locations {
     * [*e]w -> ([e]w).val
     */
   override def deref(ref: in.Deref)(ctx: Context): ExprWriter[vpr.FieldAccess] =
-    for {rcv <- ctx.expr.translate(ref.exp)(ctx)} yield nodeWithInfo(vpr.FieldAccess(rcv, pointerField(ref.typ)(ctx)))(ref)
+    for {
+      rcv <- ctx.expr.translate(ref.exp)(ctx)
+      field = pointerField(ref.typ)(ctx)
+    } yield nodeWithInfo(vpr.FieldAccess(rcv, field))(ref)
 }

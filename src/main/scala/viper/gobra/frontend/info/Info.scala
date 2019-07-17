@@ -1,6 +1,5 @@
 package viper.gobra.frontend.info
 
-import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
@@ -23,7 +22,7 @@ object Info {
     val info = new TypeInfoImpl(tree)
 
     val errors = info.errors
-    if (errors.isEmpty) {
+    val result = if (errors.isEmpty) {
 
       // print program with ghost code erased
       if (config.printGhostLess()) {
@@ -40,5 +39,18 @@ object Info {
     } else {
       Left(program.positions.translate(errors, TypeError))
     }
+
+    // print debug information
+    if (config.debug()) {
+      val infoDebugPrinter = new InfoDebugPrettyPrinter(info)
+      val outputFile = OutputUtil.postfixFile(config.inputFile(), "debugType")
+      FileUtils.writeStringToFile(
+        outputFile,
+        infoDebugPrinter.format(program),
+        UTF_8
+      )
+    }
+
+    result
   }
 }

@@ -8,6 +8,7 @@ import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.silver.{ast => vpr}
 import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
+import viper.silver.ast.utility.AssumeRewriter
 
 class ProgramsImpl extends Programs {
 
@@ -38,10 +39,20 @@ class ProgramsImpl extends Programs {
 
     val (error, prog) = progW.execute
 
+    val progWithoutAssumes = {
+      val uncleanProg = AssumeRewriter.rewriteAssumes(prog)
+      // FIXME: required due to inconvenient silver assume rewriter
+      val cleanedDomains: Seq[vpr.Domain] = uncleanProg.domains.map{ d =>
+        if (d.name == "Assume") d.copy(name = "Assume$")(d.pos, d.info, d.errT)
+        else d
+      }
+      uncleanProg.copy(domains = cleanedDomains)(uncleanProg.pos, uncleanProg.info, uncleanProg.errT)
+    }
+
     val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
 
     BackendVerifier.Task(
-      program = prog,
+      program = progWithoutAssumes,
       backtrack = backTrackInfo
     )
   }

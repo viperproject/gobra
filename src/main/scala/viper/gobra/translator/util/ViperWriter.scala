@@ -281,6 +281,7 @@ object ViperWriter {
       upWithWriter(StmtLevel)(w)(f)
 
     def exprS[R](w: StmtLevel.Writer[R]): Writer[R] = create(w.sum.data ++ w.sum.remainder, w.res)
+    def prelim[R <: vpr.Stmt](w: StmtLevel.Writer[R]): Writer[Unit] = exprS(w).flatMap(s => addStatements(s))
   }
 
   type ExprWriter[R] = ExprLevel.Writer[R]

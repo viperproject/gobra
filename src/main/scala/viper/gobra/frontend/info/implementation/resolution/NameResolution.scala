@@ -70,8 +70,8 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleConstant(decl.right(idx), None, isGhost)
-            case AssignModi.Multi => MultiConstant(idx, decl.right.head, isGhost)
+            case AssignModi.Single => SingleLocalVariable(decl.right(idx), None, isGhost)
+            case AssignModi.Multi => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -85,8 +85,8 @@ trait NameResolution { this: TypeInfoImpl =>
           val len = decl.shorts.size
 
           AssignModi(len, 1) match {
-            case AssignModi.Single => SingleConstant(decl.recv, None, isGhost)
-            case AssignModi.Multi  => MultiConstant(idx, decl.recv, isGhost)
+            case AssignModi.Single => SingleLocalVariable(decl.recv, None, isGhost)
+            case AssignModi.Multi  => MultiLocalVariable(idx, decl.recv, isGhost)
             case _ => UnknownEntity()
           }
 

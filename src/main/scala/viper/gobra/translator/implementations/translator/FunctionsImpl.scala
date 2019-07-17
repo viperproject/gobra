@@ -23,7 +23,7 @@ class FunctionsImpl extends Functions {
 
       for {
         ((args, argW), ctx2) <- declInit(x.args)(ctx)
-        ((res, resW), ctx3) <- declInit(x.args)(ctx2)
+        ((res, resW), ctx3) <- declInit(x.results)(ctx2)
 
         (pres, presW) <- clauseInit(x.pres map (ctx.ass.precondition(_)(ctx3)))
         (posts, postW) <- clauseInit(x.posts map (ctx.ass.postcondition(_)(ctx3)))

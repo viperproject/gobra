@@ -38,5 +38,6 @@ trait Context {
     method.finalize(col)
     stmt.finalize(col)
     typ.finalize(col)
+    loc.finalize(col)
   }
 }

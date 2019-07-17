@@ -9,6 +9,10 @@ import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
 
+  var counter: Int = 0
+
+  def count: Int = {counter += 1; counter}
+
   import viper.gobra.translator.util.ViperWriter.StmtLevel._
 
   override def finalize(col: Collector): Unit = ()
@@ -21,7 +25,7 @@ class StatementsImpl extends Statements {
     def goE(e: in.Expr): ExprWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    x match {
+    val z = x match {
       case in.Block(vars, stmts) => block{
         for {
           (declsWithPre, nextCtx) <- sequence(ctx)(vars map ctx.loc.bottomDecl)
@@ -32,12 +36,13 @@ class StatementsImpl extends Statements {
 
       case in.Seqn(stmts) => sequence(stmts map goS) map (vpr.Seqn(_, Vector.empty)())
 
-      case ass: in.SingleAss => ctx.loc.assignment(ass)(ctx)
+      case ass: in.SingleAss =>
+        ctx.loc.assignment(ass)(ctx)
 
       case in.MultiAss(left, right) => ??? // TODO
 
       case in.Assert(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assert(v)())
-      case in.Assume(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assume(v)())
+      case in.Assume(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assume(v)()) // Assumes are later rewritten
       case in.Inhale(ass) => seqnE(for {v <- goA(ass)} yield vpr.Inhale(v)())
       case in.Exhale(ass) => seqnE(for {v <- goA(ass)} yield vpr.Exhale(v)())
 
@@ -45,6 +50,15 @@ class StatementsImpl extends Statements {
 
 
     }
+    if (!x.isInstanceOf[in.Seqn]){
+      println(s"////////////////// INPUT ($count)/////////////////")
+      println(s"$x")
+      println("------------------ Output ----------------")
+      println(s"${z.res}")
+      println("//////////////////////////////////////////")
+    }
+
+    z
   }
 
 

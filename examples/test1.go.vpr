@@ -1,7 +1,0 @@
-method F0_test()
-{
-  var V1_x: Int
-  var V1_x: Int
-  V1_x := 5
-  assert V1_x == 6
-}

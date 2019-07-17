@@ -102,7 +102,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   }
 
   def uses(id: PIdnNode): Vector[PIdnUse] = {
-    uniqueRegular(id).fold(Vector.empty[PIdnUse])(usesMap)
+    uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
   }
 
 

@@ -58,7 +58,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
     case n@ PReturn(right) =>
       val gt = classifier.expectedReturnGhostTyping(n)
-      val aRight = right.zip(gt.toTuple).filter(!_._2).unzip._1
+      val aRight = right.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showStmt(PReturn(aRight))
 
     case s if classifier.isStmtGhost(s) => ghostToken
@@ -69,7 +69,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
     case n@ PCall(callee, args) =>
       val gt = classifier.expectedArgGhostTyping(n)
-      val aArgs = args.zip(gt.toTuple).filter(!_._2).unzip._1
+      val aArgs = args.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showExpr(PCall(callee, aArgs))
 
     case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed

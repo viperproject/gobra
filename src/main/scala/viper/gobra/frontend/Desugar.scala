@@ -24,6 +24,13 @@ object Desugar {
         internalProgram.formatted,
         UTF_8
       )
+
+//      val uglyOutputFile = OutputUtil.postfixFile(config.inputFile(), "ugly")
+//      FileUtils.writeStringToFile(
+//        uglyOutputFile,
+//        internalProgram.toString,
+//        UTF_8
+//      )
     }
 
     internalProgram
@@ -54,14 +61,14 @@ object Desugar {
         meta(info.regular(id).rep)
       }
 
-      private var substitutions: Map[VarIdentity, Meta => in.BodyVar] = Map.empty
+      private var substitutions: Map[VarIdentity, in.BodyVar] = Map.empty
 
       def apply(id: PIdnNode): Option[in.BodyVar] =
-        substitutions.get(abstraction(id)).map(_(meta(id)))
+        substitutions.get(abstraction(id))
 
 
-      def addSubst(from: PIdnNode, to: Meta => in.BodyVar): Unit =
-        substitutions.updated(abstraction(from), to)
+      def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
+        substitutions += abstraction(from) -> to
     }
 
     def programD(p: PProgram): in.Program = {
@@ -84,39 +91,43 @@ object Desugar {
 
       val name = idName(decl.id)
 
-      val argLinks = decl.args map parameterD
-      val arg = argLinks.unzip._1
+      val argsWithSubs = decl.args map parameterD
+      val (args, argSubs) = argsWithSubs.unzip
 
-
-      val returnLinks = decl.result match {
+      val returnsWithSubs = decl.result match {
         case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) =>
-          outs.map(parameterD).map{ case (p, r) => (in.LocalVar.Val(p.id,p.typ)(p.info), r) }
+        case NoGhost(PResultClause(outs)) => outs map { o =>
+          val (param, sub) = parameterD(o)
+          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
+        }
       }
-      val (returnAssign, returnVars) = returnLinks.unzip
-
+      val (returns, returnSubs) = returnsWithSubs.unzip
+      val actualReturns = returnsWithSubs.map{
+        case (_, Some(x)) => x
+        case (x, None)    => x
+      }
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
           in.Seqn(
-            returnLinks.map{
-              case (_, None) => violation("found empty return and unnamed returns")
-              case (p, Some(v)) => in.SingleAss(in.Assignee.Var(p), v(src))(src)
+            returnsWithSubs.flatMap{
+              case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(src))
+              case _ => None
             } :+ in.Return()(src)
           )(src)
-        } else if (rets.size == returnAssign.size) {
+        } else if (rets.size == returns.size) {
           in.Seqn(
-            returnAssign.zip(rets).map{
+            returns.zip(rets).map{
               case (p, v) => in.SingleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            in.MultiAss(returnAssign.map(v => in.Assignee.Var(v)), rets.head)(src),
+            in.MultiAss(returns.map(v => in.Assignee.Var(v)), rets.head)(src),
             in.Return()(src)
           ))(src)
         } else {
-          violation(s"found ${rets.size} returns but expected 0, 1, or ${returnAssign.size}")
+          violation(s"found ${rets.size} returns but expected 0, 1, or ${returns.size}")
         }
       }
 
@@ -124,35 +135,38 @@ object Desugar {
       val ctx = new FunctionContext(assignReturns)
 
       // p1' := p1; ... ; pn' := pn
-      val argInits = argLinks.flatMap{
-        case (_, None) => None
-        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q(Source.Parser.Internal)), p)(Source.Parser.Internal))
+      val argInits = argsWithSubs.flatMap{
+        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case _ => None
       }
 
-      (decl.args zip argLinks).foreach{
+      (decl.args zip argsWithSubs).foreach{
         case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       // r1' := _; ... ; rn' := _
-      val returnInits = returnVars.flatten.map{l =>
-        val sl = l(Source.Parser.Internal)
-        in.SingleAss(in.Assignee.Var(sl), in.DfltVal(sl.typ)(Source.Parser.Internal))(sl.info)
+      val returnInits = actualReturns.map{l =>
+        in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
       }
 
-      (decl.args zip argLinks).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case _ =>
+      decl.result match {
+        case PVoidResult() =>
+        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
+          case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+          case _ =>
+        }
       }
 
 
       val bodyOpt = decl.body.map{ s =>
-        val vars = info.variables(s) map localVarD(ctx)
+        val vars = argSubs.flatten ++ returnSubs.flatten
         val body = argInits ++ returnInits :+ stmtD(ctx)(s)
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, arg, returnAssign, Vector.empty, Vector.empty, bodyOpt)(meta(decl))
+      in.Function(name, args, returns, Vector.empty, Vector.empty, bodyOpt)(meta(decl))
     }
 
     def methodD(decl: PMethodDecl): in.Method = ???
@@ -285,6 +299,15 @@ object Desugar {
         case NoGhost(noGhost) => noGhost match {
           case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
           case PDereference(exp) => go(exp) map (in.Deref(_, typ)(src))
+          case PReference(exp)   => exp match {
+            case PNamedOperand(id) =>
+              (varD(ctx)(id), typ) match {
+                case (x: in.LocalVar.Ref, pt: in.PointerT) => unit[in.Expr](in.Ref(in.Addressable.Var(x), pt)(src))
+                case (e, t) => Violation.violation(s"expected variable reference but got $e of type $t")
+              }
+
+            case _ => Violation.violation(s"unexpected reference receiver: $exp")
+          }
 
           case PEquals(left, right) => for {l <- go(left); r <- go(right)} yield in.EqCmp(l, r)(src)
 
@@ -387,15 +410,23 @@ object Desugar {
 
     // Miscellaneous
 
-    def parameterD(p: PParameter): (in.Parameter, Option[Meta => in.LocalVar]) = p match {
+    def parameterD(p: PParameter): (in.Parameter, Option[in.LocalVar]) = p match {
       case NoGhost(noGhost: PActualParameter) => noGhost match {
         case PNamedParameter(id, typ) =>
-          val ip = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-          (ip, Some(m => localVarContextFreeD(id).withInfo(m))) // TODO: replace with copy
+          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+          val local = Some(localAlias(localVarContextFreeD(id)))
+          (param, local)
 
         case PUnnamedParameter(typ) =>
-          (in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p)), None)
+          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
+          val local = None
+          (param, local)
       }
+    }
+
+    def localAlias(internal: in.LocalVar): in.LocalVar = internal match {
+      case LocalVar.Ref(id, typ) => LocalVar.Ref(nm.alias(id), typ)(internal.info)
+      case LocalVar.Val(id, typ) => LocalVar.Val(nm.alias(id), typ)(internal.info)
     }
 
     // Ghost Statements
@@ -515,9 +546,9 @@ object Desugar {
 
     private var substitutions: Map[(String, PScope), String] = Map.empty
 
-    private def name(pre: String)(n: String, s: PScope): String = {
+    private def name(postfix: String)(n: String, s: PScope): String = {
       maybeRegister(s)
-      pre + scopeMap(s) + "_" + n // deterministic
+      s"${n}_$postfix${scopeMap(s)}" // deterministic
     }
 
     def variable(n: String, s: PScope): String = name(VARIABLE_PREFIX)(n, s)
@@ -527,7 +558,7 @@ object Desugar {
     def method  (n: String, t: Type): String = ???
     def field   (n: String, t: Type): String = ???
 
-    def copyExt(n: String): String = COPY_PREFIX + n
+    def alias(n: String): String = s"${n}_$COPY_PREFIX$fresh"
 
     def fresh: String = {
       val f = FRESH_PREFIX + counter

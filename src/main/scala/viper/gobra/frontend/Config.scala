@@ -39,7 +39,7 @@ class Config(arguments: Seq[String])
   val unparse: ScallopOption[Boolean] = opt[Boolean](
     name = "unparse",
     descr = "Print the parsed program",
-    default = Some(false),
+    default = Some(true),
     noshort = true
   )
 
@@ -60,6 +60,13 @@ class Config(arguments: Seq[String])
   val printVpr: ScallopOption[Boolean] = opt[Boolean](
     name = "printVpr",
     descr = "Print the encoded Viper program",
+    default = Some(true),
+    noshort = true
+  )
+
+  val debug: ScallopOption[Boolean] = opt[Boolean](
+    name = "debug",
+    descr = "Output additional debug information",
     default = Some(true),
     noshort = true
   )

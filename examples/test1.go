@@ -1,6 +1,7 @@
 package pkg;
 
-func test() {
+func test(z int) {
 	var x int = 5;
-	assert x == 6;
+	assume z == 6;
+	assert x == z;
 };

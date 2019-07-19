@@ -25,6 +25,8 @@ object Nodes {
       case s: Stmt => s match {
         case Block(variables, stmts) => variables ++ stmts
         case Seqn(stmts) => stmts
+        case If(cond, thn, els) => Seq(cond, thn, els)
+        case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case Return() => Seq()
@@ -36,7 +38,7 @@ object Nodes {
       case Assignee.Var(v) => Seq(v)
       case Assignee.Pointer(e) => Seq(e)
       case a: Assertion => a match {
-        case Star(left, right) => Seq(left, right)
+        case SepAnd(left, right) => Seq(left, right)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case Access(e) => Seq(e)
@@ -47,6 +49,8 @@ object Nodes {
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
+        case Negation(operand) => Seq(operand)
+        case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
         case l: Lit => l match {
           case IntLit(v) => Seq()

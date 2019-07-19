@@ -5,7 +5,6 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
-import viper.gobra.reporting.Source.{withInfo => withExplicitInfo}
 
 class FunctionsImpl extends Functions {
 
@@ -30,7 +29,7 @@ class FunctionsImpl extends Functions {
         (pres, presW) <- clauseInit(x.pres map (ctx.ass.precondition(_)(ctx3)))
         (posts, postW) <- clauseInit(x.posts map (ctx.ass.postcondition(_)(ctx3)))
 
-        returnLabel = withExplicitInfo(vpr.Label(Names.returnLabel, Vector.empty))(x) // FIXME: Silver Bug, labels cannot be rewritten
+        returnLabel = vpr.Label(Names.returnLabel, Vector.empty)()
 
         body <- option(x.body.map{ b => blockS{
           for {

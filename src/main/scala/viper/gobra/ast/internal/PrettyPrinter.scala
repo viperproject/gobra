@@ -68,6 +68,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showStmt(s: Stmt): Doc = s match {
     case Block(variables, stmts) => "decl" <+> showVarDeclList(variables) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
+    case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
+    case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
+      ssep(invs  map ("invariant " <> showAss(_)), line) <> block(showStmt(body))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
@@ -108,7 +111,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // assertions
 
   def showAss(a: Assertion): Doc = a match {
-    case Star(left, right) => showAss(left) <+> "&&" <+> showAss(right)
+    case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
@@ -125,7 +128,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
-    case EqCmp(l, r) => showExpr(l) <+> "==" <+> showExpr(r)
+    case Negation(op) => "!" <> showExpr(op)
+    case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var   => showVar(v)
   }

@@ -18,7 +18,18 @@ import viper.gobra.reporting.{BackTranslator, VerifierResult}
 import viper.gobra.translator.Translator
 
 object GoVerifier {
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2018"
+
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2019"
+
+  val name = "Gobra"
+
+  val version: String = {
+    val buildRevision = BuildInfo.git("revision")
+    val buildBranch = BuildInfo.git("branch")
+    val buildVersion = s"$buildRevision${if (buildBranch == "master") "" else s"@$buildBranch"}"
+
+    s"${BuildInfo.projectVersion} ($buildVersion)"
+  }
 }
 
 trait GoVerifier {

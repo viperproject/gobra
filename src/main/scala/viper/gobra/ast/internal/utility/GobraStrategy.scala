@@ -3,8 +3,8 @@ package viper.gobra.ast.internal.utility
 /** Code was taken from @see [[viper.silver.ast.utility.ViperStrategy]] */
 
 import viper.gobra.ast.internal._
-import viper.silver.ast.utility.Rewriter.Traverse.Traverse
-import viper.silver.ast.utility.Rewriter.{Star => _, _}
+import viper.silver.ast.utility.rewriter.Traverse.Traverse
+import viper.silver.ast.utility.rewriter._
 
 /**
   * Gobra specific Wrapper for the rewriting Strategies
@@ -159,6 +159,8 @@ object GobraStrategy {
         // Statements
       case (b: Block, Seq(v: Vector[LocalVar@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
+      case (i: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
+      case (w: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
       case (s: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (a: Assignee.Var, Seq(v: BodyVar)) => Assignee.Var(v)
       case (a: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)
@@ -169,7 +171,7 @@ object GobraStrategy {
       case (i: Inhale, Seq(ass: Assertion)) => Inhale(ass)(meta)
       case (e: Exhale, Seq(ass: Assertion)) => Exhale(ass)(meta)
         // Assertions
-      case (s: Star, Seq(l: Assertion, r: Assertion)) => Star(l, r)(meta)
+      case (s: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (e: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
       case (i: Implication, Seq(l: Expr, r: Assertion)) => Implication(l, r)(meta)
       case (a: Access, Seq(acc: Accessible)) => Access(acc)(meta)
@@ -179,7 +181,20 @@ object GobraStrategy {
       case (t: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
       case (r: Ref, Seq(ref: Addressable, t: PointerT)) => Ref(ref, t)(meta)
+      case (n: Negation, Seq(op: Expr)) => Negation(op)(meta)
       case (e: EqCmp, Seq(l: Expr, r: Expr)) => EqCmp(l, r)(meta)
+      case (e: UneqCmp, Seq(l: Expr, r: Expr)) => UneqCmp(l, r)(meta)
+      case (e: LessCmp, Seq(l: Expr, r: Expr)) => LessCmp(l, r)(meta)
+      case (e: AtMostCmp, Seq(l: Expr, r: Expr)) => AtMostCmp(l, r)(meta)
+      case (e: GreaterCmp, Seq(l: Expr, r: Expr)) => GreaterCmp(l, r)(meta)
+      case (e: AtLeastCmp, Seq(l: Expr, r: Expr)) => AtLeastCmp(l, r)(meta)
+      case (e: And, Seq(l: Expr, r: Expr)) => And(l, r)(meta)
+      case (e: Or, Seq(l: Expr, r: Expr)) => Or(l, r)(meta)
+      case (e: And, Seq(l: Expr, r: Expr)) => And(l, r)(meta)
+      case (e: Sub, Seq(l: Expr, r: Expr)) => Sub(l, r)(meta)
+      case (e: Mul, Seq(l: Expr, r: Expr)) => Mul(l, r)(meta)
+      case (e: Mod, Seq(l: Expr, r: Expr)) => Mod(l, r)(meta)
+      case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
       case (p: Parameter, Seq()) => Parameter(p.id, p.typ)(meta)

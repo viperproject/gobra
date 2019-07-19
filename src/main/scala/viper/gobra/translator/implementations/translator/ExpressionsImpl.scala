@@ -1,6 +1,5 @@
 package viper.gobra.translator.implementations.translator
 
-import viper.gobra.ast.internal.EqCmp
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
@@ -26,7 +25,25 @@ class ExpressionsImpl extends Expressions {
       case in.Tuple(args) => Violation.violation("Tuples expressions are not supported at this point in time")
       case p: in.Deref => ctx.loc.deref(p)(ctx)
       case in.Ref(r, _) => ctx.loc.address(r)(ctx)
-      case EqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.EqCmp(vl, vr)()
+      case in.Negation(op) => for{o <- goE(op)} yield vpr.Not(o)()
+
+      case in.EqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.EqCmp(vl, vr)()
+      case in.UneqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.NeCmp(vl, vr)()
+      case in.LessCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LtCmp(vl, vr)()
+      case in.AtMostCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LeCmp(vl, vr)()
+      case in.GreaterCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.GtCmp(vl, vr)()
+      case in.AtLeastCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.GeCmp(vl, vr)()
+
+      case in.And(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.And(vl, vr)()
+      case in.Or(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Or(vl, vr)()
+
+      case in.Add(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Add(vl, vr)()
+      case in.Sub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Sub(vl, vr)()
+      case in.Mul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Mul(vl, vr)()
+      case in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Mod(vl, vr)()
+      case in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Div(vl, vr)()
+
+
       case l: in.Lit => literal(l)(ctx)
       case v: in.Var => ctx.loc.value(v)(ctx)
     }

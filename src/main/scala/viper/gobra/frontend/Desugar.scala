@@ -195,6 +195,9 @@ object Desugar {
 
     // Statements
 
+    def maybeStmtD(ctx: FunctionContext)(stmt: Option[PStatement])(src: Source.Parser.Info): in.Stmt =
+      stmt.map(stmtD(ctx)).getOrElse(in.Seqn(Vector.empty)(src))
+
     def stmtD(ctx: FunctionContext)(stmt: PStatement): in.Stmt = {
 
       def goS(s: PStatement): in.Stmt = stmtD(ctx)(s)
@@ -213,6 +216,27 @@ object Desugar {
           case s@ PBlock(stmts) =>
             val vars = info.variables(s) map localVarD(ctx)
             in.Block(vars, stmts map goS)(src)
+
+          case PIfStmt(ifs, els) =>
+            val elsStmt = maybeStmtD(ctx)(els)(src)
+            ifs.foldRight(elsStmt){
+              case (PIfClause(pre, cond, body), c) =>
+                val preStmt = maybeStmtD(ctx)(pre)(src)
+                val (condStmts, iCond) = exprD(ctx)(cond).run
+                in.Seqn((preStmt +: condStmts) :+ in.If(iCond, stmtD(ctx)(body), c)(src))(src)
+            }
+
+          case PForStmt(pre, cond, post, body) =>
+            val preStmt = maybeStmtD(ctx)(pre)(src)
+            val (condStmts, iCond) = exprD(ctx)(cond).run
+            val postStmt = maybeStmtD(ctx)(post)(src)
+            in.Seqn(
+              (preStmt +: condStmts) :+
+              in.While(iCond, Vector.empty, in.Seqn(Vector(
+                stmtD(ctx)(body),
+                postStmt))(src)
+              )(src)
+            )(src)
 
           case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
 
@@ -356,7 +380,23 @@ object Desugar {
             case e => Violation.violation(s"desugarer: calls on $e are not supported")
           }
 
+          case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
+
           case PEquals(left, right) => for {l <- go(left); r <- go(right)} yield in.EqCmp(l, r)(src)
+          case PUnequals(left, right) => for {l <- go(left); r <- go(right)} yield in.UneqCmp(l, r)(src)
+          case PLess(left, right) => for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
+          case PAtMost(left, right) => for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
+          case PGreater(left, right) => for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
+          case PAtLeast(left, right) => for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
+
+          case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
+          case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)
+
+          case PAdd(left, right) => for {l <- go(left); r <- go(right)} yield in.Add(l, r)(src)
+          case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
+          case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
+          case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
+          case PDiv(left, right) => for {l <- go(left); r <- go(right)} yield in.Div(l, r)(src)
 
           case l: PLiteral => litD(ctx)(l)
 
@@ -536,7 +576,7 @@ object Desugar {
       val src: Meta = meta(ass)
 
       ass match {
-        case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.Star(l, r)(src)
+        case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
         case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
         case PImplication(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
         case PAccess(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)

@@ -5,4 +5,4 @@ import viper.silver.{ast => vpr}
 /**
   * Trait Rewritable defines required methods for rewriting
   */
-trait Rewritable extends Product with vpr.utility.Rewriter.Rewritable
+trait Rewritable extends Product with vpr.utility.rewriter.Rewritable

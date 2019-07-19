@@ -1,3 +1,5 @@
+import scala.sys.process.Process
+import scala.util.Try
 
 // Import general settings from Silver, Silicon and Carbon
 lazy val silver = project in file("silver")
@@ -22,7 +24,9 @@ lazy val server = (project in file("."))
     carbon / excludeFilter := "logback.xml", /* Ignore Carbon's Logback configuration */
     Compile / unmanagedResourceDirectories += baseDirectory.value / "conf",
 
-    libraryDependencies += "org.bitbucket.inkytonik.kiama" %% "kiama" % "2.2.0", // Parsing
+    libraryDependencies +=
+      ("org.bitbucket.inkytonik.kiama" %% "kiama" % "2.2.0") // Parsing
+        .exclude("com.google.guava", "guava"),
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
     libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
     // libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
@@ -53,6 +57,21 @@ lazy val server = (project in file("."))
         fallbackStrategy(x)
     },
     assembly / test := {}
+  )
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    buildInfoKeys := Seq[BuildInfoKey](
+      "projectName" -> name.value,
+      "projectVersion" -> version.value,
+      scalaVersion,
+      sbtVersion,
+      BuildInfoKey.action("git") {
+        val revision = Try(Process("git rev-parse HEAD").!!.trim).getOrElse("<revision>")
+        val branch = Try(Process("git rev-parse --abbrev-ref HEAD").!!.trim).getOrElse("<branch>")
+        Map("revision" -> revision, "branch" -> branch)
+      }
+    ),
+    buildInfoPackage := "viper.gobra"
   )
 
 lazy val LogbackConfigurationFilePattern = """logback.*?\.xml""".r

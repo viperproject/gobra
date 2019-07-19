@@ -37,6 +37,22 @@ class StatementsImpl extends Statements {
 
       case in.Seqn(stmts) => sequence(stmts map goS) map (vpr.Seqn(_, Vector.empty)())
 
+      case in.If(cond, thn, els) => seqnE(
+          for {
+            c <- goE(cond)
+            t <- el.exprS(goS(thn))
+            e <- el.exprS(goS(els))
+          } yield vpr.If(c, vpr.Seqn(Vector(t), Vector.empty)(), vpr.Seqn(Vector(e), Vector.empty)())()
+        )
+
+      case in.While(cond, invs, body) => seqnE(
+        for {
+          vCond <- goE(cond)
+          vInvs <- el.sequence(invs map goA)
+          vBody <- el.exprS(goS(body))
+        } yield vpr.While(vCond, vInvs, vpr.Seqn(Vector(vBody), Vector.empty)())()
+      )
+
       case ass: in.SingleAss =>
         ctx.loc.assignment(ass)(ctx)
 

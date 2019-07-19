@@ -18,9 +18,6 @@ package viper.gobra.ast.internal
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 
-
-
-
 case class Program(
                     types: Vector[TopType],
                     variables: Vector[GlobalVarDecl],
@@ -76,6 +73,10 @@ case class Block(
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
+case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
+
+case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
 sealed trait Assignment extends Stmt
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
@@ -107,7 +108,7 @@ case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assertion extends Node
 
-case class Star(left: Assertion, right: Assertion)(val info: Source.Parser.Info) extends Assertion
+case class SepAnd(left: Assertion, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class ExprAssertion(exp: Expr)(val info: Source.Parser.Info) extends Assertion
 
@@ -151,16 +152,42 @@ object Addressable {
   // TODO: Field, Global
 }
 
-sealed trait BinaryExpr extends Expr {
+sealed trait BoolExpr extends Expr {
+  override val typ: Type = BoolT
+}
+
+sealed trait IntExpr extends Expr {
+  override val typ: Type = IntT
+}
+
+case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolExpr
+
+sealed abstract class BinaryExpr(val operator: String) extends Expr {
   def left: Expr
   def right: Expr
 }
 
-case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr {
-  override def typ: Type = BoolT
+object BinaryExpr {
+  def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
+    Some((arg.left, arg.operator, arg.right, arg.typ))
 }
 
+case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)      extends BinaryExpr("==") with BoolExpr
+case class UneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("!=") with BoolExpr
+case class LessCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("<" ) with BoolExpr
+case class AtMostCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)  extends BinaryExpr("<=") with BoolExpr
+case class GreaterCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">" ) with BoolExpr
+case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">=") with BoolExpr
 
+case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolExpr
+case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolExpr
+
+
+case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntExpr
+case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntExpr
+case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntExpr
+case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntExpr
+case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntExpr
 
 
 

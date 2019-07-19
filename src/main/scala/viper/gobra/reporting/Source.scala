@@ -3,8 +3,8 @@ package viper.gobra.reporting
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
-import viper.silver.ast.utility.Rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
-import viper.silver.ast.utility.Rewriter.Traverse.Traverse
+import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
+import viper.silver.ast.utility.rewriter.Traverse.Traverse
 
 object Source {
 

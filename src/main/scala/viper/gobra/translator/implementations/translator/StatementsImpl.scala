@@ -14,6 +14,7 @@ class StatementsImpl extends Statements {
   def count: Int = {counter += 1; counter}
 
   import viper.gobra.translator.util.ViperWriter.StmtLevel._
+  import viper.gobra.translator.util.ViperWriter.{ExprLevel => el}
 
   override def finalize(col: Collector): Unit = ()
 
@@ -28,7 +29,7 @@ class StatementsImpl extends Statements {
     val z = x match {
       case in.Block(vars, stmts) => block{
         for {
-          (declsWithPre, nextCtx) <- sequence(ctx)(vars map ctx.loc.bottomDecl)
+          (declsWithPre, nextCtx) <- sequenceC(ctx)(vars map ctx.loc.bottomDecl)
           (decls, pre) = declsWithPre.unzip
           body <- sequence(stmts map ctx.stmt.translateF(nextCtx))
         } yield vpr.Seqn(pre ++ body, decls)()
@@ -39,7 +40,11 @@ class StatementsImpl extends Statements {
       case ass: in.SingleAss =>
         ctx.loc.assignment(ass)(ctx)
 
-      case in.MultiAss(left, right) => ??? // TODO
+      case in.FunctionCall(targets, func, args) =>
+        seqnE(for {
+          vArgs <- el.sequence(args map goE)
+          vTargets <- el.sequence(targets map (ctx.loc.variable(_)(ctx)))
+        } yield vpr.MethodCall(func.name, vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))
 
       case in.Assert(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assert(v)())
       case in.Assume(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assume(v)()) // Assumes are later rewritten

@@ -1,9 +1,11 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
+import viper.gobra.reporting.Source.{withInfo => withExplicitInfo}
 
 class FunctionsImpl extends Functions {
 
@@ -16,7 +18,7 @@ class FunctionsImpl extends Functions {
 
       def declInit[R <: in.TopDeclaration](ds: Vector[R])(ctx: Context)
       : MemberWriter[((Vector[vpr.LocalVarDecl], Vector[sl.Writer[vpr.Stmt]]), Context)] =
-        sequence(ctx)(ds map ctx.loc.topDecl).map{ case (declWithW, c) => (declWithW.unzip, c) }
+        sequenceC(ctx)(ds map ctx.loc.topDecl).map{ case (declWithW, c) => (declWithW.unzip, c) }
 
       def clauseInit[R](ws: Vector[MemberWriter[(R, sl.Writer[vpr.Stmt])]]): MemberWriter[(Vector[R], Vector[sl.Writer[vpr.Stmt]])] =
         sequence(ws).map{ _.unzip }
@@ -28,12 +30,16 @@ class FunctionsImpl extends Functions {
         (pres, presW) <- clauseInit(x.pres map (ctx.ass.precondition(_)(ctx3)))
         (posts, postW) <- clauseInit(x.posts map (ctx.ass.postcondition(_)(ctx3)))
 
+        returnLabel = withExplicitInfo(vpr.Label(Names.returnLabel, Vector.empty))(x) // FIXME: Silver Bug, labels cannot be rewritten
+
         body <- option(x.body.map{ b => blockS{
           for {
-            pres <- sl.sequence(argW ++ argW ++ presW ++ postW)
+            prelude <- sl.sequence(argW ++ argW ++ presW ++ postW)
             core <- ctx.stmt.translate(b)(ctx3)
-          } yield vpr.Seqn(pres :+ core, Vector.empty)()
+          } yield vpr.Seqn(prelude ++ Vector(core, returnLabel), Vector(returnLabel))()
         }})
+
+
 
         method = vpr.Method(
           name = x.name,

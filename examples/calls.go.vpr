@@ -1,0 +1,18 @@
+domain Assume$ {
+  
+  
+}
+
+method foo_F0(x_V0: Int) returns (y_V0: Int)
+  ensures y_V0 == x_V0
+{
+  var x_V0_CN0: Int
+  var y_V0_CN1: Int
+  x_V0_CN0 := 0
+  y_V0_CN1 := 0
+  x_V0_CN0 := x_V0
+  y_V0_CN1 := 0
+  y_V0 := x_V0_CN0
+  goto returnLabel
+  label returnLabel
+}

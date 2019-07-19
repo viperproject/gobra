@@ -80,9 +80,6 @@ sealed trait Assignment extends Stmt
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
 
-case class MultiAss(lefts: Vector[Assignee], right: Expr)(val info: Source.Parser.Info) extends Assignment
-
-
 sealed trait Assignee extends Node
 
 object Assignee {
@@ -95,6 +92,9 @@ object Assignee {
   }
   // TODO: Index
 }
+
+case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -131,6 +131,10 @@ sealed trait Expr extends Node with Typed
 // case class FieldAccess() extends Expr
 
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
+
+case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
+  lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
+}
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr {
   require(exp.typ.isInstanceOf[PointerT])
@@ -220,6 +224,12 @@ case object PermissionT extends TopType
 case class DefinedT(name: String, right: Type) extends TopType
 
 case class PointerT(t: Type) extends TopType
+
+case class TupleT(ts: Vector[Type]) extends TopType
+
+
+sealed trait Proxy extends Node
+case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 
 
 

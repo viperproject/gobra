@@ -1,0 +1,8 @@
+package pkg
+
+
+ensures y == xfunc foo(x int) y int {
+  {
+    return x
+  }
+}

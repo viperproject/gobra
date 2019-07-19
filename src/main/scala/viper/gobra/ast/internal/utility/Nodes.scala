@@ -26,7 +26,7 @@ object Nodes {
         case Block(variables, stmts) => variables ++ stmts
         case Seqn(stmts) => stmts
         case SingleAss(left, right) => Seq(left, right)
-        case MultiAss(left, right) => left ++ Seq(right)
+        case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case Return() => Seq()
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -44,6 +44,7 @@ object Nodes {
       case Accessible.Ref(der) => Seq(der)
       case e: Expr => e match {
         case DfltVal(typ) => Seq()
+        case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
         case EqCmp(l, r) => Seq(l, r)
@@ -56,6 +57,9 @@ object Nodes {
         case LocalVar.Val(id, typ) => Seq()
       }
       case Addressable.Var(v) => Seq(v)
+      case p: Proxy => p match {
+        case FunctionProxy(name) => Seq()
+      }
     }
 //    n match {
 //      case t: Typed => subnodesWithType ++ Seq(t.typ)

@@ -9,7 +9,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type.{BooleanT, DeclaredT, IntT, PointerT, Type, VoidType}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.reporting.Source
-import viper.gobra.util.{OutputUtil, Violation, Writer, WriterUtil}
+import viper.gobra.util.{DesugarWriter, OutputUtil, Violation}
 
 object Desugar {
 
@@ -51,17 +51,24 @@ object Desugar {
 
     import viper.gobra.util.Violation._
 
+    val desugarWriter = new DesugarWriter[in.Stmt]
+    import desugarWriter._
+    type Agg[R] = desugarWriter.Writer[R]
+
+    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
+
+
     private val nm = new NameManager
 
     class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
 
-      type VarIdentity = Meta
+      type Identity = Meta
 
-      private def abstraction(id: PIdnNode): VarIdentity = {
+      private def abstraction(id: PIdnNode): Identity = {
         meta(info.regular(id).rep)
       }
 
-      private var substitutions: Map[VarIdentity, in.BodyVar] = Map.empty
+      private var substitutions: Map[Identity, in.BodyVar] = Map.empty
 
       def apply(id: PIdnNode): Option[in.BodyVar] =
         substitutions.get(abstraction(id))
@@ -69,6 +76,14 @@ object Desugar {
 
       def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
         substitutions += abstraction(from) -> to
+
+      private var proxies: Map[Identity, in.Proxy] = Map.empty
+
+      def getProxy(id: PIdnNode): Option[in.Proxy] =
+        proxies.get(abstraction(id))
+
+      def addProxy(from: PIdnNode, to: in.Proxy): Unit =
+        proxies += abstraction(from) -> to
     }
 
     def programD(p: PProgram): in.Program = {
@@ -90,6 +105,7 @@ object Desugar {
     def functionD(decl: PFunctionDecl): in.Function = {
 
       val name = idName(decl.id)
+      val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
       val (args, argSubs) = argsWithSubs.unzip
@@ -123,7 +139,7 @@ object Desugar {
           )(src)
         } else if (rets.size == 1) { // multi assignment
           in.Seqn(Vector(
-            in.MultiAss(returns.map(v => in.Assignee.Var(v)), rets.head)(src),
+            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head)(src),
             in.Return()(src)
           ))(src)
         } else {
@@ -133,6 +149,12 @@ object Desugar {
 
       // create context for body translation
       val ctx = new FunctionContext(assignReturns)
+
+      // translate pre- and postconditions before extending the context
+      val pres = decl.spec.pres map preconditionD(ctx)
+      val posts = decl.spec.posts map postconditionD(ctx)
+
+      ctx.addProxy(decl.id, in.FunctionProxy(name)(fsrc))
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -150,9 +172,6 @@ object Desugar {
         in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
       }
 
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
-
       decl.result match {
         case PVoidResult() =>
         case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
@@ -169,7 +188,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, args, returns, pres, posts, bodyOpt)(meta(decl))
+      in.Function(name, args, returns, pres, posts, bodyOpt)(fsrc)
     }
 
     def methodD(decl: PMethodDecl): in.Method = ???
@@ -182,8 +201,6 @@ object Desugar {
       def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
       def goA(a: PAssertion): Agg[in.Assertion] = assertionD(ctx)(a)
       def goL(a: PAssignee): Agg[in.Assignee] = assigneeD(ctx)(a)
-
-      import writerUtil.Syntax._
 
       val src: Meta = meta(stmt)
 
@@ -207,7 +224,7 @@ object Desugar {
             } else if (right.size == 1) {
               complete(
                 for{les <- sequence(left map goL); re  <- goE(right.head)}
-                  yield in.MultiAss(les, re)(src)
+                  yield multiassD(les, re)(src)
               )
             } else { violation("invalid assignment") }
 
@@ -224,7 +241,7 @@ object Desugar {
               complete(for{
                 les <- unit(left.map{l => Assignee.Var(localVarD(ctx)(l))})
                 re  <- goE(right.head)
-              } yield in.MultiAss(les, re)(src))
+              } yield multiassD(les, re)(src))
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left) =>
@@ -240,7 +257,7 @@ object Desugar {
               complete(for{
                 les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
                 re  <- goE(right.head)
-              } yield in.MultiAss(les, re)(src))
+              } yield multiassD(les, re)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
               val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
@@ -263,6 +280,12 @@ object Desugar {
       }
     }
 
+    def multiassD(lefts: Vector[in.Assignee], right: in.Expr)(src: Source.Parser.Info): in.Stmt = right match {
+      case Tuple(args) if args.size == lefts.size =>
+        in.Seqn(lefts.zip(args) map { case (l, r) => in.SingleAss(l, r)(src)})(src)
+
+      case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
+    }
 
 
     // Expressions
@@ -271,8 +294,6 @@ object Desugar {
 
 
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Agg[in.Assignee] = {
-
-      import writerUtil.Syntax._
 
       val src: Meta = meta(expr)
 
@@ -292,8 +313,6 @@ object Desugar {
 
       def go(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
 
-      import writerUtil.Syntax._
-
       val src: Meta = meta(expr)
 
       val typ: in.Type = typeD(info.typ(expr))
@@ -312,6 +331,31 @@ object Desugar {
             case _ => Violation.violation(s"unexpected reference receiver: $exp")
           }
 
+          case PCall(callee, args) => callee match {
+            case PNamedOperand(id) if info.regular(id).isInstanceOf[st.Function] =>
+              val fsym = info.regular(id).asInstanceOf[st.Function]
+              val fproxy = ctx.getProxy(id).asInstanceOf[FunctionProxy]
+
+              for {
+                dArgs <- sequence(args map exprD(ctx))
+                realArgs = dArgs match {
+                    // go function chaining feature
+                  case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
+                  case dargs => dargs
+                }
+                targets = fsym.decl.result match {
+                  case PVoidResult() => Vector.empty
+                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                }
+
+                _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
+
+                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+              } yield v
+
+            case e => Violation.violation(s"desugarer: calls on $e are not supported")
+          }
+
           case PEquals(left, right) => for {l <- go(left); r <- go(right)} yield in.EqCmp(l, r)(src)
 
           case l: PLiteral => litD(ctx)(l)
@@ -326,8 +370,6 @@ object Desugar {
 
 
     def litD(ctx: FunctionContext)(lit: PLiteral): Agg[in.Expr] = {
-
-      import writerUtil.Syntax._
 
       val src: Meta = meta(lit)
       def single[E <: in.Expr](gen: Meta => E): Agg[in.Expr] = unit[in.Expr](gen(src))
@@ -387,6 +429,9 @@ object Desugar {
       localVarD(ctx)(id)
     }
 
+    def freshVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =
+      in.LocalVar.Val(nm.fresh, typ)(info)
+
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
@@ -432,9 +477,7 @@ object Desugar {
       case LocalVar.Val(id, typ) => LocalVar.Val(nm.alias(id), typ)(internal.info)
     }
 
-    // Ghost Statements
-
-    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
+    // Ghost Statement
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): in.Stmt = {
 
@@ -469,11 +512,6 @@ object Desugar {
 
 
     // Assertion
-
-//    import cats.data.Writer
-//    import cats.instances.vector._
-    type Agg[R] = Writer[in.Stmt, R]
-    val writerUtil: WriterUtil[in.Stmt] = new WriterUtil[in.Stmt]
 
     def prePostConditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
       val condition = assertionD(ctx)(ass)

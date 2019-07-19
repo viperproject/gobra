@@ -5,7 +5,9 @@ func test() {
 	ar, br := &v, &v;
 	arr, brr := &ar, &br;
 
-	assert ar == br;
-	assert arr == brr;
+	assert ar == br; // satisfies
+	assert arr == brr; // fails
 };
+
+
 

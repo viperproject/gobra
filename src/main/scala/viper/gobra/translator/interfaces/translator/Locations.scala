@@ -21,4 +21,6 @@ trait Locations extends Generator {
 
   def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt]
 
+  def assignment(left: in.Assignee, right: in.Expr)(src: in.Node)(ctx: Context): StmtWriter[vpr.Stmt]
+
 }

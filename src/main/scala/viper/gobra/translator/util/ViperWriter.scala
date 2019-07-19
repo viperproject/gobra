@@ -215,7 +215,7 @@ object ViperWriter {
     def addStatements(stmts: vpr.Stmt*): Writer[Unit] =
       create(stmts.toVector.map(ExprKindCompanion.Stmt), ())
 
-    def sequence[R](ctx: Context)(ws: Vector[Context => Writer[(R, Context)]]): Writer[(Vector[R], Context)] =
+    def sequenceC[R](ctx: Context)(ws: Vector[Context => Writer[(R, Context)]]): Writer[(Vector[R], Context)] =
       ws.foldLeft(unit((Vector.empty[R], ctx))){ case (w, fw) =>
         for {
           (rs, c) <- w

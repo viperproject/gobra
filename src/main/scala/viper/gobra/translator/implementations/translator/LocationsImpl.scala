@@ -8,6 +8,7 @@ import viper.gobra.translator.util.{PrimitiveGenerator, ViperUtil}
 import viper.gobra.translator.util.ViperWriter.{ExprWriter, MemberWriter, StmtWriter}
 import viper.silver.{ast => vpr}
 import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
+import viper.silver.ast.Stmt
 
 class LocationsImpl extends Locations {
 
@@ -83,11 +84,14 @@ class LocationsImpl extends Locations {
   }
 
 
-  override def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt] = sl.withDeepInfo(ass){sl.seqnE{
-    for {
-      right <- ctx.expr.translate(ass.right)(ctx)
+  override def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt] =
+    assignment(ass.left, ass.right)(ass)(ctx)
 
-      assignment <- ass.left match {
+  override def assignment(left: in.Assignee, right: in.Expr)(src: in.Node)(ctx: Context): StmtWriter[Stmt] = sl.withDeepInfo(src){sl.seqnE{
+    for {
+      right <- ctx.expr.translate(right)(ctx)
+
+      assignment <- left match {
         case in.Assignee.Var(v: in.LocalVar.Val) =>
           for {l <- variable(v)(ctx)} yield vpr.LocalVarAssign(l, right)()
 
@@ -100,8 +104,6 @@ class LocationsImpl extends Locations {
       }
     } yield assignment
   }}
-
-
 
   /**
     * [v]w -> v      , if v is non-ref

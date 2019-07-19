@@ -93,7 +93,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
     ids.groupBy(enclosingIdScope)
   }
 
-  override def variables(s: PScope): Vector[PIdnNode] = variablesMap(s)
+  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
 
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {

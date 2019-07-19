@@ -175,7 +175,7 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> assertion).* ~ ("ensures" ~> assertion).* ^^ {
+      ("requires" ~> assertion <~ eos).* ~ ("ensures" ~> assertion <~ eos).* ^^ {
         case pres ~ posts => PFunctionSpec(pres, posts)
       }
 

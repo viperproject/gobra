@@ -1,0 +1,8 @@
+package pkg
+
+
+ensures y (:: OutParameter) == x (:: InParameter)func foo (:: Function)(x (:: InParameter) int) y (:: OutParameter) int {
+  {
+    return x (:: InParameter)
+  }
+}

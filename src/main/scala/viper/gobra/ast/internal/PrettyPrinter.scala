@@ -25,6 +25,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Accessible => showAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
+    case n: Proxy => showProxy(n)
   }
 
   // program
@@ -68,7 +69,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Block(variables, stmts) => "decl" <+> showVarDeclList(variables) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
-    case MultiAss(lefts, right) => showAssigneeList(lefts) <+> "=" <+> showExpr(right)
+
+    case FunctionCall(targets, func, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        func.name <> parens(showExprList(args))
+
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
@@ -76,14 +81,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
   }
 
+  def showProxy(x: Proxy): Doc = x match {
+    case FunctionProxy(name) => name
+  }
+
   private def showStmtList[T <: Stmt](list: Vector[T]): Doc =
     ssep(list map showStmt, line)
+
+  private def showVarList[T <: Var](list: Vector[T]): Doc =
+    showList(list)(showVar)
 
   private def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
 
   private def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
     showList(list)(showAssignee)
+
+  private def showExprList[T <: Expr](list: Vector[T]): Doc =
+    showList(list)(showExpr)
 
   def showAssignee(ass: Assignee): Doc = ass match {
     case Assignee.Var(v) => showVar(v)
@@ -107,6 +122,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showExpr(e: Expr): Doc = e match {
     case DfltVal(typ) => "dflt" <> braces(showType(typ))
+    case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
     case EqCmp(l, r) => showExpr(l) <+> "==" <+> showExpr(r)
@@ -148,7 +164,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PermissionT => "perm"
     case DefinedT(name, _) => name
     case PointerT(t) => "*" <> showType(t)
+    case TupleT(ts) => parens(showTypeList(ts))
   }
+
+  private def showTypeList[T <: Type](list: Vector[T]): Doc =
+    showList(list)(showType)
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 

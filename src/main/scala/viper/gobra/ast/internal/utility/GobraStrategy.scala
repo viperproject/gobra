@@ -160,9 +160,9 @@ object GobraStrategy {
       case (b: Block, Seq(v: Vector[LocalVar@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (s: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
-      case (m: MultiAss, Seq(l: Vector[Assignee@unchecked], r: Expr)) => MultiAss(l, r)(meta)
       case (a: Assignee.Var, Seq(v: BodyVar)) => Assignee.Var(v)
       case (a: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)
+      case (f: FunctionCall, Seq(targets: Vector[LocalVar.Val@unchecked], func: FunctionProxy, args: Vector[Expr@unchecked])) => FunctionCall(targets, func, args)(meta)
       case (r: Return, Seq()) => Return()(meta)
       case (a: Assert, Seq(ass: Assertion)) => Assert(ass)(meta)
       case (a: Assume, Seq(ass: Assertion)) => Assume(ass)(meta)
@@ -176,6 +176,7 @@ object GobraStrategy {
       case (a: Accessible.Ref, Seq(d: Deref)) => Accessible.Ref(d)
         // Expressions
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
+      case (t: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
       case (r: Ref, Seq(ref: Addressable, t: PointerT)) => Ref(ref, t)(meta)
       case (e: EqCmp, Seq(l: Expr, r: Expr)) => EqCmp(l, r)(meta)
@@ -185,7 +186,8 @@ object GobraStrategy {
       case (l: LocalVar.Val, Seq()) => LocalVar.Val(l.id, l.typ)(meta)
       case (l: LocalVar.Ref, Seq()) => LocalVar.Ref(l.id, l.typ)(meta)
       case (a: Addressable.Var, Seq(v: LocalVar.Ref)) => Addressable.Var(v)
-
+        // Proxy
+      case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
       case _ => ???
     }
 

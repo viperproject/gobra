@@ -1,0 +1,9 @@
+func foo_F0(x_V0: int) (y_V0: int)
+  ensures y_V0 == x_V0{
+  decl x_V0_CN0: int, y_V0_CN1: int
+  x_V0_CN0 = x_V0
+  y_V0_CN1 = dflt{int}
+  decl 
+  y_V0 = x_V0_CN0
+  return
+}

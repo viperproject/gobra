@@ -27,9 +27,9 @@ class StatementsImpl extends Statements {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     val z = x match {
-      case in.Block(vars, stmts) => block{
+      case in.Block(decls, stmts) => block{
         for {
-          (declsWithPre, nextCtx) <- sequenceC(ctx)(vars map ctx.loc.bottomDecl)
+          (declsWithPre, nextCtx) <- sequenceC(ctx)(decls map ctx.loc.bottomDecl)
           (decls, pre) = declsWithPre.unzip
           body <- sequence(stmts map ctx.stmt.translateF(nextCtx))
         } yield vpr.Seqn(pre ++ body, decls)()
@@ -47,10 +47,17 @@ class StatementsImpl extends Statements {
 
       case in.While(cond, invs, body) => seqnE(
         for {
-          vCond <- goE(cond)
-          vInvs <- el.sequence(invs map goA)
+          (vCond, vCondStmts) <- el.splitWrittenStmts(goE(cond))
+          (vInvs, vInvStmts) <- el.splitWrittenStmts(el.sequence(invs map goA))
           vBody <- el.exprS(goS(body))
-        } yield vpr.While(vCond, vInvs, vpr.Seqn(Vector(vBody), Vector.empty)())()
+
+          wh = vpr.Seqn(
+            vCondStmts ++ vInvStmts ++ Vector(
+              vpr.While(vCond, vInvs, vpr.Seqn(Vector(vBody) ++ vCondStmts ++ vInvStmts, Vector.empty)())()
+            ),
+            Vector.empty
+          )()
+        } yield wh
       )
 
       case ass: in.SingleAss =>
@@ -71,13 +78,13 @@ class StatementsImpl extends Statements {
 
 
     }
-    if (!x.isInstanceOf[in.Seqn]){
-      println(s"////////////////// INPUT ($count)/////////////////")
-      println(s"$x")
-      println("------------------ Output ----------------")
-      println(s"${z.res}")
-      println("//////////////////////////////////////////")
-    }
+//    if (!x.isInstanceOf[in.Seqn]){
+//      println(s"////////////////// INPUT ($count)/////////////////")
+//      println(s"$x")
+//      println("------------------ Output ----------------")
+//      println(s"${z.res}")
+//      println("//////////////////////////////////////////")
+//    }
 
     z
   }

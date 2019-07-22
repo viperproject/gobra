@@ -1,8 +1,17 @@
 package pkg
 
 
-ensures y == xfunc foo(x int) y int {
+ensures y == x + 42
+func foo(x int) y int {
   {
-    return x
+    return x + 42
+  }
+}
+
+func client() {
+  {
+    x := 13
+    z := foo(x) + 14
+    assert z == 69
   }
 }

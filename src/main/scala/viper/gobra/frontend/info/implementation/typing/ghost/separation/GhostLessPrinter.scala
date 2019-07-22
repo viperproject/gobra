@@ -30,6 +30,9 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
 
+    case PForStmt(pre, cond, post, _, body) =>
+      super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
+
     case PAssignment(right, left) =>
       AssignModi(left.size, right.size) match {
         case AssignModi.Single =>

@@ -1,8 +1,17 @@
 package pkg
 
 
-ensures y (:: OutParameter) == x (:: InParameter)func foo (:: Function)(x (:: InParameter) int) y (:: OutParameter) int {
+ensures y (:: OutParameter) == x (:: InParameter) + 42
+func foo (:: Function)(x (:: InParameter) int) y (:: OutParameter) int {
   {
-    return x (:: InParameter)
+    return x (:: InParameter) + 42
+  }
+}
+
+func client (:: Function)() {
+  {
+    x (:: SingleLocalVariable) := 13
+    z (:: SingleLocalVariable) := foo (:: Function)(x (:: SingleLocalVariable)) + 14
+    assert z (:: SingleLocalVariable) == 69
   }
 }

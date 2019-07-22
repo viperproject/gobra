@@ -182,7 +182,7 @@ case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
 case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
 
-case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
+case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
 case class PAssForRange(range: PRange, ass: Vector[PAssignee], body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -546,6 +546,11 @@ case class PFunctionSpec(
                       pres: Vector[PAssertion],
                       posts: Vector[PAssertion]
                       ) extends PSpecification
+
+
+case class PLoopSpec(
+                    invariants: Vector[PAssertion]
+                    ) extends PSpecification
 
 
 /**

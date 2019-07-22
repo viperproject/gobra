@@ -157,7 +157,7 @@ object GobraStrategy {
       case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
       case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
         // Statements
-      case (b: Block, Seq(v: Vector[LocalVar@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
+      case (b: Block, Seq(v: Vector[BottomDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (i: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (w: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)

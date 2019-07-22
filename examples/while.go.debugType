@@ -1,0 +1,16 @@
+package pkg
+
+
+requires x (:: InParameter) == 0
+ensures z (:: OutParameter) == x (:: InParameter) * y (:: InParameter)
+func test (:: Function)(x (:: InParameter) int, y (:: InParameter) int) z (:: OutParameter) int {
+  {
+    invariants z (:: OutParameter) == i (:: SingleLocalVariable) * y (:: InParameter)
+    invariants i (:: SingleLocalVariable) == x (:: InParameter)
+    for i (:: SingleLocalVariable) := 0; i (:: SingleLocalVariable) == x (:: InParameter); i (:: SingleLocalVariable) += 1 {
+      {
+        z (:: OutParameter) += y (:: InParameter)
+      }
+    }
+  }
+}

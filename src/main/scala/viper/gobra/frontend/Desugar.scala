@@ -51,22 +51,40 @@ object Desugar {
 
     import viper.gobra.util.Violation._
 
-    val desugarWriter = new DesugarWriter[in.Stmt]
+    val desugarWriter = new DesugarWriter
     import desugarWriter._
-    type Agg[R] = desugarWriter.Writer[R]
+    type Writer[R] = desugarWriter.Writer[R]
 
-    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
+//    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
 
 
     private val nm = new NameManager
 
+    type Identity = Meta
+
+    private def abstraction(id: PIdnNode): Identity = {
+      meta(info.regular(id).rep)
+    }
+
+    // TODO: make thread safe
+    private var proxies: Map[Meta, in.Proxy] = Map.empty
+
+    def getProxy(id: PIdnNode): Option[in.Proxy] =
+      proxies.get(abstraction(id))
+
+    def addProxy(from: PIdnNode, to: in.Proxy): Unit =
+      proxies += abstraction(from) -> to
+
+    def proxyD(decl: PFunctionDecl): FunctionProxy = {
+      getProxy(decl.id).getOrElse{
+        val name = idName(decl.id)
+        val proxy = FunctionProxy(name)(meta(decl))
+        addProxy(decl.id, proxy)
+        proxy
+      }.asInstanceOf[FunctionProxy]
+    }
+
     class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
-
-      type Identity = Meta
-
-      private def abstraction(id: PIdnNode): Identity = {
-        meta(info.regular(id).rep)
-      }
 
       private var substitutions: Map[Identity, in.BodyVar] = Map.empty
 
@@ -76,14 +94,14 @@ object Desugar {
 
       def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
         substitutions += abstraction(from) -> to
-
-      private var proxies: Map[Identity, in.Proxy] = Map.empty
-
-      def getProxy(id: PIdnNode): Option[in.Proxy] =
-        proxies.get(abstraction(id))
-
-      def addProxy(from: PIdnNode, to: in.Proxy): Unit =
-        proxies += abstraction(from) -> to
+//
+//      private var proxies: Map[Identity, in.Proxy] = Map.empty
+//
+//      def getProxy(id: PIdnNode): Option[in.Proxy] =
+//        proxies.get(abstraction(id))
+//
+//      def addProxy(from: PIdnNode, to: in.Proxy): Unit =
+//        proxies += abstraction(from) -> to
     }
 
     def programD(p: PProgram): in.Program = {
@@ -104,7 +122,7 @@ object Desugar {
 
     def functionD(decl: PFunctionDecl): in.Function = {
 
-      val name = idName(decl.id)
+      val name = proxyD(decl).name
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
@@ -154,22 +172,29 @@ object Desugar {
       val pres = decl.spec.pres map preconditionD(ctx)
       val posts = decl.spec.posts map postconditionD(ctx)
 
-      ctx.addProxy(decl.id, in.FunctionProxy(name)(fsrc))
-
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
         case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
         case _ => None
       }
 
-      (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case _ =>
-      }
-
       // r1' := _; ... ; rn' := _
       val returnInits = actualReturns.map{l =>
         in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
+      }
+
+      // r1 := r1'; .... rn := rn'
+      val resultAssignments =
+        returnsWithSubs.flatMap{
+          case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(fsrc))
+          case _ => None
+        } // :+ in.Return()(fsrc)
+
+
+      // extent context
+      (decl.args zip argsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case _ =>
       }
 
       decl.result match {
@@ -184,117 +209,149 @@ object Desugar {
 
       val bodyOpt = decl.body.map{ s =>
         val vars = argSubs.flatten ++ returnSubs.flatten
-        val body = argInits ++ returnInits :+ stmtD(ctx)(s)
+        val body = argInits ++ returnInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
       }
 
       in.Function(name, args, returns, pres, posts, bodyOpt)(fsrc)
     }
 
+
+
     def methodD(decl: PMethodDecl): in.Method = ???
+
+
 
     // Statements
 
-    def maybeStmtD(ctx: FunctionContext)(stmt: Option[PStatement])(src: Source.Parser.Info): in.Stmt =
-      stmt.map(stmtD(ctx)).getOrElse(in.Seqn(Vector.empty)(src))
+    def maybeStmtD(ctx: FunctionContext)(stmt: Option[PStatement])(src: Source.Parser.Info): Writer[in.Stmt] =
+      stmt.map(stmtD(ctx)).getOrElse(unit(in.Seqn(Vector.empty)(src)))
 
-    def stmtD(ctx: FunctionContext)(stmt: PStatement): in.Stmt = {
+    def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
+      val vars = info.variables(block) map localVarD(ctx)
+      val ssW = sequence(block.stmts map (s => seqn(stmtD(ctx)(s))))
+      in.Block(vars ++ ssW.decls, ssW.stmts ++ ssW.res)(meta(block))
+    }
 
-      def goS(s: PStatement): in.Stmt = stmtD(ctx)(s)
-      def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Agg[in.Assertion] = assertionD(ctx)(a)
-      def goL(a: PAssignee): Agg[in.Assignee] = assigneeD(ctx)(a)
+    def halfScopeFinish(ctx: FunctionContext)(scope: PScope)(desugared: in.Stmt): in.Block = {
+      val decls = info.variables(scope) map localVarD(ctx)
+      in.Block(decls, Vector(desugared))(desugared.info)
+    }
+
+
+    def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
+
+      def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
       val src: Meta = meta(stmt)
 
       stmt match {
         case NoGhost(noGhost) => noGhost match {
-          case _: PEmptyStmt => in.Seqn(Vector.empty)(src)
+          case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
-          case PSeq(stmts) => in.Seqn(stmts map goS)(src)
+          case PSeq(stmts) => for {ss <- sequence(stmts map goS)} yield in.Seqn(ss)(src)
 
-          case s@ PBlock(stmts) =>
-            val vars = info.variables(s) map localVarD(ctx)
-            in.Block(vars, stmts map goS)(src)
+          case b: PBlock => unit(blockD(ctx)(b))
 
-          case PIfStmt(ifs, els) =>
+          case s@ PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
             ifs.foldRight(elsStmt){
               case (PIfClause(pre, cond, body), c) =>
-                val preStmt = maybeStmtD(ctx)(pre)(src)
-                val (condStmts, iCond) = exprD(ctx)(cond).run
-                in.Seqn((preStmt +: condStmts) :+ in.If(iCond, stmtD(ctx)(body), c)(src))(src)
-            }
+                for {
+                  dPre <- maybeStmtD(ctx)(pre)(src)
+                  dCond <- exprD(ctx)(cond)
+                  dBody = blockD(ctx)(body)
+                  els <- seqn(c)
+                } yield in.Seqn(Vector(dPre, in.If(dCond, dBody, els)(src)))(src)
+            }.map(halfScopeFinish(ctx)(s))
 
-          case PForStmt(pre, cond, post, body) =>
-            val preStmt = maybeStmtD(ctx)(pre)(src)
-            val (condStmts, iCond) = exprD(ctx)(cond).run
-            val postStmt = maybeStmtD(ctx)(post)(src)
-            in.Seqn(
-              (preStmt +: condStmts) :+
-              in.While(iCond, Vector.empty, in.Seqn(Vector(
-                stmtD(ctx)(body),
-                postStmt))(src)
+          case s@ PForStmt(pre, cond, post, spec, body) =>
+            for {
+              dPre <- maybeStmtD(ctx)(pre)(src)
+              (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+              dBody = blockD(ctx)(body)
+              dPost <- maybeStmtD(ctx)(post)(src)
+
+              wh = in.Seqn(
+                Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
+                  in.While(dCond, dInv, in.Seqn(
+                  Vector(dBody, dPost) ++ dCondPre ++ dInvPre
+                  )(src))(src)
+                )
               )(src)
-            )(src)
+            } yield halfScopeFinish(ctx)(s)(wh)
 
-          case PExpressionStmt(e) => in.Seqn(goE(e).written)(src) // TODO: check this translation
+          case PExpressionStmt(e) =>
+            val w = goE(e)
+            create(stmts = w.stmts, decls = w.decls, res = in.Seqn(Vector.empty)(src))
 
           case PAssignment(right, left) =>
             if (left.size == right.size) {
-              in.Seqn((left zip right).map{ case (l, r) =>
-                complete(for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src))
-              })(src)
+              sequence((left zip right).map{ case (l, r) =>
+                for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src)
+              }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
-              complete(
-                for{les <- sequence(left map goL); re  <- goE(right.head)}
-                  yield multiassD(les, re)(src)
-              )
+              for{les <- sequence(left map goL); re  <- goE(right.head)}
+                yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
+
+          case PAssignmentWithOp(right, op, left) =>
+              for {
+                l <- goL(left)
+                r <- goE(right)
+
+                rWithOp = op match {
+                  case PAddOp() => in.Add(l.v, r)(src)
+                  case PSubOp() => in.Sub(l.v, r)(src)
+                  case PMulOp() => in.Mul(l.v, r)(src)
+                  case PDivOp() => in.Div(l.v, r)(src)
+                  case PModOp() => in.Mod(l.v, r)(src)
+                }
+              } yield in.SingleAss(l, rWithOp)(src)
 
           case PShortVarDecl(right, left) =>
 
             if (left.size == right.size) {
-              in.Seqn((left zip right).map{ case (l, r) =>
-                complete(for{
+              sequence((left zip right).map{ case (l, r) =>
+                for{
                   le <- unit(Assignee.Var(localVarD(ctx)(l)))
                   re <- goE(r)
-                } yield in.SingleAss(le, re)(src))
-              })(src)
+                } yield in.SingleAss(le, re)(src)
+              }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
-              complete(for{
+              for{
                 les <- unit(left.map{l => Assignee.Var(localVarD(ctx)(l))})
                 re  <- goE(right.head)
-              } yield multiassD(les, re)(src))
+              } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left) =>
 
             if (left.size == right.size) {
-              in.Seqn((left zip right).map{ case (l, r) =>
-                complete(for{
+              sequence((left zip right).map{ case (l, r) =>
+                for{
                   le <- unit(Assignee.Var(localVarD(ctx)(l)))
                   re <- goE(r)
-                } yield in.SingleAss(le, re)(src))
-              })(src)
+                } yield in.SingleAss(le, re)(src)
+              }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
-              complete(for{
+              for{
                 les <- unit(left.map{l =>  Assignee.Var(localVarD(ctx)(l))})
                 re  <- goE(right.head)
-              } yield multiassD(les, re)(src))
+              } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => Assignee.Var(localVarD(ctx)(l)) }
               val relems = left.map{ l => DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
-              in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src)
+              unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
 
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
-            complete(for{es <- sequence(exps map goE)} yield ctx.ret(es)(src))
-          //            for{
-          //            elems <- sequence(exps map goE)
-          //          } yield ctx.ret(elems))
-
+            for{es <- sequence(exps map goE)} yield ctx.ret(es)(src)
 
           case g: PGhostStatement => ghostStmtD(ctx)(g)
 
@@ -317,7 +374,7 @@ object Desugar {
 
 
 
-    def assigneeD(ctx: FunctionContext)(expr: PExpression): Agg[in.Assignee] = {
+    def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
 
       val src: Meta = meta(expr)
 
@@ -333,9 +390,9 @@ object Desugar {
       }
     }
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): Agg[in.Expr] = {
+    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
 
-      def go(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       val src: Meta = meta(expr)
 
@@ -358,7 +415,7 @@ object Desugar {
           case PCall(callee, args) => callee match {
             case PNamedOperand(id) if info.regular(id).isInstanceOf[st.Function] =>
               val fsym = info.regular(id).asInstanceOf[st.Function]
-              val fproxy = ctx.getProxy(id).asInstanceOf[FunctionProxy]
+              val fproxy = proxyD(fsym.decl)
 
               for {
                 dArgs <- sequence(args map exprD(ctx))
@@ -372,12 +429,39 @@ object Desugar {
                   case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
                 }
 
+                _ <- declare(targets: _*)
                 _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
 
                 v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
             case e => Violation.violation(s"desugarer: calls on $e are not supported")
+          }
+
+          case PConversionOrUnaryCall(base, arg) => base match {
+            case id if info.regular(id).isInstanceOf[st.Function] =>
+              val fsym = info.regular(id).asInstanceOf[st.Function]
+              val fproxy = proxyD(fsym.decl)
+
+              for {
+                dArg <- exprD(ctx)(arg)
+                realArgs = dArg match {
+                  // go function chaining feature
+                  case in.Tuple(targs) if fsym.decl.args.size > 1 => targs
+                  case darg => Vector(darg)
+                }
+                targets = fsym.decl.result match {
+                  case PVoidResult() => Vector.empty
+                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                }
+
+                _ <- declare(targets: _*)
+                _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
+
+                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+              } yield v
+
+            case e => Violation.violation(s"desugarer: conversion $e is not supported")
           }
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
@@ -409,10 +493,10 @@ object Desugar {
 
 
 
-    def litD(ctx: FunctionContext)(lit: PLiteral): Agg[in.Expr] = {
+    def litD(ctx: FunctionContext)(lit: PLiteral): Writer[in.Expr] = {
 
       val src: Meta = meta(lit)
-      def single[E <: in.Expr](gen: Meta => E): Agg[in.Expr] = unit[in.Expr](gen(src))
+      def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
@@ -519,17 +603,17 @@ object Desugar {
 
     // Ghost Statement
 
-    def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): in.Stmt = {
+    def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): Writer[in.Stmt] = {
 
-      def goA(ass: PAssertion): Agg[in.Assertion] = assertionD(ctx)(ass)
+      def goA(ass: PAssertion): Writer[in.Assertion] = assertionD(ctx)(ass)
 
       val src: Meta = meta(stmt)
 
       stmt match {
-        case PAssert(exp) => complete(for {e <- goA(exp)} yield in.Assert(e)(src))
-        case PAssume(exp) => complete(for {e <- goA(exp)} yield in.Assume(e)(src))
-        case PInhale(exp) => complete(for {e <- goA(exp)} yield in.Inhale(e)(src))
-        case PExhale(exp) => complete(for {e <- goA(exp)} yield in.Exhale(e)(src))
+        case PAssert(exp) => for {e <- goA(exp)} yield in.Assert(e)(src)
+        case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
+        case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
+        case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -537,9 +621,9 @@ object Desugar {
 
     // Ghost Expression
 
-    def ghostExprD(ctx: FunctionContext)(expr: PGhostExpression): Agg[in.Expr] = {
+    def ghostExprD(ctx: FunctionContext)(expr: PGhostExpression): Writer[in.Expr] = {
 
-      def go(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
+      def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       val src: Meta = meta(expr)
 
@@ -555,7 +639,7 @@ object Desugar {
 
     def prePostConditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
       val condition = assertionD(ctx)(ass)
-      Violation.violation(condition.out.isEmpty, s"assertion is not supported as a condition $ass")
+      Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
       condition.res
     }
 
@@ -568,10 +652,10 @@ object Desugar {
     }
 
 
-    def assertionD(ctx: FunctionContext)(ass: PAssertion): Agg[in.Assertion] = {
+    def assertionD(ctx: FunctionContext)(ass: PAssertion): Writer[in.Assertion] = {
 
-      def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Agg[in.Assertion] = assertionD(ctx)(a)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
 
       val src: Meta = meta(ass)
 
@@ -585,9 +669,9 @@ object Desugar {
       }
     }
 
-    def accessibleD(ctx: FunctionContext)(acc: PAccessible): Agg[in.Accessible] = {
+    def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {
 
-      def goE(e: PExpression): Agg[in.Expr] = exprD(ctx)(e)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       val src: Meta = meta(acc)
 

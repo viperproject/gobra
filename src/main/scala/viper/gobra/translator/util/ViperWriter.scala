@@ -282,6 +282,13 @@ object ViperWriter {
 
     def exprS[R](w: StmtLevel.Writer[R]): Writer[R] = create(w.sum.data ++ w.sum.remainder, w.res)
     def prelim[R <: vpr.Stmt](w: StmtLevel.Writer[R]): Writer[Unit] = exprS(w).flatMap(s => addStatements(s))
+    def splitWrittenStmts[R](w: Writer[R]): Writer[(R, Vector[vpr.Stmt])] = {
+      val (dataWithStmt, dataWithout) = w.sum.data.partition(_.isInstanceOf[ExprKindCompanion.Stmt])
+      val newWriter = Writer(DataContainer(dataWithout, w.sum.remainder), w.res)
+      val stmts = dataWithStmt.collect{ case ExprKindCompanion.Stmt(x) => x }
+      newWriter.map((_, stmts))
+    }
+
   }
 
   type ExprWriter[R] = ExprLevel.Writer[R]

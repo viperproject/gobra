@@ -88,9 +88,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showSpec(spec: PSpecification): Doc = spec match {
     case PFunctionSpec(pres, posts) =>
-      ssep(pres map (p => "requires" <+> showAssertion(p)), line) <>
-        ssep(posts map (p => "ensures" <+> showAssertion(p)), line)
+      hcat(pres map (p => "requires" <+> showAssertion(p) <> line)) <>
+        hcat(posts map (p => "ensures" <+> showAssertion(p) <> line))
 
+    case PLoopSpec(inv) =>
+      hcat(inv map (p => "invariants" <+> showAssertion(p) <> line))
   }
 
   def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))
@@ -159,11 +161,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "switch" <> showPreStmt(pre) <> opt(binder)(space <> showId(_) <+> ":=") <+> showExpr(exp) <> ".(type)" <+> block(
           ssep(cases map showTypeSwitchClause, line)) <>
           ssep(dflt map {d => "default"  <> ":" <> showNestedStmtList(d.stmts) }, line)
-      case PForStmt(pre, cond, post, body) => (pre, cond, post) match {
-        case (None, PBoolLit(true), None) => "for" <+> block(showStmt(body))
+      case PForStmt(pre, cond, post, spec, body) => showSpec(spec) <> ((pre, cond, post) match {
+        case (None, PBoolLit(true), None) =>  "for" <+> block(showStmt(body))
         case (None, _, None) => "for" <+> showExpr(cond) <+> block(showStmt(body))
         case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> block(showStmt(body))
-      }
+      })
       case PAssForRange(range, ass, body) =>
         "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
       case PShortForRange(range, shorts, body) =>

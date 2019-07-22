@@ -23,7 +23,7 @@ object Nodes {
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver) ++ args ++ results ++ pres ++ posts ++ body
       case Function(name, args, results, pres, posts, body) => args ++ results ++ pres ++ posts ++ body
       case s: Stmt => s match {
-        case Block(variables, stmts) => variables ++ stmts
+        case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)

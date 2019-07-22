@@ -1,9 +1,15 @@
 package pkg;
 
 
-ensures y == x;
+ensures y == x + 42;
 func foo(x int) (y int) {
-	return x;
+	return x + 42;
+};
+
+func client() {
+	x := 13;
+	z := foo(x) + 14;
+	assert z == 69;
 };
 
 

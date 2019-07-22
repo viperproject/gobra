@@ -67,8 +67,8 @@ sealed trait TopDeclaration extends Declaration
 sealed trait BottomDeclaration extends Declaration
 
 case class Block(
-                variables: Vector[LocalVar],
-                stmts: Vector[Stmt]
+                  decls: Vector[BottomDeclaration],
+                  stmts: Vector[Stmt]
                 )(val info: Source.Parser.Info) extends Stmt
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
@@ -81,15 +81,17 @@ sealed trait Assignment extends Stmt
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
 
-sealed trait Assignee extends Node
+sealed trait Assignee extends Node {
+  def v: Expr
+}
 
 object Assignee {
   case class Var(v: BodyVar) extends Assignee {
     override def info: Parser.Info = v.info
   }
   // case class Field(f: FieldAccess) extends Assignee
-  case class Pointer(e: Deref) extends Assignee {
-    override def info: Parser.Info = e.info
+  case class Pointer(v: Deref) extends Assignee {
+    override def info: Parser.Info = v.info
   }
   // TODO: Index
 }

@@ -1,0 +1,16 @@
+package pkg
+
+
+requires x == 0
+ensures z == x * y
+func test(x int, y int) z int {
+  {
+    invariants z == i * y
+    invariants i == x
+    for i := 0; i == x; i += 1 {
+      {
+        z += y
+      }
+    }
+  }
+}

@@ -55,10 +55,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     "type" <+> t.name <+> showType(t.right)
 
   def showPreconditions[T <: Assertion](list: Vector[T]): Doc =
-    ssep(list  map ("requires" <> showAss(_)), line)
+    hcat(list  map ("requires" <> showAss(_) <> line))
 
   def showPostconditions[T <: Assertion](list: Vector[T]): Doc =
-    ssep(list  map ("ensures " <> showAss(_)), line)
+    hcat(list  map ("ensures " <> showAss(_) <> line))
 
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
     showVarDeclList(list)
@@ -66,11 +66,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // statements
 
   def showStmt(s: Stmt): Doc = s match {
-    case Block(variables, stmts) => "decl" <+> showVarDeclList(variables) <> line <> showStmtList(stmts)
+    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
-      ssep(invs  map ("invariant " <> showAss(_)), line) <> block(showStmt(body))
+      hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
@@ -88,6 +88,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FunctionProxy(name) => name
   }
 
+  def showBottomDecl(x: BottomDeclaration): Doc = x match {
+    case localVar: LocalVar => showVar(localVar)
+  }
+
   private def showStmtList[T <: Stmt](list: Vector[T]): Doc =
     ssep(list map showStmt, line)
 
@@ -96,6 +100,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   private def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
+
+  private def showBottomDeclList[T <: BottomDeclaration](list: Vector[T]): Doc =
+    showList(list)(showBottomDecl)
 
   private def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
     showList(list)(showAssignee)
@@ -124,7 +131,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // expressions
 
   def showExpr(e: Expr): Doc = e match {
-    case DfltVal(typ) => "dflt" <> braces(showType(typ))
+    case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)

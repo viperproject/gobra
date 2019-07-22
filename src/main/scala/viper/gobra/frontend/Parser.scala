@@ -188,7 +188,6 @@ object Parser {
       * Statements
       */
 
-
     lazy val statement: Parser[PStatement] =
       ghostStatement |
       declarationStmt |
@@ -236,7 +235,8 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selectionOrMethodExpr | selection | indexedExp | "*" ~> unaryExp ^^ PDereference
+      selectionOrMethodExpr | selection | indexedExp | ("*" ~> unaryExp ^^ PDereference) | namedOperand
+
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(idnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^
@@ -362,11 +362,14 @@ object Parser {
       forStmt | assForRange | shortForRange
 
     lazy val forStmt: Parser[PForStmt] =
-      pos("for") ~ block ^^ { case pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, b) } |
-      ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
-        case pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, body)
-        case pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, body)
+      loopSpec ~ pos("for") ~ block ^^ { case spec ~ pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, spec, b) } |
+      loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
+        case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
+        case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
       }
+
+    lazy val loopSpec: Parser[PLoopSpec] =
+      ("invariant" ~> assertion <~ eos).* ^^ PLoopSpec
 
     lazy val assForRange: Parser[PAssForRange] =
       ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^

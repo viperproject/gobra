@@ -90,6 +90,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
       case id: PIdnUnk if isDef(id) => id
     }
 
+    println(s"THESE ARE THE IDS: $ids")
+
     ids.groupBy(enclosingIdScope)
   }
 

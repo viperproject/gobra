@@ -60,7 +60,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         message(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
       } // TODO: also check that cases have type that could implement the type
 
-    case n@PForStmt(_, cond, _, _) => comparableTypes.errors(exprType(cond), BooleanT)(n)
+    case n@PForStmt(_, cond, _, _, _) => comparableTypes.errors(exprType(cond), BooleanT)(n)
 
     case n@PShortForRange(exp, lefts, _) =>
       if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)

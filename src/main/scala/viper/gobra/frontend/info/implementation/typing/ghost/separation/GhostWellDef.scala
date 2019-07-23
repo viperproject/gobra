@@ -34,6 +34,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
          |  _: PEmptyStmt
          |  _: PBlock
          |  _: PSeq
+         |  _: PExpressionStmt
     => noMessages
 
     case n@ (

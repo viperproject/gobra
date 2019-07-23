@@ -10,3 +10,5 @@ carbon
 silver
 silicon
 logger.log
+
+examples/*.go.*

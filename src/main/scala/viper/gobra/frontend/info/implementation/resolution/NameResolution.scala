@@ -105,7 +105,12 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
     case n: PProgram => addShallowDefToEnv(rootenv())(n)
     case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
-    case scope: PScope => println("enter scope"); enter(in(scope))
+    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) => println("enter scope"); enter(in(scope))
+  }
+
+  private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
+    case tree.parent.pair(_: PBlock, _: PMethodDecl | _: PFunctionDecl) => true
+    case _ => false
   }
 
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {
@@ -115,9 +120,10 @@ trait NameResolution { this: TypeInfoImpl =>
       defineIfNew(out(id), serialize(id), defEntity(id))
 
     case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
+      println(s"add ${id.name} to" + out(id).map(_.keySet))
       define(out(id), serialize(id), unkEntity(id))
 
-    case scope: PScope =>
+    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       println("leave scope")
       leave(out(scope))
   }

@@ -35,8 +35,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleLocalVariable(decl.right(idx), decl.typ, isGhost)
+            case AssignModi.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost)
             case AssignModi.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost)
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -70,7 +71,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleLocalVariable(decl.right(idx), None, isGhost)
+            case AssignModi.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost)
             case AssignModi.Multi => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
@@ -85,7 +86,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val len = decl.shorts.size
 
           AssignModi(len, 1) match {
-            case AssignModi.Single => SingleLocalVariable(decl.recv, None, isGhost)
+            case AssignModi.Single => SingleLocalVariable(Some(decl.recv), None, isGhost)
             case AssignModi.Multi  => MultiLocalVariable(idx, decl.recv, isGhost)
             case _ => UnknownEntity()
           }

@@ -36,7 +36,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     })
 
     case SingleLocalVariable(exp, opt, _) => message(id, s"variable $id is not defined", ! {
-      opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+      opt.exists(wellDefType.valid) || exp.exists(e => wellDefExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
     case MultiLocalVariable(idx, exp, _) => message(id, s"variable $id is not defined", ! {
@@ -114,7 +114,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case SingleLocalVariable(exp, opt, _) => opt.map(typeType)
-      .getOrElse(exprType(exp) match {
+      .getOrElse(exprType(exp.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })

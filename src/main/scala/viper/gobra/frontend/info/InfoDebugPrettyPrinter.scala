@@ -1,16 +1,22 @@
 package viper.gobra.frontend.info
 
-import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{DefaultPrettyPrinter, PIdnNode}
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
+import scala.util.{Failure, Success, Try}
+
 class InfoDebugPrettyPrinter(val info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
-  override def showId(id: PIdnNode): Doc = super.showId(id) <+> parens("::" <+> showEntity(info.regular(id)))
+  override def showId(id: PIdnNode): Doc = super.showId(id) <+> parens("::" <+> showEntity(id))
 
-  def showEntity(e: Entity): Doc = e match {
-    case r: Regular => r.getClass.getSimpleName
-    case x => x.toString
+  def showEntity(id: PIdnNode): Doc = {
+    Try(info.regular(id)) match {
+      case Failure(_) => "non-regular entity"
+      case Success(value) => value match {
+        case r: Regular => r.getClass.getSimpleName
+        case x => x.toString
+      }
+    }
   }
 }

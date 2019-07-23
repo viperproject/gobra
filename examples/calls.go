@@ -13,4 +13,17 @@ func client() {
 };
 
 
+requires x >= 0;
+func fib(x int) (y int) {
+	if x == 0 {
+		return 0;
+	} else if x == 1 {
+		return 1;
+	} else {
+		a, b := fib(x-1), fib(x-2);
+		return a + b;
+	};
+};
+
+
 

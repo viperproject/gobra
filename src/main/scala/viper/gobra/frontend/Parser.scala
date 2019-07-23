@@ -225,8 +225,8 @@ object Parser {
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
       assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1), PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1), PSubOp().at(e), e).at(e))
+        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
+        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |

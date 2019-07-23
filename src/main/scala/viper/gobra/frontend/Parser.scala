@@ -199,6 +199,7 @@ object Parser {
         anyForStmt |
         exprSwitchStmt |
         typeSwitchStmt |
+        selectStmt |
         block |
         simpleStmt |
         emptyStmt

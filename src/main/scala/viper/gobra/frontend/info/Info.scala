@@ -25,7 +25,7 @@ object Info {
     val result = if (errors.isEmpty) {
 
       // print program with ghost code erased
-      if (config.printGhostLess()) {
+      if (config.eraseGhost()) {
         val ghostLessPrinter = new GhostLessPrinter(info)
         val outputFile = OutputUtil.postfixFile(config.inputFile(), "ghostLess")
         FileUtils.writeStringToFile(

@@ -3,7 +3,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.property.AssignModi
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 
 trait NameResolution { this: TypeInfoImpl =>
 
@@ -25,18 +25,18 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PConstDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleConstant(decl.right(idx), decl.typ, isGhost)
-            case AssignModi.Multi => MultiConstant(idx, decl.right.head, isGhost)
+          StrictAssignModi(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleConstant(decl.right(idx), decl.typ, isGhost)
+            case AssignMode.Multi => MultiConstant(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
         case decl: PVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost)
-            case AssignModi.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost)
+          StrictAssignModi(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost)
             case _ => UnknownEntity()
           }
@@ -70,9 +70,9 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PShortVarDecl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
-          AssignModi(decl.left.size, decl.right.size) match {
-            case AssignModi.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost)
-            case AssignModi.Multi => MultiLocalVariable(idx, decl.right.head, isGhost)
+          StrictAssignModi(decl.left.size, decl.right.size) match {
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost)
+            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -85,9 +85,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
-          AssignModi(len, 1) match {
-            case AssignModi.Single => SingleLocalVariable(Some(decl.recv), None, isGhost)
-            case AssignModi.Multi  => MultiLocalVariable(idx, decl.recv, isGhost)
+          StrictAssignModi(len, 1) match {
+            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost)
             case _ => UnknownEntity()
           }
 
@@ -105,7 +105,9 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
     case n: PProgram => addShallowDefToEnv(rootenv())(n)
     case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
-    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) => println("enter scope"); enter(in(scope))
+    case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
+      logger.debug(scope.toString)
+      enter(in(scope))
   }
 
   private def scopeSpecialCaseWithNoNewScope(s: PScope): Boolean = s match {
@@ -116,15 +118,12 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {
 
     case id: PIdnDef if doesAddEntry(id) && !isUnorderedDef(id) =>
-      println(s"add ${id.name} to" + out(id).map(_.keySet))
       defineIfNew(out(id), serialize(id), defEntity(id))
 
     case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
-      println(s"add ${id.name} to" + out(id).map(_.keySet))
       define(out(id), serialize(id), unkEntity(id))
 
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
-      println("leave scope")
       leave(out(scope))
   }
 
@@ -210,7 +209,6 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
       case n =>
-        println(s"lookup of ${n.name} in" + sequentialDefenv(n).map(_.keySet))
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
     }
 

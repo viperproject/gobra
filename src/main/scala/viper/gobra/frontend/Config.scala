@@ -9,9 +9,11 @@ package viper.gobra.frontend
 import java.io.File
 import java.nio.file.Files
 
-import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.{Level, Logger}
 import com.typesafe.scalalogging.StrictLogging
 import org.rogach.scallop.{ScallopConf, ScallopOption, Util, singleArgConverter}
+import org.slf4j.LoggerFactory
+import viper.gobra.GoVerifier
 
 class Config(arguments: Seq[String])
     extends ScallopConf(arguments)
@@ -20,6 +22,21 @@ class Config(arguments: Seq[String])
   /**
     * Prologue
     */
+
+  version(
+    s"""
+       | ${GoVerifier.name} ${GoVerifier.copyright}
+       |   version ${GoVerifier.version}
+     """.stripMargin
+  )
+
+  banner(
+    s""" Usage: ${GoVerifier.name} -i <input-file> [OPTIONS]
+       |
+       | Options:
+       |""".stripMargin
+  )
+
   /**
     * Command-line options
     */
@@ -28,46 +45,45 @@ class Config(arguments: Seq[String])
     descr = "Go program to verify is read from this file"
   )(singleArgConverter(arg => new File(arg)))
 
+  val debug: ScallopOption[Boolean] = toggle(
+    name = "debug",
+    descrYes = "Output additional debug information",
+    default = Some(false)
+  )
+
   val logLevel: ScallopOption[Level] = opt[Level](
     name = "logLevel",
     descr =
       "One of the log levels ALL, TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: OFF)",
-    default = Some(Level.INFO),
+    default = Some(if (debug()) Level.DEBUG else Level.INFO),
     noshort = true
   )(singleArgConverter(arg => Level.toLevel(arg.toUpperCase)))
 
-  val unparse: ScallopOption[Boolean] = opt[Boolean](
-    name = "unparse",
-    descr = "Print the parsed program",
-    default = Some(true),
-    noshort = true
-  )
-
-  val printGhostLess: ScallopOption[Boolean] = opt[Boolean](
-    name = "printGhostLess",
-    descr = "Print the input program without ghost code",
+  val eraseGhost: ScallopOption[Boolean] = toggle(
+    name = "eraseGhost",
+    descrYes = "Print the input program without ghost code",
     default = Some(false),
     noshort = true
   )
 
-  val printInternal: ScallopOption[Boolean] = opt[Boolean](
+  val unparse: ScallopOption[Boolean] = toggle(
+    name = "unparse",
+    descrYes = "Print the parsed program",
+    default = Some(debug()),
+    noshort = true
+  )
+
+  val printInternal: ScallopOption[Boolean] = toggle(
     name = "printInternal",
-    descr = "Print the internal program representation",
-    default = Some(true),
+    descrYes = "Print the internal program representation",
+    default = Some(debug()),
     noshort = true
   )
 
-  val printVpr: ScallopOption[Boolean] = opt[Boolean](
+  val printVpr: ScallopOption[Boolean] = toggle(
     name = "printVpr",
-    descr = "Print the encoded Viper program",
-    default = Some(true),
-    noshort = true
-  )
-
-  val debug: ScallopOption[Boolean] = opt[Boolean](
-    name = "debug",
-    descr = "Output additional debug information",
-    default = Some(true),
+    descrYes = "Print the encoded Viper program",
+    default = Some(debug()),
     noshort = true
   )
 
@@ -96,5 +112,11 @@ class Config(arguments: Seq[String])
   validateFileIsReadable(inputFile)
 
   verify()
+
+  /** set log level */
+
+  LoggerFactory.getLogger(GoVerifier.rootLogger)
+    .asInstanceOf[Logger]
+    .setLevel(logLevel())
 
 }

@@ -8,9 +8,7 @@ package viper.gobra
 
 import java.io.File
 
-import ch.qos.logback.classic.Logger
 import com.typesafe.scalalogging.StrictLogging
-import org.slf4j.LoggerFactory
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.{Config, Desugar, Parser}
@@ -22,6 +20,8 @@ object GoVerifier {
   val copyright = "(c) Copyright ETH Zurich 2012 - 2019"
 
   val name = "Gobra"
+
+  val rootLogger = "viper.gobra"
 
   val version: String = {
     val buildRevision = BuildInfo.git("revision")
@@ -39,14 +39,6 @@ trait GoVerifier {
   }
 
   def verify(config: Config): VerifierResult = {
-
-    // set log level from config
-    {
-      // TODO: check logger setup, maybe use multiple logger if required
-      val packageLogger = LoggerFactory.getLogger(this.getClass.getPackage.getName).asInstanceOf[Logger]
-      packageLogger.setLevel(config.logLevel())
-    }
-
     verify(config.inputFile(), config)
   }
 
@@ -69,18 +61,18 @@ class Gobra extends GoVerifier {
   }
 }
 
-class GobraFrontend extends StrictLogging {
+class GobraFrontend {
 
   def createVerifier(config: Config): GoVerifier = {
     new Gobra
   }
 }
 
-object GobraRunner extends GobraFrontend {
+object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    val config= new Config(args)
-    val verifier= createVerifier(config)
-    val result= verifier.verify(config)
+    val config = new Config(args)
+    val verifier = createVerifier(config)
+    val result = verifier.verify(config)
 
     result match {
       case VerifierResult.Success =>

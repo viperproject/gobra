@@ -1,5 +1,6 @@
 package viper.gobra.frontend.info.implementation
 
+import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
@@ -47,6 +48,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with UnderlyingType
 
   with Errors
+  with StrictLogging
 {
   import viper.gobra.util.Violation._
 
@@ -89,8 +91,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
       case id: PIdnDef              => id
       case id: PIdnUnk if isDef(id) => id
     }
-
-    println(s"THESE ARE THE IDS: $ids")
 
     ids.groupBy(enclosingIdScope)
   }

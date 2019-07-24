@@ -16,13 +16,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
-      AssignModi(left.size, right.size) match {
-        case AssignModi.Single => propForall(right.zip(left), assignableTo)
-        case AssignModi.Multi => right.head match {
+      StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Single => propForall(right.zip(left), assignableTo)
+        case AssignMode.Multi => right.head match {
           case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
-        case AssignModi.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+        case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
       }
   }
 

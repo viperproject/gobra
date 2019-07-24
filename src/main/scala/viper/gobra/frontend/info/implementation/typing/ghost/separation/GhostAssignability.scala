@@ -5,7 +5,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Function, MethodImpl, MethodSpec, Regular}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.property.{AssignModi, NonStrictAssignModi}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
 import viper.gobra.util.Violation
 
 trait GhostAssignability { this: TypeInfoImpl =>
@@ -63,13 +63,13 @@ trait GhostAssignability { this: TypeInfoImpl =>
   private def generalAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
     NonStrictAssignModi(lefts.size, rights.size) match {
 
-      case NonStrictAssignModi.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+      case AssignMode.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
 
-      case NonStrictAssignModi.Multi =>
+      case AssignMode.Multi =>
         val gt = typing(rights.head)
         lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.isIdxGhost(idx), l) }.toVector
 
-      case NonStrictAssignModi.Error => Violation.violation("assignment mismatch")
+      case AssignMode.Error => Violation.violation("assignment mismatch")
     }
 
 

@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.implementation.property.AssignModi
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 import viper.gobra.util.Violation
 
 class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter {
@@ -34,29 +34,29 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
 
     case PAssignment(right, left) =>
-      AssignModi(left.size, right.size) match {
-        case AssignModi.Single =>
+      StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Single =>
           val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isExprGhost(p._2)).unzip
           if (aLeft.isEmpty) ghostToken else super.showStmt(PAssignment(aRight, aLeft))
 
-        case AssignModi.Multi =>
+        case AssignMode.Multi =>
           val aLeft = left.filter(!classifier.isExprGhost(_))
           if (aLeft.isEmpty) ghostToken else super.showStmt(PAssignment(right, aLeft))
 
-        case AssignModi.Error => errorMsg
+        case AssignMode.Error => errorMsg
       }
 
     case PShortVarDecl(right, left) =>
-      AssignModi(left.size, right.size) match {
-        case AssignModi.Single =>
+      StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Single =>
           val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isIdGhost(p._2)).unzip
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(aRight, aLeft))
 
-        case AssignModi.Multi =>
+        case AssignMode.Multi =>
           val aLeft = left.filter(!classifier.isIdGhost(_))
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(right, aLeft))
 
-        case AssignModi.Error => errorMsg
+        case AssignMode.Error => errorMsg
       }
 
     case n@ PReturn(right) =>

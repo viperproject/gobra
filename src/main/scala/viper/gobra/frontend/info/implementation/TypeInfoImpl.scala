@@ -81,6 +81,14 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   override def addressed(id: PIdnNode): Boolean = hasAddressedUse(id)
 
+  lazy val hasAddressedFieldUse: PStructType => Boolean =
+    attr[PStructType, Boolean] { t =>
+      t.fields.exists(f => uses(f.id) exists isAddressedUse) ||
+        t.embedded.exists(e => uses(e.id) exists isAddressedUse)
+    }
+
+  override def addressed(lit: PStructType): Boolean = hasAddressedFieldUse(lit)
+
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")

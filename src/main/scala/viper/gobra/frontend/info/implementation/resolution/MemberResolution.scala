@@ -1,6 +1,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -95,6 +96,9 @@ trait MemberResolution { this: TypeInfoImpl =>
   def findSelection(t: Type, id: PIdnUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
 
   def findMember(t: Type, id: PIdnUse): Option[TypeMember] = memberSet(t).lookup(id.name)
+
+  override def memberLookup(t: Type.Type, id: PIdnUse): (SymbolTable.TypeMember, Vector[MemberPath]) = memberSet(t).lookupWithPath(id.name).get
+  override def selectionLookup(t: Type.Type, id: PIdnUse): (SymbolTable.TypeMember, Vector[MemberPath]) = selectionSet(t).lookupWithPath(id.name).get
 
   def calleeEntity(callee: PExpression): Option[Regular] = callee match {
     case PNamedOperand(id)     => Some(regular(id))

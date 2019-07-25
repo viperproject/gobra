@@ -22,33 +22,36 @@ object Nodes {
       case Program(types, variables, constants, methods, functions) => variables ++ constants ++ methods ++ functions
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver) ++ args ++ results ++ pres ++ posts ++ body
       case Function(name, args, results, pres, posts, body) => args ++ results ++ pres ++ posts ++ body
+      case Field(name, typ, emb) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
+        case NewComposite(target, typ) => Seq(target)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
+        case MethodCall(targets, recv, func, args, path) => targets ++ Seq(recv, func) ++ args
         case Return() => Seq()
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
         case Inhale(ass) => Seq(ass)
         case Assume(ass) => Seq(ass)
       }
-      case Assignee.Var(v) => Seq(v)
-      case Assignee.Pointer(e) => Seq(e)
+      case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
         case SepAnd(left, right) => Seq(left, right)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case Access(e) => Seq(e)
       }
-      case Accessible.Ref(der) => Seq(der)
+      case a: Accessible => Seq(a.op)
       case e: Expr => e match {
         case DfltVal(typ) => Seq()
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
+        case FieldRef(recv, field, path) => Seq(recv, field)
         case Negation(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
@@ -60,7 +63,7 @@ object Nodes {
         case LocalVar.Ref(id, typ) => Seq()
         case LocalVar.Val(id, typ) => Seq()
       }
-      case Addressable.Var(v) => Seq(v)
+      case a: Addressable => Seq(a.op)
       case p: Proxy => p match {
         case FunctionProxy(name) => Seq()
       }

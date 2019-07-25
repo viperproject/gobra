@@ -307,7 +307,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PExprAssertion(exp) => showExpr(exp)
     case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
     case PAccess(exp) => exp match {
-      case n: PDereference => "acc" <> parens(showExpr(n))
+      case n: PExpression => "acc" <> parens(showExpr(n))
     }
   }
 

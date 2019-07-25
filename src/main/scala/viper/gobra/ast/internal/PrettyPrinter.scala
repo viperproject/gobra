@@ -19,6 +19,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Program => showProgram(n)
     case n: Function => showFunction(n)
     case n: Method => showMethod(n)
+    case n: Field => showField(n)
     case n: Stmt => showStmt(n)
     case n: Assignee => showAssignee(n)
     case n: Assertion => showAss(n)
@@ -51,6 +52,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
+  def showField(field: Field): Doc = field match {
+    case Field(name, typ, emb) => "field" <> (if (emb) "!" else emptyDoc) <+> name <> ":" <+> showType(typ)
+  }
+
   def showTypeDecl(t: DefinedT): Doc =
     "type" <+> t.name <+> showType(t.right)
 
@@ -71,17 +76,29 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
+
+    case NewComposite(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showComposite(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         func.name <> parens(showExprList(args))
 
+    case MethodCall(targets, recv, func, args, path) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        showExpr(recv) <> "." <> showFieldPath(path) <> func.name <> parens(showExprList(args))
+
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+  }
+
+  def showComposite(c: Composite): Doc = c match {
+    case Composite.RefStruct(op) => showType(op)
+    case Composite.ValStruct(op) => showType(op)
+    case Composite.Defined(name, op) => name <+> "->" <+> showComposite(op)
   }
 
   def showProxy(x: Proxy): Doc = x match {
@@ -113,6 +130,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAssignee(ass: Assignee): Doc = ass match {
     case Assignee.Var(v) => showVar(v)
     case Assignee.Pointer(e) => showExpr(e)
+    case Assignee.Field(f) => showExpr(f)
   }
 
   // assertions
@@ -126,6 +144,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showAcc(acc: Accessible): Doc = acc match {
     case Accessible.Ref(der) => showExpr(der)
+    case Accessible.Field(op) => showExpr(op)
   }
 
   // expressions
@@ -135,14 +154,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
+    case FieldRef(recv, field, path) => showExpr(recv) <> "." <> showFieldPath(path) <> field.name
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var   => showVar(v)
   }
 
+  def showFieldPath(path: MemberPath): Doc = brackets(ssep(path.path map showFieldPathStep, " > "))
+
+  def showFieldPathStep(step: MemberPath.Step): Doc = step match {
+    case MemberPath.Underlying => "~"
+    case MemberPath.Deref => "*"
+    case MemberPath.Ref => "&"
+    case MemberPath.Next(e) => "." <> e.name
+  }
+
   def showAddressable(a: Addressable): Doc = a match {
     case Addressable.Var(v) => showVar(v)
+    case Addressable.Field(op) => showExpr(op)
   }
 
   // literals
@@ -172,10 +202,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolT => "bool"
     case IntT => "int"
     case VoidT => "void"
+    case NilT => "nil"
     case PermissionT => "perm"
     case DefinedT(name, _) => name
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
+    case struct: StructT =>
+      emptyDoc <> (struct match {
+        case _: RefStructT => "*"
+        case _: ValStructT => emptyDoc
+      }) <> struct.name <> block(
+        hcat(struct.fields map showField)
+      )
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

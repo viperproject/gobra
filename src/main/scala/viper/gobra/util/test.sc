@@ -1,7 +1,6 @@
 
 
-val x: Vector[Any] = Vector(Vector(4))
+val x = "lal_alal_lalal"
 
-x match {
-  case Seq(x: Seq[Int@unchecked]) => println(x)
-}
+val r = x.lastIndexOf('_')
+x.substring(0, r)

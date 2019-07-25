@@ -37,6 +37,9 @@ sealed trait GlobalVarDecl extends Node
 sealed trait GlobalConst extends Node
 
 
+case class Field(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Node
+
+
 
 case class Method(
                  receiver: Parameter,
@@ -79,28 +82,36 @@ case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Sour
 
 sealed trait Assignment extends Stmt
 
+case class NewComposite(target: LocalVar.Val, typ: Composite)(val info: Source.Parser.Info) extends Stmt
+
+sealed trait Composite
+
+object Composite {
+  case class RefStruct(op: RefStructT) extends Composite
+  case class ValStruct(op: ValStructT) extends Composite
+  case class Defined(name: String, op: Composite) extends Composite {
+
+  }
+}
+
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
 
 sealed trait Assignee extends Node {
-  def v: Expr
+  def op: Expr
+  override def info: Parser.Info = op.info
 }
 
 object Assignee {
-  case class Var(v: BodyVar) extends Assignee {
-    override def info: Parser.Info = v.info
-  }
-  // case class Field(f: FieldAccess) extends Assignee
-  case class Pointer(v: Deref) extends Assignee {
-    override def info: Parser.Info = v.info
-  }
+  case class Var(op: BodyVar) extends Assignee
+  case class Pointer(op: Deref) extends Assignee
+  case class Field(op: FieldRef) extends Assignee
   // TODO: Index
 }
 
 case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-
+case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, func: FunctionProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
-
 
 case class Assert(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
@@ -118,16 +129,15 @@ case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Inf
 
 case class Access(e: Accessible)(val info: Source.Parser.Info) extends Assertion
 
-sealed trait Accessible extends Node
-
-object Accessible {
-  case class Ref(der: Deref) extends Accessible {
-    override def info: Parser.Info = der.info
-  }
+sealed trait Accessible extends Node {
+  def op: Node
+  override def info: Parser.Info = op.info
 }
 
-
-
+object Accessible {
+  case class Ref(op: Deref) extends Accessible
+  case class Field(op: FieldRef) extends Accessible
+}
 
 sealed trait Expr extends Node with Typed
 
@@ -145,13 +155,20 @@ case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Exp
 
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr
 
-sealed trait Addressable extends Node
+case class FieldRef(recv: Expr, field: Field, path: MemberPath)(val info: Source.Parser.Info) extends Expr {
+  override lazy val typ: Type = field.typ
+}
+
+
+sealed trait Addressable extends Node {
+  def op: Expr
+  override def info: Parser.Info = op.info
+}
 
 object Addressable {
-  case class Var(v: LocalVar.Ref) extends Addressable {
-    override def info: Parser.Info = v.info
-  }
-  // TODO: Field, Global
+  case class Var(op: LocalVar.Ref) extends Addressable
+  case class Field(op: FieldRef) extends Addressable
+  // TODO: Global
 }
 
 sealed trait BoolExpr extends Expr {
@@ -204,6 +221,8 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
 }
 
 
+
+
 sealed trait Var extends Expr {
   def id: String
 }
@@ -239,16 +258,17 @@ sealed trait Typed {
 
 sealed trait TopType extends Type
 
-
 sealed trait Type
 
-case object BoolT extends TopType
+case object BoolT extends Type
 
-case object IntT extends TopType
+case object IntT extends Type
 
-case object VoidT extends TopType
+case object VoidT extends Type
 
-case object PermissionT extends TopType
+case object NilT extends Type
+
+case object PermissionT extends Type
 
 case class DefinedT(name: String, right: Type) extends TopType
 
@@ -256,9 +276,33 @@ case class PointerT(t: Type) extends TopType
 
 case class TupleT(ts: Vector[Type]) extends TopType
 
+sealed trait StructT extends TopType {
+  def name: String
+  def fields: Vector[Field]
+}
+
+
+case class RefStructT(name: String, fields: Vector[Field]) extends StructT
+case class ValStructT(name: String, fields: Vector[Field]) extends StructT
+
+
+
+
 
 sealed trait Proxy extends Node
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
+
+
+object MemberPath {
+  sealed trait Step
+
+  case object Underlying extends Step
+  case object Deref extends Step
+  case object Ref extends Step
+  case class  Next(e: Field) extends Step
+}
+
+case class MemberPath(path: Vector[MemberPath.Step])
 
 
 

@@ -156,7 +156,8 @@ object GobraStrategy {
       case (p: Program, Seq(t: Vector[TopType@unchecked], v: Vector[GlobalVarDecl@unchecked], c: Vector[GlobalConst@unchecked], m: Vector[Method@unchecked], f: Vector[Function@unchecked])) => Program(t,v,c,m,f)(meta)
       case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
       case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
-      case (f: Field, Seq()) => Field(f.name, f.typ, f.isEmbedding)(meta)
+      case (f: Field.Ref, Seq()) => Field.Ref(f.name, f.typ, f.isEmbedding)(meta)
+      case (f: Field.Val, Seq()) => Field.Val(f.name, f.typ, f.isEmbedding)(meta)
         // Statements
       case (b: Block, Seq(v: Vector[BottomDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
@@ -179,7 +180,7 @@ object GobraStrategy {
       case (e: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
       case (i: Implication, Seq(l: Expr, r: Assertion)) => Implication(l, r)(meta)
       case (a: Access, Seq(acc: Accessible)) => Access(acc)(meta)
-      case (a: Accessible.Ref, Seq(d: Deref)) => Accessible.Ref(d)
+      case (a: Accessible.Pointer, Seq(d: Deref)) => Accessible.Pointer(d)
       case (a: Accessible.Field, Seq(f: FieldRef)) => Accessible.Field(f)
         // Expressions
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)

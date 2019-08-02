@@ -70,7 +70,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   lazy val isAddressedUse: PIdnUse => Boolean =
     attr[PIdnUse, Boolean] {
-      case tree.parent(tree.parent(_: PReference)) => true
+      case tree.parent(tree.parent.pair(_: PNamedOperand, _: PReference)) => true
+      case tree.parent(tree.parent.pair(_: PSelection | _: PSelectionOrMethodExpr, _: PReference)) => true
       case id => enclosingIdCodeRoot(id) match {
         case f: PFunctionLit if !containedIn(enclosingIdScope(id), f) => true
         case _ => false
@@ -80,14 +81,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
 
   override def addressed(id: PIdnNode): Boolean = hasAddressedUse(id)
-
-  lazy val hasAddressedFieldUse: PStructType => Boolean =
-    attr[PStructType, Boolean] { t =>
-      t.fields.exists(f => uses(f.id) exists isAddressedUse) ||
-        t.embedded.exists(e => uses(e.id) exists isAddressedUse)
-    }
-
-  override def addressed(lit: PStructType): Boolean = hasAddressedFieldUse(lit)
 
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r

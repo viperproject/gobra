@@ -96,9 +96,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showComposite(c: Composite): Doc = c match {
-    case Composite.RefStruct(op) => showType(op)
-    case Composite.ValStruct(op) => showType(op)
+    case Composite.Struct(op) => showType(op)
     case Composite.Defined(name, op) => name <+> "->" <+> showComposite(op)
+    case Composite.Pointer(op) => "*" <> showComposite(op)
   }
 
   def showProxy(x: Proxy): Doc = x match {
@@ -143,7 +143,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showAcc(acc: Accessible): Doc = acc match {
-    case Accessible.Ref(der) => showExpr(der)
+    case Accessible.Pointer(der) => showExpr(der)
     case Accessible.Field(op) => showExpr(op)
   }
 
@@ -207,13 +207,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DefinedT(name, _) => name
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
-    case struct: StructT =>
-      emptyDoc <> (struct match {
-        case _: RefStructT => "*"
-        case _: ValStructT => emptyDoc
-      }) <> struct.name <> block(
-        hcat(struct.fields map showField)
-      )
+    case struct: StructT => emptyDoc <> hcat(struct.fields map showField)
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

@@ -414,33 +414,49 @@ object Desugar {
 
       case n: PDereference => ExprEntity.ReceivedDeref(derefD(ctx)(n))
 
-      case PSelection(base, id) => info.selectionLookup(info.typ(base), id) match {
-        case (m: st.Method, path) => ExprEntity.ReceivedMethod(m, exprD(ctx)(base), memberPathD(path))
-        case (s: st.ActualStructMember, path) =>
+      case PSelection(base, id) => info.regular(id) match {
+
+        case s: st.ActualStructMember =>
+          val path = memberPathD(info.fieldLookup(info.typ(base), id)._2)
           val f = structMemberD(s)
-          val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(r,f, memberPathD(path))(meta(expr))
+          val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(r,f, path)(meta(expr))
           ExprEntity.ReceivedField(s, rfield)
+
+        case m: st.Method =>
+          val path = memberPathD(exprEntityD(ctx)(base) match {
+            case _: ExprEntity.Variable | _: ExprEntity.ReceivedDeref | _: ExprEntity.ReceivedField =>
+              info.addressedMethodLookup(info.typ(base), id)._2
+
+            case _ => info.nonAddressedMethodLookup(info.typ(base), id)._2
+          })
+
+          ExprEntity.ReceivedMethod(m, exprD(ctx)(base), path)
 
         case _ => Violation.violation("expected entity behind expression")
       }
 
-      case PMethodExpr(base, id) => info.memberLookup(info.typ(base), id) match {
+      case PMethodExpr(base, id) => info.nonAddressedMethodLookup(info.typ(base), id) match {
         case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
         case _ => Violation.violation("expected entity behind expression")
       }
 
       case PSelectionOrMethodExpr(base, id) => info.regular(base) match {
-        case _: st.TypeEntity => info.memberLookup(info.typ(base), id) match {
+        case _: st.TypeEntity => info.nonAddressedMethodLookup(info.typ(base), id) match {
           case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
           case _ => Violation.violation("expected entity behind expression")
         }
 
-        case _ => info.selectionLookup(info.typ(base), id) match {
-          case (m: st.Method, path) => ExprEntity.ReceivedMethod(m, unit(varD(ctx)(base)), memberPathD(path))
-          case (s: st.ActualStructMember, path) =>
+        case _ => info.regular(id) match {
+
+          case s: st.ActualStructMember =>
+            val path = memberPathD(info.fieldLookup(info.typ(base), id)._2)
             val f = structMemberD(s)
-            val rfield = unit(in.FieldRef(varD(ctx)(base), f, memberPathD(path))(meta(expr)))
+            val rfield = for {r <- unit(varD(ctx)(base))} yield in.FieldRef(r,f, path)(meta(expr))
             ExprEntity.ReceivedField(s, rfield)
+
+          case m: st.Method =>
+            val path = memberPathD(info.addressedMethodLookup(info.typ(base), id)._2) // base has to be a variable
+            ExprEntity.ReceivedMethod(m, unit(varD(ctx)(base)), path)
 
           case _ => Violation.violation("expected entity behind expression")
         }
@@ -488,17 +504,17 @@ object Desugar {
           case n: PDereference => derefD(ctx)(n)
           case PReference(exp) => exp match {
               // go feature
-            case c: PCompositeLit => compositeLitD(ctx)(c)
+            case c: PCompositeLit => compositeLitD(ctx)(c, addressed = true)
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ))(src))
           }
 
-          case PSelection(base, id) => info.selectionLookup(info.typ(base), id) match {
+          case PSelection(base, id) => info.fieldLookup(info.typ(base), id) match {
             case (f: st.Field, path)  => for {r <- go(base)} yield in.FieldRef(r, fieldDeclD(f.decl), memberPathD(path))(src)
             case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(r, embeddedDeclD(e.decl), memberPathD(path))(src)
             case _ => Violation.violation("expected field or embedding")
           }
 
-          case PSelectionOrMethodExpr(base, id) => info.selectionLookup(info.typ(base), id) match { // has to be a selection
+          case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
             case (f: st.Field, path)  => unit(in.FieldRef(varD(ctx)(base), fieldDeclD(f.decl), memberPathD(path))(src))
             case (e: st.Embbed, path) => unit(in.FieldRef(varD(ctx)(base), embeddedDeclD(e.decl), memberPathD(path))(src))
             case _ => Violation.violation("expected field or embedding")
@@ -632,15 +648,16 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
-        case c: PCompositeLit => compositeLitD(ctx)(c)
+        case c: PCompositeLit => compositeLitD(ctx)(c, addressed = false)
         case _ => ???
       }
     }
 
-    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.Expr] = lit.typ match {
+    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit, addressed: Boolean): Writer[in.Expr] = lit.typ match {
       case t: PType =>
         val it = typeD(info.typ(t))
-        literalValD(ctx)(lit.lit, it)
+        val correctedType = if (addressed) in.PointerT(it) else it
+        literalValD(ctx)(lit.lit, correctedType)
 
       case _ => ???
     }
@@ -653,38 +670,11 @@ object Desugar {
 
 
 
-//    def compositeTypeD(t: Type.Type, addressed: Boolean): (in.Composite, CompositeKind) = t match {
-//      case Type.DeclaredT(d) =>
-//        val newName = ???
-//        val nextT = info.typ(d.right)
-//        val (nextC, cKind) = compositeTypeD(nextT, addressed)
-//        (in.Composite.Defined(newName, nextC), cKind)
-//
-//      case Type.StructT(d) =>
-//        var fields: List[in.Field] = List.empty
-//
-//        d.clauses foreach{
-//          case NoGhost(PFieldDecls(fs)) => fs foreach (f => fields ::= fieldDeclD(f))
-//          case NoGhost(e: PEmbeddedDecl) => fields ::= embeddedDeclD(e)
-//        }
-//
-//        val structName = ??? // TODO: every struct is mapped to two names (ref and val version) ... maybe one is enough
-//
-//        if (addressed) {
-//          val ct = in.Composite.RefStruct(in.RefStructT(structName, fields.toVector))
-//          (ct, CompositeKind.RefStruct(ct.op))
-//        } else {
-//          val ct = in.Composite.ValStruct(in.ValStructT(structName, fields.toVector))
-//          (ct, CompositeKind.ValStruct(ct.op))
-//        }
-//    }
-
 
     sealed trait CompositeKind
 
     object CompositeKind {
-      case class RefStruct(t: in.RefStructT, p: in.MemberPath) extends CompositeKind
-      case class ValStruct(t: in.ValStructT, p: in.MemberPath) extends CompositeKind
+      case class Struct(t: in.StructT, p: in.MemberPath) extends CompositeKind
     }
 
     def compositeTypeD(t: in.Type): (in.Composite, CompositeKind) = {
@@ -693,8 +683,11 @@ object Desugar {
           val (nextC, cKind) = go(right, p :+ in.MemberPath.Underlying)
           (in.Composite.Defined(name, nextC), cKind)
 
-        case t: in.ValStructT => (in.Composite.ValStruct(t), CompositeKind.ValStruct(t, in.MemberPath(p)))
-        case t: in.RefStructT => (in.Composite.RefStruct(t), CompositeKind.RefStruct(t, in.MemberPath(p)))
+        case in.PointerT(right) =>
+          val (nextC, cKind) = go(right, p :+ in.MemberPath.Deref)
+          (in.Composite.Pointer(nextC), cKind)
+
+        case t: in.StructT => (in.Composite.Struct(t), CompositeKind.Struct(t, in.MemberPath(p)))
 
         case _ => Violation.violation(s"expected composite type but got $t")
       }
@@ -710,12 +703,9 @@ object Desugar {
       val creation = in.NewComposite(v, cLit)(src)
 
       cKind match {
-        case _: CompositeKind.RefStruct | _: CompositeKind.ValStruct =>
+        case CompositeKind.Struct(it, path) =>
 
-          val (fields, path) = cKind match {
-            case CompositeKind.RefStruct(it, p) => (it.fields, p)
-            case CompositeKind.ValStruct(it, p) => (it.fields, p)
-          }
+          val fields = it.fields
 
           def fass(f: in.Field, e: in.Expr)(src: Source.Parser.Info): in.Stmt =
             in.SingleAss(in.Assignee.Field(in.FieldRef(v, f, path)(src)), e)(src)
@@ -788,11 +778,7 @@ object Desugar {
         }
 
         val structName = nm.struct(decl, meta(decl))
-        if (info.addressed(decl)) {
-          in.RefStructT(structName, fields.toVector)
-        } else {
-          in.ValStructT(structName, fields.toVector)
-        }
+        registerType(in.StructT(structName, fields.toVector))
 
       case Type.FunctionT(args, result) => ???
       case Type.InterfaceT(decl) => ???
@@ -880,11 +866,18 @@ object Desugar {
     }
 
     def embeddedDeclD(decl: PEmbeddedDecl): in.Field =
-      in.Field(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
-
+      if (info.addressed(decl.id)) {
+        in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
+      } else {
+        in.Field.Val(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
+      }
 
     def fieldDeclD(decl: PFieldDecl): in.Field =
-      in.Field(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
+      if (info.addressed(decl.id)) {
+        in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
+      } else {
+        in.Field.Val(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
+      }
 
     // Ghost Statement
 
@@ -962,7 +955,7 @@ object Desugar {
 
       acc match {
         case exp: PExpression => exprEntityD(ctx)(exp) match {
-          case ExprEntity.ReceivedDeref(d) => d map in.Accessible.Ref
+          case ExprEntity.ReceivedDeref(d) => d map in.Accessible.Pointer
           case ExprEntity.ReceivedField(_, f) => f map in.Accessible.Field
 
           case _ => ???

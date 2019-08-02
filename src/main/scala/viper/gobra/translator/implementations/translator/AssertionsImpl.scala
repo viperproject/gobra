@@ -24,14 +24,7 @@ class AssertionsImpl extends Assertions {
       case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.Add(vl, vr)()
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)()
-      case acc: in.Access => access(acc)(ctx)
-    }
-  }
-
-  def access(acc: in.Access)(ctx: Context): ExprWriter[vpr.AccessPredicate] = withDeepInfo(acc){
-    acc.e match {
-      case in.Accessible.Ref(der) =>
-        for {loc <- ctx.expr.toFieldAcc(der)(ctx)} yield vpr.FieldAccessPredicate(loc, vpr.FullPerm()())()
+      case acc: in.Access => ctx.loc.access(acc)(ctx)
     }
   }
 

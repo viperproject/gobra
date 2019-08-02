@@ -23,8 +23,10 @@ class ExpressionsImpl extends Expressions {
     x match {
       case in.DfltVal(t) => defaultValue(t)
       case in.Tuple(args) => Violation.violation("Tuples expressions are not supported at this point in time")
-      case p: in.Deref => ctx.loc.deref(p)(ctx)
-      case in.Ref(r, _) => ctx.loc.address(r)(ctx)
+      case p: in.Deref => ctx.loc.evalue(p)(ctx)
+      case f: in.FieldRef => ctx.loc.evalue(f)(ctx)
+      case r: in.Ref => ctx.loc.evalue(r)(ctx)
+
       case in.Negation(op) => for{o <- goE(op)} yield vpr.Not(o)()
 
       case in.EqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.EqCmp(vl, vr)()
@@ -45,7 +47,7 @@ class ExpressionsImpl extends Expressions {
 
 
       case l: in.Lit => literal(l)(ctx)
-      case v: in.Var => ctx.loc.value(v)(ctx)
+      case v: in.Var => ctx.loc.evalue(v)(ctx)
     }
   }
 

@@ -28,6 +28,8 @@ case class Program(
 
 }
 
+sealed trait Location extends Expr
+
 sealed trait GlobalVarDecl extends Node
 
 //case class SingleGlobalVarDecl(left: GlobalVar, right: Expr)
@@ -36,8 +38,18 @@ sealed trait GlobalVarDecl extends Node
 
 sealed trait GlobalConst extends Node
 
+sealed trait Field extends Node {
+  def name: String
+  def typ: Type
+  def isEmbedding: Boolean
+}
 
-case class Field(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Node
+object Field {
+  def unapply(arg: Field): Option[(String, Type, Boolean)] = Some((arg.name, arg.typ, arg.isEmbedding))
+
+  case class Ref(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Field
+  case class Val(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Field
+}
 
 
 
@@ -87,11 +99,9 @@ case class NewComposite(target: LocalVar.Val, typ: Composite)(val info: Source.P
 sealed trait Composite
 
 object Composite {
-  case class RefStruct(op: RefStructT) extends Composite
-  case class ValStruct(op: ValStructT) extends Composite
-  case class Defined(name: String, op: Composite) extends Composite {
-
-  }
+  case class Struct(op: StructT) extends Composite
+  case class Defined(name: String, op: Composite) extends Composite
+  case class Pointer(op: Composite) extends Composite
 }
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
@@ -135,7 +145,7 @@ sealed trait Accessible extends Node {
 }
 
 object Accessible {
-  case class Ref(op: Deref) extends Accessible
+  case class Pointer(op: Deref) extends Accessible
   case class Field(op: FieldRef) extends Accessible
 }
 
@@ -149,24 +159,25 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
   lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
 }
 
-case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr {
+case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
 }
 
-case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr
+case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
 
-case class FieldRef(recv: Expr, field: Field, path: MemberPath)(val info: Source.Parser.Info) extends Expr {
+case class FieldRef(recv: Expr, field: Field, path: MemberPath)(val info: Source.Parser.Info) extends Expr with Location {
   override lazy val typ: Type = field.typ
 }
 
 
 sealed trait Addressable extends Node {
-  def op: Expr
+  def op: Location
   override def info: Parser.Info = op.info
 }
 
 object Addressable {
   case class Var(op: LocalVar.Ref) extends Addressable
+  case class Ref(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   // TODO: Global
 }
@@ -223,7 +234,7 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
 
 
 
-sealed trait Var extends Expr {
+sealed trait Var extends Expr with Location {
   def id: String
 }
 
@@ -256,7 +267,7 @@ sealed trait Typed {
   def typ: Type
 }
 
-sealed trait TopType extends Type
+sealed trait TopType
 
 sealed trait Type
 
@@ -270,22 +281,13 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
-case class DefinedT(name: String, right: Type) extends TopType
+case class DefinedT(name: String, right: Type) extends Type with TopType
 
-case class PointerT(t: Type) extends TopType
+case class PointerT(t: Type) extends Type with TopType
 
-case class TupleT(ts: Vector[Type]) extends TopType
+case class TupleT(ts: Vector[Type]) extends Type with TopType
 
-sealed trait StructT extends TopType {
-  def name: String
-  def fields: Vector[Field]
-}
-
-
-case class RefStructT(name: String, fields: Vector[Field]) extends StructT
-case class ValStructT(name: String, fields: Vector[Field]) extends StructT
-
-
+case class StructT(name: String, fields: Vector[Field]) extends Type with TopType
 
 
 

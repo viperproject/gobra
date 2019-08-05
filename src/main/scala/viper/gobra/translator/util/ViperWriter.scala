@@ -215,6 +215,9 @@ object ViperWriter {
     def addStatements(stmts: vpr.Stmt*): Writer[Unit] =
       create(stmts.toVector.map(ExprKindCompanion.Stmt), ())
 
+    def addLocals(locals: vpr.LocalVarDecl*): Writer[Unit] =
+      create(locals.toVector.map(ExprKindCompanion.Local), ())
+
     def sequenceC[R](ctx: Context)(ws: Vector[Context => Writer[(R, Context)]]): Writer[(Vector[R], Context)] =
       ws.foldLeft(unit((Vector.empty[R], ctx))){ case (w, fw) =>
         for {
@@ -281,7 +284,10 @@ object ViperWriter {
       upWithWriter(StmtLevel)(w)(f)
 
     def exprS[R](w: StmtLevel.Writer[R]): Writer[R] = create(w.sum.data ++ w.sum.remainder, w.res)
-    def prelim[R <: vpr.Stmt](w: StmtLevel.Writer[R]): Writer[Unit] = exprS(w).flatMap(s => addStatements(s))
+
+    def prelim[R <: vpr.Stmt](ws: StmtLevel.Writer[R]*): Writer[Unit] =
+      sequence(ws.toVector map (w => exprS(w).flatMap(s => addStatements(s)))).map(_ => ())
+
     def splitWrittenStmts[R](w: Writer[R]): Writer[(R, Vector[vpr.Stmt])] = {
       val (dataWithStmt, dataWithout) = w.sum.data.partition(_.isInstanceOf[ExprKindCompanion.Stmt])
       val newWriter = Writer(DataContainer(dataWithout, w.sum.remainder), w.res)

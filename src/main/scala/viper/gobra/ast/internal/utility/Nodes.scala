@@ -28,10 +28,10 @@ object Nodes {
         case Seqn(stmts) => stmts
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
-        case NewComposite(target, typ) => Seq(target)
+        case Make(target, typ) => Seq(target, typ)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
-        case MethodCall(targets, recv, func, args, path) => targets ++ Seq(recv, func) ++ args
+        case MethodCall(targets, recv, meth, args, path) => targets ++ Seq(recv, meth) ++ args
         case Return() => Seq()
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -58,6 +58,7 @@ object Nodes {
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()
+          case StructLit(t, args) => args
         }
         case Parameter(id, typ) => Seq()
         case LocalVar.Ref(id, typ) => Seq()
@@ -66,6 +67,7 @@ object Nodes {
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {
         case FunctionProxy(name) => Seq()
+        case MethodProxy(name, uniqueName) => Seq()
       }
     }
 //    n match {

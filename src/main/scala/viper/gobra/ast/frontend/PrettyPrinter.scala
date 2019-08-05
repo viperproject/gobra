@@ -78,7 +78,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFunctionDecl(id, args, result, spec, body) =>
         showSpec(spec) <>
         "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result) <> opt(body)(b => space <> block(showStmt(b)))
-      case PMethodDecl(id, rec, args, res, body) =>
+      case PMethodDecl(id, rec, args, res, spec, body) =>
+        showSpec(spec) <>
         "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> block(showStmt(b)))
     }
     case member: PGhostMember => member match {

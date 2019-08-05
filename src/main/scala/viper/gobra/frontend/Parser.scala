@@ -180,8 +180,8 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
-        case rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, body)
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
+        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
     /**

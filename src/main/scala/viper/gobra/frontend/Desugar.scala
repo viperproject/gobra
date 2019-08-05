@@ -77,7 +77,7 @@ object Desugar {
     def addProxy(from: PIdnNode, to: in.Proxy): Unit =
       proxies += abstraction(from) -> to
 
-    def proxyD(decl: PFunctionDecl): in.FunctionProxy = {
+    def functionProxyD(decl: PFunctionDecl): in.FunctionProxy = {
       getProxy(decl.id).getOrElse{
         val name = idName(decl.id)
         val proxy = in.FunctionProxy(name)(meta(decl))
@@ -86,7 +86,16 @@ object Desugar {
       }.asInstanceOf[in.FunctionProxy]
     }
 
-    def proxyD(sym: st.Method): in.FunctionProxy = {
+    def methodProxyD(decl: PMethodDecl): in.MethodProxy = {
+      getProxy(decl.id).getOrElse{
+        val name = idName(decl.id)
+        val proxy = in.MethodProxy(decl.id.name, name)(meta(decl))
+        addProxy(decl.id, proxy)
+        proxy
+      }.asInstanceOf[in.MethodProxy]
+    }
+
+    def methodProxy(sym: st.Method): in.MethodProxy = {
       val (metaInfo, id) = sym match {
         case st.MethodImpl(decl, isGhost) => (meta(decl), decl.id)
         case st.MethodSpec(spec, isGhost) => (meta(spec), spec.id)
@@ -94,10 +103,10 @@ object Desugar {
 
       getProxy(id).getOrElse{
         val name = idName(id)
-        val proxy = in.FunctionProxy(name)(metaInfo)
+        val proxy = in.MethodProxy(id.name, name)(metaInfo)
         addProxy(id, proxy)
         proxy
-      }.asInstanceOf[in.FunctionProxy]
+      }.asInstanceOf[in.MethodProxy]
     }
 
     class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
@@ -142,7 +151,7 @@ object Desugar {
 
     def functionD(decl: PFunctionDecl): in.Function = {
 
-      val name = proxyD(decl).name
+      val name = functionProxyD(decl).name
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
@@ -238,7 +247,115 @@ object Desugar {
 
 
 
-    def methodD(decl: PMethodDecl): in.Method = ???
+    def methodD(decl: PMethodDecl): in.Method = {
+
+      val name = methodProxyD(decl).name
+      val fsrc = meta(decl)
+
+      val recvWithSubs = receiverD(decl.receiver)
+      val (recv, recvSub) = recvWithSubs
+
+      val argsWithSubs = decl.args map parameterD
+      val (args, argSubs) = argsWithSubs.unzip
+
+      val returnsWithSubs = decl.result match {
+        case NoGhost(PVoidResult()) => Vector.empty
+        case NoGhost(PResultClause(outs)) => outs map { o =>
+          val (param, sub) = parameterD(o)
+          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
+        }
+      }
+      val (returns, returnSubs) = returnsWithSubs.unzip
+      val actualReturns = returnsWithSubs.map{
+        case (_, Some(x)) => x
+        case (x, None)    => x
+      }
+
+      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
+        if (rets.isEmpty) {
+          in.Seqn(
+            returnsWithSubs.flatMap{
+              case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(src))
+              case _ => None
+            } :+ in.Return()(src)
+          )(src)
+        } else if (rets.size == returns.size) {
+          in.Seqn(
+            returns.zip(rets).map{
+              case (p, v) => in.SingleAss(in.Assignee.Var(p), v)(src)
+            } :+ in.Return()(src)
+          )(src)
+        } else if (rets.size == 1) { // multi assignment
+          in.Seqn(Vector(
+            multiassD(returns.map(v => in.Assignee.Var(v)), rets.head)(src),
+            in.Return()(src)
+          ))(src)
+        } else {
+          violation(s"found ${rets.size} returns but expected 0, 1, or ${returns.size}")
+        }
+      }
+
+      // create context for body translation
+      val ctx = new FunctionContext(assignReturns)
+
+      // translate pre- and postconditions before extending the context
+      val pres = decl.spec.pres map preconditionD(ctx)
+      val posts = decl.spec.posts map postconditionD(ctx)
+
+      // s' := s
+      val recvInits = (recvWithSubs match {
+        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case _ => None
+      }).toVector
+
+      // p1' := p1; ... ; pn' := pn
+      val argInits = argsWithSubs.flatMap{
+        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case _ => None
+      }
+
+      // r1' := _; ... ; rn' := _
+      val returnInits = actualReturns.map{l =>
+        in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
+      }
+
+      // r1 := r1'; .... rn := rn'
+      val resultAssignments =
+        returnsWithSubs.flatMap{
+          case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(fsrc))
+          case _ => None
+        } // :+ in.Return()(fsrc)
+
+
+      // extent context
+      (decl.receiver, recvWithSubs) match {
+        case (PNamedReceiver(id, _), (_, Some(q))) => ctx.addSubst(id, q)
+        case _ =>
+      }
+
+      (decl.args zip argsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case _ =>
+      }
+
+      decl.result match {
+        case PVoidResult() =>
+        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
+          case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+          case _ =>
+        }
+      }
+
+
+      val bodyOpt = decl.body.map{ s =>
+        val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
+        val body = recvInits ++ argInits ++ returnInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
+        in.Block(vars, body)(meta(s))
+      }
+
+      in.Method(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+    }
 
 
 
@@ -504,7 +621,15 @@ object Desugar {
           case n: PDereference => derefD(ctx)(n)
           case PReference(exp) => exp match {
               // go feature
-            case c: PCompositeLit => compositeLitD(ctx)(c, addressed = true)
+            case c: PCompositeLit =>
+              for {
+                c <- compositeLitD(ctx)(c)
+                co = compositeLitToObject(c)
+                v = freshVar(in.PointerT(c.typ))(src)
+                _ <- declare(v)
+                _ <- write(in.Make(v, co)(src))
+              } yield v
+
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ))(src))
           }
 
@@ -523,7 +648,7 @@ object Desugar {
           case PCall(callee, args) => exprEntityD(ctx)(callee) match {
             case ExprEntity.Function(op) =>
               val fsym = op
-              val fproxy = proxyD(fsym.decl)
+              val fproxy = functionProxyD(fsym.decl)
 
               for {
                 dArgs <- sequence(args map exprD(ctx))
@@ -549,7 +674,7 @@ object Desugar {
                 case st.MethodSpec(spec, _) => (spec.args, spec.result)
               }
 
-              val fproxy = proxyD(op)
+              val fproxy = methodProxy(op)
 
 
               for {
@@ -571,7 +696,33 @@ object Desugar {
                 v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
-            case ExprEntity.MethodExpr(op, path) => ???
+            case ExprEntity.MethodExpr(op, path) =>
+              val (fargs, fres) = op match {
+                case st.MethodImpl(decl, _) => (decl.args, decl.result)
+                case st.MethodSpec(spec, _) => (spec.args, spec.result)
+              }
+
+              val fproxy = methodProxy(op)
+
+
+              for {
+                dArgs <- sequence(args map exprD(ctx))
+                realArgs = dArgs match {
+                  // go function chaining feature
+                  case Vector(in.Tuple(targs)) => targs
+                  case dargs => dargs
+                }
+                (realRecv, realRemainingArgs) = (realArgs.head, realArgs.tail)
+                targets = fres match {
+                  case PVoidResult() => Vector.empty
+                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                }
+
+                _ <- declare(targets: _*)
+                _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs, path)(src))
+
+                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+              } yield v
 
             case e => Violation.violation(s"expected callable entity, but got $e")
           }
@@ -579,7 +730,7 @@ object Desugar {
           case PConversionOrUnaryCall(base, arg) => base match {
             case id if info.regular(id).isInstanceOf[st.Function] =>
               val fsym = info.regular(id).asInstanceOf[st.Function]
-              val fproxy = proxyD(fsym.decl)
+              val fproxy = functionProxyD(fsym.decl)
 
               for {
                 dArg <- exprD(ctx)(arg)
@@ -648,97 +799,77 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
-        case c: PCompositeLit => compositeLitD(ctx)(c, addressed = false)
+        case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
     }
 
-    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit, addressed: Boolean): Writer[in.Expr] = lit.typ match {
+    def compositeLitToObject(lit: in.CompositeLit): in.CompositeObject = lit match {
+      case l: in.StructLit => in.CompositeObject.Struct(l)
+    }
+
+    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
       case t: PType =>
         val it = typeD(info.typ(t))
-        val correctedType = if (addressed) in.PointerT(it) else it
-        literalValD(ctx)(lit.lit, correctedType)
+        literalValD(ctx)(lit.lit, it)
 
       case _ => ???
     }
-
 
     def underlyingType(t: Type.Type): Type.Type = t match {
       case Type.DeclaredT(d) => underlyingType(info.typ(d.right))
       case _ => t
     }
 
-
-
-
     sealed trait CompositeKind
 
     object CompositeKind {
-      case class Struct(t: in.StructT, p: in.MemberPath) extends CompositeKind
+      case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
-    def compositeTypeD(t: in.Type): (in.Composite, CompositeKind) = {
-      def go(t: in.Type, p: Vector[in.MemberPath.Step]): (in.Composite, CompositeKind) = t match {
-        case in.DefinedT(name, right) =>
-          val (nextC, cKind) = go(right, p :+ in.MemberPath.Underlying)
-          (in.Composite.Defined(name, nextC), cKind)
-
-        case in.PointerT(right) =>
-          val (nextC, cKind) = go(right, p :+ in.MemberPath.Deref)
-          (in.Composite.Pointer(nextC), cKind)
-
-        case t: in.StructT => (in.Composite.Struct(t), CompositeKind.Struct(t, in.MemberPath(p)))
-
-        case _ => Violation.violation(s"expected composite type but got $t")
-      }
-
-      go(t, Vector.empty)
+    def compositeTypeD(t: in.Type): CompositeKind = t match {
+      case _ if in.Types.isStructType(t) => CompositeKind.Struct(t, in.Types.structType(t).get)
+      case _ => Violation.violation(s"expected composite type but got $t")
     }
 
-    def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.Expr] = {
+    def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
       val src = meta(lit)
 
-      val (cLit, cKind) = compositeTypeD(t)
-      val v = freshVar(t)(src)
-      val creation = in.NewComposite(v, cLit)(src)
+      compositeTypeD(t) match {
 
-      cKind match {
-        case CompositeKind.Struct(it, path) =>
+        case CompositeKind.Struct(it, ist) =>
 
-          val fields = it.fields
+          val fields = ist.fields
 
-          def fass(f: in.Field, e: in.Expr)(src: Source.Parser.Info): in.Stmt =
-            in.SingleAss(in.Assignee.Field(in.FieldRef(v, f, path)(src)), e)(src)
-
-          val assignments = if (lit.elems.exists(_.key.isEmpty)) {
+          if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            fields.zip(lit.elems).map{ case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev)  => for {e <- exprD(ctx)(ev)} yield fass(f, e)(meta(exp))
-              case PLitCompositeVal(lv) => for {e <- literalValD(ctx)(lv, f.typ)} yield fass(f, e)(meta(exp))
+            val wArgs = fields.zip(lit.elems).map{ case (f, PKeyedElement(_, exp)) => exp match {
+              case PExpCompositeVal(ev)  => exprD(ctx)(ev)
+              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
             }}
+
+            for {
+              args <- sequence(wArgs)
+            } yield in.StructLit(it, args)(src)
 
           } else {
             // all elements are keyed
             val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
-            lit.elems.map{
+            val vMap = lit.elems.map{
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
                 exp match {
-                  case PExpCompositeVal(ev)  => for {e <- exprD(ctx)(ev)} yield fass(f, e)(meta(exp))
-                  case PLitCompositeVal(lv) => for {e <- literalValD(ctx)(lv, f.typ)} yield fass(f, e)(meta(exp))
+                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
+                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
                 }
 
               case _ => Violation.violation("expected identifier as a key")
-            }
+            }.toMap
+
+            for {
+              args <- sequence(fields.map(vMap(_)))
+            } yield in.StructLit(it, args)(src)
           }
-
-          for {
-            _ <- declare(v)
-            _ <- write(creation)
-            asss <- sequence(assignments)
-            _ <- write(asss: _*)
-          } yield v
-
       }
     }
 
@@ -846,6 +977,18 @@ object Desugar {
           val local = None
           (param, local)
       }
+    }
+
+    def receiverD(p: PReceiver): (in.Parameter, Option[in.LocalVar]) = p match {
+        case PNamedReceiver(id, typ) =>
+          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+          val local = Some(localAlias(localVarContextFreeD(id)))
+          (param, local)
+
+        case PUnnamedReceiver(typ) =>
+          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
+          val local = None
+          (param, local)
     }
 
     def localAlias(internal: in.LocalVar): in.LocalVar = internal match {

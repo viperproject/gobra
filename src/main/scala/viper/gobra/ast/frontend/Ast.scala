@@ -107,6 +107,7 @@ case class PMethodDecl(
                         receiver: PReceiver,
                         args: Vector[PParameter],
                         result: PResult,
+                        spec: PFunctionSpec,
                         body: Option[PBlock]
                       ) extends PActualMember with PScope with PCodeRoot with PGhostifiableMember
 

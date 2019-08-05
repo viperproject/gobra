@@ -22,6 +22,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Field => showField(n)
     case n: Stmt => showStmt(n)
     case n: Assignee => showAssignee(n)
+    case n: CompositeObject => showCompositeObject(n)
     case n: Assertion => showAss(n)
     case n: Accessible => showAcc(n)
     case n: Expr => showExpr(n)
@@ -77,16 +78,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
-    case NewComposite(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showComposite(typ))
+    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         func.name <> parens(showExprList(args))
 
-    case MethodCall(targets, recv, func, args, path) =>
+    case MethodCall(targets, recv, meth, args, path) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> "." <> showFieldPath(path) <> func.name <> parens(showExprList(args))
+        showExpr(recv) <> "." <> showFieldPath(path) <> meth.name <> parens(showExprList(args))
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -95,14 +96,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
   }
 
-  def showComposite(c: Composite): Doc = c match {
-    case Composite.Struct(op) => showType(op)
-    case Composite.Defined(name, op) => name <+> "->" <+> showComposite(op)
-    case Composite.Pointer(op) => "*" <> showComposite(op)
-  }
+  def showComposite(c: CompositeObject): Doc = showLit(c.op)
 
   def showProxy(x: Proxy): Doc = x match {
     case FunctionProxy(name) => name
+    case MethodProxy(name, _) => name
   }
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
@@ -132,6 +130,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Pointer(e) => showExpr(e)
     case Assignee.Field(f) => showExpr(f)
   }
+
+  def showCompositeObject(co: CompositeObject): Doc = showLit(co.op)
 
   // assertions
 
@@ -170,16 +170,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MemberPath.Next(e) => "." <> e.name
   }
 
-  def showAddressable(a: Addressable): Doc = a match {
-    case Addressable.Var(v) => showVar(v)
-    case Addressable.Field(op) => showExpr(op)
-  }
+  def showAddressable(a: Addressable): Doc = showExpr(a.op)
 
   // literals
 
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
+    case sl@ StructLit(t, _) => showType(t) <> brackets(
+      ssep(
+        sl.fieldZip.map{ case (f, e) => showField(f) <> ":" <+> showExpr(e)},
+        comma
+      )
+    )
   }
 
   // variables

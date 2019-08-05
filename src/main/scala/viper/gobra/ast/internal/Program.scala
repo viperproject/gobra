@@ -94,16 +94,6 @@ case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Sour
 
 sealed trait Assignment extends Stmt
 
-case class NewComposite(target: LocalVar.Val, typ: Composite)(val info: Source.Parser.Info) extends Stmt
-
-sealed trait Composite
-
-object Composite {
-  case class Struct(op: StructT) extends Composite
-  case class Defined(name: String, op: Composite) extends Composite
-  case class Pointer(op: Composite) extends Composite
-}
-
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment
 
 sealed trait Assignee extends Node {
@@ -118,8 +108,19 @@ object Assignee {
   // TODO: Index
 }
 
+case class Make(target: LocalVar.Val, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
+
+sealed trait CompositeObject extends Node {
+  def op: CompositeLit
+  override def info: Parser.Info = op.info
+}
+
+object CompositeObject {
+  case class Struct(op: StructLit) extends CompositeObject
+}
+
 case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, func: FunctionProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends Stmt
+case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, meth: MethodProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -149,15 +150,10 @@ object Accessible {
   case class Field(op: FieldRef) extends Accessible
 }
 
+
+
+
 sealed trait Expr extends Node with Typed
-
-// case class FieldAccess() extends Expr
-
-case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
-
-case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
-  lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
-}
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
@@ -177,7 +173,7 @@ sealed trait Addressable extends Node {
 
 object Addressable {
   case class Var(op: LocalVar.Ref) extends Addressable
-  case class Ref(op: Deref) extends Addressable
+  case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   // TODO: Global
 }
@@ -223,6 +219,8 @@ case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 
 sealed trait Lit extends Expr
 
+case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
+
 case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT
 }
@@ -231,7 +229,18 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT
 }
 
+case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
+  lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
+}
 
+sealed trait CompositeLit extends Lit
+
+case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit {
+  lazy val structType: StructT = Types.structType(typ).get
+  require(structType.fields.size == args.size)
+
+  lazy val fieldZip = structType.fields.zip(args)
+}
 
 
 sealed trait Var extends Expr with Location {
@@ -263,6 +272,17 @@ object LocalVar {
 //}
 
 
+object Types {
+  def isStructType(typ: Type): Boolean = structType(typ).nonEmpty
+
+  def structType(typ: Type): Option[StructT] = typ match {
+    case DefinedT(_, right) => structType(right)
+    case st: StructT => Some(st)
+    case _ => None
+  }
+}
+
+
 sealed trait Typed {
   def typ: Type
 }
@@ -291,8 +311,11 @@ case class StructT(name: String, fields: Vector[Field]) extends Type with TopTyp
 
 
 
+
+
 sealed trait Proxy extends Node
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
+case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 
 
 object MemberPath {

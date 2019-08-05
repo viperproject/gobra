@@ -4,7 +4,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.{StmtWriter, ExprWriter}
+import viper.gobra.translator.util.ViperWriter.{ExprWriter, StmtWriter}
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -60,14 +60,21 @@ class StatementsImpl extends Statements {
         } yield wh
       )
 
-      case ass: in.SingleAss =>
-        ctx.loc.assignment(ass)(ctx)
+      case ass: in.SingleAss => ctx.loc.assignment(ass)(ctx)
+      case mk: in.Make => ctx.loc.make(mk)(ctx)
 
       case in.FunctionCall(targets, func, args) =>
         seqnE(for {
           vArgs <- el.sequence(args map goE)
           vTargets <- el.sequence(targets map (ctx.loc.variable(_)(ctx)))
         } yield vpr.MethodCall(func.name, vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))
+
+      case in.MethodCall(targets, recv, meth, args, path) =>
+        seqnE(for {
+          vRecv <- ctx.loc.callReceiver(recv, path)(ctx)
+          vArgs <- el.sequence(args map goE)
+          vTargets <- el.sequence(targets map (ctx.loc.variable(_)(ctx)))
+        } yield vpr.MethodCall(meth.uniqueName, vRecv +: vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))
 
       case in.Assert(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assert(v)())
       case in.Assume(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assume(v)()) // Assumes are later rewritten

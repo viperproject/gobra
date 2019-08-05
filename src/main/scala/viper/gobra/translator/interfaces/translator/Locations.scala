@@ -15,7 +15,7 @@ trait Locations extends Generator {
 
   def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt]
 
-  def lvalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp]
+  def make(mk: in.Make)(ctx: Context): StmtWriter[vpr.Stmt]
 
   def rvalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp]
 

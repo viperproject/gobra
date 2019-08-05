@@ -163,13 +163,13 @@ object GobraStrategy {
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (i: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (w: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
-      case (n: NewComposite, Seq(target: LocalVar.Val)) => NewComposite(target, n.typ)(meta)
+      case (n: Make, Seq(target: LocalVar.Val, co: CompositeObject)) => Make(target, co)(meta)
       case (s: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (a: Assignee.Var, Seq(v: BodyVar)) => Assignee.Var(v)
       case (a: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)
       case (a: Assignee.Field, Seq(e: FieldRef)) => Assignee.Field(e)
       case (f: FunctionCall, Seq(targets: Vector[LocalVar.Val@unchecked], func: FunctionProxy, args: Vector[Expr@unchecked])) => FunctionCall(targets, func, args)(meta)
-      case (m: MethodCall, Seq(targets: Vector[LocalVar.Val@unchecked], recv: Expr, func: FunctionProxy, args: Vector[Expr@unchecked])) => MethodCall(targets, recv, func, args, m.path)(meta)
+      case (m: MethodCall, Seq(targets: Vector[LocalVar.Val@unchecked], recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => MethodCall(targets, recv, meth, args, m.path)(meta)
       case (r: Return, Seq()) => Return()(meta)
       case (a: Assert, Seq(ass: Assertion)) => Assert(ass)(meta)
       case (a: Assume, Seq(ass: Assertion)) => Assume(ass)(meta)
@@ -204,13 +204,16 @@ object GobraStrategy {
       case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
+      case (s: StructLit, Seq(args: Vector[Expr@unchecked])) => StructLit(s.typ, args)(meta)
       case (p: Parameter, Seq()) => Parameter(p.id, p.typ)(meta)
       case (l: LocalVar.Val, Seq()) => LocalVar.Val(l.id, l.typ)(meta)
       case (l: LocalVar.Ref, Seq()) => LocalVar.Ref(l.id, l.typ)(meta)
       case (a: Addressable.Var, Seq(v: LocalVar.Ref)) => Addressable.Var(v)
+      case (a: Addressable.Pointer, Seq(v: Deref)) => Addressable.Pointer(v)
       case (a: Addressable.Field, Seq(v: FieldRef)) => Addressable.Field(v)
         // Proxy
       case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
+      case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
       case _ => ???
     }
 

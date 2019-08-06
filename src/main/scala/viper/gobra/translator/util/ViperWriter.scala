@@ -215,8 +215,8 @@ object ViperWriter {
     def addStatements(stmts: vpr.Stmt*): Writer[Unit] =
       create(stmts.toVector.map(ExprKindCompanion.Stmt), ())
 
-    def addLocals(locals: vpr.LocalVarDecl*): Writer[Unit] =
-      create(locals.toVector.map(ExprKindCompanion.Local), ())
+    def addLocals(locals: vpr.LocalVar*): Writer[Unit] =
+      create(locals.toVector.map(l => ExprKindCompanion.Local(ViperUtil.toVarDecl(l))), ())
 
     def sequenceC[R](ctx: Context)(ws: Vector[Context => Writer[(R, Context)]]): Writer[(Vector[R], Context)] =
       ws.foldLeft(unit((Vector.empty[R], ctx))){ case (w, fw) =>

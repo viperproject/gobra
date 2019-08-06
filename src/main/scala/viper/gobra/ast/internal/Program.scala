@@ -280,6 +280,12 @@ object Types {
     case st: StructT => Some(st)
     case _ => None
   }
+
+  def unrefType(typ: Type): Option[Type] = typ match {
+    case DefinedT(_, right) => unrefType(right)
+    case PointerT(t) => Some(t)
+    case _ => None
+  }
 }
 
 

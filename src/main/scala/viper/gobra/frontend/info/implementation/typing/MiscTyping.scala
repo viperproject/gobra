@@ -53,11 +53,18 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PEmbeddedPointer(t) => PointerT(typeType(t))
   }
 
+  // received member type
   lazy val memberType: TypeMember => Type =
     attr[TypeMember, Type] {
       case mt: ActualTypeMember => actualMemberType(mt)
       case mt: GhostTypeMember  => ghostMemberType(mt)
     }
+
+  // adds receiver type to transform received member type to unreceived member type
+  def methodExprType(base: Type, method: Method): Type = method match {
+    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _) => FunctionT(base +: (args map miscType), miscType(result))
+    case MethodSpec(PMethodSig(_, args, result), _) => FunctionT(base +: (args map miscType), miscType(result))
+  }
 
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 

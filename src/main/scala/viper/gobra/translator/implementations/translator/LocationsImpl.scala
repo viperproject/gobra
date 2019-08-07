@@ -77,16 +77,19 @@ class LocationsImpl extends Locations {
               prelim(ctx.stmt.translate(init)(ctx))
 
             case v: in.LocalVar.Ref if stOpt.isEmpty =>
-              val inhalePermissions = in.Inhale(
-                in.Access(
-                  in.Accessible.Pointer(in.Deref(in.Ref(in.Addressable.Var(v), in.PointerT(v.typ))(src), v.typ)(src))
-                )(src)
-              )(src)
+              val vInhalePermissions =
+                sl.withDeepInfo(v)(sl.seqnE(
+                  for {
+                    x <- variable(v)(ctx)
+                    facc = vpr.FieldAccess(x, pointerField(v.typ)(ctx))()
+                    faccp = vpr.FieldAccessPredicate(facc, vpr.FullPerm()())()
+                  } yield vpr.Inhale(faccp)()
+                ))
 
               val init = in.SingleAss(in.Assignee.Var(v), in.DfltVal(v.typ)(src))(src)
 
               prelim(
-                ctx.stmt.translate(inhalePermissions)(ctx),
+                vInhalePermissions,
                 ctx.stmt.translate(init)(ctx)
               )
 
@@ -235,6 +238,11 @@ class LocationsImpl extends Locations {
     }
   }
 
+  def extendedRValue(exp: in.Expr)(ctx: Context): ExprWriter[vpr.Exp] = exp match {
+    case l: in.Location => rvalue(l)(ctx)
+    case _ => ctx.expr.translate(exp)(ctx)
+  }
+
   /**
     * R[!x: not S]   -> A[!x].val
     * R[*e: not S]   -> A[*e].val
@@ -343,10 +351,7 @@ class LocationsImpl extends Locations {
     */
   def rproj(recv: in.Expr, fields: Vector[in.Field])(ctx: Context): ExprWriter[vpr.Exp] = {
     if (fields.isEmpty) {
-      recv match {
-        case l: in.Location => rvalue(l)(ctx)
-        case _ => ctx.expr.translate(recv)(ctx)
-      }
+      extendedRValue(recv)(ctx)
     } else {
       val lastF = fields.last
       val lval = aproj(recv, fields)(ctx)
@@ -457,8 +462,8 @@ class LocationsImpl extends Locations {
 
     acc.e match {
       case in.Accessible.Pointer(der) => structType(der.typ) match {
-        case Some(st) => rvalue(der)(ctx) map (structAccess(_, st))
-        case None => rvalue(der)(ctx) map (derefAccess(_, der.typ))
+        case Some(st) => extendedRValue(der.exp)(ctx) map (structAccess(_, st))
+        case None => extendedRValue(der.exp)(ctx) map (derefAccess(_, der.typ))
       }
 
       case in.Accessible.Field(fa) =>

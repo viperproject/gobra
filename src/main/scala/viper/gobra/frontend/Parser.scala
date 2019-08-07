@@ -93,7 +93,7 @@ object Parser {
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
       // new keywords introduced by Gobra
-      "ghost", "acc", "assert", "exhale", "assume", "inhale"
+      "ghost", "acc", "assert", "exhale", "assume", "inhale", "memory", "fold", "unfold", "unfolding", "pure", "predicate"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -175,8 +175,8 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> assertion <~ eos).* ~ ("ensures" ~> assertion <~ eos).* ^^ {
-        case pres ~ posts => PFunctionSpec(pres, posts)
+      "pure".? ~ ("requires" ~> assertion <~ eos).* ~ ("ensures" ~> assertion <~ eos).* ^^ {
+        case isPure ~ pres ~ posts => PFunctionSpec(pres, posts, isPure.nonEmpty)
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
@@ -236,8 +236,7 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selectionOrMethodExpr | selection | indexedExp | ("*" ~> unaryExp ^^ PDereference) | namedOperand
-
+      selectionOrMethodExpr | selection | indexedExp | dereference | namedOperand
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(idnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^
@@ -423,13 +422,23 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
-        "&" ~> unaryExp ^^ PReference |
-        "*" ~> unaryExp ^^ PDereference |
+        reference |
+        dereference |
         receiveExp |
+        unfolding |
         primaryExp
+
+    lazy val reference: Parser[PReference] =
+      "&" ~> unaryExp ^^ PReference
+
+    lazy val dereference: Parser[PDereference] =
+      "*" ~> unaryExp ^^ PDereference
 
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive
+
+    lazy val unfolding: Parser[PUnfolding] =
+      "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
 
     lazy val primaryExp: Parser[PExpression] =
@@ -498,10 +507,10 @@ object Parser {
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ PConversion
 
     lazy val call: PackratParser[PCall] =
-      primaryExp ~ ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ {
-        case base ~ None => PCall(base, Vector.empty)
-        case base ~ Some(args) => PCall(base, args)
-      }
+      primaryExp ~ callArguments ^^ PCall
+
+    lazy val callArguments: Parser[Vector[PExpression]] =
+      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
     lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
@@ -570,9 +579,10 @@ object Parser {
     lazy val interfaceType: Parser[PInterfaceType] =
       "interface" ~> "{" ~> (interfaceClause <~ eos).* <~ "}" ^^ { clauses =>
         val embedded = clauses collect { case v: PInterfaceName => v }
-        val decls = clauses collect { case v: PMethodSig => v }
+        val methodDecls = clauses collect { case v: PMethodSig => v }
+        val predicateDecls = clauses collect { case v: PMPredicateSig => v }
 
-        PInterfaceType(embedded, decls)
+        PInterfaceType(embedded, methodDecls, predicateDecls)
       }
 
     lazy val interfaceClause: Parser[PInterfaceClause] =
@@ -583,6 +593,9 @@ object Parser {
 
     lazy val methodSpec: Parser[PMethodSig] =
       idnDef ~ signature ^^ { case id ~ sig => PMethodSig(id, sig._1, sig._2) }
+
+    lazy val predicateSpec: Parser[PMPredicateSig] =
+      idnDef ~ parameters ^^ PMPredicateSig
 
 
     lazy val namedType: Parser[PNamedType] =
@@ -694,12 +707,18 @@ object Parser {
       "ghost" ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
         "ghost" ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
+    lazy val predicateDecl: Parser[PFPredicateDecl] =
+      ("predicate" ~> idnDef) ~ parameters ~ ("{" ~> assertion <~ "}").? ^^ PFPredicateDecl
+
+
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
       "assert" ~> assertion ^^ PAssert |
       "exhale" ~> assertion ^^ PExhale |
       "assume" ~> assertion ^^ PAssume |
-      "inhale" ~> assertion ^^ PInhale
+      "inhale" ~> assertion ^^ PInhale |
+      "fold" ~> predicateAccess ^^ PFold |
+      "unfold" ~> predicateAccess ^^ PUnfold
 
 
     lazy val assertion: Parser[PAssertion] =
@@ -718,11 +737,25 @@ object Parser {
 
     lazy val unaryAssertion: Parser[PAssertion] =
       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
+      predicateCall |
       "(" ~> assertion <~ ")" |
       expression ^^ PExprAssertion
 
     lazy val accessible: Parser[PAccessible] =
-      "*" ~> unaryExp ^^ PDereference
+      dereference | reference | selection | predicateCall
+
+    lazy val predicateCall: Parser[PPredicateCall] =
+      "memory" ~> "(" ~> expression <~ ")" ^^ PMemoryPredicateCall |
+      idnUse ~ callArguments ^^ PFPredOrBoolFuncCall |
+      nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethRecvOrExprCall |
+      primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrBoolMethCall |
+      methodRecvType ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethExprCall
+
+    lazy val predicateAccess: Parser[PPredicateAccess] =
+      predicateCall ^^ PPredicateAccess |
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+
+
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>

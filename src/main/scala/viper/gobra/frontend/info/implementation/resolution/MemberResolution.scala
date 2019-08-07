@@ -22,49 +22,47 @@ trait MemberResolution { this: TypeInfoImpl =>
   private def createMethodSpec(spec: PMethodSig): MethodSpec =
     defEntity(spec.id).asInstanceOf[MethodSpec]
 
+  private def createMPredImpl(decl: PMPredicateDecl): MPredicateImpl =
+    defEntity(decl.id).asInstanceOf[MPredicateImpl]
 
-  private lazy val receiverMethodSetMap: Map[Type, MemberSet] = {
-    tree.root.declarations
-      .collect { case m: PMethodDecl => createMethodImpl(m) }(breakOut)
-      .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
-      .mapValues(ms => MemberSet.init(ms))
-  }
+  private def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
+    defEntity(spec.id).asInstanceOf[MPredicateSpec]
 
-  def receiverMethodSet(recv: Type): MemberSet =
-    receiverMethodSetMap.getOrElse(recv, MemberSet.empty)
-
-  lazy val interfaceMethodSet: InterfaceT => MemberSet =
-    attr[InterfaceT, MemberSet] {
-      case InterfaceT(PInterfaceType(es, specs)) =>
-        MemberSet.init(specs.map(m => createMethodSpec(m))) union MemberSet.union {
-          es.map(e => interfaceMethodSet(
-            entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _), _) => InterfaceT(t)
-            }
-          ))
-        }
-    }
-
-  private lazy val receiverMethodSetMap2: Map[Type, AdvancedMemberSet[Method]] = {
+  private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
     tree.root.declarations
       .collect { case m: PMethodDecl => createMethodImpl(m) }(breakOut)
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
       .mapValues(ms => AdvancedMemberSet.init(ms))
   }
 
-  def receiverMethodSet2(recv: Type): AdvancedMemberSet[Method] =
-    receiverMethodSetMap2.getOrElse(recv, AdvancedMemberSet.empty)
+  def receiverMethodSet(recv: Type): AdvancedMemberSet[MethodLike] =
+    receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty)
 
-  lazy val interfaceMethodSet2: InterfaceT => AdvancedMemberSet[Method] =
-    attr[InterfaceT, AdvancedMemberSet[Method]] {
-      case InterfaceT(PInterfaceType(es, specs)) =>
-        AdvancedMemberSet.init[Method](specs.map(m => createMethodSpec(m))) union AdvancedMemberSet.union {
-          es.map(e => interfaceMethodSet2(
-            entity(e.typ.id) match {
-              case NamedType(PTypeDef(t: PInterfaceType, _), _) => InterfaceT(t)
-            }
-          ))
-        }
+  private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
+    tree.root.declarations
+      .collect { case m: PMPredicateDecl => createMPredImpl(m) }(breakOut)
+      .groupBy { m: MPredicateImpl => miscType(m.decl.receiver) }
+      .mapValues(ms => AdvancedMemberSet.init(ms))
+  }
+
+  def receiverPredicateSet(recv: Type): AdvancedMemberSet[MethodLike] =
+    receiverPredicateSetMap.getOrElse(recv, AdvancedMemberSet.empty)
+
+  lazy val receiverSet: Type => AdvancedMemberSet[MethodLike] =
+    attr[Type, AdvancedMemberSet[MethodLike]] (t => receiverMethodSet(t) union receiverPredicateSet(t))
+
+  lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[MethodLike] =
+    attr[InterfaceT, AdvancedMemberSet[MethodLike]] {
+      case InterfaceT(PInterfaceType(es, methSpecs, predSpecs)) =>
+        AdvancedMemberSet.init[MethodLike](methSpecs.map(m => createMethodSpec(m))) union
+          AdvancedMemberSet.init[MethodLike](predSpecs.map(m => createMPredSpec(m))) union
+          AdvancedMemberSet.union {
+            es.map(e => interfaceMethodSet(
+              entity(e.typ.id) match {
+                case NamedType(PTypeDef(t: PInterfaceType, _), _) => InterfaceT(t)
+              }
+            ))
+          }
     }
 
 
@@ -104,101 +102,115 @@ trait MemberResolution { this: TypeInfoImpl =>
     go(pastDeref = false)
   }
 
-  private val structMemberSet: Type => AdvancedMemberSet[StructMember] =
+  val structMemberSet: Type => AdvancedMemberSet[StructMember] =
     attr[Type, AdvancedMemberSet[StructMember]] { t => fieldSuffix(t) union pastPromotions(fieldSuffix)(t) }
 
-  private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[Method] =
-    attr[Type, AdvancedMemberSet[Method]] {
-      case t: InterfaceT => interfaceMethodSet2(t)
-      case pt@ PointerT(t) => receiverMethodSet2(pt) union receiverMethodSet2(t).ref
-      case t => receiverMethodSet2(t) union receiverMethodSet2(PointerT(t)).deref
+  private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[MethodLike] =
+    attr[Type, AdvancedMemberSet[MethodLike]] {
+      case t: InterfaceT => interfaceMethodSet(t)
+      case pt@ PointerT(t) => receiverSet(pt) union receiverSet(t).ref
+      case t => receiverSet(t) union receiverSet(PointerT(t)).deref
     }
 
-  private val nonAddressableMethodSet: Type => AdvancedMemberSet[Method] =
-    attr[Type, AdvancedMemberSet[Method]] { t =>
+  val nonAddressableMethodSet: Type => AdvancedMemberSet[MethodLike] =
+    attr[Type, AdvancedMemberSet[MethodLike]] { t =>
       pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-        case pt@ PointerT(st) => receiverMethodSet2(pt) union receiverMethodSet2(st).ref
-        case _ => receiverMethodSet2(t)
+        case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
+        case _ => receiverSet(t)
       })
     }
 
-  private val addressableMethodSet: Type => AdvancedMemberSet[Method] =
-    attr[Type, AdvancedMemberSet[Method]] { t =>
+  val addressableMethodSet: Type => AdvancedMemberSet[MethodLike] =
+    attr[Type, AdvancedMemberSet[MethodLike]] { t =>
       pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-        case pt@ PointerT(st) => receiverMethodSet2(pt) union receiverMethodSet2(st).ref
-        case _ => receiverMethodSet2(t) union receiverMethodSet2(PointerT(t)).deref
+        case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
+        case _ => receiverSet(t) union receiverSet(PointerT(t)).deref
       })
     }
 
   override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) =
     structMemberSet(t).lookupWithPath(id.name).get
 
-  override def addressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) =
-    addressableMethodSet(t).lookupWithPath(id.name).get
-
-  override def nonAddressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) =
-    nonAddressableMethodSet(t).lookupWithPath(id.name).get
-
-
-  lazy val memberSet: Type => MemberSet =
-    attr[Type, MemberSet] {
-      case PointerT(t) => receiverMethodSet(PointerT(t)) union receiverMethodSet(t).ref union promotedMemberSetRef(t)
-      case t => receiverMethodSet(t) union promotedMemberSet(t)
-    }
-
-  private def promotedMemberSetGen(transformer: Type => Type): Type => MemberSet = {
-    lazy val rec: Type => MemberSet = promotedMemberSetGen(transformer)
-
-    attr[Type, MemberSet] {
-
-      case StructT(t) =>
-        val (es, fields) = (t.embedded, t.fields)
-        MemberSet.init(fields map createField) union MemberSet.init(es map createEmbbed) union
-          MemberSet.union(es.map { e => memberSet(transformer(miscType(e.typ))).promote(createEmbbed(e)) })
-
-      case DeclaredT(decl) => rec(typeType(decl.right)).surface
-      case inf: InterfaceT => interfaceMethodSet(inf)
-
-      case _ => MemberSet.empty
-    }
+  override def addressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
+    val (m, p) = addressableMethodSet(t).lookupWithPath(id.name).get
+    (m.asInstanceOf[Method], p)
   }
 
-  lazy val promotedMemberSet: Type => MemberSet = promotedMemberSetGen(identity)
-
-  lazy val promotedMemberSetRef: Type => MemberSet = {
-    def maybeRef(t: Type): Type = t match {
-      case _: PointerT => t
-      case _ => PointerT(t)
-    }
-
-    promotedMemberSetGen(maybeRef)
+  override def nonAddressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
+    val (m, p) = nonAddressableMethodSet(t).lookupWithPath(id.name).get
+    (m.asInstanceOf[Method], p)
   }
 
-  lazy val selectionSet: Type => MemberSet =
-    attr[Type, MemberSet] {
-      case t: PointerT => memberSet(t)
-      case t => memberSet(PointerT(t)).deref union promotedSelectionSet(t)
-    }
+  def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
+    val (m, p) =
+      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
+      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
 
-  lazy val promotedSelectionSet: Type => MemberSet =
-    attr[Type, MemberSet] {
-      case DeclaredT(decl) => promotedSelectionSet(typeType(decl.right)).surface
-      case PointerT(t: DeclaredT) => promotedMemberSetRef(t)
-      case _ => MemberSet.empty
-    }
+    (m.asInstanceOf[Method], p)
+  }
 
-  def findSelection(t: Type, id: PIdnUse): Option[TypeMember] = selectionSet(t).lookup(id.name)
+  def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = {
+    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
+    (m.asInstanceOf[Method], p)
+  }
 
-  def findMember(t: Type, id: PIdnUse): Option[TypeMember] = memberSet(t).lookup(id.name)
+  def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
+    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
+    (m.asInstanceOf[Method], p)
+  }
+
+  def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+    val (m, p) =
+      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
+      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
+
+    (m.asInstanceOf[MPredicate], p)
+  }
+
+  def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
+    (m.asInstanceOf[MPredicate], p)
+  }
+
+  def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
+    (m.asInstanceOf[MPredicate], p)
+  }
+
+
+  def findField(t: Type, id: PIdnUse): Option[StructMember] =
+    structMemberSet(t).lookup(id.name)
+
+  def findMethodLike(e: PExpression, id: PIdnUse): Option[MethodLike] =
+    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookup(id.name)
+    else nonAddressableMethodSet(exprType(e)).lookup(id.name)
+
+  def findMethodLike(e: PIdnNode, id: PIdnUse): Option[MethodLike] =
+    addressableMethodSet(idType(e)).lookup(id.name)
+
+  def findMethodLike(e: Type, id: PIdnUse): Option[MethodLike] =
+    nonAddressableMethodSet(e).lookup(id.name)
+
+  def findSelection(e: PExpression, id: PIdnUse): Option[TypeMember] = {
+    val methOpt = findMethodLike(e, id)
+    if (methOpt.isDefined) methOpt
+    else findField(exprType(e), id)
+  }
+
+  def findSelection(t: PIdnNode, id: PIdnUse): Option[TypeMember] = {
+    val methOpt = findMethodLike(t, id)
+    if (methOpt.isDefined) methOpt
+    else findField(idType(t), id)
+  }
 
   def calleeEntity(callee: PExpression): Option[Regular] = callee match {
     case PNamedOperand(id)     => Some(regular(id))
-    case PMethodExpr(base, id) => Some(findSelection(typeType(base), id).get)
-    case PSelection(base, id)  => Some(findSelection(exprType(base), id).get)
+    case PMethodExpr(base, id) => Some(findMethodLike(typeType(base), id).get)
+    case PSelection(base, id)  => Some(findSelection(base, id).get)
     case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
-      case (base, id) => findSelection(idType(base), id).get // selection
+      case (base, id) => findSelection(base, id).get // selection
     } {
-      case (base, id) => findSelection(idType(base), id).get // methodExpr
+      case (base, id) => findMethodLike(idType(base), id).get // methodExpr
     }
     case _ => None
   }

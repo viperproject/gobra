@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.SymbolTable.Field
+import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -22,7 +22,10 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
     case Single(st) => st match {
       case t: StructT =>
-        memberSet(t).collect { case (_, f: Field) => typeType(f.decl.typ) }.forall(comparableType)
+        structMemberSet(t).collect {
+          case (_, f: Field) => typeType(f.decl.typ)
+          case (_, e: Embbed) => miscType(e.decl.typ)
+        }.forall(comparableType)
 
       case _: SliceT | _: MapT | _: FunctionT => false
       case _ => true

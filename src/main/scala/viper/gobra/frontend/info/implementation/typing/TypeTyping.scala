@@ -29,9 +29,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@ PMapType(key, _) => message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
 
-    case t: PStructType => memberSet(StructT(t)).errors(t)
+    case t: PStructType => structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
 
-    case t: PInterfaceType => memberSet(InterfaceT(t)).errors(t)
+    case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
   }
 
   lazy val typeType: Typing[PType] = createTyping {

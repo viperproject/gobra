@@ -88,7 +88,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts) =>
+    case PFunctionSpec(pres, posts, isPure) =>
+      (if (isPure) "pure" <> line else emptyDoc) <>
       hcat(pres map (p => "requires" <+> showAssertion(p) <> line)) <>
         hcat(posts map (p => "ensures" <+> showAssertion(p) <> line))
 
@@ -330,10 +331,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
       case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
       case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
-      case PInterfaceType(embedded, specs) =>
+      case PInterfaceType(embedded, mspec, pspec) =>
         "interface" <+> block(
           ssep(embedded map showInterfaceClause, line) <>
-          ssep(specs map showInterfaceClause, line)
+            ssep(mspec map showInterfaceClause, line) <>
+            ssep(pspec map showInterfaceClause, line)
         )
       case PMethodReceiveName(t) => showType(t)
       case PMethodReceivePointer(t) => "*" <> showType(t)
@@ -362,7 +364,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
     case PInterfaceName(typ) => showType(typ)
-    case PMethodSig(id, args, result) => "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result)
+    case PMethodSig(id, args, result) => showId(id) <> parens(showParameterList(args)) <> showResult(result)
+    case PMPredicateSig(id, args) => "predicate"  <+> showId(id) <> parens(showParameterList(args))
   }
 
   // ids

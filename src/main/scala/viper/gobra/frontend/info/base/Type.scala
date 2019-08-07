@@ -55,6 +55,8 @@ object Type {
 
   sealed trait GhostType extends Type
 
+  case object PredicateInstance extends GhostType
+
 
   /**
     * Type Contexts

@@ -18,6 +18,7 @@ object SymbolTable extends Environments {
 
   case class Function(decl: PFunctionDecl, isGhost: Boolean) extends ActualDataEntity {
     override def rep: PNode = decl
+    def isPure: Boolean = decl.spec.isPure
   }
 
   sealed trait Constant extends DataEntity
@@ -90,14 +91,20 @@ object SymbolTable extends Environments {
     override def rep: PNode = decl
   }
 
-  sealed trait Method extends ActualTypeMember
+  sealed trait MethodLike extends TypeMember
+
+  sealed trait Method extends MethodLike with ActualTypeMember {
+    def isPure: Boolean
+  }
 
   case class MethodImpl(decl: PMethodDecl, isGhost: Boolean) extends Method {
     override def rep: PNode = decl
+    override def isPure: Boolean = decl.spec.isPure
   }
 
   case class MethodSpec(spec: PMethodSig, isGhost: Boolean) extends Method {
     override def rep: PNode = spec
+    override def isPure: Boolean = false // TODO: adapt later
   }
 
   case class Package(decl: PQualifiedImport) extends ActualRegular {
@@ -122,11 +129,27 @@ object SymbolTable extends Environments {
 
   sealed trait GhostDataEntity extends DataEntity with GhostRegular
 
+  sealed trait Predicate extends GhostDataEntity
+
+  case class FPredicate(decl: PFPredicateDecl) extends Predicate {
+    override def rep: PNode = decl
+  }
+
   sealed trait GhostConstant extends Constant with GhostDataEntity
 
   sealed trait GhostVariable extends Variable with GhostDataEntity
 
   sealed trait GhostTypeMember extends TypeMember with GhostRegular
+
+  sealed trait MPredicate extends MethodLike with GhostTypeMember with Predicate
+
+  case class MPredicateImpl(decl: PMPredicateDecl) extends MPredicate {
+    override def rep: PNode = decl
+  }
+
+  case class MPredicateSpec(decl: PMPredicateSig) extends MPredicate {
+    override def rep: PNode = decl
+  }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 

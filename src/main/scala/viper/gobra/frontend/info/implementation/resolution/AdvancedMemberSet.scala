@@ -2,7 +2,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend.PType
-import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MethodImpl, MethodSpec, TypeMember}
+import viper.gobra.frontend.info.base.SymbolTable._
 
 class AdvancedMemberSet[M <: TypeMember] private(
                                 private val internal: Map[String, (M, Vector[MemberPath], Int)]
@@ -10,8 +10,9 @@ class AdvancedMemberSet[M <: TypeMember] private(
                               ) {
 
   import org.bitbucket.inkytonik.kiama.==>
-  import scala.collection.breakOut
   import viper.gobra.util.Violation._
+
+  import scala.collection.breakOut
 
   type Record = (M, Vector[MemberPath], Int)
 
@@ -76,6 +77,8 @@ object AdvancedMemberSet {
       def extractMemberName(tm: TypeMember): String = tm match {
         case MethodImpl(m, _) => m.id.name
         case MethodSpec(m, _) => m.id.name
+        case MPredicateImpl(p) => p.id.name
+        case MPredicateSpec(p) => p.id.name
         case Field(m, _)      => m.id.name
         case Embbed(m, _)     => m.id.name
       }

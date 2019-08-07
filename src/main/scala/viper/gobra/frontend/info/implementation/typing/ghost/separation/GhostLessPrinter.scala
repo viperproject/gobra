@@ -75,6 +75,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       val aArgs = args.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showExpr(PCall(callee, aArgs))
 
+    case e: PActualExprProofAnnotation => showExpr(e.op)
     case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed
     case e => super.showExpr(e)
   }
@@ -84,8 +85,12 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PStructType(clauses) =>
       super.showType(PStructType(filterStructClauses(clauses)))
 
-    case PInterfaceType(embedded, specs) =>
-      super.showType(PInterfaceType(filterInterfaceClause(embedded), filterInterfaceClause(specs)))
+    case PInterfaceType(embedded, mspecs, pspecs) =>
+      super.showType(PInterfaceType(
+        filterInterfaceClause(embedded),
+        filterInterfaceClause(mspecs),
+        filterInterfaceClause(pspecs)
+      ))
 
     case t => super.showType(t)
   }

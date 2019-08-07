@@ -55,6 +55,13 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PNamedReceiver => ReceiverParameter(decl, isGhost)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost)
+
+
+            // Ghost additions
+
+        case decl: PFPredicateDecl => FPredicate(decl)
+        case decl: PMPredicateDecl => MPredicateImpl(decl)
+        case decl: PMPredicateSig => MPredicateSpec(decl)
       }
     }
 
@@ -149,6 +156,8 @@ trait NameResolution { this: TypeInfoImpl =>
         m match {
           case a: PActualMember => actualMember(a)
           case PExplicitGhostMember(a) => actualMember(a)
+          case p: PMPredicateDecl => Vector(p.id)
+          case p: PFPredicateDecl => Vector(p.id)
         }
       }
 
@@ -164,7 +173,8 @@ trait NameResolution { this: TypeInfoImpl =>
         }
       }
 
-      case n: PInterfaceType => n.specs map (_.id)
+      case n: PInterfaceType =>
+        n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
     }
 
     shallowDefs(n).foldLeft(env) {
@@ -196,17 +206,33 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, e@ PSelectionOrMethodExpr(_, f)) if id == f =>
         resolveSelectionOrMethodExpr(e)
-        { case (b, i) => findSelection(idType(b), i) }
-        { case (b, i) => findMember(idType(b), i) }
+        { case (b, i) => findSelection(b, i) }
+        { case (b, i) => findMethodLike(idType(b), i) }
           .flatten.getOrElse(UnknownEntity())
 
       case tree.parent.pair(id: PIdnUse, e: PMethodExpr) =>
-        findMember(typeType(e.base), id).getOrElse(UnknownEntity())
+        findMethodLike(typeType(e.base), id).getOrElse(UnknownEntity())
 
       case tree.parent.pair(id: PIdnUse, e: PSelection) =>
-        findSelection(exprType(e.base), id).getOrElse(UnknownEntity())
+        findSelection(e.base, id).getOrElse(UnknownEntity())
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
+
+
+      case tree.parent.pair(id: PIdnUse, e@ PMPredOrMethRecvOrExprCall(_, f, _)) if id == f =>
+        resolveMPredOrMethExprOrRecvCall(e)
+        { case (b, i, _) => findSelection(b, i) }
+        { case (b, i, _) => findMethodLike(idType(b), i)}
+          .flatten.getOrElse(UnknownEntity())
+
+      case tree.parent.pair(id: PIdnUse, e: PMPredOrMethExprCall) =>
+        findMethodLike(typeType(e.base), id).getOrElse(UnknownEntity())
+
+      case tree.parent.pair(id: PIdnUse, e: PMPredOrBoolMethCall) =>
+        findSelection(e.recv, id).getOrElse(UnknownEntity())
+
+      case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
+
 
       case n =>
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())

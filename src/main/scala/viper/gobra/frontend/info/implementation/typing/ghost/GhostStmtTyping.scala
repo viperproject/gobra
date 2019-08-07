@@ -13,5 +13,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PExhale(exp) => noMessages
     case n@PAssume(exp) => noMessages
     case n@PInhale(exp) => noMessages
+    case n@PFold(exp) => noMessages
+    case n@PUnfold(exp) => noMessages
   }
 }

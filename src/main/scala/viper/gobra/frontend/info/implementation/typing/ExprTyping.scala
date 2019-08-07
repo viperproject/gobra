@@ -2,9 +2,10 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Method
+import viper.gobra.frontend.info.base.SymbolTable.{ActualStructMember, Method}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -48,21 +49,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
 
-    case n@PMethodExpr(t, id) => // Soundness: check if id is correct member done by findMember
-      message(n, s"type ${typeType(t)} does not have method ${id.name}"
-        , !findMember(typeType(t), id).exists(_.isInstanceOf[Method]))
+    case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n)
 
-    case n@PSelection(base, id) => // Soundness: check if id is correct member done by findMember
-      message(n, s"type ${exprType(base)} does not have method ${id.name}"
-        , findMember(exprType(base), id).isEmpty)
+    case n@PSelection(base, id) => wellDefSelection(base, id)(n)
 
-    case n: PSelectionOrMethodExpr => // Soundness: check if id is correct member done by findMember
-      message(n, s"type ${idType(n.base)} does not have method ${n.id.name}"
-        , resolveSelectionOrMethodExpr(n)
-        { case (base, id) => findMember(idType(base), id).isEmpty }
-        { case (t, id) => !findMember(idType(t), id).exists(_.isInstanceOf[Method]) }
-          .getOrElse(false)
-      )
+    case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n)
 
     case n@PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(l, elem), IntT) =>
@@ -127,7 +118,25 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
     }
 
+    case n: PUnfolding => noMessages
+  }
 
+  def wellDefSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
+    message(n, s"type ${idType(base)} does not have method ${id.name}"
+      , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[Method])
+      else if (pointsToData(base)) !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember])
+      else Violation.violation("base should be either a type or data")
+    )
+  }
+
+  def wellDefMethodExpr(t: PMethodRecvType, id: PIdnUse)(n: PNode): Messages = {
+    message(n, s"type ${typeType(t)} does not have method ${id.name}"
+      , !findMethodLike(typeType(t), id).exists(_.isInstanceOf[Method]))
+  }
+
+  def wellDefSelection(base: PExpression, id: PIdnUse)(n: PNode): Messages = {
+    message(n, s"type ${exprType(base)} does not have method ${id.name}"
+      , !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember]))
   }
 
   lazy val exprType: Typing[PExpression] = createTyping {
@@ -168,15 +177,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PSelectionOrMethodExpr =>
       resolveSelectionOrMethodExpr(n)
-      { case (base, id) => findSelection(idType(base), id) }
-      { case (base, id) => findMember(idType(base), id) }
-        .flatten.map(memberType).getOrElse(violation("no selection found"))
+      { case (base, id) => findSelection(base, id).map(memberType) }
+      { case (base, id) => findMethodLike(idType(base), id).map(m => methodExprType(idType(base), m.asInstanceOf[Method])) }
+        .get.getOrElse(violation("no selection found"))
 
     case PMethodExpr(base, id) =>
-      findMember(typeType(base), id).map(memberType).getOrElse(violation("no function found"))
+      val baseType = typeType(base)
+      findMethodLike(baseType, id).map(m => methodExprType(typeType(base), m.asInstanceOf[Method])).getOrElse(violation("no function found"))
 
     case PSelection(base, id) =>
-      findSelection(exprType(base), id).map(memberType).getOrElse(violation("no selection found"))
+      findSelection(base, id).map(memberType).getOrElse(violation("no selection found"))
 
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem
@@ -214,6 +224,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       BooleanT
 
     case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => IntT
+
+    case n: PUnfolding => exprType(n.op)
 
     case e => violation(s"unexpected expression $e")
   }

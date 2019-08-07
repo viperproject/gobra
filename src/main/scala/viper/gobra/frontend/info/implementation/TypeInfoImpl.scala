@@ -57,6 +57,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
+  override def typ(misc: PMisc): Type.Type = miscType(misc)
+
   override def typ(typ: PType): Type.Type = typeType(typ)
 
   override def typ(id: PIdnNode): Type.Type = idType(id)

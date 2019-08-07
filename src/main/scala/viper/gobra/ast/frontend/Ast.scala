@@ -634,7 +634,7 @@ case class PStar(left: PAssertion, right: PAssertion) extends PAssertion
 
 case class PExprAssertion(exp: PExpression) extends PAssertion
 
-sealed trait PPredicateCall extends PAssertion with PAccessible
+sealed trait PPredicateCall extends PAssertion
 
 case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 

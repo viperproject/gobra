@@ -14,29 +14,32 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@ PStar(left, right) => noMessages
     case n@ PImplication(left, right) => assignableTo.errors(exprType(left), BooleanT)(n)
-    case n@ PExprAssertion(exp) => assignableTo.errors(exprType(exp), BooleanT)(n)
+    case n@ PExprAssertion(exp) => assignableTo.errors(exprType(exp), BooleanT)(n) ++ isPureExpr(exp)
     case n@ PAccess(exp) => exp match {
       case _: PDereference => noMessages
       case _: PReference => noMessages
       case s: PSelection => message(n, "selections in access predicates have to target fields", !entity(s.id).isInstanceOf[Field])
-      case _: PPredicateCall => noMessages // is checked as a child check
     }
 
     case n: PPredicateCall => n match {
 
       case PFPredOrBoolFuncCall(id, args) =>
-        getLeftOrElse(wellDefBase(id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
+        args.flatMap(isPureExpr) ++
+          getLeftOrElse(wellDefBase(id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
 
       case PMPredOrBoolMethCall(recv, id, args) =>
+        isPureExpr(recv) ++ args.flatMap(isPureExpr) ++
         getLeftOrElse(wellDefBase(recv, id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
 
       case PMPredOrMethExprCall(base, id, args) =>
-        getLeftOrElse(wellDefBase(base, id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
+        args.flatMap(isPureExpr) ++
+          getLeftOrElse(wellDefBase(base, id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
 
       case PMPredOrMethRecvOrExprCall(base, id, args) =>
-        getLeftOrElse(wellDefBase(base, id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
+        args.flatMap(isPureExpr) ++
+          getLeftOrElse(wellDefBase(base, id)(n))(formalT => multiAssignableTo.errors(args map exprType, formalT)(n))
 
-      case PMemoryPredicateCall(arg) => isClassType.errors(exprType(arg))(n)
+      case PMemoryPredicateCall(arg) => isPureExpr(arg) ++ isClassType.errors(exprType(arg))(n)
     }
 
     case n@ PPredicateAccess(predicateCall) => predicateCall match {
@@ -58,7 +61,9 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefBase(id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case Function(decl, _) =>
-      ifNoMessages(assignableTo.errors(miscType(decl.result), BooleanT)(n))(decl.args map miscType)
+      ifNoMessages(
+        assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
+      )(decl.args map miscType)
 
     case FPredicate(decl) => Right(decl.args map miscType)
 
@@ -68,10 +73,23 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   private def wellDefBase(recv: PExpression, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case MethodImpl(decl, _) =>
       ifNoMessages(
-        assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefSelection(recv, id)(n)
+          assignableTo.errors(miscType(decl.result), BooleanT)(n) ++
+          wellDefSelection(recv, id)(n) ++
+          message(n, "expected pure method", !decl.spec.isPure)
       )(decl.args map miscType)
 
-    case FPredicate(decl) =>
+    case MethodSpec(sig, _) =>
+      ifNoMessages(
+        assignableTo.errors(miscType(sig.result), BooleanT)(n) ++ wellDefSelection(recv, id)(n) // TODO ++ message(n, "expected pure method", !sig.spec.isPure)
+      )(sig.args map miscType)
+
+
+    case MPredicateImpl(decl) =>
+      ifNoMessages(
+        wellDefPredicateSelection(recv, id)(n)
+      )(decl.args map miscType)
+
+    case MPredicateSpec(decl) =>
       ifNoMessages(
         wellDefPredicateSelection(recv, id)(n)
       )(decl.args map miscType)
@@ -82,29 +100,53 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   private def wellDefBase(recv: PMethodRecvType, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case MethodImpl(decl, _) =>
       ifNoMessages(
-        assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefMethodExpr(recv, id)(n)
-      )(decl.args map miscType)
+        assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefMethodExpr(recv, id)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
+      )(typeType(recv) +: (decl.args map miscType))
 
-    case FPredicate(decl) =>
+    case MethodSpec(sig, _) =>
+      ifNoMessages(
+        assignableTo.errors(miscType(sig.result), BooleanT)(n) ++ wellDefMethodExpr(recv, id)(n) // TODO ++ message(n, "expected pure method", !sig.spec.isPure)
+      )(typeType(recv) +: (sig.args map miscType))
+
+    case MPredicateImpl(decl) =>
       ifNoMessages(
         wellDefPredicateExpr(recv, id)(n)
-      )(decl.args map miscType)
+      )(typeType(recv) +: (decl.args map miscType))
+
+    case MPredicateSpec(decl) =>
+      ifNoMessages(
+        wellDefPredicateExpr(recv, id)(n)
+      )(typeType(recv) +: (decl.args map miscType))
 
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
-  private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
-    case MethodImpl(decl, _) =>
-      ifNoMessages(
-        assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefSelectionOrMethodExpr(recv, id)(n)
-      )(decl.args map miscType)
+  private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = {
+    val recvOpt = if (pointsToType(recv)) Vector(idType(recv)) else Vector.empty
 
-    case FPredicate(decl) =>
-      ifNoMessages(
-        wellDefPredicateSelectionOrExpr(recv, id)(n)
-      )(decl.args map miscType)
+    entity(id) match {
+      case MethodImpl(decl, _) =>
+        ifNoMessages(
+          assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefSelectionOrMethodExpr(recv, id)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
+        )(recvOpt ++ (decl.args map miscType))
 
-    case e => Left(message(n, s"expected function of predicate but got $e"))
+      case MethodSpec(sig, _) =>
+        ifNoMessages(
+          assignableTo.errors(miscType(sig.result), BooleanT)(n) ++ wellDefSelectionOrMethodExpr(recv, id)(n) // TODO ++ message(n, "expected pure method", !sig.spec.isPure)
+        )(recvOpt ++ (sig.args map miscType))
+
+      case MPredicateImpl(decl) =>
+        ifNoMessages(
+          wellDefPredicateSelectionOrExpr(recv, id)(n)
+        )(recvOpt ++ (decl.args map miscType))
+
+      case MPredicateSpec(decl) =>
+        ifNoMessages(
+          wellDefPredicateSelectionOrExpr(recv, id)(n)
+        )(recvOpt ++ (decl.args map miscType))
+
+      case e => Left(message(n, s"expected function of predicate but got $e"))
+    }
   }
 
 

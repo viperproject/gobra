@@ -22,7 +22,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PVarDecl(typ, right, left) =>
       declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-    case n: PTypeDecl => noMessages
+    case n: PTypeDecl => isClassOrInterfaceType.errors(typeType(n.right))(n)
 
     case n@PExpressionStmt(exp) => isExecutable.errors(exp)(n)
 

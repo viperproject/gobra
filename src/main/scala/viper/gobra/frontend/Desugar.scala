@@ -109,6 +109,38 @@ object Desugar {
       }.asInstanceOf[in.MethodProxy]
     }
 
+    def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
+      getProxy(decl.id).getOrElse{
+        val name = idName(decl.id)
+        val proxy = in.FPredicateProxy(name)(meta(decl))
+        addProxy(decl.id, proxy)
+        proxy
+      }.asInstanceOf[in.FPredicateProxy]
+    }
+
+    def mpredicateProxyD(decl: PMPredicateDecl): in.MPredicateProxy = {
+      getProxy(decl.id).getOrElse{
+        val name = idName(decl.id)
+        val proxy = in.MPredicateProxy(decl.id.name, name)(meta(decl))
+        addProxy(decl.id, proxy)
+        proxy
+      }.asInstanceOf[in.MPredicateProxy]
+    }
+
+    def mpredicateProxy(sym: st.MPredicate): in.MPredicateProxy = {
+      val (metaInfo, id) = sym match {
+        case st.MPredicateImpl(decl) => (meta(decl), decl.id)
+        case st.MPredicateImpl(spec) => (meta(spec), spec.id)
+      }
+
+      getProxy(id).getOrElse{
+        val name = idName(id)
+        val proxy = in.MPredicateProxy(id.name, name)(metaInfo)
+        addProxy(id, proxy)
+        proxy
+      }.asInstanceOf[in.MPredicateProxy]
+    }
+
     class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
 
       private var substitutions: Map[Identity, in.BodyVar] = Map.empty
@@ -130,17 +162,22 @@ object Desugar {
     }
 
     def programD(p: PProgram): in.Program = {
-      val globalVarDecls = p.declarations.collect { case NoGhost(x: PVarDecl) => varDeclGD(x) }.flatten.distinct
-      val globalConstDecls = p.declarations.collect{ case NoGhost(x: PConstDecl) => constDeclD(x) }.flatten.distinct
-      val methods = p.declarations.collect{ case NoGhost(x: PMethodDecl) => methodD(x) }.distinct
-      val functions = p.declarations.collect{ case NoGhost(x: PFunctionDecl) => functionD(x) }.distinct
+      val dMembers = p.declarations.flatMap{
+        case NoGhost(x: PVarDecl) => varDeclGD(x)
+        case NoGhost(x: PConstDecl) => constDeclD(x)
+        case NoGhost(x: PMethodDecl) => Vector(methodD(x))
+        case NoGhost(x: PFunctionDecl) => Vector(functionD(x))
+        case x: PMPredicateDecl => Vector(mpredicateD(x))
+        case x: PFPredicateDecl => Vector(fpredicateD(x))
+        case _ => Vector.empty
+      }
 
       p.declarations.foreach{
         case NoGhost(x: PTypeDef) => typeDefD(x)
         case _ =>
       }
 
-      in.Program(types.toVector, globalVarDecls, globalConstDecls, methods, functions)(meta(p))
+      in.Program(types.toVector, dMembers)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
@@ -149,7 +186,8 @@ object Desugar {
 
     def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl))
 
-    def functionD(decl: PFunctionDecl): in.Function = {
+    def functionD(decl: PFunctionDecl): in.Member =
+      if (decl.spec.isPure) pureFunctionD(decl) else {
 
       val name = functionProxyD(decl).name
       val fsrc = meta(decl)
@@ -243,6 +281,38 @@ object Desugar {
       }
 
       in.Function(name, args, returns, pres, posts, bodyOpt)(fsrc)
+    }
+
+    def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
+      require(decl.spec.isPure)
+
+      val name = functionProxyD(decl).name
+      val fsrc = meta(decl)
+
+      val argsWithSubs = decl.args map parameterD
+      val (args, _) = argsWithSubs.unzip
+
+      val returnsWithSubs = decl.result match {
+        case NoGhost(PVoidResult()) => Vector.empty
+        case NoGhost(PResultClause(outs)) => outs map { o =>
+          val (param, sub) = parameterD(o)
+          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
+        }
+      }
+      val (returns, _) = returnsWithSubs.unzip
+
+      // create context for body translation
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+
+      // translate pre- and postconditions before extending the context
+      val pres = decl.spec.pres map preconditionD(ctx)
+
+      val bodyOpt = decl.body.map{
+        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
+        case b => Violation.violation(s"unexpected pure function body: $b")
+      }
+
+      in.PureFunction(name, args, returns, pres, bodyOpt)(fsrc)
     }
 
 
@@ -355,6 +425,78 @@ object Desugar {
       }
 
       in.Method(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+    }
+
+    def pureMethodD(decl: PMethodDecl): in.PureMethod = {
+      require(decl.spec.isPure)
+
+      val name = methodProxyD(decl).name
+      val fsrc = meta(decl)
+
+      val recvWithSubs = receiverD(decl.receiver)
+      val (recv, _) = recvWithSubs
+
+      val argsWithSubs = decl.args map parameterD
+      val (args, _) = argsWithSubs.unzip
+
+      val returnsWithSubs = decl.result match {
+        case NoGhost(PVoidResult()) => Vector.empty
+        case NoGhost(PResultClause(outs)) => outs map { o =>
+          val (param, sub) = parameterD(o)
+          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
+        }
+      }
+      val (returns, _) = returnsWithSubs.unzip
+
+      // create context for body translation
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+
+      // translate pre- and postconditions before extending the context
+      val pres = decl.spec.pres map preconditionD(ctx)
+
+      val bodyOpt = decl.body.map{
+        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
+        case b => Violation.violation(s"unexpected pure function body: $b")
+      }
+
+      in.PureMethod(recv, name, args, returns, pres, bodyOpt)(fsrc)
+    }
+
+    def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
+      val name = fpredicateProxyD(decl).name
+      val fsrc = meta(decl)
+
+      val argsWithSubs = decl.args map parameterD
+      val (args, _) = argsWithSubs.unzip
+
+      // create context for body translation
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+
+      val bodyOpt = decl.body.map{ s =>
+        specificationD(ctx)(s)
+      }
+
+      in.FPredicate(name, args, bodyOpt)(fsrc)
+    }
+
+    def mpredicateD(decl: PMPredicateDecl): in.MPredicate = {
+      val name = mpredicateProxyD(decl).name
+      val fsrc = meta(decl)
+
+      val recvWithSubs = receiverD(decl.receiver)
+      val (recv, _) = recvWithSubs
+
+      val argsWithSubs = decl.args map parameterD
+      val (args, _) = argsWithSubs.unzip
+
+      // create context for body translation
+      val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
+
+      val bodyOpt = decl.body.map{ s =>
+        specificationD(ctx)(s)
+      }
+
+      in.MPredicate(recv, name, args, bodyOpt)(fsrc)
     }
 
 
@@ -542,9 +684,9 @@ object Desugar {
         case m: st.Method =>
           val path = memberPathD(exprEntityD(ctx)(base) match {
             case _: ExprEntity.Variable | _: ExprEntity.ReceivedDeref | _: ExprEntity.ReceivedField =>
-              info.addressedMethodLookup(info.typ(base), id)._2
+              info.methodLookup(base, id)._2
 
-            case _ => info.nonAddressedMethodLookup(info.typ(base), id)._2
+            case _ => info.methodLookup(info.typ(base), id)._2
           })
 
           ExprEntity.ReceivedMethod(m, exprD(ctx)(base), path)
@@ -552,13 +694,13 @@ object Desugar {
         case _ => Violation.violation("expected entity behind expression")
       }
 
-      case PMethodExpr(base, id) => info.nonAddressedMethodLookup(info.typ(base), id) match {
+      case PMethodExpr(base, id) => info.methodLookup(info.typ(base), id) match {
         case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
         case _ => Violation.violation("expected entity behind expression")
       }
 
       case PSelectionOrMethodExpr(base, id) => info.regular(base) match {
-        case _: st.TypeEntity => info.nonAddressedMethodLookup(info.typ(base), id) match {
+        case _: st.TypeEntity => info.methodLookup(info.typ(base), id) match {
           case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
           case _ => Violation.violation("expected entity behind expression")
         }
@@ -572,7 +714,7 @@ object Desugar {
             ExprEntity.ReceivedField(s, rfield)
 
           case m: st.Method =>
-            val path = memberPathD(info.addressedMethodLookup(info.typ(base), id)._2) // base has to be a variable
+            val path = memberPathD(info.methodLookup(base, id)._2) // base has to be a variable
             ExprEntity.ReceivedMethod(m, unit(varD(ctx)(base)), path)
 
           case _ => Violation.violation("expected entity behind expression")
@@ -600,6 +742,7 @@ object Desugar {
           case r: in.LocalVar.Ref => v map (_ => in.Addressable.Var(r))
           case r => Violation.violation(s"expected variable reference but got $r")
         }
+        case ExprEntity.ReceivedDeref(deref) => deref map in.Addressable.Pointer
         case ExprEntity.ReceivedField(_, f) => f map in.Addressable.Field
 
         case _ => ???
@@ -657,21 +800,27 @@ object Desugar {
                   case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
                   case dargs => dargs
                 }
-                targets = fsym.decl.result match {
-                  case PVoidResult() => Vector.empty
-                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+
+                v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
+                else {
+                  val targets = fsym.decl.result match {
+                    case PVoidResult() => Vector.empty
+                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                  }
+                  for {
+                    _ <- declare(targets: _*)
+                    _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
+
+                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                  } yield res
                 }
 
-                _ <- declare(targets: _*)
-                _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
-
-                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
             case ExprEntity.ReceivedMethod(op, recv, path) =>
-              val (fargs, fres) = op match {
-                case st.MethodImpl(decl, _) => (decl.args, decl.result)
-                case st.MethodSpec(spec, _) => (spec.args, spec.result)
+              val (isPure, fargs, fres) = op match {
+                case st.MethodImpl(decl, _) => (decl.spec.isPure, decl.args, decl.result)
+                case st.MethodSpec(spec, _) => (false, spec.args, spec.result)
               }
 
               val fproxy = methodProxy(op)
@@ -685,21 +834,27 @@ object Desugar {
                   case Vector(in.Tuple(targs)) if fargs.size > 1 => targs
                   case dargs => dargs
                 }
-                targets = fres match {
-                  case PVoidResult() => Vector.empty
-                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+
+                v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, path, typeD(info.typ(fres)))(src))
+                else {
+                  val targets = fres match {
+                    case PVoidResult() => Vector.empty
+                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                  }
+                  for {
+                    _ <- declare(targets: _*)
+                    _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs, path)(src))
+
+                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                  } yield res
                 }
 
-                _ <- declare(targets: _*)
-                _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs, path)(src))
-
-                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
             case ExprEntity.MethodExpr(op, path) =>
-              val (fargs, fres) = op match {
-                case st.MethodImpl(decl, _) => (decl.args, decl.result)
-                case st.MethodSpec(spec, _) => (spec.args, spec.result)
+              val (isPure, fargs, fres) = op match {
+                case st.MethodImpl(decl, _) => (decl.spec.isPure, decl.args, decl.result)
+                case st.MethodSpec(spec, _) => (false, spec.args, spec.result)
               }
 
               val fproxy = methodProxy(op)
@@ -713,15 +868,21 @@ object Desugar {
                   case dargs => dargs
                 }
                 (realRecv, realRemainingArgs) = (realArgs.head, realArgs.tail)
-                targets = fres match {
-                  case PVoidResult() => Vector.empty
-                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+
+                v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, path, typeD(info.typ(fres)))(src))
+                else {
+                  val targets = fres match {
+                    case PVoidResult() => Vector.empty
+                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                  }
+                  for {
+                    _ <- declare(targets: _*)
+                    _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs, path)(src))
+
+                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                  } yield res
                 }
 
-                _ <- declare(targets: _*)
-                _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs, path)(src))
-
-                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
             case e => Violation.violation(s"expected callable entity, but got $e")
@@ -739,15 +900,20 @@ object Desugar {
                   case in.Tuple(targs) if fsym.decl.args.size > 1 => targs
                   case darg => Vector(darg)
                 }
-                targets = fsym.decl.result match {
-                  case PVoidResult() => Vector.empty
-                  case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+
+                v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
+                else {
+                  val targets = fsym.decl.result match {
+                    case PVoidResult() => Vector.empty
+                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                  }
+                  for {
+                    _ <- declare(targets: _*)
+                    _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
+
+                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                  } yield res
                 }
-
-                _ <- declare(targets: _*)
-                _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
-
-                v = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
               } yield v
 
             case e => Violation.violation(s"desugarer: conversion $e is not supported")
@@ -772,6 +938,11 @@ object Desugar {
           case PDiv(left, right) => for {l <- go(left); r <- go(right)} yield in.Div(l, r)(src)
 
           case l: PLiteral => litD(ctx)(l)
+
+          case PUnfolding(acc, op) =>
+            val dAcc = specificationD(ctx)(acc).asInstanceOf[in.Access]
+            val dOp = pureExprD(ctx)(op)
+            unit(in.Unfolding(dAcc, dOp)(src))
 
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
@@ -924,6 +1095,8 @@ object Desugar {
       case _: st.Function => nm.function(id.name, info.scope(id))
       case _: st.MethodSpec => nm.spec(id.name, info.scope(id))
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ)
+      case _: st.FPredicate => nm.function(id.name, info.scope(id))
+      case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ)
       case _: st.Variable => nm.variable(id.name, info.scope(id))
       case _: st.Embbed | _: st.Field => nm.field(id.name, info.scope(id))
       case _: st.NamedType => nm.typ(id.name, info.scope(id))
@@ -1035,6 +1208,8 @@ object Desugar {
         case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
         case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
+        case PFold(exp)   => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
+        case PUnfold(exp) => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -1055,21 +1230,27 @@ object Desugar {
       }
     }
 
+    def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
+      val dExp = exprD(ctx)(expr)
+      Violation.violation(dExp.stmts.isEmpty && dExp.decls.isEmpty, s"expected pure expression, but got $expr")
+      dExp.res
+    }
+
 
     // Assertion
 
-    def prePostConditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def specificationD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
       val condition = assertionD(ctx)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
       condition.res
     }
 
     def preconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
-      prePostConditionD(ctx)(ass)
+      specificationD(ctx)(ass)
     }
 
     def postconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
-      prePostConditionD(ctx)(ass)
+      specificationD(ctx)(ass)
     }
 
 
@@ -1084,10 +1265,106 @@ object Desugar {
         case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
         case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
         case PImplication(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
+
+        case pacc: PPredicateAccess => unit(predicateCallD(ctx)(pacc.pred))
+        case pacc: PPredicateCall => unit(predicateCallD(ctx)(pacc))
+
         case PAccess(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
 
         case _ => ???
       }
+    }
+
+    def predicateCallD(ctx: FunctionContext)(pred: PPredicateCall): in.Assertion = {
+      val src: Meta = meta(pred)
+
+      def predCallToAccess(pacc: in.PredicateAccess): in.Access =
+        in.Access(in.Accessible.Predicate(pacc))(src)
+
+      def isPredicate(id: PIdnUse): Boolean = info.regular(id).isInstanceOf[st.Predicate]
+
+      val dp: in.Assertion = pred match {
+        case PFPredOrBoolFuncCall(id, args) =>
+          val dArgs = args map pureExprD(ctx)
+          info.regular(id) match {
+            case st.Function(decl, _) =>
+              val fproxy = functionProxyD(decl)
+              val retT = typeD(info.typ(decl.result))
+              in.ExprAssertion(in.PureFunctionCall(fproxy, dArgs, retT)(src))(src)
+
+            case st.FPredicate(decl) =>
+              val fproxy = fpredicateProxyD(decl)
+              predCallToAccess(in.FPredicateAccess(fproxy, dArgs)(src))
+
+            case r => Violation.violation(s"expected function of fpredicate, but got $r")
+          }
+
+        case PMPredOrBoolMethCall(recv, id, args) =>
+          val dRecv = pureExprD(ctx)(recv)
+          val dArgs = args map pureExprD(ctx)
+
+          if (isPredicate(id)) {
+            val (sym, path) = info.predicateLookup(recv, id)
+            val proxy = mpredicateProxy(sym)
+            predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
+          } else {
+            val (sym, path) = info.methodLookup(recv, id)
+            val proxy = methodProxy(sym)
+            val retT = typeD(info.typ(sym.result))
+            in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
+          }
+
+
+        case PMPredOrMethExprCall(base, id, args) =>
+          val dArgs = args map pureExprD(ctx)
+
+          if (isPredicate(id)) {
+            val (sym, path) = info.predicateLookup(info.typ(base), id)
+            val proxy = mpredicateProxy(sym)
+            predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
+          } else {
+            val (sym, path) = info.methodLookup(info.typ(base), id)
+            val proxy = methodProxy(sym)
+            val retT = typeD(info.typ(sym.result))
+            in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
+          }
+
+        case PMPredOrMethRecvOrExprCall(base, id, args) =>
+          if (!info.regular(base).isInstanceOf[st.TypeEntity]) {
+            val dRecv = varD(ctx)(base)
+            val dArgs = args map pureExprD(ctx)
+
+            if (isPredicate(id)) {
+              val (sym, path) = info.predicateLookup(base, id)
+              val proxy = mpredicateProxy(sym)
+              predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
+            } else {
+              val (sym, path) = info.methodLookup(base, id)
+              val proxy = methodProxy(sym)
+              val retT = typeD(info.typ(sym.result))
+              in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
+            }
+          } else {
+            val dArgs = args map pureExprD(ctx)
+
+            if (isPredicate(id)) {
+              val (sym, path) = info.predicateLookup(info.typ(base), id)
+              val proxy = mpredicateProxy(sym)
+              predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
+            } else {
+              val (sym, path) = info.methodLookup(info.typ(base), id)
+              val proxy = methodProxy(sym)
+              val retT = typeD(info.typ(sym.result))
+              in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
+            }
+          }
+
+        case PMemoryPredicateCall(arg) =>
+          val dArg = pureExprD(ctx)(arg)
+          predCallToAccess(in.MemoryPredicateAccess(dArg)(src))
+      }
+
+      dp
     }
 
     def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {

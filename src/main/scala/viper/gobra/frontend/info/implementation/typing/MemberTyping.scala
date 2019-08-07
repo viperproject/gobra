@@ -1,8 +1,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type.{DeclaredT, PointerT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -13,13 +12,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
-    case n: PFunctionDecl => noMessages
-
-    case m: PMethodDecl => miscType(m.receiver) match {
-      case DeclaredT(_) | PointerT(DeclaredT(_)) => noMessages
-      case _ => message(m, s"method cannot have non-defined receiver")
-    }
-
+    case n: PFunctionDecl => wellDefPureFunction(n)
+    case m: PMethodDecl => isClassType.errors(miscType(m.receiver))(member) ++ wellDefPureMethod(m)
     case s: PActualStatement => wellDefStmt(s).out
   }
 }

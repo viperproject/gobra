@@ -95,16 +95,19 @@ object SymbolTable extends Environments {
 
   sealed trait Method extends MethodLike with ActualTypeMember {
     def isPure: Boolean
+    def result: PResult
   }
 
   case class MethodImpl(decl: PMethodDecl, isGhost: Boolean) extends Method {
     override def rep: PNode = decl
     override def isPure: Boolean = decl.spec.isPure
+    override def result: PResult = decl.result
   }
 
   case class MethodSpec(spec: PMethodSig, isGhost: Boolean) extends Method {
     override def rep: PNode = spec
     override def isPure: Boolean = false // TODO: adapt later
+    override def result: PResult = spec.result
   }
 
   case class Package(decl: PQualifiedImport) extends ActualRegular {

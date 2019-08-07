@@ -131,17 +131,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) =
     structMemberSet(t).lookupWithPath(id.name).get
 
-  override def addressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) = addressableMethodSet(t).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
-  }
-
-  override def nonAddressedMethodLookup(t: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) = nonAddressableMethodSet(t).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
-  }
-
-  def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
+  override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
     val (m, p) =
       if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
       else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
@@ -149,17 +139,17 @@ trait MemberResolution { this: TypeInfoImpl =>
     (m.asInstanceOf[Method], p)
   }
 
-  def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = {
+  override def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = {
     val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
     (m.asInstanceOf[Method], p)
   }
 
-  def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
+  override def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
     val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
     (m.asInstanceOf[Method], p)
   }
 
-  def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+  override def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
     val (m, p) =
       if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
       else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
@@ -167,12 +157,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     (m.asInstanceOf[MPredicate], p)
   }
 
-  def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+  override def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
     val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
     (m.asInstanceOf[MPredicate], p)
   }
 
-  def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
+  override def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
     val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
     (m.asInstanceOf[MPredicate], p)
   }

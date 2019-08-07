@@ -19,24 +19,23 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 
 case class Program(
-                    types: Vector[TopType],
-                    variables: Vector[GlobalVarDecl],
-                    constants: Vector[GlobalConst],
-                    methods: Vector[Method],
-                    functions: Vector[Function]
+                    types: Vector[TopType], members: Vector[Member]
                   )(val info: Source.Parser.Info) extends Node {
 
 }
 
+sealed trait Member extends Node
+
 sealed trait Location extends Expr
 
-sealed trait GlobalVarDecl extends Node
+
+sealed trait GlobalVarDecl extends Member
 
 //case class SingleGlobalVarDecl(left: GlobalVar, right: Expr)
 
 //case class MultiGlobalVarDecl(lefts: Vector[GlobalVar], right: Expr)
 
-sealed trait GlobalConst extends Node
+sealed trait GlobalConst extends Member
 
 sealed trait Field extends Node {
   def name: String
@@ -61,7 +60,16 @@ case class Method(
                  pres: Vector[Assertion],
                  posts: Vector[Assertion],
                  body: Option[Block]
-                 )(val info: Source.Parser.Info) extends Node
+                 )(val info: Source.Parser.Info) extends Member
+
+case class PureMethod(
+                       receiver: Parameter,
+                       name: String,
+                       args: Vector[Parameter],
+                       results: Vector[LocalVar.Val],
+                       pres: Vector[Assertion],
+                       body: Option[Expr]
+                     )(val info: Source.Parser.Info) extends Member
 
 case class Function(
                      name: String,
@@ -70,7 +78,30 @@ case class Function(
                      pres: Vector[Assertion],
                      posts: Vector[Assertion],
                      body: Option[Block]
-                   )(val info: Source.Parser.Info) extends Node
+                   )(val info: Source.Parser.Info) extends Member
+
+case class PureFunction(
+                         name: String,
+                         args: Vector[Parameter],
+                         results: Vector[LocalVar.Val],
+                         pres: Vector[Assertion],
+                         body: Option[Expr]
+                       )(val info: Source.Parser.Info) extends Member
+
+case class FPredicate(
+                     name: String,
+                     args: Vector[Parameter],
+                     body: Option[Assertion]
+                     )(val info: Source.Parser.Info) extends Member
+
+case class MPredicate(
+                     receiver: Parameter,
+                     name: String,
+                     args: Vector[Parameter],
+                     body: Option[Assertion]
+                     )(val info: Source.Parser.Info) extends Member
+
+
 
 
 sealed trait Stmt extends Node
@@ -129,6 +160,16 @@ case class Assume(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Inhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 case class Exhale(ass: Assertion)(val info: Source.Parser.Info) extends Stmt
 
+case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+  require(acc.e.isInstanceOf[Accessible.Predicate])
+  lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
+}
+
+case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
+  require(acc.e.isInstanceOf[Accessible.Predicate])
+  lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
+}
+
 
 sealed trait Assertion extends Node
 
@@ -148,12 +189,27 @@ sealed trait Accessible extends Node {
 object Accessible {
   case class Pointer(op: Deref) extends Accessible
   case class Field(op: FieldRef) extends Accessible
+  case class Predicate(op: PredicateAccess) extends Accessible
 }
 
+sealed trait PredicateAccess extends Node
+
+case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
+case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends PredicateAccess
+case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
 
 
 
 sealed trait Expr extends Node with Typed
+
+case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extends Expr {
+  require(acc.e.isInstanceOf[Accessible.Predicate])
+  lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
+  override def typ: Type = in.typ
+}
+
+case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], path: MemberPath, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
@@ -322,6 +378,8 @@ case class StructT(name: String, fields: Vector[Field]) extends Type with TopTyp
 sealed trait Proxy extends Node
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends Proxy
+case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 
 
 object MemberPath {

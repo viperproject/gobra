@@ -704,12 +704,18 @@ object Parser {
       */
 
     lazy val ghostMember: Parser[Vector[PGhostMember]] =
+      fpredicateDecl ^^ (Vector(_)) |
+        mpredicateDecl ^^ (Vector(_)) |
       "ghost" ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
         "ghost" ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
-    lazy val predicateDecl: Parser[PFPredicateDecl] =
-      ("predicate" ~> idnDef) ~ parameters ~ ("{" ~> assertion <~ "}").? ^^ PFPredicateDecl
+    lazy val fpredicateDecl: Parser[PFPredicateDecl] =
+      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> assertion <~ "}").? ^^ PFPredicateDecl
 
+    lazy val mpredicateDecl: Parser[PMPredicateDecl] =
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> assertion <~ "}").? ^^ {
+        case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
+      }
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
@@ -736,13 +742,14 @@ object Parser {
       unaryAssertion
 
     lazy val unaryAssertion: Parser[PAssertion] =
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
       predicateCall |
       "(" ~> assertion <~ ")" |
       expression ^^ PExprAssertion
 
     lazy val accessible: Parser[PAccessible] =
-      dereference | reference | selection | predicateCall
+      dereference | reference | selection
 
     lazy val predicateCall: Parser[PPredicateCall] =
       "memory" ~> "(" ~> expression <~ ")" ^^ PMemoryPredicateCall |

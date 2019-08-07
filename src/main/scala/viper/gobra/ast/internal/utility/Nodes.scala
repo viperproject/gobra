@@ -19,9 +19,13 @@ object Nodes {
     */
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
-      case Program(types, variables, constants, methods, functions) => variables ++ constants ++ methods ++ functions
+      case Program(types, members) => members
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver) ++ args ++ results ++ pres ++ posts ++ body
+      case PureMethod(receiver, name, args, results, pres, body) => Seq(receiver) ++ args ++ results ++ pres ++ body
       case Function(name, args, results, pres, posts, body) => args ++ results ++ pres ++ posts ++ body
+      case PureFunction(name, args, results, pres, body) => args ++ results ++ pres ++ body
+      case FPredicate(name, args, body) => args ++ body
+      case MPredicate(recv, name, args, body) => Seq(recv) ++ args ++ body
       case Field(name, typ, emb) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
@@ -37,6 +41,8 @@ object Nodes {
         case Exhale(ass) => Seq(ass)
         case Inhale(ass) => Seq(ass)
         case Assume(ass) => Seq(ass)
+        case Fold(acc) => Seq(acc)
+        case Unfold(acc) => Seq(acc)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -46,7 +52,15 @@ object Nodes {
         case Access(e) => Seq(e)
       }
       case a: Accessible => Seq(a.op)
+      case p: PredicateAccess => p match {
+        case FPredicateAccess(pred, args) => Seq(pred) ++ args
+        case MPredicateAccess(recv, pred, args, path) => Seq(recv, pred) ++ args
+        case MemoryPredicateAccess(arg) => Seq(arg)
+      }
       case e: Expr => e match {
+        case Unfolding(acc, op) => Seq(acc, op)
+        case PureFunctionCall(func, args, typ) => Seq(func) ++ args
+        case PureMethodCall(recv, meth, args, path, typ) => Seq(recv, meth) ++ args
         case DfltVal(typ) => Seq()
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
@@ -68,6 +82,8 @@ object Nodes {
       case p: Proxy => p match {
         case FunctionProxy(name) => Seq()
         case MethodProxy(name, uniqueName) => Seq()
+        case FPredicateProxy(name) => Seq()
+        case MPredicateProxy(name, uniqueName) => Seq()
       }
     }
 //    n match {

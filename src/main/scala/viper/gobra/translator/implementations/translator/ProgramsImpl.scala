@@ -19,7 +19,7 @@ class ProgramsImpl extends Programs {
     val ctx = new ContextImpl(conf)
 
     val progW = for {
-      functions <- sequence(program.functions map (ctx.func.translate(_)(ctx)))
+      functions <- sequence(program.members collect { case f: in.Function => ctx.func.translate(f)(ctx)})
 
       col = {
         val c = new CollectorImpl()

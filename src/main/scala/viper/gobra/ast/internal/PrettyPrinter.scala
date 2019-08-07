@@ -17,8 +17,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def show(n: Node): Doc = n match {
     case n: Program => showProgram(n)
-    case n: Function => showFunction(n)
-    case n: Method => showMethod(n)
+    case n: Member => showMember(n)
     case n: Field => showField(n)
     case n: Stmt => showStmt(n)
     case n: Assignee => showAssignee(n)
@@ -33,13 +32,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: Program): Doc = p match {
-    case Program(types, variables, constants, methods, functions) =>
-      ssep(types.collect{ case n: DefinedT => n} map  showTypeDecl, line <> line) <>
-      ssep(methods map showMethod, line <> line) <>
-      ssep(functions map showFunction, line <> line)
+    case Program(types, members) =>
+      hcat(types map showTopType) <>
+      ssep(members map showMember, line)
   }
 
   // member
+
+  def showTopType(t: TopType): Doc = t match {
+    case d: DefinedT => showTypeDecl(d)
+    case _ => emptyDoc
+  }
+
+  def showMember(m: Member): Doc = m match {
+    case n: Method => showMethod(n)
+    case n: PureMethod => showPureMethod(n)
+    case n: Function => showFunction(n)
+    case n: PureFunction => showPureFunction(n)
+    case n: FPredicate => showFPredicate(n)
+    case n: MPredicate => showMPredicate(n)
+  }
 
   def showFunction(f: Function): Doc = f match {
     case Function(name, args, results, pres, posts, body) =>
@@ -47,10 +59,32 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
+  def showPureFunction(f: PureFunction): Doc = f match {
+    case PureFunction(name, args, results, pres, body) =>
+      "pure func" <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
+  }
+
   def showMethod(m: Method): Doc = m match {
     case Method(receiver, name, args, results, pres, posts, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
+  }
+
+  def showPureMethod(m: PureMethod): Doc = m match {
+    case PureMethod(receiver, name, args, results, pres, body) =>
+      "pure func" <+> parens(showVarDecl(receiver)) <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
+  }
+
+  def showFPredicate(predicate: FPredicate): Doc = predicate match {
+    case FPredicate(name, args, body) =>
+    "pred" <+> name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+  }
+
+  def showMPredicate(predicate: MPredicate): Doc = predicate match {
+    case MPredicate(recv, name, args, body) =>
+      "pred" <+> parens(showVarDecl(recv)) <+> name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
   def showField(field: Field): Doc = field match {
@@ -94,6 +128,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assume(ass) => "assume" <+> showAss(ass)
     case Inhale(ass) => "inhale" <+> showAss(ass)
     case Exhale(ass) => "exhale" <+> showAss(ass)
+    case Fold(acc)   => "fold" <+> showAss(acc)
+    case Unfold(acc) => "unfold" <+> showAss(acc)
   }
 
   def showComposite(c: CompositeObject): Doc = showLit(c.op)
@@ -101,6 +137,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showProxy(x: Proxy): Doc = x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
+    case FPredicateProxy(name) => name
+    case MPredicateProxy(name, _) => name
   }
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
@@ -145,11 +183,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAcc(acc: Accessible): Doc = acc match {
     case Accessible.Pointer(der) => showExpr(der)
     case Accessible.Field(op) => showExpr(op)
+    case Accessible.Predicate(op) => showPredicateAcc(op)
+  }
+
+  def showPredicateAcc(access: PredicateAccess): Doc = access match {
+    case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
+    case MPredicateAccess(recv, pred, args, path) => showExpr(recv) <> "." <> showFieldPath(path) <> pred.name <> parens(showExprList(args))
+    case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
   // expressions
 
   def showExpr(e: Expr): Doc = e match {
+    case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
+
+    case PureFunctionCall(func, args, _) =>
+      func.name <> parens(showExprList(args))
+
+    case PureMethodCall(recv, meth, args, path, _) =>
+      showExpr(recv) <> "." <> showFieldPath(path) <> meth.name <> parens(showExprList(args))
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)

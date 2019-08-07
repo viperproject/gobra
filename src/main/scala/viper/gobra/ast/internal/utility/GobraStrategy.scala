@@ -153,9 +153,13 @@ object GobraStrategy {
   def gobraDuplicator[N <: Node](x: N, args: Seq[AnyRef], meta: Node.Meta): N = {
     val node: Node = (x, args) match {
         // Members
-      case (p: Program, Seq(t: Vector[TopType@unchecked], v: Vector[GlobalVarDecl@unchecked], c: Vector[GlobalConst@unchecked], m: Vector[Method@unchecked], f: Vector[Function@unchecked])) => Program(t,v,c,m,f)(meta)
+      case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m)(meta)
       case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
+      case (m: PureMethod, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, m.name, arg, res, pre, b)(meta)
       case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
+      case (f: PureFunction, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureFunction(f.name, arg, res, pre, b)(meta)
+      case (p: MPredicate, Seq(recv: Parameter, args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, p.name, args, b)(meta)
+      case (p: FPredicate, Seq(args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => FPredicate(p.name, args, b)(meta)
       case (f: Field.Ref, Seq()) => Field.Ref(f.name, f.typ, f.isEmbedding)(meta)
       case (f: Field.Val, Seq()) => Field.Val(f.name, f.typ, f.isEmbedding)(meta)
         // Statements
@@ -175,6 +179,8 @@ object GobraStrategy {
       case (a: Assume, Seq(ass: Assertion)) => Assume(ass)(meta)
       case (i: Inhale, Seq(ass: Assertion)) => Inhale(ass)(meta)
       case (e: Exhale, Seq(ass: Assertion)) => Exhale(ass)(meta)
+      case (f: Fold, Seq(acc: Access)) => Fold(acc)(meta)
+      case (u: Unfold, Seq(acc: Access)) => Unfold(acc)(meta)
         // Assertions
       case (s: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (e: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
@@ -182,7 +188,14 @@ object GobraStrategy {
       case (a: Access, Seq(acc: Accessible)) => Access(acc)(meta)
       case (a: Accessible.Pointer, Seq(d: Deref)) => Accessible.Pointer(d)
       case (a: Accessible.Field, Seq(f: FieldRef)) => Accessible.Field(f)
+      case (a: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
+      case (p: FPredicateAccess, Seq(pred: FPredicateProxy, args: Vector[Expr@unchecked])) => FPredicateAccess(pred, args)(meta)
+      case (p: MPredicateAccess, Seq(recv: Expr, pred: MPredicateProxy, args: Vector[Expr@unchecked])) => MPredicateAccess(recv, pred, args, p.path)(meta)
+      case (p: MemoryPredicateAccess, Seq(arg: Expr)) => MemoryPredicateAccess(arg)(meta)
         // Expressions
+      case (u: Unfolding, Seq(acc: Access, e: Expr)) => Unfolding(acc, e)(meta)
+      case (f: PureFunctionCall, Seq(func: FunctionProxy, args: Vector[Expr@unchecked])) => PureFunctionCall(func, args, f.typ)(meta)
+      case (m: PureMethodCall, Seq(recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => PureMethodCall(recv, meth, args, m.path, m.typ)(meta)
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
       case (t: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
@@ -214,6 +227,8 @@ object GobraStrategy {
         // Proxy
       case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
+      case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
+      case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case _ => ???
     }
 

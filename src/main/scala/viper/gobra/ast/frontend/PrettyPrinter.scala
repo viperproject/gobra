@@ -84,6 +84,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
+      case PFPredicateDecl(id, args, body) => "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showAssertion(b)))
+      case PMPredicateDecl(id, recv, args, body) => "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showAssertion(b)))
     }
   }
 
@@ -195,6 +197,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PAssume(exp) => "assume" <+> showAssertion(exp)
       case PExhale(exp) => "exhale" <+> showAssertion(exp)
       case PInhale(exp) => "inhale" <+> showAssertion(exp)
+      case PUnfold(exp) => "unfold" <+> showAssertion(exp)
+      case PFold(exp) => "fold" <+> showAssertion(exp)
     }
   }
 
@@ -277,6 +281,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMul(left, right) => showExpr(left) <+> "*" <+> showExpr(right)
       case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
       case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
+      case PUnfolding(acc, op) => "unfolding" <+> showAssertion(acc) <+> "in" <+> showExpr(op)
     }
     case expression: PGhostExpression => ???
   }
@@ -308,6 +313,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PStar(left, right) => showAssertion(left) <+> "&&" <+> showAssertion(right)
     case PExprAssertion(exp) => showExpr(exp)
     case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
+    case x: PPredicateCall => x match {
+      case PFPredOrBoolFuncCall(id, args) => id.name <> parens(showExprList(args))
+      case PMPredOrBoolMethCall(recv, id, args) => showExpr(recv) <> "." <> id.name <> parens(showExprList(args))
+      case PMPredOrMethExprCall(base, id, args) => showType(base) <> "." <> id.name <> parens(showExprList(args))
+      case PMPredOrMethRecvOrExprCall(base, id, args) => base.name <> "." <> id.name <> parens(showExprList(args))
+      case PMemoryPredicateCall(arg) => "memory" <> parens(showExpr(arg))
+    }
+    case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred))
     case PAccess(exp) => exp match {
       case n: PExpression => "acc" <> parens(showExpr(n))
     }

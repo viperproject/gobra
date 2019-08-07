@@ -118,7 +118,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
     }
 
-    case n: PUnfolding => noMessages
+    case n: PUnfolding => isPureExpr(n.op)
   }
 
   def wellDefSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {

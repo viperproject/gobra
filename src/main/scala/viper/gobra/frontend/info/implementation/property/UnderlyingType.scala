@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.PTypeDecl
-import viper.gobra.frontend.info.base.Type.{DeclaredT, PointerT, Single, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{DeclaredT, InterfaceT, PointerT, Single, StructT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait UnderlyingType { this: TypeInfoImpl =>
@@ -26,5 +26,16 @@ trait UnderlyingType { this: TypeInfoImpl =>
       }
       relevantT.isInstanceOf[StructT]
     }
+
+  lazy val isInterfaceType: Property[Type] = createBinaryProperty("is interface type") { t =>
+    underlyingType(t) match {
+      case InterfaceT(decl) => true
+      case _ => false
+    }
+  }
+
+  lazy val isClassOrInterfaceType: Property[Type] = createBinaryProperty("is class or interface type"){
+    t => isClassType(t) || isInterfaceType(t)
+  }
 
 }

@@ -28,4 +28,11 @@ abstract class BaseTranslator[-I, +V] extends Generator {
 
   def specific[Q <: I, R](x: Q)(ctx: Context)(implicit w: FromToContract[Q, R]): R =
     w.translateWithContract(x)(ctx)
+
+  def chain[R](fs: Vector[Context => (R, Context)])(ctx: Context): (Vector[R], Context) = {
+    fs.foldLeft((Vector.empty[R], ctx)){ case ((rs, c), rf) =>
+      val (r, nc) = rf(c)
+      (r +: rs, nc)
+    }
+  }
 }

@@ -4,7 +4,6 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer
 import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.interfaces.Context
 
 
 object ViperWriter {
@@ -17,6 +16,9 @@ object ViperWriter {
       DataContainer(data ++ other.data, remainder ++ other.remainder)
 
     lazy val all: Vector[DataKind] = data ++ remainder
+
+    def split: (DataContainer[T], Vector[DataKind]) =
+      (DataContainer(data, Vector.empty), remainder)
   }
 
   object DataContainer {
@@ -30,6 +32,7 @@ object ViperWriter {
 
   sealed trait DataKindCompanion[K <: DataKind, S <: DataSum] {
     def sum(data: Vector[K]): S
+    def unsum(sum: S): Vector[K]
     def ownKind(point: DataKind): Option[K]
 
     def container(data: Vector[DataKind]): DataContainer[K] = {
@@ -42,6 +45,8 @@ object ViperWriter {
 
       DataContainer(own, other)
     }
+
+    def container(sum: S): DataContainer[K] = container(unsum(sum))
   }
 
 
@@ -76,63 +81,48 @@ object ViperWriter {
 
       MemberSum(errorT, reasonT)
     }
+
+    override def unsum(s: MemberSum): Vector[MemberKind] =
+      (s.errorT map ErrorT) ++ (s.reasonT map ReasonT)
   }
 
-  trait StmtKind extends DataKind
+  trait CodeKind extends DataKind
 
-  case class StmtSum(
-                      global: Vector[vpr.LocalVarDecl]
-                    ) extends DataSum
-
-  case object StmtKindCompanion extends DataKindCompanion[StmtKind, StmtSum] {
-
-    case class Global(x: vpr.LocalVarDecl) extends StmtKind
-
-    override def ownKind(point: DataKind): Option[StmtKind] = point match {
-      case x: StmtKind => Some(x)
-      case _ => None
-    }
-
-    override def sum(data: Vector[StmtKind]): StmtSum = {
-      var global: Vector[vpr.LocalVarDecl] = Vector.empty
-
-      data foreach {
-        case Global(x) => global = global :+ x
-      }
-
-      StmtSum(global)
-    }
-  }
-
-  trait ExprKind extends DataKind
-
-  case class ExprSum(
-                      local: Vector[vpr.LocalVarDecl],
+  case class CodeSum(
+                      global: Vector[vpr.Declaration],
+                      local: Vector[vpr.Declaration],
                       stmt: Vector[vpr.Stmt]
                     ) extends DataSum
 
-  case object ExprKindCompanion extends DataKindCompanion[ExprKind, ExprSum] {
+  case object CodeKindCompanion extends DataKindCompanion[CodeKind, CodeSum] {
 
-    case class Local(x: vpr.LocalVarDecl) extends ExprKind
-    case class Stmt(x: vpr.Stmt) extends ExprKind
+    case class Global(x: vpr.Declaration) extends CodeKind
+    case class Local(x: vpr.Declaration) extends CodeKind
+    case class Stmt(x: vpr.Stmt) extends CodeKind
 
-    override def ownKind(point: DataKind): Option[ExprKind] = point match {
-      case x: ExprKind => Some(x)
+    override def ownKind(point: DataKind): Option[CodeKind] = point match {
+      case x: CodeKind => Some(x)
       case _ => None
     }
 
-    override def sum(data: Vector[ExprKind]): ExprSum = {
-      var local: Vector[vpr.LocalVarDecl] = Vector.empty
+    override def sum(data: Vector[CodeKind]): CodeSum = {
+      var global: Vector[vpr.Declaration] = Vector.empty
+      var local: Vector[vpr.Declaration] = Vector.empty
       var stmt: Vector[vpr.Stmt] = Vector.empty
 
       data foreach {
+        case Global(x) => global = global :+ x
         case Local(x)  => local = local :+ x
         case Stmt(x) => stmt = stmt :+ x
       }
 
-      ExprSum(local, stmt)
+      CodeSum(global, local, stmt)
     }
+
+    override def unsum(s: CodeSum): Vector[CodeKind] =
+      (s.global map Global) ++ (s.local map Local) ++ (s.stmt map Stmt)
   }
+
 
   sealed class LeveledViperWriter[K <: DataKind, S <: DataSum](companion: DataKindCompanion[K, S]) {
 
@@ -141,9 +131,6 @@ object ViperWriter {
 
     def create[R](sum: Vector[DataKind], res: R): Writer[R] =
       Writer(companion.container(sum), res)
-
-    def forceTo[R, K <: DataKind, S <: DataSum](w: Writer[R])(lvw: LeveledViperWriter[K, S]): lvw.Writer[R] =
-      lvw.create(w.sum.all, w.res)
 
     def sequence[R](ws: Vector[Writer[R]]): Writer[Vector[R]] = {
       val (sums, ress) = ws.map(w => (w.sum, w.res)).unzip
@@ -155,33 +142,32 @@ object ViperWriter {
       case None => unit(None)
     }
 
-    def upWithWriter[NK <: DataKind, NS <: DataSum, R, Q](lvw: LeveledViperWriter[NK, NS])(w: Writer[R])(f: S => R => Q): lvw.Writer[Q] = {
-      val nextRes = f(companion.sum(w.sum.data))(w.res)
-      lvw.create(w.sum.remainder, nextRes)
+    def move[R,Q](w: Writer[R])(f: S => R => (S, Q)): Writer[Q] = {
+      val (codeSum, remainder, r) = w.execute
+      val (newS, newR) = f(codeSum)(r)
+      val newData = DataContainer(companion.unsum(newS), remainder)
+      w.copy(newData, newR)
     }
 
     def withInfo[R <: vpr.Node](src: in.Node)(w: Writer[R]): Writer[R] = w.map(_.withInfo(src))
     def withDeepInfo[R <: vpr.Node](src: in.Node)(w: Writer[R]): Writer[R] = w.map(_.withDeepInfo(src))
 
+
     case class Writer[+R](sum: DataContainer[K], res: R) {
 
-      def execute: (S, R) = (companion.sum(sum.data), res)
+      def execute: (S, Vector[DataKind], R) = (companion.sum(sum.data), sum.remainder, res)
 
       def run: (Vector[DataKind], R) = (sum.all, res)
 
+      @inline
       def foreach(fun: R => Unit): Unit = fun(res)
 
+      @inline
       def map[Q](fun: R => Q): Writer[Q] = copy(sum, fun(res))
 
-      def isolate[Q, Z](fun: R => (Q, Z)): (Z, Writer[Q]) = {
-        val (l, r) = fun(res)
-        (r, map(_ => l))
-      }
+      def cut: (Writer[Unit], R) = (map(_ => ()), res)
 
-      def cut: (R, Writer[Unit]) = isolate(((), _))
-
-
-
+      @inline
       def flatMap[Q](fun: R => Writer[Q]): Writer[Q] = {
         val next = fun(res)
         copy(sum.combine(next.sum), next.res)
@@ -195,108 +181,72 @@ object ViperWriter {
       def copy[Q](newSum: DataContainer[K] = sum, newRes: Q = res): Writer[Q] = {
         Writer(newSum, newRes)
       }
-
-      def flush: Writer[(S, R)] = copy(companion.container(sum.remainder), (companion.sum(sum.data), res))
-
-      def partitionData(f: DataKind => Boolean): Writer[(R, Writer[Unit])] = {
-        val (keep, remove) = sum.all.partition(f)
-        create(keep, (res, create(remove, ())))
-      }
-
-      def flushW: Writer[(R, Writer[Unit])] = create(sum.remainder, (res, create(sum.data, ())))
     }
-
-    def addGlobals(ctx: Context, globals: vpr.LocalVarDecl*): Writer[Context] =
-      create(globals.toVector.map(StmtKindCompanion.Global), ctx.addVars(globals: _*))
-
-    def addGlobals(globals: vpr.LocalVarDecl*): Writer[Unit] =
-      create(globals.toVector.map(StmtKindCompanion.Global), ())
-
-    def addStatements(stmts: vpr.Stmt*): Writer[Unit] =
-      create(stmts.toVector.map(ExprKindCompanion.Stmt), ())
-
-    def addLocals(locals: vpr.LocalVar*): Writer[Unit] =
-      create(locals.toVector.map(l => ExprKindCompanion.Local(ViperUtil.toVarDecl(l))), ())
-
-    def sequenceC[R](ctx: Context)(ws: Vector[Context => Writer[(R, Context)]]): Writer[(Vector[R], Context)] =
-      ws.foldLeft(unit((Vector.empty[R], ctx))){ case (w, fw) =>
-        for {
-          (rs, c) <- w
-          (r, nc) <- fw(c)
-        } yield (rs :+ r, nc)
-      }
   }
 
 
 
   case object MemberLevel extends LeveledViperWriter[MemberKind, MemberSum](MemberKindCompanion) {
 
-    def memberS[R](w: StmtLevel.Writer[R]): Writer[(StmtSum, R)] = StmtLevel.up(w)(s => r => (s, r))
-
-    def splitE[R](w: ExprLevel.Writer[R]): Writer[(R, ExprLevel.Writer[Unit])] =
-      ExprLevel.forceTo(w.partitionData{
-        case _: MemberKind => true
-        case _ => false
-      })(this)
-
-    def blockS(w: StmtLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = memberS(w).map{
-      case (ss, s) => vpr.Seqn(Vector(s), ss.global)(s.pos, s.info, s.errT)
+    def split[R](w: CodeLevel.Writer[R]): Writer[(R, CodeLevel.Writer[Unit])] = {
+      val (codeData, remainder) = w.sum.split
+      create(remainder, (w.res, w.copy(codeData, ())))
     }
 
-    def blockE(w: ExprLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = blockS(StmtLevel.seqnE(w))
+    def block(w: CodeLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
+      val (codeSum, remainder, r) = w.execute
+      val newR = vpr.Seqn(codeSum.stmt :+ r, codeSum.local ++ codeSum.global)(r.pos, r.info, r.errT)
+      create(remainder, newR)
+    }
   }
 
   type MemberWriter[R] = MemberLevel.Writer[R]
 
-  case object StmtLevel extends LeveledViperWriter[StmtKind, StmtSum](StmtKindCompanion) {
 
-    def up[Q, R](w: Writer[R])(f: StmtSum => R => Q): MemberLevel.Writer[Q] =
-      upWithWriter(MemberLevel)(w)(f)
 
-    def stmtE[R](w: ExprLevel.Writer[R]): Writer[(ExprSum, R)] = ExprLevel.up(w)(s => r => (s, r))
+  case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
-    def closeE(w: ExprLevel.Writer[Unit])(src: vpr.Node): Writer[vpr.Stmt] = {
-      stmtE(w).map{ case (es, _) =>
-        val (pos, info, _) = src.getPrettyMetadata
-        vpr.Seqn(es.stmt, es.local)(pos, info)
+    def emptySum[R](w: Writer[R]): Boolean = w.sum.all.isEmpty
+
+    def seqn(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =
+      sequence(ws.map(seqn)).map(vpr.Seqn(_, Vector.empty)())
+
+    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
+      move(w){ s => r =>
+        val newSum = s.copy(local = Vector.empty, stmt = Vector.empty)
+        (newSum, vpr.Seqn(s.stmt :+ r, s.local)(r.pos, r.info, r.errT))
       }
+
+    def seqnUnit(ws: Vector[Writer[Unit]]): Writer[vpr.Seqn] =
+      sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
+
+    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] =
+      move(w){ s => _ =>
+        val newSum = s.copy(local = Vector.empty, stmt = Vector.empty)
+        (newSum, vpr.Seqn(s.stmt, s.local)())
+      }
+
+    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
+      move(w){ s => r =>
+        val newSum = s.copy(global = Vector.empty, local = Vector.empty, stmt = Vector.empty)
+        (newSum, vpr.Seqn(s.stmt :+ r, s.local ++ s.global)(r.pos, r.info, r.errT))
+      }
+
+    def split[R](w: Writer[R]): Writer[(Writer[Unit], R)] = {
+      val (codeData, remainder) = w.sum.split
+      create(remainder, (w.copy(codeData, ()), w.res))
     }
 
+    def write(stmts: vpr.Stmt*): Writer[Unit] =
+      create(stmts.toVector.map(CodeKindCompanion.Stmt), ())
 
-    def splitE[R](w: ExprLevel.Writer[R]): Writer[(R, ExprLevel.Writer[Unit])] =
-      ExprLevel.up(w.flushW)(s => r => r)
+    def local(locals: vpr.Declaration*): Writer[Unit] =
+      create(locals.toVector.map(l => CodeKindCompanion.Local(ViperUtil.toVarDecl(l))), ())
 
-    def seqnE(w: ExprLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = stmtE(w).map {
-      case (es, s) => vpr.Seqn(es.stmt :+ s, es.local)(s.pos, s.info, s.errT)
-    }
-
-    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] = w.flush.map{
-      case (ss, s) => vpr.Seqn(Vector(s), ss.global)(s.pos, s.info, s.errT)
-    }
-
-    def blockE(w: ExprLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = block(seqnE(w))
+    def global(globals: vpr.Declaration*): Writer[Unit] =
+      create(globals.toVector.map(l => CodeKindCompanion.Global(ViperUtil.toVarDecl(l))), ())
   }
 
-  type StmtWriter[R] = StmtLevel.Writer[R]
-
-  case object ExprLevel extends LeveledViperWriter[ExprKind, ExprSum](ExprKindCompanion) {
-    def up[R, Q](w: Writer[R])(f: ExprSum => R => Q): StmtLevel.Writer[Q] =
-      upWithWriter(StmtLevel)(w)(f)
-
-    def exprS[R](w: StmtLevel.Writer[R]): Writer[R] = create(w.sum.data ++ w.sum.remainder, w.res)
-
-    def prelim[R <: vpr.Stmt](ws: StmtLevel.Writer[R]*): Writer[Unit] =
-      sequence(ws.toVector map (w => exprS(w).flatMap(s => addStatements(s)))).map(_ => ())
-
-    def splitWrittenStmts[R](w: Writer[R]): Writer[(R, Vector[vpr.Stmt])] = {
-      val (dataWithStmt, dataWithout) = w.sum.data.partition(_.isInstanceOf[ExprKindCompanion.Stmt])
-      val newWriter = Writer(DataContainer(dataWithout, w.sum.remainder), w.res)
-      val stmts = dataWithStmt.collect{ case ExprKindCompanion.Stmt(x) => x }
-      newWriter.map((_, stmts))
-    }
-
-  }
-
-  type ExprWriter[R] = ExprLevel.Writer[R]
+  type CodeWriter[R] = CodeLevel.Writer[R]
 
 }

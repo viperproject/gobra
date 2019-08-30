@@ -17,6 +17,7 @@ package viper.gobra.ast.internal
 
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
+import viper.gobra.util.Violation
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member]
@@ -215,7 +216,26 @@ case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Exp
   require(exp.typ.isInstanceOf[PointerT])
 }
 
+object Deref {
+  def apply(exp: Expr)(info: Source.Parser.Info): Deref =
+    Deref(exp, exp.asInstanceOf[PointerT].t)(info)
+}
+
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
+
+object Ref {
+  def apply(ref: Expr)(info: Source.Parser.Info): Ref = {
+    require(Addressable.isAddressable(ref))
+
+    val pointerT = PointerT(ref.typ)
+    ref match {
+      case x: LocalVar.Ref => Ref(Addressable.Var(x), pointerT)(info)
+      case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
+      case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
+      case _ => Violation.violation(s"encountered unexpected addressable expression $ref")
+    }
+  }
+}
 
 case class FieldRef(recv: Expr, field: Field, path: MemberPath)(val info: Source.Parser.Info) extends Expr with Location {
   override lazy val typ: Type = field.typ
@@ -232,6 +252,37 @@ object Addressable {
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
   // TODO: Global
+
+  import viper.gobra.ast.internal.{Field => Field2}
+
+  def isAddressable(x: Field2): Boolean = x match {
+    case _: Field2.Ref => true
+    case _: Field2.Val => false
+  }
+
+  def isAddressable(path: MemberPath): Boolean = {
+
+    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[MemberPath.Next])
+    val (promotionPath, afterPath) = path.path.splitAt(lastFieldIdx + 1)
+    lazy val fields = promotionPath.collect{ case MemberPath.Next(f) => f }
+    lazy val addressableFieldPath = fields.forall(_.isInstanceOf[Field2.Ref])
+
+    afterPath match {
+      case Vector() => addressableFieldPath
+      case Vector(MemberPath.Ref) => false
+      case Vector(MemberPath.Deref) => true
+      case _ => Violation.violation("Found ill formed resolution path")
+    }
+  }
+
+  def isAddressable(x: Expr): Boolean = {
+    x match {
+      case _: LocalVar.Ref => true
+      case _: Deref => true
+      case f: FieldRef => isAddressable(f.recv) && isAddressable(f.path) && isAddressable(f.field)
+      case _ => false
+    }
+  }
 }
 
 sealed trait BoolExpr extends Expr {
@@ -295,7 +346,7 @@ case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info
   lazy val structType: StructT = Types.structType(typ).get
   require(structType.fields.size == args.size)
 
-  lazy val fieldZip = structType.fields.zip(args)
+  lazy val fieldZip: Vector[(Field, Expr)] = structType.fields.zip(args)
 }
 
 

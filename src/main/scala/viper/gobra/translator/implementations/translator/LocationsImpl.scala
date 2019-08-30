@@ -1,20 +1,23 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.ast.internal.Types.{isStructType, structType, unrefType}
+import in.Types.{isStructType, structType}
+import in.Addressable.isAddressable
+import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{PrimitiveGenerator, ViperUtil}
-import viper.gobra.translator.util.ViperWriter.{ExprWriter, MemberWriter, StmtWriter}
+import viper.gobra.translator.util.{PrimitiveGenerator, ViperUtil => vu}
+import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
 import viper.gobra.util.Violation
 
+import scala.annotation.tailrec
+
 class LocationsImpl extends Locations {
 
-  import viper.gobra.translator.util.ViperWriter.ExprLevel._
-  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl, MemberLevel => ml}
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def finalize(col: Collector): Unit = {
     _pointerField.finalize(col)
@@ -33,7 +36,7 @@ class LocationsImpl extends Locations {
   /**
     * [v]w -> v
     */
-  override def variable(v: in.Var)(ctx: Context): ExprWriter[vpr.LocalVar] = withDeepInfo(v){
+  override def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = withDeepInfo(v){
 
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
@@ -48,490 +51,437 @@ class LocationsImpl extends Locations {
     Vector(field(f)(ctx))
   }
 
-  override def topDecl(v: in.TopDeclaration)(ctx: Context): MemberWriter[((vpr.LocalVarDecl, StmtWriter[vpr.Stmt]), Context)] = {
+
+
+  /**
+    * [decl x: T] -> InitValue<x>; FOREACH a in Values[T]. a(x) := Default(Type(a(x)))
+    */
+  override def topDecl(v: in.TopDeclaration)(ctx: Context): ((Vector[vpr.LocalVarDecl], CodeWriter[vpr.Stmt]), Context) = {
     v match {
       case v: in.Var =>
-        ml.splitE(variable(v)(ctx)).map{ case (e, w) =>
-          ((ViperUtil.toVarDecl(e), sl.closeE(w)(e)), ctx)
-        }
+        val valueInits = variable(v)(ctx) flatMap (x => initValues(x, isAddressable(v), v.typ)(ctx))
+        val (valueUnit, decls) = valueInits.cut
+        val as = values(v.typ)(ctx).map(_(v))
+        val valueAssigns = seqn(as map { case (r, t) =>
+            for {
+              ax <- r
+              dflt <- ctx.expr.defaultValue(t.typ)
+            } yield valueAssign(ax, dflt)
+        })
+        ((decls, valueUnit flatMap (_ => valueAssigns)), ctx)
     }
   }
 
   /**
-    * [decl ?x: T] -> var x [T]; x := dflt(T)
-    * [decl !x: not S] -> var x Ref; inhale acc(x.val); x.val := dflt(T)
-    * [decl !x: S] -> var x Ref; FOREACH f: T in S. inhale acc(x.f); x.f := dflt(T)
+    * [decl x: T] -> InitValue<x>; FOREACH a in Values[T]. a(x) := Default(Type(a(x)))
     */
-  override def bottomDecl(v: in.BottomDeclaration)(ctx: Context): StmtWriter[((vpr.Declaration, vpr.Stmt), Context)] = {
-    val src = v.info
-
+  override def bottomDecl(v: in.BottomDeclaration)(ctx: Context): ((Vector[vpr.Declaration], CodeWriter[vpr.Stmt]), Context) = {
     v match {
-      case v: in.BodyVar =>
-        val declaration = for {
-          r <- variable(v)(ctx)
-
-          stOpt = structType(v.typ)
-          _ <- v match {
-            case v: in.LocalVar.Val =>
-              val init = in.SingleAss(in.Assignee.Var(v), in.DfltVal(v.typ)(src))(src)
-              prelim(ctx.stmt.translate(init)(ctx))
-
-            case v: in.LocalVar.Ref if stOpt.isEmpty =>
-              val vInhalePermissions =
-                sl.withDeepInfo(v)(sl.seqnE(
-                  for {
-                    x <- variable(v)(ctx)
-                    facc = vpr.FieldAccess(x, pointerField(v.typ)(ctx))()
-                    faccp = vpr.FieldAccessPredicate(facc, vpr.FullPerm()())()
-                  } yield vpr.Inhale(faccp)()
-                ))
-
-              val init = in.SingleAss(in.Assignee.Var(v), in.DfltVal(v.typ)(src))(src)
-
-              prelim(
-                vInhalePermissions,
-                ctx.stmt.translate(init)(ctx)
-              )
-
-            case v: in.LocalVar.Ref if stOpt.nonEmpty =>
-
-              val perField = stOpt.get.fields.flatMap{ f =>
-                val fieldRef = in.FieldRef(v, f, in.MemberPath(Vector.empty))(src)
-
-                val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
-                val init = in.SingleAss(in.Assignee.Field(fieldRef), in.DfltVal(f.typ)(src))(src)
-
-                Vector(inhalePermission, init)
-              }
-
-              prelim(perField map ctx.stmt.translateF(ctx): _*)
-          }
-        } yield r
-
-        val (x, u) = declaration.cut
-        sl.closeE(u)(x).map{ s => ((ViperUtil.toVarDecl(x), s), ctx)}
+      case v: in.TopDeclaration => topDecl(v)(ctx)
     }
   }
 
-
-  override def assignment(ass: in.SingleAss)(ctx: Context): StmtWriter[vpr.Stmt] =
-    assignment(ass.left, ass.right)(ass)(ctx)
 
   /**
-    * [!r: not S = e] -> A[!r].val = [e]
-    * [!r: S = e] -> ~z = [e]; ~l = R[!r]; FOREACH g in S. l.g = g(z)
-    *
-    * [x = e]   -> x = [e]
-    * [r.f = e] -> ProjAss[r ~ [e] ](path(r.f), f)
+    * [!r: T = e] -> FOREACH a in Values[T]. a(r) := a(e)
     */
-  def assignment(left: in.Assignee, right: in.Expr)(src: in.Node)(ctx: Context): StmtWriter[vpr.Stmt] = sl.withDeepInfo(src){
+  override def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt] = withDeepInfo(ass){
+    val trans = values(ass.left.op.typ)(ctx)
+    seqn(trans map { a =>
+      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield valueAssign(l, r)
+    })
+  }
 
-    left.op match {
-      case l: in.Location if isAddressable(l) =>
-        structType(l.typ) match {
-          case None =>
-            sl.seqnE(
-              for {
-                e <- ctx.expr.translate(right)(ctx)
-                r <- avalue(l)(ctx)
-              } yield vpr.FieldAssign(vpr.FieldAccess(r, pointerField(l.typ)(ctx))(), e)()
-            )
+  /**
+    * Copy[t: T]  -> var z; FOREACH a in Values[T]. Init<a(z)>; a(z) := a(t) ~ z
+    */
+  def copy(e: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val trans = values(e.typ)(ctx)
 
-          case Some(st) =>
-            sl.seqnE(
-              for {
-                e <- ctx.expr.translate(right)(ctx)
-                z = vpr.LocalVar(Names.freshName, e.typ)()
-                _ <- addStatements(vpr.LocalVarAssign(z, e)())
+    if(trans.size == 1) {
+      trans.head(e)._1
+    } else {
+      val z = createMultiVar
+      val iz = inverseVar(z, e.typ)(e.info)
+      val assigns = seqn(trans map { a =>
+        for {
+          right <- a(e)._1
+          left <- a(iz)._1
+          ini <- init(left)
+          _ <- global(ini: _*)
+        } yield valueAssign(left, right)
+      })
 
-                r <- rvalue(l)(ctx)
-                l = vpr.LocalVar(Names.freshName, r.typ)()
-                _ <- addStatements(vpr.LocalVarAssign(l, r)())
-
-                _ <- addLocals(z, l)
-                ass <- sequence(st.fields map {g =>
-                  for {
-                    rhs <- accessStructValueField(z, g)(ctx)
-                    ass = vpr.FieldAssign(vpr.FieldAccess(l, field(g)(ctx))(), rhs)()
-                  } yield ass
-                })
-              } yield vpr.Seqn(ass, Vector.empty)()
-            )
-        }
-
-      case x: in.LocalVar.Val =>
-        sl.seqnE(
-          for {
-            e <- ctx.expr.translate(right)(ctx)
-            v <- variable(x)(ctx)
-          } yield vpr.LocalVarAssign(v, e)()
-        )
-
-      case fa: in.FieldRef =>
-        val pathFields = fa.path.path.collect{ case in.MemberPath.Next(f) => f }
-        sl.seqnE(
-          for {
-            e <- ctx.expr.translate(right)(ctx)
-            ass <- exprS(projAss(fa.recv, pathFields, fa.field, e)(ctx))
-          } yield ass
-        )
+      assigns.flatMap(write(_)).map(_ => z)
     }
   }
 
-  override def make(mk: in.Make)(ctx: Context): StmtWriter[vpr.Stmt] = {
+  /** left := right */
+  private def valueAssign(left: vpr.Exp, right: vpr.Exp): vpr.AbstractAssign = left match {
+    case l: vpr.LocalVar => vpr.LocalVarAssign(l, right)()
+    case l: vpr.FieldAccess => vpr.FieldAssign(l, right)()
+    case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
+  }
+
+  /**
+    * [v := make(S{fs: es})] -> [decl z; ( Foreach (f, e) in S{fs: es}. inhale(acc(z.f)); z.f = e ); v := z ]
+    */
+  override def make(mk: in.Make)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val src = mk.info
 
     mk.typ match {
       case in.CompositeObject.Struct(slit) =>
-        val v = in.LocalVar.Val(Names.freshName, mk.target.typ)(src)
+        val interVar = in.LocalVar.Val(Names.freshName, mk.target.typ)(src)
         val perField = slit.fieldZip.flatMap{ case (f, e) =>
-          val fieldRef = in.FieldRef(v, f, in.MemberPath(Vector.empty))(src)
+          val fieldRef = in.FieldRef(interVar, f, in.MemberPath(Vector.empty))(src)
           val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
-          val init = in.SingleAss(in.Assignee.Field(fieldRef), in.DfltVal(f.typ)(src))(src)
+          val init = in.SingleAss(in.Assignee.Field(fieldRef), e)(src)
           Vector(inhalePermission, init)
         }
 
-        sl.seqnE{
+        seqn{
           for {
             vTarget <- variable(mk.target)(ctx)
 
-            vv <- variable(v)(ctx)
-            _ <- addLocals(vv)
+            v <- variable(interVar)(ctx)
+            _ <- local(vu.toVarDecl(v))
 
-            _ <- prelim(perField map ctx.stmt.translateF(ctx): _*)
+            vMake <- seqn(perField map ctx.stmt.translateF(ctx))
+            _ <- write(vMake)
 
-          } yield vpr.LocalVarAssign(vTarget, vv)()
+          } yield vpr.LocalVarAssign(vTarget, v)()
         }
     }
   }
 
+  case class SubValueRep(typ: in.Type)
+
+  /**
+    * Values[S] -> { \r. RProj[r]fs | fs in ValuePaths[S] }
+    * Values[T] -> { \r. R[r] }
+    */
+  private def values(t: in.Type)(ctx: Context): Vector[in.Expr => (CodeWriter[vpr.Exp], SubValueRep)] = {
+    t match {
+      case u if isStructType(u) =>
+        valuePaths(u).map(fs => (r: in.Expr) => (rproj(r, fs)(ctx), SubValueRep(fs.last.typ)))
+      case u =>
+        Vector(r => (rvalue(r)(ctx), SubValueRep(r.typ)))
+    }
+  }
+
+  /**
+    * InitValue<?t: S> -> { Init<t#fs> | fs in ValuePaths[S] }
+    * InitValue<!t: S> -> { Init<t> } + { InitValue<m t.f: Q> | (m f: Q) in S }
+    * InitValue<?t: T> -> { Init<t> }
+    * InitValue<!t: T> -> { Init<t>, Init<t.val> }
+    */
+  private def initValues(t: vpr.Exp, addressable: Boolean, typ: in.Type)(ctx: Context): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+
+    structType(typ) match {
+      case None if !addressable => init(t)
+
+      case None if addressable  =>
+        val fieldAcc = valAccess(t, typ)(ctx)
+        for { a <- init(t); b <- init(fieldAcc) } yield a ++ b
+
+      case Some(st) if !addressable =>
+        sequence(valuePaths(st).map{ fs =>
+          init(fs.foldLeft(t){ case (r,f) => fieldExtension(r, f)(ctx) })
+        }).map(_.flatten)
+
+      case Some(st) if addressable =>
+        val fieldInits = sequence(st.fields.map(f =>
+          initValues(fieldAccess(t, f)(ctx), addressable = isAddressable(f), f.typ)(ctx)
+        )).map(_.flatten)
+
+        for { a <- init(t); b <- fieldInits} yield a ++ b
+    }
+  }
+
+  /**
+    * Init<x>   -> var x
+    * Init<e.f> -> inhale acc(e.f)
+    */
+  def init(e: vpr.Exp): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+    e match {
+      case v: vpr.LocalVar => unit(Vector(vu.toVarDecl(v)))
+      case f: vpr.FieldAccess =>
+        write(vpr.Inhale(vpr.FieldAccessPredicate(f, vpr.FullPerm()())()())()).map(_ => Vector.empty)
+      case _ => Violation.violation(s"expected variable of field access, but got $e")
+    }
+  }
+
+  /**
+    * ValuePaths[S] -> { (f) | (f: not S') in S } + { f,g | (f: S') in S and g in ValuePaths[S'] }
+    */
+  private def valuePaths(t: in.Type): Vector[Vector[in.Field]] = {
+    require(isStructType(t))
+    val st = structType(t).get
+
+    st.fields.flatMap{
+      case f if isStructType(f.typ) =>
+        valuePaths(f.typ).map(fs => f +: fs)
+      case f => Vector(Vector(f))
+    }
+  }
 
 
   /**
-    * A[x]   -> x
-    * A[&e]  -> assert A[e] != null; A[e]
-    * A[*e]  -> A[e]
-    * A[e.f] -> AProj[e](path(e.f), f)
+    * A[!x] -> x
+    * A[*e] -> R[e]
+    * A[!r.!f] -> RProj[r]path(r.f).f
     *
     * translates a location for a receiver position, except keeps addresses if possible
     */
-  def avalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp] = withDeepInfo(l){
+  def avalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(l){
+    require(isAddressable(l))
+
     l match {
       case v: in.Var => variable(v)(ctx)
-
-      case in.Ref(ref, _) =>
-        for {
-          address <- avalue(ref.op)(ctx)
-          // assert address != null
-          _ <- addStatements(vpr.Assert(vpr.NeCmp(address, vpr.NullLit()())())())
-        } yield address
 
       case in.Deref(exp, typ) =>
         for {
           rcv <- ctx.expr.translate(exp)(ctx)
-          field = pointerField(typ)(ctx)
-        } yield vpr.FieldAccess(rcv, field)()
+        } yield valAccess(rcv, typ)(ctx)
 
-      case in.FieldRef(recv, field, path) =>
-        val fields = path.path.collect{ case in.MemberPath.Next(f) => f } :+ field
-        aproj(recv, fields)(ctx)
+      case in.FieldRef(recv, f, path) =>
+        val fields = path.path.collect{ case in.MemberPath.Next(ef) => ef }
+        for {
+          rcv <- rproj(recv, fields)(ctx)
+        } yield fieldAccess(rcv, f)(ctx)
+
+      case _ => Violation.violation(s"encountered unexpected addressable location $l")
     }
   }
 
-  def extendedRValue(exp: in.Expr)(ctx: Context): ExprWriter[vpr.Exp] = exp match {
-    case l: in.Location => rvalue(l)(ctx)
-    case _ => ctx.expr.translate(exp)(ctx)
-  }
 
   /**
-    * R[!x: not S]   -> A[!x].val
-    * R[*e: not S]   -> A[*e].val
-    * R[e.!f: not S] -> A[e.f].val
-    * R[e] -> A[e]
+    * R[!r: not S] -> A[r].val
+    * R[!r:     S] -> A[r]
+    * R[?x]  -> x
+    * R[&!r] -> assert A[r] != null; A[r]
+    * R[e.f] -> RProj[e](path(e.f), f)
     *
     * translates a location for a receiver position
     */
-  override def rvalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp] = withDeepInfo(l){
-    val lval = avalue(l)(ctx)
+  override def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(l){
+    l match {
+      case l: in.Location =>
+        (isAddressable(l), l) match {
+          case (true, _) if isStructType(l.typ) => avalue(l)(ctx)
+          case (true, _) => avalue(l)(ctx) map (r => vpr.FieldAccess(r, pointerField(l.typ)(ctx))())
 
-    if (isAddressable(l) && !isStructType(l.typ)) {
-      lval map (r => vpr.FieldAccess(r, pointerField(l.typ)(ctx))())
-    } else {
-      lval
+          case (false, x: in.Var) => variable(x)(ctx)
+          case (false, ref: in.Ref) =>
+            for {
+              address <- avalue(ref.ref.op)(ctx)
+              // assert address != null
+              _ <- write(vpr.Assert(vpr.NeCmp(address, vpr.NullLit()())())())
+            } yield address
+
+          case (false, ref: in.FieldRef) =>
+            val fields = ref.path.path.collect{ case in.MemberPath.Next(ef) => ef }
+            rproj(ref.recv, fields :+ ref.field)(ctx)
+        }
+
+      case _ => ctx.expr.translate(l)(ctx)
     }
   }
 
   /**
-    * E[!x: S]  -> purify(R[!x])
-    * E[*e: S]  -> purify(R[*e])
-    * E[e.!f: S] -> purify(R[e.f])
-    * E[e] -> R[e]
-    *
-    * translates a location for an expression position
-    */
-  override def evalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp] = withDeepInfo(l){
-    val rval = rvalue(l)(ctx)
-
-    if (isAddressable(l) && isStructType(l.typ)) {
-      rval flatMap (r => purify(r, l.typ)(ctx))
-    } else {
-      rval
-    }
-  }
-
-  /**
-    * CR[r](mp) -> CRH[r](fs;l)
-    *  where fs, l = mp such that l does not contain fields and fs is either empty or ends with a field
-    *
-    * CRH[r](fs;()) -> RProj[r]fs
-    * CRH[r](fs;&)  -> AProj[r]fs
-    * CRH[r](fs;*)  -> purify(RProj[r]fs) // Note: the qualified receiver has to be a struct
-    *
-    * translates a receiver of a call
-    */
-  override def callReceiver(recv: in.Expr, path: in.MemberPath)(ctx: Context): ExprWriter[vpr.Exp] = {
-    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[in.MemberPath.Next])
-    val (promotionPath, afterPath) = path.path.splitAt(lastFieldIdx + 1)
-
-    val fields = promotionPath.collect{ case in.MemberPath.Next(f) => f }
-
-    // after the field accesses, only one ref, deref, or nothing can occur
-    afterPath match {
-      case Vector() => rproj(recv, fields)(ctx)
-      case Vector(in.MemberPath.Ref) => aproj(recv, fields)(ctx)
-
-      case Vector(in.MemberPath.Deref) =>
-        val pt = fields.headOption.map(f => f.typ).getOrElse(recv.typ)
-        rproj(recv, fields)(ctx) flatMap (r => purify(r, unrefType(pt).get)(ctx))
-
-      case _ => Violation.violation("Found ill formed resolution path")
-    }
-  }
-
-  /**
-    * AProj[e]() -> A[e], where e is addressable
-    *
-    * AProj[!r]f    -> R[!r].f
-    * AProj[?e: S]f -> f(R[e])
-    * AProj[e]f     -> R[e].f
-    *
-    * AProj[e](fs, ?g: S, f) -> f(RProj[e](fs, g))
-    * AProj[e](fs, g, f)     -> RProj[e](fs, g).f
-    *
-    * translates a a field access keeping the last address
-    */
-  def aproj(recv: in.Expr, fields: Vector[in.Field])(ctx: Context): ExprWriter[vpr.Exp] = fields match {
-    case Vector() =>
-      Violation.violation(isAddressable(recv), s"expected addressable expression, but got $recv")
-      avalue(recv.asInstanceOf[in.Location])(ctx)
-
-    case Vector(f) => recv match {
-      case r: in.Location if isAddressable(r) => rvalue(r)(ctx) map (r => vpr.FieldAccess(r, field(f)(ctx))())
-      case e if isStructType(e.typ) => ctx.expr.translate(e)(ctx) flatMap (r => accessStructValueField(r, f)(ctx))
-      case e => ctx.expr.translate(e)(ctx) map (r => vpr.FieldAccess(r, field(f)(ctx))())
-    }
-
-    case fsgf =>
-      val (fsg, f) = (fsgf.init, fsgf.last)
-      val (fs, g)  = (fsg.init, fsg.last)
-
-      if (!isAddressableF(g) && isStructTypeF(g)) {
-        rproj(recv, fsg)(ctx) flatMap (r => accessStructValueField(r, f)(ctx))
-      } else {
-        rproj(recv, fsg)(ctx) map (r => vpr.FieldAccess(r, field(f)(ctx))())
-      }
-  }
-
-  /**
-    * RProj[e]() -> R[e]
-    * RProj[e](fs, !f: not S) -> AProj[e](fs, !f).val
-    * RProj[e]fs -> AProj[e]fs
+    * RProj[!r]fs -> RProjPath<!;R[r]>[fs]
+    * RProj[?r]fs -> RProjPath<?;R[r]>[fs]
+    *   where
+    *     RPath<m;t>[       ()] -> t
+    *     RPath<!;t>[@f: S, fs] -> RPath<@;t.f    >[fs]
+    *     RPath<!;t>[?f: T, fs] -> RPath<?;t.f    >[fs]
+    *     RPath<!;t>[!f: T, fs] -> RPath<!;t.f.val>[fs]
+    *     RPath<?;t>[ f: S, fs] -> RPath<?;t#f    >[fs]
+    *     RPath<?;t>[ f: T, fs] -> RPath<?;t.f    >[fs]
     *
     * translates a field access
     */
-  def rproj(recv: in.Expr, fields: Vector[in.Field])(ctx: Context): ExprWriter[vpr.Exp] = {
-    if (fields.isEmpty) {
-      extendedRValue(recv)(ctx)
-    } else {
-      val lastF = fields.last
-      val lval = aproj(recv, fields)(ctx)
+  def rproj(recv: in.Expr, fields: Vector[in.Field])(ctx: Context): CodeWriter[vpr.Exp] = {
 
-      if (isAddressableF(lastF) && !isStructTypeF(lastF)) {
-        lval map (r => vpr.FieldAccess(r, pointerField(lastF.typ)(ctx))())
-      } else {
-        lval
+    @tailrec
+    def rpath(m: Boolean, t: vpr.Exp, fields: Vector[in.Field]): CodeWriter[vpr.Exp] = {
+      if (fields.isEmpty) unit(t)
+      else {
+        val (f, fs) = (fields.head, fields.tail)
+        (m, isAddressable(f), isStructType(f.typ)) match {
+          case ( true,     q,  true) => rpath(q, fieldAccess(t,f)(ctx), fs)
+          case ( true, false, false) => rpath(m = false, fieldAccess(t,f)(ctx), fs)
+          case ( true,  true, false) => rpath(m = true, valAccess(fieldAccess(t,f)(ctx), f.typ)(ctx), fs)
+          case (false,     _,  true) => rpath(m = false, fieldExtension(t,f)(ctx), fs)
+          case (false,     _, false) => rpath(m = false, fieldAccess(t,f)(ctx), fs)
+        }
       }
     }
+
+    for {
+      r <- rvalue(recv)(ctx)
+      res <- rpath(isAddressable(recv), r, fields)
+    } yield res
   }
 
   /**
-    * ProjAss[r ~ e](fs, !f: not S) -> AProj[e](fs, !f).val = e
-    * ProjAss[r ~ e](fs, !f: S) -> ~z = e; ~l = RProj[r](fs,f); FOREACH g in S. l.g = g(z)
+    * [r] -> Copy<R[r]>
     *
-    * ProjAss[?x: S ~ e]f -> x = x{f -> e}
-    * ProjAss[r.?g: S ~ e]f -> ProjAss[r ~ e](path(r.g), g, f)
-    * ProjAss[?r: S ~ e]f -> _ = R[r]
-    * ProjAss[r ~ e](fs, ?g: S, f) -> ProjAss[r ~ RProj[r](fs,g){f -> e}](fs, g)
-    *
-    * ProjAss[r ~ e](fs,f) -> RProj[r]fs.f = e
-    *
-    * translates a field assignment
+    * translates a location for an expression position
     */
+  override def evalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = copy(l)(ctx)
+//
+//  /**
+//    * PureE[!r: S] -> content(R[r])
+//    * PureE[r]     -> R[r]
+//    *
+//    * translates a location for an expression position
+//    */
+//  def pureEvalue(l: in.Location)(ctx: Context): ExprWriter[vpr.Exp] = withDeepInfo(l){
+//    val rval = rvalue(l)(ctx)
+//
+//    if (isAddressable(l) && isStructType(l.typ)) {
+//      rval flatMap (r => content(r, l.typ)(ctx))
+//    } else {
+//      rval
+//    }
+//  }
 
-  def projAss(recv: in.Expr, pathFields: Vector[in.Field], f: in.Field, e: vpr.Exp)(ctx: Context): StmtWriter[vpr.Stmt] = {
-    if (isAddressableF(f)) {
-      if (isStructTypeF(f)) {
-        val st = structType(f.typ).get
-        val z = vpr.LocalVar(Names.freshName, e.typ)()
-        sl.seqnE(
-          for {
-            _ <- addStatements(vpr.LocalVarAssign(z, e)())
-
-            r <- rproj(recv, pathFields :+ f)(ctx)
-            l = vpr.LocalVar(Names.freshName, r.typ)()
-            _ <- addStatements(vpr.LocalVarAssign(l, r)())
-
-            _ <- addLocals(z, l)
-            ass <- sequence(st.fields map {g =>
-              for {
-                rhs <- accessStructValueField(z, g)(ctx)
-                ass = vpr.FieldAssign(vpr.FieldAccess(l, field(g)(ctx))(), rhs)()
-              } yield ass
-            })
-          } yield vpr.Seqn(ass, Vector.empty)()
-        )
-      } else {
-        sl.seqnE(
-          for {
-            r <- aproj(recv, pathFields :+ f)(ctx)
-          } yield vpr.FieldAssign(vpr.FieldAccess(r, pointerField(f.typ)(ctx))(), e)()
-        )
-      }
-    } else if (pathFields.isEmpty) {
-      recv match {
-        case l: in.Location if isAddressable(l) =>
-          sl.seqnE(for {r <- rvalue(l)(ctx)} yield vpr.FieldAssign(vpr.FieldAccess(r, field(f)(ctx))(), e)())
-
-        case v: in.LocalVar.Val =>
-          sl.seqnE(for {x <- variable(v)(ctx)} yield vpr.LocalVarAssign(x, e)())
-
-        case fa: in.FieldRef =>
-          val pathFields = fa.path.path.collect{ case in.MemberPath.Next(q) => q }
-          projAss(recv, pathFields :+ fa.field, f, e)(ctx)
-
-        case _ => sl.seqnE(ctx.expr.translate(recv)(ctx) map (_ => vpr.Seqn(Vector.empty, Vector.empty)()))
-      }
-    } else {
-      val lastF = pathFields.last
-      if (!isAddressableF(lastF) && isStructTypeF(lastF)) {
-        sl.seqnE(
-          for {
-            r <- rproj(recv, pathFields)(ctx)
-            upd <- updateStructValueField(r, f, e)(ctx)
-            ass <- exprS(projAss(recv, pathFields.init, lastF, upd)(ctx))
-          } yield ass
-        )
-      } else {
-        sl.seqnE(for {r <- rproj(recv, pathFields)(ctx)} yield vpr.FieldAssign(vpr.FieldAccess(r, field(f)(ctx))(), e)())
-      }
-    }
-  }
 
   /**
-    * [acc(*e: S)] -> AND g in S. acc(R[e].g)
-    * [acc(*e: not S)] -> acc(R[e].val)
-    * [acc(e.f)] -> Acc[e]f
-    * [acc(e.!f: S)] -> Acc[e]f && AND g in S. acc(R[e.!f].g)
-    * [acc(e.!f: not S)] -> Acc[e]f && acc(R[e.!f].val)
+    * [acc(*e )] -> PointerAcc[*e]
+    * [acc(e.f)] -> ProjAcc[e](path(e.f);f) && PointerAcc[e.f]
     *
-    * TODO
-    * [acc(&e.!f)] -> Acc[e]f
-    * [acc(&!x)] -> true
+    * // an idea:
+    * [acc(&!e.!f)] -> ProjAcc[e](path(e.f);f)
+    * [acc(&!x)]    -> true
+    *
+    * PointerAcc[!r: not S] -> acc(R[r].val)
+    * PointerAcc[!r: S]     -> true
+    * PointerAcc[?r]        -> true
+    *
+    * ProjAcc[!r](!fs;g       ) -> acc(RProj[r]fs.g)
+    * ProjAcc[ r]( fs;g: not S) -> acc(RProj[r](fs,g))
+    * ProjAcc[ r]( fs;g       ) -> true
     *
     * translates a a field access keeping the last address
     */
-  override def access(acc: in.Access)(ctx: Context): ExprWriter[vpr.Exp] = withDeepInfo(acc){
+  override def access(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(acc){
 
-    def structAccess(recv: vpr.Exp, st: in.StructT, perm: vpr.Exp = vpr.FullPerm()()): vpr.Exp =
-      ViperUtil.bigAnd(st.fields map (f =>
-        vpr.FieldAccessPredicate(vpr.FieldAccess(recv, field(f)(ctx))(), perm)())
-      )
+    val perm = vpr.FullPerm()()
 
-    def derefAccess(recv: vpr.Exp, t: in.Type, perm: vpr.Exp = vpr.FullPerm()()): vpr.Exp =
-      vpr.FieldAccessPredicate(vpr.FieldAccess(recv, pointerField(t)(ctx))(), perm)()
+    def pointerAcc(recv: in.Location): CodeWriter[vpr.Exp] = {
+      if (isAddressable(recv) && !isStructType(recv.typ)) {
+        for {
+          r <- rvalue(recv)(ctx)
+        } yield vpr.FieldAccessPredicate(valAccess(r, recv.typ)(ctx), perm)()
+      } else unit(vpr.TrueLit()())
+    }
+
+    def projAcc(recv: in.Expr, pathFields: Vector[in.Field], f: in.Field): CodeWriter[vpr.Exp] = {
+      (isAddressable(recv), pathFields.forall(isAddressable), isStructType(f.typ)) match {
+        case (true, true, _) =>
+          for {
+            r <- rproj(recv, pathFields)(ctx)
+            facc = fieldAccess(r, f)(ctx)
+          } yield vpr.FieldAccessPredicate(facc, perm)()
+
+        case (_, _, false) =>
+          for {
+            r <- rproj(recv, pathFields :+ f)(ctx)
+            facc = r.asInstanceOf[vpr.FieldAccess]
+          } yield vpr.FieldAccessPredicate(facc, perm)()
+
+        case (_, _,  true) => unit(vpr.TrueLit()())
+      }
+    }
 
     acc.e match {
-      case in.Accessible.Pointer(der) => structType(der.typ) match {
-        case Some(st) => extendedRValue(der.exp)(ctx) map (structAccess(_, st))
-        case None => extendedRValue(der.exp)(ctx) map (derefAccess(_, der.typ))
-      }
+      case in.Accessible.Pointer(der) => pointerAcc(der)
 
       case in.Accessible.Field(fa) =>
         val pathFields = fa.path.path.collect{ case in.MemberPath.Next(f) => f }
-        val pacc = projAccess(fa.recv, pathFields, fa.field)(ctx)
-        lazy val base = rproj(fa.recv, pathFields :+ fa.field)(ctx)
-
-        (fa.field, structType(fa.typ)) match {
-        case (f: in.Field.Ref, Some(st)) => for {pa <- pacc; r <- base} yield vpr.And(pa, structAccess(r, st))()
-        case (f: in.Field.Ref, None)     => for {pa <- pacc; r <- base} yield vpr.And(pa, derefAccess(r, fa.typ))()
-        case (f: in.Field.Val, _)        => pacc
-      }
+        for {
+          path <- projAcc(fa.recv, pathFields, fa.field)
+          pointer <- pointerAcc(fa)
+        } yield vpr.And(path, pointer)()
     }
   }
+
 
   /**
-    * Acc[?e: S]f -> true
-    * Acc[e]f    -> acc(R[e].f, perm)
+    * CallReceiver[r](mp) -> Aux[l]
+    *   where
+    *     fs, l = mp such that l does not contain fields and fs is either empty or ends with a field
     *
-    * Acc[e](fs, ?g: S, f) -> true
-    * Acc[e](fs, g, f)     -> acc(RProj[e](fs, g).f, perm)
+    *     Aux[()] -> r.fs
+    *     Aux[ &] -> &r.fs
+    *     Aux[ *] -> +r.fs
     *
-    * translates a field access to a permission
+    * translates a receiver of a call
     */
-  def projAccess(recv: in.Expr, pathFields: Vector[in.Field], f: in.Field, perm: vpr.Exp = vpr.FullPerm()())(ctx: Context): ExprWriter[vpr.Exp] = {
+  override def callReceiver(recv: in.Expr, path: in.MemberPath)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[in.MemberPath.Next])
+    val (promotionPath, afterPath) = path.path.splitAt(lastFieldIdx + 1)
 
-    def fieldAccessPred(e: vpr.Exp): vpr.Exp =
-      vpr.FieldAccessPredicate(vpr.FieldAccess(e, field(f)(ctx))(), perm)()
+    val newBase = if (promotionPath.nonEmpty) {
+      val newF = promotionPath.head.asInstanceOf[in.MemberPath.Next].e
+      val newPath = in.MemberPath(promotionPath.tail)
+      in.FieldRef(recv, newF, newPath)(recv.info)
+    } else recv
 
-    if (pathFields.isEmpty) {
-      recv match {
-        case r: in.Location if isAddressable(r) => rvalue(r)(ctx) map fieldAccessPred
-        case e if isStructType(e.typ) => unit(vpr.TrueLit()())
-        case e => ctx.expr.translate(e)(ctx) map fieldAccessPred
-      }
-    } else {
-      val lastF = pathFields.last
-      val isTupleCase = !isAddressableF(lastF) && isStructTypeF(lastF)
-
-      if (isTupleCase) {
-        unit(vpr.TrueLit()())
-      } else {
-        val actualRecv = rproj(recv, pathFields)(ctx)
-        actualRecv map fieldAccessPred
-      }
+    val newRecv = afterPath match {
+      case Vector() => newBase
+      case Vector(in.MemberPath.Deref) => in.Deref(newBase)(recv.info)
+      case Vector(in.MemberPath.Ref) => in.Ref(newBase)(recv.info)
+      case _ => Violation.violation("Found ill formed resolution path")
     }
+
+    ctx.expr.translate(newRecv)(ctx)
   }
+
+
 
   def field(f: in.Field)(ctx: Context): vpr.Field = f match {
     case _: in.Field.Val => nodeWithInfo(vpr.Field(f.name, ctx.typ.translate(f.typ)(ctx)))(f)
     case _: in.Field.Ref => nodeWithInfo(vpr.Field(f.name, vpr.Ref))(f)
   }
 
-  def isAddressableF(f: in.Field): Boolean = f.isInstanceOf[in.Field.Ref]
-  def isStructTypeF(f: in.Field): Boolean = isStructType(f.typ)
+  /** e # f */
+  private def fieldExtension(x: vpr.Exp, f: in.Field)(ctx: Context): vpr.Lhs = x match {
+    case z: vpr.LocalVar => z.copy(name = Names.fieldExtension(z.name, f.name))(z.pos, z.info, z.errT)
 
-  def isAddressable(exp: in.Expr): Boolean = exp match {
-    case _: in.LocalVar.Ref => true
-    case fr: in.FieldRef => fr.field.isInstanceOf[in.Field.Ref]
-    case _: in.Deref => true
-    case _ => false
+    case z: vpr.FieldAccess =>
+      val f = z.field
+      z.copy(
+        field = f.copy(name = Names.fieldExtension(f.name, f.name))(f.pos, f.info, f.errT)
+      )(z.pos, z.info, z.errT)
+
+    case _ => Violation.violation(s"expected vpr variable or field access, but got $x")
   }
 
+  /** e.f */
+  private def fieldAccess(x: vpr.Exp, f: in.Field)(ctx: Context): vpr.FieldAccess =
+    vpr.FieldAccess(x, field(f)(ctx))()
 
-  def purify(exp: vpr.Exp, typ: in.Type)(ctx: Context): ExprWriter[vpr.Exp] = {
-    require(isStructType(typ))
-    ???
+  /** e.val */
+  private def valAccess(x: vpr.Exp, t: in.Type)(ctx: Context): vpr.FieldAccess =
+    vpr.FieldAccess(x, pointerField(t)(ctx))()
+
+
+  // Utils
+
+  private def createMultiVar: vpr.LocalVar =
+    vpr.LocalVar(Names.freshName, vpr.Int)()
+
+  private def inverseVar(x: vpr.LocalVar, typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =
+    in.LocalVar.Val(x.name, typ)(info)
+
+  private def copyResult(r: vpr.Exp): CodeWriter[vpr.LocalVar] = {
+    val z = vpr.LocalVar(Names.freshName, r.typ)(r.pos, r.info, r.errT)
+    for {
+      _ <- local(vu.toVarDecl(z))
+      _ <- write(vpr.LocalVarAssign(z, r)(r.pos, r.info, r.errT))
+    } yield z
   }
-  def accessStructValueField(exp: vpr.Exp, f: in.Field)(ctx: Context): ExprWriter[vpr.Exp] = ???
-  def updateStructValueField(exp: vpr.Exp, f: in.Field, newVal: vpr.Exp)(ctx: Context): ExprWriter[vpr.Exp] = ???
 }

@@ -1,12 +1,11 @@
 package viper.gobra.translator.interfaces.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.translator.util.ViperWriter.ExprWriter
+import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
 trait Expressions
-  extends BaseTranslator[in.Expr, ExprWriter[vpr.Exp]] {
+  extends BaseTranslator[in.Expr, CodeWriter[vpr.Exp]] {
 
-  implicit val toFieldAcc: FromToContract[in.Deref, ExprWriter[vpr.FieldAccess]] = new FromToContract[in.Deref, ExprWriter[vpr.FieldAccess]] {}
-  implicit val toLocalVar: FromToContract[in.LocalVar, ExprWriter[vpr.LocalVar]] = new FromToContract[in.LocalVar, ExprWriter[vpr.LocalVar]] {}
+  def defaultValue(t: in.Type): CodeWriter[vpr.Exp]
 }

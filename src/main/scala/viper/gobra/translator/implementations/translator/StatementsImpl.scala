@@ -4,7 +4,8 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.{ExprWriter, StmtWriter}
+import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -13,73 +14,76 @@ class StatementsImpl extends Statements {
 
   def count: Int = {counter += 1; counter}
 
-  import viper.gobra.translator.util.ViperWriter.StmtLevel._
-  import viper.gobra.translator.util.ViperWriter.{ExprLevel => el}
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def finalize(col: Collector): Unit = ()
 
-  override def translate(x: in.Stmt)(ctx: Context): StmtWriter[vpr.Stmt] = withDeepInfo(x){
+  override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = withDeepInfo(x){
 
 
-    def goS(s: in.Stmt): StmtWriter[vpr.Stmt] = translate(s)(ctx)
-    def goA(a: in.Assertion): ExprWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
-    def goE(e: in.Expr): ExprWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
+    def goS(s: in.Stmt): CodeWriter[vpr.Stmt] = translate(s)(ctx)
+    def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
+    def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     val z = x match {
-      case in.Block(decls, stmts) => block{
-        for {
-          (declsWithPre, nextCtx) <- sequenceC(ctx)(decls map ctx.loc.bottomDecl)
-          (decls, pre) = declsWithPre.unzip
-          body <- sequence(stmts map ctx.stmt.translateF(nextCtx))
-        } yield vpr.Seqn(pre ++ body, decls)()
-      }
+      case in.Block(decls, stmts) =>
+        val (declsWithInits, nextCtx) = chain(decls map ctx.loc.bottomDecl)(ctx)
+        val (vDeclss, inits) = declsWithInits.unzip
+        val vDecls = vDeclss.flatten
+        block{
+          for {
+            _ <- global(vDecls: _*)
+            vInits <- sequence(inits)
+            vBody <- sequence(stmts map ctx.stmt.translateF(nextCtx))
+          } yield vu.seqn(vInits ++ vBody)
+        }
 
-      case in.Seqn(stmts) => sequence(stmts map goS) map (vpr.Seqn(_, Vector.empty)())
+      case in.Seqn(stmts) => seqn(stmts map goS)
 
-      case in.If(cond, thn, els) => seqnE(
+      case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)
-            t <- el.exprS(goS(thn))
-            e <- el.exprS(goS(els))
-          } yield vpr.If(c, vpr.Seqn(Vector(t), Vector.empty)(), vpr.Seqn(Vector(e), Vector.empty)())()
-        )
+            t <- seqn(goS(thn))
+            e <- seqn(goS(els))
+          } yield vpr.If(c, t, e)()
 
-      case in.While(cond, invs, body) => seqnE(
+      case in.While(cond, invs, body) =>
         for {
-          (vCond, vCondStmts) <- el.splitWrittenStmts(goE(cond))
-          (vInvs, vInvStmts) <- el.splitWrittenStmts(el.sequence(invs map goA))
-          vBody <- el.exprS(goS(body))
+          (cws, vCond) <- split(goE(cond))
+          (iws, vInvs) = invs.map(ctx.ass.invariant(_)(ctx)).unzip
+          cpre <- seqnUnit(cws)
+          ipre <- seqnUnit(iws)
+          vBody <- goS(body)
 
-          wh = vpr.Seqn(
-            vCondStmts ++ vInvStmts ++ Vector(
-              vpr.While(vCond, vInvs, vpr.Seqn(Vector(vBody) ++ vCondStmts ++ vInvStmts, Vector.empty)())()
-            ),
-            Vector.empty
-          )()
+          cpost = vpr.If(vCond, cpre, vu.nop)()
+          ipost = ipre
+
+          wh = vu.seqn(Vector(
+            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost))())()
+          ))
         } yield wh
-      )
 
       case ass: in.SingleAss => ctx.loc.assignment(ass)(ctx)
       case mk: in.Make => ctx.loc.make(mk)(ctx)
 
       case in.FunctionCall(targets, func, args) =>
-        seqnE(for {
-          vArgs <- el.sequence(args map goE)
-          vTargets <- el.sequence(targets map (ctx.loc.variable(_)(ctx)))
-        } yield vpr.MethodCall(func.name, vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))
+        for {
+          vArgs <- sequence(args map goE)
+          vTargets <- sequence(targets map (ctx.loc.variable(_)(ctx)))
+        } yield vpr.MethodCall(func.name, vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
       case in.MethodCall(targets, recv, meth, args, path) =>
-        seqnE(for {
+        for {
           vRecv <- ctx.loc.callReceiver(recv, path)(ctx)
-          vArgs <- el.sequence(args map goE)
-          vTargets <- el.sequence(targets map (ctx.loc.variable(_)(ctx)))
-        } yield vpr.MethodCall(meth.uniqueName, vRecv +: vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))
+          vArgs <- sequence(args map goE)
+          vTargets <- sequence(targets map (ctx.loc.variable(_)(ctx)))
+        } yield vpr.MethodCall(meth.uniqueName, vRecv +: vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
-      case in.Assert(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assert(v)())
-      case in.Assume(ass) => seqnE(for {v <- goA(ass)} yield vpr.Assume(v)()) // Assumes are later rewritten
-      case in.Inhale(ass) => seqnE(for {v <- goA(ass)} yield vpr.Inhale(v)())
-      case in.Exhale(ass) => seqnE(for {v <- goA(ass)} yield vpr.Exhale(v)())
+      case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)()
+      case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)() // Assumes are later rewritten
+      case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)()
+      case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)()
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)())
 

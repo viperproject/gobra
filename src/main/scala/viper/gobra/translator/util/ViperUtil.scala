@@ -4,7 +4,6 @@ import viper.silver.ast._
 
 object ViperUtil {
 
-
   def toVarDecl(v: LocalVar): LocalVarDecl = {
     LocalVarDecl(v.name, v.typ)(v.pos, v.info, v.errT)
   }
@@ -12,4 +11,8 @@ object ViperUtil {
   def bigAnd(it: Iterable[Exp]): Exp = {
     it.foldLeft[Exp](TrueLit()()){case (l, r) => And(l, r)()}
   }
+
+  def seqn(ss: Vector[Stmt]): Seqn = Seqn(ss, Vector.empty)()
+
+  def nop: Seqn = Seqn(Vector.empty, Vector.empty)()
 }

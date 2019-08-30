@@ -37,7 +37,7 @@ class ProgramsImpl extends Programs {
 
     } yield vProgram
 
-    val (error, prog) = progW.execute
+    val (error, _, prog) = progW.execute
 
     val progWithoutAssumes = {
       val uncleanProg = AssumeRewriter.rewriteAssumes(prog)

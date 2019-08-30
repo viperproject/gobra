@@ -4,51 +4,50 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Functions
 import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
 
 class FunctionsImpl extends Functions {
 
-  import viper.gobra.translator.util.ViperWriter.{StmtLevel => sl, _}
+  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
   import MemberLevel._
 
   override def finalize(col: Collector): Unit = ()
 
   override def translate(x: in.Function)(ctx: Context): MemberWriter[vpr.Method] = withDeepInfo(x){
 
-      def declInit[R <: in.TopDeclaration](ds: Vector[R])(ctx: Context)
-      : MemberWriter[((Vector[vpr.LocalVarDecl], Vector[sl.Writer[vpr.Stmt]]), Context)] =
-        sequenceC(ctx)(ds map ctx.loc.topDecl).map{ case (declWithW, c) => (declWithW.unzip, c) }
+    val (argsWithInits, interCtx) = chain(x.args map ctx.loc.topDecl)(ctx)
+    val (vArgss, argInits) = argsWithInits.unzip
+    val vArgs = vArgss.flatten
 
-      def clauseInit[R](ws: Vector[MemberWriter[(R, sl.Writer[vpr.Stmt])]]): MemberWriter[(Vector[R], Vector[sl.Writer[vpr.Stmt]])] =
-        sequence(ws).map{ _.unzip }
+    val (resultsWithIntis, newCtx) = chain(x.results map ctx.loc.topDecl)(interCtx)
+    val (vResultss, resultInits) = resultsWithIntis.unzip
+    val vResults = vResultss.flatten
 
-      for {
-        ((args, argW), ctx2) <- declInit(x.args)(ctx)
-        ((res, resW), ctx3) <- declInit(x.results)(ctx2)
+    for {
+      pres <- sequence(x.pres map (ctx.ass.precondition(_)(newCtx)))
+      posts <- sequence(x.posts map (ctx.ass.postcondition(_)(newCtx)))
 
-        (pres, presW) <- clauseInit(x.pres map (ctx.ass.precondition(_)(ctx3)))
-        (posts, postW) <- clauseInit(x.posts map (ctx.ass.postcondition(_)(ctx3)))
+      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)()
 
-        returnLabel = vpr.Label(Names.returnLabel, Vector.empty)()
+      body <- option(x.body.map{ b => block{
+        for {
+          _ <- cl.global(vArgs ++ vResults: _*)
+          vInits <- cl.sequence(argInits ++ resultInits)
+          _ <- cl.global(returnLabel)
+          core <- ctx.stmt.translate(b)(newCtx)
+        } yield vu.seqn(vInits :+ core)
+      }})
 
-        body <- option(x.body.map{ b => blockS{
-          for {
-            prelude <- sl.sequence(argW ++ argW ++ presW ++ postW)
-            core <- ctx.stmt.translate(b)(ctx3)
-          } yield vpr.Seqn(prelude ++ Vector(core, returnLabel), Vector(returnLabel))()
-        }})
+      method = vpr.Method(
+        name = x.name,
+        formalArgs = vArgs,
+        formalReturns = vResults,
+        pres = pres,
+        posts = posts,
+        body = body
+      )()
 
-
-
-        method = vpr.Method(
-          name = x.name,
-          formalArgs = args,
-          formalReturns = res,
-          pres = pres,
-          posts = posts,
-          body = body
-        )()
-
-      } yield method
+    } yield method
   }
 }

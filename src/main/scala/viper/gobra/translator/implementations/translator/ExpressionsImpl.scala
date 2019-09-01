@@ -21,7 +21,37 @@ class ExpressionsImpl extends Expressions {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     x match {
-      case in.DfltVal(t) => defaultValue(t)
+
+      case unfold: in.Unfolding =>
+        for {
+          a <- ctx.loc.predicateAccess(unfold.op)(ctx)
+          e <- goE(unfold.in)
+        } yield vpr.Unfolding(a, e)()
+
+      case in.PureFunctionCall(func, args, typ) =>
+        val arity = ctx.loc.arity(typ)(ctx)
+        val resultType = ctx.loc.ttype(typ)(ctx)
+        for {
+          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          app = vpr.FuncApp(func.name, vArgss.flatten)(vpr.NoPosition, vpr.NoInfo, resultType, vpr.NoTrafos)
+          res <- if (arity == 1) unit(app) else {
+            copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
+          }
+        } yield res
+
+      case in.PureMethodCall(recv, meth, args, path, typ) =>
+        val arity = ctx.loc.arity(typ)(ctx)
+        val resultType = ctx.loc.ttype(typ)(ctx)
+        for {
+          vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
+          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          app = vpr.FuncApp(meth.name, vRecvs ++ vArgss.flatten)(vpr.NoPosition, vpr.NoInfo, resultType, vpr.NoTrafos)
+          res <- if (arity == 1) unit(app) else {
+            copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
+          }
+        } yield res
+
+      case in.DfltVal(t) => ctx.loc.defaultValue(t)(ctx)
       case in.Tuple(args) => Violation.violation("Tuples expressions are not supported at this point in time")
       case p: in.Deref => ctx.loc.evalue(p)(ctx)
       case f: in.FieldRef => ctx.loc.evalue(f)(ctx)
@@ -29,8 +59,8 @@ class ExpressionsImpl extends Expressions {
 
       case in.Negation(op) => for{o <- goE(op)} yield vpr.Not(o)()
 
-      case in.EqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.EqCmp(vl, vr)()
-      case in.UneqCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.NeCmp(vl, vr)()
+      case in.EqCmp(l, r) => ctx.loc.equal(l, r)(ctx)
+      case in.UneqCmp(l, r) => ctx.loc.equal(l, r)(ctx).map(vpr.Not(_)())
       case in.LessCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LtCmp(vl, vr)()
       case in.AtMostCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LeCmp(vl, vr)()
       case in.GreaterCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.GtCmp(vl, vr)()
@@ -46,27 +76,14 @@ class ExpressionsImpl extends Expressions {
       case in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Div(vl, vr)()
 
 
-      case l: in.Lit => literal(l)(ctx)
+      case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }
   }
 
-  def literal(l: in.Lit)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(l){
 
-    l match {
-      case in.IntLit(v) => unit(vpr.IntLit(v)())
-      case in.BoolLit(b) => unit(vpr.BoolLit(b)())
-    }
-  }
 
-  override def defaultValue(t: in.Type): CodeWriter[vpr.Exp] = t match {
-    case in.BoolT => unit(vpr.TrueLit()())
-    case in.IntT => unit(vpr.IntLit(0)())
-    case in.PermissionT => unit(vpr.NoPerm()())
-    case in.DefinedT(_, t2) => defaultValue(t2)
-    case in.PointerT(_) => unit(vpr.NullLit()())
-    case _ => ???
-  }
+
 
 
 }

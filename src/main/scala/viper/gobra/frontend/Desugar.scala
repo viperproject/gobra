@@ -245,11 +245,6 @@ object Desugar {
         case _ => None
       }
 
-      // r1' := _; ... ; rn' := _
-      val returnInits = actualReturns.map{l =>
-        in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
-      }
-
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
@@ -276,7 +271,7 @@ object Desugar {
 
       val bodyOpt = decl.body.map{ s =>
         val vars = argSubs.flatten ++ returnSubs.flatten
-        val body = argInits ++ returnInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
+        val body = argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
       }
 
@@ -384,11 +379,6 @@ object Desugar {
         case _ => None
       }
 
-      // r1' := _; ... ; rn' := _
-      val returnInits = actualReturns.map{l =>
-        in.SingleAss(in.Assignee.Var(l), in.DfltVal(l.typ)(Source.Parser.Internal))(l.info)
-      }
-
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
@@ -420,7 +410,7 @@ object Desugar {
 
       val bodyOpt = decl.body.map{ s =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
-        val body = recvInits ++ argInits ++ returnInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
+        val body = recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
       }
 

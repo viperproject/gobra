@@ -16,6 +16,8 @@ class TypesImpl extends Types {
     * [frac]   -> perm
     * [n := t] -> [t]
     * [*t]     -> ref
+    * [nil]    -> ref
+    * [S]      -> ??? // TODO: will be the tuple type
     * [void] undef
     */
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
@@ -24,6 +26,8 @@ class TypesImpl extends Types {
     case in.PermissionT => vpr.Perm
     case in.DefinedT(_, t) => translate(t)(ctx)
     case in.PointerT(_) => vpr.Ref
+    case in.NilT => vpr.Ref
+    case st: in.StructT => vpr.DomainType(st.name, Map.empty[vpr.TypeVar, vpr.Type])(Seq.empty[vpr.TypeVar])
     case in.TupleT(ts) => Violation.violation("Tuple types are not supported at this point in time")
 
     case in.VoidT => Violation.violation("void is not a translatable type")

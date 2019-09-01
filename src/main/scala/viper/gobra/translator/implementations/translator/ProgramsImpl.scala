@@ -19,7 +19,20 @@ class ProgramsImpl extends Programs {
     val ctx = new ContextImpl(conf)
 
     val progW = for {
-      functions <- sequence(program.members collect { case f: in.Function => ctx.func.translate(f)(ctx)})
+      methods <- sequence(program.members collect {
+        case f: in.Function => ctx.method.function(f)(ctx)
+        case m: in.Method => ctx.method.method(m)(ctx)
+      })
+
+      functions <- sequence(program.members collect {
+        case f: in.PureFunction => ctx.pureMethod.pureFunction(f)(ctx)
+        case m: in.PureMethod => ctx.pureMethod.pureMethod(m)(ctx)
+      })
+
+      predicates <- sequence(program.members collect {
+        case p: in.MPredicate => ctx.predicate.mpredicate(p)(ctx)
+        case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx)
+      })
 
       col = {
         val c = new CollectorImpl()
@@ -30,9 +43,9 @@ class ProgramsImpl extends Programs {
       vProgram = nodeWithInfo(vpr.Program(
         domains = col.domains,
         fields = col.fields,
-        predicates = col.predicate,
-        functions = col.functions,
-        methods = col.methods ++ functions
+        predicates = col.predicate ++ predicates,
+        functions = col.functions ++ functions,
+        methods = col.methods ++ methods
       ))(program)
 
     } yield vProgram

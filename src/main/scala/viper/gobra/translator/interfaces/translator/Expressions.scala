@@ -5,7 +5,4 @@ import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
 trait Expressions
-  extends BaseTranslator[in.Expr, CodeWriter[vpr.Exp]] {
-
-  def defaultValue(t: in.Type): CodeWriter[vpr.Exp]
-}
+  extends BaseTranslator[in.Expr, CodeWriter[vpr.Exp]]

@@ -5,9 +5,8 @@ import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 
+abstract class Predicates extends Generator {
 
-abstract class Methods extends Generator {
-
-  def method(meth: in.Method)(ctx: Context): MemberWriter[vpr.Method]
-  def function(func: in.Function)(ctx: Context): MemberWriter[vpr.Method]
+  def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
+  def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
 }

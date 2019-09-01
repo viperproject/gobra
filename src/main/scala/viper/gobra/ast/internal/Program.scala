@@ -70,7 +70,9 @@ case class PureMethod(
                        results: Vector[LocalVar.Val],
                        pres: Vector[Assertion],
                        body: Option[Expr]
-                     )(val info: Source.Parser.Info) extends Member
+                     )(val info: Source.Parser.Info) extends Member {
+  require(results.size <= 1)
+}
 
 case class Function(
                      name: String,
@@ -87,7 +89,9 @@ case class PureFunction(
                          results: Vector[LocalVar.Val],
                          pres: Vector[Assertion],
                          body: Option[Expr]
-                       )(val info: Source.Parser.Info) extends Member
+                       )(val info: Source.Parser.Info) extends Member {
+  require(results.size <= 1)
+}
 
 case class FPredicate(
                      name: String,
@@ -358,14 +362,14 @@ case class Parameter(id: String, typ: Type)(val info: Source.Parser.Info) extend
 
 sealed trait BodyVar extends Var
 
-sealed trait LocalVar extends BodyVar with TopDeclaration with BottomDeclaration {
+sealed trait LocalVar extends BodyVar with BottomDeclaration {
   def unapply(arg: LocalVar): Option[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
 object LocalVar {
   case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
-  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
+  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar with TopDeclaration
 }
 
 //sealed trait GlobalVar extends Var {

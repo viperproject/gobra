@@ -5,9 +5,9 @@ import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 
+abstract class PureMethods extends Generator {
 
-abstract class Methods extends Generator {
+  def pureMethod(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function]
+  def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function]
 
-  def method(meth: in.Method)(ctx: Context): MemberWriter[vpr.Method]
-  def function(func: in.Function)(ctx: Context): MemberWriter[vpr.Method]
 }

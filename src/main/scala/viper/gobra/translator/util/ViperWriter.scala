@@ -4,6 +4,9 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer
 import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.gobra.translator.Names
+import viper.gobra.util.Violation
 
 
 object ViperWriter {
@@ -88,17 +91,44 @@ object ViperWriter {
 
   trait CodeKind extends DataKind
 
+  case class Global(x: vpr.Declaration) extends CodeKind
+  case class Local(x: vpr.Declaration) extends CodeKind
+
+  // to preserve the order of stmt-like output
+  sealed trait Code extends CodeKind {
+    def right: vpr.Stmt
+    def left: vpr.Stmt
+    def isPure: Boolean
+  }
+
+  case class Prelude(x: vpr.Stmt) extends Code {
+    override lazy val right: vpr.Stmt = x
+    override lazy val left: vpr.Stmt = x
+    override val isPure: Boolean = false
+  }
+
+  case class WellDef(x: vpr.Exp) extends Code {
+    override lazy val right: vpr.Stmt = vpr.Assert(x)(x.pos, x.info, x.errT)
+    override lazy val left: vpr.Stmt = vpr.Assume(x)(x.pos, x.info, x.errT)
+    override val isPure: Boolean = true
+  }
+
+  case class Binding(v: vpr.LocalVar, e: vpr.Exp) extends Code {
+    override lazy val right: vpr.Stmt = vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
+    override lazy val left: vpr.Stmt = left
+    override val isPure: Boolean = true
+  }
+
   case class CodeSum(
                       global: Vector[vpr.Declaration],
                       local: Vector[vpr.Declaration],
-                      stmt: Vector[vpr.Stmt]
-                    ) extends DataSum
+                      code: Vector[Code]
+                    ) extends DataSum {
+    lazy val left: Vector[vpr.Stmt] = code.map(_.left)
+    lazy val right: Vector[vpr.Stmt] = code.map(_.right)
+  }
 
   case object CodeKindCompanion extends DataKindCompanion[CodeKind, CodeSum] {
-
-    case class Global(x: vpr.Declaration) extends CodeKind
-    case class Local(x: vpr.Declaration) extends CodeKind
-    case class Stmt(x: vpr.Stmt) extends CodeKind
 
     override def ownKind(point: DataKind): Option[CodeKind] = point match {
       case x: CodeKind => Some(x)
@@ -108,19 +138,19 @@ object ViperWriter {
     override def sum(data: Vector[CodeKind]): CodeSum = {
       var global: Vector[vpr.Declaration] = Vector.empty
       var local: Vector[vpr.Declaration] = Vector.empty
-      var stmt: Vector[vpr.Stmt] = Vector.empty
+      var code: Vector[Code] = Vector.empty
 
       data foreach {
         case Global(x) => global = global :+ x
         case Local(x)  => local = local :+ x
-        case Stmt(x) => stmt = stmt :+ x
+        case x: Code   => code = code :+ x
       }
 
-      CodeSum(global, local, stmt)
+      CodeSum(global, local, code)
     }
 
     override def unsum(s: CodeSum): Vector[CodeKind] =
-      (s.global map Global) ++ (s.local map Local) ++ (s.stmt map Stmt)
+      (s.global map Global) ++ (s.local map Local) ++ s.code
   }
 
 
@@ -165,7 +195,7 @@ object ViperWriter {
       @inline
       def map[Q](fun: R => Q): Writer[Q] = copy(sum, fun(res))
 
-      def cut: (Writer[Unit], R) = (map(_ => ()), res)
+      def cut: (R, Writer[Unit]) = (res, map(_ => ()))
 
       @inline
       def flatMap[Q](fun: R => Writer[Q]): Writer[Q] = {
@@ -195,7 +225,7 @@ object ViperWriter {
 
     def block(w: CodeLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
       val (codeSum, remainder, r) = w.execute
-      val newR = vpr.Seqn(codeSum.stmt :+ r, codeSum.local ++ codeSum.global)(r.pos, r.info, r.errT)
+      val newR = vpr.Seqn(codeSum.code.map(_.right) :+ r, codeSum.local ++ codeSum.global)(r.pos, r.info, r.errT)
       create(remainder, newR)
     }
   }
@@ -206,30 +236,59 @@ object ViperWriter {
 
   case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
-    def emptySum[R](w: Writer[R]): Boolean = w.sum.all.isEmpty
+    def assumeUnit[R](w: Writer[R]): MemberLevel.Writer[vpr.Exp] = assumeExp(w.map(_ => vpr.TrueLit()()))
+    def assertUnit[R](w: Writer[R]): MemberLevel.Writer[vpr.Exp] = assertExp(w.map(_ => vpr.TrueLit()()))
 
-    def seqn(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =
-      sequence(ws.map(seqn)).map(vpr.Seqn(_, Vector.empty)())
+    def assumeExp(w: Writer[vpr.Exp]): MemberLevel.Writer[vpr.Exp] = pure(w, assume = true)
+    def assertExp(w: Writer[vpr.Exp]): MemberLevel.Writer[vpr.Exp] = pure(w)
 
-    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
+    def withoutWellDef[R](w: Writer[R]): Writer[R] = {
+      val newCode = w.sum.data.filter(!_.isInstanceOf[WellDef])
+      val newData = w.sum.copy(data = newCode)
+      w.copy(newData)
+    }
+
+    def pure(w: Writer[vpr.Exp], assume: Boolean = false): MemberLevel.Writer[vpr.Exp] = {
+      val (codeSum, remainder, r) = w.execute
+      require(!codeSum.code.exists(_.isPure))
+      val newR = codeSum.code.foldRight(r){
+        case (WellDef(c), e) =>
+          if (assume) vpr.Implies(c, e)(e.pos, e.info, e.errT) // c => e
+          else vpr.And(c, e)(e.pos, e.info, e.errT) // c && e
+
+        case (Binding(lhs, rhs), e) =>
+          vpr.Let(ViperUtil.toVarDecl(lhs), rhs, e)(e.pos, e.info, e.errT) // let lhs = rhs in e
+
+        case _ => Violation.violation("pure expected but impure output found")
+      }
+      MemberLevel.create(remainder, newR)
+    }
+
+    def seqns(ws: Vector[Writer[vpr.Stmt]], assume: Boolean = false): Writer[vpr.Seqn] =
+      sequence(ws.map(seqn(_, assume))).map(vpr.Seqn(_, Vector.empty)())
+
+    def seqn(w: Writer[vpr.Stmt], assume: Boolean = false): Writer[vpr.Seqn] =
       move(w){ s => r =>
-        val newSum = s.copy(local = Vector.empty, stmt = Vector.empty)
-        (newSum, vpr.Seqn(s.stmt :+ r, s.local)(r.pos, r.info, r.errT))
+        val newSum = s.copy(local = Vector.empty, code = Vector.empty)
+        val code = if (assume) s.left else s.right
+        (newSum, vpr.Seqn(code :+ r, s.local)(r.pos, r.info, r.errT))
       }
 
-    def seqnUnit(ws: Vector[Writer[Unit]]): Writer[vpr.Seqn] =
-      sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
+    def seqnUnits(ws: Vector[Writer[Unit]], assume: Boolean = false): Writer[vpr.Seqn] =
+      sequence(ws.map(seqnUnit(_, assume))).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] =
+    def seqnUnit(w: Writer[Unit], assume: Boolean = false): Writer[vpr.Seqn] =
       move(w){ s => _ =>
-        val newSum = s.copy(local = Vector.empty, stmt = Vector.empty)
-        (newSum, vpr.Seqn(s.stmt, s.local)())
+        val newSum = s.copy(local = Vector.empty, code = Vector.empty)
+        val code = if (assume) s.left else s.right
+        (newSum, vpr.Seqn(code, s.local)())
       }
 
-    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
+    def block(w: Writer[vpr.Stmt], assume: Boolean = false): Writer[vpr.Seqn] =
       move(w){ s => r =>
-        val newSum = s.copy(global = Vector.empty, local = Vector.empty, stmt = Vector.empty)
-        (newSum, vpr.Seqn(s.stmt :+ r, s.local ++ s.global)(r.pos, r.info, r.errT))
+        val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
+        val code = if (assume) s.left else s.right
+        (newSum, vpr.Seqn(code :+ r, s.local ++ s.global)(r.pos, r.info, r.errT))
       }
 
     def split[R](w: Writer[R]): Writer[(Writer[Unit], R)] = {
@@ -238,13 +297,27 @@ object ViperWriter {
     }
 
     def write(stmts: vpr.Stmt*): Writer[Unit] =
-      create(stmts.toVector.map(CodeKindCompanion.Stmt), ())
+      create(stmts.toVector.map(Prelude), ())
+
+    def bind(lhs: vpr.LocalVar, rhs: vpr.Exp): Writer[Unit] =
+      create(Vector(Binding(lhs, rhs)), ())
+
+    def wellDef(cond: vpr.Exp*): Writer[Unit] =
+      create(cond.toVector.map(WellDef), ())
 
     def local(locals: vpr.Declaration*): Writer[Unit] =
-      create(locals.toVector.map(l => CodeKindCompanion.Local(ViperUtil.toVarDecl(l))), ())
+      create(locals.toVector.map(Local), ())
 
     def global(globals: vpr.Declaration*): Writer[Unit] =
-      create(globals.toVector.map(l => CodeKindCompanion.Global(ViperUtil.toVarDecl(l))), ())
+      create(globals.toVector.map(Global), ())
+
+    def copyResult(r: vpr.Exp): CodeWriter[vpr.LocalVar] = {
+      val z = vpr.LocalVar(Names.freshName, r.typ)(r.pos, r.info, r.errT)
+      for {
+        _ <- local(vu.toVarDecl(z))
+        _ <- bind(z, r)
+      } yield z
+    }
   }
 
   type CodeWriter[R] = CodeLevel.Writer[R]

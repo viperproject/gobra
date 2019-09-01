@@ -28,18 +28,17 @@ class StatementsImpl extends Statements {
 
     val z = x match {
       case in.Block(decls, stmts) =>
-        val (declsWithInits, nextCtx) = chain(decls map ctx.loc.bottomDecl)(ctx)
-        val (vDeclss, inits) = declsWithInits.unzip
+        val (vDeclss, inits) = decls.map(ctx.loc.localDecl(_)(ctx)).unzip
         val vDecls = vDeclss.flatten
         block{
           for {
             _ <- global(vDecls: _*)
-            vInits <- sequence(inits)
-            vBody <- sequence(stmts map ctx.stmt.translateF(nextCtx))
-          } yield vu.seqn(vInits ++ vBody)
+            vInits <- seqns(inits)
+            vBody <- sequence(stmts map ctx.stmt.translateF(ctx))
+          } yield vu.seqn(vInits +: vBody)
         }
 
-      case in.Seqn(stmts) => seqn(stmts map goS)
+      case in.Seqn(stmts) => seqns(stmts map goS)
 
       case in.If(cond, thn, els) =>
           for {
@@ -53,14 +52,14 @@ class StatementsImpl extends Statements {
           (cws, vCond) <- split(goE(cond))
           (iws, vInvs) = invs.map(ctx.ass.invariant(_)(ctx)).unzip
           cpre <- seqnUnit(cws)
-          ipre <- seqnUnit(iws)
+          ipre <- seqnUnits(iws)
           vBody <- goS(body)
 
           cpost = vpr.If(vCond, cpre, vu.nop)()
           ipost = ipre
 
           wh = vu.seqn(Vector(
-            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost))())()
+            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost)))()
           ))
         } yield wh
 
@@ -69,21 +68,24 @@ class StatementsImpl extends Statements {
 
       case in.FunctionCall(targets, func, args) =>
         for {
-          vArgs <- sequence(args map goE)
-          vTargets <- sequence(targets map (ctx.loc.variable(_)(ctx)))
-        } yield vpr.MethodCall(func.name, vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
+        } yield vpr.MethodCall(func.name, vArgss.flatten, vTargetss.flatten)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
       case in.MethodCall(targets, recv, meth, args, path) =>
         for {
-          vRecv <- ctx.loc.callReceiver(recv, path)(ctx)
-          vArgs <- sequence(args map goE)
-          vTargets <- sequence(targets map (ctx.loc.variable(_)(ctx)))
-        } yield vpr.MethodCall(meth.uniqueName, vRecv +: vArgs, vTargets)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+          vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
+          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
+        } yield vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vTargetss.flatten)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)()
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)() // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)()
       case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)()
+
+      case fold: in.Fold => for {a <- ctx.loc.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)()
+      case unfold: in.Unfold => for { a <- ctx.loc.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)()
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)())
 

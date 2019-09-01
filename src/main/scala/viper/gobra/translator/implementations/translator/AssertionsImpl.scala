@@ -10,7 +10,6 @@ import viper.silver.{ast => vpr}
 class AssertionsImpl extends Assertions {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
-  import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
 
   override def finalize(col: Collector): Unit = ()
 
@@ -28,17 +27,11 @@ class AssertionsImpl extends Assertions {
     }
   }
 
-  // TODO: at some point we might want to generate additional code
-  private def pureSpecification(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = {
-    ml.split(translate(x)(ctx)).map{ case (e, w) =>
-      assert(emptySum(w))
-      e
-    }
+  override def invariant(x: in.Assertion)(ctx: Context): (CodeWriter[Unit], vpr.Exp) = {
+    translate(x)(ctx).cut.swap
   }
 
-  override def invariant(x: in.Assertion)(ctx: Context): (CodeWriter[Unit], vpr.Exp) = translate(x)(ctx).cut
+  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assumeExp(translate(x)(ctx))
 
-  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = pureSpecification(x)(ctx)
-
-  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = pureSpecification(x)(ctx)
+  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assertExp(translate(x)(ctx))
 }

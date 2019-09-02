@@ -267,7 +267,8 @@ object Addressable {
   def isAddressable(path: MemberPath): Boolean = {
 
     val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[MemberPath.Next])
-    val (promotionPath, afterPath) = path.path.splitAt(lastFieldIdx + 1)
+    val correctedLastFieldIdx = if (lastFieldIdx == -1) path.path.size - 1 else lastFieldIdx
+    val (promotionPath, afterPath) = path.path.splitAt(correctedLastFieldIdx + 1)
     lazy val fields = promotionPath.collect{ case MemberPath.Next(f) => f }
     lazy val addressableFieldPath = fields.forall(_.isInstanceOf[Field2.Ref])
 
@@ -384,18 +385,52 @@ object LocalVar {
 
 
 object Types {
+
   def isStructType(typ: Type): Boolean = structType(typ).nonEmpty
 
-  def structType(typ: Type): Option[StructT] = typ match {
-    case DefinedT(_, right) => structType(right)
+  def structType(typ: Type): Option[StructT] = underlyingType(typ) match {
     case st: StructT => Some(st)
     case _ => None
   }
 
-  def unrefType(typ: Type): Option[Type] = typ match {
-    case DefinedT(_, right) => unrefType(right)
+  def isClassType(typ: Type): Boolean = classType(typ).nonEmpty
+
+  def classType(typ: Type): Option[StructT] = {
+    def afterAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
+      case st: StructT => Some(st)
+      case _ => None
+    }
+    def beforeAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
+      case PointerT(et) => afterAtMostOneRef(et)
+      case _ => afterAtMostOneRef(typ)
+    }
+    beforeAtMostOneRef(typ)
+  }
+
+  def isStructPointerType(typ: Type): Boolean = structPointerType(typ).nonEmpty
+
+  def structPointerType(typ: Type): Option[StructT] = {
+    def afterAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
+      case st: StructT => Some(st)
+      case _ => None
+    }
+    def beforeAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
+      case PointerT(et) => afterAtMostOneRef(et)
+      case _ => None
+    }
+    beforeAtMostOneRef(typ)
+  }
+
+  def isPointerTyp(typ: Type): Boolean = pointerTyp(typ).nonEmpty
+
+  def pointerTyp(typ: Type): Option[Type] = underlyingType(typ) match {
     case PointerT(t) => Some(t)
     case _ => None
+  }
+
+  def underlyingType(typ: Type): Type = typ match {
+    case DefinedT(_, right) => underlyingType(right)
+    case _ => typ
   }
 }
 

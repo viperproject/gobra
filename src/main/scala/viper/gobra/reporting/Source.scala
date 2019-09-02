@@ -3,6 +3,7 @@ package viper.gobra.reporting
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
+import viper.gobra.util.Violation
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 
@@ -30,6 +31,13 @@ object Source {
     case class Single(pnode: frontend.PNode, src: Origin) extends Info {
       override lazy val origin: Option[Origin] = Some(src)
       override def toInfo(node: internal.Node): vpr.Info = Verifier.Info(pnode, node, src)
+    }
+
+    object Single {
+      def fromVpr(src: vpr.Exp): Single = {
+        val info = Source.unapply(src).get
+        Single(info.pnode, info.origin)
+      }
     }
   }
 
@@ -75,7 +83,7 @@ object Source {
 
       source.info match {
         case Parser.Internal => node
-        case Parser.Unsourced => throw new IllegalStateException()
+        case Parser.Unsourced => Violation.violation(s"information cannot be taken from an unsourced node $source")
 
         case Parser.Single(pnode, origin) =>
 

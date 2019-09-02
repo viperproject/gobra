@@ -19,7 +19,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case _ => None
     }
 
-  lazy val isClassType: Property[Type] = createBinaryProperty("is class type") { t =>
+  lazy val isClassType: Property[Type] = createBinaryProperty("a class type") { t =>
       val relevantT = derefType(t) match {
         case Some(value) => underlyingType(value)
         case None => underlyingType(t)
@@ -27,15 +27,23 @@ trait UnderlyingType { this: TypeInfoImpl =>
       relevantT.isInstanceOf[StructT]
     }
 
-  lazy val isInterfaceType: Property[Type] = createBinaryProperty("is interface type") { t =>
+  lazy val isInterfaceType: Property[Type] = createBinaryProperty("an interface type") { t =>
     underlyingType(t) match {
       case InterfaceT(decl) => true
       case _ => false
     }
   }
 
-  lazy val isClassOrInterfaceType: Property[Type] = createBinaryProperty("is class or interface type"){
+  lazy val isClassOrInterfaceType: Property[Type] = createBinaryProperty("a class or interface type"){
     t => isClassType(t) || isInterfaceType(t)
+  }
+
+  lazy val isNotPointerType: Property[Type] = createBinaryProperty("not a pointer type"){ t =>
+    val relevantT = derefType(t) match {
+      case Some(value) => underlyingType(value)
+      case None => underlyingType(t)
+    }
+    !relevantT.isInstanceOf[PointerT]
   }
 
 }

@@ -34,7 +34,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
-    case (left, right) => s"$left is not assignable to $right"
+    case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
       case (l, r) if identicalTypes(l, r) => true
@@ -71,8 +71,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)] {
-    case (PLiteralValue(elems), Single(right)) =>
-      underlyingType(right) match {
+    case (PLiteralValue(elems), Single(typ)) =>
+      underlyingType(typ) match {
         case StructT(decl) =>
           if (elems.isEmpty) {
             successProp

@@ -22,11 +22,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
 
     case n@PCompositeLit(t, lit) =>
-      val bt = t match {
+      val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
         case t: PType => typeType(t)
       }
-      literalAssignableTo.errors(lit, bt)(n)
+      literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case _: PFunctionLit => noMessages
 

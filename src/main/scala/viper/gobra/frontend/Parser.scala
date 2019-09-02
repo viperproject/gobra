@@ -731,18 +731,18 @@ object Parser {
       assertionPrecedence1
 
     lazy val assertionPrecedence1: PackratParser[PAssertion] =
-      assertionPrecedence1 ~ ("&&" ~> assertionPrecedence2) ^^ PStar |
+      assertionPrecedence1 ~ ("&&" ~> assertionPrecedence2) ^^ PStar | /* Left-associative */
         assertionPrecedence2
 
     lazy val assertionPrecedence2: PackratParser[PAssertion] =
-      expression ~ ("==>" ~> assertionPrecedence3) ^^ PImplication |
+      expression ~ ("==>" ~> assertionPrecedence2) ^^ PImplication | /* Right-associative */
         assertionPrecedence3
 
     lazy val assertionPrecedence3: PackratParser[PAssertion] =
       unaryAssertion
 
     lazy val unaryAssertion: Parser[PAssertion] =
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
       predicateCall |
       "(" ~> assertion <~ ")" |

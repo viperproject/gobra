@@ -30,8 +30,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@ PMapType(key, _) => message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
 
     case t: PStructType =>
-      t.embedded.flatMap(e => isClassOrInterfaceType.errors(miscType(e.typ))(e)) ++
-      t.fields.flatMap(f => isClassOrInterfaceType.errors(typeType(f.typ))(f)) ++
+      t.embedded.flatMap(e => isNotPointerType.errors(miscType(e.typ))(e)) ++
+      t.fields.flatMap(f => isNotPointerType.errors(typeType(f.typ))(f)) ++
       structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)

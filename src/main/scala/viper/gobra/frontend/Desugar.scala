@@ -141,9 +141,10 @@ object Desugar {
       }.asInstanceOf[in.MPredicateProxy]
     }
 
-    class FunctionContext(val ret: Vector[in.Expr] => Meta => in.Stmt) {
-
-      private var substitutions: Map[Identity, in.BodyVar] = Map.empty
+    class FunctionContext(
+                           val ret: Vector[in.Expr] => Meta => in.Stmt,
+                           private var substitutions: Map[Identity, in.BodyVar] = Map.empty
+                         ) {
 
       def apply(id: PIdnNode): Option[in.BodyVar] =
         substitutions.get(abstraction(id))
@@ -151,6 +152,8 @@ object Desugar {
 
       def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
         substitutions += abstraction(from) -> to
+
+      def copy: FunctionContext = new FunctionContext(ret, substitutions)
 //
 //      private var proxies: Map[Identity, in.Proxy] = Map.empty
 //
@@ -560,9 +563,19 @@ object Desugar {
 
           case PAssignment(right, left) =>
             if (left.size == right.size) {
-              sequence((left zip right).map{ case (l, r) =>
-                for{le <- goL(l); re <- goE(r)} yield in.SingleAss(le, re)(src)
-              }).map(in.Seqn(_)(src))
+              if (left.size == 1) {
+                for{le <- goL(left.head); re <- goE(right.head)} yield in.SingleAss(le, re)(src)
+              } else {
+                // copy results to temporary variables and then to assigned variables
+                val temps = left map (l => freshVar(typeD(info.typ(l)))(src))
+                val resToTemps = (temps zip right).map{ case (l, r) =>
+                  for{re <- goE(r)} yield in.SingleAss(in.Assignee.Var(l), re)(src)
+                }
+                val tempsToVars = (left zip temps).map{ case (l, r) =>
+                  for{le <- goL(l)} yield in.SingleAss(le, r)(src)
+                }
+                sequence(resToTemps ++ tempsToVars).map(in.Seqn(_)(src))
+              }
             } else if (right.size == 1) {
               for{les <- sequence(left map goL); re  <- goE(right.head)}
                 yield multiassD(les, re)(src)
@@ -1128,12 +1141,19 @@ object Desugar {
 
     // Miscellaneous
 
+    /** desugars parameter.
+      * The second return argument contains an addressable copy, if necessary */
     def parameterD(p: PParameter): (in.Parameter, Option[in.LocalVar]) = p match {
       case NoGhost(noGhost: PActualParameter) => noGhost match {
         case PNamedParameter(id, typ) =>
           val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-          val local = Some(localAlias(localVarContextFreeD(id)))
-          (param, local)
+          if (info.addressed(id)) {
+            val local = Some(localAlias(localVarContextFreeD(id)))
+            (param, local)
+          } else {
+            (param, None)
+          }
+
 
         case PUnnamedParameter(typ) =>
           val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
@@ -1172,18 +1192,10 @@ object Desugar {
     }
 
     def embeddedDeclD(decl: PEmbeddedDecl): in.Field =
-      if (info.addressed(decl.id)) {
-        in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
-      } else {
-        in.Field.Val(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
-      }
+      in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
 
     def fieldDeclD(decl: PFieldDecl): in.Field =
-      if (info.addressed(decl.id)) {
-        in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
-      } else {
-        in.Field.Val(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
-      }
+      in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
 
     // Ghost Statement
 

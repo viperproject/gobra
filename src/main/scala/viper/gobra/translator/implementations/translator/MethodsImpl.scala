@@ -37,7 +37,6 @@ class MethodsImpl extends Methods {
 
       body <- option(x.body.map{ b => block{
         for {
-          _ <- cl.global(vArgs ++ vResults: _*)
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
@@ -59,6 +58,8 @@ class MethodsImpl extends Methods {
 
   override def function(x: in.Function)(ctx: Context): MemberWriter[Method] = withDeepInfo(x){
 
+    assert(x.info.origin.isDefined, s"$x has no defined source")
+
     val (vArgss, argWells) = x.args.map(ctx.loc.parameter(_)(ctx)).unzip
     val vArgs = vArgss.flatten
     val argWell = argWells map cl.assertUnit
@@ -76,7 +77,6 @@ class MethodsImpl extends Methods {
 
       body <- option(x.body.map{ b => block{
         for {
-          _ <- cl.global(vArgs ++ vResults: _*)
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)

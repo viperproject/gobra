@@ -27,7 +27,7 @@ class TypesImpl extends Types {
     case in.DefinedT(_, t) => translate(t)(ctx)
     case in.PointerT(_) => vpr.Ref
     case in.NilT => vpr.Ref
-    case st: in.StructT => vpr.DomainType(st.name, Map.empty[vpr.TypeVar, vpr.Type])(Seq.empty[vpr.TypeVar])
+    case st: in.StructT => vpr.Int // TODO
     case in.TupleT(ts) => Violation.violation("Tuple types are not supported at this point in time")
 
     case in.VoidT => Violation.violation("void is not a translatable type")

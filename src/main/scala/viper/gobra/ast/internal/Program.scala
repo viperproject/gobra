@@ -55,7 +55,7 @@ object Field {
 
 case class Method(
                  receiver: Parameter,
-                 name: String,
+                 name: MethodProxy,
                  args: Vector[Parameter],
                  results: Vector[LocalVar.Val],
                  pres: Vector[Assertion],
@@ -65,7 +65,7 @@ case class Method(
 
 case class PureMethod(
                        receiver: Parameter,
-                       name: String,
+                       name: MethodProxy,
                        args: Vector[Parameter],
                        results: Vector[LocalVar.Val],
                        pres: Vector[Assertion],
@@ -75,7 +75,7 @@ case class PureMethod(
 }
 
 case class Function(
-                     name: String,
+                     name: FunctionProxy,
                      args: Vector[Parameter],
                      results: Vector[LocalVar.Val],
                      pres: Vector[Assertion],
@@ -84,7 +84,7 @@ case class Function(
                    )(val info: Source.Parser.Info) extends Member
 
 case class PureFunction(
-                         name: String,
+                         name: FunctionProxy,
                          args: Vector[Parameter],
                          results: Vector[LocalVar.Val],
                          pres: Vector[Assertion],
@@ -94,14 +94,14 @@ case class PureFunction(
 }
 
 case class FPredicate(
-                     name: String,
+                     name: FPredicateProxy,
                      args: Vector[Parameter],
                      body: Option[Assertion]
                      )(val info: Source.Parser.Info) extends Member
 
 case class MPredicate(
                      receiver: Parameter,
-                     name: String,
+                     name: MPredicateProxy,
                      args: Vector[Parameter],
                      body: Option[Assertion]
                      )(val info: Source.Parser.Info) extends Member
@@ -221,8 +221,11 @@ case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Exp
 }
 
 object Deref {
-  def apply(exp: Expr)(info: Source.Parser.Info): Deref =
-    Deref(exp, exp.asInstanceOf[PointerT].t)(info)
+  def apply(exp: Expr)(info: Source.Parser.Info): Deref = {
+    require(exp.typ.isInstanceOf[PointerT])
+    Deref(exp, exp.typ.asInstanceOf[PointerT].t)(info)
+  }
+
 }
 
 case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) extends Expr with Location
@@ -264,27 +267,30 @@ object Addressable {
     case _: Field2.Val => false
   }
 
-  def isAddressable(path: MemberPath): Boolean = {
+  def isFieldRefAddressable(isBaseAddressable: Boolean, typ: Type, f: Field2): Boolean = {
+    // (*base).f would be addressable
+    val isBaseEffectivelyAddressable = isBaseAddressable || Types.isStructPointerType(typ)
+    isBaseEffectivelyAddressable && isAddressable(f)
+  }
 
-    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[MemberPath.Next])
-    val correctedLastFieldIdx = if (lastFieldIdx == -1) path.path.size - 1 else lastFieldIdx
-    val (promotionPath, afterPath) = path.path.splitAt(correctedLastFieldIdx + 1)
-    lazy val fields = promotionPath.collect{ case MemberPath.Next(f) => f }
-    lazy val addressableFieldPath = fields.forall(_.isInstanceOf[Field2.Ref])
-
-    afterPath match {
-      case Vector() => addressableFieldPath
-      case Vector(MemberPath.Ref) => false
-      case Vector(MemberPath.Deref) => true
-      case _ => Violation.violation("Found ill formed resolution path")
-    }
+  def isAddressable(expr: Expr, fields: Vector[Field2]): Boolean = {
+    fields.foldLeft((isAddressable(expr), expr.typ)){ case ((isBaseAddr, baseTyp), f) =>
+      (isFieldRefAddressable(isBaseAddr, baseTyp, f), f.typ)
+    }._1
   }
 
   def isAddressable(x: Expr): Boolean = {
     x match {
       case _: LocalVar.Ref => true
       case _: Deref => true
-      case f: FieldRef => isAddressable(f.recv) && isAddressable(f.path) && isAddressable(f.field)
+      case f: FieldRef =>
+        val (fields, last) = MemberPath.cut(f.path)
+        last match {
+          case Some(MemberPath.Ref) => false
+          case Some(MemberPath.Deref) => true
+          case None => isAddressable(f.recv, fields :+ f.field)
+        }
+
       case _ => false
     }
   }
@@ -474,11 +480,28 @@ case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Pa
 
 object MemberPath {
   sealed trait Step
+  sealed trait Last
 
   case object Underlying extends Step
-  case object Deref extends Step
-  case object Ref extends Step
+  case object Deref extends Step with Last
+  case object Ref extends Step with Last
   case class  Next(e: Field) extends Step
+
+  def cut(path: MemberPath): (Vector[Field], Option[Last]) = {
+    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[MemberPath.Next])
+    val correctedLastFieldIdx = if (lastFieldIdx == -1) path.path.size - 1 else lastFieldIdx
+    val (promotionPath, afterPath) = path.path.splitAt(correctedLastFieldIdx + 1)
+    lazy val fields = promotionPath.collect{ case MemberPath.Next(f) => f }
+
+    val last = afterPath match {
+      case Vector() => None
+      case Vector(MemberPath.Ref) => Some(MemberPath.Ref)
+      case Vector(MemberPath.Deref) => Some(MemberPath.Deref)
+      case _ => Violation.violation("Found ill formed resolution path")
+    }
+
+    (fields, last)
+  }
 }
 
 case class MemberPath(path: Vector[MemberPath.Step])

@@ -2,7 +2,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, Function, MethodImpl}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
 import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -22,6 +22,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def isPureId(id: PIdnNode): Boolean = entity(id) match {
+    case _: Constant => true
+    case _: Variable => true
     case _: Field => true
     case _: Embbed => true
     case Function(decl, _) => decl.spec.isPure
@@ -31,7 +33,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private lazy val isPureExprAttr: PExpression => Boolean =
     attr[PExpression, Boolean] {
-      case n@ PNamedOperand(id) => true
+      case n@ PNamedOperand(id) => isPureId(id)
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
       case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
@@ -61,9 +63,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PUnfolding => true
 
+      case n@PCompositeLit(t, lit) => true
 
       // Might change soon:
-      case n@PCompositeLit(t, lit) => false
       case n@PIndexedExp(base, index) => false
 
       // Might change as some point

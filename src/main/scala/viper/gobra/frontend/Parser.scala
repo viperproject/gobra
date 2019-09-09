@@ -453,6 +453,44 @@ object Parser {
         typeAssertion |
         operand
 
+
+    lazy val conversionOrUnaryCall: Parser[PConversionOrUnaryCall] =
+      nestedIdnUse ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
+        PConversionOrUnaryCall
+      }
+
+    lazy val conversion: Parser[PConversion] =
+      typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ PConversion
+
+    lazy val call: PackratParser[PCall] =
+      primaryExp ~ callArguments ^^ PCall
+
+    lazy val callArguments: Parser[Vector[PExpression]] =
+      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
+      nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
+
+    lazy val methodExpr: Parser[PMethodExpr] =
+      methodRecvType ~ ("." ~> idnUse) ^^ PMethodExpr
+
+    lazy val selection: PackratParser[PSelection] =
+      primaryExp ~ ("." ~> idnUse) ^^ PSelection
+
+    lazy val idBasedSelection: Parser[PSelection] =
+      nestedIdnUse ~ ("." ~> idnUse) ^^ {
+        case base ~ field => PSelection(PNamedOperand(base).at(base), field)
+      }
+
+    lazy val indexedExp: PackratParser[PIndexedExp] =
+      primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
+
+    lazy val sliceExp: PackratParser[PSliceExp] =
+      primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
+
+    lazy val typeAssertion: PackratParser[PTypeAssertion] =
+      primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
+
     lazy val operand: Parser[PExpression] =
       literal | namedOperand | "(" ~> expression <~ ")"
 
@@ -498,37 +536,9 @@ object Parser {
     lazy val functionLit: Parser[PFunctionLit] =
       "func" ~> signature ~ block ^^ { case sig ~ body => PFunctionLit(sig._1, sig._2, body) }
 
-    lazy val conversionOrUnaryCall: Parser[PConversionOrUnaryCall] =
-      nestedIdnUse ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
-        PConversionOrUnaryCall
-      }
 
-    lazy val conversion: Parser[PConversion] =
-      typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ PConversion
 
-    lazy val call: PackratParser[PCall] =
-      primaryExp ~ callArguments ^^ PCall
 
-    lazy val callArguments: Parser[Vector[PExpression]] =
-      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
-
-    lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
-      nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
-
-    lazy val methodExpr: Parser[PMethodExpr] =
-      methodRecvType ~ ("." ~> idnUse) ^^ PMethodExpr
-
-    lazy val selection: PackratParser[PSelection] =
-      primaryExp ~ ("." ~> idnUse) ^^ PSelection
-
-    lazy val indexedExp: PackratParser[PIndexedExp] =
-      primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
-
-    lazy val sliceExp: PackratParser[PSliceExp] =
-      primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
-
-    lazy val typeAssertion: PackratParser[PTypeAssertion] =
-      primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
 
 
     /**
@@ -728,7 +738,7 @@ object Parser {
 
 
     lazy val assertion: Parser[PAssertion] =
-      assertionPrecedence1
+     assertionPrecedence1
 
     lazy val assertionPrecedence1: PackratParser[PAssertion] =
       assertionPrecedence1 ~ ("&&" ~> assertionPrecedence2) ^^ PStar | /* Left-associative */
@@ -742,14 +752,14 @@ object Parser {
       unaryAssertion
 
     lazy val unaryAssertion: Parser[PAssertion] =
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
       predicateCall |
       "(" ~> assertion <~ ")" |
       expression ^^ PExprAssertion
 
     lazy val accessible: Parser[PAccessible] =
-      dereference | reference | selection
+       dereference | reference | idBasedSelection | selection
 
     lazy val predicateCall: Parser[PPredicateCall] =
       "memory" ~> "(" ~> expression <~ ")" ^^ PMemoryPredicateCall |

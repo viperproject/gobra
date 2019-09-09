@@ -55,36 +55,36 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showFunction(f: Function): Doc = f match {
     case Function(name, args, results, pres, posts, body) =>
-      "func" <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
     case PureFunction(name, args, results, pres, body) =>
-      "pure func" <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
     case Method(receiver, name, args, results, pres, posts, body) =>
-      "func" <+> parens(showVarDecl(receiver)) <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
     case PureMethod(receiver, name, args, results, pres, body) =>
-      "pure func" <+> parens(showVarDecl(receiver)) <+> name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showFPredicate(predicate: FPredicate): Doc = predicate match {
     case FPredicate(name, args, body) =>
-    "pred" <+> name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+    "pred" <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
     case MPredicate(recv, name, args, body) =>
-      "pred" <+> parens(showVarDecl(recv)) <+> name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+      "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
   def showField(field: Field): Doc = field match {
@@ -95,7 +95,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     "type" <+> t.name <+> showType(t.right)
 
   def showPreconditions[T <: Assertion](list: Vector[T]): Doc =
-    hcat(list  map ("requires" <> showAss(_) <> line))
+    hcat(list  map ("requires " <> showAss(_) <> line))
 
   def showPostconditions[T <: Assertion](list: Vector[T]): Doc =
     hcat(list  map ("ensures " <> showAss(_) <> line))

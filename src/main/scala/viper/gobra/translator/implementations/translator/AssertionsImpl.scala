@@ -20,7 +20,7 @@ class AssertionsImpl extends Assertions {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     ass match {
-      case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.Add(vl, vr)()
+      case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)()
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)()
       case acc: in.Access => ctx.loc.access(acc)(ctx)

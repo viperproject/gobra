@@ -42,7 +42,7 @@ class PureMethodsImpl extends PureMethods {
       })
 
       function = vpr.Function(
-        name = meth.name,
+        name = meth.name.uniqueName,
         formalArgs = vRecv ++ vArgs,
         typ = resultType,
         pres = pres,
@@ -78,7 +78,7 @@ class PureMethodsImpl extends PureMethods {
       })
 
       function = vpr.Function(
-        name = func.name,
+        name = func.name.name,
         formalArgs = vArgs,
         typ = resultType,
         pres = pres,

@@ -44,7 +44,7 @@ class MethodsImpl extends Methods {
       }})
 
       method = vpr.Method(
-        name = x.name,
+        name = x.name.uniqueName,
         formalArgs = vRecv ++ vArgs,
         formalReturns = vResults,
         pres = pres,
@@ -84,7 +84,7 @@ class MethodsImpl extends Methods {
       }})
 
       method = vpr.Method(
-        name = x.name,
+        name = x.name.name,
         formalArgs = vArgs,
         formalReturns = vResults,
         pres = pres,

@@ -192,7 +192,7 @@ object Desugar {
     def functionD(decl: PFunctionDecl): in.Member =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
-      val name = functionProxyD(decl).name
+      val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
@@ -284,7 +284,7 @@ object Desugar {
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
       require(decl.spec.isPure)
 
-      val name = functionProxyD(decl).name
+      val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
@@ -317,7 +317,7 @@ object Desugar {
 
     def methodD(decl: PMethodDecl): in.Method = {
 
-      val name = methodProxyD(decl).name
+      val name = methodProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -423,7 +423,7 @@ object Desugar {
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
       require(decl.spec.isPure)
 
-      val name = methodProxyD(decl).name
+      val name = methodProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -456,7 +456,7 @@ object Desugar {
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
-      val name = fpredicateProxyD(decl).name
+      val name = fpredicateProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args map parameterD
@@ -473,7 +473,7 @@ object Desugar {
     }
 
     def mpredicateD(decl: PMPredicateDecl): in.MPredicate = {
-      val name = mpredicateProxyD(decl).name
+      val name = mpredicateProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -574,7 +574,9 @@ object Desugar {
                 val tempsToVars = (left zip temps).map{ case (l, r) =>
                   for{le <- goL(l)} yield in.SingleAss(le, r)(src)
                 }
-                sequence(resToTemps ++ tempsToVars).map(in.Seqn(_)(src))
+                declare(temps: _*) flatMap (_ =>
+                  sequence(resToTemps ++ tempsToVars).map(in.Seqn(_)(src))
+                  )
               }
             } else if (right.size == 1) {
               for{les <- sequence(left map goL); re  <- goE(right.head)}
@@ -654,7 +656,7 @@ object Desugar {
     // Expressions
 
     def derefD(ctx: FunctionContext)(deref: PDereference): Writer[in.Deref] =
-      exprD(ctx)(deref.operand) map (in.Deref(_, typeD(info.typ(deref.operand)))(meta(deref)))
+      exprD(ctx)(deref.operand) map (in.Deref(_)(meta(deref)))
 
     sealed trait ExprEntity
 
@@ -685,13 +687,7 @@ object Desugar {
           ExprEntity.ReceivedField(s, rfield)
 
         case m: st.Method =>
-          val path = memberPathD(exprEntityD(ctx)(base) match {
-            case _: ExprEntity.Variable | _: ExprEntity.ReceivedDeref | _: ExprEntity.ReceivedField =>
-              info.methodLookup(base, id)._2
-
-            case _ => info.methodLookup(info.typ(base), id)._2
-          })
-
+          val path = memberPathD(info.methodLookup(base, id)._2)
           ExprEntity.ReceivedMethod(m, exprD(ctx)(base), path)
 
         case _ => Violation.violation("expected entity behind expression")

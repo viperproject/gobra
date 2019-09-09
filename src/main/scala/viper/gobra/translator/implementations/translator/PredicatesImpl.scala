@@ -37,7 +37,7 @@ class PredicatesImpl extends Predicates {
       vBody <- body
 
       predicate = vpr.Predicate(
-        name = pred.name,
+        name = pred.name.uniqueName,
         formalArgs = vRecv ++ vArgs,
         body = vBody
       )()
@@ -62,7 +62,7 @@ class PredicatesImpl extends Predicates {
       vBody <- body
 
       predicate = vpr.Predicate(
-        name = pred.name,
+        name = pred.name.name,
         formalArgs = vArgs,
         body = vBody
       )()

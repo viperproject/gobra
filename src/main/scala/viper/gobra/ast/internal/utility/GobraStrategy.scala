@@ -154,12 +154,12 @@ object GobraStrategy {
     val node: Node = (x, args) match {
         // Members
       case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m)(meta)
-      case (m: Method, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, m.name, arg, res, pre, post, b)(meta)
-      case (m: PureMethod, Seq(rec: Parameter, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, m.name, arg, res, pre, b)(meta)
-      case (f: Function, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(f.name, arg, res, pre, post, b)(meta)
-      case (f: PureFunction, Seq(arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureFunction(f.name, arg, res, pre, b)(meta)
-      case (p: MPredicate, Seq(recv: Parameter, args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, p.name, args, b)(meta)
-      case (p: FPredicate, Seq(args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => FPredicate(p.name, args, b)(meta)
+      case (m: Method, Seq(rec: Parameter, name: MethodProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, name, arg, res, pre, post, b)(meta)
+      case (m: PureMethod, Seq(rec: Parameter, name: MethodProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, name, arg, res, pre, b)(meta)
+      case (f: Function, Seq(name: FunctionProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(name, arg, res, pre, post, b)(meta)
+      case (f: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, b)(meta)
+      case (p: MPredicate, Seq(recv: Parameter, name: MPredicateProxy, args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, name, args, b)(meta)
+      case (p: FPredicate, Seq(name: FPredicateProxy, args: Vector[Parameter@unchecked], b: Option[Assertion@unchecked])) => FPredicate(name, args, b)(meta)
       case (f: Field.Ref, Seq()) => Field.Ref(f.name, f.typ, f.isEmbedding)(meta)
       case (f: Field.Val, Seq()) => Field.Val(f.name, f.typ, f.isEmbedding)(meta)
         // Statements

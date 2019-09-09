@@ -1,8 +1,8 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import in.Types.{isStructType, structType, isClassType, isStructPointerType}
-import in.Addressable.isAddressable
+import in.Types.{isClassType, isStructType, structType}
+import in.Addressable.{isAddressable, isFieldRefAddressable}
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
@@ -152,7 +152,7 @@ class LocationsImpl extends Locations {
   override def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
     v match {
       case v: in.Var =>
-        val valueInits = variable(v)(ctx) flatMap (x => initValues(x, isAddressable(v), v.typ)(ctx))
+        val valueInits = variable(v)(ctx) flatMap (x => initValues(isAddressable(v), x, v.typ)(ctx))
         val (decls, valueUnit) = valueInits.cut
         val as = values(v.typ)(ctx).map(_(v))
         val valueAssigns = seqns(as map { case (r, t) =>
@@ -436,14 +436,15 @@ class LocationsImpl extends Locations {
     * [acc(&!x)]    -> true
     *
     * PointerAcc[!r: S] -> true
-    * PointerAcc[!r: T] -> acc(R[r].val)
+    * PointerAcc[!r: T] -> acc(A[r].val)
     * PointerAcc[?r]    -> true
     *
-    * ProjAcc[!r](!fs;!g       ) -> acc(RProj[r]fs.g)
-    * ProjAcc[!r](!fs; g: not S) -> acc(RProj[r](fs,g))
-    * ProjAcc[ r: *S]( (); g   ) -> acc(RProj[r]().g))
-    * ProjAcc[ r]( fs, f: *S; g) -> acc(RProj[r](fs,f).g)
-    * ProjAcc[ r]( fs; g       ) -> true
+    * ProjAcc[!(e.f): not S] -> acc(RProj[r](path(e.f)).f)
+    * ProjAcc[  e.f    ]     -> Acc<R[e.f]>
+    *
+    * Acc<t.f> -> acc(t.f)
+    * Acc<x  > -> true
+    *
     *
     * translates a a field access keeping the last address
     */
@@ -454,28 +455,27 @@ class LocationsImpl extends Locations {
     def pointerAcc(recv: in.Location): CodeWriter[vpr.Exp] = {
       if (isAddressable(recv) && !isStructType(recv.typ)) {
         for {
-          r <- rvalue(recv)(ctx)
+          r <- avalue(recv)(ctx)
         } yield vpr.FieldAccessPredicate(valAccess(r, recv.typ)(ctx), perm)()
       } else unit(vpr.TrueLit()())
     }
 
-    def projAcc(recv: in.Expr, pathFields: Vector[in.Field], f: in.Field): CodeWriter[vpr.Exp] = {
-      val baseType = if (pathFields.isEmpty) recv.typ else pathFields.last.typ
-      val addressableBase = isAddressable(recv) && pathFields.forall(isAddressable)
-      val addressableField = isAddressable(f)
-
-      if ((addressableBase && addressableField) || isStructPointerType(baseType)) {
+    def projAcc(fieldRef: in.FieldRef): CodeWriter[vpr.Exp] = {
+      if (isAddressable(fieldRef) && !isStructType(fieldRef.typ)) {
+        val pathFields = in.MemberPath.cut(fieldRef.path)._1
         for {
-          r <- rproj(recv, pathFields)(ctx)
-          facc = fieldAccess(r, addressableBase, f, complete = true)(ctx)
-        } yield vpr.FieldAccessPredicate(facc, perm)()
-      } else if (addressableBase && !isStructType(f.typ)) {
-        for {
-          r <- rproj(recv, pathFields :+ f)(ctx)
-          facc = r.asInstanceOf[vpr.FieldAccess]
+          r <- rproj(fieldRef.recv, pathFields)(ctx)
+          facc = fieldAccess(r, fieldRef.field, mightContainAddressable = true, complete = true)(ctx)
         } yield vpr.FieldAccessPredicate(facc, perm)()
       } else {
-        unit(vpr.TrueLit()())
+        for {
+          r <- rvalue(fieldRef)(ctx)
+          facc = r match { // Acc<R[e.f]>
+            case access: vpr.FieldAccess => vpr.FieldAccessPredicate(access, perm)()
+            case _: vpr.LocalVar => vpr.TrueLit()()
+            case _ => Violation.violation(s"expected field access or variable, but got $r")
+          }
+        } yield facc
       }
     }
 
@@ -483,9 +483,8 @@ class LocationsImpl extends Locations {
       case in.Accessible.Pointer(der) => pointerAcc(der)
 
       case in.Accessible.Field(fa) =>
-        val pathFields = fa.path.path.collect{ case in.MemberPath.Next(f) => f }
         for {
-          path <- projAcc(fa.recv, pathFields, fa.field)
+          path <- projAcc(fa)
           pointer <- pointerAcc(fa)
         } yield vpr.And(path, pointer)()
 
@@ -535,30 +534,33 @@ class LocationsImpl extends Locations {
   }
 
   /**
-    * InitValue<?t: S> -> FOREACH fs in ValuePaths[S]. Init<t#fs>
-    * InitValue<!t: S> -> Init<t>; FOREACH (m f: Q) in S. InitValue<m t.f: Q>
-    * InitValue<?t: T> -> Init<t>
-    * InitValue<!t: T> -> Init<t>; Init<t.val>
+    * InitValue<?t: S> -> { InitValue<ext(?,S,f) t#f: Q> | (f: Q) in S }
+    * InitValue<!t: S> -> { Init<t> } + { InitValue<ext(!,S,f) t.f: Q> | (f: Q) in S }
+    * InitValue<?t: T> -> { Init<t> }
+    * InitValue<!t: T> -> { Init<t>, Init<t.val> }
     */
-  private def initValues(t: vpr.Exp, addressable: Boolean, typ: in.Type)(ctx: Context): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+  private def initValues(isBaseAddr: Boolean, t: vpr.Exp, typ: in.Type)(ctx: Context): CodeWriter[Vector[vpr.LocalVarDecl]] = {
 
     structType(typ) match {
-      case None if !addressable => init(t)
+      case None if !isBaseAddr => init(t)
 
-      case None if addressable  =>
+      case None if isBaseAddr  =>
         val fieldAcc = valAccess(t, typ)(ctx)
         for { a <- init(t); b <- init(fieldAcc) } yield a ++ b
 
-      case Some(st) if !addressable =>
-        sequence(valuePaths(st).map{ fs =>
-          init(fs.foldLeft(t){ case (r,f) => fieldExtension(r, f)(ctx) })
+      case Some(st) if !isBaseAddr =>
+        sequence(st.fields.map{ f =>
+          val isNextAddr = isFieldRefAddressable(isBaseAddr, st, f)
+          initValues(isNextAddr, fieldExtension(t,f)(ctx), f.typ)(ctx)
         }).map(_.flatten)
 
-      case Some(st) if addressable =>
+      case Some(st) if isBaseAddr =>
         val fieldInits = sequence(st.fields.map { f =>
-          val isAddrF = isAddressable(f)
-          val complete = !( !isAddrF && isStructType(f.typ) )
-          initValues(fieldAccess(t, addressableBase = true, f, complete)(ctx), isAddrF, f.typ)(ctx)
+          val isNextAddr = isFieldRefAddressable(isBaseAddr, st, f)
+          val complete = !(!isNextAddr && isStructType(f.typ))
+          val mightContainAddressable = isNextAddr
+
+          initValues(isNextAddr, fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ)(ctx)
         }).map(_.flatten)
 
         for { a <- init(t); b <- fieldInits} yield a ++ b
@@ -606,16 +608,13 @@ class LocationsImpl extends Locations {
     l match {
       case v: in.Var => variable(v)(ctx)
 
-      case in.Deref(exp, typ) =>
-        for {
-          rcv <- ctx.expr.translate(exp)(ctx)
-        } yield valAccess(rcv, typ)(ctx)
+      case in.Deref(exp, _) => rvalue(exp)(ctx)
 
       case in.FieldRef(recv, f, path) =>
         val fields = path.path.collect{ case in.MemberPath.Next(ef) => ef }
         for {
           rcv <- rproj(recv, fields)(ctx)
-        } yield fieldAccess(rcv, addressableBase = true, f, complete = true)(ctx)
+        } yield fieldAccess(rcv, f, mightContainAddressable = true, complete = true)(ctx)
 
       case _ => Violation.violation(s"encountered unexpected addressable location $l")
     }
@@ -623,8 +622,8 @@ class LocationsImpl extends Locations {
 
 
   /**
-    * R[!r: not S] -> A[r].val
-    * R[!r:     S] -> A[r]
+    * R[!r: S] -> A[r]
+    * R[!r: T] -> A[r].val
     * R[?x]  -> x
     * R[&!r] -> assert A[r] != null; A[r]
     * R[e.f] -> RProj[e](path(e.f), f)
@@ -657,35 +656,37 @@ class LocationsImpl extends Locations {
 
   /**
     * RProj[!r]fs -> RProjPath<!;R[r]>[fs]
-    * RProj[?r]fs -> RProjPath<?;R[r]>[fs]
+    * RProj[?r]fs -> RProjPath<?;R[r]>[fs]  // only do inlining if 100% sure that 
     *   where
-    *     RPath<m;t:  T>[       ()] -> t
-    *     RPath<!;t:  C>[@f: S, fs] -> RPath<@;t.f    >[fs]
-    *     RPath<!;t:  C>[?f: T, fs] -> RPath<?;t.f    >[fs]
-    *     RPath<!;t:  C>[!f: T, fs] -> RPath<!;t.f.val>[fs]
-    *     RPath<?;t:  S>[ f: T, fs] -> RPath<?;t#f    >[fs]
-    *     RPath<?;t: *S>[ f: T, fs] -> RPath<?;t.f    >[fs]
+    *     RPath<m;t: T>[      ()] -> t
+    *     RPath<?;t: S>[f: T, fs] -> RPath<?;t#f    >[fs]  with !ext(?, S, f)
+    *     RPath<m;t: C>[f: S, fs] -> RPath<?;t.f    >[fs]  with !ext(m, C, f)
+    *     RPath<m;t: C>[f: S, fs] -> RPath<!;t.f    >[fs]  with  ext(m, C, f)
+    *     RPath<m;t: C>[f: T, fs] -> RPath<?;t.f    >[fs]  with !ext(m, C, f)
+    *     RPath<m;t: C>[f: T, fs] -> RPath<!;t.f.val>[fs]  with  ext(m, C, f)
     *
     * translates a field access
     */
   def rproj(recv: in.Expr, fields: Vector[in.Field])(ctx: Context): CodeWriter[vpr.Exp] = {
 
     @tailrec
-    def rpath(m: Boolean, t: vpr.Exp, baseType: in.Type, fields: Vector[in.Field]): CodeWriter[vpr.Exp] = {
+    def rpath(isBaseAddr: Boolean, t: vpr.Exp, baseType: in.Type, fields: Vector[in.Field]): CodeWriter[vpr.Exp] = {
       if (fields.isEmpty) unit(t)
       else {
         Violation.violation(isClassType(baseType), s"expected class type, but got $baseType")
         val (f, fs) = (fields.head, fields.tail)
-        val (isAddrF, isStructF) = (isAddressable(f), isStructType(f.typ))
+        val isFieldExprAddr = isFieldRefAddressable(isBaseAddr, baseType, f)
+        val isStructF = isStructType(f.typ)
         // field access will get extended when the next mode is ? and f is a struct
-        val nextM = m && isAddrF
-        val complete = !( !nextM && isStructF )
-        (m, isAddrF, isStructF) match {
-          case ( true,     _,  true) => rpath(nextM, fieldAccess(t, nextM, f, complete)(ctx), f.typ, fs)
-          case ( true, false, false) => rpath(nextM, fieldAccess(t, nextM, f, complete)(ctx), f.typ, fs)
-          case ( true,  true, false) => rpath(nextM, valAccess(fieldAccess(t, nextM, f, complete)(ctx), f.typ)(ctx), f.typ, fs)
-          case (false,     _,     _) if isStructType(baseType) => rpath(nextM, fieldExtension(t,f)(ctx), f.typ, fs)
-          case (false,     _,     _) => rpath(nextM, fieldAccess(t, nextM, f, complete)(ctx), f.typ, fs)
+        val complete = !(!isFieldExprAddr && isStructF)
+        val mightContainAddressable = isFieldExprAddr
+
+        if (!isBaseAddr && isStructType(baseType)) {
+          rpath(isFieldExprAddr, fieldExtension(t,f)(ctx), f.typ, fs)
+        } else if (mightContainAddressable && !isStructF) {
+          rpath(isFieldExprAddr, valAccess(fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ)(ctx), f.typ, fs)
+        } else {
+          rpath(isFieldExprAddr, fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ, fs)
         }
       }
     }
@@ -698,10 +699,10 @@ class LocationsImpl extends Locations {
 
 
   /** [f] -> f */
-  def field(addressableBase: Boolean, f: in.Field)(ctx: Context): vpr.Field = {
+  def field(mightContainAddressable: Boolean, f: in.Field)(ctx: Context): vpr.Field = {
     f match {
-      case _: in.Field.Ref if addressableBase => nodeWithInfo(vpr.Field(Names.addressableField(f.name), vpr.Ref))(f)
-      case _  => nodeWithInfo(vpr.Field(Names.nonAddressableField(f.name), ctx.typ.translate(f.typ)(ctx)))(f)
+      case _: in.Field.Ref if mightContainAddressable => nodeWithInfo(vpr.Field(Names.addressableField(f.name), vpr.Ref))(f)
+      case _ => nodeWithInfo(vpr.Field(Names.nonAddressableField(f.name), ctx.typ.translate(f.typ)(ctx)))(f)
     }
   }
 
@@ -719,8 +720,8 @@ class LocationsImpl extends Locations {
   }
 
   /** e.f */
-  private def fieldAccess(x: vpr.Exp, addressableBase: Boolean, f: in.Field, complete: Boolean)(ctx: Context): vpr.FieldAccess = {
-    val res = vpr.FieldAccess(x, field(addressableBase, f)(ctx))()
+  private def fieldAccess(x: vpr.Exp, f: in.Field, mightContainAddressable: Boolean, complete: Boolean)(ctx: Context): vpr.FieldAccess = {
+    val res = vpr.FieldAccess(x, field(mightContainAddressable, f)(ctx))()
     if (complete) { regField(res) }
     res
   }

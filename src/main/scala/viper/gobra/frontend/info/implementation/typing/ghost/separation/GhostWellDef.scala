@@ -58,11 +58,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ PShortVarDecl(right, left) => assignableToId(right: _*)(left: _*)
 
-    case n@ PReturn(right) => (enclosingCodeRoot(n) match {
-      case f: PFunctionDecl  => f.result
-      case f: PFunctionLit   => f.result
-      case m: PMethodDecl    => m.result
-    }) match {
+    case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
       case PVoidResult() => violation("return arity not consistent with required enclosing arguments")
       case PResultClause(left) => assignableToParam(right: _*)(left: _*)
     }
@@ -81,6 +77,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
          |  _: PNamedOperand
          |  _: PNegation
          |  _: PBinaryExp
+         |  _: PUnfolding
     => noMessages
 
     case n@ (

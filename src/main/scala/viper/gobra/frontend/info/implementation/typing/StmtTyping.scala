@@ -86,11 +86,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
     case n@PReturn(exps) =>
-      (enclosingCodeRoot(n) match {
-        case f: PFunctionDecl  => f.result
-        case f: PFunctionLit   => f.result
-        case m: PMethodDecl    => m.result
-      }) match {
+      enclosingCodeRootWithResult(n).result match {
         case PVoidResult() => message(n, s"expected no arguments but got $exps", exps.nonEmpty)
         case PResultClause(outs) =>
           if (outs forall wellDefMisc.valid)

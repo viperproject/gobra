@@ -1,5 +1,8 @@
 
 
-val a = 8 % 10
+val a = Vector(1,2,3,4)
+var b = List.empty[Int]
 
-(4 * 4) == 16.0
+a foreach (x => b = x :: b )
+
+b

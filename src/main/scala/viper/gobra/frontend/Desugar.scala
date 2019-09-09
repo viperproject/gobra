@@ -315,7 +315,8 @@ object Desugar {
 
 
 
-    def methodD(decl: PMethodDecl): in.Method = {
+    def methodD(decl: PMethodDecl): in.Member =
+      if (decl.spec.isPure) pureMethodD(decl) else {
 
       val name = methodProxyD(decl)
       val fsrc = meta(decl)
@@ -1077,6 +1078,8 @@ object Desugar {
           case NoGhost(PFieldDecls(fs)) => fs foreach (f => fields ::= fieldDeclD(f))
           case NoGhost(e: PEmbeddedDecl) => fields ::= embeddedDeclD(e)
         }
+
+        fields = fields.reverse
 
         val structName = nm.struct(decl, meta(decl))
         registerType(in.StructT(structName, fields.toVector))

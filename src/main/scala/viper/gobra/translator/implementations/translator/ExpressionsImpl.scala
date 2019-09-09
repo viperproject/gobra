@@ -45,7 +45,7 @@ class ExpressionsImpl extends Expressions {
         for {
           vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
           vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
-          app = vpr.FuncApp(meth.name, vRecvs ++ vArgss.flatten)(vpr.NoPosition, vpr.NoInfo, resultType, vpr.NoTrafos)
+          app = vpr.FuncApp(meth.uniqueName, vRecvs ++ vArgss.flatten)(vpr.NoPosition, vpr.NoInfo, resultType, vpr.NoTrafos)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
           }

@@ -176,6 +176,6 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def isPredicate(id: PIdnNode): Messages = {
     val ent = entity(id)
-    message(id, s"expected predicate but got $ent", ent.isInstanceOf[Predicate])
+    message(id, s"expected predicate but got $ent", !ent.isInstanceOf[Predicate])
   }
 }

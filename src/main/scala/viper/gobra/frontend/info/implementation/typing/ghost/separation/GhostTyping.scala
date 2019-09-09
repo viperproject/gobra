@@ -48,6 +48,9 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case (base, id) => calleeReturnGhostTyping(base)
       }.get
 
+        // ghostness of proof annotations is decided by the argument
+      case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
+
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))
     }
@@ -132,11 +135,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case _: PMethodSig => false
   }
 
-  override def expectedReturnGhostTyping(ret: PReturn): GhostType = (enclosingCodeRoot(ret) match {
-    case f: PFunctionDecl  => f.result
-    case f: PFunctionLit   => f.result
-    case m: PMethodDecl    => m.result
-  }) match {
+  override def expectedReturnGhostTyping(ret: PReturn): GhostType = enclosingCodeRootWithResult(ret).result match {
     case PVoidResult() => GhostType.ghostTuple(Vector.empty)
     case PResultClause(left) => GhostType.ghostTuple(left.map(isParamGhost))
   }

@@ -175,8 +175,8 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
-      "pure".? ~ ("requires" ~> assertion <~ eos).* ~ ("ensures" ~> assertion <~ eos).* ^^ {
-        case isPure ~ pres ~ posts => PFunctionSpec(pres, posts, isPure.nonEmpty)
+      ("requires" ~> assertion <~ eos).* ~ ("ensures" ~> assertion <~ eos).* ~ "pure".? ^^ {
+        case pres ~ posts ~ isPure => PFunctionSpec(pres, posts, isPure.nonEmpty)
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
@@ -745,7 +745,7 @@ object Parser {
         assertionPrecedence2
 
     lazy val assertionPrecedence2: PackratParser[PAssertion] =
-      expression ~ ("==>" ~> assertionPrecedence2) ^^ PImplication | /* Right-associative */
+       (expression <~ "==>") ~ assertionPrecedence2 ^^ PImplication | /* Right-associative */
         assertionPrecedence3
 
     lazy val assertionPrecedence3: PackratParser[PAssertion] =
@@ -754,9 +754,20 @@ object Parser {
     lazy val unaryAssertion: Parser[PAssertion] =
       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
       "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
-      predicateCall |
       "(" ~> assertion <~ ")" |
-      expression ^^ PExprAssertion
+      expression ^^ tryForPredicateCall
+
+
+    def tryForPredicateCall(exp: PExpression): PAssertion = {
+      exp match {
+        case PConversionOrUnaryCall(base, arg) => PFPredOrBoolFuncCall(base, Vector(arg))
+        case PCall(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
+        case PCall(PSelection(recv, id), args) => PMPredOrBoolMethCall(recv, id, args)
+        case PCall(PMethodExpr(base, id), args) => PMPredOrMethExprCall(base, id, args)
+        case PCall(PSelectionOrMethodExpr(base, id), args) => PMPredOrMethRecvOrExprCall(base, id, args)
+        case _ => PExprAssertion(exp)
+      }
+    }
 
     lazy val accessible: Parser[PAccessible] =
        dereference | reference | idBasedSelection | selection

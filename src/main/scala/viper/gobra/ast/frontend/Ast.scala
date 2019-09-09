@@ -90,6 +90,10 @@ sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
 
 sealed trait PCodeRoot extends PNode
 
+sealed trait PCodeRootWithResult extends PCodeRoot {
+  def result: PResult
+}
+
 case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
 case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
@@ -100,7 +104,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[PBlock]
-                        ) extends PActualMember with PScope with PCodeRoot with PGhostifiableMember
+                        ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -109,7 +113,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[PBlock]
-                      ) extends PActualMember with PScope with PCodeRoot with PGhostifiableMember
+                      ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 
@@ -272,7 +276,7 @@ case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is ne
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
-case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRoot with PScope
+case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
 
 case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PActualExpression
 
@@ -580,14 +584,14 @@ case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
                          body: Option[PAssertion]
-                         ) extends PGhostMember with PScope
+                         ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateDecl(
                           id: PIdnDef,
                           receiver: PReceiver,
                           args: Vector[PParameter],
                           body: Option[PAssertion]
-                          ) extends PGhostMember with PScope
+                          ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope
 

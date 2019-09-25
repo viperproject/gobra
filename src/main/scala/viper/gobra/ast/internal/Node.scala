@@ -8,8 +8,6 @@ package viper.gobra.ast.internal
 
 import viper.gobra.ast.internal.utility.{GobraStrategy, Nodes}
 import viper.gobra.reporting.Source
-import viper.silver.ast.utility.rewriter.{StrategyBuilder, Traverse}
-import viper.silver.ast.utility.rewriter.Traverse.Traverse
 import viper.silver.ast.utility.Visitor
 import viper.silver.{ast => vpr}
 
@@ -93,19 +91,6 @@ trait Node extends Rewritable with Product {
 
   /** @see [[Visitor.hasSubnode()]] */
   def hasSubnode(toFind: Node): Boolean = Visitor.hasSubnode(this, toFind, Nodes.subnodes)
-
-  /** @see [[viper.silver.ast.utility.ViperStrategy]] */
-  def transform(pre: PartialFunction[Node, Node] = PartialFunction.empty,
-                recurse: Traverse = Traverse.Innermost)
-  : this.type =
-    StrategyBuilder.Slim[Node](pre, recurse) execute[this.type] this
-
-  def replace(original: Node, replacement: Node): this.type =
-    this.transform { case `original` => replacement }
-
-  def replace[N <: Node : ClassTag](replacements: Map[N, Node]): this.type =
-    if (replacements.isEmpty) this
-    else this.transform { case t: N if replacements.contains(t) => replacements(t) }
 
   /** @see [[Visitor.deepCollect()]] */
   def deepCollect[A](f: PartialFunction[Node, A]): Seq[A] =

@@ -621,11 +621,29 @@ case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
 
-//sealed trait PPermission extends PGhostExpression
-//
-//case class PFullPerm() extends PPermission
-//
-//case class PNoPerm() extends PPermission
+case class POld(exp: PExpression) extends PGhostExpression
+
+case class PLabeledOld(lbl: PLabelUse, exp: PExpression) extends PGhostExpression
+
+case class PPureForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+case class PExists(vars: Vector[PBoundVariable], body: PExpression) extends PGhostExpression with PScope
+
+sealed trait PPermission extends PGhostExpression
+
+case class PFullPerm() extends PPermission
+
+case class PNoPerm() extends PPermission
+
+case class PWildcardPerm() extends PPermission
+
+case class PCurrentPerm(exp: PAccessible) extends PPermission
+
+case class PCurrentPredicatePerm(pred: PPredicateCall) extends PPermission
+
+case class PPermFraction(numerator: PExpression, denominator: PExpression) extends PPermission
+
+
 
 /**
   * Assertions
@@ -633,6 +651,8 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 
 
 sealed trait PAssertion extends PGhostNode
+
+case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PAssertion) extends PAssertion with PScope
 
 case class PStar(left: PAssertion, right: PAssertion) extends PAssertion
 
@@ -652,11 +672,11 @@ case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredi
 
 case class PImplication(left: PExpression, right: PAssertion) extends PAssertion
 
-case class PAccess(exp: PAccessible) extends PAssertion
+case class PAccess(exp: PAccessible, perm: PPermission) extends PAssertion
 
 sealed trait PAccessible extends PGhostNode
 
-case class PPredicateAccess(pred: PPredicateCall) extends PAssertion
+case class PPredicateAccess(pred: PPredicateCall, perm: PPermission) extends PAssertion
 
 /**
   * Types
@@ -669,6 +689,10 @@ sealed trait PGhostType extends PType with PGhostNode
   */
 
 sealed trait PGhostMisc extends PMisc with PGhostNode
+
+case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
+
+case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

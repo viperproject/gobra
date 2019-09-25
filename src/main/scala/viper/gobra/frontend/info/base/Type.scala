@@ -57,6 +57,8 @@ object Type {
 
   case object PredicateInstance extends GhostType
 
+  case object PermissionT extends GhostType
+
 
   /**
     * Type Contexts

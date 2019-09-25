@@ -93,7 +93,7 @@ object Parser {
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
       // new keywords introduced by Gobra
-      "ghost", "acc", "assert", "exhale", "assume", "inhale", "memory", "fold", "unfold", "unfolding", "pure", "predicate"
+      "ghost", "acc", "assert", "exhale", "assume", "inhale", "memory", "fold", "unfold", "unfolding", "pure", "predicate", "old"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -419,13 +419,14 @@ object Parser {
 
 
     lazy val unaryExp: Parser[PExpression] =
-      "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
+      unfolding |
+        ghostUnaryExpression |
+        "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
         reference |
         dereference |
         receiveExp |
-        unfolding |
         primaryExp
 
     lazy val reference: Parser[PReference] =
@@ -437,12 +438,9 @@ object Parser {
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive
 
-    lazy val unfolding: Parser[PUnfolding] =
-      "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
-
-
     lazy val primaryExp: Parser[PExpression] =
-      conversionOrUnaryCall |
+      ghostPrimaryExpression |
+        conversionOrUnaryCall |
         conversion |
         call |
         selectionOrMethodExpr |
@@ -752,13 +750,21 @@ object Parser {
       unaryAssertion
 
     lazy val unaryAssertion: Parser[PAssertion] =
-      "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
+      ("acc" ~> "(" ~> accessible) ~ ("," ~> permission).? <~ ")" ^^ {
+        case acc ~ None => PAccess(acc, PFullPerm().at(acc))
+        case acc ~ Some(perm) => PAccess(acc, perm)
+      } |
+        ("acc" ~> "(" ~> predicateCall) ~ ("," ~> permission).? <~ ")" ^^ {
+          case pred ~ None => PPredicateAccess(pred, PFullPerm().at(pred))
+          case pred ~ Some(perm) => PPredicateAccess(pred, perm)
+        } |
       "(" ~> assertion <~ ")" |
-      expression ^^ tryForPredicateCall
+        ("forall" ~> boundVariables <~ "::") ~ triggers ~ assertion ^^ PForall |
+      expression ^^ tryForAssertion
 
 
-    def tryForPredicateCall(exp: PExpression): PAssertion = {
+
+    def tryForAssertion(exp: PExpression): PAssertion = {
       exp match {
         case PConversionOrUnaryCall(base, arg) => PFPredOrBoolFuncCall(base, Vector(arg))
         case PCall(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
@@ -780,10 +786,45 @@ object Parser {
       methodRecvType ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethExprCall
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess |
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+      predicateCall ^^ (p => PPredicateAccess(p, PFullPerm().at(p))) |
+        ("acc" ~> "(" ~> predicateCall) ~ ("," ~> permission).? <~ ")" ^^ {
+          case pred ~ None => PPredicateAccess(pred, PFullPerm().at(pred))
+          case pred ~ Some(perm) => PPredicateAccess(pred, perm)
+        }
 
 
+    lazy val permission: Parser[PPermission] =
+      "none" ^^^ PNoPerm() |
+      "write" ^^^ PFullPerm() |
+      "wildcard" ^^^ PWildcardPerm() |
+      "perm" ~> "(" ~> accessible <~ ")" ^^ PCurrentPerm |
+      "perm" ~> "(" ~> predicateCall <~ ")" ^^ PCurrentPredicatePerm |
+      precedence5 ~ ("/" ~> precedence6) ^^ PPermFraction
+
+
+    lazy val unfolding: Parser[PUnfolding] =
+      "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
+
+    lazy val ghostUnaryExpression: Parser[PGhostExpression] =
+      ("old" ~> "[" ~> labelUse <~ "]") ~ ("(" ~> expression <~ ")") ^^ PLabeledOld |
+        "old" ~> ("(" ~> expression <~ ")") ^^ POld
+
+    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PPureForall |
+        ("exists" ~> boundVariables <~ "::") ~ expression ^^ PExists
+
+    lazy val boundVariables: Parser[Vector[PBoundVariable]] =
+      rep1sep(boundVariableDecl, ",") ^^ Vector.concat
+
+    lazy val boundVariableDecl: Parser[Vector[PBoundVariable]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PBoundVariable(id, t.copy).at(id))
+      }
+
+    lazy val triggers: Parser[Vector[PTrigger]] = trigger.*
+
+    lazy val trigger: Parser[PTrigger] =
+      "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>

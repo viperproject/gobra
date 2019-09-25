@@ -142,6 +142,10 @@ object SymbolTable extends Environments {
 
   sealed trait GhostVariable extends Variable with GhostDataEntity
 
+  case class BoundVariable(decl: PBoundVariable) extends GhostVariable {
+    override def rep: PNode = decl
+  }
+
   sealed trait GhostTypeMember extends TypeMember with GhostRegular
 
   sealed trait MPredicate extends MethodLike with GhostTypeMember with Predicate

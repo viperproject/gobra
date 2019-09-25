@@ -283,7 +283,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
       case PUnfolding(acc, op) => "unfolding" <+> showAssertion(acc) <+> "in" <+> showExpr(op)
     }
-    case expression: PGhostExpression => ???
+    case expression: PGhostExpression => expression match {
+      case POld(exp) => "old" <> parens(showExpr(exp))
+      case PLabeledOld(lbl, exp) => "old" <> brackets(lbl.name) <> parens(showExpr(exp))
+      case PPureForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PExists(vars, body) =>
+        "exists" <+> showList(vars)(showMisc) <+> "::" <+> showExpr(body)
+      case permission: PPermission => showPermission(permission)
+    }
   }
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
@@ -310,6 +318,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   //
 
   def showAssertion(ass: PAssertion): Doc = ass match {
+    case PForall(vars, triggers, body) =>
+      "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showAssertion(body)
+
     case PStar(left, right) => showAssertion(left) <+> "&&" <+> showAssertion(right)
     case PExprAssertion(exp) => showExpr(exp)
     case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
@@ -320,10 +331,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMPredOrMethRecvOrExprCall(base, id, args) => base.name <> "." <> id.name <> parens(showExprList(args))
       case PMemoryPredicateCall(arg) => "memory" <> parens(showExpr(arg))
     }
-    case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred))
-    case PAccess(exp) => exp match {
-      case n: PExpression => "acc" <> parens(showExpr(n))
+    case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred) <> "," <+> showPermission(x.perm))
+    case PAccess(exp, perm) => exp match {
+      case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showPermission(perm))
     }
+  }
+
+  def showPermission(permission: PPermission): Doc = permission match {
+    case PFullPerm() => "write"
+    case PNoPerm() => "none"
+    case PWildcardPerm() => "wildcard"
+    case PCurrentPerm(exp: PExpression) => "perm" <> parens(showExpr(exp))
+    case PCurrentPredicatePerm(pred) => "perm" <> parens(showAssertion(pred))
+    case PPermFraction(numerator, denominator) => showExpr(numerator) <+> "/" <+> showExpr(denominator)
   }
 
   // types
@@ -395,6 +415,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case result: PResult => showResult(result)
     case embeddedType: PEmbeddedType => showEmbeddedType(embeddedType)
     case parameter: PParameter => showParameter(parameter)
-    case misc: PGhostMisc => ???
+    case misc: PGhostMisc => misc match {
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+    }
   }
 }

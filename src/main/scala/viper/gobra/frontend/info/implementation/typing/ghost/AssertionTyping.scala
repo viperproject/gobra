@@ -12,10 +12,11 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefAssertion: WellDefinedness[PAssertion] = createWellDef {
 
+    case n@ PForall(vars, triggers, body) => noMessages
     case n@ PStar(left, right) => noMessages
     case n@ PImplication(left, right) => assignableTo.errors(exprType(left), BooleanT)(n)
     case n@ PExprAssertion(exp) => assignableTo.errors(exprType(exp), BooleanT)(n) ++ isPureExpr(exp)
-    case n@ PAccess(exp) => exp match {
+    case n@ PAccess(exp, perm) => exp match {
       case _: PDereference => noMessages
       case _: PReference => noMessages
       case s: PSelection => message(n, "selections in access predicates have to target fields", !entity(s.id).isInstanceOf[Field])
@@ -42,7 +43,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
       case PMemoryPredicateCall(arg) => isPureExpr(arg) ++ isClassType.errors(exprType(arg))(n)
     }
 
-    case n@ PPredicateAccess(predicateCall) => predicateCall match {
+    case n@ PPredicateAccess(predicateCall, perm) => predicateCall match {
       case PFPredOrBoolFuncCall(id, args) => isPredicate(id)
       case PMPredOrBoolMethCall(recv, id, args) => isPredicate(id)
       case PMPredOrMethExprCall(base, id, args) => isPredicate(id)
@@ -52,13 +53,16 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
 
+  /** getOrElse for left element of either  */
   private def getLeftOrElse[L,R](e: Either[L,R])(f: R => L): L =
     e.left.getOrElse(f(e.right.get))
 
+  /** lifted messsage monad extension */
   private def ifNoMessages[T](m: Messages)(f: => T): Either[Messages, T] =
     if (m.isEmpty) Left(m) else Right(f)
 
 
+  /** checks well-definedness of function-like call bases */
   private def wellDefBase(id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case Function(decl, _) =>
       ifNoMessages(
@@ -70,6 +74,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
+  /** checks well-definedness of method-like call bases */
   private def wellDefBase(recv: PExpression, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case MethodImpl(decl, _) =>
       ifNoMessages(
@@ -97,6 +102,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
+  /** checks well-definedness of method-expression--like call bases */
   private def wellDefBase(recv: PMethodRecvType, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case MethodImpl(decl, _) =>
       ifNoMessages(
@@ -121,6 +127,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
+  /** checks well-definedness of method-like or method-expression--like call bases */
   private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = {
     val recvOpt = if (pointsToType(recv)) Vector(idType(recv)) else Vector.empty
 

@@ -1,22 +1,38 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.Type
+import viper.gobra.frontend.info.base.Type.{BooleanT, PermissionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
-    case _ => ???
+    case POld(exp) => isPureExpr(exp)
+    case PLabeledOld(lbl, exp) => isPureExpr(exp) ++ message(expr, "labelled old-expressions are not supported right now") // TODO: support labbeled old statements
+    case PPureForall(vars, triggers, body) => isPureExpr(body)
+    case PExists(vars, body) => isPureExpr(body)
+    case permission: PPermission => permission match {
+      case PFullPerm() => noMessages
+      case PNoPerm() => noMessages
+      case PWildcardPerm() => noMessages
+      case PCurrentPerm(exp: PExpression) => isPureExpr(exp)
+      case PCurrentPredicatePerm(pred) => noMessages
+      case PPermFraction(numerator, denominator) => isPureExpr(numerator) ++ isPureExpr(denominator)
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
-    case _ => ???
+    case POld(exp) => exprType(exp)
+    case PLabeledOld(lbl, exp) => exprType(exp)
+    case PPureForall(vars, triggers, body) => BooleanT
+    case PExists(vars, body) => BooleanT
+    case _: PPermission => PermissionT
   }
 
+  // TODO: Move to some property folder where the property is more visible
   private[typing] def isPureExpr(expr: PExpression): Messages = {
     message(expr, s"expected pure expression but got $expr", !isPureExprAttr(expr))
   }
@@ -62,6 +78,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         })
 
       case n: PUnfolding => true
+
+      case _: POld | _: PLabeledOld | _: PPureForall | _: PExists | _: PPermission => true
 
       case n@PCompositeLit(t, lit) => true
 

@@ -1,3 +1,5 @@
+//:: IgnoreFile(/gobra/issue/7/)
+
 package pkg;
 
 func test() {

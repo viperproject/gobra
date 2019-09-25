@@ -235,12 +235,20 @@ object Desugar {
         }
       }
 
-      // create context for body translation
-      val ctx = new FunctionContext(assignReturns)
+      // create context for spec translation
+      val specCtx = new FunctionContext(assignReturns)
+
+      // extent context
+      (decl.args zip argsWithSubs).foreach{
+        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case _ =>
+      }
 
       // translate pre- and postconditions before extending the context
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
+      val pres = decl.spec.pres map preconditionD(specCtx)
+      val posts = decl.spec.posts map postconditionD(specCtx)
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -255,6 +263,8 @@ object Desugar {
           case _ => None
         } // :+ in.Return()(fsrc)
 
+      // create context for body translation
+      val ctx = new FunctionContext(assignReturns)
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
@@ -364,12 +374,20 @@ object Desugar {
         }
       }
 
-      // create context for body translation
-      val ctx = new FunctionContext(assignReturns)
+      // create context for spec translation
+      val specCtx = new FunctionContext(assignReturns)
+
+      // extent context
+      (decl.args zip argsWithSubs).foreach{
+        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case _ =>
+      }
 
       // translate pre- and postconditions before extending the context
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
+      val pres = decl.spec.pres map preconditionD(specCtx)
+      val posts = decl.spec.posts map postconditionD(specCtx)
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -390,6 +408,8 @@ object Desugar {
           case _ => None
         } // :+ in.Return()(fsrc)
 
+      // create context for body translation
+      val ctx = new FunctionContext(assignReturns)
 
       // extent context
       (decl.receiver, recvWithSubs) match {
@@ -1136,6 +1156,10 @@ object Desugar {
       } else {
         in.LocalVar.Val(idName(id), typ)(src)
       }
+    }
+
+    def parameterAsLocalValVar(p: in.Parameter): in.LocalVar.Val = {
+      in.LocalVar.Val(p.id, p.typ)(p.info)
     }
 
     // Miscellaneous

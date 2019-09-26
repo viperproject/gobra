@@ -213,6 +213,10 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   override def typ: Type = in.typ
 }
 
+case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ
+}
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], path: MemberPath, typ: Type)(val info: Source.Parser.Info) extends Expr
 

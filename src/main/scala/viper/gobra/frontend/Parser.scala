@@ -93,7 +93,9 @@ object Parser {
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
       // new keywords introduced by Gobra
-      "ghost", "acc", "assert", "exhale", "assume", "inhale", "memory", "fold", "unfold", "unfolding", "pure", "predicate"
+      "ghost", "acc", "assert", "exhale", "assume", "inhale",
+      "memory", "fold", "unfold", "unfolding", "pure",
+      "predicate", "old"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -422,6 +424,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
+        old |
         reference |
         dereference |
         receiveExp |
@@ -440,6 +443,8 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+    lazy val old: Parser[POld] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld
 
     lazy val primaryExp: Parser[PExpression] =
       conversionOrUnaryCall |

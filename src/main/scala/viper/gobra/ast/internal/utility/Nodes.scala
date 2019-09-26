@@ -59,6 +59,7 @@ object Nodes {
       }
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
+        case Old(op) => Seq(op)
         case PureFunctionCall(func, args, typ) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, path, typ) => Seq(recv, meth) ++ args
         case DfltVal(typ) => Seq()

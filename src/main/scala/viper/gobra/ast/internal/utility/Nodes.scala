@@ -59,7 +59,6 @@ object Nodes {
       }
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
-        case Old(op) => Seq(op)
         case PureFunctionCall(func, args, typ) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, path, typ) => Seq(recv, meth) ++ args
         case DfltVal(typ) => Seq()
@@ -70,6 +69,7 @@ object Nodes {
         case Negation(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
+        case Old(op) => Seq(op)
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()

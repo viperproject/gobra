@@ -69,6 +69,7 @@ object Nodes {
         case Negation(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
+        case Old(op) => Seq(op)
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()

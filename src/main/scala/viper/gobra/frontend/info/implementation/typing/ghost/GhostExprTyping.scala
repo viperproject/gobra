@@ -10,11 +10,11 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
-    case _ => ???
+    case POld(op) => isPureExpr(op)
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
-    case _ => ???
+    case POld(op) => exprType(op)
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -62,6 +62,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         })
 
       case n: PUnfolding => true
+
+      case _: POld => true
 
       case n@PCompositeLit(t, lit) => true
 

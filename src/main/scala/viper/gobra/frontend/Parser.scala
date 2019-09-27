@@ -93,7 +93,9 @@ object Parser {
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
       // new keywords introduced by Gobra
-      "ghost", "acc", "assert", "exhale", "assume", "inhale", "memory", "fold", "unfold", "unfolding", "pure", "predicate"
+      "ghost", "acc", "assert", "exhale", "assume", "inhale",
+      "memory", "fold", "unfold", "unfolding", "pure",
+      "predicate", "old"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -419,6 +421,7 @@ object Parser {
 
 
     lazy val unaryExp: Parser[PExpression] =
+      ghostUnaryExpression |
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
@@ -439,7 +442,6 @@ object Parser {
 
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
-
 
     lazy val primaryExp: Parser[PExpression] =
       conversionOrUnaryCall |
@@ -783,12 +785,13 @@ object Parser {
       predicateCall ^^ PPredicateAccess |
       "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
 
-
-
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
         ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
+
+    lazy val ghostUnaryExpression: Parser[POld] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld
 
     /**
       * EOS

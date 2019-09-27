@@ -627,6 +627,8 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 //
 //case class PNoPerm() extends PPermission
 
+case class POld(operand: PExpression) extends PGhostExpression
+
 /**
   * Assertions
   */

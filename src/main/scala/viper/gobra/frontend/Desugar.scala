@@ -1251,7 +1251,7 @@ object Desugar {
       val typ = typeD(info.typ(expr))
 
       expr match {
-        case _ => ???
+        case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
       }
     }
 

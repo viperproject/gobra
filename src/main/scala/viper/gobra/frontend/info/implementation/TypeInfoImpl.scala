@@ -117,5 +117,13 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
     case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
     case _ => None
   }
+
+  lazy val rewriter: Rewriter.PRewriter = tree.root.positions.rewriter
+  // TODO: the idea is that the resolver can be removed when we do the ambiguity resolution before the type checking
+  override lazy val resolver: Rewriter.AmbiguityResolver = new Rewriter.AmbiguityResolver {
+    override def isType(x: PIdnNode): Boolean = regular(x).isInstanceOf[SymbolTable.TypeEntity]
+    override def isFPred(x: PIdnNode): Boolean = regular(x).isInstanceOf[SymbolTable.FPredicate]
+    override def isMPred(x: PIdnNode): Boolean = regular(x).isInstanceOf[SymbolTable.MPredicate]
+  }
 }
 

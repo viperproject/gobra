@@ -66,6 +66,8 @@ class PositionManager extends PositionStore with Messaging {
       Some(LineColumnPosition(end.line, end.column))
     )
   }
+
+  lazy val rewriter = new Rewriter.PRewriter(positions)
 }
 
 case class PPackageClause(id: PPkgDef) extends PNode
@@ -286,7 +288,7 @@ case class PCall(callee: PExpression, args: Vector[PExpression]) extends PActual
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse) extends PActualExpression with PAssignee
+case class PSelectionOrMethodExpr(base: PIdnUse, refBase: Boolean, id: PIdnUse) extends PActualExpression with PAssignee
 
 case class PMethodExpr(base: PMethodRecvType, id: PIdnUse) extends PActualExpression
 
@@ -642,13 +644,19 @@ case class PExprAssertion(exp: PExpression) extends PAssertion
 
 sealed trait PPredicateCall extends PAssertion
 
+case class PFPredCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+
+case class PMPredCall(recv: PExpression, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+
+case class PMPredExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+
 case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
 case class PMPredOrBoolMethCall(recv: PExpression, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
 case class PMPredOrMethExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
-case class PMPredOrMethRecvOrExprCall(base: PIdnUse, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+case class PMPredOrMethRecvOrExprCall(base: PIdnUse, refBase: Boolean, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
 case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredicateCall
 

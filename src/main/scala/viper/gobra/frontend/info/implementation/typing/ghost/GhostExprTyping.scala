@@ -38,15 +38,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
 
-      case n: PConversionOrUnaryCall =>
-        resolveConversionOrUnaryCall(n)
-        { case (_, _) => false }
-        { case (id, arg) => isPureId(id) && isPureExprAttr(arg)}
-          .getOrElse(false)
+      case n: PConversionOrUnaryCall => isPureExprAttr(rewriter.resolveConversionOrUnayCall(n, resolver))
 
       case n@PMethodExpr(t, id) => isPureId(id)
       case n@PSelection(base, id) => isPureExprAttr(base) && isPureId(id)
-      case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
+      case n: PSelectionOrMethodExpr => isPureExprAttr(rewriter.resolveSelectionOrMethodExpr(n, resolver))
 
       case n@PReference(e) => isPureExprAttr(e)
       case n@PDereference(exp) => isPureExprAttr(exp)

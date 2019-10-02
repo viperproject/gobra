@@ -88,11 +88,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PConversion
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n){
-      case (base, id) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-    } {
-      case (base, id) => assignableToCallId(id)(base)
-    }.get
+    case n: PConversionOrUnaryCall => exprGhostSeparation(rewriter.resolveConversionOrUnayCall(n, resolver))
 
     case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
   }

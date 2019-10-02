@@ -719,27 +719,7 @@ object Desugar {
         case _ => Violation.violation("expected entity behind expression")
       }
 
-      case PSelectionOrMethodExpr(base, id) => info.regular(base) match {
-        case _: st.TypeEntity => info.methodLookup(info.typ(base), id) match {
-          case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
-          case _ => Violation.violation("expected entity behind expression")
-        }
-
-        case _ => info.regular(id) match {
-
-          case s: st.ActualStructMember =>
-            val path = memberPathD(info.fieldLookup(info.typ(base), id)._2)
-            val f = structMemberD(s)
-            val rfield = for {r <- unit(varD(ctx)(base))} yield in.FieldRef(r,f, path)(meta(expr))
-            ExprEntity.ReceivedField(s, rfield)
-
-          case m: st.Method =>
-            val path = memberPathD(info.methodLookup(base, id)._2) // base has to be a variable
-            ExprEntity.ReceivedMethod(m, unit(varD(ctx)(base)), path)
-
-          case _ => Violation.violation("expected entity behind expression")
-        }
-      }
+      case x: PSelectionOrMethodExpr => exprEntityD(ctx)(pom.rewriter.resolveSelectionOrMethodExpr(x, info.resolver))
 
       case _ => Violation.violation("expected entity behind expression")
     }
@@ -802,11 +782,7 @@ object Desugar {
             case _ => Violation.violation("expected field or embedding")
           }
 
-          case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
-            case (f: st.Field, path)  => unit(in.FieldRef(varD(ctx)(base), fieldDeclD(f.decl), memberPathD(path))(src))
-            case (e: st.Embbed, path) => unit(in.FieldRef(varD(ctx)(base), embeddedDeclD(e.decl), memberPathD(path))(src))
-            case _ => Violation.violation("expected field or embedding")
-          }
+          case x: PSelectionOrMethodExpr => exprD(ctx)(pom.rewriter.resolveSelectionOrMethodExpr(x, info.resolver))
 
           case PCall(callee, args) => exprEntityD(ctx)(callee) match {
             case ExprEntity.Function(op) =>
@@ -908,36 +884,7 @@ object Desugar {
             case e => Violation.violation(s"expected callable entity, but got $e")
           }
 
-          case PConversionOrUnaryCall(base, arg) => base match {
-            case id if info.regular(id).isInstanceOf[st.Function] =>
-              val fsym = info.regular(id).asInstanceOf[st.Function]
-              val fproxy = functionProxyD(fsym.decl)
-
-              for {
-                dArg <- exprD(ctx)(arg)
-                realArgs = dArg match {
-                  // go function chaining feature
-                  case in.Tuple(targs) if fsym.decl.args.size > 1 => targs
-                  case darg => Vector(darg)
-                }
-
-                v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
-                else {
-                  val targets = fsym.decl.result match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                  }
-                  for {
-                    _ <- declare(targets: _*)
-                    _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
-
-                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                  } yield res
-                }
-              } yield v
-
-            case e => Violation.violation(s"desugarer: conversion $e is not supported")
-          }
+          case x: PConversionOrUnaryCall => exprD(ctx)(pom.rewriter.resolveConversionOrUnayCall(x, info.resolver))
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
@@ -1291,8 +1238,8 @@ object Desugar {
         case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
         case PImplication(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
 
-        case pacc: PPredicateAccess => unit(predicateCallD(ctx)(pacc.pred))
-        case pacc: PPredicateCall => unit(predicateCallD(ctx)(pacc))
+        case pacc: PPredicateAccess => maybePredicateCallD(ctx)(pacc.pred)
+        case pacc: PPredicateCall => maybePredicateCallD(ctx)(pacc)
 
         case PAccess(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
 
@@ -1300,96 +1247,45 @@ object Desugar {
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(pred: PPredicateCall): in.Assertion = {
+    def maybePredicateCallD(ctx: FunctionContext)(pred: PPredicateCall): Writer[in.Assertion] = {
       val src: Meta = meta(pred)
 
-      def predCallToAccess(pacc: in.PredicateAccess): in.Access =
-        in.Access(in.Accessible.Predicate(pacc))(src)
+      def predCallToAccess(pacc: in.PredicateAccess): Writer[in.Access] =
+        unit(in.Access(in.Accessible.Predicate(pacc))(src))
 
-      def isPredicate(id: PIdnUse): Boolean = info.regular(id).isInstanceOf[st.Predicate]
-
-      val dp: in.Assertion = pred match {
-        case PFPredOrBoolFuncCall(id, args) =>
+      pred match {
+        case PFPredCall(id, args) =>
           val dArgs = args map pureExprD(ctx)
           info.regular(id) match {
-            case st.Function(decl, _) =>
-              val fproxy = functionProxyD(decl)
-              val retT = typeD(info.typ(decl.result))
-              in.ExprAssertion(in.PureFunctionCall(fproxy, dArgs, retT)(src))(src)
-
             case st.FPredicate(decl) =>
               val fproxy = fpredicateProxyD(decl)
               predCallToAccess(in.FPredicateAccess(fproxy, dArgs)(src))
 
-            case r => Violation.violation(s"expected function of fpredicate, but got $r")
+            case r => Violation.violation(s"expected fpredicate, but got $r")
           }
 
-        case PMPredOrBoolMethCall(recv, id, args) =>
+        case PMPredCall(recv, id, args) =>
           val dRecv = pureExprD(ctx)(recv)
           val dArgs = args map pureExprD(ctx)
+          val (sym, path) = info.predicateLookup(recv, id)
+          val proxy = mpredicateProxy(sym)
+          predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
 
-          if (isPredicate(id)) {
-            val (sym, path) = info.predicateLookup(recv, id)
-            val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
-          } else {
-            val (sym, path) = info.methodLookup(recv, id)
-            val proxy = methodProxy(sym)
-            val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
-          }
-
-
-        case PMPredOrMethExprCall(base, id, args) =>
+        case PMPredExprCall(base, id, args) =>
           val dArgs = args map pureExprD(ctx)
+          val (sym, path) = info.predicateLookup(info.typ(base), id)
+          val proxy = mpredicateProxy(sym)
+          predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
 
-          if (isPredicate(id)) {
-            val (sym, path) = info.predicateLookup(info.typ(base), id)
-            val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
-          } else {
-            val (sym, path) = info.methodLookup(info.typ(base), id)
-            val proxy = methodProxy(sym)
-            val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
-          }
-
-        case PMPredOrMethRecvOrExprCall(base, id, args) =>
-          if (!info.regular(base).isInstanceOf[st.TypeEntity]) {
-            val dRecv = varD(ctx)(base)
-            val dArgs = args map pureExprD(ctx)
-
-            if (isPredicate(id)) {
-              val (sym, path) = info.predicateLookup(base, id)
-              val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
-            } else {
-              val (sym, path) = info.methodLookup(base, id)
-              val proxy = methodProxy(sym)
-              val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
-            }
-          } else {
-            val dArgs = args map pureExprD(ctx)
-
-            if (isPredicate(id)) {
-              val (sym, path) = info.predicateLookup(info.typ(base), id)
-              val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
-            } else {
-              val (sym, path) = info.methodLookup(info.typ(base), id)
-              val proxy = methodProxy(sym)
-              val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
-            }
-          }
+        case x: PFPredOrBoolFuncCall => assertionD(ctx)(pom.rewriter.resolveFPredOrBoolFuncCall(x, info.resolver))
+        case x: PMPredOrBoolMethCall => assertionD(ctx)(pom.rewriter.resolveMPredOrBoolMethCall(x, info.resolver))
+        case x: PMPredOrMethExprCall => assertionD(ctx)(pom.rewriter.resolveMPredOrMethExprCall(x, info.resolver))
+        case x: PMPredOrMethRecvOrExprCall => assertionD(ctx)(pom.rewriter.resolveMPredOrMethRecvOrExprCall(x, info.resolver))
 
         case PMemoryPredicateCall(arg) =>
           val dArg = pureExprD(ctx)(arg)
           predCallToAccess(in.MemoryPredicateAccess(dArg)(src))
       }
-
-      dp
     }
 
     def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {

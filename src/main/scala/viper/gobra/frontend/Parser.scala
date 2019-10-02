@@ -70,7 +70,7 @@ object Parser {
 
   private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
 
-    lazy val rewriter = new PRewriter(pom.positions)
+    import pom.rewriter.PositionedPAstNode
 
     override val whitespace: Parser[String] =
       """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*""".r
@@ -471,7 +471,7 @@ object Parser {
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
     lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
-      nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
+      nestedMaybeDerefIdnUse ~ ("." ~> idnUse) ^^ { case (base, deref) ~ id => PSelectionOrMethodExpr(base, deref, id) }
 
     lazy val methodExpr: Parser[PMethodExpr] =
       methodRecvType ~ ("." ~> idnUse) ^^ PMethodExpr
@@ -665,6 +665,10 @@ object Parser {
     lazy val nestedIdnUse: PackratParser[PIdnUse] =
       "(" ~> nestedIdnUse <~ ")" | idnUse
 
+    lazy val nestedMaybeDerefIdnUse: PackratParser[(PIdnUse, Boolean)] =
+      "(" ~> nestedMaybeDerefIdnUse <~ ")" |
+        "*".? ~ idnUse ^^ { case deref ~ id => (id, deref.isDefined)}
+
     lazy val embeddedType: PackratParser[PEmbeddedType] =
       "(" ~> embeddedType <~ ")" |
         "*".? ~ namedType ^^ {
@@ -766,7 +770,7 @@ object Parser {
         case PCall(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
         case PCall(PSelection(recv, id), args) => PMPredOrBoolMethCall(recv, id, args)
         case PCall(PMethodExpr(base, id), args) => PMPredOrMethExprCall(base, id, args)
-        case PCall(PSelectionOrMethodExpr(base, id), args) => PMPredOrMethRecvOrExprCall(base, id, args)
+        case PCall(PSelectionOrMethodExpr(base, refBase, id), args) => PMPredOrMethRecvOrExprCall(base, refBase, id, args)
         case _ => PExprAssertion(exp)
       }
     }
@@ -777,7 +781,7 @@ object Parser {
     lazy val predicateCall: Parser[PPredicateCall] =
       "memory" ~> "(" ~> expression <~ ")" ^^ PMemoryPredicateCall |
       idnUse ~ callArguments ^^ PFPredOrBoolFuncCall |
-      nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethRecvOrExprCall |
+      nestedMaybeDerefIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case (base, deref) ~ id ~ args =>  PMPredOrMethRecvOrExprCall(base, deref, id, args) } |
       primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrBoolMethCall |
       methodRecvType ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethExprCall
 
@@ -803,18 +807,6 @@ object Parser {
     def eol[T](p: => Parser[T]): Parser[T] =
       p into (r => eos ^^^ r)
 
-
-    implicit class PositionedPAstNode[N <: PNode](node: N) {
-      def at(other: PNode): N = {
-        pom.positions.dupPos(other, node)
-      }
-
-      def range(from: PNode, to: PNode): N = {
-        pom.positions.dupRangePos(from, to, node)
-      }
-
-      def copy: N = rewriter.deepclone(node)
-    }
 
     def pos[T](p: => Parser[T]): Parser[PPos[T]] = p ^^ PPos[T]
 

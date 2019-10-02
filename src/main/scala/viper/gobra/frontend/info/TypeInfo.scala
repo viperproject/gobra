@@ -8,6 +8,8 @@ import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
 trait TypeInfo {
 
+  def resolver: Rewriter.AmbiguityResolver
+
   def typ(expr: PExpression): Type
 
   def typ(misc: PMisc): Type
@@ -34,5 +36,4 @@ trait TypeInfo {
   def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath])
   def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath])
   def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath])
-
 }

@@ -259,7 +259,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PConversionOrUnaryCall(base, arg) => showId(base) <> parens(showExpr(arg))
       case PConversion(typ, arg) => showType(typ) <> parens(showExpr(arg))
       case PCall(callee, args) => showExpr(callee) <> parens(showExprList(args))
-      case PSelectionOrMethodExpr(base, id) => showId(base) <> "." <> showId(id)
+      case PSelectionOrMethodExpr(base, rb, id) => when(rb, "*") <> showId(base) <> "." <> showId(id)
       case PMethodExpr(base, id) => showType(base) <> "." <> showId(id)
       case PSelection(base, id) => showExpr(base) <> "." <>  showId(id)
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
@@ -316,10 +316,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PExprAssertion(exp) => showExpr(exp)
     case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
     case x: PPredicateCall => x match {
+      case PFPredCall(id, args) => id.name <> parens(showExprList(args))
+      case PMPredCall(recv, id, args) => showExpr(recv) <> "." <> id.name <> parens(showExprList(args))
+      case PMPredExprCall(base, id, args) => showType(base) <> "." <> id.name <> parens(showExprList(args))
       case PFPredOrBoolFuncCall(id, args) => id.name <> parens(showExprList(args))
       case PMPredOrBoolMethCall(recv, id, args) => showExpr(recv) <> "." <> id.name <> parens(showExprList(args))
       case PMPredOrMethExprCall(base, id, args) => showType(base) <> "." <> id.name <> parens(showExprList(args))
-      case PMPredOrMethRecvOrExprCall(base, id, args) => base.name <> "." <> id.name <> parens(showExprList(args))
+      case PMPredOrMethRecvOrExprCall(base, deref, id, args) => when(deref, "*") <> base.name <> "." <> id.name <> parens(showExprList(args))
       case PMemoryPredicateCall(arg) => "memory" <> parens(showExpr(arg))
     }
     case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred))

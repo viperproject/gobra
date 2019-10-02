@@ -5,7 +5,6 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{ActualStructMember, Method}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -39,21 +38,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => message(n, s"type error: got $t but expected function type")
     }
 
-    case n: PConversionOrUnaryCall =>
-      resolveConversionOrUnaryCall(n) {
-        case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
-      } {
-        case (id, arg) => idType(id) match {
-          case FunctionT(args, _) => multiAssignableTo.errors(Vector(exprType(arg)), args)(n)
-          case t => message(n, s"type error: got $t but expected function type")
-        }
-      }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
+    case n: PConversionOrUnaryCall => wellDefExpr(rewriter.resolveConversionOrUnayCall(n, resolver)).out
 
-    case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n)
+    case n@PMethodExpr(t, id) => message(n, s"type ${typeType(t)} does not have method ${id.name}"
+      , !findMethodLike(typeType(t), id).exists(_.isInstanceOf[Method]))
 
-    case n@PSelection(base, id) => wellDefSelection(base, id)(n)
+    case n@PSelection(base, id) => message(n, s"type ${exprType(base)} does not have method ${id.name}"
+      , !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember]))
 
-    case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n)
+    case n: PSelectionOrMethodExpr => wellDefExpr(rewriter.resolveSelectionOrMethodExpr(n, resolver)).out
 
     case n@PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(l, elem), IntT) =>
@@ -121,23 +114,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PUnfolding => isPureExpr(n.op)
   }
 
-  def wellDefSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${idType(base)} does not have method ${id.name}"
-      , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[Method])
-      else if (pointsToData(base)) !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember])
-      else Violation.violation("base should be either a type or data")
-    )
-  }
-
-  def wellDefMethodExpr(t: PMethodRecvType, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${typeType(t)} does not have method ${id.name}"
-      , !findMethodLike(typeType(t), id).exists(_.isInstanceOf[Method]))
-  }
-
-  def wellDefSelection(base: PExpression, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${exprType(base)} does not have method ${id.name}"
-      , !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember]))
-  }
 
   lazy val exprType: Typing[PExpression] = createTyping {
     case expr: PActualExpression => actualExprType(expr)
@@ -167,19 +143,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"expected function type but got $t") //(message(n, s""))
     }
 
-    case PConversionOrUnaryCall(base, arg) =>
-      idType(base) match {
-        case t: DeclaredT => t // conversion
-        case FunctionT(args, res) // unary call
-          if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
-        case t => violation(s"expected function or declared type but got $t")
-      }
+    case x: PConversionOrUnaryCall => exprType(rewriter.resolveConversionOrUnayCall(x, resolver))
 
-    case n: PSelectionOrMethodExpr =>
-      resolveSelectionOrMethodExpr(n)
-      { case (base, id) => findSelection(base, id).map(memberType) }
-      { case (base, id) => findMethodLike(idType(base), id).map(m => methodExprType(idType(base), m.asInstanceOf[Method])) }
-        .get.getOrElse(violation("no selection found"))
+    case x: PSelectionOrMethodExpr => exprType(rewriter.resolveSelectionOrMethodExpr(x, resolver))
 
     case PMethodExpr(base, id) =>
       val baseType = typeType(base)

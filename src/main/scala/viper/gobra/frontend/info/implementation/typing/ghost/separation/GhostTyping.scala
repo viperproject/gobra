@@ -42,11 +42,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case PCall(callee, _) => calleeReturnGhostTyping(callee)
 
-      case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n) {
-        case (base, id) => notGhost // conversions cannot be ghost (for now)
-      } {
-        case (base, id) => calleeReturnGhostTyping(base)
-      }.get
+      case n: PConversionOrUnaryCall => ghostExprTyping(rewriter.resolveConversionOrUnayCall(n, resolver))
 
         // ghostness of proof annotations is decided by the argument
       case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
@@ -142,12 +138,5 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   override def expectedArgGhostTyping(call: PCall): GhostType =
     calleeArgGhostTyping(call.callee)
-
-  override def expectedArgGhostTyping(call: PConversionOrUnaryCall): GhostType =
-    resolveConversionOrUnaryCall(call) {
-      case (base, id) => GhostType.notGhost
-    } {
-      case (base, id) => calleeArgGhostTyping(base)
-    }.get
 
 }

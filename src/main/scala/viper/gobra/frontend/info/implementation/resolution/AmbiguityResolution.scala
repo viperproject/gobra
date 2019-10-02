@@ -4,6 +4,8 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.isDefinedInScope
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
+
+// TODO remove this file when resolution is pushed before the type checking
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
   def resolveConversionOrUnaryCall[T](n: PConversionOrUnaryCall)

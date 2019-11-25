@@ -21,6 +21,8 @@ trait Node extends Rewritable with Product {
 
   def undefinedMeta: Boolean = getMeta == Source.Parser.Unsourced
 
+  lazy val vprMeta: (vpr.Position, vpr.Info, vpr.ErrorTrafo) = info.vprMeta(this)
+
   def pretty(prettyPrinter: PrettyPrinter = Node.defaultPrettyPrinter): String = prettyPrinter.format(this)
 
   lazy val formatted: String = pretty()
@@ -126,8 +128,6 @@ object Node {
     def withInfo(newInfo: Source.Parser.Info): N = GobraStrategy.gobraDuplicator(n, n.getChildren, newInfo)
 
     def withMeta(newMeta: Meta): N = withInfo(newMeta)
-
-    def verifierInfo: vpr.Info = n.info.toInfo(n)
 
   }
 }

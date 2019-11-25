@@ -1,0 +1,63 @@
+
+
+
+type account interface {
+  pred mem()
+
+  pure get() int
+    requires mem()
+
+  add(x int) 
+    requires mem() && get() >= 0
+    ensures  mem() && get() == old(get()) + x
+}
+
+// cell
+
+type cell struct {
+  val int
+}
+
+pred (c *cell) mem() { acc(x.f) }
+
+pure 
+requires c.mem()
+ensures  c.mem()
+func (c *cell) get() int {
+  return c.val
+}
+
+requires c.mem() && c.get() >= 0
+ensures  c.mem() && c.get() == old(c.get()) + x
+func (c *cell) add(x int) int {
+  c.val += x
+}
+
+// pair
+
+type pair struct {
+  left, right int
+}
+
+pred (c *pair) mem() { acc(x.left) && acc(x.right) }
+
+pure 
+requires c.mem()
+ensures  c.mem()
+func (c *pair) get() int {
+  return c.left + c.right
+}
+
+requires c.mem() && c.get() >= 0
+ensures  c.mem() && c.get() == old(c.get()) + x
+func (c *pair) add(x int) int {
+  c.left += x
+}
+
+
+
+
+
+
+
+

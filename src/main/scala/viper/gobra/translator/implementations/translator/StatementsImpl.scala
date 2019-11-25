@@ -18,7 +18,9 @@ class StatementsImpl extends Statements {
 
   override def finalize(col: Collector): Unit = ()
 
-  override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = withDeepInfo(x){
+  override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
+
+    val (pos, info, errT) = x.vprMeta
 
 
     def goS(s: in.Stmt): CodeWriter[vpr.Stmt] = translate(s)(ctx)
@@ -26,7 +28,7 @@ class StatementsImpl extends Statements {
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    val z = x match {
+    val z: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val (vDeclss, inits) = decls.map(ctx.loc.localDecl(_)(ctx)).unzip
         val vDecls = vDeclss.flatten
@@ -35,7 +37,7 @@ class StatementsImpl extends Statements {
             _ <- global(vDecls: _*)
             vInits <- seqns(inits)
             vBody <- sequence(stmts map ctx.stmt.translateF(ctx))
-          } yield vu.seqn(vInits +: vBody)
+          } yield vu.seqn(vInits +: vBody)(pos, info, errT)
         }
 
       case in.Seqn(stmts) => seqns(stmts map goS)
@@ -45,7 +47,7 @@ class StatementsImpl extends Statements {
             c <- goE(cond)
             t <- seqn(goS(thn))
             e <- seqn(goS(els))
-          } yield vpr.If(c, t, e)()
+          } yield vpr.If(c, t, e)(pos, info, errT)
 
       case in.While(cond, invs, body) =>
         for {
@@ -55,12 +57,12 @@ class StatementsImpl extends Statements {
           ipre <- seqnUnits(iws)
           vBody <- goS(body)
 
-          cpost = vpr.If(vCond, cpre, vu.nop)()
+          cpost = vpr.If(vCond, cpre, vu.nop(pos, info, errT))(pos, info, errT)
           ipost = ipre
 
           wh = vu.seqn(Vector(
-            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost)))()
-          ))
+            cpre, ipre, vpr.While(vCond, vInvs, vu.seqn(Vector(vBody, cpost, ipost))(pos, info, errT))(pos, info, errT)
+          ))(pos, info, errT)
         } yield wh
 
       case ass: in.SingleAss => ctx.loc.assignment(ass)(ctx)
@@ -70,24 +72,24 @@ class StatementsImpl extends Statements {
         for {
           vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
           vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
-        } yield vpr.MethodCall(func.name, vArgss.flatten, vTargetss.flatten)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        } yield vpr.MethodCall(func.name, vArgss.flatten, vTargetss.flatten)(pos, info, errT)
 
       case in.MethodCall(targets, recv, meth, args, path) =>
         for {
           vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
           vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
           vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
-        } yield vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vTargetss.flatten)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        } yield vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vTargetss.flatten)(pos, info, errT)
 
-      case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)()
-      case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)() // Assumes are later rewritten
-      case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)()
-      case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)()
+      case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
+      case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
+      case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)
+      case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)(pos, info, errT)
 
-      case fold: in.Fold => for {a <- ctx.loc.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)()
-      case unfold: in.Unfold => for { a <- ctx.loc.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)()
+      case fold: in.Fold => for {a <- ctx.loc.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)(pos, info, errT)
+      case unfold: in.Unfold => for { a <- ctx.loc.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
 
-      case in.Return() => unit(vpr.Goto(Names.returnLabel)())
+      case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 
 
     }

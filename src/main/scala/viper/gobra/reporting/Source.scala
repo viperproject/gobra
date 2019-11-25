@@ -15,22 +15,24 @@ object Source {
 
     sealed trait Info {
       def origin: Option[Origin]
-      def toInfo(node: internal.Node): vpr.Info
+      def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo)
     }
 
     object Unsourced extends Info {
       override def origin: Option[Origin] = throw new IllegalStateException()
-      override def toInfo(node: internal.Node): vpr.Info = throw new IllegalStateException()
+      override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) = throw new IllegalStateException()
     }
 
     case object Internal extends Info {
       override lazy val origin: Option[Origin] = None
-      override def toInfo(node: internal.Node): vpr.Info = vpr.NoInfo
+      override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
+        (vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
     }
 
     case class Single(pnode: frontend.PNode, src: Origin) extends Info {
       override lazy val origin: Option[Origin] = Some(src)
-      override def toInfo(node: internal.Node): vpr.Info = Verifier.Info(pnode, node, src)
+      override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
+        (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
     }
 
     object Single {

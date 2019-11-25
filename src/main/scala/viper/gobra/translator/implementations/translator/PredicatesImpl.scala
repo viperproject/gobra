@@ -16,21 +16,23 @@ class PredicatesImpl extends Predicates {
     */
   override def finalize(col: Collector): Unit = ()
 
-  override def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = withDeepInfo(pred){
+  override def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = {
+
+    val (pos, info, errT) = pred.vprMeta
 
     val (vRecv, recvWells) = ctx.loc.parameter(pred.receiver)(ctx)
     val recvWell = cl.assertUnit(recvWells)
 
     val (vArgss, argWells) = pred.args.map(ctx.loc.parameter(_)(ctx)).unzip
     val vArgs = vArgss.flatten
-    val argWell = sequence(argWells map cl.assertUnit).map(vu.bigAnd)
+    val argWell = sequence(argWells map cl.assertUnit).map(vu.bigAnd(_)(pos, info, errT))
 
     val body = option(pred.body map {b =>
       for {
         rwc <- recvWell
         awc <- argWell
         vBody <- ctx.ass.postcondition(b)(ctx)
-      } yield vu.bigAnd(Vector(rwc, awc, vBody))
+      } yield vu.bigAnd(Vector(rwc, awc, vBody))(pos, info, errT)
     })
 
     for {
@@ -40,22 +42,24 @@ class PredicatesImpl extends Predicates {
         name = pred.name.uniqueName,
         formalArgs = vRecv ++ vArgs,
         body = vBody
-      )()
+      )(pos, info, errT)
     } yield predicate
   }
 
 
-  override def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = withDeepInfo(pred){
+  override def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate] = {
+
+    val (pos, info, errT) = pred.vprMeta
 
     val (vArgss, argWells) = pred.args.map(ctx.loc.parameter(_)(ctx)).unzip
     val vArgs = vArgss.flatten
-    val argWell = sequence(argWells map cl.assertUnit).map(vu.bigAnd)
+    val argWell = sequence(argWells map cl.assertUnit).map(vu.bigAnd(_)(pos, info, errT))
 
     val body = option(pred.body map {b =>
       for {
         wc <- argWell
         vBody <- ctx.ass.postcondition(b)(ctx)
-      } yield vpr.And(wc, vBody)()
+      } yield vpr.And(wc, vBody)(pos, info, errT)
     })
 
     for {
@@ -65,7 +69,8 @@ class PredicatesImpl extends Predicates {
         name = pred.name.name,
         formalArgs = vArgs,
         body = vBody
-      )()
+      )(pos, info, errT)
+
     } yield predicate
   }
 }

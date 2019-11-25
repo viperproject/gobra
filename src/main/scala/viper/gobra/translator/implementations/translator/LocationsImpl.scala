@@ -10,7 +10,6 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{PrimitiveGenerator, Registrator, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
-import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
 import viper.gobra.translator.interfaces.translator.Locations.SubValueRep
 import viper.gobra.util.Violation
 
@@ -37,7 +36,7 @@ class LocationsImpl extends Locations {
       (t: vpr.Type) => {
         // No ref can hold permission to two val fields at once.
         // Therefore, field names based on the viper type are sufficient
-        val f = vpr.Field(name = Names.pointerFields(t), typ = t)()
+        val f = vpr.Field(name = Names.pointerFields(t), typ = t)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
         (f, Vector(f))
       }
     )
@@ -48,14 +47,16 @@ class LocationsImpl extends Locations {
   /**
     * [v]w -> v
     */
-  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = withDeepInfo(v){
+  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+
+    val (pos, info, errT) = v.vprMeta
 
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     v match {
-      case in.Parameter(id, t)    => unit(vpr.LocalVar(id, goT(t))())
-      case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))())
-      case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)())
+      case in.Parameter(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
     }
   }
 
@@ -89,7 +90,7 @@ class LocationsImpl extends Locations {
     if (trans.size == 1) {
       ctx.typ.translate(typ)(ctx)
     } else {
-      val multiVar = in.LocalVar.Val(Names.freshName, typ)(Source.Parser.Internal)
+      val multiVar = in.LocalVar.Val(Names.freshName, typ)(Source.Parser.Unsourced)
 
       ctx.tuple.typ(
         trans map (a => ctx.typ.translate(a(multiVar)._2.typ)(ctx))
@@ -152,15 +153,15 @@ class LocationsImpl extends Locations {
   override def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
     v match {
       case v: in.Var =>
-        val valueInits = variable(v)(ctx) flatMap (x => initValues(isAddressable(v), x, v.typ)(ctx))
+        val valueInits = variable(v)(ctx) flatMap (x => initValues(isAddressable(v), x, v.typ)(v)(ctx))
         val (decls, valueUnit) = valueInits.cut
         val as = values(v.typ)(ctx).map(_(v))
         val valueAssigns = seqns(as map { case (r, t) =>
 
           for {
             ax <- r
-            dflt <- ctx.loc.defaultValue(t.typ)(ctx)
-          } yield valueAssign(ax, dflt)
+            dflt <- ctx.loc.defaultValue(t.typ)(v)(ctx)
+          } yield valueAssign(ax, dflt)(v)
         })
         (decls, valueUnit flatMap (_ => valueAssigns))
     }
@@ -168,9 +169,10 @@ class LocationsImpl extends Locations {
 
 
   override def initialize(v: in.TopDeclaration)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val (pos, info, errT) = v.vprMeta
     v match {
       case v: in.BottomDeclaration => localDecl(v)(ctx)._2
-      case v: in.Parameter => unit(vu.nop) // parameters are not initialized
+      case v: in.Parameter => unit(vu.nop(pos, info, errT)) // parameters are not initialized
     }
   }
 
@@ -287,36 +289,39 @@ class LocationsImpl extends Locations {
   /**
     * [l: T == r] -> FORALL a in Values[T]. a(l) == a(r)
     */
-  override def equal(lhs: in.Expr, rhs: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+  override def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val (pos, info, errT) = src.vprMeta
     val trans = values(lhs.typ)(ctx)
     sequence(trans map { a =>
       for {
         l <- a(lhs)._1
         r <- a(rhs)._1
-      } yield vpr.EqCmp(l ,r)()
-    }).map(vu.bigAnd)
+      } yield vpr.EqCmp(l ,r)(pos, info, errT)
+    }).map(vu.bigAnd(_)(pos, info, errT))
   }
 
 
   /**
     * [default(T)] -> var l; FOREACH a in Values[T]. a(l) := simpleDefault(Type(a(l)))
     */
-  override def defaultValue(t: in.Type)(ctx: Context): CodeWriter[vpr.Exp] = {
+  override def defaultValue(t: in.Type)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
+
+    val (pos, info, errT) = src.vprMeta
 
     def leafVal(t: in.Type): CodeWriter[vpr.Exp] = {
       t match {
-        case in.BoolT => unit(vpr.TrueLit()())
-        case in.IntT => unit(vpr.IntLit(0)())
-        case in.PermissionT => unit(vpr.NoPerm()())
-        case in.DefinedT(_, t2) => ctx.loc.defaultValue(t2)(ctx)
-        case in.PointerT(_) => unit(vpr.NullLit()())
-        case in.NilT => unit(vpr.NullLit()())
+        case in.BoolT => unit(vpr.TrueLit()(pos, info, errT))
+        case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
+        case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
+        case in.DefinedT(_, t2) => ctx.loc.defaultValue(t2)(src)(ctx)
+        case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
+        case in.NilT => unit(vpr.NullLit()(pos, info, errT))
         case _ => Violation.violation(s"encountered unexpected inner type $t")
       }
     }
 
     val trans = values(t)(ctx)
-    val v = in.LocalVar.Val(Names.freshName, t)(Source.Parser.Internal)
+    val v = in.LocalVar.Val(Names.freshName, t)(src.info)
 
     if (trans.size == 1) {
       val (_, it) = trans.head(v)
@@ -341,12 +346,13 @@ class LocationsImpl extends Locations {
     * [n] -> n
     * [s(F: E)] -> var l; FOREACH
     */
-  override def literal(lit: in.Lit)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(lit){
+  override def literal(lit: in.Lit)(ctx: Context): CodeWriter[vpr.Exp] = {
 
+    val (pos, info, errT) = lit.vprMeta
 
     lit match {
-      case in.IntLit(v) => unit(vpr.IntLit(v)())
-      case in.BoolLit(b) => unit(vpr.BoolLit(b)())
+      case in.IntLit(v) => unit(vpr.IntLit(v)(pos, info, errT))
+      case in.BoolLit(b) => unit(vpr.BoolLit(b)(pos, info, errT))
       case in.StructLit(typ, args) =>
         val lhsTrans = values(typ)(ctx)
         val rhsTrans = args map (arg => (arg, values(arg.typ)(ctx)))
@@ -382,26 +388,30 @@ class LocationsImpl extends Locations {
   /**
     * [!r: T = e] -> FOREACH a in Values[T]. a(r) := a(e)
     */
-  override def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt] = withDeepInfo(ass){
+  override def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val trans = values(ass.left.op.typ)(ctx)
     seqns(trans map { a =>
-      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield valueAssign(l, r)
+      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield valueAssign(l, r)(ass)
     })
   }
 
 
   /** left := right */
-  private def valueAssign(left: vpr.Exp, right: vpr.Exp): vpr.AbstractAssign = left match {
-    case l: vpr.LocalVar => vpr.LocalVarAssign(l, right)()
-    case l: vpr.FieldAccess => vpr.FieldAssign(l, right)()
-    case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
+  private def valueAssign(left: vpr.Exp, right: vpr.Exp)(src: in.Node): vpr.AbstractAssign = {
+    val (pos, info, errT) = src.vprMeta
+    left match {
+      case l: vpr.LocalVar => vpr.LocalVarAssign(l, right)(pos, info, errT)
+      case l: vpr.FieldAccess => vpr.FieldAssign(l, right)(pos, info, errT)
+      case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
+    }
   }
 
 
   /**
     * [v := make(lit: S] -> [decl z S; ( Foreach (f, e) in lit. inhale(acc(z.f)); z.f = e ); v := z ]
     */
-  override def make(mk: in.Make)(ctx: Context): CodeWriter[vpr.Stmt] = withDeepInfo(mk){
+  override def make(mk: in.Make)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val (pos, info, errT) = mk.vprMeta
     val src = mk.info
 
     mk.typ match {
@@ -417,7 +427,7 @@ class LocationsImpl extends Locations {
         seqn{
           for {
             vTarget <- variable(mk.target)(ctx)
-            _ <- write(vpr.NewStmt(vTarget, Vector.empty)())
+            _ <- write(vpr.NewStmt(vTarget, Vector.empty)(pos, info, errT))
             vMake <- seqns(perField map ctx.stmt.translateF(ctx))
           } yield vMake
         }
@@ -448,16 +458,18 @@ class LocationsImpl extends Locations {
     *
     * translates a a field access keeping the last address
     */
-  override def access(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(acc){
+  override def access(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp] = {
 
-    val perm = vpr.FullPerm()()
+    val (pos, info, errT) = acc.vprMeta
+
+    val perm = vpr.FullPerm()(pos, info, errT)
 
     def pointerAcc(recv: in.Location): CodeWriter[vpr.Exp] = {
       if (isAddressable(recv) && !isStructType(recv.typ)) {
         for {
           r <- avalue(recv)(ctx)
-        } yield vpr.FieldAccessPredicate(valAccess(r, recv.typ)(ctx), perm)()
-      } else unit(vpr.TrueLit()())
+        } yield vpr.FieldAccessPredicate(valAccess(r, recv.typ)(acc)(ctx), perm)(pos, info, errT)
+      } else unit(vpr.TrueLit()(pos, info, errT))
     }
 
     def projAcc(fieldRef: in.FieldRef): CodeWriter[vpr.Exp] = {
@@ -465,14 +477,14 @@ class LocationsImpl extends Locations {
         val pathFields = in.MemberPath.cut(fieldRef.path)._1
         for {
           r <- rproj(fieldRef.recv, pathFields)(ctx)
-          facc = fieldAccess(r, fieldRef.field, mightContainAddressable = true, complete = true)(ctx)
-        } yield vpr.FieldAccessPredicate(facc, perm)()
+          facc = fieldAccess(r, fieldRef.field, mightContainAddressable = true, complete = true)(acc)(ctx)
+        } yield vpr.FieldAccessPredicate(facc, perm)(pos, info, errT)
       } else {
         for {
           r <- rvalue(fieldRef)(ctx)
           facc = r match { // Acc<R[e.f]>
-            case access: vpr.FieldAccess => vpr.FieldAccessPredicate(access, perm)()
-            case _: vpr.LocalVar => vpr.TrueLit()()
+            case access: vpr.FieldAccess => vpr.FieldAccessPredicate(access, perm)(pos, info, errT)
+            case _: vpr.LocalVar => vpr.TrueLit()(pos, info, errT)
             case _ => Violation.violation(s"expected field access or variable, but got $r")
           }
         } yield facc
@@ -486,7 +498,7 @@ class LocationsImpl extends Locations {
         for {
           path <- projAcc(fa)
           pointer <- pointerAcc(fa)
-        } yield vpr.And(path, pointer)()
+        } yield vpr.And(path, pointer)(pos, info, errT)
 
       case in.Accessible.Predicate(op) => predicateAccess(op)(ctx)
     }
@@ -497,22 +509,24 @@ class LocationsImpl extends Locations {
     * [acc(  p(as)] -> p(Argument[as])
     * [acc(e.p(as)] -> p(Argument[e], Argument[as])
     */
-  override def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = withDeepInfo(acc){
-    val perm = vpr.FullPerm()()
+  override def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+
+    val (pos, info, errT) = acc.vprMeta
+    val perm = vpr.FullPerm()(pos, info, errT)
 
     acc match {
       case in.FPredicateAccess(pred, args) =>
         for {
           vArgss <- sequence(args map (argument(_)(ctx)))
-          pacc = vpr.PredicateAccess(vArgss.flatten, pred.name)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)()
+          pacc = vpr.PredicateAccess(vArgss.flatten, pred.name)(pos, info, errT)
+        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
 
       case in.MPredicateAccess(recv, pred, args, path) =>
         for {
           vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
           vArgss <- sequence(args map (argument(_)(ctx)))
-          pacc = vpr.PredicateAccess(vRecvs ++ vArgss.flatten, pred.uniqueName)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)()
+          pacc = vpr.PredicateAccess(vRecvs ++ vArgss.flatten, pred.uniqueName)(pos, info, errT)
+        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
 
       case in.MemoryPredicateAccess(_) =>
         Violation.violation("memory predicate accesses are not supported")
@@ -539,19 +553,19 @@ class LocationsImpl extends Locations {
     * InitValue<?t: T> -> { Init<t> }
     * InitValue<!t: T> -> { Init<t>, Init<t.val> }
     */
-  private def initValues(isBaseAddr: Boolean, t: vpr.Exp, typ: in.Type)(ctx: Context): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+  private def initValues(isBaseAddr: Boolean, t: vpr.Exp, typ: in.Type)(src: in.Node)(ctx: Context): CodeWriter[Vector[vpr.LocalVarDecl]] = {
 
     structType(typ) match {
-      case None if !isBaseAddr => init(t)
+      case None if !isBaseAddr => init(t)(src)
 
       case None if isBaseAddr  =>
-        val fieldAcc = valAccess(t, typ)(ctx)
-        for { a <- init(t); b <- init(fieldAcc) } yield a ++ b
+        val fieldAcc = valAccess(t, typ)(src)(ctx)
+        for { a <- init(t)(src); b <- init(fieldAcc)(src) } yield a ++ b
 
       case Some(st) if !isBaseAddr =>
         sequence(st.fields.map{ f =>
           val isNextAddr = isFieldRefAddressable(isBaseAddr, st, f)
-          initValues(isNextAddr, fieldExtension(t,f)(ctx), f.typ)(ctx)
+          initValues(isNextAddr, fieldExtension(t,f)(src)(ctx), f.typ)(src)(ctx)
         }).map(_.flatten)
 
       case Some(st) if isBaseAddr =>
@@ -560,10 +574,10 @@ class LocationsImpl extends Locations {
           val complete = !(!isNextAddr && isStructType(f.typ))
           val mightContainAddressable = isNextAddr
 
-          initValues(isNextAddr, fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ)(ctx)
+          initValues(isNextAddr, fieldAccess(t, f, mightContainAddressable, complete)(src)(ctx), f.typ)(src)(ctx)
         }).map(_.flatten)
 
-        for { a <- init(t); b <- fieldInits} yield a ++ b
+        for { a <- init(t)(src); b <- fieldInits} yield a ++ b
     }
   }
 
@@ -571,11 +585,12 @@ class LocationsImpl extends Locations {
     * Init<x>   -> var x
     * Init<e.f> -> inhale acc(e.f)
     */
-  def init(e: vpr.Exp): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+  def init(e: vpr.Exp)(src: in.Node): CodeWriter[Vector[vpr.LocalVarDecl]] = {
+    val (pos, info, errT) = src.vprMeta
     e match {
       case v: vpr.LocalVar => unit(Vector(vu.toVarDecl(v)))
       case f: vpr.FieldAccess =>
-        write(vpr.Inhale(vpr.FieldAccessPredicate(f, vpr.FullPerm()())())()).map(_ => Vector.empty)
+        write(vpr.Inhale(vpr.FieldAccessPredicate(f, vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT)).map(_ => Vector.empty)
       case _ => Violation.violation(s"expected variable of field access, but got $e")
     }
   }
@@ -602,7 +617,7 @@ class LocationsImpl extends Locations {
     *
     * translates a location for a receiver position, except keeps addresses if possible
     */
-  def avalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(l){
+  def avalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
     require(isAddressable(l))
 
     l match {
@@ -614,7 +629,7 @@ class LocationsImpl extends Locations {
         val fields = path.path.collect{ case in.MemberPath.Next(ef) => ef }
         for {
           rcv <- rproj(recv, fields)(ctx)
-        } yield fieldAccess(rcv, f, mightContainAddressable = true, complete = true)(ctx)
+        } yield fieldAccess(rcv, f, mightContainAddressable = true, complete = true)(l)(ctx)
 
       case _ => Violation.violation(s"encountered unexpected addressable location $l")
     }
@@ -630,19 +645,22 @@ class LocationsImpl extends Locations {
     *
     * translates a location for a receiver position
     */
-  def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(l){
+  def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+
+    val (pos, info, errT) = l.vprMeta
+
     l match {
       case l: in.Location =>
         (isAddressable(l), l) match {
           case (true, _) if isStructType(l.typ) => avalue(l)(ctx)
-          case (true, _) => avalue(l)(ctx) map (r => vpr.FieldAccess(r, pointerField(l.typ)(ctx))())
+          case (true, _) => avalue(l)(ctx) map (r => vpr.FieldAccess(r, pointerField(l.typ)(ctx))(pos, info, errT))
 
           case (false, x: in.Var) => variable(x)(ctx)
           case (false, ref: in.Ref) =>
             for {
               address <- avalue(ref.ref.op)(ctx)
               // assert address != null
-              _ <- wellDef(vpr.NeCmp(address, vpr.NullLit()())())
+              _ <- wellDef(vpr.NeCmp(address, vpr.NullLit()(pos, info, errT))(pos, info, errT))
             } yield address
 
           case (false, ref: in.FieldRef) =>
@@ -682,11 +700,11 @@ class LocationsImpl extends Locations {
         val mightContainAddressable = isFieldExprAddr
 
         if (!isBaseAddr && isStructType(baseType)) {
-          rpath(isFieldExprAddr, fieldExtension(t,f)(ctx), f.typ, fs)
+          rpath(isFieldExprAddr, fieldExtension(t,f)(recv)(ctx), f.typ, fs)
         } else if (mightContainAddressable && !isStructF) {
-          rpath(isFieldExprAddr, valAccess(fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ)(ctx), f.typ, fs)
+          rpath(isFieldExprAddr, valAccess(fieldAccess(t, f, mightContainAddressable, complete)(recv)(ctx), f.typ)(recv)(ctx), f.typ, fs)
         } else {
-          rpath(isFieldExprAddr, fieldAccess(t, f, mightContainAddressable, complete)(ctx), f.typ, fs)
+          rpath(isFieldExprAddr, fieldAccess(t, f, mightContainAddressable, complete)(recv)(ctx), f.typ, fs)
         }
       }
     }
@@ -700,42 +718,50 @@ class LocationsImpl extends Locations {
 
   /** [f] -> f */
   def field(mightContainAddressable: Boolean, f: in.Field)(ctx: Context): vpr.Field = {
+    val (pos, info, errT) = f.vprMeta
     f match {
-      case _: in.Field.Ref if mightContainAddressable => nodeWithInfo(vpr.Field(Names.addressableField(f.name), vpr.Ref))(f)
-      case _ => nodeWithInfo(vpr.Field(Names.nonAddressableField(f.name), ctx.typ.translate(f.typ)(ctx)))(f)
+      case _: in.Field.Ref if mightContainAddressable => vpr.Field(Names.addressableField(f.name), vpr.Ref)(pos, info, errT)
+      case _ => vpr.Field(Names.nonAddressableField(f.name), ctx.typ.translate(f.typ)(ctx))(pos, info, errT)
     }
   }
 
   /** e # f */
-  private def fieldExtension(x: vpr.Exp, f: in.Field)(ctx: Context): vpr.Lhs = x match {
-    case z: vpr.LocalVar => z.copy(name = Names.fieldExtension(z.name, f.name))(z.pos, z.info, z.errT)
+  private def fieldExtension(x: vpr.Exp, f: in.Field)(src: in.Node)(ctx: Context): vpr.Lhs = {
+    val (pos, info, errT) = src.vprMeta
+    x match {
+      case z: vpr.LocalVar => z.copy(name = Names.fieldExtension(z.name, f.name))(z.pos, z.info, z.errT)
 
-    case z: vpr.FieldAccess =>
-      val f = z.field
-      z.copy(
-        field = f.copy(name = Names.fieldExtension(f.name, f.name))(f.pos, f.info, f.errT)
-      )(z.pos, z.info, z.errT)
+      case z: vpr.FieldAccess =>
+        val f = z.field
+        z.copy(
+          field = f.copy(name = Names.fieldExtension(f.name, f.name))(f.pos, f.info, f.errT)
+        )(z.pos, z.info, z.errT)
 
-    case _ => Violation.violation(s"expected vpr variable or field access, but got $x")
+      case _ => Violation.violation(s"expected vpr variable or field access, but got $x")
+    }
   }
 
   /** e.f */
-  private def fieldAccess(x: vpr.Exp, f: in.Field, mightContainAddressable: Boolean, complete: Boolean)(ctx: Context): vpr.FieldAccess = {
-    val res = vpr.FieldAccess(x, field(mightContainAddressable, f)(ctx))()
+  private def fieldAccess(x: vpr.Exp, f: in.Field, mightContainAddressable: Boolean, complete: Boolean)(src: in.Node)(ctx: Context): vpr.FieldAccess = {
+    val (pos, info, errT) = src.vprMeta
+    val res = vpr.FieldAccess(x, field(mightContainAddressable, f)(ctx))(pos, info, errT)
     if (complete) { regField(res) }
     res
   }
 
 
   /** e.val */
-  private def valAccess(x: vpr.Exp, t: in.Type)(ctx: Context): vpr.FieldAccess =
-    regField(vpr.FieldAccess(x, pointerField(t)(ctx))())
+  private def valAccess(x: vpr.Exp, t: in.Type)(src: in.Node)(ctx: Context): vpr.FieldAccess = {
+    val (pos, info, errT) = src.vprMeta
+    regField(vpr.FieldAccess(x, pointerField(t)(ctx))(pos, info, errT))
+  }
+
 
 
   // Utils
 
   private def createMultiVar: vpr.LocalVar =
-    vpr.LocalVar(Names.freshName, vpr.Int)()
+    vpr.LocalVar(Names.freshName, vpr.Int)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
   private def inverseVar(x: vpr.LocalVar, typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =
     in.LocalVar.Val(x.name, typ)(info)

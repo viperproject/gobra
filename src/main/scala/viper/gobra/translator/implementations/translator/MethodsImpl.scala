@@ -15,7 +15,9 @@ class MethodsImpl extends Methods {
 
   override def finalize(col: Collector): Unit = ()
 
-  override def method(x: in.Method)(ctx: Context): MemberWriter[Method] = withDeepInfo(x){
+  override def method(x: in.Method)(ctx: Context): MemberWriter[Method] = {
+
+    val (pos, info, errT) = x.vprMeta
 
     val (vRecv, recvWells) = ctx.loc.parameter(x.receiver)(ctx)
     val recvWell = cl.assertUnit(recvWells)
@@ -33,14 +35,14 @@ class MethodsImpl extends Methods {
       pres <- sequence((recvWell +: argWell) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(resultWell ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
 
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)()
+      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
       body <- option(x.body.map{ b => block{
         for {
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core))
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -50,15 +52,17 @@ class MethodsImpl extends Methods {
         pres = pres,
         posts = posts,
         body = body
-      )()
+      )(pos, info, errT)
 
     } yield method
   }
 
 
-  override def function(x: in.Function)(ctx: Context): MemberWriter[Method] = withDeepInfo(x){
+  override def function(x: in.Function)(ctx: Context): MemberWriter[Method] = {
 
     assert(x.info.origin.isDefined, s"$x has no defined source")
+
+    val (pos, info, errT) = x.vprMeta
 
     val (vArgss, argWells) = x.args.map(ctx.loc.parameter(_)(ctx)).unzip
     val vArgs = vArgss.flatten
@@ -73,14 +77,14 @@ class MethodsImpl extends Methods {
       pres <- sequence(argWell ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(resultWell ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
 
-      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)()
+      returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
       body <- option(x.body.map{ b => block{
         for {
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core))
+        } yield vu.seqn(Vector(init, core))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -90,7 +94,7 @@ class MethodsImpl extends Methods {
         pres = pres,
         posts = posts,
         body = body
-      )()
+      )(pos, info, errT)
 
     } yield method
   }

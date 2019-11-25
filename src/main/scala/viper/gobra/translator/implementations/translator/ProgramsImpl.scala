@@ -7,7 +7,6 @@ import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
 import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.silver.{ast => vpr}
-import viper.gobra.reporting.Source.{withInfo => nodeWithInfo}
 import viper.silver.ast.utility.AssumeRewriter
 
 class ProgramsImpl extends Programs {
@@ -15,6 +14,8 @@ class ProgramsImpl extends Programs {
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
 
   override def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task = {
+
+    val (pos, info, errT) = program.vprMeta
 
     val ctx = new ContextImpl(conf)
 
@@ -40,13 +41,13 @@ class ProgramsImpl extends Programs {
         c
       }
 
-      vProgram = nodeWithInfo(vpr.Program(
+      vProgram = vpr.Program(
         domains = col.domains,
         fields = col.fields,
         predicates = col.predicate ++ predicates,
         functions = col.functions ++ functions,
         methods = col.methods ++ methods
-      ))(program)
+      )(pos, info, errT)
 
     } yield vProgram
 

@@ -25,11 +25,11 @@ trait Locations extends Generator {
 
   def evalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
 
-  def defaultValue(t: in.Type)(ctx: Context): CodeWriter[vpr.Exp]
+  def defaultValue(t: in.Type)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp]
 
   def literal(lit: in.Lit)(ctx: Context): CodeWriter[vpr.Exp]
 
-  def equal(lhs: in.Expr, rhs: in.Expr)(ctx: Context): CodeWriter[vpr.Exp]
+  def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp]
 
   def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt]
 

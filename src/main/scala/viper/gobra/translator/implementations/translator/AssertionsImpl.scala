@@ -13,18 +13,20 @@ class AssertionsImpl extends Assertions {
 
   override def finalize(col: Collector): Unit = ()
 
-  override def translate(ass: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = withDeepInfo(ass){
+  override def translate(ass: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    ass match {
+    val ret = ass match {
       case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)()
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)()
       case acc: in.Access => ctx.loc.access(acc)(ctx)
     }
+
+    ret
   }
 
   override def invariant(x: in.Assertion)(ctx: Context): (CodeWriter[Unit], vpr.Exp) = {

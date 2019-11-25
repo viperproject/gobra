@@ -15,8 +15,10 @@ class PureMethodsImpl extends PureMethods {
     */
   override def finalize(col: Collector): Unit = ()
 
-  override def pureMethod(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = withDeepInfo(meth){
+  override def pureMethod(meth: in.PureMethod)(ctx: Context): MemberWriter[vpr.Function] = {
     require(meth.results.size == 1)
+
+    val (pos, info, errT) = meth.vprMeta
 
     val (vRecv, recvWells) = ctx.loc.parameter(meth.receiver)(ctx)
     val recvWell = cl.assertUnit(recvWells)
@@ -48,14 +50,16 @@ class PureMethodsImpl extends PureMethods {
         pres = pres,
         posts = Vector.empty,
         body = body
-      )()
+      )(pos, info, errT)
 
     } yield function
   }
 
 
-  override def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = withDeepInfo(func){
+  override def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = {
     require(func.results.size == 1)
+
+    val (pos, info, errT) = func.vprMeta
 
     val (vArgss, argWells) = func.args.map(ctx.loc.parameter(_)(ctx)).unzip
     val vArgs = vArgss.flatten
@@ -84,7 +88,7 @@ class PureMethodsImpl extends PureMethods {
         pres = pres,
         posts = Vector.empty,
         body = body
-      )()
+      )(pos, info, errT)
 
     } yield function
   }

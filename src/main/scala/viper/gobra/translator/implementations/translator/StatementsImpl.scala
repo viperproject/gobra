@@ -4,7 +4,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{ViperUtil => vu}
+import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -28,7 +28,7 @@ class StatementsImpl extends Statements {
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
-    val z: CodeWriter[vpr.Stmt] = x match {
+    val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val (vDeclss, inits) = decls.map(ctx.loc.localDecl(_)(ctx)).unzip
         val vDecls = vDeclss.flatten
@@ -93,15 +93,15 @@ class StatementsImpl extends Statements {
 
 
     }
-//    if (!x.isInstanceOf[in.Seqn]){
-//      println(s"////////////////// INPUT ($count)/////////////////")
-//      println(s"$x")
-//      println("------------------ Output ----------------")
-//      println(s"${z.res}")
-//      println("//////////////////////////////////////////")
-//    }
 
-    z
+    vprStmt map (s => stmtComment(x, s))
+  }
+
+  def stmtComment(x: in.Stmt, res: vpr.Stmt): vpr.Stmt = {
+    x match {
+      case _: in.Seqn => res
+      case _ => Comments.prependComment(x.formattedShort, res)
+    }
   }
 
 

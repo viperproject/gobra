@@ -145,22 +145,22 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case localVar: LocalVar => showVar(localVar)
   }
 
-  private def showStmtList[T <: Stmt](list: Vector[T]): Doc =
+  protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =
     ssep(list map showStmt, line)
 
-  private def showVarList[T <: Var](list: Vector[T]): Doc =
+  protected def showVarList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVar)
 
-  private def showVarDeclList[T <: Var](list: Vector[T]): Doc =
+  protected def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
 
-  private def showBottomDeclList[T <: BottomDeclaration](list: Vector[T]): Doc =
+  protected def showBottomDeclList[T <: BottomDeclaration](list: Vector[T]): Doc =
     showList(list)(showBottomDecl)
 
-  private def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
+  protected def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
     showList(list)(showAssignee)
 
-  private def showExprList[T <: Expr](list: Vector[T]): Doc =
+  protected def showExprList[T <: Expr](list: Vector[T]): Doc =
     showList(list)(showExpr)
 
   def showAssignee(ass: Assignee): Doc = ass match {
@@ -274,5 +274,79 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     showList(list)(showType)
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
+
+}
+
+class ShortPrettyPrinter extends DefaultPrettyPrinter {
+
+  override val defaultIndent = 2
+  override val defaultWidth  = 80
+
+  override def format(node: Node): String =
+    pretty(show(node)).layout
+
+
+  override def showFunction(f: Function): Doc = f match {
+    case Function(name, args, results, pres, posts, body) =>
+      "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts))
+  }
+
+  override def showPureFunction(f: PureFunction): Doc = f match {
+    case PureFunction(name, args, results, pres, body) =>
+      "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres))
+  }
+
+  override def showMethod(m: Method): Doc = m match {
+    case Method(receiver, name, args, results, pres, posts, body) =>
+      "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres) <> showPostconditions(posts))
+  }
+
+  override def showPureMethod(m: PureMethod): Doc = m match {
+    case PureMethod(receiver, name, args, results, pres, body) =>
+      "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        spec(showPreconditions(pres))
+  }
+
+  override def showFPredicate(predicate: FPredicate): Doc = predicate match {
+    case FPredicate(name, args, body) =>
+      "pred" <+> name.name <> parens(showFormalArgList(args))
+  }
+
+  override def showMPredicate(predicate: MPredicate): Doc = predicate match {
+    case MPredicate(recv, name, args, body) =>
+      "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args))
+  }
+
+  // statements
+
+  override def showStmt(s: Stmt): Doc = s match {
+    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls)
+    case Seqn(stmts) => emptyDoc
+    case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
+    case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
+      hcat(invs  map ("invariant " <> showAss(_) <> line))
+
+    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
+
+    case FunctionCall(targets, func, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        func.name <> parens(showExprList(args))
+
+    case MethodCall(targets, recv, meth, args) =>
+      (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
+        showExpr(recv) <> meth.name <> parens(showExprList(args))
+
+    case Return() => "return"
+    case Assert(ass) => "assert" <+> showAss(ass)
+    case Assume(ass) => "assume" <+> showAss(ass)
+    case Inhale(ass) => "inhale" <+> showAss(ass)
+    case Exhale(ass) => "exhale" <+> showAss(ass)
+    case Fold(acc)   => "fold" <+> showAss(acc)
+    case Unfold(acc) => "unfold" <+> showAss(acc)
+  }
 
 }

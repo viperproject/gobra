@@ -27,6 +27,8 @@ trait Node extends Rewritable with Product {
 
   lazy val formatted: String = pretty()
 
+  lazy val formattedShort: String = pretty(Node.shortPrettyPrinter)
+
   override def toString: String = formatted
 
   /**
@@ -118,6 +120,7 @@ trait Node extends Rewritable with Product {
 object Node {
 
   val defaultPrettyPrinter = new DefaultPrettyPrinter()
+  val shortPrettyPrinter = new ShortPrettyPrinter()
 
   type Meta = Source.Parser.Info
 

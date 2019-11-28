@@ -242,7 +242,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
         case _ =>
       }
 
@@ -268,14 +268,14 @@ object Desugar {
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       decl.result match {
         case PVoidResult() =>
         case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
           case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
           case _ =>
         }
@@ -381,7 +381,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
         case _ =>
       }
 
@@ -413,19 +413,19 @@ object Desugar {
 
       // extent context
       (decl.receiver, recvWithSubs) match {
-        case (PNamedReceiver(id, _), (_, Some(q))) => ctx.addSubst(id, q)
+        case (PNamedReceiver(id, _, _), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       decl.result match {
         case PVoidResult() =>
         case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
+          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
           case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
           case _ =>
         }
@@ -618,7 +618,7 @@ object Desugar {
                 }
               } yield in.SingleAss(l, rWithOp)(src)
 
-          case PShortVarDecl(right, left) =>
+          case PShortVarDecl(right, left, _) =>
 
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
@@ -634,7 +634,7 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
-          case PVarDecl(typOpt, right, left) =>
+          case PVarDecl(typOpt, right, left, addressable) =>
 
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
@@ -686,7 +686,7 @@ object Desugar {
       case class ReceivedDeref(deref: Writer[in.Deref]) extends ExprEntity
       case class ReceivedField(op: st.StructMember, rfield: Writer[in.FieldRef]) extends ExprEntity
       case class Function(op: st.Function) extends ExprEntity
-      case class ReceivedMethod(op: st.Method, recv: Writer[in.Expr], path: in.MemberPath) extends ExprEntity
+      case class ReceivedMethod(op: st.Method, recv: Writer[in.Expr]) extends ExprEntity
       case class MethodExpr(op: st.Method, path: in.MemberPath) extends ExprEntity
     }
 
@@ -702,14 +702,16 @@ object Desugar {
       case PSelection(base, id) => info.regular(id) match {
 
         case s: st.ActualStructMember =>
-          val path = memberPathD(info.fieldLookup(info.typ(base), id)._2)
+          val path = info.fieldLookup(info.typ(base), id)._2
           val f = structMemberD(s)
-          val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(r,f, path)(meta(expr))
+          val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
           ExprEntity.ReceivedField(s, rfield)
 
         case m: st.Method =>
-          val path = memberPathD(info.methodLookup(base, id)._2)
-          ExprEntity.ReceivedMethod(m, exprD(ctx)(base), path)
+          val baseWithPath = for {
+            r <- exprD(ctx)(base)
+          } yield applyMemberPathD(r, info.methodLookup(base, id)._2)(meta(expr))
+          ExprEntity.ReceivedMethod(m, baseWithPath)
 
         case _ => Violation.violation("expected entity behind expression")
       }
@@ -728,14 +730,16 @@ object Desugar {
         case _ => info.regular(id) match {
 
           case s: st.ActualStructMember =>
-            val path = memberPathD(info.fieldLookup(info.typ(base), id)._2)
+            val path = info.fieldLookup(info.typ(base), id)._2
             val f = structMemberD(s)
-            val rfield = for {r <- unit(varD(ctx)(base))} yield in.FieldRef(r,f, path)(meta(expr))
+            val rfield = for {r <- unit(varD(ctx)(base))} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
             ExprEntity.ReceivedField(s, rfield)
 
           case m: st.Method =>
-            val path = memberPathD(info.methodLookup(base, id)._2) // base has to be a variable
-            ExprEntity.ReceivedMethod(m, unit(varD(ctx)(base)), path)
+            val baseWithPath = for {
+              r <- unit(varD(ctx)(base))
+            } yield applyMemberPathD(r, info.methodLookup(base, id)._2)(meta(expr)) // base has to be a variable
+            ExprEntity.ReceivedMethod(m, baseWithPath)
 
           case _ => Violation.violation("expected entity behind expression")
         }
@@ -797,14 +801,14 @@ object Desugar {
           }
 
           case PSelection(base, id) => info.fieldLookup(info.typ(base), id) match {
-            case (f: st.Field, path)  => for {r <- go(base)} yield in.FieldRef(r, fieldDeclD(f.decl), memberPathD(path))(src)
-            case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(r, embeddedDeclD(e.decl), memberPathD(path))(src)
+            case (f: st.Field, path)  => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), fieldDeclD(f.decl))(src)
+            case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), embeddedDeclD(e.decl))(src)
             case _ => Violation.violation("expected field or embedding")
           }
 
           case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
-            case (f: st.Field, path)  => unit(in.FieldRef(varD(ctx)(base), fieldDeclD(f.decl), memberPathD(path))(src))
-            case (e: st.Embbed, path) => unit(in.FieldRef(varD(ctx)(base), embeddedDeclD(e.decl), memberPathD(path))(src))
+            case (f: st.Field, path)  => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), fieldDeclD(f.decl))(src))
+            case (e: st.Embbed, path) => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), embeddedDeclD(e.decl))(src))
             case _ => Violation.violation("expected field or embedding")
           }
 
@@ -837,7 +841,7 @@ object Desugar {
 
               } yield v
 
-            case ExprEntity.ReceivedMethod(op, recv, path) =>
+            case ExprEntity.ReceivedMethod(op, recv) =>
               val (isPure, fargs, fres) = op match {
                 case st.MethodImpl(decl, _) => (decl.spec.isPure, decl.args, decl.result)
                 case st.MethodSpec(spec, _) => (false, spec.args, spec.result)
@@ -855,7 +859,7 @@ object Desugar {
                   case dargs => dargs
                 }
 
-                v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, path, typeD(info.typ(fres)))(src))
+                v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, typeD(info.typ(fres)))(src))
                 else {
                   val targets = fres match {
                     case PVoidResult() => Vector.empty
@@ -863,7 +867,7 @@ object Desugar {
                   }
                   for {
                     _ <- declare(targets: _*)
-                    _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs, path)(src))
+                    _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs)(src))
 
                     res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
                   } yield res
@@ -889,7 +893,7 @@ object Desugar {
                 }
                 (realRecv, realRemainingArgs) = (realArgs.head, realArgs.tail)
 
-                v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, path, typeD(info.typ(fres)))(src))
+                v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
                 else {
                   val targets = fres match {
                     case PVoidResult() => Vector.empty
@@ -897,7 +901,7 @@ object Desugar {
                   }
                   for {
                     _ <- declare(targets: _*)
-                    _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs, path)(src))
+                    _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs)(src))
 
                     res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
                   } yield res
@@ -980,6 +984,15 @@ object Desugar {
           case MemberPath.Next(decl) => in.MemberPath.Next(embeddedDeclD(decl.decl))
         }
       )
+    }
+
+    def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(info: Source.Parser.Info): in.Expr = {
+      path.foldLeft(base){ case (e, p) => p match {
+        case MemberPath.Underlying => e
+        case MemberPath.Deref => in.Deref(e)(info)
+        case MemberPath.Ref => in.Ref(e)(info)
+        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl))(info)
+      }}
     }
 
     def litD(ctx: FunctionContext)(lit: PLiteral): Writer[in.Expr] = {
@@ -1151,7 +1164,7 @@ object Desugar {
 
       val typ = typeD(info.typ(id))
 
-      if (info.addressed(id)) {
+      if (info.addressableVar(id)) {
         in.LocalVar.Ref(idName(id), typ)(src)
       } else {
         in.LocalVar.Val(idName(id), typ)(src)
@@ -1168,9 +1181,9 @@ object Desugar {
       * The second return argument contains an addressable copy, if necessary */
     def parameterD(p: PParameter): (in.Parameter, Option[in.LocalVar]) = p match {
       case NoGhost(noGhost: PActualParameter) => noGhost match {
-        case PNamedParameter(id, typ) =>
+        case PNamedParameter(id, typ, _) =>
           val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-          if (info.addressed(id)) {
+          if (info.addressableVar(id)) {
             val local = Some(localAlias(localVarContextFreeD(id)))
             (param, local)
           } else {
@@ -1186,7 +1199,7 @@ object Desugar {
     }
 
     def receiverD(p: PReceiver): (in.Parameter, Option[in.LocalVar]) = p match {
-        case PNamedReceiver(id, typ) =>
+        case PNamedReceiver(id, typ, _) =>
           val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
@@ -1215,10 +1228,10 @@ object Desugar {
     }
 
     def embeddedDeclD(decl: PEmbeddedDecl): in.Field =
-      in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ), isEmbedding = true)(meta(decl))
+      in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ))(meta(decl))
 
     def fieldDeclD(decl: PFieldDecl): in.Field =
-      in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)), isEmbedding = false)(meta(decl))
+      in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)))(meta(decl))
 
     // Ghost Statement
 
@@ -1330,13 +1343,15 @@ object Desugar {
 
           if (isPredicate(id)) {
             val (sym, path) = info.predicateLookup(recv, id)
+            val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
             val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
+            predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
           } else {
             val (sym, path) = info.methodLookup(recv, id)
+            val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
             val proxy = methodProxy(sym)
             val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
+            in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs, retT)(src))(src)
           }
 
 
@@ -1345,13 +1360,15 @@ object Desugar {
 
           if (isPredicate(id)) {
             val (sym, path) = info.predicateLookup(info.typ(base), id)
+            val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
             val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
+            predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
           } else {
             val (sym, path) = info.methodLookup(info.typ(base), id)
+            val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
             val proxy = methodProxy(sym)
             val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
+            in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs.tail, retT)(src))(src)
           }
 
         case PMPredOrMethRecvOrExprCall(base, id, args) =>
@@ -1361,26 +1378,30 @@ object Desugar {
 
             if (isPredicate(id)) {
               val (sym, path) = info.predicateLookup(base, id)
+              val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
               val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dRecv, proxy, dArgs, memberPathD(path))(src))
+              predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
             } else {
               val (sym, path) = info.methodLookup(base, id)
+              val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
               val proxy = methodProxy(sym)
               val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dRecv, proxy, dArgs, memberPathD(path), retT)(src))(src)
+              in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs, retT)(src))(src)
             }
           } else {
             val dArgs = args map pureExprD(ctx)
 
             if (isPredicate(id)) {
               val (sym, path) = info.predicateLookup(info.typ(base), id)
+              val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
               val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dArgs.head, proxy, dArgs.tail, memberPathD(path))(src))
+              predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
             } else {
               val (sym, path) = info.methodLookup(info.typ(base), id)
+              val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
               val proxy = methodProxy(sym)
               val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dArgs.head, proxy, dArgs.tail, memberPathD(path), retT)(src))(src)
+              in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs.tail, retT)(src))(src)
             }
           }
 

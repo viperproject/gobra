@@ -150,12 +150,18 @@ object Parser {
         "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(idnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
-        case left ~ t ~ None => PVarDecl(Some(t), Vector.empty, left)
-        case left ~ t ~ Some(right) => PVarDecl(Some(t), right, left)
+      rep1sep(maybeAddressableIdnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+        case left ~ t ~ None =>
+          val (vars, addressable) = left.unzip
+          PVarDecl(Some(t), Vector.empty, vars, addressable)
+        case left ~ t ~ Some(right) =>
+          val (vars, addressable) = left.unzip
+          PVarDecl(Some(t), right, vars, addressable)
       } |
-        (rep1sep(idnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
-          case left ~ right => PVarDecl(None, right, left)
+        (rep1sep(maybeAddressableIdnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
+          case left ~ right =>
+            val (vars, addressable) = left.unzip
+            PVarDecl(None, right, vars, addressable)
         }
 
     lazy val typeDecl: Parser[Vector[PTypeDecl]] =
@@ -241,8 +247,11 @@ object Parser {
       selectionOrMethodExpr | selection | indexedExp | dereference | namedOperand
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(idnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^
-        { case lefts ~ rights => PShortVarDecl(rights, lefts) }
+      (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
+        case lefts ~ rights =>
+          val (vars, addressable) = lefts.unzip
+          PShortVarDecl(rights, vars, addressable)
+      }
 
     lazy val labeledStmt: Parser[PLabeledStmt] =
       (idnDef <~ ":") ~ statement ^^ PLabeledStmt
@@ -632,9 +641,9 @@ object Parser {
       */
 
     lazy val receiver: PackratParser[PReceiver] =
-      "(" ~> idnDef.? ~ methodRecvType <~ ")" ^^ {
+      "(" ~> maybeAddressableIdnDef.? ~ methodRecvType <~ ")" ^^ {
         case None ~ t => PUnnamedReceiver(t)
-        case Some(name) ~ t => PNamedReceiver(name, t)
+        case Some((name, addressable)) ~ t => PNamedReceiver(name, t, addressable)
       }
 
     lazy val signature: Parser[(Vector[PParameter], PResult)] =
@@ -657,8 +666,8 @@ object Parser {
 
     lazy val parameterDecl: Parser[Vector[PParameter]] =
       ghostParameter |
-      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
+      rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PNamedParameter(id._1, t.copy, id._2).at(id._1): PParameter)
       } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
 
 
@@ -687,6 +696,12 @@ object Parser {
     lazy val idnDef: Parser[PIdnDef] = identifier ^^ PIdnDef
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
+
+    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
+      idnDef ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+
+    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
+      idnUnk ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
@@ -786,8 +801,8 @@ object Parser {
       "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
+      "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     lazy val ghostUnaryExpression: Parser[POld] =

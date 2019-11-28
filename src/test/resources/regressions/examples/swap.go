@@ -14,8 +14,8 @@ func swap1(x, y *cell, ghost a, b int) {
 };
 
 func client() {
-    x := cell{42};
-    y := cell{17};
+    x! := cell{42};
+    y! := cell{17};
     swap1(&x, &y, 42, 17);
     assert x == cell{17} && y.val == 42;
 

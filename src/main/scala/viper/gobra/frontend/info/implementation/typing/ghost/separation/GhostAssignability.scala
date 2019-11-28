@@ -115,7 +115,7 @@ trait GhostAssignability { this: TypeInfoImpl =>
     }
 
     r match {
-      case x: Regular if x.isGhost => GhostType.isGhost
+      case x: Regular if x.ghost => GhostType.isGhost
       case Function(decl, _)   => resultTyping(decl.result)
       case MethodImpl(decl, _) => resultTyping(decl.result)
       case MethodSpec(spec, _) => resultTyping(spec.result)

@@ -88,7 +88,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showField(field: Field): Doc = field match {
-    case Field(name, typ, emb) => "field" <> (if (emb) "!" else emptyDoc) <+> name <> ":" <+> showType(typ)
+    case Field(name, typ) => "field" <> name <> ":" <+> showType(typ)
   }
 
   def showTypeDecl(t: DefinedT): Doc =
@@ -119,9 +119,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         func.name <> parens(showExprList(args))
 
-    case MethodCall(targets, recv, meth, args, path) =>
+    case MethodCall(targets, recv, meth, args) =>
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
-        showExpr(recv) <> "." <> showFieldPath(path) <> meth.name <> parens(showExprList(args))
+        showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -188,7 +188,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
     case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
-    case MPredicateAccess(recv, pred, args, path) => showExpr(recv) <> "." <> showFieldPath(path) <> pred.name <> parens(showExprList(args))
+    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> pred.name <> parens(showExprList(args))
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
@@ -202,14 +202,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 
-    case PureMethodCall(recv, meth, args, path, _) =>
-      showExpr(recv) <> "." <> showFieldPath(path) <> meth.name <> parens(showExprList(args))
+    case PureMethodCall(recv, meth, args, _) =>
+      showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
-    case FieldRef(recv, field, path) => showExpr(recv) <> "." <> showFieldPath(path) <> field.name
+    case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
@@ -246,12 +246,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Parameter(id, _)    => id
     case LocalVar.Ref(id, _) => id
     case LocalVar.Val(id, _) => id
+    case LocalVar.Inter(id, _) => id
   }
 
   def showVarDecl(v: Var): Doc = v match {
     case Parameter(id, t)    => id <> ":" <+> showType(t)
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
     case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
+    case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)
   }
 
   // types

@@ -41,11 +41,11 @@ class ExpressionsImpl extends Expressions {
           }
         } yield res
 
-      case in.PureMethodCall(recv, meth, args, path, typ) =>
+      case in.PureMethodCall(recv, meth, args, typ) =>
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
+          vRecvs <- ctx.loc.argument(recv)(ctx)
           vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
           app = vpr.FuncApp(meth.uniqueName, vRecvs ++ vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {

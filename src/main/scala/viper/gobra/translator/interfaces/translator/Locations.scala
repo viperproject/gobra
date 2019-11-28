@@ -17,8 +17,6 @@ trait Locations extends Generator {
 
   def argument(arg: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]]
 
-  def callReceiver(recv: in.Expr, path: in.MemberPath)(ctx: Context): CodeWriter[Vector[vpr.Exp]]
-
   def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt])
 
   def initialize(v: in.TopDeclaration)(ctx: Context): CodeWriter[vpr.Stmt]

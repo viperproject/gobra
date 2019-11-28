@@ -19,7 +19,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PConstDecl(typ, right, left) =>
       declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-    case n@PVarDecl(typ, right, left) =>
+    case n@PVarDecl(typ, right, left, _) =>
       declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n: PTypeDecl => isClassOrInterfaceType.errors(typeType(n.right))(n)
@@ -38,7 +38,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
         assignableTo.errors(exprType(right), exprType(left))(n)
 
-    case n@PShortVarDecl(rights, lefts) =>
+    case n@PShortVarDecl(rights, lefts, _) =>
       if (lefts.forall(pointsToData)) multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
       else message(n, s"at least one assignee in $lefts points to a type")
 

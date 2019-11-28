@@ -35,9 +35,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost)
-            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx))
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx))
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost, decl.addressable(idx))
             case _ => UnknownEntity()
           }
 
@@ -50,12 +50,11 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PFieldDecl => Field(decl, isGhost)
         case decl: PEmbeddedDecl => Embbed(decl, isGhost)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl, isGhost)
-        case decl: PNamedParameter => InParameter(decl, isGhost)
-        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost)
+        case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl, isGhost, decl.addressable)
+        case decl: PNamedParameter => InParameter(decl, isGhost, decl.addressable)
+        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable)
 
-        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost)
-
+        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
 
             // Ghost additions
 
@@ -78,23 +77,23 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost)
-            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx))
+            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx))
             case _ => UnknownEntity()
           }
 
         case decl: PShortForRange =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
-          RangeVariable(idx, decl.range, isGhost)
+          RangeVariable(idx, decl.range, isGhost, addressable = false) // TODO: check if range variables are addressable in Go
 
         case decl: PSelectShortRecv =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
-          StrictAssignModi(len, 1) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost)
+          StrictAssignModi(len, 1) match { // TODO: check if selection variables are addressable in Go
+            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost, addressable = false)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false)
             case _ => UnknownEntity()
           }
 

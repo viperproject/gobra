@@ -96,7 +96,7 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
 
 case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -165,7 +165,7 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PShortVarDecl(right: Vector[PExpression], left: Vector[PIdnUnk]) extends PSimpleStmt with PGhostifiableStatement
+case class PShortVarDecl(right: Vector[PExpression], left: Vector[PIdnUnk], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -510,7 +510,7 @@ sealed trait PParameter extends PMisc {
 
 sealed trait PActualParameter extends PParameter with PActualMisc
 
-case class PNamedParameter(id: PIdnDef, typ: PType) extends PActualParameter
+case class PNamedParameter(id: PIdnDef, typ: PType, addressable: Boolean) extends PActualParameter
 
 case class PUnnamedParameter(typ: PType) extends PActualParameter
 
@@ -518,7 +518,7 @@ sealed trait PReceiver extends PNode with PActualMisc {
   def typ: PMethodRecvType
 }
 
-case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType) extends PReceiver
+case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType, addressable: Boolean) extends PReceiver
 
 case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 

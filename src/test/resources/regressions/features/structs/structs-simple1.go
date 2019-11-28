@@ -11,11 +11,11 @@ func foo() {
 	assert x.val == 17;
 
 	y := cell{42};
-	z := y;
+	z! := y;
 	y.val = 17;
 	assert y.val == 17 && z.val == 42;
 
-    a := cell{42};
+    a! := cell{42};
     z = a;
     ap := &a;
     zp := &z;
@@ -29,7 +29,7 @@ func foo() {
 };
 
 func indirectAddressability() {
-    x := cell{42};
+    x! := cell{42};
     p := &x;
     p.val = 17;
     assert x.val == 17;

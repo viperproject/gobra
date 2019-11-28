@@ -41,14 +41,13 @@ sealed trait GlobalConst extends Member
 sealed trait Field extends Node {
   def name: String
   def typ: Type
-  def isEmbedding: Boolean
 }
 
 object Field {
-  def unapply(arg: Field): Option[(String, Type, Boolean)] = Some((arg.name, arg.typ, arg.isEmbedding))
+  def unapply(arg: Field): Option[(String, Type)] = Some((arg.name, arg.typ))
 
-  case class Ref(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Field
-  case class Val(name: String, typ: Type, isEmbedding: Boolean)(val info: Source.Parser.Info) extends Field
+  case class Ref(name: String, typ: Type)(val info: Source.Parser.Info) extends Field
+  case class Val(name: String, typ: Type)(val info: Source.Parser.Info) extends Field
 }
 
 
@@ -156,7 +155,7 @@ object CompositeObject {
 }
 
 case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, meth: MethodProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends Stmt
+case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -200,7 +199,7 @@ object Accessible {
 sealed trait PredicateAccess extends Node
 
 case class FPredicateAccess(pred: FPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
-case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr], path: MemberPath)(val info: Source.Parser.Info) extends PredicateAccess
+case class MPredicateAccess(recv: Expr, pred: MPredicateProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extends PredicateAccess
 
 
@@ -218,7 +217,7 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 }
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
-case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], path: MemberPath, typ: Type)(val info: Source.Parser.Info) extends Expr
+case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
@@ -248,7 +247,7 @@ object Ref {
   }
 }
 
-case class FieldRef(recv: Expr, field: Field, path: MemberPath)(val info: Source.Parser.Info) extends Expr with Location {
+case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) extends Expr with Location {
   override lazy val typ: Type = field.typ
 }
 
@@ -271,30 +270,20 @@ object Addressable {
     case _: Field2.Val => false
   }
 
-  def isFieldRefAddressable(isBaseAddressable: Boolean, typ: Type, f: Field2): Boolean = {
-    // (*base).f would be addressable
-    val isBaseEffectivelyAddressable = isBaseAddressable || Types.isStructPointerType(typ)
-    isBaseEffectivelyAddressable && isAddressable(f)
-  }
-
-  def isAddressable(expr: Expr, fields: Vector[Field2]): Boolean = {
-    fields.foldLeft((isAddressable(expr), expr.typ)){ case ((isBaseAddr, baseTyp), f) =>
-      (isFieldRefAddressable(isBaseAddr, baseTyp, f), f.typ)
-    }._1
+  def isNonAddressable(x: Expr): Boolean = {
+    x match {
+      case _: LocalVar.Inter => true
+      case _: Lit => true
+      case f: FieldRef => isNonAddressable(f.recv)
+      case _ => false
+    }
   }
 
   def isAddressable(x: Expr): Boolean = {
     x match {
       case _: LocalVar.Ref => true
       case _: Deref => true
-      case f: FieldRef =>
-        val (fields, last) = MemberPath.cut(f.path)
-        last match {
-          case Some(MemberPath.Ref) => false
-          case Some(MemberPath.Deref) => true
-          case None => isAddressable(f.recv, fields :+ f.field)
-        }
-
+      case f: FieldRef => isAddressable(f.field) && !isNonAddressable(f)
       case _ => false
     }
   }
@@ -381,6 +370,8 @@ sealed trait LocalVar extends BodyVar with BottomDeclaration {
 object LocalVar {
   case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
   case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar with TopDeclaration
+  case class Inter(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
+
 }
 
 //sealed trait GlobalVar extends Var {

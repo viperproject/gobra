@@ -65,25 +65,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
-  lazy val hasAddressedUse: PIdnNode => Boolean =
-    attr[PIdnNode, Boolean] { id =>
-      uses(id) exists isAddressedUse
-    }
-
-  lazy val isAddressedUse: PIdnUse => Boolean =
-    attr[PIdnUse, Boolean] {
-      case tree.parent(tree.parent.pair(_: PNamedOperand, _: PReference)) => true
-      case tree.parent(tree.parent.pair(_: PSelection | _: PSelectionOrMethodExpr, _: PReference)) => true
-      case id => enclosingIdCodeRoot(id) match {
-        case f: PFunctionLit if !containedIn(enclosingIdScope(id), f) => true
-        case _ => false
-      }
-    }
-
-
-
-  override def addressed(id: PIdnNode): Boolean = hasAddressedUse(id)
-
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")

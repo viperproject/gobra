@@ -56,7 +56,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n@ PAssignment(right, left) => assignableToAssignee(right: _*)(left: _*)
     case n@ PAssignmentWithOp(right, _, left) => assignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left) => assignableToId(right: _*)(left: _*)
+    case n@ PShortVarDecl(right, left, _) => assignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
       case PVoidResult() => violation("return arity not consistent with required enclosing arguments")

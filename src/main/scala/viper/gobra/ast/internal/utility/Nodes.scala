@@ -26,7 +26,7 @@ object Nodes {
       case PureFunction(name, args, results, pres, body) => Seq(name) ++ args ++ results ++ pres ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
-      case Field(name, typ, emb) => Seq()
+      case Field(name, typ) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -35,7 +35,7 @@ object Nodes {
         case Make(target, typ) => Seq(target, typ)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
-        case MethodCall(targets, recv, meth, args, path) => targets ++ Seq(recv, meth) ++ args
+        case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
         case Return() => Seq()
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
@@ -54,18 +54,18 @@ object Nodes {
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {
         case FPredicateAccess(pred, args) => Seq(pred) ++ args
-        case MPredicateAccess(recv, pred, args, path) => Seq(recv, pred) ++ args
+        case MPredicateAccess(recv, pred, args) => Seq(recv, pred) ++ args
         case MemoryPredicateAccess(arg) => Seq(arg)
       }
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, typ) => Seq(func) ++ args
-        case PureMethodCall(recv, meth, args, path, typ) => Seq(recv, meth) ++ args
+        case PureMethodCall(recv, meth, args, typ) => Seq(recv, meth) ++ args
         case DfltVal(typ) => Seq()
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
-        case FieldRef(recv, field, path) => Seq(recv, field)
+        case FieldRef(recv, field) => Seq(recv, field)
         case Negation(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
@@ -78,6 +78,7 @@ object Nodes {
         case Parameter(id, typ) => Seq()
         case LocalVar.Ref(id, typ) => Seq()
         case LocalVar.Val(id, typ) => Seq()
+        case LocalVar.Inter(id, typ) => Seq()
       }
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {

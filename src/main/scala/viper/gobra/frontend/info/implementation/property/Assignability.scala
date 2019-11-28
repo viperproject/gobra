@@ -50,7 +50,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
     case PIndexedExp(b, _) if exprType(b).isInstanceOf[MapT] => true
-    case e => addressable(e)
+    case e => goAddressable(e)
   }
 
   lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {

@@ -18,7 +18,7 @@ trait TypeInfo {
 
   def scope(n: PIdnNode): PScope
 
-  def addressed(id: PIdnNode): Boolean
+  def addressableVar(id: PIdnNode): Boolean
 
   def tree: Tree[PNode, PProgram]
 

@@ -74,9 +74,9 @@ class StatementsImpl extends Statements {
           vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
         } yield vpr.MethodCall(func.name, vArgss.flatten, vTargetss.flatten)(pos, info, errT)
 
-      case in.MethodCall(targets, recv, meth, args, path) =>
+      case in.MethodCall(targets, recv, meth, args) =>
         for {
-          vRecvs <- ctx.loc.callReceiver(recv, path)(ctx)
+          vRecvs <- ctx.loc.argument(recv)(ctx)
           vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
           vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
         } yield vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vTargetss.flatten)(pos, info, errT)

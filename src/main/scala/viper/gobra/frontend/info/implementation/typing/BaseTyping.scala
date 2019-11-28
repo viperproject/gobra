@@ -18,12 +18,15 @@ trait BaseTyping { this: TypeInfoImpl =>
     def valid: Boolean
   }
 
-  private case object UnsafeForwardMessage extends ValidityMessages {
+  private[typing] case object UnsafeForwardMessage extends ValidityMessages {
     override val out: Messages = noMessages
     override val valid: Boolean = false
   }
 
-  private case class LocalMessages(override val out: Messages) extends ValidityMessages {
+  private[typing] def unsafeMessage(cond: Boolean): ValidityMessages =
+    if (cond) UnsafeForwardMessage else LocalMessages(noMessages)
+
+  private[typing] case class LocalMessages(override val out: Messages) extends ValidityMessages {
     override def valid: Boolean = out.isEmpty
   }
 
@@ -56,6 +59,16 @@ trait BaseTyping { this: TypeInfoImpl =>
       override def unsafe: ValidityMessages = UnsafeForwardMessage
 
       override def compute(n: T): ValidityMessages = LocalMessages(check(n))
+    }
+
+  private[typing] def createWellDefWithValidityMessages[T <: PNode](check: T => ValidityMessages): WellDefinedness[T] =
+    new Attribution with WellDefinedness[T] with Safety[T, ValidityMessages] with Memoization[T, ValidityMessages] {
+
+      override def safe(n: T): Boolean = childrenWellDefined(n)
+
+      override def unsafe: ValidityMessages = UnsafeForwardMessage
+
+      override def compute(n: T): ValidityMessages = check(n)
     }
 
   private[typing] def createIndependentWellDef(check: PNode ==> Messages)(pre: PNode => Boolean): WellDefinedness[PNode] =

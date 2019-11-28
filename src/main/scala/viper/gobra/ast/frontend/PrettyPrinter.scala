@@ -109,7 +109,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
-    case PVarDecl(typ, right, left) => "var" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+    case PVarDecl(typ, right, left, addressable) =>
+      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showConstDecl(decl: PConstDecl): Doc = decl match {
@@ -124,11 +125,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showParameter(para: PParameter): Doc = para match {
     case PExplicitGhostParameter(p) => "ghost" <+> showParameter(p)
     case PUnnamedParameter(typ) => showType(typ)
-    case PNamedParameter(id, typ) => showId(id) <+> showType(typ)
+    case PNamedParameter(id, typ, addressable) => showAddressable(addressable, id) <+> showType(typ)
   }
 
   def showReceiver(rec: PReceiver): Doc = rec match {
-    case PNamedReceiver(id, typ) => parens(showId(id) <+> showType(typ))
+    case PNamedReceiver(id, typ, addressable) => parens(showAddressable(addressable, id) <+> showType(typ))
     case PUnnamedReceiver(typ) => parens(showType(typ))
   }
 
@@ -137,6 +138,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PResultClause(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
   }
 
+  def showAddressable(addressable: Boolean, id: PIdnNode): Doc =
+    (if (addressable) "!" else "") <> showId(id)
+
   // statements
 
   def showStmt(stmt: PStatement): Doc = stmt match {
@@ -144,7 +148,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PShortVarDecl(right, left) => showIdList(left) <+> ":=" <+> showExprList(right)
+      case PShortVarDecl(right, left, addressable) =>
+        showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
       case PLabeledStmt(label, s) => showId(label) <> ":" <+> showStmt(s)
       case PEmptyStmt() => emptyDoc
       case PExpressionStmt(exp) => showExpr(exp)

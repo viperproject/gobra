@@ -15,14 +15,16 @@ class AssertionsImpl extends Assertions {
 
   override def translate(ass: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = {
 
+    val (pos, info, errT) = ass.vprMeta
+
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     val ret = ass match {
-      case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)()
+      case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)(pos, info, errT)
       case in.ExprAssertion(e) => goE(e)
-      case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)()
+      case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access => ctx.loc.access(acc)(ctx)
     }
 

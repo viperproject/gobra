@@ -757,13 +757,13 @@ object Parser {
     lazy val assertion: Parser[PAssertion] =
      assertionPrecedence1
 
-    lazy val assertionPrecedence1: PackratParser[PAssertion] =
-      assertionPrecedence1 ~ ("&&" ~> assertionPrecedence2) ^^ PStar | /* Left-associative */
-        assertionPrecedence2
-
     lazy val assertionPrecedence2: PackratParser[PAssertion] =
-       (expression <~ "==>") ~ assertionPrecedence2 ^^ PImplication | /* Right-associative */
+      assertionPrecedence2 ~ ("&&" ~> assertionPrecedence3) ^^ PStar | /* Left-associative */
         assertionPrecedence3
+
+    lazy val assertionPrecedence1: PackratParser[PAssertion] =
+       (expression <~ "==>") ~ assertionPrecedence1 ^^ PImplication | /* Right-associative */
+        assertionPrecedence2
 
     lazy val assertionPrecedence3: PackratParser[PAssertion] =
       unaryAssertion

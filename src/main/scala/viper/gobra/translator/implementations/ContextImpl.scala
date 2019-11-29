@@ -1,5 +1,6 @@
 package viper.gobra.translator.implementations
 
+import viper.gobra.ast.internal.LookupTable
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator._
 import viper.gobra.translator.interfaces.components._
@@ -7,6 +8,7 @@ import viper.silver.ast.LocalVarDecl
 
 case class ContextImpl(
                         tuple: Tuples,
+                        typeProperty: TypeProperties,
                         ass: Assertions,
                         expr: Expressions,
                         method: Methods,
@@ -14,12 +16,14 @@ case class ContextImpl(
                         predicate: Predicates,
                         stmt: Statements,
                         typ: Types,
-                        loc: Locations
+                        loc: Locations,
+                        table: LookupTable
                       ) extends Context {
 
-  def this(conf: TranslatorConfig) {
+  def this(conf: TranslatorConfig, table: LookupTable) {
     this(
       conf.tuple,
+      conf.typeProperty,
       conf.ass,
       conf.expr,
       conf.method,
@@ -27,13 +31,15 @@ case class ContextImpl(
       conf.predicate,
       conf.stmt,
       conf.typ,
-      conf.loc
+      conf.loc,
+      table
     )
   }
 
   /** copy constructor */
   override def :=(
                    tupleN: Tuples = tuple,
+                   typePropertyN: TypeProperties = typeProperty,
                    assN: Assertions = ass,
                    exprN: Expressions = expr,
                    methodN: Methods = method,
@@ -44,6 +50,7 @@ case class ContextImpl(
                    locN: Locations = loc,
                  ): Context = copy(
     tuple,
+    typeProperty,
     assN,
     exprN,
     methodN,

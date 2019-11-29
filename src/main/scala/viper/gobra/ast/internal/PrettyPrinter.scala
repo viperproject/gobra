@@ -32,7 +32,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // program
 
   def showProgram(p: Program): Doc = p match {
-    case Program(types, members) =>
+    case Program(types, members, _) =>
       ssep(types map showTopType, line <> line) <>
       ssep(members map showMember, line <> line)
   }
@@ -92,7 +92,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showTypeDecl(t: DefinedT): Doc =
-    "type" <+> t.name <+> showType(t.right)
+    "type" <+> t.name <+> "..."
 
   def showPreconditions[T <: Assertion](list: Vector[T]): Doc =
     hcat(list  map ("requires " <> showAss(_) <> line))
@@ -216,15 +216,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case v: Var   => showVar(v)
   }
 
-  def showFieldPath(path: MemberPath): Doc = brackets(ssep(path.path map showFieldPathStep, ","))
-
-  def showFieldPathStep(step: MemberPath.Step): Doc = step match {
-    case MemberPath.Underlying => "~"
-    case MemberPath.Deref => "*"
-    case MemberPath.Ref => "&"
-    case MemberPath.Next(e) => "." <> e.name
-  }
-
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 
   // literals
@@ -232,12 +223,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
-    case sl@ StructLit(t, _) => showType(t) <> braces(
-      ssep(
-        sl.fieldZip.map{ case (f, e) => showField(f) <> ":" <+> showExpr(e)},
-        comma
-      )
-    )
+    case NilLit() => "nil"
+    case StructLit(t, args) => showType(t) <> braces(showExprList(args))
   }
 
   // variables
@@ -264,7 +251,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case VoidT => "void"
     case NilT => "nil"
     case PermissionT => "perm"
-    case DefinedT(name, _) => name
+    case DefinedT(name) => name
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))

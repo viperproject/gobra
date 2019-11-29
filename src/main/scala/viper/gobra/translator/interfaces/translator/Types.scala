@@ -4,4 +4,7 @@ import viper.gobra.ast.{internal => in}
 import viper.silver.{ast => vpr}
 
 abstract class Types
-  extends BaseTranslator[in.Type, vpr.Type]
+  extends BaseTranslator[in.Type, vpr.Type] {
+
+
+}

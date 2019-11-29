@@ -1,7 +1,6 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import in.Types.{isStructType, structType}
 import in.Addressable.isAddressable
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
@@ -246,7 +245,7 @@ class LocationsImpl extends Locations {
         case in.BoolT => unit(vpr.TrueLit()(pos, info, errT))
         case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
         case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
-        case in.DefinedT(_, t2) => ctx.loc.defaultValue(t2)(src)(ctx)
+        case t: in.DefinedT => ctx.loc.defaultValue(ctx.typeProperty.underlyingType(t)(ctx))(src)(ctx)
         case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
         case in.NilT => unit(vpr.NullLit()(pos, info, errT))
         case _ => Violation.violation(s"encountered unexpected inner type $t")
@@ -286,6 +285,7 @@ class LocationsImpl extends Locations {
     lit match {
       case in.IntLit(v) => unit(vpr.IntLit(v)(pos, info, errT))
       case in.BoolLit(b) => unit(vpr.BoolLit(b)(pos, info, errT))
+      case in.NilLit() => unit(vpr.NullLit()(pos, info, errT))
       case in.StructLit(typ, args) =>
         val lhsTrans = values(typ)(ctx)
         val rhsTrans = args map (arg => (arg, values(arg.typ)(ctx)))
@@ -350,7 +350,8 @@ class LocationsImpl extends Locations {
     mk.typ match {
       case in.CompositeObject.Struct(slit) =>
         val interVar = mk.target
-        val perField = slit.fieldZip.flatMap{ case (f, e) =>
+        val fieldZip = ctx.typeProperty.structType(slit.typ)(ctx).get.fields.zip(slit.args)
+        val perField = fieldZip.flatMap{ case (f, e) =>
           val fieldRef = in.FieldRef(in.Deref(interVar)(src), f)(src)
           val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
           val init = in.SingleAss(in.Assignee.Field(fieldRef), e)(src)
@@ -395,7 +396,7 @@ class LocationsImpl extends Locations {
     val perm = vpr.FullPerm()(pos, info, errT)
 
     def pointerAcc(recv: in.Location): CodeWriter[vpr.Exp] = {
-      if (isAddressable(recv) && !isStructType(recv.typ)) {
+      if (isAddressable(recv) && !ctx.typeProperty.isStructType(recv.typ)(ctx)) {
         for {
           r <- avalue(recv)(ctx)
         } yield vpr.FieldAccessPredicate(valAccess(r, recv.typ)(acc)(ctx), perm)(pos, info, errT)
@@ -464,8 +465,8 @@ class LocationsImpl extends Locations {
     }
 
     t match {
-      case u if isStructType(u) =>
-        valuePaths(u).map(fs => (r: in.Expr) => (rvalue(extendBase(r, fs))(ctx), SubValueRep(fs.last.typ)))
+      case u if ctx.typeProperty.isStructType(u)(ctx) =>
+        valuePaths(u)(ctx).map(fs => (r: in.Expr) => (rvalue(extendBase(r, fs))(ctx), SubValueRep(fs.last.typ)))
       case _ =>
         Vector(r => (rvalue(r)(ctx), SubValueRep(r.typ)))
     }
@@ -481,7 +482,7 @@ class LocationsImpl extends Locations {
 
     if (isAddressable(base)) {
       val vprABase = avalue(base.asInstanceOf[in.Location])(ctx)
-      structType(base.typ) match {
+      ctx.typeProperty.structType(base.typ)(ctx) match {
         case None =>
           val vprRBase = rvalue(base.asInstanceOf[in.Location])(ctx)
           for { ar <- vprABase; a <- init(ar)(base); br <- vprRBase; b <- init(br)(base) } yield a ++ b
@@ -494,7 +495,7 @@ class LocationsImpl extends Locations {
       }
     } else {
       val vprBase = rvalue(base)(ctx)
-      structType(base.typ) match {
+      ctx.typeProperty.structType(base.typ)(ctx) match {
         case None => for { r <- vprBase; a <- init(r)(base) } yield a
         case Some(st) =>
           sequence(st.fields map { f =>
@@ -522,13 +523,13 @@ class LocationsImpl extends Locations {
   /**
     * ValuePaths[S] -> { (f) | (f: not S') in S } + { f,g | (f: S') in S and g in ValuePaths[S'] }
     */
-  private def valuePaths(t: in.Type): Vector[Vector[in.Field]] = {
-    require(isStructType(t))
-    val st = structType(t).get
+  private def valuePaths(t: in.Type)(ctx: Context): Vector[Vector[in.Field]] = {
+    require(ctx.typeProperty.isStructType(t)(ctx))
+    val st = ctx.typeProperty.structType(t)(ctx).get
 
     st.fields.flatMap{
-      case f if isStructType(f.typ) =>
-        valuePaths(f.typ).map(fs => f +: fs)
+      case f if ctx.typeProperty.isStructType(f.typ)(ctx) =>
+        valuePaths(f.typ)(ctx).map(fs => f +: fs)
       case f => Vector(Vector(f))
     }
   }
@@ -574,7 +575,7 @@ class LocationsImpl extends Locations {
     l match {
       case l: in.Location =>
         if (isAddressable(l)) {
-          if (isStructType(l.typ)) avalue(l)(ctx)
+          if (ctx.typeProperty.isStructType(l.typ)(ctx)) avalue(l)(ctx)
           else for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
         } else {
           l match {

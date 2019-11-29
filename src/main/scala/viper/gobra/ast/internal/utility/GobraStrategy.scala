@@ -16,7 +16,7 @@ object GobraStrategy {
   def gobraDuplicator[N <: Node](x: N, args: Seq[AnyRef], meta: Node.Meta): N = {
     val node: Node = (x, args) match {
         // Members
-      case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m)(meta)
+      case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m, p.table)(meta)
       case (m: Method, Seq(rec: Parameter, name: MethodProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, name, arg, res, pre, post, b)(meta)
       case (m: PureMethod, Seq(rec: Parameter, name: MethodProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, name, arg, res, pre, b)(meta)
       case (f: Function, Seq(name: FunctionProxy, arg: Vector[Parameter@unchecked], res: Vector[LocalVar.Val@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(name, arg, res, pre, post, b)(meta)
@@ -81,6 +81,7 @@ object GobraStrategy {
       case (e: Old, Seq(op: Expr)) => Old(op)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
+      case (n: NilLit, Seq()) => NilLit()(meta)
       case (s: StructLit, Seq(args: Vector[Expr@unchecked])) => StructLit(s.typ, args)(meta)
       case (p: Parameter, Seq()) => Parameter(p.id, p.typ)(meta)
       case (l: LocalVar.Val, Seq()) => LocalVar.Val(l.id, l.typ)(meta)

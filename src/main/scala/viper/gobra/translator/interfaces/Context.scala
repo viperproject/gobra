@@ -1,13 +1,16 @@
 package viper.gobra.translator.interfaces
 
-import viper.gobra.translator.interfaces.components.Tuples
+import viper.gobra.ast.internal.LookupTable
+import viper.gobra.translator.interfaces.components.{Tuples, TypeProperties}
 import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 
 trait Context {
 
   // components
   def tuple: Tuples
+  def typeProperty: TypeProperties
 
   // translator
   def ass: Assertions
@@ -20,6 +23,11 @@ trait Context {
 
   def loc: Locations
 
+  // lookup
+
+  def table: LookupTable
+  def lookup(t: in.DefinedT): in.Type = table.lookup(t)
+
   // mapping
 
   def addVars(vars: vpr.LocalVarDecl*): Context
@@ -27,6 +35,7 @@ trait Context {
   /** copy constructor */
   def :=(
           tupleN: Tuples = tuple,
+          typeN: TypeProperties = typeProperty,
           assN: Assertions = ass,
           exprN: Expressions = expr,
           methodN: Methods = method,

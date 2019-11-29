@@ -180,7 +180,9 @@ object Desugar {
         case _ =>
       }
 
-      in.Program(types.toVector, dMembers)(meta(p))
+      val table = new in.LookupTable(definedTypes)
+
+      in.Program(types.toVector, dMembers, table)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
@@ -687,7 +689,7 @@ object Desugar {
       case class ReceivedField(op: st.StructMember, rfield: Writer[in.FieldRef]) extends ExprEntity
       case class Function(op: st.Function) extends ExprEntity
       case class ReceivedMethod(op: st.Method, recv: Writer[in.Expr]) extends ExprEntity
-      case class MethodExpr(op: st.Method, path: in.MemberPath) extends ExprEntity
+      case class MethodExpr(op: st.Method, path: Vector[MemberPath]) extends ExprEntity
     }
 
     def exprEntityD(ctx: FunctionContext)(expr: PExpression): ExprEntity = expr match {
@@ -717,13 +719,13 @@ object Desugar {
       }
 
       case PMethodExpr(base, id) => info.methodLookup(info.typ(base), id) match {
-        case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
+        case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
         case _ => Violation.violation("expected entity behind expression")
       }
 
       case PSelectionOrMethodExpr(base, id) => info.regular(base) match {
         case _: st.TypeEntity => info.methodLookup(info.typ(base), id) match {
-          case (m: st.Method, path) => ExprEntity.MethodExpr(m, memberPathD(path))
+          case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
           case _ => Violation.violation("expected entity behind expression")
         }
 
@@ -891,7 +893,7 @@ object Desugar {
                   case Vector(in.Tuple(targs)) => targs
                   case dargs => dargs
                 }
-                (realRecv, realRemainingArgs) = (realArgs.head, realArgs.tail)
+                (realRecv, realRemainingArgs) = (applyMemberPathD(realArgs.head, path)(src), realArgs.tail)
 
                 v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
                 else {
@@ -975,17 +977,6 @@ object Desugar {
       }
     }
 
-    def memberPathD(path: Vector[MemberPath]): in.MemberPath = {
-      in.MemberPath(
-        path map {
-          case MemberPath.Underlying => in.MemberPath.Underlying
-          case MemberPath.Deref => in.MemberPath.Deref
-          case MemberPath.Ref => in.MemberPath.Ref
-          case MemberPath.Next(decl) => in.MemberPath.Next(embeddedDeclD(decl.decl))
-        }
-      )
-    }
-
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(info: Source.Parser.Info): in.Expr = {
       path.foldLeft(base){ case (e, p) => p match {
         case MemberPath.Underlying => e
@@ -1003,6 +994,7 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
+        case PNilLit() => single(in.NilLit())
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
@@ -1032,9 +1024,25 @@ object Desugar {
     }
 
     def compositeTypeD(t: in.Type): CompositeKind = t match {
-      case _ if in.Types.isStructType(t) => CompositeKind.Struct(t, in.Types.structType(t).get)
+      case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
+
+    def underlyingType(typ: in.Type): in.Type = {
+      typ match {
+        case t: in.DefinedT => underlyingType(definedTypes(t.name)) // it is contained in the map, since 'typ' was translated
+        case _ => typ
+      }
+    }
+
+    def isStructType(typ: in.Type): Boolean = structType(typ).isDefined
+
+    def structType(typ: in.Type): Option[in.StructT] = underlyingType(typ) match {
+      case st: in.StructT => Some(st)
+      case _ => None
+    }
+
+
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
       val src = meta(lit)
@@ -1087,6 +1095,21 @@ object Desugar {
       t
     }
 
+    var definedTypes: Map[String, in.Type] = Map.empty
+    var definedTypesSet: Set[String] = Set.empty
+
+    def registerDefinedType(t: Type.DeclaredT): in.DefinedT = {
+      val name = idName(t.decl.left)
+
+      if (!definedTypesSet.contains(name)) {
+        definedTypesSet += name
+        val newEntry = typeD(info.typ(t.decl.right))
+        definedTypes += (name -> newEntry)
+      }
+
+      in.DefinedT(name)
+    }
+
     def embeddedTypeD(t: PEmbeddedType): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.typ(typ))
       case PEmbeddedPointer(typ) => registerType(in.PointerT(typeD(info.typ(typ))))
@@ -1095,7 +1118,7 @@ object Desugar {
     def typeD(t: Type): in.Type = t match {
       case Type.VoidType => in.VoidT
       case Type.NilType => in.NilT
-      case DeclaredT(decl) => registerType(in.DefinedT(idName(decl.left), typeD(info.typ(decl.right))))
+      case t: DeclaredT => registerType(registerDefinedType(t))
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
       case Type.ArrayT(length, elem) => ???
@@ -1230,8 +1253,13 @@ object Desugar {
     def embeddedDeclD(decl: PEmbeddedDecl): in.Field =
       in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ))(meta(decl))
 
-    def fieldDeclD(decl: PFieldDecl): in.Field =
-      in.Field.Ref(idName(decl.id), typeD(info.typ(decl.typ)))(meta(decl))
+    def fieldDeclD(decl: PFieldDecl): in.Field = {
+      val idname = idName(decl.id)
+      val infoT = info.typ(decl.typ)
+      val td = typeD(infoT)
+      in.Field.Ref(idname, td)(meta(decl))
+    }
+
 
     // Ghost Statement
 

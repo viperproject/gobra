@@ -17,7 +17,7 @@ class ProgramsImpl extends Programs {
 
     val (pos, info, errT) = program.vprMeta
 
-    val ctx = new ContextImpl(conf)
+    val ctx = new ContextImpl(conf, program.table)
 
     val progW = for {
       methods <- sequence(program.members collect {

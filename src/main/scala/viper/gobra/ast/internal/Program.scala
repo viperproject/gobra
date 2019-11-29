@@ -20,9 +20,15 @@ import viper.gobra.reporting.Source.Parser
 import viper.gobra.util.Violation
 
 case class Program(
-                    types: Vector[TopType], members: Vector[Member]
+                    types: Vector[TopType], members: Vector[Member], table: LookupTable
                   )(val info: Source.Parser.Info) extends Node {
 
+}
+
+class LookupTable(
+                 definedTypes: Map[String, Type]
+                  ) {
+  def lookup(t: DefinedT): Type = definedTypes(t.name)
 }
 
 sealed trait Member extends Node
@@ -340,18 +346,17 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT
 }
 
+case class NilLit()(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = NilT
+}
+
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
   lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
 }
 
 sealed trait CompositeLit extends Lit
 
-case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit {
-  lazy val structType: StructT = Types.structType(typ).get
-  require(structType.fields.size == args.size)
-
-  lazy val fieldZip: Vector[(Field, Expr)] = structType.fields.zip(args)
-}
+case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
 
 sealed trait Var extends Expr with Location {
@@ -385,55 +390,7 @@ object LocalVar {
 //}
 
 
-object Types {
 
-  def isStructType(typ: Type): Boolean = structType(typ).nonEmpty
-
-  def structType(typ: Type): Option[StructT] = underlyingType(typ) match {
-    case st: StructT => Some(st)
-    case _ => None
-  }
-
-  def isClassType(typ: Type): Boolean = classType(typ).nonEmpty
-
-  def classType(typ: Type): Option[StructT] = {
-    def afterAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
-      case st: StructT => Some(st)
-      case _ => None
-    }
-    def beforeAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
-      case PointerT(et) => afterAtMostOneRef(et)
-      case _ => afterAtMostOneRef(typ)
-    }
-    beforeAtMostOneRef(typ)
-  }
-
-  def isStructPointerType(typ: Type): Boolean = structPointerType(typ).nonEmpty
-
-  def structPointerType(typ: Type): Option[StructT] = {
-    def afterAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
-      case st: StructT => Some(st)
-      case _ => None
-    }
-    def beforeAtMostOneRef(typ: Type): Option[StructT] = underlyingType(typ) match {
-      case PointerT(et) => afterAtMostOneRef(et)
-      case _ => None
-    }
-    beforeAtMostOneRef(typ)
-  }
-
-  def isPointerTyp(typ: Type): Boolean = pointerTyp(typ).nonEmpty
-
-  def pointerTyp(typ: Type): Option[Type] = underlyingType(typ) match {
-    case PointerT(t) => Some(t)
-    case _ => None
-  }
-
-  def underlyingType(typ: Type): Type = typ match {
-    case DefinedT(_, right) => underlyingType(right)
-    case _ => typ
-  }
-}
 
 
 sealed trait Typed {
@@ -454,7 +411,7 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
-case class DefinedT(name: String, right: Type) extends Type with TopType
+case class DefinedT(name: String) extends Type with TopType
 
 case class PointerT(t: Type) extends Type with TopType
 
@@ -473,33 +430,6 @@ case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends P
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 
 
-object MemberPath {
-  sealed trait Step
-  sealed trait Last
-
-  case object Underlying extends Step
-  case object Deref extends Step with Last
-  case object Ref extends Step with Last
-  case class  Next(e: Field) extends Step
-
-  def cut(path: MemberPath): (Vector[Field], Option[Last]) = {
-    val lastFieldIdx = path.path.lastIndexWhere(_.isInstanceOf[MemberPath.Next])
-    val correctedLastFieldIdx = if (lastFieldIdx == -1) path.path.size - 1 else lastFieldIdx
-    val (promotionPath, afterPath) = path.path.splitAt(correctedLastFieldIdx + 1)
-    lazy val fields = promotionPath.collect{ case MemberPath.Next(f) => f }
-
-    val last = afterPath match {
-      case Vector() => None
-      case Vector(MemberPath.Ref) => Some(MemberPath.Ref)
-      case Vector(MemberPath.Deref) => Some(MemberPath.Deref)
-      case _ => Violation.violation("Found ill formed resolution path")
-    }
-
-    (fields, last)
-  }
-}
-
-case class MemberPath(path: Vector[MemberPath.Step])
 
 
 

@@ -24,7 +24,7 @@ class TypesImpl extends Types {
     case in.BoolT => vpr.Bool
     case in.IntT  => vpr.Int
     case in.PermissionT => vpr.Perm
-    case in.DefinedT(_, t) => translate(t)(ctx)
+    case t: in.DefinedT => translate(ctx.typeProperty.underlyingType(t)(ctx))(ctx)
     case in.PointerT(_) => vpr.Ref
     case in.NilT => vpr.Ref
     case st: in.StructT => vpr.Int // TODO
@@ -32,4 +32,6 @@ class TypesImpl extends Types {
 
     case in.VoidT => Violation.violation("void is not a translatable type")
   }
+
+
 }

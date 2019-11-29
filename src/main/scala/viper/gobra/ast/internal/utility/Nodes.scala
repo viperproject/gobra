@@ -19,7 +19,7 @@ object Nodes {
     */
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
-      case Program(types, members) => members
+      case Program(types, members, _) => members
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
       case PureMethod(receiver, name, args, results, pres, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ body
       case Function(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
@@ -73,6 +73,7 @@ object Nodes {
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()
+          case NilLit() => Seq()
           case StructLit(t, args) => args
         }
         case Parameter(id, typ) => Seq()

@@ -121,6 +121,16 @@ case class LoopInvariantEstablishmentError(info: Source.Verifier.Info) extends V
   override def localMessage: String = "Loop invariant might not be established"
 }
 
+case class LoopInvariantNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "invariant_not_well_formed"
+  override def localMessage: String = "Loop invariant is not well-formed"
+}
+
+case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "contract_not_well_formed"
+  override def localMessage: String = "Method contract is not well-formed"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

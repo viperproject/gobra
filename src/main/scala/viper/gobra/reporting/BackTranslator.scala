@@ -7,6 +7,7 @@
 package viper.gobra.reporting
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
+import viper.silver.{ast => vpr}
 import viper.silver
 
 object BackTranslator {
@@ -29,5 +30,10 @@ object BackTranslator {
     case BackendVerifier.Failure(errors, backtrack) =>
       val errorTranslator = new DefaultErrorBackTranslator(backtrack)
       VerifierResult.Failure(errors map errorTranslator.translate)
+  }
+
+  implicit class RichErrorMessage(error: silver.verifier.ErrorMessage) {
+    def causedBy(node: vpr.Node with vpr.Positioned): Boolean =
+      node == error.offendingNode && node.pos == error.offendingNode.pos
   }
 }

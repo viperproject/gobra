@@ -1,9 +1,13 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.silver.verifier.{errors => vprerr}
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
-import viper.gobra.translator.util.ViperWriter.{MemberWriter, CodeWriter}
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.silver.{ast => vpr}
 
 
@@ -32,10 +36,34 @@ class AssertionsImpl extends Assertions {
   }
 
   override def invariant(x: in.Assertion)(ctx: Context): (CodeWriter[Unit], vpr.Exp) = {
-    translate(x)(ctx).cut.swap
+    def invErr(inv: vpr.Exp): ErrorTransformer = {
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+        LoopInvariantNotWellFormedError(info)
+          .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+    }
+
+    val invWithErrorT = for {
+      inv <- translate(x)(ctx)
+      _ <- errorT(invErr(inv))
+    } yield inv
+
+    invWithErrorT.cut.swap
   }
 
-  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assumeExp(translate(x)(ctx))
+  def contract(x: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = {
+    def contractErr(inv: vpr.Exp): ErrorTransformer = {
+      case e@ vprerr.ContractNotWellformed(Source(info), reason, _) if e causedBy inv =>
+        MethodContractNotWellFormedError(info)
+          .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+    }
 
-  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assertExp(translate(x)(ctx))
+    for {
+      contract <- translate(x)(ctx)
+      _ <- errorT(contractErr(contract))
+    } yield contract
+  }
+
+  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assumeExp(contract(x)(ctx))
+
+  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assertExp(contract(x)(ctx))
 }

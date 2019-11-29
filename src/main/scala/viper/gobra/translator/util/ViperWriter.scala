@@ -6,6 +6,7 @@ import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
+import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
 
 
@@ -228,6 +229,12 @@ object ViperWriter {
       val newR = vpr.Seqn(codeSum.code.map(_.right) :+ r, codeSum.local ++ codeSum.global)(r.pos, r.info, r.errT)
       create(remainder, newR)
     }
+
+    def errorT(errTs: ErrorTransformer*): Writer[Unit] =
+      create(errTs.toVector.map(ErrorT), ())
+
+    def reasonR(reaTs: ReasonTransformer*): Writer[Unit] =
+      create(reaTs.toVector.map(ReasonT), ())
   }
 
   type MemberWriter[R] = MemberLevel.Writer[R]
@@ -310,6 +317,12 @@ object ViperWriter {
 
     def global(globals: vpr.Declaration*): Writer[Unit] =
       create(globals.toVector.map(Global), ())
+
+    def errorT(errTs: ErrorTransformer*): Writer[Unit] =
+      create(errTs.toVector.map(ErrorT), ())
+
+    def reasonR(reaTs: ReasonTransformer*): Writer[Unit] =
+      create(reaTs.toVector.map(ReasonT), ())
 
     def copyResult(r: vpr.Exp): CodeWriter[vpr.LocalVar] = {
       val z = vpr.LocalVar(Names.freshName, r.typ)(r.pos, r.info, r.errT)

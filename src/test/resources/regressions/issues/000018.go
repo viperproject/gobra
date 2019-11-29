@@ -14,3 +14,15 @@ func evens(n int) (e int) {
     if(n % 2 == 0) { e++; };
   };
 };
+
+type Point struct {
+  x int;
+  y int;
+};
+
+
+//:: ExpectedOutput(contract_not_well_formed:permission_error)
+ensures r.x == 0;
+func Origin() (r *Point) {
+  r = &Point{0, 0};
+};

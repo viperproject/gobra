@@ -50,6 +50,7 @@ class StatementsImpl extends Statements {
           } yield vpr.If(c, t, e)(pos, info, errT)
 
       case in.While(cond, invs, body) =>
+
         for {
           (cws, vCond) <- split(goE(cond))
           (iws, vInvs) = invs.map(ctx.ass.invariant(_)(ctx)).unzip

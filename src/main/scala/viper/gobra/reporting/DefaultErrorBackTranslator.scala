@@ -3,32 +3,51 @@ package viper.gobra.reporting
 import viper.silver
 import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
 
-class DefaultErrorBackTranslator(
-                                  backtrack: BackTranslator.BackTrackInfo
-                                ) extends BackTranslator.ErrorBackTranslator {
+object DefaultErrorBackTranslator {
 
-  protected val defaultErrorTransformer: BackTranslator.ErrorTransformer = {
-    case vprerr.AssignmentFailed(Source(info), reason, _) =>
-      AssignmentError(info) dueTo translate(reason)
-    case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
-      PostconditionError(info) dueTo translate(reason)
-    case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
-      PreconditionError(info) dueTo translate(reason)
-    case vprerr.AssertFailed(Source(info), reason, _) =>
-      AssertError(info) dueTo translate(reason)
-    case vprerr.ExhaleFailed(Source(info), reason, _) =>
-      ExhaleError(info) dueTo translate(reason)
-    case vprerr.FoldFailed(Source(info), reason, _) =>
-      FoldError(info) dueTo translate(reason)
-    case vprerr.UnfoldFailed(Source(info), reason, _) =>
-      UnfoldError(info) dueTo translate(reason)
-    case vprerr.LoopInvariantNotEstablished(Source(info), reason, _) =>
-      LoopInvariantEstablishmentError(info) dueTo translate(reason)
-    case vprerr.LoopInvariantNotPreserved(Source(info), reason, _) =>
-      LoopInvariantPreservationError(info) dueTo translate(reason)
+  def translateWithTransformer(
+                                viperError: viper.silver.verifier.VerificationError,
+                                transformer: BackTranslator.ErrorTransformer
+                              ): VerificationError = {
+    transformer.lift.apply(viperError).getOrElse{
+      val message: String =
+        s"""
+           |Failed to back-translate a Viper error
+           |  ${viperError.readableMessage}
+           |    error is ${viperError.getClass.getSimpleName}
+           |    error off. node = ${viperError.offendingNode}
+           |    error off. node src = ${Source.unapply(viperError.offendingNode)}
+           |    reason is ${viperError.reason.getClass.getSimpleName}
+           |    reason off. node = ${viperError.reason.offendingNode}
+           |    reason off. node src = ${Source.unapply(viperError.reason.offendingNode)}
+        """.stripMargin
+
+      throw new java.lang.IllegalStateException(message)
+    }
   }
 
-  protected val defaultReasonTransformer: BackTranslator.ReasonTransformer = {
+  def translateWithTransformer(
+                                viperReason: silver.verifier.ErrorReason,
+                                transformer: BackTranslator.ReasonTransformer
+                              ): VerificationErrorReason = {
+    transformer.lift.apply(viperReason).getOrElse{
+      val message: String =
+        s"""
+           |Failed to back-translate a Viper reason
+           |  ${viperReason.readableMessage}
+           |    error is ${viperReason.getClass.getSimpleName}
+           |    error off. node = ${viperReason.offendingNode}
+           |    error off. node src = ${Source.unapply(viperReason.offendingNode)}
+        """.stripMargin
+
+      throw new java.lang.IllegalStateException(message)
+    }
+  }
+
+  def defaultTranslate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason =
+    translateWithTransformer(viperReason, defaultReasonTransformer)
+
+  val defaultReasonTransformer: BackTranslator.ReasonTransformer = {
     case vprrea.InsufficientPermission(Source(info)) =>
       InsufficientPermissionError(info)
     case vprrea.AssertionFalse(Source(info)) =>
@@ -56,44 +75,45 @@ class DefaultErrorBackTranslator(
     //      case vprrea.SeqIndexNegative(seq, offendingNode) =>
     //      case vprrea.SeqIndexExceedsLength(seq, offendingNode) =>
   }
+}
+
+class DefaultErrorBackTranslator(
+                                  backtrack: BackTranslator.BackTrackInfo
+                                ) extends BackTranslator.ErrorBackTranslator {
+
+  protected val defaultErrorTransformer: BackTranslator.ErrorTransformer = {
+    case vprerr.AssignmentFailed(Source(info), reason, _) =>
+      AssignmentError(info) dueTo translate(reason)
+    case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
+      PostconditionError(info) dueTo translate(reason)
+    case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
+      PreconditionError(info) dueTo translate(reason)
+    case vprerr.AssertFailed(Source(info), reason, _) =>
+      AssertError(info) dueTo translate(reason)
+    case vprerr.ExhaleFailed(Source(info), reason, _) =>
+      ExhaleError(info) dueTo translate(reason)
+    case vprerr.FoldFailed(Source(info), reason, _) =>
+      FoldError(info) dueTo translate(reason)
+    case vprerr.UnfoldFailed(Source(info), reason, _) =>
+      UnfoldError(info) dueTo translate(reason)
+    case vprerr.LoopInvariantNotEstablished(Source(info), reason, _) =>
+      LoopInvariantEstablishmentError(info) dueTo translate(reason)
+    case vprerr.LoopInvariantNotPreserved(Source(info), reason, _) =>
+      LoopInvariantPreservationError(info) dueTo translate(reason)
+  }
 
   private val errorTransformer = backtrack.errorT.foldLeft(defaultErrorTransformer){
     case (l, r) => l orElse r
   }
-  private val reasonTransformer = backtrack.reasonT.foldLeft(defaultReasonTransformer){
+  private val reasonTransformer = backtrack.reasonT.foldLeft(DefaultErrorBackTranslator.defaultReasonTransformer){
     case (l, r) => l orElse r
   }
 
-  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError = {
-    errorTransformer.lift.apply(viperError).getOrElse{
-      val message: String =
-        s"""
-          |Failed to back-translate a Viper error
-          |  ${viperError.readableMessage}
-          |    error is ${viperError.getClass.getSimpleName}
-          |    error off. node = ${viperError.offendingNode}
-          |    error off. node src = ${Source.unapply(viperError.offendingNode)}
-          |    reason is ${viperError.reason.getClass.getSimpleName}
-          |    reason off. node = ${viperError.reason.offendingNode}
-          |    reason off. node src = ${Source.unapply(viperError.reason.offendingNode)}
-        """.stripMargin
+  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError =
+    DefaultErrorBackTranslator.translateWithTransformer(viperError, errorTransformer)
 
-      throw new java.lang.IllegalStateException(message)
-    }
-  }
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {
-    reasonTransformer.lift.apply(viperReason).getOrElse{
-      val message: String =
-        s"""
-           |Failed to back-translate a Viper reason
-           |  ${viperReason.readableMessage}
-           |    error is ${viperReason.getClass.getSimpleName}
-           |    error off. node = ${viperReason.offendingNode}
-           |    error off. node src = ${Source.unapply(viperReason.offendingNode)}
-        """.stripMargin
-
-      throw new java.lang.IllegalStateException(message)
-    }
+    DefaultErrorBackTranslator.translateWithTransformer(viperReason, reasonTransformer)
   }
 }

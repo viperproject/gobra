@@ -133,9 +133,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUnnamedReceiver(typ) => parens(showType(typ))
   }
 
-  def showResult(res: PResult): Doc = res match {
-    case PVoidResult() => emptyDoc
-    case PResultClause(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
+  def showResult(res: PResult): Doc = {
+    val outs = res.outs
+    if (outs.size == 0) emptyDoc else
+      space <> (if (outs.size == 1) showParameter(outs.head)
+                else parens(showParameterList(outs)))
   }
 
   def showAddressable(addressable: Boolean, id: PIdnNode): Doc =

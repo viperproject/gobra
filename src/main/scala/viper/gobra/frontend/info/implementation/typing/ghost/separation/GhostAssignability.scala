@@ -109,10 +109,8 @@ trait GhostAssignability { this: TypeInfoImpl =>
     calleeReturnGhostTyping(regular(callee))
 
   private[separation] def calleeReturnGhostTyping(r: Entity): GhostType = {
-    def resultTyping(result: PResult): GhostType = result match {
-      case PVoidResult() => GhostType.notGhost
-      case PResultClause(outs) => GhostType.ghostTuple(outs.map(ghostParameterClassification))
-    }
+    def resultTyping(result: PResult): GhostType =
+      GhostType.ghostTuple(result.outs.map(ghostParameterClassification))
 
     r match {
       case x: Regular if x.ghost => GhostType.isGhost

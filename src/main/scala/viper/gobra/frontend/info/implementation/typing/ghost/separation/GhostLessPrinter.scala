@@ -21,12 +21,8 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   private def filterParamList[T <: PParameter](paras: Vector[T]): Vector[T] =
     paras.filter(!classifier.isParamGhost(_))
 
-  private def filterResult(res: PResult): PResult = res match {
-    case n: PVoidResult => n
-    case PResultClause(outs) =>
-      val aOuts = outs.filter(!classifier.isParamGhost(_))
-      if (aOuts.isEmpty) PVoidResult() else PResultClause(aOuts)
-  }
+  private def filterResult(res: PResult): PResult =
+    PResult(res.outs.filter(!classifier.isParamGhost(_)))
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
 

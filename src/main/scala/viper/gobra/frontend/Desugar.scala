@@ -202,8 +202,7 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
+        case NoGhost(PResult(outs)) => outs map { o =>
           val (param, sub) = parameterD(o)
           (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
         }
@@ -275,13 +274,10 @@ object Desugar {
         case _ =>
       }
 
-      decl.result match {
-        case PVoidResult() =>
-        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
-          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
-          case _ =>
-        }
+      (decl.result.outs zip returnsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case _ =>
       }
 
 
@@ -304,8 +300,7 @@ object Desugar {
       val (args, _) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
+        case NoGhost(PResult(outs)) => outs map { o =>
           val (param, sub) = parameterD(o)
           (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
         }
@@ -341,8 +336,7 @@ object Desugar {
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
+        case NoGhost(PResult(outs)) => outs map { o =>
           val (param, sub) = parameterD(o)
           (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
         }
@@ -425,13 +419,10 @@ object Desugar {
         case _ =>
       }
 
-      decl.result match {
-        case PVoidResult() =>
-        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
-          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
-          case _ =>
-        }
+      (decl.result.outs zip returnsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case _ =>
       }
 
 
@@ -457,8 +448,7 @@ object Desugar {
       val (args, _) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
+        case NoGhost(PResult(outs)) => outs map { o =>
           val (param, sub) = parameterD(o)
           (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
         }
@@ -830,10 +820,7 @@ object Desugar {
 
                 v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
                 else {
-                  val targets = fsym.decl.result match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                  }
+                  val targets = fsym.decl.result.outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
                   for {
                     _ <- declare(targets: _*)
                     _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
@@ -864,10 +851,7 @@ object Desugar {
 
                 v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, typeD(info.typ(fres)))(src))
                 else {
-                  val targets = fres match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                  }
+                  val targets = fres.outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
                   for {
                     _ <- declare(targets: _*)
                     _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs)(src))
@@ -898,10 +882,7 @@ object Desugar {
 
                 v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
                 else {
-                  val targets = fres match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                  }
+                  val targets = fres.outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
                   for {
                     _ <- declare(targets: _*)
                     _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs)(src))
@@ -930,10 +911,7 @@ object Desugar {
 
                 v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
                 else {
-                  val targets = fsym.decl.result match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                  }
+                  val targets = fsym.decl.result.outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
                   for {
                     _ <- declare(targets: _*)
                     _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))

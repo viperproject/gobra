@@ -651,9 +651,9 @@ object Parser {
 
 
     lazy val result: PackratParser[PResult] =
-      parameters ^^ PResultClause |
-        typ ^^ (t => PResultClause(Vector(PUnnamedParameter(t).at(t)))) |
-        success(PVoidResult())
+      parameters ^^ PResult |
+        typ ^^ (t => PResult(Vector(PUnnamedParameter(t).at(t)))) |
+        success(PResult(Vector()))
 
     lazy val parameters: Parser[Vector[PParameter]] =
       "(" ~> (parameterList <~ ",".?).? <~ ")" ^^ {

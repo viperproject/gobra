@@ -3,7 +3,6 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
 
@@ -58,10 +57,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ PShortVarDecl(right, left, _) => assignableToId(right: _*)(left: _*)
 
-    case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
-      case PVoidResult() => violation("return arity not consistent with required enclosing arguments")
-      case PResultClause(left) => assignableToParam(right: _*)(left: _*)
-    }
+    case n@ PReturn(right) =>
+      if(right.size == 0) noMessages else
+      assignableToParam(right: _*)(enclosingCodeRootWithResult(n).result.outs:_*)
   }
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {

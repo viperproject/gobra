@@ -42,7 +42,7 @@ class MethodsImpl extends Methods {
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core))(pos, info, errT)
+        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -84,7 +84,7 @@ class MethodsImpl extends Methods {
           init <- resultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core))(pos, info, errT)
+        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
       }})
 
       method = vpr.Method(

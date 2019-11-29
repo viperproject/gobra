@@ -12,8 +12,8 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
     case (Single(left), Single(right)) =>
       assignableTo(left, right) && assignableTo(right, left) && ((left, right) match {
         case (l, r) if comparableType(l) && comparableType(r) => true
-        case (NilType, _: SliceT | _: MapT | _: FunctionT) => true
-        case (_: SliceT | _: MapT | _: FunctionT, NilType) => true
+        case (NilType, r) if isPointerType(r) => true
+        case (l, NilType) if isPointerType(l) => true
         case _ => false
       })
     case _ => false

@@ -42,7 +42,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
       case (l, r: InterfaceT) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (NilType, _: PointerT | _: FunctionT | _: SliceT | _: MapT | _: ChannelT | _: InterfaceT) => true
+      case (l, NilType) if isPointerType(l) => true // not in spec
+      case (NilType, r) if isPointerType(r) => true
       case _ => false
     }
     case _ => false

@@ -242,7 +242,7 @@ class LocationsImpl extends Locations {
 
     def leafVal(t: in.Type): CodeWriter[vpr.Exp] = {
       t match {
-        case in.BoolT => unit(vpr.TrueLit()(pos, info, errT))
+        case in.BoolT => unit(vpr.FalseLit()(pos, info, errT))
         case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
         case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
         case t: in.DefinedT => ctx.loc.defaultValue(ctx.typeProperty.underlyingType(t)(ctx))(src)(ctx)

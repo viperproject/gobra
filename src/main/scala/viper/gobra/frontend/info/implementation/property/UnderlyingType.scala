@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PDeclaredType, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PPointerType, PStructType, PType, PTypeDecl}
-import viper.gobra.frontend.info.base.Type.{DeclaredT, InterfaceT, PointerT, Single, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -116,6 +116,19 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val isClassOrInterfaceTypePE: Property[PEmbeddedType] = createBinaryProperty("a class or interface type"){
     t => isClassTypePE(t) || isInterfaceTypePE(t)
+  }
+
+
+  lazy val isPointerType: Property[Type] = createBinaryProperty(("is a pointer type")){ t =>
+    underlyingType(t) match {
+      case NilType => true
+      case _: PointerT => true
+      case _: SliceT => true
+      case _: MapT => true
+      case _: ChannelT => true
+      case _: FunctionT => true
+      case _ => false
+    }
   }
 
 

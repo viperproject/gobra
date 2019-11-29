@@ -12,9 +12,9 @@ type list struct{
 
 
 
-
-
 func client() {
     x := &list{42, nil};
 
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert x == nil;
 };

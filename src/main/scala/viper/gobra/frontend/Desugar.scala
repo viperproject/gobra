@@ -649,6 +649,9 @@ object Desugar {
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
+            /* TODO: ctx.ret appears to handle (supposedly) correctly
+             *   tupled returns, but goE fails early in that case,
+             *   because type is not handled. */
             for{es <- sequence(exps map goE)} yield ctx.ret(es)(src)
 
           case g: PGhostStatement => ghostStmtD(ctx)(g)

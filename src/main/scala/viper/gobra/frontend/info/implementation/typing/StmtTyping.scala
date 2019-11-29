@@ -89,9 +89,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       if(exps.size == 0) noMessages
       else {
         val outs = enclosingCodeRootWithResult(n).result.outs
-        if (exps.size != outs.size)
-          message(n,s"arity mismatch between return and signature")
-        else if (outs forall wellDefMisc.valid)
+        if (outs forall wellDefMisc.valid)
           multiAssignableTo.errors(exps map exprType, outs map miscType)(n)
         else message(n, s"return cannot be checked because the enclosing signature is incorrect")
       }

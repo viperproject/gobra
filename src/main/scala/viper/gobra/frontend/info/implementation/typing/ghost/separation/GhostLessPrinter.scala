@@ -56,6 +56,9 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       }
 
     case n@ PReturn(right) =>
+      /* TODO: does not sounds right.
+       * What happens if 'right' is a single call to a multi-return
+       * function ? */
       val gt = classifier.expectedReturnGhostTyping(n)
       val aRight = right.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showStmt(PReturn(aRight))

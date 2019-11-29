@@ -131,6 +131,7 @@ object Desugar {
       val (metaInfo, id) = sym match {
         case st.MPredicateImpl(decl) => (meta(decl), decl.id)
         case st.MPredicateImpl(spec) => (meta(spec), spec.id)
+        case st.MPredicateSpec(_) => assert(false); ???
       }
 
       getProxy(id).getOrElse{
@@ -1236,6 +1237,7 @@ object Desugar {
     def localAlias(internal: in.LocalVar): in.LocalVar = internal match {
       case in.LocalVar.Ref(id, typ) => in.LocalVar.Ref(nm.alias(id), typ)(internal.info)
       case in.LocalVar.Val(id, typ) => in.LocalVar.Val(nm.alias(id), typ)(internal.info)
+      case in.LocalVar.Inter(id, typ) => assert(false); ???
     }
 
     def structClauseD(clause: PStructClause): Vector[in.Field] = clause match {

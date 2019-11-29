@@ -133,6 +133,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   override def isInterfaceClauseGhost(clause: PInterfaceClause): Boolean = clause match {
     case _: PInterfaceName => false
     case _: PMethodSig => false
+    case _: PInterfaceClause => assert(false); ???
   }
 
   override def expectedReturnGhostTyping(ret: PReturn): GhostType = enclosingCodeRootWithResult(ret).result match {

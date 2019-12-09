@@ -199,7 +199,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Old(op) => "old(" <> showExpr(op) <> ")"
 
-    case Conditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+    case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))

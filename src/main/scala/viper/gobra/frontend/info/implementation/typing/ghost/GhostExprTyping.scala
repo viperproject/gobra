@@ -12,19 +12,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
     case POld(op) => isPureExpr(op)
-    case p@PConditional(cond, thn, els) =>
+    case PConditional(cond, thn, els) =>
       // check that cond is of type bool:
-      comparableTypes.errors(exprType(cond), BooleanT)(p) ++
+      comparableTypes.errors(exprType(cond), BooleanT)(expr) ++
       // check that thn and els have a common type
-      mergeableTypes.errors(exprType(thn), exprType(els))(p)
+      mergeableTypes.errors(exprType(thn), exprType(els))(expr)
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
-    case PConditional(cond, thn, els) => {
-      val superTypes: Set[Type] = typeMerge(exprType(thn), exprType(els))
-      superTypes.headOption.getOrElse(violation("no common supertype found"))
-    }
+    case PConditional(cond, thn, els) =>
+      typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {

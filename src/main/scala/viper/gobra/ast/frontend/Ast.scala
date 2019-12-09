@@ -320,8 +320,6 @@ case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class POr(left: PExpression, right: PExpression) extends PBinaryExp
 
-case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
-
 case class PLess(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class PAtMost(left: PExpression, right: PExpression) extends PBinaryExp
@@ -630,6 +628,8 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 //case class PNoPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression
+
+case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 
 /**
   * Assertions

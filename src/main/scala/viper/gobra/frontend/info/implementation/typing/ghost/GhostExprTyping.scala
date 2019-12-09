@@ -3,18 +3,28 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.Type
+import viper.gobra.frontend.info.base.Type.{BooleanT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.Violation.violation
 
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
     case POld(op) => isPureExpr(op)
+    case p@PConditional(cond, thn, els) =>
+      // check that cond is of type bool:
+      comparableTypes.errors(exprType(cond), BooleanT)(p) ++
+      // check that thn and els have a common type
+      mergeableTypes.errors(exprType(thn), exprType(els))(p)
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
+    case PConditional(cond, thn, els) => {
+      val superTypes: Set[Type] = typeMerge(exprType(thn), exprType(els))
+      superTypes.headOption.getOrElse(violation("no common supertype found"))
+    }
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -64,6 +74,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PUnfolding => true
 
       case _: POld => true
+
+      case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
 
       case n@PCompositeLit(t, lit) => true
 

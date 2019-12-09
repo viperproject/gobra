@@ -46,6 +46,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with ConstantEvaluation
   with Implements
   with UnderlyingType
+  with TypeMerging
 
   with Errors
   with StrictLogging

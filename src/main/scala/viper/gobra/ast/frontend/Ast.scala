@@ -320,6 +320,8 @@ case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class POr(left: PExpression, right: PExpression) extends PBinaryExp
 
+case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
+
 case class PLess(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class PAtMost(left: PExpression, right: PExpression) extends PBinaryExp

@@ -397,35 +397,39 @@ object Parser {
     lazy val expression: Parser[PExpression] =
       precedence1
 
-    lazy val precedence1: PackratParser[PExpression] = /* Left-associative */
-      precedence1 ~ ("||" ~> precedence2) ^^ POr |
+    lazy val precedence1: PackratParser[PExpression] = /* Right-associative */
+      precedence2 ~ ("?" ~> precedence1 <~ ":") ~ precedence1 ^^ PConditional |
         precedence2
 
     lazy val precedence2: PackratParser[PExpression] = /* Left-associative */
-      precedence2 ~ ("&&" ~> precedence3) ^^ PAnd |
+      precedence2 ~ ("||" ~> precedence3) ^^ POr |
         precedence3
 
     lazy val precedence3: PackratParser[PExpression] = /* Left-associative */
-      precedence3 ~ ("==" ~> precedence4) ^^ PEquals |
-        precedence3 ~ ("!=" ~> precedence4) ^^ PUnequals |
-        precedence3 ~ ("<" ~> precedence4) ^^ PLess |
-        precedence3 ~ ("<=" ~> precedence4) ^^ PAtMost |
-        precedence3 ~ (">" ~> precedence4) ^^ PGreater |
-        precedence3 ~ (">=" ~> precedence4) ^^ PAtLeast |
+      precedence3 ~ ("&&" ~> precedence4) ^^ PAnd |
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("+" ~> precedence5) ^^ PAdd |
-        precedence4 ~ ("-" ~> precedence5) ^^ PSub |
+      precedence4 ~ ("==" ~> precedence5) ^^ PEquals |
+        precedence4 ~ ("!=" ~> precedence5) ^^ PUnequals |
+        precedence4 ~ ("<" ~> precedence5) ^^ PLess |
+        precedence4 ~ ("<=" ~> precedence5) ^^ PAtMost |
+        precedence4 ~ (">" ~> precedence5) ^^ PGreater |
+        precedence4 ~ (">=" ~> precedence5) ^^ PAtLeast |
         precedence5
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("*" ~> precedence6) ^^ PMul |
-        precedence5 ~ ("/" ~> precedence6) ^^ PDiv |
-        precedence5 ~ ("%" ~> precedence6) ^^ PMod |
+      precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
+        precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6
 
-    lazy val precedence6: PackratParser[PExpression] =
+    lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
+      precedence6 ~ ("*" ~> precedence7) ^^ PMul |
+        precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
+        precedence6 ~ ("%" ~> precedence7) ^^ PMod |
+        precedence7
+
+    lazy val precedence7: PackratParser[PExpression] =
       unaryExp
 
 

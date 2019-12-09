@@ -13,6 +13,5 @@ ghost
 requires list(ptr);
 ensures list(ptr);
 pure func first(ptr *node) (res int) {
-  // return ptr == nil ? -1 : ptr.value;
-  return ptr == nil ? -1 : 1;
+  return unfolding list(ptr) in (ptr == nil ? -1 : ptr.value);
 };

@@ -370,6 +370,8 @@ class LocationsImpl extends Locations {
 
 
   /**
+    *
+    *
     * [acc(*e )] -> PointerAcc[*e]
     * [acc(e.f)] -> FieldAcc[e.f] && PointerAcc[e.f]
     * [acc(  p(as)] -> p(Argument[as])
@@ -385,6 +387,7 @@ class LocationsImpl extends Locations {
     *
     * FieldAcc[!e.f] -> acc(R[e].f)
     * FieldAcc[?e.f] -> true
+    *
     *
     *
     * translates a a field access keeping the last address
@@ -519,6 +522,7 @@ class LocationsImpl extends Locations {
       case _ => Violation.violation(s"expected variable of field access, but got $e")
     }
   }
+
 
   /**
     * ValuePaths[S] -> { (f) | (f: not S') in S } + { f,g | (f: S') in S and g in ValuePaths[S'] }

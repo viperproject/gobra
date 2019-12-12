@@ -2,6 +2,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 
@@ -217,7 +218,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
-
       case tree.parent.pair(id: PIdnUse, e@ PMPredOrMethRecvOrExprCall(_, f, _)) if id == f =>
         resolveMPredOrMethExprOrRecvCall(e)
         { case (b, i, _) => findSelection(b, i) }
@@ -232,6 +232,11 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
 
+      case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
+        val litType = miscType(lv)
+        if (underlyingType(litType).isInstanceOf[StructT]) { // if the enclosing literal is a struct then id is a field
+          findField(litType, id).getOrElse(UnknownEntity())
+        } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
 
       case n =>
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())

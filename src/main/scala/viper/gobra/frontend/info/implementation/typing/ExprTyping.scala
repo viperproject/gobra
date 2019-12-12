@@ -152,10 +152,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PIntLit => IntT
     case _: PNilLit => NilType
 
-    case PCompositeLit(PImplicitSizeArrayType(e), lit) =>
-      ArrayT(lit.elems.size, typeType(e))
-
-    case PCompositeLit(t: PType, _) => typeType(t)
+    case cl: PCompositeLit => expectedCompositeLitType(cl)
 
     case PFunctionLit(args, r, _) =>
       FunctionT(args map miscType, miscType(r))
@@ -228,5 +225,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PUnfolding => exprType(n.op)
 
     case e => violation(s"unexpected expression $e")
+  }
+
+  def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
+    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
+    case t: PType => typeType(t)
   }
 }

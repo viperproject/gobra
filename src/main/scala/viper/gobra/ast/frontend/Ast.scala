@@ -34,8 +34,6 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
-sealed trait PUncheckedUse extends PNode
-
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImportDecl],
@@ -262,17 +260,19 @@ case class PNilLit() extends PBasicLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
-case class PLiteralValue(elems: Vector[PKeyedElement]) extends PNode
+sealed trait PShortCircuitMisc extends PMisc
 
-case class PKeyedElement(key: Option[PCompositeKey], exp: PCompositeVal) extends PNode
+case class PLiteralValue(elems: Vector[PKeyedElement]) extends PShortCircuitMisc
+
+case class PKeyedElement(key: Option[PCompositeKey], exp: PCompositeVal) extends PShortCircuitMisc
 
 sealed trait PCompositeKey extends PNode
 
-case class PIdentifierKey(id: PIdnUse) extends PCompositeKey with PUncheckedUse
+case class PIdentifierKey(id: PIdnUse) extends PCompositeKey
 
-sealed trait PCompositeVal extends PCompositeKey
+sealed trait PCompositeVal extends PCompositeKey with PShortCircuitMisc
 
-case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is never a named operand
+case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is never a named operand as a key
 
 case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 

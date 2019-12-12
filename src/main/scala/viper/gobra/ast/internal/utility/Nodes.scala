@@ -70,6 +70,7 @@ object Nodes {
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
         case Old(op) => Seq(op)
+        case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case l: Lit => l match {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()

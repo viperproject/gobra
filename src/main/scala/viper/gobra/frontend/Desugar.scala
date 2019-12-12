@@ -1295,6 +1295,8 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
+        case PConditional(cond, thn, els) => for {wcond <- go(cond); wthn <- go(thn); wels <- go(els)
+                                                  } yield in.Conditional(wcond, wthn, wels, typ)(src)
       }
     }
 

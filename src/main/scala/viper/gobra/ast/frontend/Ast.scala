@@ -629,6 +629,8 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 
 case class POld(operand: PExpression) extends PGhostExpression
 
+case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
+
 /**
   * Assertions
   */

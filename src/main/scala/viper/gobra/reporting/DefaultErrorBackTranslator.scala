@@ -102,10 +102,10 @@ class DefaultErrorBackTranslator(
       LoopInvariantPreservationError(info) dueTo translate(reason)
   }
 
-  private val errorTransformer = backtrack.errorT.foldLeft(defaultErrorTransformer){
+  private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer){
     case (l, r) => l orElse r
   }
-  private val reasonTransformer = backtrack.reasonT.foldLeft(DefaultErrorBackTranslator.defaultReasonTransformer){
+  private val reasonTransformer = backtrack.reasonT.foldRight(DefaultErrorBackTranslator.defaultReasonTransformer){
     case (l, r) => l orElse r
   }
 

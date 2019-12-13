@@ -11,10 +11,26 @@ func Origin() (r Point) {
 };
 
 
-func init() {
+func init1() {
   a := Point{y: 5};
   assert a.x == 0 && a.y == 5;
 
   b := Point{};
   assert b.x == 0 && b.y == 0;
+};
+
+type Cell struct {
+  val int;
+};
+
+type Pair struct {
+  left, right Cell;
+};
+
+func init2() {
+  a := Pair{right: Cell{1}};
+  assert a.left == Cell{0} && a.right == Cell{1};
+
+  b := Pair{};
+  assert b.left == Cell{0} && b.right == Cell{0};
 };

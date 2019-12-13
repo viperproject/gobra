@@ -84,6 +84,21 @@ class LocationsImpl extends Locations {
 
 
   override def ttype(typ: in.Type)(ctx: Context): vpr.Type = {
+
+    ctx.typeProperty.underlyingType(typ)(ctx) match {
+      case _: in.StructT =>
+        val trans = values(typ)(ctx)
+        val multiVar = in.LocalVar.Inter(Names.freshName, typ)(Source.Parser.Unsourced)
+        ctx.tuple.typ(
+          trans map (a => ctx.typ.translate(a(multiVar)._2.typ)(ctx))
+        )
+
+      case _ =>
+        Violation.violation(values(typ)(ctx).size == 1, s"expected type of size 1 but got $typ")
+        ctx.typ.translate(typ)(ctx)
+    }
+
+
     val trans = values(typ)(ctx)
 
     if (trans.size == 1) {
@@ -155,28 +170,26 @@ class LocationsImpl extends Locations {
     * Copy[e: T]  -> var z; FOREACH a in Values[T]. Init<a(z)>; a(z) := a(e) ~ z
     */
   def copy(e: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
-//    copyConsume(e.typ)(a => a(e)._1){ case (left, a) =>
-//      a(e)._1 flatMap (right => bind(left, right))
-//    }(ctx)
 
-    val trans = values(e.typ)(ctx)
+    ctx.typeProperty.underlyingType(e.typ)(ctx) match {
+      case _: in.StructT => // TODO: We could optimize the single var case
+        val trans = values(e.typ)(ctx)
+        val multiVar = in.LocalVar.Inter(Names.freshName, e.typ)(e.info)
+        val assigns = sequence(trans map { a =>
+          for {
+            right <- a(e)._1
+            left <- a(multiVar)._1
+            l = left.asInstanceOf[vpr.LocalVar]
+            _ <- global(vu.toVarDecl(l))
+            _ <- bind(l, right)
+          } yield ()
+        })
 
-    if(trans.size == 1) {
-      trans.head(e)._1
-    } else {
+        assigns.flatMap(_ => variable(multiVar)(ctx))
 
-      val multiVar = in.LocalVar.Inter(Names.freshName, e.typ)(e.info)
-      val assigns = sequence(trans map { a =>
-        for {
-          right <- a(e)._1
-          left <- a(multiVar)._1
-          l = left.asInstanceOf[vpr.LocalVar]
-          _ <- global(vu.toVarDecl(l))
-          _ <- bind(l, right)
-        } yield ()
-      })
-
-      assigns.flatMap(_ => variable(multiVar)(ctx))
+      case _ =>
+        Violation.violation(values(e.typ)(ctx).size == 1, s"expected type of size 1 but got $e")
+        rvalue(e)(ctx)
     }
   }
 
@@ -240,35 +253,32 @@ class LocationsImpl extends Locations {
 
     val (pos, info, errT) = src.vprMeta
 
-    def leafVal(t: in.Type): CodeWriter[vpr.Exp] = {
-      t match {
-        case in.BoolT => unit(vpr.FalseLit()(pos, info, errT))
-        case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
-        case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
-        case t: in.DefinedT => ctx.loc.defaultValue(ctx.typeProperty.underlyingType(t)(ctx))(src)(ctx)
-        case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
-        case in.NilT => unit(vpr.NullLit()(pos, info, errT))
-        case _ => Violation.violation(s"encountered unexpected inner type $t")
-      }
+    val leafVal: PartialFunction[in.Type, CodeWriter[vpr.Exp]] = {
+      case in.BoolT => unit(vpr.FalseLit()(pos, info, errT))
+      case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
+      case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
+      case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
+      case in.NilT => unit(vpr.NullLit()(pos, info, errT))
     }
 
-    val trans = values(t)(ctx)
-    val v = in.LocalVar.Inter(Names.freshName, t)(src.info)
+    ctx.typeProperty.underlyingType(t)(ctx) match {
 
-    if (trans.size == 1) {
-      val (_, it) = trans.head(v)
-      leafVal(it.typ)
-    } else {
-      sequence(trans map { a =>
-        val (wx, t) = a(v)
-        for {
-          x <- wx
-          xVar = x.asInstanceOf[vpr.LocalVar]
-          _ <- local(vu.toVarDecl(xVar))
-          dv <- leafVal(t.typ)
-          _ <- bind(xVar, dv)
-        } yield ()
-      }).flatMap(_ => variable(v)(ctx))
+      case ut if leafVal.isDefinedAt(ut) => leafVal(ut)
+
+      case _: in.StructT =>
+        val trans = values(t)(ctx)
+        val v = in.LocalVar.Inter(Names.freshName, t)(src.info)
+
+        sequence(trans map { a =>
+          val (wx, t) = a(v)
+          for {
+            x <- wx
+            xVar = x.asInstanceOf[vpr.LocalVar]
+            _ <- local(vu.toVarDecl(xVar))
+            dv <- leafVal(ctx.typeProperty.underlyingType(t.typ)(ctx))
+            _ <- bind(xVar, dv)
+          } yield ()
+        }).flatMap(_ => variable(v)(ctx))
     }
   }
 
@@ -341,7 +351,7 @@ class LocationsImpl extends Locations {
 
 
   /**
-    * [v := make(lit: S)] -> [Foreach (f, e) in lit. inhale(acc(v.f)); v.f = e ]
+    * [v := make(lit: S)] -> v := new(); InitValues[*v], [Foreach (f, e) in lit. (*v).f = e ]
     */
   override def make(mk: in.Make)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val (pos, info, errT) = mk.vprMeta
@@ -349,19 +359,20 @@ class LocationsImpl extends Locations {
 
     mk.typ match {
       case in.CompositeObject.Struct(slit) =>
-        val interVar = mk.target
+        val deref = in.Deref(mk.target)(src)
         val fieldZip = ctx.typeProperty.structType(slit.typ)(ctx).get.fields.zip(slit.args)
         val perField = fieldZip.flatMap{ case (f, e) =>
-          val fieldRef = in.FieldRef(in.Deref(interVar)(src), f)(src)
-          val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
+          val fieldRef = in.FieldRef(deref, f)(src)
+          // val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
           val init = in.SingleAss(in.Assignee.Field(fieldRef), e)(src)
-          Vector(inhalePermission, init)
+          Vector(init)
         }
 
         seqn{
           for {
             vTarget <- variable(mk.target)(ctx)
             _ <- write(vpr.NewStmt(vTarget, Vector.empty)(pos, info, errT))
+            _ <- initValues(deref)(ctx)
             vMake <- seqns(perField map ctx.stmt.translateF(ctx))
           } yield vMake
         }

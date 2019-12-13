@@ -281,7 +281,7 @@ object Addressable {
   def isNonAddressable(x: Expr): Boolean = {
     x match {
       case _: LocalVar.Inter => true
-      case _: Lit => true
+      case _: Lit | _: DfltVal => true
       case f: FieldRef => isNonAddressable(f.recv)
       case _ => false
     }

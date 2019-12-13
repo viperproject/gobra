@@ -111,6 +111,11 @@ case class UnfoldError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Unfold might fail"
 }
 
+case class HavocError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "havoc_error"
+  override def localMessage: String = "Havoc might fail"
+}
+
 case class LoopInvariantPreservationError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "invariant_preservation_error"
   override def localMessage: String = "Loop invariant might not be preserved"

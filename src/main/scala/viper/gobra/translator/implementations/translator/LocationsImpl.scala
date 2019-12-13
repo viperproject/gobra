@@ -2,13 +2,16 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import in.Addressable.isAddressable
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.BackTranslator.ErrorTransformer
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{DefaultErrorBackTranslator, HavocError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{PrimitiveGenerator, Registrator, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.{errors => vprerr}
 import viper.gobra.translator.interfaces.translator.Locations.SubValueRep
 import viper.gobra.util.Violation
 
@@ -19,6 +22,7 @@ class LocationsImpl extends Locations {
 
   override def finalize(col: Collector): Unit = {
     fieldReg.finalize(col)
+    _havocFunction.finalize(col)
   }
 
   private lazy val fieldReg: Registrator[vpr.Field] = new Registrator[vpr.Field]
@@ -40,6 +44,16 @@ class LocationsImpl extends Locations {
     )
 
   private def pointerField(t: in.Type)(ctx: Context): vpr.Field = _pointerField(ctx.typ.translate(t)(ctx))
+
+  private lazy val _havocFunction: PrimitiveGenerator.PrimitiveGenerator[vpr.Type, vpr.Function] =
+    PrimitiveGenerator.simpleGenerator(
+      (t: vpr.Type) => {
+        val f = vpr.Function(Names.havocFunctions(t), Seq(), t, Seq(), Seq(), None)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        (f, Vector(f))
+      }
+    )
+
+  private def havocFunction(t: vpr.Type) = _havocFunction(t)
 
 
   /**
@@ -368,6 +382,19 @@ class LocationsImpl extends Locations {
     }
   }
 
+  /**
+    * Havocs all values that are part of the expression
+    */
+  override def havoc(e: in.Expr)(ctx: Context): CodeWriter[vpr.Stmt] = {
+    val trans = values(e.typ)(ctx)
+    seqns(trans map { a =>
+      for {
+        exp <- a(e)._1
+        res <- havocValues(exp)(e)
+      } yield res
+    })
+  }
+
 
   /**
     * [acc(*e )] -> PointerAcc[*e]
@@ -517,6 +544,40 @@ class LocationsImpl extends Locations {
       case f: vpr.FieldAccess =>
         write(vpr.Inhale(vpr.FieldAccessPredicate(f, vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT)).map(_ => Vector.empty)
       case _ => Violation.violation(s"expected variable of field access, but got $e")
+    }
+  }
+
+  /**
+    * Havoc<x: T> -> x = fn_t()
+    * Havoc<e.f>  -> exhale acc(e.f)
+    *                inhale acc(e.f)
+    */
+  def havocValues(e: vpr.Exp)(src: in.Node): CodeWriter[vpr.Stmt] = {
+    def havocErr(exp: vpr.Exhale): ErrorTransformer = {
+      case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy exp =>
+        HavocError(info)
+          .dueTo(DefaultErrorBackTranslator.defaultTranslate(reason))
+    }
+
+    val (pos, info, errT) = src.vprMeta
+    e match {
+      case v@vpr.LocalVar(_, _) => {
+        // perform function call
+        val havocFn = havocFunction(v.typ)
+        val havocCall = vpr.FuncApp(havocFn, Seq())(pos, info, errT)
+        unit(vpr.LocalVarAssign(v, havocCall)(pos, info, errT))
+      }
+      case f@vpr.FieldAccess(_, _) => {
+        // exhale & inhale
+        val fa = vpr.FieldAccessPredicate(f, vpr.FullPerm()(pos, info, errT))(pos, info, errT)
+        val exh = vpr.Exhale(fa)(pos, info, errT)
+        val inh = vpr.Inhale(fa)(pos, info, errT)
+        for {
+          res <- unit(vu.seqn(Vector(exh, inh))(pos, info, errT))
+          _ <- errorT(havocErr(exh))
+        } yield res
+      }
+      case _ => Violation.violation("unexpected expression to havoc")
     }
   }
 

@@ -33,6 +33,8 @@ trait Locations extends Generator {
 
   def make(mk: in.Make)(ctx: Context): CodeWriter[vpr.Stmt]
 
+  def havoc(e: in.Expr)(ctx: Context): CodeWriter[vpr.Stmt]
+
   def access(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp]
 
   def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]

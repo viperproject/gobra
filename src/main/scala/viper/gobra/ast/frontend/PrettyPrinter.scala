@@ -204,6 +204,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PInhale(exp) => "inhale" <+> showAssertion(exp)
       case PUnfold(exp) => "unfold" <+> showAssertion(exp)
       case PFold(exp) => "fold" <+> showAssertion(exp)
+      case PHavoc(exp) => "havoc" <+> showExpr(exp)
     }
   }
 

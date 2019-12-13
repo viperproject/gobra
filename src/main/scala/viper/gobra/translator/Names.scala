@@ -10,6 +10,8 @@ object Names {
   def addressableField(base: String): String = s"${base}R"
   def nonAddressableField(base: String): String = s"${base}V"
 
+  def havocFunctions(t: vpr.Type): String = s"havoc$$_$t"
+
   private var freshCounter = 0
   def freshName: String = {
     val str = s"fn$$$$$freshCounter"

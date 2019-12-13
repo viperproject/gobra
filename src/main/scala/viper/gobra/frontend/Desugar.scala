@@ -1278,6 +1278,7 @@ object Desugar {
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
         case PFold(exp)   => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
         case PUnfold(exp) => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
+        case PHavoc(exp) => for {e <- exprD(ctx)(exp)} yield in.Havoc(e)(src)
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }

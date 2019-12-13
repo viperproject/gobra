@@ -4,7 +4,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{Comments, ViperUtil => vu}
+import viper.gobra.translator.util.{Comments, PrimitiveGenerator, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -16,7 +16,17 @@ class StatementsImpl extends Statements {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
-  override def finalize(col: Collector): Unit = ()
+  override def finalize(col: Collector): Unit = _havocFunction.finalize(col)
+
+  private lazy val _havocFunction: PrimitiveGenerator.PrimitiveGenerator[vpr.Type, vpr.Function] =
+    PrimitiveGenerator.simpleGenerator(
+      (t: vpr.Type) => {
+        val f = vpr.Function(Names.havocFunctions(t), Seq(), t, Seq(), Seq(), None)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        (f, Vector(f))
+      }
+    )
+
+  private def havocFunction(t: in.Type)(ctx: Context) = _havocFunction(ctx.typ.translate(t)(ctx))
 
   override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
 
@@ -89,6 +99,8 @@ class StatementsImpl extends Statements {
 
       case fold: in.Fold => for {a <- ctx.loc.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)(pos, info, errT)
       case unfold: in.Unfold => for { a <- ctx.loc.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
+
+      case in.Havoc(exp) => ctx.loc.havoc(exp)(ctx)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 

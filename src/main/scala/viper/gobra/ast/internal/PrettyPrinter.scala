@@ -130,6 +130,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case Havoc(e)    => "havoc" <+> showExpr(e)
   }
 
   def showComposite(c: CompositeObject): Doc = showLit(c.op)
@@ -334,6 +335,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case Havoc(exp) => "havoc" <+> showExpr(exp)
   }
 
 }

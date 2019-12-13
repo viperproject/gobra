@@ -180,6 +180,7 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
+case class Havoc(exp: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assertion extends Node
 
@@ -199,6 +200,7 @@ sealed trait Accessible extends Node {
 object Accessible {
   case class Pointer(op: Deref) extends Accessible
   case class Field(op: FieldRef) extends Accessible
+  case class Value(op: Deref) extends Accessible
   case class Predicate(op: PredicateAccess) extends Accessible
 }
 

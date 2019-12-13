@@ -615,6 +615,8 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
+case class PHavoc(exp: PExpression) extends PGhostStatement
+
 /**
   * Ghost Expression
   */

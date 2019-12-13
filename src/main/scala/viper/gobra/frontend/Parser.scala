@@ -95,7 +95,7 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old"
+      "predicate", "old", "exhale"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -751,7 +751,8 @@ object Parser {
       "assume" ~> assertion ^^ PAssume |
       "inhale" ~> assertion ^^ PInhale |
       "fold" ~> predicateAccess ^^ PFold |
-      "unfold" ~> predicateAccess ^^ PUnfold
+      "unfold" ~> predicateAccess ^^ PUnfold |
+      "havoc" ~> expression ^^ PHavoc
 
 
     lazy val assertion: Parser[PAssertion] =

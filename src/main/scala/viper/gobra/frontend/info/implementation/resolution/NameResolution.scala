@@ -233,7 +233,7 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
-        val litType = miscType(lv)
+        val litType = expectedMiscType(lv)
         if (underlyingType(litType).isInstanceOf[StructT]) { // if the enclosing literal is a struct then id is a field
           findField(litType, id).getOrElse(UnknownEntity())
         } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable

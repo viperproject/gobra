@@ -60,7 +60,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case l: PLitCompositeVal => expectedMiscType(l)
   }
 
-  private lazy val expectedMiscType: PShortCircuitMisc => Type =
+  lazy val expectedMiscType: PShortCircuitMisc => Type =
     attr[PShortCircuitMisc, Type] {
 
       case tree.parent.pair(l: PLiteralValue, p) => p match {

@@ -403,6 +403,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case result: PResult => showResult(result)
     case embeddedType: PEmbeddedType => showEmbeddedType(embeddedType)
     case parameter: PParameter => showParameter(parameter)
+    case literalValue: PLiteralValue => showLiteralValue(literalValue)
+    case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
+    case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
     case misc: PGhostMisc => ???
   }
 }

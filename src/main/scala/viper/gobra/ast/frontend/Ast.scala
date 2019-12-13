@@ -262,15 +262,15 @@ case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
 sealed trait PShortCircuitMisc extends PMisc
 
-case class PLiteralValue(elems: Vector[PKeyedElement]) extends PShortCircuitMisc
+case class PLiteralValue(elems: Vector[PKeyedElement]) extends PShortCircuitMisc with PActualMisc
 
-case class PKeyedElement(key: Option[PCompositeKey], exp: PCompositeVal) extends PShortCircuitMisc
+case class PKeyedElement(key: Option[PCompositeKey], exp: PCompositeVal) extends PShortCircuitMisc with PActualMisc
 
 sealed trait PCompositeKey extends PNode
 
 case class PIdentifierKey(id: PIdnUse) extends PCompositeKey
 
-sealed trait PCompositeVal extends PCompositeKey with PShortCircuitMisc
+sealed trait PCompositeVal extends PCompositeKey with PShortCircuitMisc with PActualMisc
 
 case class PExpCompositeVal(exp: PExpression) extends PCompositeVal // exp is never a named operand as a key
 

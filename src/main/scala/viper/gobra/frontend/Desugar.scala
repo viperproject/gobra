@@ -1065,9 +1065,10 @@ object Desugar {
               args <- sequence(wArgs)
             } yield in.StructLit(it, args)(src)
 
-          } else {
-            // all elements are keyed
+          } else { // all elements are keyed
+            // maps field names to fields
             val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
+            // maps fields to given value (if one is given)
             val vMap = lit.elems.map{
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
@@ -1078,9 +1079,14 @@ object Desugar {
 
               case _ => Violation.violation("expected identifier as a key")
             }.toMap
+            // list of value per field
+            val wArgs = fields.map{
+              case f if vMap.isDefinedAt(f) => vMap(f)
+              case f => unit(in.DfltVal(f.typ)(src))
+            }
 
             for {
-              args <- sequence(fields.map(vMap(_)))
+              args <- sequence(wArgs)
             } yield in.StructLit(it, args)(src)
           }
       }

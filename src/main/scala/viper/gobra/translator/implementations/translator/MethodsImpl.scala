@@ -28,7 +28,7 @@ class MethodsImpl extends Methods {
 
     val (vResultss, resultWells) = x.results.map(ctx.loc.localDecl(_)(ctx)).unzip
     val vResults = vResultss.flatten.asInstanceOf[Vector[vpr.LocalVarDecl]]
-    val resultWell = resultWells map cl.assertUnit
+    val resultWell = Vector()
     val resultInit = cl.seqns(x.results map (ctx.loc.initialize(_)(ctx)))
 
     for {
@@ -70,7 +70,7 @@ class MethodsImpl extends Methods {
 
     val (vResultss, resultWells) = x.results.map(ctx.loc.localDecl(_)(ctx)).unzip
     val vResults = vResultss.flatten.asInstanceOf[Vector[vpr.LocalVarDecl]]
-    val resultWell = resultWells map cl.assertUnit
+    val resultWell = Vector()
     val resultInit = cl.seqns(x.results map (ctx.loc.initialize(_)(ctx)))
 
     for {

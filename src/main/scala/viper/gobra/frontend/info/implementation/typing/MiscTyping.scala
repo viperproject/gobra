@@ -5,6 +5,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Violation
 
 trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -25,6 +26,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PParameter | _: PReceiver | _: PResult | _: PEmbeddedType => noMessages
 
+    case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
   }
 
   lazy val miscType: Typing[PMisc] = createTyping {
@@ -51,7 +53,41 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PEmbeddedName(t) => typeType(t)
     case PEmbeddedPointer(t) => PointerT(typeType(t))
+
+    case l: PLiteralValue => expectedMiscType(l)
+    case l: PKeyedElement => miscType(l.exp)
+    case l: PExpCompositeVal => exprType(l.exp)
+    case l: PLitCompositeVal => expectedMiscType(l)
   }
+
+  lazy val expectedMiscType: PShortCircuitMisc => Type =
+    attr[PShortCircuitMisc, Type] {
+
+      case tree.parent.pair(l: PLiteralValue, p) => p match {
+        case cl: PCompositeLit => expectedCompositeLitType(cl)
+        case cv: PCompositeVal => expectedMiscType(cv)
+      }
+
+      case tree.parent.pair(e: PKeyedElement, lv: PLiteralValue) => underlyingType(expectedMiscType(lv)) match {
+        case t: ArrayT => t.elem
+        case t: SliceT => t.elem
+        case t: MapT  => t.elem
+        case t: StructT =>
+          e.key match {
+            case Some(k: PIdentifierKey) =>
+              val fieldOpt = t.decl.fields.find(f => f.id.name == k.id.name)
+              fieldOpt.map(f => typeType(f.typ)).getOrElse(UnknownType)
+
+            case _ =>
+              val idx = lv.elems.indexOf(e)
+              val fieldOpt = t.decl.fields.lift(idx)
+              fieldOpt.map(f => typeType(f.typ)).getOrElse(UnknownType)
+          }
+        case t => Violation.violation(s"found unexpected type: $t")
+      }
+
+      case tree.parent.pair(cv: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
+    }
 
   // received member type
   lazy val memberType: TypeMember => Type =

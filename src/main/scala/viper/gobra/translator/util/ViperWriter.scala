@@ -266,7 +266,7 @@ object ViperWriter {
         case (Binding(lhs, rhs), e) =>
           vpr.Let(ViperUtil.toVarDecl(lhs), rhs, e)(e.pos, e.info, e.errT) // let lhs = rhs in e
 
-        case _ => Violation.violation("pure expected but impure output found")
+        case _ => Violation.violation(s"pure expected but impure output found (writer = ($codeSum, $remainder, $r))")
       }
       MemberLevel.create(remainder, newR)
     }

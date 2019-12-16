@@ -41,11 +41,11 @@ type Point struct {
   y int;
 };
 
-/* bug reported
-func Origin() (r Point) {
+
+func OriginV() (r Point) {
   r = Point{0, 0};
 };
-*/
+
 
 func mirror() {
   p := Point{5, 7};

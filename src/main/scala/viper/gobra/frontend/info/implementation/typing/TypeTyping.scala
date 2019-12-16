@@ -76,4 +76,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case t: PInterfaceType => InterfaceT(t)
   }
+
+  def litTypeType(typ: PLiteralType): Type = typ match {
+    case PImplicitSizeArrayType(t) => typeType(t)
+    case t: PType => typeType(t)
+  }
 }

@@ -318,8 +318,11 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
+      val bodyOpt = decl.body.map {
+        case b@PBlock(_) => b.nonEmptyStmts match {
+          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+          case b => Violation.violation(s"unexpected pure function body: $b")
+        }
         case b => Violation.violation(s"unexpected pure function body: $b")
       }
 
@@ -471,9 +474,12 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
-        case b => Violation.violation(s"unexpected pure function body: $b")
+      val bodyOpt = decl.body.map {
+        case b@PBlock(_) => b.nonEmptyStmts match {
+          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+          case b => Violation.violation(s"unexpected pure method body: $b")
+        }
+        case b => Violation.violation(s"unexpected pure method body: $b")
       }
 
       in.PureMethod(recv, name, args, returns, pres, bodyOpt)(fsrc)

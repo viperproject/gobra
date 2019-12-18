@@ -9,10 +9,12 @@ package viper.gobra
 import java.io.File
 
 import com.typesafe.scalalogging.StrictLogging
+import viper.gobra.ast.frontend.PProgram
+import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.info.Info
+import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser}
-import viper.gobra.reporting.{BackTranslator, VerifierResult}
+import viper.gobra.reporting.{BackTranslator, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
 object GoVerifier {
@@ -50,14 +52,57 @@ class Gobra extends GoVerifier {
   override def verify(file: File, config: Config): VerifierResult = {
 
     val result = for {
-      parsedProgram <- Parser.parse(file)(config)
-      typeInfo <- Info.check(parsedProgram)(config)
-      program = Desugar.desugar(parsedProgram, typeInfo)(config)
-      viperTask = Translator.translate(program)(config)
-      verifierResult = BackendVerifier.verify(viperTask)(config)
+      parsedProgram <- performParsing(file, config)
+      typeInfo <- performTypeChecking(parsedProgram, config)
+      program <- performDesugaring(parsedProgram, typeInfo, config)
+      viperTask <- performViperEncoding(program, config)
+      verifierResult <- performVerification(viperTask, config)
     } yield BackTranslator.backTranslate(verifierResult)(config)
 
-    result.fold(VerifierResult.Failure, identity)
+    result.fold({
+      case Vector() => VerifierResult.Success
+      case errs => VerifierResult.Failure(errs)
+    }, identity)
+  }
+
+  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PProgram] = {
+    if (config.shouldParse) {
+      Parser.parse(file)(config)
+    } else {
+      Left(Vector())
+    }
+  }
+
+  private def performTypeChecking(parsedProgram: PProgram, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+    if (config.shouldTypeCheck) {
+      Info.check(parsedProgram)(config)
+    } else {
+      Left(Vector())
+    }
+  }
+
+  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+    if (config.shouldDesugar) {
+      Right(Desugar.desugar(parsedProgram, typeInfo)(config))
+    } else {
+      Left(Vector())
+    }
+  }
+
+  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+    if (config.shouldViperEncode) {
+      Right(Translator.translate(program)(config))
+    } else {
+      Left(Vector())
+    }
+  }
+
+  private def performVerification(viperTask: BackendVerifier.Task, config: Config): Either[Vector[VerifierError], BackendVerifier.Result] = {
+    if (config.shouldVerify) {
+      Right(BackendVerifier.verify(viperTask)(config))
+    } else {
+      Left(Vector())
+    }
   }
 }
 

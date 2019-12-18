@@ -87,6 +87,13 @@ class Config(arguments: Seq[String])
     noshort = true
   )
 
+  val parseOnly: ScallopOption[Boolean] = toggle(
+    name = "parseOnly",
+    descrYes = "Perform only the parsing step",
+    default = Some(false),
+    noshort = true
+  )
+
   /**
     * Exception handling
     */
@@ -119,4 +126,9 @@ class Config(arguments: Seq[String])
     .asInstanceOf[Logger]
     .setLevel(logLevel())
 
+  def shouldParse: Boolean = true
+  def shouldTypeCheck: Boolean = !parseOnly.getOrElse(true)
+  def shouldDesugar: Boolean = shouldTypeCheck
+  def shouldViperEncode: Boolean = shouldDesugar
+  def shouldVerify: Boolean = shouldViperEncode
 }

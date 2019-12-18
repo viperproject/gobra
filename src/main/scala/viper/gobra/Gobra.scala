@@ -122,9 +122,11 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     result match {
       case VerifierResult.Success =>
         logger.info(s"${verifier.name} found no errors")
+        sys.exit(0)
       case VerifierResult.Failure(errors) =>
         logger.error(s"${verifier.name} has found ${errors.length} error(s):")
         errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
+        sys.exit(1)
     }
   }
 }

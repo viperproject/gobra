@@ -125,10 +125,13 @@ object Parser {
       */
 
     lazy val program: Parser[PProgram] =
-      (Parser("") |~> packageClause <~ eos) ~ members ^^ {
-        case pkgClause ~ members =>
-          PProgram(pkgClause, Vector.empty, members.flatten, pom)
+      (Parser("") |~> packageClause <~ eos) ~ importDecls ~ members ^^ {
+        case pkgClause ~ importDecls ~ members =>
+          PProgram(pkgClause, importDecls.flatten, members.flatten, pom)
       }
+
+    lazy val importDecls: Parser[Vector[Vector[PImportDecl]]] =
+      (importDecl <~ zeroOrMoreEos).*
 
     lazy val members: Parser[Vector[Vector[PMember]]] =
       (member <~ zeroOrMoreEos).*
@@ -137,18 +140,19 @@ object Parser {
       "package" ~> pkgDef ^^ PPackageClause
 
     lazy val importDecl: Parser[Vector[PImportDecl]] =
-      "import" ~> importSpec ^^ (decl => Vector(decl)) |
-        "import" ~> "(" ~> (importSpec <~ eos).* <~ ")"
+      ("import" ~> importSpec ^^ (decl => Vector(decl))) |
+        (Parser("import") |~> "(" |~> (importSpec <~ zeroOrMoreEos).* <~| ")")
 
     lazy val importSpec: Parser[PImportDecl] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =
-      "." ~> idnPackage ^^ PUnqualifiedImport
+      "." ~> idnImportPath ^^ PUnqualifiedImport
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
-      idnDef.? ~ idnPackage ^^ {
-        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+      idnDef.? ~ idnImportPath ^^ {
+        //case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+        case id ~ pkg => PQualifiedImport(id, pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =
@@ -756,8 +760,9 @@ object Parser {
           success(s)
       })
 
-    lazy val idnPackage: Parser[String] = ???
-
+    lazy val idnImportPath: Parser[String] =
+      "\"[a-zA-Z0-9_/]*\"".r
+      // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**
       * Ghost

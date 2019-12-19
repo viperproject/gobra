@@ -75,7 +75,7 @@ sealed trait PImportDecl extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PIdnDef], pkg: PPkg) extends PImportDecl
 
 case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 

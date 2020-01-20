@@ -3,7 +3,7 @@ package viper.gobra
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignee, PAssignment, PDot, PExpression, PIdnUse, PIntLit, PInvoke, PNamedOperand, PStatement, PStringLit, PStringType}
+import viper.gobra.ast.frontend.{PAssignee, PAssignment, PDot, PExpression, PIdnDef, PIdnUse, PIntLit, PInvoke, PNamedOperand, PPointerType, PSeq, PStatement, PStringLit, PStringType, PVarDecl}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.{ClassTag, classTag}
@@ -105,6 +105,20 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseStmt("p.x = p.y") should matchPattern {
       case PAssignment(Vector(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("y"))),
         Vector(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("x")))) =>
+    }
+  }
+
+  test("Parser: package type") {
+    frontend.parseStmt("var w http.ResponseWriter") should matchPattern {
+      case PSeq(Vector(PVarDecl(Some(PDot(PNamedOperand(PIdnUse("http")), PIdnUse("ResponseWriter"))),
+        Vector(), Vector(PIdnDef("w")), Vector(false)))) =>
+    }
+  }
+
+  test("Parser: package pointer type") {
+    frontend.parseStmt("var r *http.Request") should matchPattern {
+      case PSeq(Vector(PVarDecl(Some(PPointerType(PDot(PNamedOperand(PIdnUse("http")), PIdnUse("Request")))),
+        Vector(), Vector(PIdnDef("r")), Vector(false)))) =>
     }
   }
 

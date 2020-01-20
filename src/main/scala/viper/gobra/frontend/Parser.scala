@@ -663,7 +663,7 @@ object Parser {
       "(" ~> typ <~ ")" | typeLit | predeclaredType | namedOperand
 
     lazy val typeLit: Parser[PTypeLit] =
-      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
+      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | packageType
 
 
     lazy val pointerType: Parser[PPointerType] =
@@ -708,6 +708,9 @@ object Parser {
 
         PInterfaceType(embedded, methodDecls, predicateDecls)
       }
+
+    lazy val packageType: Parser[PDot] =
+      dot
 
     lazy val interfaceClause: Parser[PInterfaceClause] =
       methodSpec | interfaceName

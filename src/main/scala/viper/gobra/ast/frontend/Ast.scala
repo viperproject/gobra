@@ -289,7 +289,7 @@ case class PConversion(typ: PType, arg: PExpression) extends PActualExpression
 //case class PCall(callee: PExpression, args: Vector[PExpression]) extends PActualExpression
 case class PInvoke(callee: PTypeOrExpr, args: Vector[PExpression]) extends PActualExpression with PActualType
 
-case class PDot(base: PTypeOrExpr, id: PIdnUse) extends PActualExpression with PActualType with PAccessible with PAssignee
+case class PDot(base: PTypeOrExpr, id: PIdnUse) extends PActualExpression with PTypeLit with PAccessible with PAssignee
 
 // TODO: Check Arguments in language specification, also allows preceding type
 /*

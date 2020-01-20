@@ -367,8 +367,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
             ssep(mspec map showInterfaceClause, line) <>
             ssep(pspec map showInterfaceClause, line)
         )
+      case PDot(base, id) => showTypeOrExpr(base) <> "." <> showId(id)
       case PMethodReceiveName(t) => showType(t)
       case PMethodReceivePointer(t) => "*" <> showType(t)
+      case PNamedOperand(id) => showId(id)
     }
     case ghostType: PGhostType => ???
   }

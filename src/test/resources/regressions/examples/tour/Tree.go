@@ -5,16 +5,18 @@ type Tree struct {
   Value int;
   Right *Tree;
 };
-
+/*
 pred tree(self *Tree) {
   acc(self.Left) && acc(self.Value) && acc(self.Right) &&
   (self.Left != nil ==> tree(self.Left)) &&
   (self.Right != nil ==> tree(self.Right))
 };
-
+*/
 requires self != nil ==> tree(self);
 ensures  self != nil ==> tree(self);
 func (self *Tree) Contains(v int) (res bool) {
+  res = (self.Left).Contains(v) || (self.Right).Contains(v);
+  /*
   if self == nil { res = false; }
   else {
     unfold tree(self);
@@ -24,4 +26,5 @@ func (self *Tree) Contains(v int) (res bool) {
     };
     fold tree(self);
   };
+  */
 };

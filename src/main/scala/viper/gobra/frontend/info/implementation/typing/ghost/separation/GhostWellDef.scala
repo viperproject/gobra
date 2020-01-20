@@ -68,9 +68,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostExpression => noMessages
     case e if enclosingGhostContext(e) => noMessages
 
-    case _: PSelectionOrMethodExpr
-         |  _: PSelection
-         |  _: PMethodExpr
+    case /*_: PSelectionOrMethodExpr
+         |*/  _: PSelection
+         //|  _: PMethodExpr
          |  _: PIndexedExp
          |  _: PSliceExp
          |  _: PTypeAssertion
@@ -94,7 +94,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case (base, id) => assignableToCallId(id)(base)
     }.get
 
-    case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
+    //case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

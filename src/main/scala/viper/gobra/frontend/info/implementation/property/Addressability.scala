@@ -23,7 +23,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     case _: PDereference => true
     case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && addressable(b))
     case PSelection(b, id) => entity(id).isInstanceOf[Field] && goAddressable(b)
-    case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
+    //case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
     case _ => false
   }
 
@@ -32,7 +32,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     case _: PDereference => true
     case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
     case PSelection(b, id) => entity(id).isInstanceOf[Field] && goAddressable(b)
-    case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
+    //case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
     case _ => false
   }
 

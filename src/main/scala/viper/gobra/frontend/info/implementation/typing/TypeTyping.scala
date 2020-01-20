@@ -18,7 +18,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@ PDeclaredType(id) => pointsToType.errors(id)(n)
 
-    case _: PBoolType | _: PIntType => noMessages
+    case _: PBoolType | _: PIntType | _: PStringType => noMessages
 
     case n@PArrayType(len, _) =>
       message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty)
@@ -48,6 +48,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBoolType() => BooleanT
     case PIntType() => IntT
+    case PStringType() => StringT
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)

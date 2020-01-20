@@ -69,12 +69,12 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   }
 
   override def showExpr(expr: PExpression): Doc = expr match {
-
+    /*
     case n@ PCall(callee, args) =>
       val gt = classifier.expectedArgGhostTyping(n)
       val aArgs = args.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showExpr(PCall(callee, aArgs))
-
+    */
     case e: PActualExprProofAnnotation => showExpr(e.op)
     case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed
     case e => super.showExpr(e)

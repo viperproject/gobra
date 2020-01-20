@@ -19,7 +19,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
     case n@ PNamedOperand(id) => pointsToData.errors(id)(n)
-    case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
+    case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => noMessages
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
@@ -31,14 +31,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PFunctionLit => noMessages
 
     case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
-
+    /*
     case n@PCall(base, paras) => exprType(base) match {
       case FunctionT(args, _) =>
         if (paras.isEmpty && args.isEmpty) noMessages
         else multiAssignableTo.errors(paras map exprType, args)(n) // TODO: add special assignment
       case t => message(n, s"type error: got $t but expected function type")
     }
-
+    */
     case n: PConversionOrUnaryCall =>
       resolveConversionOrUnaryCall(n) {
         case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
@@ -49,11 +49,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
 
-    case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n)
+    //case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n)
 
     case n@PSelection(base, id) => wellDefSelection(base, id)(n)
 
-    case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n)
+    //case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n)
 
     case n@PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(l, elem), IntT) =>
@@ -103,9 +103,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PReference(e) => effAddressable.errors(e)(n)
 
-    case n@PDereference(exp) => exprType(exp) match {
-      case PointerT(t) => noMessages
-      case t => message(n, s"expected pointer but got $t")
+    case n@PDereference(exp) => exp match {
+      case e: PExpression => exprType(e) match {
+        case PointerT(t) => noMessages
+        case t => message(n, s"expected pointer but got $t")
+      }
+      case t: PType => ???
     }
 
     case n@PNegation(e) => assignableTo.errors(exprType(e), BooleanT)(n)
@@ -121,7 +124,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PUnfolding => isPureExpr(n.op)
   }
 
-  def wellDefSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
+  def wellDefSelectionOrMethodExpr(base: PUseLikeId, id: PIdnUse)(n: PNode): Messages = {
     message(n, s"type ${idType(base)} does not have method ${id.name}"
       , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[Method])
       else if (pointsToData(base)) !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember])
@@ -161,12 +164,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       FunctionT(args map miscType, miscType(r))
 
     case PConversion(t, _) => typeType(t)
-
+    /*
     case n@PCall(callee, _) => exprType(callee) match {
       case FunctionT(_, res) => res
       case t => violation(s"expected function type but got $t") //(message(n, s""))
     }
-
+    */
     case PConversionOrUnaryCall(base, arg) =>
       idType(base) match {
         case t: DeclaredT => t // conversion
@@ -174,7 +177,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
         case t => violation(s"expected function or declared type but got $t")
       }
-
+    /*
     case n: PSelectionOrMethodExpr =>
       resolveSelectionOrMethodExpr(n)
       { case (base, id) => findSelection(base, id).map(memberType) }
@@ -184,7 +187,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PMethodExpr(base, id) =>
       val baseType = typeType(base)
       findMethodLike(baseType, id).map(m => methodExprType(typeType(base), m.asInstanceOf[Method])).getOrElse(violation("no function found"))
-
+    */
     case PSelection(base, id) =>
       findSelection(base, id).map(memberType).getOrElse(violation("no selection found"))
 
@@ -214,9 +217,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PReference(exp) if effAddressable(exp) => PointerT(exprType(exp))
 
-    case PDereference(exp) => exprType(exp) match {
-      case PointerT(t) => t
-      case t => violation(s"expected pointer but got $t")
+    case PDereference(exp) => exp match {
+      case e: PExpression => exprType(e) match {
+        case PointerT(t) => t
+        case t => violation(s"expected pointer but got $t")
+      }
+      case t: PType => ???
     }
 
     case _: PNegation | _: PEquals | _: PUnequals | _: PAnd | _: POr |

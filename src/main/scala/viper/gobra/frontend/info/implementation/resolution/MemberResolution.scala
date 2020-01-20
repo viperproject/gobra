@@ -195,23 +195,26 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def calleeEntity(callee: PExpression): Option[Regular] = callee match {
     case PNamedOperand(id)     => Some(regular(id))
-    case PMethodExpr(base, id) => Some(findMethodLike(typeType(base), id).get)
+    //case PMethodExpr(base, id) => Some(findMethodLike(typeType(base), id).get)
     case PSelection(base, id)  => Some(findSelection(base, id).get)
-    case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
+    /*case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
       case (base, id) => findSelection(base, id).get // selection
     } {
       case (base, id) => findMethodLike(idType(base), id).get // methodExpr
     }
+    */
     case _ => None
   }
 
   def isCalleeMethodExpr(callee: PExpression): Boolean = callee match {
+      /*
     case PMethodExpr(base, id) => true
     case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
       case (base, id) => false // selection
     } {
       case (base, id) => true // methodExpr
     }.get
+    */
     case _ => false
   }
 }

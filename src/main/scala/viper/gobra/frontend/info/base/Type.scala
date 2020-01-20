@@ -18,6 +18,8 @@ object Type {
 
   case object IntT extends Type
 
+  case object StringT extends Type
+
   case class ArrayT(length: BigInt, elem: Type) extends Type {
     require(length >= 0, "The length of an array must be non-negative")
   }

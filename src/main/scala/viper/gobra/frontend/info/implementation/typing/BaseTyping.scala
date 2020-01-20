@@ -47,7 +47,6 @@ trait BaseTyping { this: TypeInfoImpl =>
     case t: PType => wellDefType.valid(t)
     case i: PIdnNode => wellDefID.valid(i)
     case o: PMisc => wellDefMisc.valid(o)
-    case a: PAssertion => wellDefAssertion.valid(a)
     case m: PNode => childrenWellDefined(m)
   }
 

@@ -545,7 +545,7 @@ object Desugar {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
       def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
       val src: Meta = meta(stmt)
@@ -685,8 +685,10 @@ object Desugar {
 
     // Expressions
 
-    def derefD(ctx: FunctionContext)(deref: PDereference): Writer[in.Deref] =
-      exprD(ctx)(deref.operand) map (in.Deref(_)(meta(deref)))
+    def derefD(ctx: FunctionContext)(deref: PDereference): Writer[in.Deref] = deref.operand match {
+      case e: PExpression => exprD(ctx)(e) map (in.Deref(_)(meta(deref)))
+      case t: PType => ???
+    }
 
     sealed trait ExprEntity
 
@@ -725,6 +727,49 @@ object Desugar {
         case _ => Violation.violation("expected entity behind expression")
       }
 
+      case PDot(base, id) => base match {
+        case baseExpr: PExpression => info.regular(id) match {
+
+          case s: st.ActualStructMember =>
+            val path = info.fieldLookup(info.typ(baseExpr), id)._2
+            val f = structMemberD(s)
+            val rfield = for {r <- exprD(ctx)(baseExpr)} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
+            ExprEntity.ReceivedField(s, rfield)
+
+          case m: st.Method =>
+            val baseWithPath = for {
+              r <- exprD(ctx)(baseExpr)
+            } yield applyMemberPathD(r, info.methodLookup(baseExpr, id)._2)(meta(expr))
+            ExprEntity.ReceivedMethod(m, baseWithPath)
+
+          case _ => Violation.violation("expected entity behind expression")
+        }/*info.regular(baseExpr) match {
+          case _: st.TypeEntity => info.methodLookup(info.typ(baseExpr), id) match {
+            case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
+            case _ => Violation.violation("expected entity behind expression")
+          }
+
+          case _ => info.regular(id) match {
+
+            case s: st.ActualStructMember =>
+              val path = info.fieldLookup(info.typ(baseExpr), id)._2
+              val f = structMemberD(s)
+              val rfield = for {r <- unit(varD(ctx)(baseExpr))} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
+              ExprEntity.ReceivedField(s, rfield)
+
+            case m: st.Method =>
+              val baseWithPath = for {
+                r <- unit(varD(ctx)(baseExpr))
+              } yield applyMemberPathD(r, info.methodLookup(baseExpr, id)._2)(meta(expr)) // base has to be a variable
+              ExprEntity.ReceivedMethod(m, baseWithPath)
+
+            case _ => Violation.violation("expected entity behind expression")
+          }
+        }
+        */
+        case baseType: PType => ???
+      }
+      /*
       case PMethodExpr(base, id) => info.methodLookup(info.typ(base), id) match {
         case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
         case _ => Violation.violation("expected entity behind expression")
@@ -753,7 +798,7 @@ object Desugar {
           case _ => Violation.violation("expected entity behind expression")
         }
       }
-
+      */
       case _ => Violation.violation("expected entity behind expression")
     }
 
@@ -814,7 +859,7 @@ object Desugar {
             case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), embeddedDeclD(e.decl))(src)
             case _ => Violation.violation("expected field or embedding")
           }
-
+          /*
           case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
             case (f: st.Field, path)  => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), fieldDeclD(f.decl))(src))
             case (e: st.Embbed, path) => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), embeddedDeclD(e.decl))(src))
@@ -920,7 +965,7 @@ object Desugar {
 
             case e => Violation.violation(s"expected callable entity, but got $e")
           }
-
+          */
           case PConversionOrUnaryCall(base, arg) => base match {
             case id if info.regular(id).isInstanceOf[st.Function] =>
               val fsym = info.regular(id).asInstanceOf[st.Function]
@@ -1273,7 +1318,7 @@ object Desugar {
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): Writer[in.Stmt] = {
 
-      def goA(ass: PAssertion): Writer[in.Assertion] = assertionD(ctx)(ass)
+      def goA(ass: PExpression): Writer[in.Assertion] = assertionD(ctx)(ass)
 
       val src: Meta = meta(stmt)
 
@@ -1315,25 +1360,25 @@ object Desugar {
 
     // Assertion
 
-    def specificationD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       val condition = assertionD(ctx)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
       condition.res
     }
 
-    def preconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def preconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
     }
 
-    def postconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
     }
 
 
-    def assertionD(ctx: FunctionContext)(ass: PAssertion): Writer[in.Assertion] = {
+    def assertionD(ctx: FunctionContext)(ass: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
 
       val src: Meta = meta(ass)
 

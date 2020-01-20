@@ -202,7 +202,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
-
+      /*
       case tree.parent.pair(id: PIdnUse, e@ PSelectionOrMethodExpr(_, f)) if id == f =>
         resolveSelectionOrMethodExpr(e)
         { case (b, i) => findSelection(b, i) }
@@ -211,7 +211,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, e: PMethodExpr) =>
         findMethodLike(typeType(e.base), id).getOrElse(UnknownEntity())
-
+      */
       case tree.parent.pair(id: PIdnUse, e: PSelection) =>
         findSelection(e.base, id).getOrElse(UnknownEntity())
 

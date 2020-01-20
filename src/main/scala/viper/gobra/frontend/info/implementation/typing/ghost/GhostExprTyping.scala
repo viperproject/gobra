@@ -44,7 +44,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@ PNamedOperand(id) => isPureId(id)
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
-      case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
+      //case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
 
       case n: PConversionOrUnaryCall =>
         resolveConversionOrUnaryCall(n)
@@ -52,12 +52,15 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         { case (id, arg) => isPureId(id) && isPureExprAttr(arg)}
           .getOrElse(false)
 
-      case n@PMethodExpr(t, id) => isPureId(id)
+      //case n@PMethodExpr(t, id) => isPureId(id)
       case n@PSelection(base, id) => isPureExprAttr(base) && isPureId(id)
-      case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
+      //case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
 
       case n@PReference(e) => isPureExprAttr(e)
-      case n@PDereference(exp) => isPureExprAttr(exp)
+      case n@PDereference(exp) => exp match {
+        case e: PExpression => isPureExprAttr(e)
+        case t: PType => ???
+      }
 
       case PNegation(e) => isPureExprAttr(e)
 

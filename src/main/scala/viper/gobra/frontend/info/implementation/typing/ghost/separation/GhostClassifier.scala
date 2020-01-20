@@ -24,7 +24,7 @@ trait GhostClassifier {
 
   def expectedReturnGhostTyping(ret: PReturn): GhostType
 
-  def expectedArgGhostTyping(call: PCall): GhostType
+  //def expectedArgGhostTyping(call: PCall): GhostType
 
   def expectedArgGhostTyping(call: PConversionOrUnaryCall): GhostType
 }

@@ -40,7 +40,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
-      case PCall(callee, _) => calleeReturnGhostTyping(callee)
+      //case PCall(callee, _) => calleeReturnGhostTyping(callee)
 
       case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n) {
         case (base, id) => notGhost // conversions cannot be ghost (for now)
@@ -140,10 +140,10 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case PVoidResult() => GhostType.ghostTuple(Vector.empty)
     case PResultClause(left) => GhostType.ghostTuple(left.map(isParamGhost))
   }
-
+  /*
   override def expectedArgGhostTyping(call: PCall): GhostType =
     calleeArgGhostTyping(call.callee)
-
+  */
   override def expectedArgGhostTyping(call: PConversionOrUnaryCall): GhostType =
     resolveConversionOrUnaryCall(call) {
       case (base, id) => GhostType.notGhost

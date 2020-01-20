@@ -42,10 +42,11 @@ trait GhostAssignability { this: TypeInfoImpl =>
     case PSelection(base, id) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
       message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(id)) ++
         message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !ghostIdClassification(id))
-
+    /*
     case PSelectionOrMethodExpr(base, id) =>
       message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(id)) ++
         message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostIdClassification(base) && !ghostIdClassification(id))
+     */
   }
 
   /** conservative ghost separation assignment check */

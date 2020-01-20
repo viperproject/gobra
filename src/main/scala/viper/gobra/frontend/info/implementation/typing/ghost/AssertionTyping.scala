@@ -9,7 +9,7 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation
 
 trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
-
+  /*
   lazy val wellDefAssertion: WellDefinedness[PAssertion] = createWellDef {
 
     case n@ PStar(left, right) => noMessages
@@ -50,6 +50,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
       case PMemoryPredicateCall(arg) => noMessages
     }
   }
+   */
 
 
   private def getLeftOrElse[L,R](e: Either[L,R])(f: R => L): L =
@@ -59,7 +60,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     if (m.isEmpty) Left(m) else Right(f)
 
 
-  private def wellDefBase(id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
+  private def wellDefBase(id: PUseLikeId)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
     case Function(decl, _) =>
       ifNoMessages(
         assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
@@ -121,7 +122,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
-  private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = {
+  private def wellDefBase(recv: PUseLikeId, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = {
     val recvOpt = if (pointsToType(recv)) Vector(idType(recv)) else Vector.empty
 
     entity(id) match {
@@ -152,7 +153,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
   /** predicate version of @see [[wellDefSelectionOrMethodExpr()]] */
-  private def wellDefPredicateSelectionOrExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
+  private def wellDefPredicateSelectionOrExpr(base: PUseLikeId, id: PIdnUse)(n: PNode): Messages = {
     message(n, s"type ${idType(base)} does not have method ${id.name}"
       , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[MPredicate])
       else if (pointsToData(base)) !findSelection(base, id).exists(_.isInstanceOf[MPredicate])

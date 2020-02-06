@@ -9,4 +9,5 @@ trait Collector {
   def predicate: Seq[vpr.Predicate]
   def functions: Seq[vpr.Function]
   def methods: Seq[vpr.Method]
+  def extensions: Seq[vpr.ExtensionMember]
 }

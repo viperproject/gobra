@@ -230,6 +230,7 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
 
 
 sealed trait PExpressionOrType extends PNode
+sealed trait PExpressionAndType extends PNode with PExpression with PType
 
 sealed trait PExpression extends PNode with PExpressionOrType
 
@@ -246,7 +247,9 @@ sealed trait PUnaryExp extends PActualExpression {
   def operand: PExpression
 }
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PAssignee
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
+  override val name: String = id.name
+}
 
 
 sealed trait PLiteral extends PActualExpression
@@ -297,7 +300,7 @@ case class PMethodExpr(base: PMethodRecvType, id: PIdnUse) extends PActualExpres
 
 case class PSelection(base: PExpression, id: PIdnUse) extends PActualExpression with PAssignee with PAccessible
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PAssignee with PAccessible
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -309,9 +312,7 @@ case class PReceive(operand: PExpression) extends PUnaryExp
 
 case class PReference(operand: PExpression) extends PUnaryExp with PAccessible
 
-case class PDeref(base: PExpressionOrType) extends PActualExpression with PActualType with PType with PAssignee with PAccessible
-
-case class PDereference(operand: PExpression) extends PUnaryExp with PAssignee with PAccessible
+case class PDeref(base: PExpressionOrType) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible with PTypeLit
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
@@ -368,10 +369,6 @@ sealed trait PNamedType extends PActualType {
   def name: String
 }
 
-case class PDeclaredType(id: PIdnUse) extends PNamedType with PLiteralType {
-  override val name: String = id.name
-}
-
 sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
 
 case class PBoolType() extends PPredeclaredType("bool")
@@ -391,8 +388,6 @@ case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
-
-case class PPointerType(base: PType) extends PTypeLit
 
 sealed trait PChannelType extends PTypeLit {
   def elem: PType
@@ -432,13 +427,13 @@ case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructC
   require(id.name == typ.name)
 }
 
-sealed trait PMethodRecvType extends PActualType {
-  def typ: PDeclaredType
+sealed trait PMethodRecvType extends PActualType { // TODO: will have to be removed for packages
+  def typ: PNamedOperand
 }
 
-case class PMethodReceiveName(typ: PDeclaredType) extends PMethodRecvType
+case class PMethodReceiveName(typ: PNamedOperand) extends PMethodRecvType
 
-case class PMethodReceivePointer(typ: PDeclaredType) extends PMethodRecvType
+case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
 
 // TODO: Named type is not allowed to be an interface
 
@@ -453,7 +448,7 @@ case class PInterfaceType(
 
 sealed trait PInterfaceClause extends PNode
 
-case class PInterfaceName(typ: PDeclaredType) extends PInterfaceClause
+case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
 
 // TODO: maybe change to misc
 case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult) extends PInterfaceClause with PScope

@@ -4,6 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
 import viper.gobra.frontend.info.base.Type.{BooleanT, Type}
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
@@ -11,9 +12,10 @@ import viper.gobra.util.Violation.violation
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
-    case POld(op) => isPureExpr(op)
+    case POld(op) => isExpr(op).out ++ isPureExpr(op)
     case PConditional(cond, thn, els) =>
       // check that cond is of type bool:
+      isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
       comparableTypes.errors(exprType(cond), BooleanT)(expr) ++
       // check that thn and els have a common type
       mergeableTypes.errors(exprType(thn), exprType(els))(expr)
@@ -44,6 +46,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@ PNamedOperand(id) => isPureId(id)
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
+
+      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+        case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
+        case (Left(callee), Some(p: ap.FunctionCall)) => isPureExprAttr(callee) && p.args.forall(isPureExprAttr)
+        case _ => false
+      }
+
       case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
 
       case n: PConversionOrUnaryCall =>
@@ -52,12 +61,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         { case (id, arg) => isPureId(id) && isPureExprAttr(arg)}
           .getOrElse(false)
 
+
+      case n: PDot => exprOrType(n.base) match {
+        case Left(e) => isPureExprAttr(e) && isPureId(n.id)
+        case Right(_) => isPureId(n.id)
+      }
+
       case n@PMethodExpr(t, id) => isPureId(id)
       case n@PSelection(base, id) => isPureExprAttr(base) && isPureId(id)
       case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
 
       case n@PReference(e) => isPureExprAttr(e)
-      case n@PDereference(exp) => isPureExprAttr(exp)
+      case n: PDeref =>
+        resolve(n) match {
+          case Some(p: ap.Deref) => isPureExprAttr(p.base)
+          case _ => true
+        }
 
       case PNegation(e) => isPureExprAttr(e)
 

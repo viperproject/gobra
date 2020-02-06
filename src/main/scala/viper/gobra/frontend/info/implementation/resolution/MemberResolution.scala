@@ -147,7 +147,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
 
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
-    typeOrExpr(b) match {
+    exprOrType(b) match {
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt

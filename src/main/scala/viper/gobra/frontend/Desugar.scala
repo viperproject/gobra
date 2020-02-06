@@ -9,6 +9,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.reporting.Source
 import viper.gobra.util.{DesugarWriter, OutputUtil, Violation}
 import viper.silver.ast.SourcePosition
@@ -679,12 +680,9 @@ object Desugar {
 
     // Expressions
 
-    def derefD(ctx: FunctionContext)(deref: PDereference): Writer[in.Deref] =
-      exprD(ctx)(deref.operand) map (in.Deref(_)(meta(deref)))
+    sealed trait ExprEntity //AWAY
 
-    sealed trait ExprEntity
-
-    object ExprEntity {
+    object ExprEntity { //AWAY
       case class Variable(v: Writer[in.BodyVar]) extends ExprEntity
       case class ReceivedDeref(deref: Writer[in.Deref]) extends ExprEntity
       case class ReceivedField(op: st.StructMember, rfield: Writer[in.FieldRef]) extends ExprEntity
@@ -693,14 +691,17 @@ object Desugar {
       case class MethodExpr(op: st.Method, path: Vector[MemberPath]) extends ExprEntity
     }
 
-    def exprEntityD(ctx: FunctionContext)(expr: PExpression): ExprEntity = expr match {
+    def exprEntityD(ctx: FunctionContext)(expr: PExpression): ExprEntity = expr match { //AWAY
       case PNamedOperand(id) => info.regular(id) match {
         case f: st.Function => ExprEntity.Function(f)
         case v: st.Variable => ExprEntity.Variable(unit(varD(ctx)(id)))
         case _ => Violation.violation("expected entity behind expression")
       }
 
-      case n: PDereference => ExprEntity.ReceivedDeref(derefD(ctx)(n))
+      case n: PDeref => info.resolve(n) match {
+        case Some(p: ap.Deref) => ExprEntity.ReceivedDeref(exprD(ctx)(p.base) map (in.Deref(_)(meta(n))))
+        case _ => Violation.violation("cannot desugar pointer type to an expression")
+      }
 
       case PSelection(base, id) => info.regular(id) match {
 
@@ -788,7 +789,11 @@ object Desugar {
         case NoGhost(noGhost) => noGhost match {
           case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
 
-          case n: PDereference => derefD(ctx)(n)
+          case n: PDeref => info.resolve(n) match {
+            case Some(p: ap.Deref) => exprD(ctx)(p.base) map (in.Deref(_)(src))
+            case _ => Violation.violation("cannot desugar pointer type to an expression")
+          }
+
           case PReference(exp) => exp match {
               // go feature
             case c: PCompositeLit =>

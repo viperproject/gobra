@@ -13,7 +13,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case PMPredicateDecl(id, receiver, args, body) => isClassType.errors(miscType(receiver))(member)
   }
 
-  private[typing] def wellDefPureMethod(member: PMethodDecl): Messages = {
+  private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
 
   if (member.spec.isPure) {
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
@@ -26,7 +26,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
-  private[typing] def wellDefPureFunction(member: PFunctionDecl): Messages = {
+  private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
         message(member, "For now, pure functions must have at most one result argument", member.result.isInstanceOf[PResultClause] && member.result.asInstanceOf[PResultClause].outs.size > 1) ++

@@ -6,6 +6,7 @@ import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.{BooleanT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -13,11 +14,15 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val wellDefAssertion: WellDefinedness[PAssertion] = createWellDef {
 
     case n@ PStar(left, right) => noMessages
-    case n@ PImplication(left, right) => assignableTo.errors(exprType(left), BooleanT)(n)
-    case n@ PExprAssertion(exp) => assignableTo.errors(exprType(exp), BooleanT)(n) ++ isPureExpr(exp)
+    case n@ PImplication(left, right) => isExpr(left).out ++ assignableTo.errors(exprType(left), BooleanT)(n)
+    case n@ PExprAssertion(exp) => isExpr(exp).out ++ assignableTo.errors(exprType(exp), BooleanT)(n) ++ isPureExpr(exp)
     case n@ PAccess(exp) => exp match {
-      case _: PDereference => noMessages
       case _: PReference => noMessages
+      case n: PDeref => isExpr(n).out
+      case n: PDot => resolve(n) match {
+        case Some(_: ap.FieldSelection) => noMessages
+        case _ => message(n, "selections in access predicates have to target fields")
+      }
       case s: PSelection => message(n, "selections in access predicates have to target fields", !entity(s.id).isInstanceOf[Field])
     }
 

@@ -35,14 +35,14 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
 
 
-  def typeOrExpr(n: PExpressionOrType): Either[PExpression, PType] = {
+  def exprOrType(n: PExpressionOrType): Either[PExpression, PType] = {
     n match {
       // Ambiguous nodes
       case n: PNamedOperand =>
         if (pointsToType(n.id)) Right(n) else Left(n)
 
       case n: PDeref =>
-        if (typeOrExpr(n.base).isLeft) Left(n) else Right(n)
+        if (exprOrType(n.base).isLeft) Left(n) else Right(n)
 
       case n: PDot => Left(n) // TODO: when we support packages, then it can also be the type defined in a package
 
@@ -52,6 +52,10 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
     }
   }
 
+  def asExpr(n: PExpressionOrType): Option[PExpression] = exprOrType(n).left.toOption
+  def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).right.toOption
+
+
 
   def resolve(n: PExpressionOrType): Option[ap.Pattern] = n match {
 
@@ -60,31 +64,31 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => Some(ap.LocalVariable(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
-        case s: st.Predicate => Some(ap.Predicate(n.id, s))
+        case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case _ => None
       }
 
     case n: PDeref =>
-      typeOrExpr(n.base) match {
+      exprOrType(n.base) match {
         case Left(expr) => Some(ap.Deref(expr))
         case Right(typ) => Some(ap.PointerType(typ))
       }
 
     case n: PDot =>
-      (typeOrExpr(n.base), tryDotLookup(n.base, n.id)) match {
+      (exprOrType(n.base), tryDotLookup(n.base, n.id)) match {
 
         case (Left(base), Some((s: st.StructMember, path))) => Some(ap.FieldSelection(base, n.id, path, s))
         case (Left(base), Some((s: st.Method, path))) => Some(ap.ReceivedMethod(base, n.id, path, s))
-        case (Left(base), Some((s: st.Predicate, path))) => Some(ap.ReceivedPredicate(base, n.id, path, s))
+        case (Left(base), Some((s: st.MPredicate, path))) => Some(ap.ReceivedPredicate(base, n.id, path, s))
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
-        case (Right(base), Some((s: st.Predicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
+        case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
 
         case _ => None
       }
 
     case n: PInvoke =>
-      typeOrExpr(n.base) match {
+      exprOrType(n.base) match {
         case Right(t) => Some(ap.Conversion(t, n.args))
         case Left(e) =>
           resolve(e) match {

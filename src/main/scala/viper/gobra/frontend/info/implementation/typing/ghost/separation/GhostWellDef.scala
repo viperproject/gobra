@@ -3,11 +3,12 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
 
-  lazy val wellGhostSeparated: WellDefinedness[PNode] = createIndependentWellDef{
+  lazy val wellGhostSeparated: WellDefinedness[PNode] = createIndependentWellDef[PNode]{
     case m: PMember => memberGhostSeparation(m)
     case s: PStatement => stmtGhostSeparation(s)
     case e: PExpression => exprGhostSeparation(e)
@@ -71,6 +72,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PSelectionOrMethodExpr
          |  _: PSelection
          |  _: PMethodExpr
+         |  _: PDot
+         |  _: PDeref
          |  _: PIndexedExp
          |  _: PSliceExp
          |  _: PTypeAssertion
@@ -80,11 +83,10 @@ trait GhostWellDef { this: TypeInfoImpl =>
          |  _: PUnfolding
     => noMessages
 
-    case n@ (
+    case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PLiteral
       |  _: PReceive
       |  _: PReference
-      |  _: PDereference
       |  _: PConversion
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
@@ -95,6 +97,13 @@ trait GhostWellDef { this: TypeInfoImpl =>
     }.get
 
     case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
+
+    case n: PInvoke => (exprOrType(n), resolve(n)) match {
+      case (Right(_), Some(p: ap.Conversion)) =>  message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      case (Left(callee), Some(p: ap.FunctionCall)) => assignableToCallExpr(p.args: _*)(callee)
+      case (Left(_), Some(p: ap.PredicateCall)) => noMessages
+      case _ => violation("expected conversion, function call, or predicate call")
+    }
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

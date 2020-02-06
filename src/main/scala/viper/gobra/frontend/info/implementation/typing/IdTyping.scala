@@ -24,22 +24,22 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
     case SingleConstant(exp, opt, _) => unsafeMessage(! {
-      opt.exists(wellDefType.valid) || (wellDefExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+      opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
     })
 
     case MultiConstant(idx, exp, _) => unsafeMessage(! {
-      wellDefExpr.valid(exp) && (exprType(exp) match {
+      wellDefAndExpr.valid(exp) && (exprType(exp) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
         case _ => false
       })
     })
 
     case SingleLocalVariable(exp, opt, _, _) => unsafeMessage(! {
-      opt.exists(wellDefType.valid) || exp.exists(e => wellDefExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
+      opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
     case MultiLocalVariable(idx, exp, _, _) => unsafeMessage(! {
-      wellDefExpr.valid(exp) && (exprType(exp) match {
+      wellDefAndExpr.valid(exp) && (exprType(exp) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
         case _ => false
       })
@@ -52,24 +52,24 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case NamedType(_, _) => LocalMessages(noMessages)
 
     case TypeAlias(PTypeAlias(right, _), _) => unsafeMessage(! {
-      wellDefType.valid(right)
+      wellDefAndType.valid(right)
     })
 
     case InParameter(p, _, _) => unsafeMessage(! {
-      wellDefType.valid(p.typ)
+      wellDefAndType.valid(p.typ)
     })
 
     case ReceiverParameter(p, _, _) => unsafeMessage(! {
-      wellDefType.valid(p.typ)
+      wellDefAndType.valid(p.typ)
     })
 
     case OutParameter(p, _, _) => unsafeMessage(! {
-      wellDefType.valid(p.typ)
+      wellDefAndType.valid(p.typ)
     })
 
     case TypeSwitchVariable(decl, _, _) => unsafeMessage(! {
       val constraints = typeSwitchConstraints(id)
-      if (constraints.size == 1) wellDefType.valid(constraints.head) else wellDefExpr.valid(decl.exp)
+      if (constraints.size == 1) wellDefAndType.valid(constraints.head) else wellDefAndExpr.valid(decl.exp)
     })
 
     case RangeVariable(idx, range, _, _) => unsafeMessage(! {
@@ -80,7 +80,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     })
 
     case Field(PFieldDecl(_, typ), _) => unsafeMessage(! {
-      wellDefType.valid(typ)
+      wellDefAndType.valid(typ)
     })
 
     case Embbed(PEmbeddedDecl(_, id), _) => unsafeMessage(! {

@@ -35,4 +35,6 @@ trait TypeInfo {
   def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath])
   def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath])
 
+  def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
+
 }

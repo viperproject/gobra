@@ -43,6 +43,7 @@ trait BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def selfWellDefined(n: PNode): Boolean = n match {
     case s: PStatement => wellDefStmt.valid(s)
+    case n: PExpressionAndType => wellDefExprAndType.valid(n)
     case e: PExpression => wellDefExpr.valid(e)
     case t: PType => wellDefType.valid(t)
     case i: PIdnNode => wellDefID.valid(i)
@@ -71,14 +72,14 @@ trait BaseTyping { this: TypeInfoImpl =>
       override def compute(n: T): ValidityMessages = check(n)
     }
 
-  private[typing] def createIndependentWellDef(check: PNode ==> Messages)(pre: PNode => Boolean): WellDefinedness[PNode] =
-    new Attribution with WellDefinedness[PNode] with Safety[PNode, ValidityMessages] with Memoization[PNode, ValidityMessages] {
+  private[typing] def createIndependentWellDef[T <: PNode](check: T ==> Messages)(pre: T => Boolean): WellDefinedness[T] =
+    new Attribution with WellDefinedness[T] with Safety[T, ValidityMessages] with Memoization[T, ValidityMessages] {
 
-    override def safe(n: PNode): Boolean = pre(n)
+    override def safe(n: T): Boolean = pre(n)
 
     override def unsafe: ValidityMessages = UnsafeForwardMessage
 
-    override def compute(n: PNode): ValidityMessages =
+    override def compute(n: T): ValidityMessages =
       LocalMessages(if (check.isDefinedAt(n)) check(n) else noMessages)
   }
 
@@ -106,4 +107,6 @@ trait BaseTyping { this: TypeInfoImpl =>
 
       override def compute(n: X): Option[Z] = Some(inference(n))
     }
+
+
 }

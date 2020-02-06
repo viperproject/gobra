@@ -10,6 +10,7 @@ import viper.gobra.util.Violation
 
 trait GhostAssignability { this: TypeInfoImpl =>
 
+  /** checks that not ghost arguments are assigned to non-ghost arguments  */
   private[separation] def assignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
     val argTyping = calleeArgGhostTyping(callee).toTuple
     generalAssignableTo[PExpression, Boolean](ghostExprTyping){
@@ -29,7 +30,7 @@ trait GhostAssignability { this: TypeInfoImpl =>
 
   private def assigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
 
-    case PDereference(op) => // *x := e ~ !ghost(e)
+    case _: PDeref => // *x := e ~ !ghost(e)
       message(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
 
     case PIndexedExp(base, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
@@ -38,6 +39,14 @@ trait GhostAssignability { this: TypeInfoImpl =>
 
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
       message(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
+
+    case n: PDot => exprOrType(n.base) match {
+      case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
+        message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
+          message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !ghostIdClassification(n.id))
+
+      case _ => message(left, "ghost error: selections on types are not assignable")
+    }
 
     case PSelection(base, id) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
       message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(id)) ++

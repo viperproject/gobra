@@ -447,8 +447,8 @@ object Parser {
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
 
-    lazy val dereference: Parser[PDereference] =
-      "*" ~> unaryExp ^^ PDereference
+    lazy val dereference: Parser[PDeref] =
+      "*" ~> unaryExp ^^ PDeref
 
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive
@@ -567,8 +567,8 @@ object Parser {
       pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
 
 
-    lazy val pointerType: Parser[PPointerType] =
-      "*" ~> typ ^^ PPointerType
+    lazy val pointerType: Parser[PDeref] =
+      "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
       "[]" ~> typ ^^ PSliceType
@@ -631,8 +631,8 @@ object Parser {
       "bool" ^^^ PBoolType() |
         "int" ^^^ PIntType()
 
-    lazy val declaredType: Parser[PDeclaredType] =
-      idnUse ^^ PDeclaredType
+    lazy val declaredType: Parser[PNamedOperand] =
+      idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
       sliceType | arrayType | implicitSizeArrayType | mapType | structType | declaredType

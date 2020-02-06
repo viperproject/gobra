@@ -257,7 +257,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PActualExpression => expr match {
       case PReceive(operand) => "<-" <> showExpr(operand)
       case PReference(operand) => "&" <> showExpr(operand)
-      case PDereference(operand) => "*" <> showExpr(operand)
       case PDeref(base) => "*" <> showExprOrType(base)
       case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
       case PNegation(operand) => "!" <> showExpr(operand)
@@ -346,14 +345,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showType(typ: PType): Doc = typ match {
     case actualType: PActualType => actualType match {
-      case PDeclaredType(id) => showId(id)
       case PNamedOperand(id) => showId(id)
       case PBoolType() => "bool"
       case PIntType() => "int"
       case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
       case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
       case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
-      case PPointerType(base) => "*" <> showType(base)
       case PDeref(base) => "*" <> showExprOrType(base)
       case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
       case channelType: PChannelType => channelType match {

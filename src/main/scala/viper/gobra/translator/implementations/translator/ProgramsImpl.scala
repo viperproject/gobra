@@ -46,7 +46,8 @@ class ProgramsImpl extends Programs {
         fields = col.fields,
         predicates = col.predicate ++ predicates,
         functions = col.functions ++ functions,
-        methods = col.methods ++ methods
+        methods = col.methods ++ methods,
+        extensions = col.extensions
       )(pos, info, errT)
 
     } yield vProgram

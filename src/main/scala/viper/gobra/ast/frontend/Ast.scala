@@ -229,7 +229,9 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
   */
 
 
-sealed trait PExpression extends PNode
+sealed trait PExpressionOrType extends PNode
+
+sealed trait PExpression extends PNode with PExpressionOrType
 
 sealed trait PActualExpression extends PExpression
 
@@ -244,7 +246,8 @@ sealed trait PUnaryExp extends PActualExpression {
   def operand: PExpression
 }
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PAssignee
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PAssignee
+
 
 sealed trait PLiteral extends PActualExpression
 
@@ -278,6 +281,8 @@ case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
 case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
 
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
+
 case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PActualExpression
 
 case class PConversion(typ: PType, arg: PExpression) extends PActualExpression
@@ -292,6 +297,8 @@ case class PMethodExpr(base: PMethodRecvType, id: PIdnUse) extends PActualExpres
 
 case class PSelection(base: PExpression, id: PIdnUse) extends PActualExpression with PAssignee with PAccessible
 
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PAssignee with PAccessible
+
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
 case class PSliceExp(base: PExpression, low: PExpression, high: PExpression, cap: Option[PExpression] = None) extends PActualExpression
@@ -301,6 +308,8 @@ case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpressi
 case class PReceive(operand: PExpression) extends PUnaryExp
 
 case class PReference(operand: PExpression) extends PUnaryExp with PAccessible
+
+case class PDeref(base: PExpressionOrType) extends PActualExpression with PActualType with PType with PAssignee with PAccessible
 
 case class PDereference(operand: PExpression) extends PUnaryExp with PAssignee with PAccessible
 
@@ -349,7 +358,7 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
   * Types
   */
 
-sealed trait PType extends PNode
+sealed trait PType extends PNode with PExpressionOrType
 
 sealed trait PActualType extends PType
 

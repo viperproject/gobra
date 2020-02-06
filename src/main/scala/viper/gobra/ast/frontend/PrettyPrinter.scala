@@ -248,11 +248,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // expressions
 
+  def showExprOrType(expr: PExpressionOrType): Doc = expr match {
+    case expr: PExpression => showExpr(expr)
+    case typ: PType => showType(typ)
+  }
+
   def showExpr(expr: PExpression): Doc = expr match {
     case expr: PActualExpression => expr match {
       case PReceive(operand) => "<-" <> showExpr(operand)
       case PReference(operand) => "&" <> showExpr(operand)
       case PDereference(operand) => "*" <> showExpr(operand)
+      case PDeref(base) => "*" <> showExprOrType(base)
+      case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
       case PNegation(operand) => "!" <> showExpr(operand)
       case PNamedOperand(id) => showId(id)
       case PBoolLit(lit) => if(lit) "true" else "false"
@@ -264,6 +271,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PConversionOrUnaryCall(base, arg) => showId(base) <> parens(showExpr(arg))
       case PConversion(typ, arg) => showType(typ) <> parens(showExpr(arg))
       case PCall(callee, args) => showExpr(callee) <> parens(showExprList(args))
+      case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PSelectionOrMethodExpr(base, id) => showId(base) <> "." <> showId(id)
       case PMethodExpr(base, id) => showType(base) <> "." <> showId(id)
       case PSelection(base, id) => showExpr(base) <> "." <>  showId(id)
@@ -339,12 +347,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showType(typ: PType): Doc = typ match {
     case actualType: PActualType => actualType match {
       case PDeclaredType(id) => showId(id)
+      case PNamedOperand(id) => showId(id)
       case PBoolType() => "bool"
       case PIntType() => "int"
       case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
       case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
       case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
       case PPointerType(base) => "*" <> showType(base)
+      case PDeref(base) => "*" <> showExprOrType(base)
+      case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
       case channelType: PChannelType => channelType match {
         case PBiChannelType(elem)   => "chan" <+> showType(elem)
         case PSendChannelType(elem) => "<-" <> "chan" <+> showType(elem)

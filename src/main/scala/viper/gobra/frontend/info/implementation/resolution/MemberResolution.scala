@@ -128,8 +128,47 @@ trait MemberResolution { this: TypeInfoImpl =>
       })
     }
 
+
+
+
+  def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
+    structMemberSet(t).lookupWithPath(id.name)
+
+  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name)
+    else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name)
+  }
+
+  def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    nonAddressableMethodSet(e).lookupWithPath(id.name)
+  }
+
+  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
+
+
+  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+    typeOrExpr(b) match {
+      case Left(expr) =>
+        val methodLikeAttempt = tryMethodLikeLookup(expr, id)
+        if (methodLikeAttempt.isDefined) methodLikeAttempt
+        else tryFieldLookup(exprType(expr), id)
+
+      case Right(typ) => tryMethodLikeLookup(typ, id)
+    }
+  }
+
+
+
+
+
+
   override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) =
     structMemberSet(t).lookupWithPath(id.name).get
+
+
+
+
+
 
   override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
     val (m, p) =
@@ -148,6 +187,8 @@ trait MemberResolution { this: TypeInfoImpl =>
     val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
     (m.asInstanceOf[Method], p)
   }
+
+  def methodLookup(e: PType, id: PIdnUse): (Method, Vector[MemberPath]) = methodLookup(typeType(e), id)
 
   override def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
     val (m, p) =
@@ -180,6 +221,9 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def findMethodLike(e: Type, id: PIdnUse): Option[MethodLike] =
     nonAddressableMethodSet(e).lookup(id.name)
+
+
+
 
   def findSelection(e: PExpression, id: PIdnUse): Option[TypeMember] = {
     val methOpt = findMethodLike(e, id)

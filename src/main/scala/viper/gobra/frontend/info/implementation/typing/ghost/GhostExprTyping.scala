@@ -64,12 +64,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PDot => exprOrType(n.base) match {
         case Left(e) => isPureExprAttr(e) && isPureId(n.id)
-        case Right(_) => isPureId(n.id)
+        case Right(_) => isPureId(n.id) // Maybe replace with a violation
       }
-
-      case n@PMethodExpr(t, id) => isPureId(id)
-      case n@PSelection(base, id) => isPureExprAttr(base) && isPureId(id)
-      case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
 
       case n@PReference(e) => isPureExprAttr(e)
       case n: PDeref =>

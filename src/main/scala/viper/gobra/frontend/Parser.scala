@@ -244,7 +244,7 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selectionOrMethodExpr | selection | indexedExp | dereference | namedOperand
+      selection | indexedExp | dereference | namedOperand
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
@@ -460,8 +460,6 @@ object Parser {
       conversionOrUnaryCall |
         conversion |
         call |
-        selectionOrMethodExpr |
-        methodExpr |
         selection |
         indexedExp |
         sliceExp |
@@ -483,18 +481,12 @@ object Parser {
     lazy val callArguments: Parser[Vector[PExpression]] =
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
-    lazy val selectionOrMethodExpr: Parser[PSelectionOrMethodExpr] =
-      nestedIdnUse ~ ("." ~> idnUse) ^^ PSelectionOrMethodExpr
+    lazy val selection: PackratParser[PDot] =
+      primaryExp ~ ("." ~> idnUse) ^^ PDot
 
-    lazy val methodExpr: Parser[PMethodExpr] =
-      methodRecvType ~ ("." ~> idnUse) ^^ PMethodExpr
-
-    lazy val selection: PackratParser[PSelection] =
-      primaryExp ~ ("." ~> idnUse) ^^ PSelection
-
-    lazy val idBasedSelection: Parser[PSelection] =
+    lazy val idBasedSelection: Parser[PDot] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ {
-        case base ~ field => PSelection(PNamedOperand(base).at(base), field)
+        case base ~ field => PDot(PNamedOperand(base).at(base), field)
       }
 
     lazy val indexedExp: PackratParser[PIndexedExp] =
@@ -783,9 +775,8 @@ object Parser {
       exp match {
         case PConversionOrUnaryCall(base, arg) => PFPredOrBoolFuncCall(base, Vector(arg))
         case PCall(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
-        case PCall(PSelection(recv, id), args) => PMPredOrBoolMethCall(recv, id, args)
-        case PCall(PMethodExpr(base, id), args) => PMPredOrMethExprCall(base, id, args)
-        case PCall(PSelectionOrMethodExpr(base, id), args) => PMPredOrMethRecvOrExprCall(base, id, args)
+        case PCall(PDot(base: PNamedOperand, id), args) => PMPredOrMethRecvOrExprCall(base.id, id, args)
+        case PCall(PDot(recv: PExpression, id), args) => PMPredOrBoolMethCall(recv, id, args)
         case _ => PExprAssertion(exp)
       }
     }

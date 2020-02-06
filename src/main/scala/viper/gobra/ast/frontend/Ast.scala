@@ -294,12 +294,6 @@ case class PCall(callee: PExpression, args: Vector[PExpression]) extends PActual
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse) extends PActualExpression with PAssignee
-
-case class PMethodExpr(base: PMethodRecvType, id: PIdnUse) extends PActualExpression
-
-case class PSelection(base: PExpression, id: PIdnUse) extends PActualExpression with PAssignee with PAccessible
-
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee

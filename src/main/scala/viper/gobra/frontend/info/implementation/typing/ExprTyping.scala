@@ -85,7 +85,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     message(n, s"expected expression, but got $n", !isExprCondition)
   }
 
-  lazy val isAssertion: WellDefinedness[PExpression] = createWellDef[PExpressionOrType] { case n: PExpression =>
+  lazy val isAssertion: WellDefinedness[PExpression] = createWellDef[PExpression] { case n: PExpression =>
     noMessages
   }
 
@@ -162,12 +162,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => message(n, s"type error: got $t but expected function type")
         }
       }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
-
-    case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n) //AWAY
-
-    case n@PSelection(base, id) => wellDefSelection(base, id)(n) //AWAY
-
-    case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n) //AWAY
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
@@ -331,19 +325,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
         case t => violation(s"expected function or declared type but got $t")
       }
-
-    case n: PSelectionOrMethodExpr =>
-      resolveSelectionOrMethodExpr(n)
-      { case (base, id) => findSelection(base, id).map(memberType) }
-      { case (base, id) => findMethodLike(idType(base), id).map(m => methodExprType(idType(base), m.asInstanceOf[Method])) }
-        .get.getOrElse(violation("no selection found"))
-
-    case PMethodExpr(base, id) =>
-      val baseType = typeType(base)
-      findMethodLike(baseType, id).map(m => methodExprType(typeType(base), m.asInstanceOf[Method])).getOrElse(violation("no function found"))
-
-    case PSelection(base, id) =>
-      findSelection(base, id).map(memberType).getOrElse(violation("no selection found"))
 
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem

@@ -23,7 +23,6 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.FieldSelection) => noMessages
         case _ => message(n, "selections in access predicates have to target fields")
       }
-      case s: PSelection => message(n, "selections in access predicates have to target fields", !entity(s.id).isInstanceOf[Field])
     }
 
     case n: PPredicateCall => n match {

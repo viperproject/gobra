@@ -703,50 +703,23 @@ object Desugar {
         case _ => Violation.violation("cannot desugar pointer type to an expression")
       }
 
-      case PSelection(base, id) => info.regular(id) match {
+      case n: PDot => info.resolve(n) match {
+        case Some(p: ap.FieldSelection) =>
+          val f = structMemberD(p.symb)
+          val rfield = for {r <- exprD(ctx)(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(meta(expr)), f)(meta(expr))
+          ExprEntity.ReceivedField(p.symb, rfield)
 
-        case s: st.ActualStructMember =>
-          val path = info.fieldLookup(info.typ(base), id)._2
-          val f = structMemberD(s)
-          val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
-          ExprEntity.ReceivedField(s, rfield)
-
-        case m: st.Method =>
+        case Some(p: ap.ReceivedMethod) =>
           val baseWithPath = for {
-            r <- exprD(ctx)(base)
-          } yield applyMemberPathD(r, info.methodLookup(base, id)._2)(meta(expr))
-          ExprEntity.ReceivedMethod(m, baseWithPath)
+            r <- exprD(ctx)(p.recv)
+          } yield applyMemberPathD(r, p.path)(meta(expr))
+          ExprEntity.ReceivedMethod(p.symb, baseWithPath)
 
-        case _ => Violation.violation("expected entity behind expression")
-      }
 
-      case PMethodExpr(base, id) => info.methodLookup(info.typ(base), id) match {
-        case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
-        case _ => Violation.violation("expected entity behind expression")
-      }
+        case Some(p: ap.MethodExpr) =>
+          ExprEntity.MethodExpr(p.symb, p.path)
 
-      case PSelectionOrMethodExpr(base, id) => info.regular(base) match {
-        case _: st.TypeEntity => info.methodLookup(info.typ(base), id) match {
-          case (m: st.Method, path) => ExprEntity.MethodExpr(m, path)
-          case _ => Violation.violation("expected entity behind expression")
-        }
-
-        case _ => info.regular(id) match {
-
-          case s: st.ActualStructMember =>
-            val path = info.fieldLookup(info.typ(base), id)._2
-            val f = structMemberD(s)
-            val rfield = for {r <- unit(varD(ctx)(base))} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
-            ExprEntity.ReceivedField(s, rfield)
-
-          case m: st.Method =>
-            val baseWithPath = for {
-              r <- unit(varD(ctx)(base))
-            } yield applyMemberPathD(r, info.methodLookup(base, id)._2)(meta(expr)) // base has to be a variable
-            ExprEntity.ReceivedMethod(m, baseWithPath)
-
-          case _ => Violation.violation("expected entity behind expression")
-        }
+        case p => Violation.violation(s"expected field selection, received method, or method expression, but got $p")
       }
 
       case _ => Violation.violation("expected entity behind expression")
@@ -808,16 +781,13 @@ object Desugar {
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ))(src))
           }
 
-          case PSelection(base, id) => info.fieldLookup(info.typ(base), id) match {
-            case (f: st.Field, path)  => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), fieldDeclD(f.decl))(src)
-            case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), embeddedDeclD(e.decl))(src)
-            case _ => Violation.violation("expected field or embedding")
-          }
-
-          case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
-            case (f: st.Field, path)  => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), fieldDeclD(f.decl))(src))
-            case (e: st.Embbed, path) => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), embeddedDeclD(e.decl))(src))
-            case _ => Violation.violation("expected field or embedding")
+          case n: PDot => info.resolve(n) match {
+            case Some(p: ap.FieldSelection) => p.symb match {
+              case f: st.Field  => for {r <- go(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(src), fieldDeclD(f.decl))(src)
+              case e: st.Embbed => for {r <- go(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(src), embeddedDeclD(e.decl))(src)
+              case _ => Violation.violation("expected field or embedding")
+            }
+            case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
           }
 
           case PCall(callee, args) => exprEntityD(ctx)(callee) match {
@@ -1258,7 +1228,7 @@ object Desugar {
       }
     }
 
-    def structMemberD(m: st.ActualStructMember): in.Field = m match {
+    def structMemberD(m: st.StructMember): in.Field = m match {
       case st.Field(decl, _)  => fieldDeclD(decl)
       case st.Embbed(decl, _) => embeddedDeclD(decl)
     }

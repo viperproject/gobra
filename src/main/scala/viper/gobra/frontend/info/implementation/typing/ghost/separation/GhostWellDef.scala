@@ -69,10 +69,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostExpression => noMessages
     case e if enclosingGhostContext(e) => noMessages
 
-    case _: PSelectionOrMethodExpr
-         |  _: PSelection
-         |  _: PMethodExpr
-         |  _: PDot
+    case _: PDot
          |  _: PDeref
          |  _: PIndexedExp
          |  _: PSliceExp

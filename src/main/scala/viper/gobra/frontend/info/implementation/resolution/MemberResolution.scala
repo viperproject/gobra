@@ -161,70 +161,8 @@ trait MemberResolution { this: TypeInfoImpl =>
 
 
 
-  override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = { //AWAY
-    val (m, p) =
-      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-
-    (m.asInstanceOf[Method], p)
-  }
-
-  override def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = { //AWAY
-    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
-  }
-
-  override def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath]) = { //AWAY
-    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
-  }
-
-  def methodLookup(e: PType, id: PIdnUse): (Method, Vector[MemberPath]) = methodLookup(typeType(e), id) //AWAY
-
-  override def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = { //AWAY
-    val (m, p) =
-      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-
-    (m.asInstanceOf[MPredicate], p)
-  }
-
-  override def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath]) = { //AWAY
-    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
-    (m.asInstanceOf[MPredicate], p)
-  }
-
-  override def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath]) = { //AWAY
-    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
-    (m.asInstanceOf[MPredicate], p)
-  }
-
-
-  def findField(t: Type, id: PIdnUse): Option[StructMember] = //AWAY
+  def findField(t: Type, id: PIdnUse): Option[StructMember] =
     structMemberSet(t).lookup(id.name)
 
-  def findMethodLike(e: PExpression, id: PIdnUse): Option[MethodLike] = //AWAY
-    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookup(id.name)
-    else nonAddressableMethodSet(exprType(e)).lookup(id.name)
 
-  def findMethodLike(e: PIdnNode, id: PIdnUse): Option[MethodLike] = //AWAY
-    addressableMethodSet(idType(e)).lookup(id.name)
-
-  def findMethodLike(e: Type, id: PIdnUse): Option[MethodLike] = //AWAY
-    nonAddressableMethodSet(e).lookup(id.name)
-
-
-
-
-  def findSelection(e: PExpression, id: PIdnUse): Option[TypeMember] = { //AWAY
-    val methOpt = findMethodLike(e, id)
-    if (methOpt.isDefined) methOpt
-    else findField(exprType(e), id)
-  }
-
-  def findSelection(t: PIdnNode, id: PIdnUse): Option[TypeMember] = { //AWAY
-    val methOpt = findMethodLike(t, id)
-    if (methOpt.isDefined) methOpt
-    else findField(idType(t), id)
-  }
 }

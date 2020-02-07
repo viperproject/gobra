@@ -221,48 +221,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
 
-
-
-
-
-
-
-
-
-
-  // FIXME: REMOVE FROM HERE
-  def wellDefSelectionOrMethodExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${idType(base)} does not have method ${id.name}"
-      , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[Method])
-      else if (pointsToData(base)) !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember])
-      else Violation.violation("base should be either a type or data")
-    )
-  }
-
-  def wellDefMethodExpr(t: PMethodRecvType, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${typeType(t)} does not have method ${id.name}"
-      , !findMethodLike(typeType(t), id).exists(_.isInstanceOf[Method]))
-  }
-
-  def wellDefSelection(base: PExpression, id: PIdnUse)(n: PNode): Messages = {
-    message(n, s"type ${exprType(base)} does not have method ${id.name}"
-      , !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember]))
-  }
-  // FIXME: UNTIL HERE
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   lazy val exprType: Typing[PExpression] = createTyping {
     case expr: PActualExpression => actualExprType(expr)
     case expr: PGhostExpression => ghostExprType(expr)

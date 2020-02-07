@@ -46,7 +46,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
       case PMemoryPredicateCall(arg) => isPureExpr(arg) ++ isClassType.errors(exprType(arg))(n)
     }
 
-    case n@ PPredicateAccess(predicateCall) => predicateCall match {
+    case n@ PPredicateAccess2(predicateCall) => predicateCall match {
       case PFPredOrBoolFuncCall(id, args) => isPredicate(id)
       case PMPredOrBoolMethCall(recv, id, args) => isPredicate(id)
       case PMPredOrMethExprCall(base, id, args) => isPredicate(id)

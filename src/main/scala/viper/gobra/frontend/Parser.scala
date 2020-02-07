@@ -766,7 +766,7 @@ object Parser {
 
     lazy val unaryAssertion: Parser[PAssertion] =
       "acc" ~> "(" ~> accessible2 <~ ")" ^^ PAccess2 |
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess2 |
       "(" ~> assertion <~ ")" |
       expression ^^ tryForPredicateCall
 
@@ -790,9 +790,9 @@ object Parser {
       primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrBoolMethCall |
       methodRecvType ~ ("." ~> idnUse) ~ callArguments ^^ PMPredOrMethExprCall
 
-    lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess |
-      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+    lazy val predicateAccess: Parser[PPredicateAccess2] =
+      predicateCall ^^ PPredicateAccess2 |
+      "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess2
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
@@ -801,10 +801,11 @@ object Parser {
 
     lazy val ghostUnaryExpression: Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
-       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess
+        "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
+        "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
 
     lazy val accessible: Parser[PAccessible] =
-      dereference | reference | idBasedSelection | selection | call
+      dereference | reference | idBasedSelection | selection
 
     /**
       * EOS

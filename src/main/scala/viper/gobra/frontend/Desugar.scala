@@ -1283,19 +1283,24 @@ object Desugar {
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
         case n: PAccess => for {e <- accessibleD(ctx)(n.exp)} yield in.Access(e)(src)
+        case n: PPredicateAccess => predicateCallD(ctx)(n.pred)
 
-        case n: PInvoke =>
-          info.resolve(n) match {
-            case Some(p: ap.PredicateCall) => predicateCallD(ctx)(p)(src)
-            case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
-          }
+        case n: PInvoke => predicateCallD(ctx)(n)
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.Assertion] = {
-      predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x))(src))
+    def predicateCallD(ctx: FunctionContext)(n: PInvoke): Writer[in.Assertion] = {
+
+      val src: Meta = meta(n)
+
+      info.resolve(n) match {
+        case Some(p: ap.PredicateCall) =>
+          predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x))(src))
+
+        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+      }
     }
 
     def predicateCallAccD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
@@ -1333,7 +1338,7 @@ object Desugar {
         case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
         case PImplication2(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
 
-        case pacc: PPredicateAccess => unit(predicateCallD2(ctx)(pacc.pred))
+        case pacc: PPredicateAccess2 => unit(predicateCallD2(ctx)(pacc.pred))
         case pacc: PPredicateCall => unit(predicateCallD2(ctx)(pacc))
 
         case PAccess2(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
@@ -1457,9 +1462,6 @@ object Desugar {
               derefD(ctx)(p)(src) map in.Accessible.Pointer
             case Some(p: ap.FieldSelection) =>
               fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
-
-            case Some(p: ap.PredicateCall) =>
-              predicateCallAccD(ctx)(p)(src) map in.Accessible.Predicate
 
             case p => Violation.violation(s"unexpected ast pattern $p ")
           }

@@ -284,7 +284,7 @@ case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
 case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression with PAccessible
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
@@ -341,7 +341,7 @@ sealed trait PActualExprProofAnnotation extends PActualExpression {
   def op: PExpression
 }
 
-case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation
+case class PUnfolding(pred: PPredicateAccess2, op: PExpression) extends PActualExprProofAnnotation
 
 /**
   * Types
@@ -603,12 +603,12 @@ case class PExhale(exp: PAssertion) extends PGhostStatement
 
 case class PInhale(exp: PAssertion) extends PGhostStatement
 
-case class PFold(exp: PPredicateAccess) extends PGhostStatement
+case class PFold(exp: PPredicateAccess2) extends PGhostStatement
 
-case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
+case class PUnfold(exp: PPredicateAccess2) extends PGhostStatement
 
 /**
-  * Ghost Expression
+  * Ghost Expression and Assertions
   */
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
@@ -628,6 +628,8 @@ case class PImplication(left: PExpression, right: PExpression) extends PGhostExp
 case class PAccess(exp: PAccessible) extends PGhostExpression
 
 sealed trait PAccessible extends PGhostNode with PExpression
+
+case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 
 /**
@@ -660,7 +662,7 @@ case class PAccess2(exp: PAccessible) extends PAssertion
 
 
 
-case class PPredicateAccess(pred: PPredicateCall) extends PAssertion
+case class PPredicateAccess2(pred: PPredicateCall) extends PAssertion
 
 /**
   * Types

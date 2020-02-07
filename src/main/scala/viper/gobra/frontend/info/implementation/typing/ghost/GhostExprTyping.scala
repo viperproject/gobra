@@ -34,9 +34,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case m: PExpression => resolve(m) match {
         case Some(p: ap.Deref) => noMessages
         case Some(p: ap.FieldSelection) => noMessages
-        case Some(p: ap.PredicateCall) => noMessages
-        case _ => message(m, s"expected reference, dereference, field selection, or predicate call, but got $m")
+        case _ => message(m, s"expected reference, dereference, or field selection, but got $m")
       }
+    }
+
+    case n: PPredicateAccess => resolve(n.pred) match {
+      case Some(p: ap.PredicateCall) => noMessages
+      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
     }
   }
 
@@ -49,7 +53,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
-    case _: PAccess => AssertionT
+    case _: PAccess | _: PPredicateAccess => AssertionT
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -105,6 +109,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: POld => true
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
+
+      case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
+
+      case _: PAccess | _: PPredicateAccess => false
 
       case n@PCompositeLit(t, lit) => true
 

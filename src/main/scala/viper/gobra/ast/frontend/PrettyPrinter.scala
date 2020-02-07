@@ -296,6 +296,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PAccess(exp) => exp match {
         case n: PExpression => "acc" <> parens(showExpr(n))
       }
+      case PPredicateAccess(exp) => exp match {
+        case n: PExpression => "acc" <> parens(showExpr(n))
+      }
     }
   }
 
@@ -333,7 +336,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMPredOrMethRecvOrExprCall(base, id, args) => base.name <> "." <> id.name <> parens(showExprList(args))
       case PMemoryPredicateCall(arg) => "memory" <> parens(showExpr(arg))
     }
-    case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred))
+    case x: PPredicateAccess2 => "acc" <> parens(showAssertion(x.pred))
     case PAccess2(exp) => exp match {
       case n: PExpression => "acc" <> parens(showExpr(n))
     }

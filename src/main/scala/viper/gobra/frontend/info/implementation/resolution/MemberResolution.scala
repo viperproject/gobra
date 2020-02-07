@@ -161,15 +161,6 @@ trait MemberResolution { this: TypeInfoImpl =>
 
 
 
-
-  override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) = //AWAY
-    structMemberSet(t).lookupWithPath(id.name).get
-
-
-
-
-
-
   override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = { //AWAY
     val (m, p) =
       if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get

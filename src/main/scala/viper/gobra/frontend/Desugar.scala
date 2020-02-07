@@ -680,73 +680,51 @@ object Desugar {
 
     // Expressions
 
-    sealed trait ExprEntity //AWAY
-
-    object ExprEntity { //AWAY
-      case class Variable(v: Writer[in.BodyVar]) extends ExprEntity
-      case class ReceivedDeref(deref: Writer[in.Deref]) extends ExprEntity
-      case class ReceivedField(op: st.StructMember, rfield: Writer[in.FieldRef]) extends ExprEntity
-      case class Function(op: st.Function) extends ExprEntity
-      case class ReceivedMethod(op: st.Method, recv: Writer[in.Expr]) extends ExprEntity
-      case class MethodExpr(op: st.Method, path: Vector[MemberPath]) extends ExprEntity
+    def derefD(ctx: FunctionContext)(p: ap.Deref)(src: Meta): Writer[in.Deref] = {
+      exprD(ctx)(p.base) map (in.Deref(_)(src))
     }
 
-    def exprEntityD(ctx: FunctionContext)(expr: PExpression): ExprEntity = expr match { //AWAY
-      case PNamedOperand(id) => info.regular(id) match {
-        case f: st.Function => ExprEntity.Function(f)
-        case v: st.Variable => ExprEntity.Variable(unit(varD(ctx)(id)))
-        case _ => Violation.violation("expected entity behind expression")
-      }
-
-      case n: PDeref => info.resolve(n) match {
-        case Some(p: ap.Deref) => ExprEntity.ReceivedDeref(exprD(ctx)(p.base) map (in.Deref(_)(meta(n))))
-        case _ => Violation.violation("cannot desugar pointer type to an expression")
-      }
-
-      case n: PDot => info.resolve(n) match {
-        case Some(p: ap.FieldSelection) =>
-          val f = structMemberD(p.symb)
-          val rfield = for {r <- exprD(ctx)(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(meta(expr)), f)(meta(expr))
-          ExprEntity.ReceivedField(p.symb, rfield)
-
-        case Some(p: ap.ReceivedMethod) =>
-          val baseWithPath = for {
-            r <- exprD(ctx)(p.recv)
-          } yield applyMemberPathD(r, p.path)(meta(expr))
-          ExprEntity.ReceivedMethod(p.symb, baseWithPath)
-
-
-        case Some(p: ap.MethodExpr) =>
-          ExprEntity.MethodExpr(p.symb, p.path)
-
-        case p => Violation.violation(s"expected field selection, received method, or method expression, but got $p")
-      }
-
-      case _ => Violation.violation("expected entity behind expression")
+    def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
+      val f = structMemberD(p.symb)
+      for {
+        r <- exprD(ctx)(p.base)
+      } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
     }
 
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
 
-      exprEntityD(ctx)(expr) match {
-        case ExprEntity.Variable(v) => v map in.Assignee.Var
-        case ExprEntity.ReceivedDeref(d) => d map in.Assignee.Pointer
-        case ExprEntity.ReceivedField(_, f) => f map in.Assignee.Field
+      val src: Meta = meta(expr)
 
-        case _ => ???
+      info.resolve(expr) match {
+        case Some(p: ap.LocalVariable) =>
+          unit(in.Assignee.Var(varD(ctx)(p.id)))
+        case Some(p: ap.Deref) =>
+          derefD(ctx)(p)(src) map in.Assignee.Pointer
+        case Some(p: ap.FieldSelection) =>
+          fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
+
+        case p => Violation.violation(s"unexpected ast pattern $p ")
+        case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 
     def addressableD(ctx: FunctionContext)(expr: PExpression): Writer[in.Addressable] = {
 
-      exprEntityD(ctx)(expr) match {
-        case ExprEntity.Variable(v) => v.res match {
-          case r: in.LocalVar.Ref => v map (_ => in.Addressable.Var(r))
-          case r => Violation.violation(s"expected variable reference but got $r")
-        }
-        case ExprEntity.ReceivedDeref(deref) => deref map in.Addressable.Pointer
-        case ExprEntity.ReceivedField(_, f) => f map in.Addressable.Field
 
-        case _ => ???
+      val src: Meta = meta(expr)
+
+      info.resolve(expr) match {
+        case Some(p: ap.LocalVariable) =>
+          varD(ctx)(p.id) match {
+            case r: in.LocalVar.Ref => unit(in.Addressable.Var(r))
+            case r => Violation.violation(s"expected variable reference but got $r")
+          }
+        case Some(p: ap.Deref) =>
+          derefD(ctx)(p)(src) map in.Addressable.Pointer
+        case Some(p: ap.FieldSelection) =>
+          fieldSelectionD(ctx)(p)(src) map in.Addressable.Field
+
+        case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 
@@ -1403,12 +1381,17 @@ object Desugar {
       val src: Meta = meta(acc)
 
       acc match {
-        case exp: PExpression => exprEntityD(ctx)(exp) match {
-          case ExprEntity.ReceivedDeref(d) => d map in.Accessible.Pointer
-          case ExprEntity.ReceivedField(_, f) => f map in.Accessible.Field
+        case exp: PExpression =>
+          info.resolve(exp) match {
+            case Some(p: ap.Deref) =>
+              derefD(ctx)(p)(src) map in.Accessible.Pointer
+            case Some(p: ap.FieldSelection) =>
+              fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
 
-          case _ => ???
-        }
+            case p => Violation.violation(s"unexpected ast pattern $p ")
+          }
+
+        case n => Violation.violation(s"unexpected accessible node $n ")
       }
     }
 

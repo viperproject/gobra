@@ -8,13 +8,6 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
-  def resolveConversionOrUnaryCall[T](n: PConversionOrUnaryCall)
-                                     (conversion: (PIdnUse, PExpression) => T)
-                                     (unaryCall: (PIdnUse, PExpression) => T): Option[T] =
-    if (pointsToType(n.base))      Some(conversion(n.base, n.arg))
-    else if (pointsToData(n.base)) Some(unaryCall(n.base, n.arg))
-    else None
-
   def resolveMPredOrMethExprOrRecvCall[T](n: PMPredOrMethRecvOrExprCall)
                                          (predOrMethCall: (PIdnUse, PIdnUse, Vector[PExpression]) => T)
                                          (predOrMethExprCall: (PIdnUse, PIdnUse, Vector[PExpression]) => T)

@@ -790,136 +790,106 @@ object Desugar {
             case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
           }
 
-          case PCall(callee, args) => exprEntityD(ctx)(callee) match {
-            case ExprEntity.Function(op) =>
-              val fsym = op
-              val fproxy = functionProxyD(fsym.decl)
+          case n: PInvoke =>
+            info.resolve(n) match {
+              case Some(ap.FunctionCall(callee: ap.Function, args)) => // Function Call
+                val fsym = callee.symb
+                val fproxy = functionProxyD(fsym.decl)
 
-              for {
-                dArgs <- sequence(args map exprD(ctx))
-                realArgs = dArgs match {
-                  // go function chaining feature
-                  case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
-                  case dargs => dargs
-                }
-
-                v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
-                else {
-                  val targets = fsym.decl.result match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                for {
+                  dArgs <- sequence(args map exprD(ctx))
+                  realArgs = dArgs match {
+                    // go function chaining feature
+                    case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
+                    case dargs => dargs
                   }
-                  for {
-                    _ <- declare(targets: _*)
-                    _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
 
-                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                  } yield res
-                }
+                  v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
+                  else {
+                    val targets = fsym.decl.result match {
+                      case PVoidResult() => Vector.empty
+                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                    }
+                    for {
+                      _ <- declare(targets: _*)
+                      _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
 
-              } yield v
-
-            case ExprEntity.ReceivedMethod(op, recv) =>
-              val (isPure, fargs, fres) = op match {
-                case st.MethodImpl(decl, _) => (decl.spec.isPure, decl.args, decl.result)
-                case st.MethodSpec(spec, _) => (false, spec.args, spec.result)
-              }
-
-              val fproxy = methodProxy(op)
-
-
-              for {
-                dRecv <- recv
-                dArgs <- sequence(args map exprD(ctx))
-                realArgs = dArgs match {
-                  // go function chaining feature
-                  case Vector(in.Tuple(targs)) if fargs.size > 1 => targs
-                  case dargs => dargs
-                }
-
-                v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, typeD(info.typ(fres)))(src))
-                else {
-                  val targets = fres match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                    } yield res
                   }
-                  for {
-                    _ <- declare(targets: _*)
-                    _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs)(src))
 
-                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                  } yield res
-                }
+                } yield v
 
-              } yield v
+              case Some(ap.FunctionCall(callee: ap.ReceivedMethod, args)) => // Method Call
+                val isPure = callee.symb.isPure
+                val fargs = callee.symb.args
+                val fres = callee.symb.result
+                val fproxy = methodProxy(callee.symb)
 
-            case ExprEntity.MethodExpr(op, path) =>
-              val (isPure, fargs, fres) = op match {
-                case st.MethodImpl(decl, _) => (decl.spec.isPure, decl.args, decl.result)
-                case st.MethodSpec(spec, _) => (false, spec.args, spec.result)
-              }
+                val recv = for {
+                  r <- exprD(ctx)(callee.recv)
+                } yield applyMemberPathD(r, callee.path)(meta(expr))
 
-              val fproxy = methodProxy(op)
-
-
-              for {
-                dArgs <- sequence(args map exprD(ctx))
-                realArgs = dArgs match {
-                  // go function chaining feature
-                  case Vector(in.Tuple(targs)) => targs
-                  case dargs => dargs
-                }
-                (realRecv, realRemainingArgs) = (applyMemberPathD(realArgs.head, path)(src), realArgs.tail)
-
-                v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
-                else {
-                  val targets = fres match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                for {
+                  dRecv <- recv
+                  dArgs <- sequence(args map exprD(ctx))
+                  realArgs = dArgs match {
+                    // go function chaining feature
+                    case Vector(in.Tuple(targs)) if fargs.size > 1 => targs
+                    case dargs => dargs
                   }
-                  for {
-                    _ <- declare(targets: _*)
-                    _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs)(src))
 
-                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                  } yield res
-                }
+                  v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, typeD(info.typ(fres)))(src))
+                  else {
+                    val targets = fres match {
+                      case PVoidResult() => Vector.empty
+                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                    }
+                    for {
+                      _ <- declare(targets: _*)
+                      _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs)(src))
 
-              } yield v
-
-            case e => Violation.violation(s"expected callable entity, but got $e")
-          }
-
-          case PConversionOrUnaryCall(base, arg) => base match {
-            case id if info.regular(id).isInstanceOf[st.Function] =>
-              val fsym = info.regular(id).asInstanceOf[st.Function]
-              val fproxy = functionProxyD(fsym.decl)
-
-              for {
-                dArg <- exprD(ctx)(arg)
-                realArgs = dArg match {
-                  // go function chaining feature
-                  case in.Tuple(targs) if fsym.decl.args.size > 1 => targs
-                  case darg => Vector(darg)
-                }
-
-                v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
-                else {
-                  val targets = fsym.decl.result match {
-                    case PVoidResult() => Vector.empty
-                    case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                    } yield res
                   }
-                  for {
-                    _ <- declare(targets: _*)
-                    _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
 
-                    res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                  } yield res
-                }
-              } yield v
+                } yield v
 
-            case e => Violation.violation(s"desugarer: conversion $e is not supported")
-          }
+              case Some(ap.FunctionCall(callee: ap.MethodExpr, args)) => // Method Expression
+                val isPure = callee.symb.isPure
+                val fargs = callee.symb.args
+                val fres = callee.symb.result
+                val fproxy = methodProxy(callee.symb)
+
+                for {
+                  dArgs <- sequence(args map exprD(ctx))
+                  realArgs = dArgs match {
+                    // go function chaining feature
+                    case Vector(in.Tuple(targs)) => targs
+                    case dargs => dargs
+                  }
+                  (realRecv, realRemainingArgs) = (applyMemberPathD(realArgs.head, callee.path)(src), realArgs.tail)
+
+                  v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
+                  else {
+                    val targets = fres match {
+                      case PVoidResult() => Vector.empty
+                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                    }
+                    for {
+                      _ <- declare(targets: _*)
+                      _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs)(src))
+
+                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                    } yield res
+                  }
+
+                } yield v
+
+              case Some(ap: ap.Conversion) => Violation.violation(s"desugarer: conversion $n is not supported")
+              case Some(ap: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
+              case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
+            }
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 

@@ -1,34 +1,29 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
-import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Function, MethodImpl, MethodSpec, Regular}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
 import viper.gobra.util.Violation
 
-trait GhostAssignability { this: TypeInfoImpl =>
+trait GhostAssignability {
+  this: TypeInfoImpl =>
 
-  /** checks that not ghost arguments are assigned to non-ghost arguments  */
-  private[separation] def assignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
+  /** checks that ghost arguments are not assigned to non-ghost arguments  */
+  private[separation] def ghostAssignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
     val argTyping = calleeArgGhostTyping(callee).toTuple
-    generalAssignableTo[PExpression, Boolean](ghostExprTyping){
+    generalGhostAssignableTo[PExpression, Boolean](ghostExprTyping){
       case (g, l) => message(callee, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
     }(right: _*)(argTyping: _*)
   }
 
-  private[separation] def assignableToCallId(right: PExpression)(callee: PIdnNode): Messages = {
-    val argTyping = calleeArgGhostTyping(callee)
-    message(right, "ghost error: ghost cannot be assigned to non-ghost", ghostExprClassification(right) && !argTyping.isGhost)
-  }
-
   /** conservative ghost separation assignment check */
-  private[separation] def assignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
-    generalAssignableTo(ghostExprTyping)(assigneeAssignmentMsg)(exprs: _*)(lefts: _*)
+  private[separation] def ghostAssignableToAssignee(exprs: PExpression*)(lefts: PAssignee*): Messages =
+    generalGhostAssignableTo(ghostExprTyping)(ghostAssigneeAssignmentMsg)(exprs: _*)(lefts: _*)
 
 
-  private def assigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
+  private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
 
     case _: PDeref => // *x := e ~ !ghost(e)
       message(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
@@ -50,18 +45,18 @@ trait GhostAssignability { this: TypeInfoImpl =>
   }
 
   /** conservative ghost separation assignment check */
-  private[separation] def assignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
-    generalAssignableTo(ghostExprTyping)(dfltAssignableMsg(ghostIdClassification))(exprs: _*)(lefts: _*)
+  private[separation] def ghostAssignableToId(exprs: PExpression*)(lefts: PIdnNode*): Messages =
+    generalGhostAssignableTo(ghostExprTyping)(dfltGhostAssignableMsg(ghostIdClassification))(exprs: _*)(lefts: _*)
 
   /** conservative ghost separation assignment check */
-  private[separation] def assignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
-    generalAssignableTo(ghostExprTyping)(dfltAssignableMsg(ghostParameterClassification))(exprs: _*)(lefts: _*)
+  private[separation] def ghostAssignableToParam(exprs: PExpression*)(lefts: PParameter*): Messages =
+    generalGhostAssignableTo(ghostExprTyping)(dfltGhostAssignableMsg(ghostParameterClassification))(exprs: _*)(lefts: _*)
 
-  private def dfltAssignableMsg[L <: PNode](ghost: L => Boolean): (Boolean, L) => Messages = {
+  private def dfltGhostAssignableMsg[L <: PNode](ghost: L => Boolean): (Boolean, L) => Messages = {
     case (g, l) => message(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
   }
 
-  private def generalAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
+  private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
     NonStrictAssignModi(lefts.size, rights.size) match {
 
       case AssignMode.Single => rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
@@ -75,52 +70,35 @@ trait GhostAssignability { this: TypeInfoImpl =>
 
 
 
-
-  private[separation] def calleeArgGhostTyping(callee: PExpression): GhostType = calleeEntity(callee) match {
-    case None => GhostType.notGhost // conservative choice
-    case Some(e) =>
-      if (isCalleeMethodExpr(callee))
-        GhostType.ghostTuple(false +: calleeArgGhostTyping(e).toTuple)
-      else
-        calleeArgGhostTyping(e)
-  }
-
-  private[separation] def calleeArgGhostTyping(callee: PIdnNode): GhostType =
-    calleeArgGhostTyping(regular(callee))
-
-  private[separation] def calleeArgGhostTyping(r: Entity): GhostType = {
+  /** ghost type of the arguments of a callee */
+  private[separation] def calleeArgGhostTyping(callee: PExpression): GhostType = {
     def argTyping(args: Vector[PParameter]): GhostType =
       GhostType.ghostTuple(args.map(ghostParameterClassification))
 
-    r match {
-      case Function(decl, _)   => argTyping(decl.args)
-      case MethodImpl(decl, _) => argTyping(decl.args)
-      case MethodSpec(spec, _) => argTyping(spec.args)
-      case x => Violation.violation(s"expected callable but got $x")
+    val x = resolve(callee)
+
+    resolve(callee) match {
+      case Some(p: ap.Function) => argTyping(p.symb.args)
+      case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args)
+      case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args).toTuple)
+      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case _ => GhostType.notGhost // conservative choice
     }
   }
 
-
-  private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = calleeEntity(callee) match {
-    case None => GhostType.isGhost // conservative choice
-    case Some(e) => calleeReturnGhostTyping(e)
-  }
-
-  private[separation] def calleeReturnGhostTyping(callee: PIdnNode): GhostType =
-    calleeReturnGhostTyping(regular(callee))
-
-  private[separation] def calleeReturnGhostTyping(r: Entity): GhostType = {
+  /** ghost type of the result of a callee */
+  private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = {
     def resultTyping(result: PResult): GhostType = result match {
       case PVoidResult() => GhostType.notGhost
       case PResultClause(outs) => GhostType.ghostTuple(outs.map(ghostParameterClassification))
     }
 
-    r match {
-      case x: Regular if x.ghost => GhostType.isGhost
-      case Function(decl, _)   => resultTyping(decl.result)
-      case MethodImpl(decl, _) => resultTyping(decl.result)
-      case MethodSpec(spec, _) => resultTyping(spec.result)
-      case x => Violation.violation(s"expected callable but got $x")
+    resolve(callee) match {
+      case Some(p: ap.Function) => resultTyping(p.symb.result)
+      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result)
+      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result)
+      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case _ => GhostType.isGhost // conservative choice
     }
   }
 

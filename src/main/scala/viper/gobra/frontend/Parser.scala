@@ -457,7 +457,6 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val primaryExp: Parser[PExpression] =
-      conversionOrUnaryCall |
         conversion |
         call |
         selection |
@@ -467,16 +466,13 @@ object Parser {
         operand
 
 
-    lazy val conversionOrUnaryCall: Parser[PConversionOrUnaryCall] =
-      nestedIdnUse ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
-        PConversionOrUnaryCall
+    lazy val conversion: Parser[PInvoke] =
+      typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
+        case t ~ e => PInvoke(t, Vector(e))
       }
 
-    lazy val conversion: Parser[PConversion] =
-      typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ PConversion
-
-    lazy val call: PackratParser[PCall] =
-      primaryExp ~ callArguments ^^ PCall
+    lazy val call: PackratParser[PInvoke] =
+      primaryExp ~ callArguments ^^ PInvoke
 
     lazy val callArguments: Parser[Vector[PExpression]] =
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
@@ -773,10 +769,9 @@ object Parser {
 
     def tryForPredicateCall(exp: PExpression): PAssertion = {
       exp match {
-        case PConversionOrUnaryCall(base, arg) => PFPredOrBoolFuncCall(base, Vector(arg))
-        case PCall(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
-        case PCall(PDot(base: PNamedOperand, id), args) => PMPredOrMethRecvOrExprCall(base.id, id, args)
-        case PCall(PDot(recv: PExpression, id), args) => PMPredOrBoolMethCall(recv, id, args)
+        case PInvoke(PNamedOperand(id), args) => PFPredOrBoolFuncCall(id, args)
+        case PInvoke(PDot(base: PNamedOperand, id), args) => PMPredOrMethRecvOrExprCall(base.id, id, args)
+        case PInvoke(PDot(recv: PExpression, id), args) => PMPredOrBoolMethCall(recv, id, args)
         case _ => PExprAssertion(exp)
       }
     }

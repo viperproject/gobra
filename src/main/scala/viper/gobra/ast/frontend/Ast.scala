@@ -286,12 +286,6 @@ case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock)
 
 case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
 
-case class PConversionOrUnaryCall(base: PIdnUse, arg: PExpression) extends PActualExpression
-
-case class PConversion(typ: PType, arg: PExpression) extends PActualExpression
-
-case class PCall(callee: PExpression, args: Vector[PExpression]) extends PActualExpression
-
 // TODO: Check Arguments in language specification, also allows preceding type
 
 case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible

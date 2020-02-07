@@ -111,15 +111,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PFunctionLit => noMessages
 
-    case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n) //AWAY
-
-    case n@PCall(base, paras) => exprType(base) match { //AWAY
-      case FunctionT(args, _) =>
-        if (paras.isEmpty && args.isEmpty) noMessages
-        else multiAssignableTo.errors(paras map exprType, args)(n) // TODO: add special assignment
-      case t => message(n, s"type error: got $t but expected function type")
-    }
-
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
 
       case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
@@ -152,16 +143,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _ => message(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
-
-    case n: PConversionOrUnaryCall => //AWAY
-      resolveConversionOrUnaryCall(n) {
-        case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
-      } {
-        case (id, arg) => idType(id) match {
-          case FunctionT(args, _) => multiAssignableTo.errors(Vector(exprType(arg)), args)(n)
-          case t => message(n, s"type error: got $t but expected function type")
-        }
-      }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
@@ -301,13 +282,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFunctionLit(args, r, _) =>
       FunctionT(args map miscType, miscType(r))
 
-    case PConversion(t, _) => typeType(t)
-
-    case n@PCall(callee, _) => exprType(callee) match {
-      case FunctionT(_, res) => res
-      case t => violation(s"expected function type but got $t") //(message(n, s""))
-    }
-
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeType(p.typ)
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
@@ -317,14 +291,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       case p => violation(s"expected conversion, function call, or predicate call, but got $p")
     }
-
-    case PConversionOrUnaryCall(base, arg) =>
-      idType(base) match {
-        case t: DeclaredT => t // conversion
-        case FunctionT(args, res) // unary call
-          if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
-        case t => violation(s"expected function or declared type but got $t")
-      }
 
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem

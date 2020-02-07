@@ -56,14 +56,14 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
 
-  private def getLeftOrElse[L,R](e: Either[L,R])(f: R => L): L =
+  private def getLeftOrElse[L,R](e: Either[L,R])(f: R => L): L = //AWAY
     e.left.getOrElse(f(e.right.get))
 
-  private def ifNoMessages[T](m: Messages)(f: => T): Either[Messages, T] =
+  private def ifNoMessages[T](m: Messages)(f: => T): Either[Messages, T] = //AWAY
     if (m.isEmpty) Left(m) else Right(f)
 
 
-  private def wellDefBase(id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
+  private def wellDefBase(id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match { //AWAY
     case Function(decl, _) =>
       ifNoMessages(
         assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
@@ -74,7 +74,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
-  private def wellDefBase(recv: PExpression, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
+  private def wellDefBase(recv: PExpression, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match { //AWAY
     case MethodImpl(decl, _) =>
       ifNoMessages(
           assignableTo.errors(miscType(decl.result), BooleanT)(n) ++
@@ -101,7 +101,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
-  private def wellDefBase(recv: PMethodRecvType, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match {
+  private def wellDefBase(recv: PMethodRecvType, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = entity(id) match { //AWAY
     case MethodImpl(decl, _) =>
       ifNoMessages(
         assignableTo.errors(miscType(decl.result), BooleanT)(n) ++ wellDefMethodExpr(recv, id)(n) ++ message(n, "expected pure method", !decl.spec.isPure)
@@ -125,7 +125,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => Left(message(n, s"expected function of predicate but got $e"))
   }
 
-  private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = {
+  private def wellDefBase(recv: PIdnUse, id: PIdnUse)(n: PNode): Either[Messages, Vector[Type]] = { //AWAY
     val recvOpt = if (pointsToType(recv)) Vector(idType(recv)) else Vector.empty
 
     entity(id) match {
@@ -156,7 +156,7 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
   /** predicate version of @see [[wellDefSelectionOrMethodExpr()]] */
-  private def wellDefPredicateSelectionOrExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = {
+  private def wellDefPredicateSelectionOrExpr(base: PIdnUse, id: PIdnUse)(n: PNode): Messages = { //AWAY
     message(n, s"type ${idType(base)} does not have method ${id.name}"
       , if (pointsToType(base)) !findMethodLike(idType(base), id).exists(_.isInstanceOf[MPredicate])
       else if (pointsToData(base)) !findSelection(base, id).exists(_.isInstanceOf[MPredicate])
@@ -165,20 +165,20 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /** predicate version of @see [[wellDefMethodExpr()]] */
-  private def wellDefPredicateExpr(t: PMethodRecvType, id: PIdnUse)(n: PNode): Messages = {
+  private def wellDefPredicateExpr(t: PMethodRecvType, id: PIdnUse)(n: PNode): Messages = { //AWAY
     message(n, s"type ${typeType(t)} does not have method ${id.name}"
       , !findMethodLike(typeType(t), id).exists(_.isInstanceOf[MPredicate]))
   }
 
   /** predicate version of @see [[wellDefSelection]] */
-  private def wellDefPredicateSelection(base: PExpression, id: PIdnUse)(n: PNode): Messages = {
+  private def wellDefPredicateSelection(base: PExpression, id: PIdnUse)(n: PNode): Messages = { //AWAY
     message(n, s"type ${exprType(base)} does not have method ${id.name}"
       , !findSelection(base, id).exists(_.isInstanceOf[MPredicate]))
   }
 
 
 
-  private def isPredicate(id: PIdnNode): Messages = {
+  private def isPredicate(id: PIdnNode): Messages = { //AWAY
     val ent = entity(id)
     message(id, s"expected predicate but got $ent", !ent.isInstanceOf[Predicate])
   }

@@ -54,14 +54,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n@ PAssignment(right, left) => assignableToAssignee(right: _*)(left: _*)
-    case n@ PAssignmentWithOp(right, _, left) => assignableToAssignee(right)(left)
+    case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left, _) => assignableToId(right: _*)(left: _*)
+    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
       case PVoidResult() => violation("return arity not consistent with required enclosing arguments")
-      case PResultClause(left) => assignableToParam(right: _*)(left: _*)
+      case PResultClause(left) => ghostAssignableToParam(right: _*)(left: _*)
     }
   }
 
@@ -84,20 +84,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
       _: PLiteral
       |  _: PReceive
       |  _: PReference
-      |  _: PConversion
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n){
-      case (base, id) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-    } {
-      case (base, id) => assignableToCallId(id)(base)
-    }.get
-
-    case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
-
-    case n: PInvoke => (exprOrType(n), resolve(n)) match {
+    case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) =>  message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-      case (Left(callee), Some(p: ap.FunctionCall)) => assignableToCallExpr(p.args: _*)(callee)
+      case (Left(callee), Some(p: ap.FunctionCall)) => ghostAssignableToCallExpr(p.args: _*)(callee)
       case (Left(_), Some(p: ap.PredicateCall)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }

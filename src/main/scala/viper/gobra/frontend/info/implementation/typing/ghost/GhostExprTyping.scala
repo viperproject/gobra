@@ -44,23 +44,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private lazy val isPureExprAttr: PExpression => Boolean =
     attr[PExpression, Boolean] {
       case n@ PNamedOperand(id) => isPureId(id)
-      case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
+      case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
         case (Left(callee), Some(p: ap.FunctionCall)) => isPureExprAttr(callee) && p.args.forall(isPureExprAttr)
         case _ => false
       }
-
-      case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
-
-      case n: PConversionOrUnaryCall =>
-        resolveConversionOrUnaryCall(n)
-        { case (_, _) => false }
-        { case (id, arg) => isPureId(id) && isPureExprAttr(arg)}
-          .getOrElse(false)
-
 
       case n: PDot => exprOrType(n.base) match {
         case Left(e) => isPureExprAttr(e) && isPureId(n.id)
@@ -97,7 +88,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // Might change as some point
       case _: PFunctionLit => false
-      case n@PConversion(t, arg) => false
       case n@PSliceExp(base, low, high, cap) => false
 
       // Others

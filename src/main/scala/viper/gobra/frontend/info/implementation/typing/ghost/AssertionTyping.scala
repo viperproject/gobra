@@ -14,9 +14,9 @@ trait AssertionTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val wellDefAssertion: WellDefinedness[PAssertion] = createWellDef {
 
     case n@ PStar(left, right) => noMessages
-    case n@ PImplication(left, right) => isExpr(left).out ++ assignableTo.errors(exprType(left), BooleanT)(n)
+    case n@ PImplication2(left, right) => isExpr(left).out ++ assignableTo.errors(exprType(left), BooleanT)(n)
     case n@ PExprAssertion(exp) => isExpr(exp).out ++ assignableTo.errors(exprType(exp), BooleanT)(n) ++ isPureExpr(exp)
-    case n@ PAccess(exp) => exp match {
+    case n@ PAccess2(exp) => exp match {
       case _: PReference => noMessages
       case n: PDeref => isExpr(n).out
       case n: PDot => resolve(n) match {

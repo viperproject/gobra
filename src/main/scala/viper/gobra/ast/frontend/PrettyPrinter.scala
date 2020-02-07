@@ -292,6 +292,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+      case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
+      case PAccess(exp) => exp match {
+        case n: PExpression => "acc" <> parens(showExpr(n))
+      }
     }
   }
 
@@ -321,7 +325,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAssertion(ass: PAssertion): Doc = ass match {
     case PStar(left, right) => showAssertion(left) <+> "&&" <+> showAssertion(right)
     case PExprAssertion(exp) => showExpr(exp)
-    case PImplication(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
+    case PImplication2(left, right) => showExpr(left) <+> "==>" <+> showAssertion(right)
     case x: PPredicateCall => x match {
       case PFPredOrBoolFuncCall(id, args) => id.name <> parens(showExprList(args))
       case PMPredOrBoolMethCall(recv, id, args) => showExpr(recv) <> "." <> id.name <> parens(showExprList(args))
@@ -330,7 +334,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMemoryPredicateCall(arg) => "memory" <> parens(showExpr(arg))
     }
     case x: PPredicateAccess => "acc" <> parens(showAssertion(x.pred))
-    case PAccess(exp) => exp match {
+    case PAccess2(exp) => exp match {
       case n: PExpression => "acc" <> parens(showExpr(n))
     }
   }

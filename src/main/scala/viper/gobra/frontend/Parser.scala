@@ -398,7 +398,11 @@ object Parser {
       precedence1
 
     lazy val precedence1: PackratParser[PExpression] = /* Right-associative */
-      precedence2 ~ ("?" ~> precedence1 <~ ":") ~ precedence1 ^^ PConditional |
+      precedence1P5 ~ ("?" ~> precedence1 <~ ":") ~ precedence1 ^^ PConditional |
+        precedence1P5
+
+    lazy val precedence1P5: PackratParser[PExpression] = /* Right-associative */
+      precedence2 ~ ("==>" ~> precedence1P5) ^^ PImplication |
         precedence2
 
     lazy val precedence2: PackratParser[PExpression] = /* Left-associative */
@@ -754,14 +758,14 @@ object Parser {
         assertionPrecedence3
 
     lazy val assertionPrecedence1: PackratParser[PAssertion] =
-       (expression <~ "==>") ~ assertionPrecedence1 ^^ PImplication | /* Right-associative */
+       (expression <~ "==>") ~ assertionPrecedence1 ^^ PImplication2 | /* Right-associative */
         assertionPrecedence2
 
     lazy val assertionPrecedence3: PackratParser[PAssertion] =
       unaryAssertion
 
     lazy val unaryAssertion: Parser[PAssertion] =
-      "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
+      "acc" ~> "(" ~> accessible2 <~ ")" ^^ PAccess2 |
       "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess |
       "(" ~> assertion <~ ")" |
       expression ^^ tryForPredicateCall
@@ -776,7 +780,7 @@ object Parser {
       }
     }
 
-    lazy val accessible: Parser[PAccessible] =
+    lazy val accessible2: Parser[PAccessible] =
        dereference | reference | idBasedSelection | selection
 
     lazy val predicateCall: Parser[PPredicateCall] =
@@ -795,8 +799,12 @@ object Parser {
         ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostUnaryExpression: Parser[POld] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld
+    lazy val ghostUnaryExpression: Parser[PGhostExpression] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld |
+       "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess
+
+    lazy val accessible: Parser[PAccessible] =
+      dereference | reference | idBasedSelection | selection | call
 
     /**
       * EOS

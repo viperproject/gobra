@@ -79,14 +79,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }(wellDefExprAndType)
 
 
-
+  /** checks that argument is not a type. The argument might still be an assertion. */
   lazy val isExpr: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { case n: PExpressionOrType =>
     val isExprCondition = exprOrType(n).isLeft
     message(n, s"expected expression, but got $n", !isExprCondition)
-  }
-
-  lazy val isAssertion: WellDefinedness[PExpression] = createWellDef[PExpression] { case n: PExpression =>
-    noMessages
   }
 
   lazy val wellDefAndExpr: WellDefinedness[PExpression] = createWellDef { n =>
@@ -200,11 +196,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 
+
     case n: PBinaryExp =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
         ((n, exprType(n.left), exprType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
-          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, BooleanT)(n) ++ assignableTo.errors(r, BooleanT)(n)
+          case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
           , l, r) => assignableTo.errors(l, IntT)(n) ++ assignableTo.errors(r, IntT)(n)
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
@@ -318,7 +315,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PReference(exp) if effAddressable(exp) => PointerT(exprType(exp))
 
-    case _: PNegation | _: PEquals | _: PUnequals | _: PAnd | _: POr |
+    case n: PAnd => // is boolean if left and right argument are boolean, otherwise is an assertion
+      val lt = exprType(n.left)
+      val rt = exprType(n.right)
+      if (assignableTo(lt, BooleanT) && assignableTo(rt, BooleanT)) BooleanT else AssertionT
+
+    case _: PNegation | _: PEquals | _: PUnequals | _: POr |
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 

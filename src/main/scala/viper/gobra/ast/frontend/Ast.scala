@@ -284,7 +284,7 @@ case class PLitCompositeVal(lit: PLiteralValue) extends PCompositeVal
 
 case class PFunctionLit(args: Vector[PParameter], result: PResult, body: PBlock) extends PLiteral with PCodeRootWithResult with PScope
 
-case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression
+case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends PActualExpression with PAccessible
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
@@ -623,34 +623,42 @@ case class POld(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 
+case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
+
+case class PAccess(exp: PAccessible) extends PGhostExpression
+
+sealed trait PAccessible extends PGhostNode with PExpression
+
+
 /**
   * Assertions
   */
 
 
-sealed trait PAssertion extends PGhostNode
+sealed trait PAssertion extends PGhostNode //AWAY
 
-case class PStar(left: PAssertion, right: PAssertion) extends PAssertion
+case class PStar(left: PAssertion, right: PAssertion) extends PAssertion //AWAY
 
-case class PExprAssertion(exp: PExpression) extends PAssertion
+case class PExprAssertion(exp: PExpression) extends PAssertion //AWAY
 
-sealed trait PPredicateCall extends PAssertion
+sealed trait PPredicateCall extends PAssertion  //AWAY
 
-case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall //AWAY
 
-case class PMPredOrBoolMethCall(recv: PExpression, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+case class PMPredOrBoolMethCall(recv: PExpression, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall //AWAY
 
-case class PMPredOrMethExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+case class PMPredOrMethExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall  //AWAY
 
-case class PMPredOrMethRecvOrExprCall(base: PIdnUse, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
+case class PMPredOrMethRecvOrExprCall(base: PIdnUse, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall  //AWAY
 
-case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredicateCall
+case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredicateCall  //AWAY
 
-case class PImplication(left: PExpression, right: PAssertion) extends PAssertion
 
-case class PAccess(exp: PAccessible) extends PAssertion
+case class PImplication2(left: PExpression, right: PAssertion) extends PAssertion
 
-sealed trait PAccessible extends PGhostNode
+case class PAccess2(exp: PAccessible) extends PAssertion
+
+
 
 case class PPredicateAccess(pred: PPredicateCall) extends PAssertion
 

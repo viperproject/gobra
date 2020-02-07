@@ -1,9 +1,9 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{BooleanT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -12,19 +12,44 @@ import viper.gobra.util.Violation.violation
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
+
     case POld(op) => isExpr(op).out ++ isPureExpr(op)
+
     case PConditional(cond, thn, els) =>
       // check that cond is of type bool:
       isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
-      comparableTypes.errors(exprType(cond), BooleanT)(expr) ++
-      // check that thn and els have a common type
-      mergeableTypes.errors(exprType(thn), exprType(els))(expr)
+        assignableTo.errors(exprType(cond), BooleanT)(expr) ++
+        // check that thn and els have a common type
+        mergeableTypes.errors(exprType(thn), exprType(els))(expr)
+
+    case n: PImplication =>
+      isExpr(n.left).out ++ isExpr(n.right).out ++
+      // check that left side is a boolean expression
+        assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
+      // check that right side is either boolean or an assertion
+        assignableTo.errors(exprType(n.right), AssertionT)(expr)
+
+    case n: PAccess => n.exp match {
+      case m: PReference => isExpr(m).out // TODO: Maybe add reference to ast patterns
+      case m: PExpression => resolve(m) match {
+        case Some(p: ap.Deref) => noMessages
+        case Some(p: ap.FieldSelection) => noMessages
+        case Some(p: ap.PredicateCall) => noMessages
+        case _ => message(m, s"expected reference, dereference, field selection, or predicate call, but got $m")
+      }
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
+
     case POld(op) => exprType(op)
+
     case PConditional(cond, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
+
+    case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
+
+    case _: PAccess => AssertionT
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {

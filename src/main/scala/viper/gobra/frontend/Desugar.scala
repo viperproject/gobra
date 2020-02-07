@@ -131,7 +131,6 @@ object Desugar {
     def mpredicateProxy(sym: st.MPredicate): in.MPredicateProxy = {
       val (metaInfo, id) = sym match {
         case st.MPredicateImpl(decl) => (meta(decl), decl.id)
-        case st.MPredicateImpl(spec) => (meta(spec), spec.id)
         case st.MPredicateSpec(_) => assert(false); ???
       }
 
@@ -540,7 +539,7 @@ object Desugar {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goA(a: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(a)
       def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
       val src: Meta = meta(stmt)
@@ -569,7 +568,7 @@ object Desugar {
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
               (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD2(ctx)))
               dBody = blockD(ctx)(body)
               dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -703,7 +702,6 @@ object Desugar {
         case Some(p: ap.FieldSelection) =>
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
 
-        case p => Violation.violation(s"unexpected ast pattern $p ")
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
@@ -1196,7 +1194,7 @@ object Desugar {
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): Writer[in.Stmt] = {
 
-      def goA(ass: PAssertion): Writer[in.Assertion] = assertionD(ctx)(ass)
+      def goA(ass: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(ass)
 
       val src: Meta = meta(stmt)
 
@@ -1224,8 +1222,21 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
-        case PConditional(cond, thn, els) => for {wcond <- go(cond); wthn <- go(thn); wels <- go(els)
-                                                  } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        case PConditional(cond, thn, els) =>
+          for {
+            wcond <- go(cond)
+            wthn <- go(thn)
+            wels <- go(els)
+          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PImplication(left, right) =>
+          for {
+            wcond <- go(left)
+            wthn <- go(right)
+            wels = in.BoolLit(b = false)(src)
+          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }
 
@@ -1239,7 +1250,7 @@ object Desugar {
     // Assertion
 
     def specificationD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
-      val condition = assertionD(ctx)(ass)
+      val condition = assertionD2(ctx)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
       condition.res
     }
@@ -1253,28 +1264,87 @@ object Desugar {
     }
 
 
-    def assertionD(ctx: FunctionContext)(ass: PAssertion): Writer[in.Assertion] = {
+    def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD(ctx)(a)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
+
+      val src: Meta = meta(n)
+
+      n match {
+        case n: PImplication => for {l <- goE(n.left); r <- goA(n.right)} yield in.Implication(l, r)(src)
+        case n: PConditional => // TODO: create Conditional Expression in internal ast
+          for {
+            cnd <- goE(n.cond)
+            thn <- goA(n.thn)
+            els <- goA(n.els)
+          } yield in.SepAnd(in.Implication(cnd, thn)(src), in.Implication(in.Negation(cnd)(src), els)(src))(src)
+
+        case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
+
+        case n: PAccess => for {e <- accessibleD(ctx)(n.exp)} yield in.Access(e)(src)
+
+        case n: PInvoke =>
+          info.resolve(n) match {
+            case Some(p: ap.PredicateCall) => predicateCallD(ctx)(p)(src)
+            case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+          }
+
+        case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
+      }
+    }
+
+    def predicateCallD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.Assertion] = {
+      predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x))(src))
+    }
+
+    def predicateCallAccD(ctx: FunctionContext)(p: ap.PredicateCall)(src: Meta): Writer[in.PredicateAccess] = {
+
+      val dArgs = p.args map pureExprD(ctx)
+
+      p.predicate match {
+        case b: ap.Predicate =>
+          val fproxy = fpredicateProxyD(b.symb.decl)
+          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+
+        case b: ap.ReceivedPredicate =>
+          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
+          val proxy = mpredicateProxy(b.symb)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+
+        case b: ap.PredicateExpr =>
+          val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
+          val proxy = mpredicateProxy(b.symb)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+      }
+    }
+
+
+    def assertionD2(ctx: FunctionContext)(ass: PAssertion): Writer[in.Assertion] = {
+
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goA(a: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(a)
 
       val src: Meta = meta(ass)
 
       ass match {
         case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
         case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
-        case PImplication(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
+        case PImplication2(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
 
-        case pacc: PPredicateAccess => unit(predicateCallD(ctx)(pacc.pred))
-        case pacc: PPredicateCall => unit(predicateCallD(ctx)(pacc))
+        case pacc: PPredicateAccess => unit(predicateCallD2(ctx)(pacc.pred))
+        case pacc: PPredicateCall => unit(predicateCallD2(ctx)(pacc))
 
-        case PAccess(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
+        case PAccess2(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
 
         case _ => ???
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(pred: PPredicateCall): in.Assertion = {
+
+
+    def predicateCallD2(ctx: FunctionContext)(pred: PPredicateCall): in.Assertion = {
       val src: Meta = meta(pred)
 
       def predCallToAccess(pacc: in.PredicateAccess): in.Access =
@@ -1387,6 +1457,9 @@ object Desugar {
               derefD(ctx)(p)(src) map in.Accessible.Pointer
             case Some(p: ap.FieldSelection) =>
               fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+
+            case Some(p: ap.PredicateCall) =>
+              predicateCallAccD(ctx)(p)(src) map in.Accessible.Predicate
 
             case p => Violation.violation(s"unexpected ast pattern $p ")
           }

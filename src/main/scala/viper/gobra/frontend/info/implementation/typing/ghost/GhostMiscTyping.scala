@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{FunctionT, PredicateInstance, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -19,8 +19,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
-    case MPredicateImpl(decl) => FunctionT(decl.args map miscType, PredicateInstance)
-    case MPredicateSpec(decl) => FunctionT(decl.args map miscType, PredicateInstance)
+    case MPredicateImpl(decl) => FunctionT(decl.args map miscType, AssertionT)
+    case MPredicateSpec(decl) => FunctionT(decl.args map miscType, AssertionT)
     case member: SymbolTable.GhostStructMember => ???
   }
 

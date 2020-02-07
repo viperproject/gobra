@@ -37,6 +37,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
+
+        // for go's types according to go's specification (mostly)
       case (l, r) if identicalTypes(l, r) => true
       case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
@@ -44,6 +46,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (l, NilType) if isPointerType(l) => true // not in spec
       case (NilType, r) if isPointerType(r) => true
+
+        // for ghost types
+      case (BooleanT, AssertionT) => true
+
+        // conservative choice
       case _ => false
     }
     case _ => false

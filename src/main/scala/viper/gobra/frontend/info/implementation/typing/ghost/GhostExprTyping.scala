@@ -11,6 +11,8 @@ import viper.gobra.util.Violation.violation
 
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
+
+
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
 
     case POld(op) => isExpr(op).out ++ isPureExpr(op)

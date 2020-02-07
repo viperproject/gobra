@@ -2,24 +2,10 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.isDefinedInScope
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
-
-  def resolveMPredOrMethExprOrRecvCall[T](n: PMPredOrMethRecvOrExprCall)
-                                         (predOrMethCall: (PIdnUse, PIdnUse, Vector[PExpression]) => T)
-                                         (predOrMethExprCall: (PIdnUse, PIdnUse, Vector[PExpression]) => T)
-                                         : Option[T] =
-    if (pointsToType(n.base))      Some(predOrMethCall(n.base, n.id, n.args))
-    else if (pointsToData(n.base)) Some(predOrMethExprCall(n.base, n.id, n.args))
-    else None
-
-  def isDef[T](n: PIdnUnk): Boolean = !isDefinedInScope(sequentialDefenv.in(n), serialize(n))
-
-
-
 
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType] = {
     n match {

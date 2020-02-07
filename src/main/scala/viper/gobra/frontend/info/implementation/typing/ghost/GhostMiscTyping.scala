@@ -24,4 +24,13 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case member: SymbolTable.GhostStructMember => ???
   }
 
+  implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
+    case n@ PFunctionSpec(pres, posts, _) =>
+      pres.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n)) ++
+        posts.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
+
+    case n@ PLoopSpec(invariants) => ???
+      invariants.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
+  }
+
 }

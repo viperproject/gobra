@@ -209,18 +209,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
-      case tree.parent.pair(id: PIdnUse, e@ PMPredOrMethRecvOrExprCall(_, f, _)) if id == f =>
-        resolveMPredOrMethExprOrRecvCall(e)
-        { case (b, i, _) => findSelection(b, i) }
-        { case (b, i, _) => findMethodLike(idType(b), i)}
-          .flatten.getOrElse(UnknownEntity())
-
-      case tree.parent.pair(id: PIdnUse, e: PMPredOrMethExprCall) =>
-        findMethodLike(typeType(e.base), id).getOrElse(UnknownEntity())
-
-      case tree.parent.pair(id: PIdnUse, e: PMPredOrBoolMethCall) =>
-        findSelection(e.recv, id).getOrElse(UnknownEntity())
-
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>

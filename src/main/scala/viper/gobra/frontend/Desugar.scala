@@ -539,7 +539,7 @@ object Desugar {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(a)
+      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
       def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
       val src: Meta = meta(stmt)
@@ -568,7 +568,7 @@ object Desugar {
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
               (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD2(ctx)))
+              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
               dBody = blockD(ctx)(body)
               dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -1194,7 +1194,7 @@ object Desugar {
 
     def ghostStmtD(ctx: FunctionContext)(stmt: PGhostStatement): Writer[in.Stmt] = {
 
-      def goA(ass: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(ass)
+      def goA(ass: PExpression): Writer[in.Assertion] = assertionD(ctx)(ass)
 
       val src: Meta = meta(stmt)
 
@@ -1249,17 +1249,17 @@ object Desugar {
 
     // Assertion
 
-    def specificationD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
-      val condition = assertionD2(ctx)(ass)
+    def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
+      val condition = assertionD(ctx)(ass)
       Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
       condition.res
     }
 
-    def preconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def preconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
     }
 
-    def postconditionD(ctx: FunctionContext)(ass: PAssertion): in.Assertion = {
+    def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
     }
 
@@ -1326,128 +1326,6 @@ object Desugar {
     }
 
 
-    def assertionD2(ctx: FunctionContext)(ass: PAssertion): Writer[in.Assertion] = {
-
-      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PAssertion): Writer[in.Assertion] = assertionD2(ctx)(a)
-
-      val src: Meta = meta(ass)
-
-      ass match {
-        case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
-        case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
-        case PImplication2(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
-
-        case pacc: PPredicateAccess2 => unit(predicateCallD2(ctx)(pacc.pred))
-        case pacc: PPredicateCall => unit(predicateCallD2(ctx)(pacc))
-
-        case PAccess2(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
-
-        case _ => ???
-      }
-    }
-
-
-
-    def predicateCallD2(ctx: FunctionContext)(pred: PPredicateCall): in.Assertion = {
-      val src: Meta = meta(pred)
-
-      def predCallToAccess(pacc: in.PredicateAccess): in.Access =
-        in.Access(in.Accessible.Predicate(pacc))(src)
-
-      def isPredicate(id: PIdnUse): Boolean = info.regular(id).isInstanceOf[st.Predicate]
-
-      val dp: in.Assertion = pred match {
-        case PFPredOrBoolFuncCall(id, args) =>
-          val dArgs = args map pureExprD(ctx)
-          info.regular(id) match {
-            case st.Function(decl, _) =>
-              val fproxy = functionProxyD(decl)
-              val retT = typeD(info.typ(decl.result))
-              in.ExprAssertion(in.PureFunctionCall(fproxy, dArgs, retT)(src))(src)
-
-            case st.FPredicate(decl) =>
-              val fproxy = fpredicateProxyD(decl)
-              predCallToAccess(in.FPredicateAccess(fproxy, dArgs)(src))
-
-            case r => Violation.violation(s"expected function of fpredicate, but got $r")
-          }
-
-        case PMPredOrBoolMethCall(recv, id, args) =>
-          val dRecv = pureExprD(ctx)(recv)
-          val dArgs = args map pureExprD(ctx)
-
-          if (isPredicate(id)) {
-            val (sym, path) = info.predicateLookup(recv, id)
-            val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
-            val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
-          } else {
-            val (sym, path) = info.methodLookup(recv, id)
-            val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
-            val proxy = methodProxy(sym)
-            val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs, retT)(src))(src)
-          }
-
-
-        case PMPredOrMethExprCall(base, id, args) =>
-          val dArgs = args map pureExprD(ctx)
-
-          if (isPredicate(id)) {
-            val (sym, path) = info.predicateLookup(info.typ(base), id)
-            val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
-            val proxy = mpredicateProxy(sym)
-            predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
-          } else {
-            val (sym, path) = info.methodLookup(info.typ(base), id)
-            val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
-            val proxy = methodProxy(sym)
-            val retT = typeD(info.typ(sym.result))
-            in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs.tail, retT)(src))(src)
-          }
-
-        case PMPredOrMethRecvOrExprCall(base, id, args) =>
-          if (!info.regular(base).isInstanceOf[st.TypeEntity]) {
-            val dRecv = varD(ctx)(base)
-            val dArgs = args map pureExprD(ctx)
-
-            if (isPredicate(id)) {
-              val (sym, path) = info.predicateLookup(base, id)
-              val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
-              val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
-            } else {
-              val (sym, path) = info.methodLookup(base, id)
-              val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
-              val proxy = methodProxy(sym)
-              val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs, retT)(src))(src)
-            }
-          } else {
-            val dArgs = args map pureExprD(ctx)
-
-            if (isPredicate(id)) {
-              val (sym, path) = info.predicateLookup(info.typ(base), id)
-              val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
-              val proxy = mpredicateProxy(sym)
-              predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
-            } else {
-              val (sym, path) = info.methodLookup(info.typ(base), id)
-              val dRecvWithPath = applyMemberPathD(dArgs.head, path)(src)
-              val proxy = methodProxy(sym)
-              val retT = typeD(info.typ(sym.result))
-              in.ExprAssertion(in.PureMethodCall(dRecvWithPath, proxy, dArgs.tail, retT)(src))(src)
-            }
-          }
-
-        case PMemoryPredicateCall(arg) =>
-          val dArg = pureExprD(ctx)(arg)
-          predCallToAccess(in.MemoryPredicateAccess(dArg)(src))
-      }
-
-      dp
-    }
 
     def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {
 

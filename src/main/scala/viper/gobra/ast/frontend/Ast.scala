@@ -341,7 +341,7 @@ sealed trait PActualExprProofAnnotation extends PActualExpression {
   def op: PExpression
 }
 
-case class PUnfolding(pred: PPredicateAccess2, op: PExpression) extends PActualExprProofAnnotation
+case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation
 
 /**
   * Types
@@ -553,14 +553,14 @@ object PGhostifier {
 sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
-                      pres: Vector[PAssertion],
-                      posts: Vector[PAssertion],
+                      pres: Vector[PExpression],
+                      posts: Vector[PExpression],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
 
 case class PLoopSpec(
-                    invariants: Vector[PAssertion]
+                    invariants: Vector[PExpression]
                     ) extends PSpecification
 
 
@@ -575,14 +575,14 @@ case class PExplicitGhostMember(actual: PGhostifiableMember) extends PGhostMembe
 case class PFPredicateDecl(
                          id: PIdnDef,
                          args: Vector[PParameter],
-                         body: Option[PAssertion]
+                         body: Option[PExpression]
                          ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateDecl(
                           id: PIdnDef,
                           receiver: PReceiver,
                           args: Vector[PParameter],
-                          body: Option[PAssertion]
+                          body: Option[PExpression]
                           ) extends PGhostMember with PScope with PCodeRoot
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope
@@ -595,17 +595,17 @@ sealed trait PGhostStatement extends PStatement with PGhostNode
 
 case class PExplicitGhostStatement(actual: PStatement) extends PGhostStatement with PGhostifier[PStatement]
 
-case class PAssert(exp: PAssertion) extends PGhostStatement
+case class PAssert(exp: PExpression) extends PGhostStatement
 
-case class PAssume(exp: PAssertion) extends PGhostStatement
+case class PAssume(exp: PExpression) extends PGhostStatement
 
-case class PExhale(exp: PAssertion) extends PGhostStatement
+case class PExhale(exp: PExpression) extends PGhostStatement
 
-case class PInhale(exp: PAssertion) extends PGhostStatement
+case class PInhale(exp: PExpression) extends PGhostStatement
 
-case class PFold(exp: PPredicateAccess2) extends PGhostStatement
+case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
-case class PUnfold(exp: PPredicateAccess2) extends PGhostStatement
+case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 /**
   * Ghost Expression and Assertions
@@ -631,38 +631,6 @@ sealed trait PAccessible extends PGhostNode with PExpression
 
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
-
-/**
-  * Assertions
-  */
-
-
-sealed trait PAssertion extends PGhostNode //AWAY
-
-case class PStar(left: PAssertion, right: PAssertion) extends PAssertion //AWAY
-
-case class PExprAssertion(exp: PExpression) extends PAssertion //AWAY
-
-sealed trait PPredicateCall extends PAssertion  //AWAY
-
-case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall //AWAY
-
-case class PMPredOrBoolMethCall(recv: PExpression, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall //AWAY
-
-case class PMPredOrMethExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall  //AWAY
-
-case class PMPredOrMethRecvOrExprCall(base: PIdnUse, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall  //AWAY
-
-case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredicateCall  //AWAY
-
-
-case class PImplication2(left: PExpression, right: PAssertion) extends PAssertion
-
-case class PAccess2(exp: PAccessible) extends PAssertion
-
-
-
-case class PPredicateAccess2(pred: PPredicateCall) extends PAssertion
 
 /**
   * Types

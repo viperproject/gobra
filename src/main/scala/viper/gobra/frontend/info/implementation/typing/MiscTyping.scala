@@ -95,18 +95,14 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent.pair(cv: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
     }
 
+
+
   // received member type
-  lazy val memberType: TypeMember => Type =
+  lazy val memberType: TypeMember => Type = // TODO: maybe merge with idType
     attr[TypeMember, Type] {
       case mt: ActualTypeMember => actualMemberType(mt)
       case mt: GhostTypeMember  => ghostMemberType(mt)
     }
-
-  // adds receiver type to transform received member type to unreceived member type
-  def methodExprType(base: Type, method: Method): Type = method match {
-    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _) => FunctionT(base +: (args map miscType), miscType(result))
-    case MethodSpec(PMethodSig(_, args, result), _) => FunctionT(base +: (args map miscType), miscType(result))
-  }
 
   /** extends a function type by adding a type as the first argument type **/
   def extentFunctionType(functionT: FunctionT, base: Type): Type = FunctionT(base +: functionT.args, functionT.result)

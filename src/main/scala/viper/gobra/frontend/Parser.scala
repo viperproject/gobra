@@ -758,14 +758,18 @@ object Parser {
     lazy val ghostUnaryExpression: Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
         "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
-        "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+        "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      call ^^ PPredicateAccess |
-        "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+      predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
 
     lazy val accessible: Parser[PAccessible] =
       dereference | reference | idBasedSelection | selection
+
+    lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
+        idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
+        nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
+        primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
 
     /**
       * EOS

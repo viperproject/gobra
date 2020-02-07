@@ -29,7 +29,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       pres.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n)) ++
         posts.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
 
-    case n@ PLoopSpec(invariants) => ???
+    case n@ PLoopSpec(invariants) =>
       invariants.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
   }
 

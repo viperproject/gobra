@@ -546,7 +546,8 @@ object Parser {
       "&" ~> unaryExp ^^ PReference
 
     lazy val dereference: Parser[PDereference] =
-      "*" ~> unaryExp ^^ PDereference
+      //"*" ~> unaryExp ^^ PDereference
+      "*" ~> typeOrExpr ^^ PDereference
 
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive
@@ -663,12 +664,12 @@ object Parser {
       "(" ~> typ <~ ")" | typeLit | predeclaredType | namedOperand
 
     lazy val typeLit: Parser[PTypeLit] =
-      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | packageType
+      dereference |/*pointerType |*/ sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | packageType
 
-
+    /*
     lazy val pointerType: Parser[PPointerType] =
       "*" ~> typ ^^ PPointerType
-
+    */
     lazy val sliceType: Parser[PSliceType] =
       "[]" ~> typ ^^ PSliceType
 

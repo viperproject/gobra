@@ -268,13 +268,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
-      case PConversionOrUnaryCall(base, arg) => showId(base) <> parens(showExpr(arg))
-      case PConversion(typ, arg) => showType(typ) <> parens(showExpr(arg))
+      case PDot(base, id) => showTypeOrExpr(base) <> "." <> showId(id)
       case PInvoke(typOrExpr, args) => showTypeOrExpr(typOrExpr) <> parens(showExprList(args))
-      //case PCall(callee, args) => showExpr(callee) <> parens(showExprList(args))
-      //case PSelectionOrMethodExpr(base, id) => showId(base) <> "." <> showId(id)
-      //case PMethodExpr(base, id) => showType(base) <> "." <> showId(id)
-      case PSelection(base, id) => showExpr(base) <> "." <>  showId(id)
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
       case PSliceExp(base, low, high, cap) => (low, high, cap) match {
         case (l, h, None)    => showExpr(base) <> brackets(showExprList(Vector(l, h)))

@@ -3,6 +3,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -66,6 +67,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
+    case _: PAssertionExpression => noMessages
     case e if enclosingGhostContext(e) => noMessages
 
     case /*_: PSelectionOrMethodExpr
@@ -87,14 +89,30 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDereference
       |  _: PConversion
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-
+    /*
     case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n){
       case (base, id) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
     } {
       case (base, id) => assignableToCallId(id)(base)
     }.get
 
-    //case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
+    case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
+     */
+
+    case n@ PDot(base, id) => noMessages/*resolveDot(n) match {
+      case Some(_: ap.MethodExpression) => noMessages
+      case Some(_: ap.Selection) => noMessages
+      case Some(_: ap.ReceivedMethod) => noMessages
+      case Some(_: ap.ReceivedPredicate) => noMessages
+    }
+    */
+
+    case n@ PInvoke(callee: PTypeOrExpr, args: Vector[PExpression]) => resolveInvoke(n) match {
+      case Some(_: ap.Conversion) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      case _ => isType(callee) match {
+        case Some(Right(e)) => assignableToCallExpr(args: _*)(e)
+      }
+    }
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

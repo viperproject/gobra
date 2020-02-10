@@ -2,9 +2,10 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{ActualStructMember, Method}
+import viper.gobra.frontend.info.base.SymbolTable.{ActualStructMember, Field, MPredicate, Method}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -14,6 +15,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   implicit lazy val wellDefExpr: WellDefinedness[PExpression] = createWellDef {
     case expr: PActualExpression => wellDefActualExpr(expr)
     case expr: PGhostExpression  => wellDefGhostExpr(expr)
+    case expr: PAssertionExpression => wellDefAssertionExpr(expr)
   }
 
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
@@ -29,16 +31,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case _: PFunctionLit => noMessages
-
-    case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
     /*
+    case n@PConversion(t, arg) => convertibleTo.errors(exprType(arg), typeType(t))(n)
+
     case n@PCall(base, paras) => exprType(base) match {
       case FunctionT(args, _) =>
         if (paras.isEmpty && args.isEmpty) noMessages
         else multiAssignableTo.errors(paras map exprType, args)(n) // TODO: add special assignment
       case t => message(n, s"type error: got $t but expected function type")
     }
-    */
+
     case n: PConversionOrUnaryCall =>
       resolveConversionOrUnaryCall(n) {
         case (id, arg) => convertibleTo.errors(exprType(arg), idType(id))(n)
@@ -50,8 +52,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }.getOrElse(message(n, s"could not determine whether $n is a conversion or unary call"))
 
     //case n@PMethodExpr(t, id) => wellDefMethodExpr(t, id)(n)
-
-    case n@PSelection(base, id) => wellDefSelection(base, id)(n)
+    */
+    case n@PDot(base, id) => wellDefDot(base, id)(n)
+    case n@PInvoke(callee, args) => wellDefInvoke(callee, args)(n)
+    //case n@PSelection(base, id) => wellDefSelection(base, id)(n)
 
     //case n: PSelectionOrMethodExpr => wellDefSelectionOrMethodExpr(n.base, n.id)(n)
 
@@ -103,19 +107,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PReference(e) => effAddressable.errors(e)(n)
 
-    case n@PDereference(exp) => exp match {
-      case e: PExpression => exprType(e) match {
+    case n@PDereference(_) => resolve(n) match {
+      case Some(ap.Dereference(e)) => exprType(e) match {
         case PointerT(t) => noMessages
         case t => message(n, s"expected pointer but got $t")
       }
-      case t: PType => ???
+      case t => message(n, s"expected pointer but got $t")
     }
 
     case n@PNegation(e) => assignableTo.errors(exprType(e), BooleanT)(n)
 
     case n: PBinaryExp => (n, exprType(n.left), exprType(n.right)) match {
       case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
-      case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, BooleanT)(n) ++ assignableTo.errors(r, BooleanT)(n)
+      case (_: PAnd, l, r) =>assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
+      case (_: POr, l, r) => assignableTo.errors(l, BooleanT)(n) ++ assignableTo.errors(r, BooleanT)(n)
       case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
       , l, r) => assignableTo.errors(l, IntT)(n) ++ assignableTo.errors(r, IntT)(n)
       case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
@@ -142,9 +147,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       , !findSelection(base, id).exists(m => m.isInstanceOf[Method] || m.isInstanceOf[ActualStructMember]))
   }
 
+  def wellDefDot(base: PTypeOrExpr, id: PIdnUse)(n: PDot): Messages = {
+    resolveDot(n) match {
+      case Some(_: ap.Expression) => noMessages
+      case _ => message(n, s"${base}.${id} is not an expression")
+    }
+  }
+
+  def wellDefInvoke(callee: PTypeOrExpr, args: Vector[PExpression])(n: PInvoke): Messages = {
+    resolveInvoke(n) match {
+      case Some(_@ ap.Conversion(t, args)) if args.length == 1 => message(n, s"arg ${args.head} is not convertible to ${callee}",
+        convertibleTo(exprType(args.head), typeType(t)))
+      case Some(_: ap.Conversion) => message(n, s"conversion expects a single argument")
+      case _ => isType(callee) match {
+        case Some(Right(exp)) => exprType(exp) match {
+          case FunctionT(argTypes, _) => multiAssignableTo.errors(args map exprType, argTypes)(n)
+          case t => message(n, s"type error: got $t but expected function type")
+        }
+        case t => message(n, s"type error: got $t but expected an expression")
+      }
+    }
+  }
+
   lazy val exprType: Typing[PExpression] = createTyping {
     case expr: PActualExpression => actualExprType(expr)
     case expr: PGhostExpression => ghostExprType(expr)
+    case expr: PAssertionExpression => assertionExprType(expr)
   }
 
   private def actualExprType(expr: PActualExpression): Type = expr match {
@@ -163,13 +191,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFunctionLit(args, r, _) =>
       FunctionT(args map miscType, miscType(r))
 
-    case PConversion(t, _) => typeType(t)
+    case n@PDot(base, id) => resolveDot(n) match {
+      case Some(ap.MethodExpression(t: PType, e: Method)) => methodExprType(typeType(t), e)
+      case Some(ap.MethodExpression(t: PType, e: MPredicate)) => ???
+      case Some(ap.ReceivedMethod(e: Method, _)) => actualMemberType(e)
+      case Some(ap.Selection(_, e: Field, _)) => memberType(e)
+      case Some(ap.ReceivedPredicate(e: MPredicate, _)) => ???
+    }
+
+    case n@PInvoke(callee, args) => resolveInvoke(n) match {
+      case Some(ap.Conversion(t, _)) => typeType(t)
+      case _ => isType(callee) match {
+        case Some(Right(e)) => exprType(e) match {
+          case FunctionT(_, res) => res
+          case t => violation(s"expected function type but got $t")
+        }
+        case t => violation(s"expected expression but got $t")
+      }
+    }
+
+    //case PConversion(t, _) => typeType(t)
     /*
     case n@PCall(callee, _) => exprType(callee) match {
       case FunctionT(_, res) => res
       case t => violation(s"expected function type but got $t") //(message(n, s""))
     }
-    */
+
     case PConversionOrUnaryCall(base, arg) =>
       idType(base) match {
         case t: DeclaredT => t // conversion
@@ -177,7 +224,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           if args.size == 1 && assignableTo(args.head, exprType(arg)) => res
         case t => violation(s"expected function or declared type but got $t")
       }
-    /*
+
     case n: PSelectionOrMethodExpr =>
       resolveSelectionOrMethodExpr(n)
       { case (base, id) => findSelection(base, id).map(memberType) }
@@ -187,10 +234,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PMethodExpr(base, id) =>
       val baseType = typeType(base)
       findMethodLike(baseType, id).map(m => methodExprType(typeType(base), m.asInstanceOf[Method])).getOrElse(violation("no function found"))
-    */
+
     case PSelection(base, id) =>
       findSelection(base, id).map(memberType).getOrElse(violation("no selection found"))
-
+    */
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem
       case (PointerT(ArrayT(_, elem)), IntT) => elem
@@ -217,15 +264,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PReference(exp) if effAddressable(exp) => PointerT(exprType(exp))
 
-    case PDereference(exp) => exp match {
-      case e: PExpression => exprType(e) match {
+    case n@PDereference(_) => resolve(n) match {
+      case Some(ap.Dereference(e)) => exprType(e) match {
         case PointerT(t) => t
         case t => violation(s"expected pointer but got $t")
       }
-      case t: PType => ???
+      case t => violation(s"expected pointer but got $t")
     }
 
-    case _: PNegation | _: PEquals | _: PUnequals | _: PAnd | _: POr |
+    case PAnd(l, r) => (exprType(l), exprType(r)) match {
+      case (lb, rb) if assignableTo(lb, BooleanT) && assignableTo(rb, BooleanT) => BooleanT
+      case _ => AssertionT
+    }
+
+    case _: PNegation | _: PEquals | _: PUnequals | _: POr |
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 

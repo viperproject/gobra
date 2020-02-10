@@ -128,15 +128,18 @@ trait MemberResolution { this: TypeInfoImpl =>
       })
     }
 
-  override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) =
-    structMemberSet(t).lookupWithPath(id.name).get
+  override def fieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
+    structMemberSet(t).lookupWithPath(id.name)
 
-  override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) =
-      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
+  override def methodLookup(e: PExpression, id: PIdnUse): Option[(Method, Vector[MemberPath])] = {
+    val res =
+      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name)
+      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name)
 
-    (m.asInstanceOf[Method], p)
+    res match {
+      case Some((m, p)) => Some((m.asInstanceOf[Method], p))
+      case _ => None
+    }
   }
 
   override def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = {
@@ -180,6 +183,12 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def findMethodLike(e: Type, id: PIdnUse): Option[MethodLike] =
     nonAddressableMethodSet(e).lookup(id.name)
+
+  def findDot(e: PExpression, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+    val methOpt = methodLookup(e, id)
+    if (methOpt.isDefined) methOpt
+    else fieldLookup(exprType(e), id)
+  }
 
   def findSelection(e: PExpression, id: PIdnUse): Option[TypeMember] = {
     val methOpt = findMethodLike(e, id)

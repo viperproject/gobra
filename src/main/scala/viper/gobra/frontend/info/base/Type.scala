@@ -59,6 +59,8 @@ object Type {
 
   case object PredicateInstance extends GhostType
 
+  case object AssertionT extends Type
+
 
   /**
     * Type Contexts

@@ -309,7 +309,7 @@ case class PReceive(operand: PExpression) extends PUnaryExp
 
 case class PReference(operand: PExpression) extends PUnaryExp with PAccessible
 
-case class PDereference(operand: PTypeOrExpr) extends PActualExpression with PAssignee with PAccessible with PActualType
+case class PDereference(operand: PTypeOrExpr) extends PActualExpression with PAssignee with PAccessible with PTypeLit
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
@@ -655,15 +655,16 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 
 //sealed trait PAssertion extends PGhostNode
+sealed trait PAssertionExpression extends PExpression with PGhostNode
 
 //case class PStar(left: PAssertion, right: PAssertion) extends PAssertion
-case class PStar(left: PExpression, right: PExpression) extends PExpression
+case class PStar(left: PExpression, right: PExpression) extends PAssertionExpression
 
 //case class PExprAssertion(exp: PExpression) extends PAssertion
-case class PExprAssertion(exp: PExpression) extends PExpression
+case class PExprAssertion(exp: PExpression) extends PAssertionExpression
 
 //sealed trait PPredicateCall extends PAssertion
-sealed trait PPredicateCall extends PExpression
+sealed trait PPredicateCall extends PAssertionExpression
 
 case class PFPredOrBoolFuncCall(id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
@@ -674,18 +675,18 @@ case class PMPredOrMethExprCall(base: PMethodRecvType, id: PIdnUse, args: Vector
 case class PMPredOrMethRecvOrExprCall(base: PIdnUse, id: PIdnUse, args: Vector[PExpression]) extends PPredicateCall
 
 //case class PMemoryPredicateCall(arg: PExpression) extends PAssertion with PPredicateCall
-case class PMemoryPredicateCall(arg: PExpression) extends PExpression with PPredicateCall
+case class PMemoryPredicateCall(arg: PExpression) extends PAssertionExpression with PPredicateCall
 
 //case class PImplication(left: PExpression, right: PAssertion) extends PAssertion
 case class PImplication(left: PExpression, right: PExpression) extends PExpression
 
 //case class PAccess(exp: PAccessible) extends PAssertion
-case class PAccess(exp: PAccessible) extends PExpression
+case class PAccess(exp: PAccessible) extends PAssertionExpression
 
 sealed trait PAccessible extends PGhostNode
 
 //case class PPredicateAccess(pred: PPredicateCall) extends PAssertion
-case class PPredicateAccess(pred: PPredicateCall) extends PExpression
+case class PPredicateAccess(pred: PPredicateCall) extends PAssertionExpression
 
 /**
   * Types

@@ -6,8 +6,10 @@ import org.apache.commons.io.FileUtils
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal.Node.Meta
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.base.SymbolTable.{Field, MPredicate, Method}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.reporting.Source
 import viper.gobra.util.{DesugarWriter, OutputUtil, Violation}
@@ -713,7 +715,7 @@ object Desugar {
       case PSelection(base, id) => info.regular(id) match {
 
         case s: st.ActualStructMember =>
-          val path = info.fieldLookup(info.typ(base), id)._2
+          val path = info.fieldLookup(info.typ(base), id).get._2
           val f = structMemberD(s)
           val rfield = for {r <- exprD(ctx)(base)} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
           ExprEntity.ReceivedField(s, rfield)
@@ -721,7 +723,7 @@ object Desugar {
         case m: st.Method =>
           val baseWithPath = for {
             r <- exprD(ctx)(base)
-          } yield applyMemberPathD(r, info.methodLookup(base, id)._2)(meta(expr))
+          } yield applyMemberPathD(r, info.methodLookup(base, id).get._2)(meta(expr))
           ExprEntity.ReceivedMethod(m, baseWithPath)
 
         case _ => Violation.violation("expected entity behind expression")
@@ -731,7 +733,7 @@ object Desugar {
         case baseExpr: PExpression => info.regular(id) match {
 
           case s: st.ActualStructMember =>
-            val path = info.fieldLookup(info.typ(baseExpr), id)._2
+            val path = info.fieldLookup(info.typ(baseExpr), id).get._2
             val f = structMemberD(s)
             val rfield = for {r <- exprD(ctx)(baseExpr)} yield in.FieldRef(applyMemberPathD(r, path)(meta(expr)), f)(meta(expr))
             ExprEntity.ReceivedField(s, rfield)
@@ -739,7 +741,7 @@ object Desugar {
           case m: st.Method =>
             val baseWithPath = for {
               r <- exprD(ctx)(baseExpr)
-            } yield applyMemberPathD(r, info.methodLookup(baseExpr, id)._2)(meta(expr))
+            } yield applyMemberPathD(r, info.methodLookup(baseExpr, id).get._2)(meta(expr))
             ExprEntity.ReceivedMethod(m, baseWithPath)
 
           case _ => Violation.violation("expected entity behind expression")
@@ -854,12 +856,65 @@ object Desugar {
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ))(src))
           }
 
+          case n: PDot => info.resolve(n) match {
+            case Some(me: ap.MethodExpression) => ???
+            case Some(s: ap.Selection) => for {r <- go(s.base)} yield in.FieldRef(applyMemberPathD(r, s.path)(src), fieldDeclD(s.entity.decl))(src)
+            case Some(rm: ap.ReceivedMethod) => ???
+            case Some(rp: ap.ReceivedPredicate) => ???
+            case _ => Violation.violation("expected method expression, selection, received method, or received predicate")
+          }
+          case n: PInvoke => info.resolve(n) match {
+            case Some(c: ap.Conversion) => ???
+            case Some(ap.Call(base, args)) => base match {
+              case me: ap.MethodExpression => ???
+              case re: ap.ReceivedMethod => ???
+              case v: ap.Variable => ???
+              case f: ap.Function => {
+                val fsym = f.entity
+                val fproxy = functionProxyD(fsym.decl)
+
+                for {
+                  dArgs <- sequence(args map exprD(ctx))
+                  realArgs = dArgs match {
+                    // go function chaining feature
+                    case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
+                    case dargs => dargs
+                  }
+
+                  v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
+                  else {
+                    val targets = fsym.decl.result match {
+                      case PVoidResult() => Vector.empty
+                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+                    }
+                    for {
+                      _ <- declare(targets: _*)
+                      _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
+
+                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
+                    } yield res
+                  }
+
+                } yield v
+              }
+            }
+            case Some(pa: ap.PredicateAccess) => ???
+            case _ => Violation.violation("expected conversion, call, or received access")
+          }
+          /*
+          case e@PDot(base, id) => info.resolve(e) match {
+            case Some(ap.MethodExpression(t: PType, e: Method)) => ???
+            case Some(ap.MethodExpression(t: PType, e: MPredicate)) => ???
+            case Some(ap.ReceivedMethod(e: Method)) => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), fieldDeclD(f.decl))(src)
+            case Some(ap.Selection(e: Field)) => memberType(e)
+            case Some(ap.ReceivedPredicate(e: MPredicate)) => ???
+          }
+
           case PSelection(base, id) => info.fieldLookup(info.typ(base), id) match {
             case (f: st.Field, path)  => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), fieldDeclD(f.decl))(src)
             case (e: st.Embbed, path) => for {r <- go(base)} yield in.FieldRef(applyMemberPathD(r, path)(src), embeddedDeclD(e.decl))(src)
             case _ => Violation.violation("expected field or embedding")
           }
-          /*
           case PSelectionOrMethodExpr(base, id) => info.fieldLookup(info.typ(base), id) match { // has to be a selection, since method expressions are only permitted in call expressions
             case (f: st.Field, path)  => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), fieldDeclD(f.decl))(src))
             case (e: st.Embbed, path) => unit(in.FieldRef(applyMemberPathD(varD(ctx)(base), path)(src), embeddedDeclD(e.decl))(src))
@@ -1383,14 +1438,14 @@ object Desugar {
       val src: Meta = meta(ass)
 
       ass match {
-        case PStar(left, right) =>        for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
-        case PExprAssertion(exp) =>       for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
-        case PImplication(left, right) => for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
+        case PStar(left, right) =>            for {l <- goA(left); r <- goA(right)} yield in.SepAnd(l, r)(src)
+        case exp if info.isExpression(exp) => for {e <- goE(exp)}                   yield in.ExprAssertion(e)(src)
+        case PImplication(left, right) =>     for {l <- goE(left); r <- goA(right)} yield in.Implication(l, r)(src)
 
         case pacc: PPredicateAccess => unit(predicateCallD(ctx)(pacc.pred))
         case pacc: PPredicateCall => unit(predicateCallD(ctx)(pacc))
 
-        case PAccess(acc) =>              for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
+        case PAccess(acc) =>                  for {e <- accessibleD(ctx)(acc)}      yield in.Access(e)(src)
 
         case _ => ???
       }
@@ -1430,7 +1485,7 @@ object Desugar {
             val proxy = mpredicateProxy(sym)
             predCallToAccess(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
           } else {
-            val (sym, path) = info.methodLookup(recv, id)
+            val (sym, path) = info.methodLookup(recv, id).get
             val dRecvWithPath = applyMemberPathD(dRecv, path)(src)
             val proxy = methodProxy(sym)
             val retT = typeD(info.typ(sym.result))

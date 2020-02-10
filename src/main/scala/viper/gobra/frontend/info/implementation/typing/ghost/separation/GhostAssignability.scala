@@ -6,6 +6,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Function, MethodImpl, MethodSpec, Regular}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 trait GhostAssignability { this: TypeInfoImpl =>
@@ -39,14 +40,12 @@ trait GhostAssignability { this: TypeInfoImpl =>
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
       message(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
-    case PSelection(base, id) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
-      message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(id)) ++
-        message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !ghostIdClassification(id))
-    /*
-    case PSelectionOrMethodExpr(base, id) =>
-      message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(id)) ++
-        message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostIdClassification(base) && !ghostIdClassification(id))
-     */
+    case n@PDot(_, _) => resolve(n) match {
+      case Some(ap.Selection(base, e, _)) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
+        message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !e.ghost) ++
+          message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !e.ghost)
+      case _ => message(left, s"cannot assign to $n")
+    }
   }
 
   /** conservative ghost separation assignment check */

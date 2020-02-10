@@ -6,7 +6,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, AstPattern, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -26,6 +26,7 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with IdTyping
   with MiscTyping
 
+  with AssertionExprTyping
   with AssertionTyping
   with GhostMemberTyping
   with GhostStmtTyping
@@ -99,5 +100,10 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
     case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
     case _ => None
   }
+
+  override def resolve(d: PDot): Option[AstPattern with AstPattern.EntityLike] = resolveDot(d)
+  override def resolve(i: PInvoke): Option[AstPattern] = resolveInvoke(i)
+  override def isAssertion(e: PExpression): Boolean = isAssertionProperty(e)
+  override def isExpression(e: PExpression): Boolean = isExpressionProperty(e)
 }
 

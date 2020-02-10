@@ -49,6 +49,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       //            case (l, r) => identicalTypes(l, r)
       //          }
 
+      case (AssertionT, AssertionT) => true
+
       case _ => false
     }
     case _ => false

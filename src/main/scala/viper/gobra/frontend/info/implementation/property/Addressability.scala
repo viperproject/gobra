@@ -4,6 +4,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Field, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 
 trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -31,8 +32,10 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
     case _: PDereference => true
     case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
-    case PSelection(b, id) => entity(id).isInstanceOf[Field] && goAddressable(b)
-    //case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
+    case d: PDot => resolve(d) match {
+      case Some(ap.Selection(b, _, _)) => goAddressable(b)
+      case _ => false
+    }
     case _ => false
   }
 

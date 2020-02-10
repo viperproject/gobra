@@ -1,7 +1,7 @@
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDeclaredType, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PPointerType, PStructType, PType, PTypeDecl}
-import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
+import viper.gobra.ast.frontend.{PDeclaredType, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PExpression, PInterfaceType, PPointerType, PStructType, PType, PTypeDecl}
+import viper.gobra.frontend.info.base.Type.{AssertionT, ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -165,4 +165,11 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
   }
 
+  lazy val isAssertionProperty: Property[PExpression] = createBinaryProperty("is an assertion"){ t =>
+    identicalTypes(typ(t), AssertionT)
+  }
+
+  lazy val isExpressionProperty: Property[PExpression] = createBinaryProperty("is an expression"){ t =>
+    !identicalTypes(typ(t), AssertionT)
+  }
 }

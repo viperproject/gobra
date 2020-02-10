@@ -212,12 +212,15 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, e: PMethodExpr) =>
         findMethodLike(typeType(e.base), id).getOrElse(UnknownEntity())
       */
+      case tree.parent.pair(id: PIdnUse, e: PDot) =>
+        resolveDotEntity(e)
+      /*
       case tree.parent.pair(id: PIdnUse, e: PSelection) =>
         findSelection(e.base, id).getOrElse(UnknownEntity())
-
+      */
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
-
+      /*
       case tree.parent.pair(id: PIdnUse, e@ PMPredOrMethRecvOrExprCall(_, f, _)) if id == f =>
         resolveMPredOrMethExprOrRecvCall(e)
         { case (b, i, _) => findSelection(b, i) }
@@ -229,7 +232,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, e: PMPredOrBoolMethCall) =>
         findSelection(e.recv, id).getOrElse(UnknownEntity())
-
+      */
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
 
 

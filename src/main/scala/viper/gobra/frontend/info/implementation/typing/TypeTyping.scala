@@ -4,6 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.resolution.{AstPattern => ap}
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -23,7 +24,12 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PArrayType(len, _) =>
       message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty)
 
-    case _: PSliceType | _: PPointerType |
+    case n: PDereference => resolve(n) match {
+      case Some(_: ap.PointerType) => noMessages
+      case _ => message(n, s"expected pointer type but got $n")
+    }
+
+    case _: PSliceType |
          _: PBiChannelType | _: PSendChannelType | _: PRecvChannelType |
          _: PMethodReceiveName | _: PMethodReceivePointer | _: PFunctionType => noMessages
 
@@ -55,11 +61,14 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       violation(lenOpt.isDefined, s"expected constant expression but got $len")
       ArrayT(lenOpt.get, typeType(elem))
 
+    case n: PDereference => resolve(n) match {
+      case Some(ap.PointerType(t)) => typeType(t)
+      case _ => violation(s"expected pointer type but got $n")
+    }
+
     case PSliceType(elem) => SliceT(typeType(elem))
 
     case PMapType(key, elem) => MapT(typeType(key), typeType(elem))
-
-    case PPointerType(elem) => PointerT(typeType(elem))
 
     case PBiChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Bi)
 

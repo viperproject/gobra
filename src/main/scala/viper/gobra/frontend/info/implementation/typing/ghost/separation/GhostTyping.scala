@@ -39,7 +39,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case e if exprType(e).isInstanceOf[GhostType] => isGhost
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
-
+      /*
       //case PCall(callee, _) => calleeReturnGhostTyping(callee)
 
       case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n) {
@@ -47,7 +47,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       } {
         case (base, id) => calleeReturnGhostTyping(base)
       }.get
-
+      */
         // ghostness of proof annotations is decided by the argument
       case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
 
@@ -145,10 +145,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     calleeArgGhostTyping(call.callee)
   */
   override def expectedArgGhostTyping(call: PConversionOrUnaryCall): GhostType =
+    GhostType.notGhost
+    /*
     resolveConversionOrUnaryCall(call) {
       case (base, id) => GhostType.notGhost
     } {
       case (base, id) => calleeArgGhostTyping(base)
     }.get
-
+    */
 }

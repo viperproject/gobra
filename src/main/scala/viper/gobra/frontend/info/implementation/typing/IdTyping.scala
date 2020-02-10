@@ -83,8 +83,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefAndType.valid(typ)
     })
 
-    case Embbed(PEmbeddedDecl(_, id), _) => unsafeMessage(! {
-      wellDefID.valid(id)
+    case Embbed(PEmbeddedDecl(_, fieldId), _) => unsafeMessage(! {
+      wellDefID.valid(fieldId)
     })
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
@@ -146,7 +146,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Field(PFieldDecl(_, typ), _) => typeType(typ)
 
-    case Embbed(PEmbeddedDecl(_, id), _) => idType(id)
+    case Embbed(PEmbeddedDecl(_, fieldId), _) => idType(fieldId)
 
     case _ => violation("untypable")
   }

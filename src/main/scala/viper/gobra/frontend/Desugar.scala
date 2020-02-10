@@ -690,6 +690,89 @@ object Desugar {
       } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
     }
 
+    def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
+      p.callee match {
+        case base: ap.Symbolic =>
+          base.symb match {
+            case fsym: st.WithArguments with st.WithResult => // all patterns that have a callable symbol: function, received method, method expression
+
+              // encode arguments
+              val dArgs = sequence(p.args map exprD(ctx)).map {
+                // go function chaining feature
+                case Vector(in.Tuple(targs)) if fsym.args.size > 1 => targs
+                case dargs => dargs
+              }
+
+              // encode result
+              val resT = typeD(info.typ(fsym.result))
+              val targets = fsym.result match {
+                case PVoidResult() => Vector.empty
+                case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
+              }
+              val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+
+
+              base match {
+                case base: ap.Function =>
+                  val fproxy = functionProxyD(base.symb.decl)
+
+                  if (base.symb.isPure) {
+                    for {
+                      args <- dArgs
+                    } yield in.PureFunctionCall(fproxy, args, resT)(src)
+                  } else {
+                    for {
+                      args <- dArgs
+                      _ <- declare(targets: _*)
+                      _ <- write(in.FunctionCall(targets, fproxy, args)(src))
+                    } yield res
+                  }
+
+                case base: ap.ReceivedMethod =>
+                  val fproxy = methodProxy(base.symb)
+
+                  val dRecv = for {
+                    r <- exprD(ctx)(base.recv)
+                  } yield applyMemberPathD(r, base.path)(src)
+
+                  if (base.symb.isPure) {
+                    for {
+                      recv <- dRecv
+                      args <- dArgs
+                    } yield in.PureMethodCall(recv, fproxy, args, resT)(src)
+                  } else {
+                    for {
+                      recv <- dRecv
+                      args <- dArgs
+                      _ <- declare(targets: _*)
+                      _ <- write(in.MethodCall(targets, recv, fproxy, args)(src))
+                    } yield res
+                  }
+
+                case base: ap.MethodExpr =>
+                  val fproxy = methodProxy(base.symb)
+
+                  // first argument is the receiver, the remaining arguments are the rest
+                  val dRecvWithArgs = dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+
+                  if (base.symb.isPure) {
+                    for {
+                      (recv, args) <- dRecvWithArgs
+                    } yield in.PureMethodCall(recv, fproxy, args, resT)(src)
+                  } else {
+                    for {
+                      (recv, args) <- dRecvWithArgs
+                      _ <- declare(targets: _*)
+                      _ <- write(in.MethodCall(targets, recv, fproxy, args)(src))
+                    } yield res
+                  }
+              }
+
+            case sym => Violation.violation(s"expected symbol with arguments and result, but got $sym")
+          }
+      }
+    }
+
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
 
       val src: Meta = meta(expr)
@@ -739,7 +822,7 @@ object Desugar {
           case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
 
           case n: PDeref => info.resolve(n) match {
-            case Some(p: ap.Deref) => exprD(ctx)(p.base) map (in.Deref(_)(src))
+            case Some(p: ap.Deref) => derefD(ctx)(p)(src)
             case _ => Violation.violation("cannot desugar pointer type to an expression")
           }
 
@@ -758,110 +841,13 @@ object Desugar {
           }
 
           case n: PDot => info.resolve(n) match {
-            case Some(p: ap.FieldSelection) => p.symb match {
-              case f: st.Field  => for {r <- go(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(src), fieldDeclD(f.decl))(src)
-              case e: st.Embbed => for {r <- go(p.base)} yield in.FieldRef(applyMemberPathD(r, p.path)(src), embeddedDeclD(e.decl))(src)
-              case _ => Violation.violation("expected field or embedding")
-            }
+            case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
           }
 
           case n: PInvoke =>
             info.resolve(n) match {
-              case Some(ap.FunctionCall(callee: ap.Function, args)) => // Function Call
-                val fsym = callee.symb
-                val fproxy = functionProxyD(fsym.decl)
-
-                for {
-                  dArgs <- sequence(args map exprD(ctx))
-                  realArgs = dArgs match {
-                    // go function chaining feature
-                    case Vector(in.Tuple(targs)) if fsym.decl.args.size > 1 => targs
-                    case dargs => dargs
-                  }
-
-                  v <- if (fsym.decl.spec.isPure) unit(in.PureFunctionCall(fproxy, realArgs, typeD(info.typ(fsym.decl.result)))(src))
-                  else {
-                    val targets = fsym.decl.result match {
-                      case PVoidResult() => Vector.empty
-                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                    }
-                    for {
-                      _ <- declare(targets: _*)
-                      _ <- write(in.FunctionCall(targets, fproxy, realArgs)(src))
-
-                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                    } yield res
-                  }
-
-                } yield v
-
-              case Some(ap.FunctionCall(callee: ap.ReceivedMethod, args)) => // Method Call
-                val isPure = callee.symb.isPure
-                val fargs = callee.symb.args
-                val fres = callee.symb.result
-                val fproxy = methodProxy(callee.symb)
-
-                val recv = for {
-                  r <- exprD(ctx)(callee.recv)
-                } yield applyMemberPathD(r, callee.path)(meta(expr))
-
-                for {
-                  dRecv <- recv
-                  dArgs <- sequence(args map exprD(ctx))
-                  realArgs = dArgs match {
-                    // go function chaining feature
-                    case Vector(in.Tuple(targs)) if fargs.size > 1 => targs
-                    case dargs => dargs
-                  }
-
-                  v <- if (isPure) unit(in.PureMethodCall(dRecv, fproxy, realArgs, typeD(info.typ(fres)))(src))
-                  else {
-                    val targets = fres match {
-                      case PVoidResult() => Vector.empty
-                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                    }
-                    for {
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, dRecv, fproxy, realArgs)(src))
-
-                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                    } yield res
-                  }
-
-                } yield v
-
-              case Some(ap.FunctionCall(callee: ap.MethodExpr, args)) => // Method Expression
-                val isPure = callee.symb.isPure
-                val fargs = callee.symb.args
-                val fres = callee.symb.result
-                val fproxy = methodProxy(callee.symb)
-
-                for {
-                  dArgs <- sequence(args map exprD(ctx))
-                  realArgs = dArgs match {
-                    // go function chaining feature
-                    case Vector(in.Tuple(targs)) => targs
-                    case dargs => dargs
-                  }
-                  (realRecv, realRemainingArgs) = (applyMemberPathD(realArgs.head, callee.path)(src), realArgs.tail)
-
-                  v <- if (isPure) unit(in.PureMethodCall(realRecv, fproxy, realRemainingArgs, typeD(info.typ(fres)))(src))
-                  else {
-                    val targets = fres match {
-                      case PVoidResult() => Vector.empty
-                      case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-                    }
-                    for {
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, realRecv, fproxy, realRemainingArgs)(src))
-
-                      res = if (targets.size == 1) targets.head else in.Tuple(targets)(src)
-                    } yield res
-                  }
-
-                } yield v
-
+              case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
               case Some(ap: ap.Conversion) => Violation.violation(s"desugarer: conversion $n is not supported")
               case Some(ap: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")

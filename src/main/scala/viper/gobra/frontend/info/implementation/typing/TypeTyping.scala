@@ -9,7 +9,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
 
-  lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { case n: PExpressionOrType =>
+  lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isTypeCondition = exprOrType(n).isRight
     message(n, s"expected expression, but got $n", !isTypeCondition)
   }

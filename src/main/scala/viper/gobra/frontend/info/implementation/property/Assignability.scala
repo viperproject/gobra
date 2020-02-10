@@ -104,7 +104,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             propForall(
               elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
                 def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
-                  case PEmbeddedDecl(typ, _) => Vector(miscType(typ))
+                  case PEmbeddedDecl(embeddedType, _) => Vector(miscType(embeddedType))
                   case PFieldDecls(fields) => fields map (f => typeType(f.typ))
                 }
 

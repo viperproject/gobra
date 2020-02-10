@@ -119,7 +119,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   }
 
 
-  lazy val isPointerType: Property[Type] = createBinaryProperty(("is a pointer type")){ t =>
+  lazy val isPointerType: Property[Type] = createBinaryProperty("is a pointer type"){ t =>
     underlyingType(t) match {
       case NilType => true
       case _: PointerT => true

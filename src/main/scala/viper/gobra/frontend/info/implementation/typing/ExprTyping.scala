@@ -80,7 +80,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
   /** checks that argument is not a type. The argument might still be an assertion. */
-  lazy val isExpr: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { case n: PExpressionOrType =>
+  lazy val isExpr: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isExprCondition = exprOrType(n).isLeft
     message(n, s"expected expression, but got $n", !isExprCondition)
   }

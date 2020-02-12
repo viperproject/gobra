@@ -457,7 +457,8 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val primaryExp: Parser[PExpression] =
-      conversionOrUnaryCall |
+      ghostPrimaryExpression |
+        conversionOrUnaryCall |
         conversion |
         call |
         selectionOrMethodExpr |
@@ -811,6 +812,22 @@ object Parser {
 
     lazy val ghostUnaryExpression: Parser[POld] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld
+
+    lazy val boundVariables: Parser[Vector[PBoundVariable]] =
+      rep1sep(boundVariableDecl, ",") ^^ Vector.concat
+
+    lazy val boundVariableDecl: Parser[Vector[PBoundVariable]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PBoundVariable(id, t.copy).at(id))
+      }
+
+    lazy val triggers: Parser[Vector[PTrigger]] = trigger.*
+
+    lazy val trigger: Parser[PTrigger] =
+      "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
+
+    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PPureForall
 
     /**
       * EOS

@@ -57,7 +57,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
 
-            // Ghost additions
+        // Ghost additions
+        case decl: PBoundVariable => BoundVariable(decl)
 
         case decl: PFPredicateDecl => FPredicate(decl)
         case decl: PMPredicateDecl => MPredicateImpl(decl)

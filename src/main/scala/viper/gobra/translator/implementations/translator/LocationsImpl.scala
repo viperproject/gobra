@@ -52,7 +52,8 @@ class LocationsImpl extends Locations {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     v match {
-      case in.Parameter(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.Parameter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.BoundVar(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Inter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))

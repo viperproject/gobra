@@ -291,6 +291,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+      case PPureForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
     }
   }
 
@@ -406,6 +408,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case misc: PGhostMisc => ???
+    case misc: PGhostMisc => misc match {
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+    }
   }
 }

@@ -1301,10 +1301,21 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
-        case PConditional(cond, thn, els) => for {wcond <- go(cond); wthn <- go(thn); wels <- go(els)
-                                                  } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PConditional(cond, thn, els) => for {
+          wcond <- go(cond); wthn <- go(thn); wels <- go(els)
+        } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PPureForall(vars, _, body) =>
+          val newVars = vars map boundVariableD(ctx)
+          for {
+            newBody <- go(body)
+          } yield in.PureForall(newVars, Vector(), newBody)(src)
       }
     }
+
+    def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
+      in.BoundVar(idName(x.id), typeD(info.typ(x.typ)))(meta(x))
 
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx)(expr)
@@ -1467,7 +1478,8 @@ object Desugar {
       }
     }
 
-
+    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] =
+      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)
 
 //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get

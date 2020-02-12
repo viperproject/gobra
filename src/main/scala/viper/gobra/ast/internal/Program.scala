@@ -224,6 +224,12 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
+case class Trigger(exprs: Vector[Expr])
+
+case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT
+}
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -366,6 +372,8 @@ sealed trait Var extends Expr with Location {
 }
 
 case class Parameter(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with TopDeclaration
+
+case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with TopDeclaration
 
 sealed trait BodyVar extends Var
 

@@ -631,10 +631,11 @@ case class POld(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 
+case class PPureForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
 /**
   * Assertions
   */
-
 
 sealed trait PAssertion extends PGhostNode
 
@@ -673,6 +674,10 @@ sealed trait PGhostType extends PType with PGhostNode
   */
 
 sealed trait PGhostMisc extends PMisc with PGhostNode
+
+case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
+
+case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

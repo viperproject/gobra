@@ -16,8 +16,18 @@ object SymbolTable extends Environments {
 
   sealed trait ActualDataEntity extends DataEntity with ActualRegular
 
-  case class Function(decl: PFunctionDecl, ghost: Boolean) extends ActualDataEntity {
+  sealed trait WithArguments {
+    def args: Vector[PParameter]
+  }
+
+  sealed trait WithResult {
+    def result: PResult
+  }
+
+  case class Function(decl: PFunctionDecl, ghost: Boolean) extends ActualDataEntity with WithArguments with WithResult {
     override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
+    override val result: PResult = decl.result
     def isPure: Boolean = decl.spec.isPure
   }
 
@@ -93,22 +103,23 @@ object SymbolTable extends Environments {
     override def rep: PNode = decl
   }
 
-  sealed trait MethodLike extends TypeMember
+  sealed trait MethodLike extends TypeMember with WithArguments
 
-  sealed trait Method extends MethodLike with ActualTypeMember {
+  sealed trait Method extends MethodLike with ActualTypeMember with WithResult {
     def isPure: Boolean
-    def result: PResult
   }
 
   case class MethodImpl(decl: PMethodDecl, ghost: Boolean) extends Method {
     override def rep: PNode = decl
     override def isPure: Boolean = decl.spec.isPure
-    override def result: PResult = decl.result
+    override val args: Vector[PParameter] = decl.args
+    override val result: PResult = decl.result
   }
 
   case class MethodSpec(spec: PMethodSig, ghost: Boolean) extends Method {
     override def rep: PNode = spec
     override def isPure: Boolean = false // TODO: adapt later
+    override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
   }
 
@@ -134,10 +145,11 @@ object SymbolTable extends Environments {
 
   sealed trait GhostDataEntity extends DataEntity with GhostRegular
 
-  sealed trait Predicate extends GhostDataEntity
+  sealed trait Predicate extends GhostDataEntity with WithArguments
 
   case class FPredicate(decl: PFPredicateDecl) extends Predicate {
     override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
   }
 
   sealed trait GhostConstant extends Constant with GhostDataEntity
@@ -150,10 +162,12 @@ object SymbolTable extends Environments {
 
   case class MPredicateImpl(decl: PMPredicateDecl) extends MPredicate {
     override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
   }
 
   case class MPredicateSpec(decl: PMPredicateSig) extends MPredicate {
     override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember

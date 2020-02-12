@@ -12,8 +12,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
-    case n: PFunctionDecl => wellDefPureFunction(n)
-    case m: PMethodDecl => isClassType.errors(miscType(m.receiver))(member) ++ wellDefPureMethod(m)
+    case n: PFunctionDecl => wellDefIfPureFunction(n)
+    case m: PMethodDecl => isClassType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
     case s: PActualStatement => wellDefStmt(s).out
   }
 }

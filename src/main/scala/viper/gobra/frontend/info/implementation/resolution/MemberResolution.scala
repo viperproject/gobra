@@ -128,90 +128,41 @@ trait MemberResolution { this: TypeInfoImpl =>
       })
     }
 
-  override def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath]) =
-    structMemberSet(t).lookupWithPath(id.name).get
 
-  override def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) =
-      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
 
-    (m.asInstanceOf[Method], p)
+
+  def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
+    structMemberSet(t).lookupWithPath(id.name)
+
+  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name)
+    else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name)
   }
 
-  override def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
+  def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    nonAddressableMethodSet(e).lookupWithPath(id.name)
   }
 
-  override def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath]) = {
-    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
-    (m.asInstanceOf[Method], p)
+  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
+
+
+  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+    exprOrType(b) match {
+      case Left(expr) =>
+        val methodLikeAttempt = tryMethodLikeLookup(expr, id)
+        if (methodLikeAttempt.isDefined) methodLikeAttempt
+        else tryFieldLookup(exprType(expr), id)
+
+      case Right(typ) => tryMethodLikeLookup(typ, id)
+    }
   }
 
-  override def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
-    val (m, p) =
-      if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name).get
-      else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name).get
 
-    (m.asInstanceOf[MPredicate], p)
-  }
 
-  override def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
-    val (m, p) = addressableMethodSet(idType(e)).lookupWithPath(id.name).get
-    (m.asInstanceOf[MPredicate], p)
-  }
-
-  override def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath]) = {
-    val (m, p) = nonAddressableMethodSet(e).lookupWithPath(id.name).get
-    (m.asInstanceOf[MPredicate], p)
-  }
 
 
   def findField(t: Type, id: PIdnUse): Option[StructMember] =
     structMemberSet(t).lookup(id.name)
 
-  def findMethodLike(e: PExpression, id: PIdnUse): Option[MethodLike] =
-    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookup(id.name)
-    else nonAddressableMethodSet(exprType(e)).lookup(id.name)
 
-  def findMethodLike(e: PIdnNode, id: PIdnUse): Option[MethodLike] =
-    addressableMethodSet(idType(e)).lookup(id.name)
-
-  def findMethodLike(e: Type, id: PIdnUse): Option[MethodLike] =
-    nonAddressableMethodSet(e).lookup(id.name)
-
-  def findSelection(e: PExpression, id: PIdnUse): Option[TypeMember] = {
-    val methOpt = findMethodLike(e, id)
-    if (methOpt.isDefined) methOpt
-    else findField(exprType(e), id)
-  }
-
-  def findSelection(t: PIdnNode, id: PIdnUse): Option[TypeMember] = {
-    val methOpt = findMethodLike(t, id)
-    if (methOpt.isDefined) methOpt
-    else findField(idType(t), id)
-  }
-
-  def calleeEntity(callee: PExpression): Option[Regular] = callee match {
-    case PNamedOperand(id)     => Some(regular(id))
-    case PMethodExpr(base, id) => Some(findMethodLike(typeType(base), id).get)
-    case PSelection(base, id)  => Some(findSelection(base, id).get)
-    case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
-      case (base, id) => findSelection(base, id).get // selection
-    } {
-      case (base, id) => findMethodLike(idType(base), id).get // methodExpr
-    }
-    case _ => None
-  }
-
-  def isCalleeMethodExpr(callee: PExpression): Boolean = callee match {
-    case PMethodExpr(base, id) => true
-    case n: PSelectionOrMethodExpr => resolveSelectionOrMethodExpr(n){
-      case (base, id) => false // selection
-    } {
-      case (base, id) => true // methodExpr
-    }.get
-    case _ => false
-  }
 }

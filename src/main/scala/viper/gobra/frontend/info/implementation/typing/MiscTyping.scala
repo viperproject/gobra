@@ -18,14 +18,20 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
-    case n@PRange(exp) => exprType(exp) match {
+    case n@PRange(exp) => isExpr(exp).out ++ (exprType(exp) match {
       case _: ArrayT | PointerT(_: ArrayT) | _: SliceT |
            _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangable type")
-    }
+    })
 
-    case _: PParameter | _: PReceiver | _: PResult | _: PEmbeddedType => noMessages
+    case n: PParameter => isType(n.typ).out
+    case n: PReceiver => isType(n.typ).out
+    case n: PResult => noMessages // children already taken care of
 
+    case n: PEmbeddedName => isType(n.typ).out
+    case n: PEmbeddedPointer => isType(n.typ).out
+
+    case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
   }
 
@@ -89,18 +95,17 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent.pair(cv: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
     }
 
+
+
   // received member type
-  lazy val memberType: TypeMember => Type =
+  lazy val memberType: TypeMember => Type = // TODO: maybe merge with idType
     attr[TypeMember, Type] {
       case mt: ActualTypeMember => actualMemberType(mt)
       case mt: GhostTypeMember  => ghostMemberType(mt)
     }
 
-  // adds receiver type to transform received member type to unreceived member type
-  def methodExprType(base: Type, method: Method): Type = method match {
-    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _) => FunctionT(base +: (args map miscType), miscType(result))
-    case MethodSpec(PMethodSig(_, args, result), _) => FunctionT(base +: (args map miscType), miscType(result))
-  }
+  /** extends a function type by adding a type as the first argument type **/
+  def extentFunctionType(functionT: FunctionT, base: Type): Type = FunctionT(base +: functionT.args, functionT.result)
 
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 

@@ -26,13 +26,7 @@ trait TypeInfo {
 
   def variables(s: PScope): Vector[PIdnNode]
 
-  def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath])
-
-  def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath])
-  def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath])
-  def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath])
-  def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath])
-  def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath])
-  def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath])
+  def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
+  def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
 
 }

@@ -2,6 +2,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend.{PBlock, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PGhostMember, PMPredicateDecl, PMethodDecl, PResultClause, PReturn}
+import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -9,11 +10,16 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(actual) => noMessages
-    case PFPredicateDecl(id, args, body) => noMessages
-    case PMPredicateDecl(id, receiver, args, body) => isClassType.errors(miscType(receiver))(member)
+
+    case n@ PFPredicateDecl(id, args, body) =>
+      body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n))
+
+    case n@ PMPredicateDecl(id, receiver, args, body) =>
+      body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n)) ++
+        isClassType.errors(miscType(receiver))(member)
   }
 
-  private[typing] def wellDefPureMethod(member: PMethodDecl): Messages = {
+  private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
 
   if (member.spec.isPure) {
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
@@ -26,7 +32,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     } else noMessages
   }
 
-  private[typing] def wellDefPureFunction(member: PFunctionDecl): Messages = {
+  private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
         message(member, "For now, pure functions must have at most one result argument", member.result.isInstanceOf[PResultClause] && member.result.asInstanceOf[PResultClause].outs.size > 1) ++

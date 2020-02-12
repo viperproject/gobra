@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDeclaredType, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PPointerType, PStructType, PType, PTypeDecl}
+import viper.gobra.ast.frontend.{PDeref, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -15,7 +15,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val underlyingTypeP: PType => Option[PType] =
     attr[PType, Option[PType]] {
-      case PDeclaredType(t) => entity(t) match {
+      case PNamedOperand(t) => entity(t) match {
         case st.NamedType(decl, _) => underlyingTypeP(decl.right)
         case st.TypeAlias(decl, _) => underlyingTypeP(decl.right)
         case _ => None // type not defined
@@ -39,14 +39,14 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val derefTypeP: PType => Option[PType] =
     attr[PType, Option[PType]] { t => underlyingTypeP(t) match {
-      case Some(PPointerType(dt)) => Some(dt)
+      case Some(n: PDeref) => asType(n.base)
       case _ => None
     }}
 
   lazy val derefTypePE: PEmbeddedType => Option[PType] =
     attr[PEmbeddedType, Option[PType]] { t => underlyingTypePE(t) match {
       case Left(PEmbeddedPointer(dt)) => Some(dt)
-      case Right(Some(PPointerType(dt))) => Some(dt)
+      case Right(Some(n: PDeref)) => asType(n.base)
       case _ => None
     }}
 
@@ -119,7 +119,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   }
 
 
-  lazy val isPointerType: Property[Type] = createBinaryProperty(("is a pointer type")){ t =>
+  lazy val isPointerType: Property[Type] = createBinaryProperty("is a pointer type"){ t =>
     underlyingType(t) match {
       case NilType => true
       case _: PointerT => true
@@ -147,7 +147,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
 
     relevantT match {
-      case Some(_: PPointerType) => false
+      case Some(_: PDeref) => false
       case _ => true
     }
   }
@@ -159,7 +159,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
 
     relevantT match {
-      case Right(Some(_: PPointerType)) => false
+      case Right(Some(_: PDeref)) => false
       case Left(_: PEmbeddedPointer) => false
       case _ => true
     }

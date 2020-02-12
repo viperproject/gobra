@@ -26,7 +26,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with IdTyping
   with MiscTyping
 
-  with AssertionTyping
   with GhostMemberTyping
   with GhostStmtTyping
   with GhostExprTyping

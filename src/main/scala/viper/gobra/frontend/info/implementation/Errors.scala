@@ -11,13 +11,14 @@ trait Errors { this: TypeInfoImpl =>
       val wellDef = m match {
         case n: PMember   => wellDefMember(n).out
         case n: PStatement  => wellDefStmt(n).out
+        case n: PExpressionAndType => wellDefExprAndType(n).out
         case n: PExpression => wellDefExpr(n).out
         case n: PType       => wellDefType(n).out
         case n: PIdnNode    => wellDefID(n).out
         //        case n: PIdnDef     => wellDefID(n).out
         //        case n: PIdnUnk if isDef(n) => wellDefID(n).out
         case n: PMisc       => wellDefMisc(n).out
-        case n: PAssertion  => wellDefAssertion(n).out
+        case n: PSpecification => wellDefSpec(n).out
         case _ => noMessages
       }
 

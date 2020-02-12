@@ -9,6 +9,15 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
 
+  lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
+    val isTypeCondition = exprOrType(n).isRight
+    message(n, s"expected expression, but got $n", !isTypeCondition)
+  }
+
+  lazy val wellDefAndType: WellDefinedness[PType] = createWellDef { n =>
+    wellDefType(n).out ++ isType(n).out
+  }
+
   implicit lazy val wellDefType: WellDefinedness[PType] = createWellDef {
     case typ: PActualType => wellDefActualType(typ)
     case typ: PGhostType  => wellDefGhostType(typ)
@@ -16,25 +25,30 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case n@ PDeclaredType(id) => pointsToType.errors(id)(n)
-
     case _: PBoolType | _: PIntType => noMessages
 
-    case n@PArrayType(len, _) =>
-      message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty)
+    case n@PArrayType(len, t) =>
+      message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty) ++ isType(t).out
 
-    case _: PSliceType | _: PPointerType |
-         _: PBiChannelType | _: PSendChannelType | _: PRecvChannelType |
-         _: PMethodReceiveName | _: PMethodReceivePointer | _: PFunctionType => noMessages
+    case n: PSliceType => isType(n.elem).out
+    case n: PBiChannelType => isType(n.elem).out
+    case n: PSendChannelType => isType(n.elem).out
+    case n: PRecvChannelType => isType(n.elem).out
+    case n: PMethodReceiveName => isType(n.typ).out
+    case n: PMethodReceivePointer => isType(n.typ).out
+    case n: PFunctionType => noMessages // parameters and result is implied by well definedness of children
 
-    case n@ PMapType(key, _) => message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
+    case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
+      message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
-      t.fields.flatMap(f => isNotPointerTypeP.errors(f.typ)(f)) ++
+      t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
       structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
+
+    case t: PExpressionAndType => wellDefExprAndType(t).out
   }
 
   lazy val typeType: Typing[PType] = createTyping {
@@ -43,8 +57,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def actualTypeType(typ: PActualType): Type = typ match {
-
-    case PDeclaredType(id) => idType(id)
 
     case PBoolType() => BooleanT
     case PIntType() => IntT
@@ -57,8 +69,6 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PSliceType(elem) => SliceT(typeType(elem))
 
     case PMapType(key, elem) => MapT(typeType(key), typeType(elem))
-
-    case PPointerType(elem) => PointerT(typeType(elem))
 
     case PBiChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Bi)
 
@@ -75,6 +85,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
     case t: PInterfaceType => InterfaceT(t)
+
+    case t: PExpressionAndType => exprAndTypeType(t)
   }
 
   def litTypeType(typ: PLiteralType): Type = typ match {

@@ -3,11 +3,12 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
 
-  lazy val wellGhostSeparated: WellDefinedness[PNode] = createIndependentWellDef{
+  lazy val wellGhostSeparated: WellDefinedness[PNode] = createIndependentWellDef[PNode]{
     case m: PMember => memberGhostSeparation(m)
     case s: PStatement => stmtGhostSeparation(s)
     case e: PExpression => exprGhostSeparation(e)
@@ -53,14 +54,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n@ PAssignment(right, left) => assignableToAssignee(right: _*)(left: _*)
-    case n@ PAssignmentWithOp(right, _, left) => assignableToAssignee(right)(left)
+    case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left, _) => assignableToId(right: _*)(left: _*)
+    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
       case PVoidResult() => violation("return arity not consistent with required enclosing arguments")
-      case PResultClause(left) => assignableToParam(right: _*)(left: _*)
+      case PResultClause(left) => ghostAssignableToParam(right: _*)(left: _*)
     }
   }
 
@@ -68,9 +69,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostExpression => noMessages
     case e if enclosingGhostContext(e) => noMessages
 
-    case _: PSelectionOrMethodExpr
-         |  _: PSelection
-         |  _: PMethodExpr
+    case _: PDot
+         |  _: PDeref
          |  _: PIndexedExp
          |  _: PSliceExp
          |  _: PTypeAssertion
@@ -80,21 +80,18 @@ trait GhostWellDef { this: TypeInfoImpl =>
          |  _: PUnfolding
     => noMessages
 
-    case n@ (
+    case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PLiteral
       |  _: PReceive
       |  _: PReference
-      |  _: PDereference
-      |  _: PConversion
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
-    case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n){
-      case (base, id) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
-    } {
-      case (base, id) => assignableToCallId(id)(base)
-    }.get
-
-    case n@ PCall(callee, args) => assignableToCallExpr(args: _*)(callee)
+    case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+      case (Right(_), Some(p: ap.Conversion)) =>  message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      case (Left(callee), Some(p: ap.FunctionCall)) => ghostAssignableToCallExpr(p.args: _*)(callee)
+      case (Left(_), Some(p: ap.PredicateCall)) => noMessages
+      case _ => violation("expected conversion, function call, or predicate call")
+    }
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

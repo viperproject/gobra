@@ -1219,7 +1219,7 @@ object Desugar {
           for {
             wcond <- go(left)
             wthn <- go(right)
-            wels = in.BoolLit(b = false)(src)
+            wels = in.BoolLit(b = true)(src)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")

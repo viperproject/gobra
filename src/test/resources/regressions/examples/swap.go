@@ -13,6 +13,7 @@ func swap1(x, y *cell, ghost a, b int) {
 	x.val, y.val = y.val, x.val;
 };
 
+
 requires acc(x.val) && acc(y.val);
 ensures  acc(x.val) && acc(y.val);
 ensures  x.val == old(y.val) && y.val == old(x.val);

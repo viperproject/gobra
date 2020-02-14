@@ -198,15 +198,12 @@ object Desugar {
       val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
         case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
+        case NoGhost(PResultClause(outs)) => outs map outParameterD
       }
       val (returns, returnSubs) = returnsWithSubs.unzip
       val actualReturns = returnsWithSubs.map{
@@ -300,15 +297,12 @@ object Desugar {
       val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, _) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
         case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
+        case NoGhost(PResultClause(outs)) => outs map outParameterD
       }
       val (returns, _) = returnsWithSubs.unzip
 
@@ -340,15 +334,12 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, recvSub) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, argSubs) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
         case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
+        case NoGhost(PResultClause(outs)) => outs map outParameterD
       }
       val (returns, returnSubs) = returnsWithSubs.unzip
       val actualReturns = returnsWithSubs.map{
@@ -456,15 +447,12 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, _) = argsWithSubs.unzip
 
       val returnsWithSubs = decl.result match {
         case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
+        case NoGhost(PResultClause(outs)) => outs map outParameterD
       }
       val (returns, _) = returnsWithSubs.unzip
 
@@ -489,7 +477,7 @@ object Desugar {
       val name = fpredicateProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
@@ -509,7 +497,7 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args map inParameterD
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
@@ -1081,7 +1069,7 @@ object Desugar {
       case _ => ???
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.BodyVar = {
+    def varD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable])
 
       localVarD(ctx)(id)
@@ -1122,33 +1110,46 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def parameterD(p: PParameter): (in.Parameter, Option[in.LocalVar]) = p match {
-      case NoGhost(noGhost: PActualParameter) => noGhost match {
-        case PNamedParameter(id, typ, _) =>
-          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-          if (info.addressableVar(id)) {
+    def inParameterD(p: PParameter): (in.Parameter.In, Option[in.LocalVar]) = p match {
+      case NoGhost(noGhost: PActualParameter) =>
+        noGhost match {
+          case PNamedParameter(id, typ, _) =>
+            val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
             val local = Some(localAlias(localVarContextFreeD(id)))
             (param, local)
-          } else {
-            (param, None)
-          }
 
-
-        case PUnnamedParameter(typ) =>
-          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
-          val local = None
-          (param, local)
-      }
+          case PUnnamedParameter(typ) =>
+            val param = in.Parameter.In(nm.fresh, typeD(info.typ(typ)))(meta(p))
+            val local = None
+            (param, local)
+        }
     }
 
-    def receiverD(p: PReceiver): (in.Parameter, Option[in.LocalVar]) = p match {
+    /** desugars parameter.
+      * The second return argument contains an addressable copy, if necessary */
+    def outParameterD(p: PParameter): (in.Parameter.Out, Option[in.LocalVar]) = p match {
+      case NoGhost(noGhost: PActualParameter) =>
+        noGhost match {
+          case PNamedParameter(id, typ, _) =>
+            val param = in.Parameter.Out(idName(id), typeD(info.typ(typ)))(meta(p))
+            val local = Some(localAlias(localVarContextFreeD(id)))
+            (param, local)
+
+          case PUnnamedParameter(typ) =>
+            val param = in.Parameter.Out(nm.fresh, typeD(info.typ(typ)))(meta(p))
+            val local = None
+            (param, local)
+        }
+    }
+
+    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(nm.fresh, typeD(info.typ(typ)))(meta(p))
           val local = None
           (param, local)
     }

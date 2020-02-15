@@ -136,9 +136,9 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case _: PInterfaceClause => assert(false); ???
   }
 
-  override def expectedReturnGhostTyping(ret: PReturn): GhostType = enclosingCodeRootWithResult(ret).result match {
-    case PVoidResult() => GhostType.ghostTuple(Vector.empty)
-    case PResultClause(left) => GhostType.ghostTuple(left.map(isParamGhost))
+  override def expectedReturnGhostTyping(ret: PReturn): GhostType = {
+    val res = enclosingCodeRootWithResult(ret).result
+    GhostType.ghostTuple(res.outs.map(isParamGhost))
   }
 
   override def expectedArgGhostTyping(n: PInvoke): GhostType = {

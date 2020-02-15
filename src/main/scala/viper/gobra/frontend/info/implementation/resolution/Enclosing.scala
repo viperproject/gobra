@@ -21,8 +21,8 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
 
-  lazy val enclosingIdCodeRoot: PIdnNode => PCodeRoot =
-    down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot => m }
+  lazy val enclosingCodeRoot: PNode => PCodeRoot with PScope =
+    down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case g: PGhostifier[_] => true }

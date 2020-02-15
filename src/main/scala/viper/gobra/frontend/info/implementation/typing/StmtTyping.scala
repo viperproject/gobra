@@ -97,14 +97,14 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       )
 
     case n@PReturn(exps) =>
-      exps.flatMap(isExpr(_).out) ++
-        (enclosingCodeRootWithResult(n).result match {
-          case PVoidResult() => message(n, s"expected no arguments but got $exps", exps.nonEmpty)
-          case PResultClause(outs) =>
-            if (outs forall wellDefMisc.valid)
-              multiAssignableTo.errors(exps map exprType, outs map miscType)(n)
-            else message(n, s"return cannot be checked because the enclosing signature is incorrect")
-        })
+      exps.flatMap(isExpr(_).out) ++ {
+        if (exps.nonEmpty) {
+          val res = enclosingCodeRootWithResult(n).result
+          if (res.outs forall wellDefMisc.valid)
+            multiAssignableTo.errors(exps map exprType, res.outs map miscType)(n)
+          else message(n, s"return cannot be checked because the enclosing signature is incorrect")
+        } else noMessages // a return without arguments is always well-defined
+      }
 
     case n@PDeferStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

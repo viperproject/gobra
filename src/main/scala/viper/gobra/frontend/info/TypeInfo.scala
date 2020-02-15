@@ -17,6 +17,8 @@ trait TypeInfo {
 
   def scope(n: PIdnNode): PScope
 
+  def codeRoot(n: PNode): PScope
+
   def addressableVar(id: PIdnNode): Boolean
 
   def tree: Tree[PNode, PProgram]

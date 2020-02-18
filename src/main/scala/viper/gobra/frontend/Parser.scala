@@ -6,13 +6,13 @@
 
 package viper.gobra.frontend
 
-import java.io.File
+import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Positions, Source}
+import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.message
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
@@ -36,7 +36,8 @@ object Parser {
     */
 
   def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    parse(FileSource(file.getPath))(config)
+    val source = SemicolonPreprocessor.preprocess(file)
+    parse(source)(config)
   }
 
   private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
@@ -67,6 +68,35 @@ object Parser {
     }
   }
 
+  private object SemicolonPreprocessor {
+
+    def preprocess(file: File, encoding : String = "UTF-8"): Source = {
+      val filename = file.getPath
+      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+      val content = bufferedSource.mkString
+      bufferedSource.close()
+      val translatedContent = translate(content)
+      FromFileSource(filename, translatedContent)
+    }
+
+    def preprocess(content: String): Source = {
+      val translatedContent = translate(content)
+      StringSource(translatedContent)
+    }
+
+    private def translate(content: String): String =
+      content.split("\n").map(translateLine).mkString("\n")
+
+    private def translateLine(line: String): String = {
+      val r = """(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+|break|continue|fallthrough|return|\+\+|--|\)|]|})\s*$""".r
+      r.replaceAllIn(line, m => m.group(0) ++ ";")
+    }
+  }
+
+  case class FromFileSource(filename : String, content: String) extends Source {
+    val optName : Option[String] = Some(Source.dropCurrentPath(filename))
+    def reader : Reader = IO.stringreader(content)
+  }
 
   private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
 
@@ -729,14 +759,14 @@ object Parser {
     lazy val ghostMember: Parser[Vector[PGhostMember]] =
       fpredicateDecl ^^ (Vector(_)) |
         mpredicateDecl ^^ (Vector(_)) |
-      "ghost" ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
-        "ghost" ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
+      "ghost" ~ eos.? ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
+        "ghost" ~ eos.? ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ "}").? ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
 
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ "}").? ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
 

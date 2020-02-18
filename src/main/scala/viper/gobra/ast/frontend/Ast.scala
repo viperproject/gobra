@@ -11,6 +11,7 @@ import java.nio.file.Paths
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
+import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
@@ -57,7 +58,11 @@ class PositionManager extends PositionStore with Messaging {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source.asInstanceOf[FileSource].filename
+    val filename = start.source match {
+      case FileSource(filename, _) => filename
+      case FromFileSource(filename, _) => filename
+      case _ => ???
+    }
     new SourcePosition(
       Paths.get(filename),
       LineColumnPosition(start.line, start.column),

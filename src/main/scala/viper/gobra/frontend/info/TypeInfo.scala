@@ -2,9 +2,8 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{MPredicate, Method, Regular, StructMember}
+import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.Type.Type
-import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
 trait TypeInfo {
 

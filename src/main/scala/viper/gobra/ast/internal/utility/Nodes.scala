@@ -77,7 +77,8 @@ object Nodes {
           case NilLit() => Seq()
           case StructLit(t, args) => args
         }
-        case Parameter(id, typ) => Seq()
+        case Parameter.In(id, typ) => Seq()
+        case Parameter.Out(id, typ) => Seq()
         case LocalVar.Ref(id, typ) => Seq()
         case LocalVar.Val(id, typ) => Seq()
         case LocalVar.Inter(id, typ) => Seq()

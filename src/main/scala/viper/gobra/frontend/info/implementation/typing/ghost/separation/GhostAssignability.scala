@@ -88,9 +88,8 @@ trait GhostAssignability {
 
   /** ghost type of the result of a callee */
   private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = {
-    def resultTyping(result: PResult): GhostType = result match {
-      case PVoidResult() => GhostType.notGhost
-      case PResultClause(outs) => GhostType.ghostTuple(outs.map(ghostParameterClassification))
+    def resultTyping(result: PResult): GhostType = {
+      GhostType.ghostTuple(result.outs.map(ghostParameterClassification))
     }
 
     resolve(callee) match {

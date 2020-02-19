@@ -534,11 +534,7 @@ case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType, addressable: Boolea
 case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 
 
-sealed trait PResult extends PNode with PActualMisc
-
-case class PVoidResult() extends PResult
-
-case class PResultClause(outs: Vector[PParameter]) extends PResult
+case class PResult(outs: Vector[PParameter]) extends PNode with PActualMisc
 
 sealed trait PEmbeddedType extends PNode with PActualMisc {
   def typ: PNamedType

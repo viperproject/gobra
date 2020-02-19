@@ -65,6 +65,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
+  override def codeRoot(n: PNode): PScope = enclosingCodeRoot(n)
+
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")

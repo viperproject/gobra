@@ -51,7 +51,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PFieldDecl => Field(decl, isGhost)
         case decl: PEmbeddedDecl => Embbed(decl, isGhost)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResultClause) => OutParameter(decl, isGhost, decl.addressable)
+        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, decl.addressable)
         case decl: PNamedParameter => InParameter(decl, isGhost, decl.addressable)
         case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable)
 

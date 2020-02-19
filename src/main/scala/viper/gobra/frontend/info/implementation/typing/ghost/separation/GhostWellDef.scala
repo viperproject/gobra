@@ -59,10 +59,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
-    case n@ PReturn(right) => enclosingCodeRootWithResult(n).result match {
-      case PVoidResult() => violation("return arity not consistent with required enclosing arguments")
-      case PResultClause(left) => ghostAssignableToParam(right: _*)(left: _*)
-    }
+    case n@ PReturn(right) =>
+      val res = enclosingCodeRootWithResult(n).result
+      if (right.nonEmpty) {
+        ghostAssignableToParam(right: _*)(res.outs: _*)
+      } else noMessages
+
   }
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {

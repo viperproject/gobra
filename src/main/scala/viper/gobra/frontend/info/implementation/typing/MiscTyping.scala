@@ -53,8 +53,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case p: PParameter => typeType(p.typ)
     case r: PReceiver => typeType(r.typ)
-    case PVoidResult() => VoidType
-    case PResultClause(outs) =>
+    case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
     case PEmbeddedName(t) => typeType(t)

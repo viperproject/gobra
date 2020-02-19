@@ -225,7 +225,9 @@ case class PDeferStmt(exp: PExpression) extends PActualStatement
 // case class PFallThrough() extends PStatement
 
 
-case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScope with PGhostifiableStatement
+case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScope with PGhostifiableStatement {
+  def nonEmptyStmts: Vector[PStatement] = stmts.filterNot(_.isInstanceOf[PEmptyStmt])
+}
 
 case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement
 

@@ -88,8 +88,26 @@ object Parser {
       content.split("\n").map(translateLine).mkString("\n")
 
     private def translateLine(line: String): String = {
-      val r = """(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+|break|continue|fallthrough|return|\+\+|--|\)|]|})\s*$""".r
-      r.replaceAllIn(line, m => m.group(0) ++ ";")
+      val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
+      val integer = """[0-9]+"""
+      val specialKeywords = """break|continue|fallthrough|return"""
+      val specialOperators = """\+\+|--"""
+      val closingParens = """\)|]|}"""
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+
+      val ignoreLineComments = """\/\/.*"""
+      val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
+      val ignoreStartingGeneralComments = """\/\*(?!.*?\*\/).*"""
+      val ignoreGeneralComments = s"$ignoreSelfContainedGeneralComments|$ignoreStartingGeneralComments"
+      val ignoreComments = s"$ignoreLineComments|$ignoreGeneralComments"
+      val ignoreWhitespace = """\s"""
+
+      //val r = """(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+|break|continue|fallthrough|return|\+\+|--|\)|]|})\s*$""".r
+      // r.replaceAllIn(line, m => m.group(0) ++ ";")
+      val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
+      // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
+      // group(2) contains the line's remainder after finalTokenRequiringSemicolon
+      r.replaceAllIn(line, m => m.group(1) ++ ";" ++ m.group(2))
     }
   }
 
@@ -308,7 +326,8 @@ object Parser {
       "defer" ~> expression ^^ PDeferStmt
 
     lazy val block: Parser[PBlock] =
-      "{" ~> (statement <~ eos).* <~ "}" ^^ PBlock
+      //"{" ~> (statement <~ eos).* <~ "}" ^^ PBlock
+    "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
@@ -762,9 +781,11 @@ object Parser {
       "ghost" ~ eos.? ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
         "ghost" ~ eos.? ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
+    // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
       ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
 
+    // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
       ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)

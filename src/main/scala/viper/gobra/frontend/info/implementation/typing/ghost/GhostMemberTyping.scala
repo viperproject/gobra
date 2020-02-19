@@ -25,7 +25,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
     message(member, "For now, pure methods must have at most one result argument", member.result.isInstanceOf[PResultClause] && member.result.asInstanceOf[PResultClause].outs.size > 1) ++
         (member.body match {
-          case Some(PBlock(Vector(PReturn(Vector(ret))))) => isPureExpr(ret)
+          case Some(b: PBlock) => isPureBlock(b)
           case None => noMessages
           case Some(b) => message(member, s"For now the body of a pure method is expected to be a single return with a pure expression, got $b instead")
         })
@@ -37,10 +37,17 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
         message(member, "For now, pure functions must have at most one result argument", member.result.isInstanceOf[PResultClause] && member.result.asInstanceOf[PResultClause].outs.size > 1) ++
         (member.body match {
-          case Some(PBlock(Vector(PReturn(Vector(ret))))) => isPureExpr(ret)
+          case Some(b: PBlock) => isPureBlock(b)
           case None => noMessages
           case Some(b) => message(member, s"For now the body of a pure method is expected to be a single return with a pure expression, got $b instead")
         })
     } else noMessages
+  }
+
+  private def isPureBlock(block: PBlock): Messages = {
+    block.nonEmptyStmts match {
+      case Vector(PReturn(Vector(ret))) => isPureExpr(ret)
+      case b => message(block, s"For now the body of a pure block is expected to be a single return with a pure expression, got $b instead")
+    }
   }
 }

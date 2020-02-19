@@ -318,8 +318,11 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
+      val bodyOpt = decl.body.map {
+        case b: PBlock => b.nonEmptyStmts match {
+          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+          case b => Violation.violation(s"unexpected pure function body: $b")
+        }
         case b => Violation.violation(s"unexpected pure function body: $b")
       }
 
@@ -471,8 +474,11 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
+      val bodyOpt = decl.body.map {
+        case b: PBlock => b.nonEmptyStmts match {
+          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+          case b => Violation.violation(s"unexpected pure function body: $b")
+        }
         case b => Violation.violation(s"unexpected pure function body: $b")
       }
 
@@ -525,7 +531,7 @@ object Desugar {
 
     def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
       val vars = info.variables(block) map localVarD(ctx)
-      val ssW = sequence(block.stmts map (s => seqn(stmtD(ctx)(s))))
+      val ssW = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
       in.Block(vars ++ ssW.decls, ssW.stmts ++ ssW.res)(meta(block))
     }
 

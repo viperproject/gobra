@@ -70,6 +70,9 @@ object Parser {
 
   private object SemicolonPreprocessor {
 
+    /**
+      * Assumes that file corresponds to an existing file
+      */
     def preprocess(file: File, encoding : String = "UTF-8"): Source = {
       val filename = file.getPath
       val bufferedSource = scala.io.Source.fromFile(filename, encoding)

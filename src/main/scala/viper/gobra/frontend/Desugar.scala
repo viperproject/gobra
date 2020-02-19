@@ -319,11 +319,11 @@ object Desugar {
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        case b: PBlock => b.nonEmptyStmts match {
-          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
-          case b => Violation.violation(s"unexpected pure function body: $b")
-        }
-        case b => Violation.violation(s"unexpected pure function body: $b")
+        b: PBlock =>
+          b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case b => Violation.violation(s"unexpected pure function body: $b")
+          }
       }
 
       in.PureFunction(name, args, returns, pres, bodyOpt)(fsrc)
@@ -475,11 +475,11 @@ object Desugar {
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        case b: PBlock => b.nonEmptyStmts match {
-          case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
-          case b => Violation.violation(s"unexpected pure function body: $b")
-        }
-        case b => Violation.violation(s"unexpected pure function body: $b")
+        b: PBlock =>
+          b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case b => Violation.violation(s"unexpected pure function body: $b")
+          }
       }
 
       in.PureMethod(recv, name, args, returns, pres, bodyOpt)(fsrc)
@@ -554,7 +554,7 @@ object Desugar {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
-          case PSeq(stmts) => for {ss <- sequence(stmts map goS)} yield in.Seqn(ss)(src)
+          case s: PSeq => for {ss <- sequence(s.nonEmptyStmts map goS)} yield in.Seqn(ss)(src)
 
           case b: PBlock => unit(blockD(ctx)(b))
 

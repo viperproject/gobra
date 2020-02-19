@@ -226,7 +226,11 @@ case class PDeferStmt(exp: PExpression) extends PActualStatement
 
 
 case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScope with PGhostifiableStatement {
-  def nonEmptyStmts: Vector[PStatement] = stmts.filterNot(_.isInstanceOf[PEmptyStmt])
+  def nonEmptyStmts: Vector[PStatement] = stmts.filter {
+    case _: PEmptyStmt => false
+    case PSeq(Vector()) => false // filter empty sequence
+    case _ => true
+  }
 }
 
 case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement

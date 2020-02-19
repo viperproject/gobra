@@ -6,13 +6,13 @@
 
 package viper.gobra.frontend
 
-import java.io.File
+import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Positions, Source}
+import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.message
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
@@ -36,7 +36,8 @@ object Parser {
     */
 
   def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    parse(FileSource(file.getPath))(config)
+    val source = SemicolonPreprocessor.preprocess(file)
+    parse(source)(config)
   }
 
   private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
@@ -67,6 +68,54 @@ object Parser {
     }
   }
 
+  private object SemicolonPreprocessor {
+
+    /**
+      * Assumes that file corresponds to an existing file
+      */
+    def preprocess(file: File, encoding : String = "UTF-8"): Source = {
+      val filename = file.getPath
+      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+      val content = bufferedSource.mkString
+      bufferedSource.close()
+      val translatedContent = translate(content)
+      FromFileSource(filename, translatedContent)
+    }
+
+    def preprocess(content: String): Source = {
+      val translatedContent = translate(content)
+      StringSource(translatedContent)
+    }
+
+    private def translate(content: String): String =
+      content.split("\n").map(translateLine).mkString("\n")
+
+    private def translateLine(line: String): String = {
+      val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
+      val integer = """[0-9]+"""
+      val specialKeywords = """break|continue|fallthrough|return"""
+      val specialOperators = """\+\+|--"""
+      val closingParens = """\)|]|}"""
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+
+      val ignoreLineComments = """\/\/.*"""
+      val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
+      val ignoreStartingGeneralComments = """\/\*(?!.*?\*\/).*"""
+      val ignoreGeneralComments = s"$ignoreSelfContainedGeneralComments|$ignoreStartingGeneralComments"
+      val ignoreComments = s"$ignoreLineComments|$ignoreGeneralComments"
+      val ignoreWhitespace = """\s"""
+
+      val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
+      // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
+      // group(2) contains the line's remainder after finalTokenRequiringSemicolon
+      r.replaceAllIn(line, m => m.group(1) ++ ";" ++ m.group(2))
+    }
+  }
+
+  case class FromFileSource(filename : String, content: String) extends Source {
+    val optName : Option[String] = Some(Source.dropCurrentPath(filename))
+    def reader : Reader = IO.stringreader(content)
+  }
 
   private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
 
@@ -278,7 +327,7 @@ object Parser {
       "defer" ~> expression ^^ PDeferStmt
 
     lazy val block: Parser[PBlock] =
-      "{" ~> (statement <~ eos).* <~ "}" ^^ PBlock
+      "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
@@ -729,14 +778,16 @@ object Parser {
     lazy val ghostMember: Parser[Vector[PGhostMember]] =
       fpredicateDecl ^^ (Vector(_)) |
         mpredicateDecl ^^ (Vector(_)) |
-      "ghost" ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
-        "ghost" ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
+      "ghost" ~ eos.? ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
+        "ghost" ~ eos.? ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
+    // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ "}").? ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
 
+    // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ "}").? ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
 

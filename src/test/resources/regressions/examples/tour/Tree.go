@@ -15,11 +15,11 @@ pred tree(self *Tree) {
 requires self != nil ==> tree(self);
 ensures  self != nil ==> tree(self);
 func (self *Tree) Contains(v int) (res bool) {
-  if self == nil { res = false; }
-  else {
+  if self == nil { res = false;
+  } else {
     unfold tree(self);
-    if self.Value == v { res = true; }
-    else {
+    if self.Value == v { res = true;
+    } else {
       res = (self.Left).Contains(v) || (self.Right).Contains(v);
     };
     fold tree(self);

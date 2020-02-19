@@ -1,25 +1,25 @@
-package trivial;
+package trivial
 
-requires 0 <= n;
-ensures 2*e == (n+1)*n;
+requires 0 <= n
+ensures 2*e == (n+1)*n
 func sum(n int) (e int) {
-  assert e == 0;
-  invariant 0 <= i && i <= n + 1;
-  invariant 2*e == i*(i-1);
+  assert e == 0
+  invariant 0 <= i && i <= n + 1
+  invariant 2*e == i*(i-1)
   for i := 1; i <= n; i++ {
-    e = e + i;
-  };
-};
+    e = e + i
+  }
+}
 
-ensures false;
+ensures false
 func infinite() {
-  for {};
-};
+  for {}
+}
 
 func shortStatement() {
   if s := sum(4); s == 10 {
-  } else { assert s != s; };
-};
+  } else { assert s != s }
+}
 
 /* switch is not supported yet
 func switchStatement() {

@@ -1,32 +1,32 @@
-package trivial;
+package trivial
 
-ensures x <= r && y <= r;
-ensures r == x || r == y;
+ensures x <= r && y <= r
+ensures r == x || r == y
 func max(x, y int) (r int) {
-  if (x < y) { r = y;
-  } else { r = x; };
-};
+  if (x < y) { r = y
+  } else { r = x }
+}
 
-ensures s <= l;
-ensures s == x || s == y;
-ensures l == x || l == y;
+ensures s <= l
+ensures s == x || s == y
+ensures l == x || l == y
 func sort(x, y int) (s, l int) {
-  if (x < y) { s = x; l = y;
-  } else { s = y; l = x; };
-};
+  if (x < y) { s = x; l = y
+  } else { s = y; l = x }
+}
 
 
 func client1() {
-  var a, b = 5, 7;
-  r := max(a, b);
-  assert r == 7;
+  var a, b = 5, 7
+  r := max(a, b)
+  assert r == 7
 
   /* the following leads to a crash (reported) 
   var s, l int;
   s, l = sort(a, b);
   assert s == 5 && l == 7;
   */
-};
+}
 
 /* constants are not supported yet
 const five, seven = 5, 7;
@@ -43,9 +43,9 @@ func type1(a uint) {
 };*/
 
 func init() {
-  var a int;
-  assert a == 0;
+  var a int
+  assert a == 0
 
-  var b bool;
-  assert b == false;
-};
+  var b bool
+  assert b == false
+}

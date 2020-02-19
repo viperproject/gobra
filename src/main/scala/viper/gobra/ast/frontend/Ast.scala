@@ -11,6 +11,7 @@ import java.nio.file.Paths
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
+import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
@@ -57,7 +58,11 @@ class PositionManager extends PositionStore with Messaging {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source.asInstanceOf[FileSource].filename
+    val filename = start.source match {
+      case FileSource(filename, _) => filename
+      case FromFileSource(filename, _) => filename
+      case _ => ???
+    }
     new SourcePosition(
       Paths.get(filename),
       LineColumnPosition(start.line, start.column),
@@ -220,9 +225,23 @@ case class PDeferStmt(exp: PExpression) extends PActualStatement
 // case class PFallThrough() extends PStatement
 
 
-case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScope with PGhostifiableStatement
+case class PBlock(stmts: Vector[PStatement]) extends PActualStatement with PScope with PGhostifiableStatement {
+  def nonEmptyStmts: Vector[PStatement] = stmts.filterNot {
+    case _: PEmptyStmt => true
+    case s: PSeq => s.nonEmptyStmts.isEmpty // filter empty sequences
+    case b: PBlock => b.nonEmptyStmts.isEmpty // filter empty blocks
+    case _ => false
+  }
+}
 
-case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement
+case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhostifiableStatement {
+  def nonEmptyStmts: Vector[PStatement] = stmts.filterNot {
+    case _: PEmptyStmt => true
+    case s: PSeq => s.nonEmptyStmts.isEmpty // filter empty sequences
+    case b: PBlock => b.nonEmptyStmts.isEmpty // filter empty blocks
+    case _ => false
+  }
+}
 
 /**
   * Expressions

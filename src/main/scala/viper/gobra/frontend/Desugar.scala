@@ -318,9 +318,12 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
-        case b => Violation.violation(s"unexpected pure function body: $b")
+      val bodyOpt = decl.body.map {
+        b: PBlock =>
+          b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case b => Violation.violation(s"unexpected pure function body: $b")
+          }
       }
 
       in.PureFunction(name, args, returns, pres, bodyOpt)(fsrc)
@@ -471,9 +474,12 @@ object Desugar {
       // translate pre- and postconditions before extending the context
       val pres = decl.spec.pres map preconditionD(ctx)
 
-      val bodyOpt = decl.body.map{
-        case PBlock(Vector(PReturn(Vector(ret)))) => pureExprD(ctx)(ret)
-        case b => Violation.violation(s"unexpected pure function body: $b")
+      val bodyOpt = decl.body.map {
+        b: PBlock =>
+          b.nonEmptyStmts match {
+            case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+            case b => Violation.violation(s"unexpected pure function body: $b")
+          }
       }
 
       in.PureMethod(recv, name, args, returns, pres, bodyOpt)(fsrc)
@@ -525,7 +531,7 @@ object Desugar {
 
     def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
       val vars = info.variables(block) map localVarD(ctx)
-      val ssW = sequence(block.stmts map (s => seqn(stmtD(ctx)(s))))
+      val ssW = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
       in.Block(vars ++ ssW.decls, ssW.stmts ++ ssW.res)(meta(block))
     }
 
@@ -548,7 +554,7 @@ object Desugar {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
 
-          case PSeq(stmts) => for {ss <- sequence(stmts map goS)} yield in.Seqn(ss)(src)
+          case s: PSeq => for {ss <- sequence(s.nonEmptyStmts map goS)} yield in.Seqn(ss)(src)
 
           case b: PBlock => unit(blockD(ctx)(b))
 

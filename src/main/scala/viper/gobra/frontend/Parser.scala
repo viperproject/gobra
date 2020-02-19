@@ -101,7 +101,7 @@ object Parser {
       val ignoreGeneralComments = s"$ignoreSelfContainedGeneralComments|$ignoreStartingGeneralComments"
       val ignoreComments = s"$ignoreLineComments|$ignoreGeneralComments"
       val ignoreWhitespace = """\s"""
-      
+
       val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
       // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
       // group(2) contains the line's remainder after finalTokenRequiringSemicolon
@@ -324,8 +324,7 @@ object Parser {
       "defer" ~> expression ^^ PDeferStmt
 
     lazy val block: Parser[PBlock] =
-      //"{" ~> (statement <~ eos).* <~ "}" ^^ PBlock
-    "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
+      "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |

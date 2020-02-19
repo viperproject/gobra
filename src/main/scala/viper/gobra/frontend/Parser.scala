@@ -101,9 +101,7 @@ object Parser {
       val ignoreGeneralComments = s"$ignoreSelfContainedGeneralComments|$ignoreStartingGeneralComments"
       val ignoreComments = s"$ignoreLineComments|$ignoreGeneralComments"
       val ignoreWhitespace = """\s"""
-
-      //val r = """(?:[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+|break|continue|fallthrough|return|\+\+|--|\)|]|})\s*$""".r
-      // r.replaceAllIn(line, m => m.group(0) ++ ";")
+      
       val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
       // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
       // group(2) contains the line's remainder after finalTokenRequiringSemicolon

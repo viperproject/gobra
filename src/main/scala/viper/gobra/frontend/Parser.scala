@@ -10,10 +10,10 @@ import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
-import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
+import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
-import org.bitbucket.inkytonik.kiama.util.Messaging.message
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
 import viper.gobra.util.OutputUtil
@@ -65,6 +65,30 @@ object Parser {
         pom.positions.setFinish(ns, pos)
         val messages = message(ns, label)
         Left(pom.translate(messages, ParserError))
+    }
+  }
+
+  def parseStmt(source: Source): Either[Messages, PStatement] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
+  }
+
+  def parseExpr(source: Source): Either[Messages, PExpression] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
+  }
+
+  private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
+    r match {
+      case Success(ast, _) => Right(ast)
+
+      case ns@NoSuccess(label, next) =>
+        val pos = next.position
+        pom.positions.setStart(ns, pos)
+        pom.positions.setFinish(ns, pos)
+        Left(message(ns, label))
     }
   }
 

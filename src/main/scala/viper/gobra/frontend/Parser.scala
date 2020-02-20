@@ -487,7 +487,6 @@ object Parser {
 
 
     lazy val unaryExp: Parser[PExpression] =
-      ghostUnaryExpression |
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
@@ -509,6 +508,7 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+
     lazy val primaryExp: Parser[PExpression] =
         conversion |
         call |
@@ -516,6 +516,7 @@ object Parser {
         indexedExp |
         sliceExp |
         typeAssertion |
+        ghostPrimaryExp |
         operand
 
 
@@ -806,16 +807,12 @@ object Parser {
         ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostUnaryExpression: Parser[PGhostExpression] =
+    lazy val ghostPrimaryExp: Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
-        "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-
-    lazy val accessible: Parser[PAccessible] =
-      dereference | reference | idBasedSelection | selection
 
     lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
         idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |

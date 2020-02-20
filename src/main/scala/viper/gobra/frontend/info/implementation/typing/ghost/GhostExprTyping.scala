@@ -31,13 +31,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check that right side is either boolean or an assertion
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
-    case n: PAccess => n.exp match {
-      case m: PReference => isExpr(m).out // TODO: Maybe add reference to ast patterns
-      case m: PExpression => resolve(m) match {
-        case Some(p: ap.Deref) => noMessages
-        case Some(p: ap.FieldSelection) => noMessages
-        case _ => message(m, s"expected reference, dereference, or field selection, but got $m")
-      }
+    case n: PAccess => resolve(n.exp) match {
+      case Some(p: ap.Deref) => noMessages
+      case Some(p: ap.FieldSelection) => noMessages
+      case Some(p: ap.PredicateCall) => noMessages
+      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
     }
 
     case n: PPredicateAccess => resolve(n.pred) match {

@@ -1301,24 +1301,21 @@ object Desugar {
 
 
 
-    def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {
+    def accessibleD(ctx: FunctionContext)(acc: PExpression): Writer[in.Accessible] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       val src: Meta = meta(acc)
 
-      acc match {
-        case exp: PExpression =>
-          info.resolve(exp) match {
-            case Some(p: ap.Deref) =>
-              derefD(ctx)(p)(src) map in.Accessible.Pointer
-            case Some(p: ap.FieldSelection) =>
-              fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+      info.resolve(acc) match {
+        case Some(p: ap.Deref) =>
+          derefD(ctx)(p)(src) map in.Accessible.Pointer
+        case Some(p: ap.FieldSelection) =>
+          fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+        case Some(p: ap.PredicateCall) =>
+          predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
 
-            case p => Violation.violation(s"unexpected ast pattern $p ")
-          }
-
-        case n => Violation.violation(s"unexpected accessible node $n ")
+        case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 

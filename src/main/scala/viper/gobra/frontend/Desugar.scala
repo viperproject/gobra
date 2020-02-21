@@ -198,16 +198,10 @@ object Desugar {
       val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
-      }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, returnSubs) = returnsWithSubs.unzip
       val actualReturns = returnsWithSubs.map{
         case (_, Some(x)) => x
@@ -275,13 +269,10 @@ object Desugar {
         case _ =>
       }
 
-      decl.result match {
-        case PVoidResult() =>
-        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
-          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
-          case _ =>
-        }
+      (decl.result.outs zip returnsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case _ =>
       }
 
 
@@ -300,16 +291,10 @@ object Desugar {
       val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
-      }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, _) = returnsWithSubs.unzip
 
       // create context for body translation
@@ -340,16 +325,10 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, recvSub) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, argSubs) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
-      }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, returnSubs) = returnsWithSubs.unzip
       val actualReturns = returnsWithSubs.map{
         case (_, Some(x)) => x
@@ -428,13 +407,10 @@ object Desugar {
         case _ =>
       }
 
-      decl.result match {
-        case PVoidResult() =>
-        case PResultClause(outs) => (outs zip returnsWithSubs).foreach{
-          case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
-          case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
-          case _ =>
-        }
+      (decl.result.outs zip returnsWithSubs).foreach{
+        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case _ =>
       }
 
 
@@ -456,16 +432,10 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
-      val returnsWithSubs = decl.result match {
-        case NoGhost(PVoidResult()) => Vector.empty
-        case NoGhost(PResultClause(outs)) => outs map { o =>
-          val (param, sub) = parameterD(o)
-          (in.LocalVar.Val(param.id, param.typ)(param.info), sub)
-        }
-      }
+      val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, _) = returnsWithSubs.unzip
 
       // create context for body translation
@@ -489,7 +459,7 @@ object Desugar {
       val name = fpredicateProxyD(decl)
       val fsrc = meta(decl)
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
@@ -509,7 +479,7 @@ object Desugar {
       val recvWithSubs = receiverD(decl.receiver)
       val (recv, _) = recvWithSubs
 
-      val argsWithSubs = decl.args map parameterD
+      val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
       val (args, _) = argsWithSubs.unzip
 
       // create context for body translation
@@ -711,10 +681,7 @@ object Desugar {
 
               // encode result
               val resT = typeD(info.typ(fsym.result))
-              val targets = fsym.result match {
-                case PVoidResult() => Vector.empty
-                case PResultClause(outs) => outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
-              }
+              val targets = fsym.result.outs map (o => freshVar(typeD(info.typ(o.typ)))(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
 
@@ -1063,6 +1030,8 @@ object Desugar {
       case Type.FunctionT(args, result) => ???
       case Type.InterfaceT(decl) => ???
 
+      case Type.InternalTupleT(ts) => in.TupleT(ts map typeD)
+
       case _ => Violation.violation(s"got unexpected type $t")
     }
 
@@ -1081,7 +1050,7 @@ object Desugar {
       case _ => ???
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.BodyVar = {
+    def varD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable])
 
       localVarD(ctx)(id)
@@ -1122,33 +1091,46 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def parameterD(p: PParameter): (in.Parameter, Option[in.LocalVar]) = p match {
-      case NoGhost(noGhost: PActualParameter) => noGhost match {
-        case PNamedParameter(id, typ, _) =>
-          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
-          if (info.addressableVar(id)) {
+    def inParameterD(p: PParameter, idx: Int): (in.Parameter.In, Option[in.LocalVar]) = p match {
+      case NoGhost(noGhost: PActualParameter) =>
+        noGhost match {
+          case PNamedParameter(id, typ, _) =>
+            val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
             val local = Some(localAlias(localVarContextFreeD(id)))
             (param, local)
-          } else {
-            (param, None)
-          }
 
-
-        case PUnnamedParameter(typ) =>
-          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
-          val local = None
-          (param, local)
-      }
+          case PUnnamedParameter(typ) =>
+            val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p)), typeD(info.typ(typ)))(meta(p))
+            val local = None
+            (param, local)
+        }
     }
 
-    def receiverD(p: PReceiver): (in.Parameter, Option[in.LocalVar]) = p match {
+    /** desugars parameter.
+      * The second return argument contains an addressable copy, if necessary */
+    def outParameterD(p: PParameter, idx: Int): (in.Parameter.Out, Option[in.LocalVar]) = p match {
+      case NoGhost(noGhost: PActualParameter) =>
+        noGhost match {
+          case PNamedParameter(id, typ, _) =>
+            val param = in.Parameter.Out(idName(id), typeD(info.typ(typ)))(meta(p))
+            val local = Some(localAlias(localVarContextFreeD(id)))
+            (param, local)
+
+          case PUnnamedParameter(typ) =>
+            val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p)), typeD(info.typ(typ)))(meta(p))
+            val local = None
+            (param, local)
+        }
+    }
+
+    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter(idName(id), typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter(nm.fresh, typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(nm.receiver(info.codeRoot(p)), typeD(info.typ(typ)))(meta(p))
           val local = None
           (param, local)
     }
@@ -1319,24 +1301,21 @@ object Desugar {
 
 
 
-    def accessibleD(ctx: FunctionContext)(acc: PAccessible): Writer[in.Accessible] = {
+    def accessibleD(ctx: FunctionContext)(acc: PExpression): Writer[in.Accessible] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       val src: Meta = meta(acc)
 
-      acc match {
-        case exp: PExpression =>
-          info.resolve(exp) match {
-            case Some(p: ap.Deref) =>
-              derefD(ctx)(p)(src) map in.Accessible.Pointer
-            case Some(p: ap.FieldSelection) =>
-              fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+      info.resolve(acc) match {
+        case Some(p: ap.Deref) =>
+          derefD(ctx)(p)(src) map in.Accessible.Pointer
+        case Some(p: ap.FieldSelection) =>
+          fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+        case Some(p: ap.PredicateCall) =>
+          predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
 
-            case p => Violation.violation(s"unexpected ast pattern $p ")
-          }
-
-        case n => Violation.violation(s"unexpected accessible node $n ")
+        case p => Violation.violation(s"unexpected ast pattern $p ")
       }
     }
 
@@ -1362,6 +1341,9 @@ object Desugar {
   private class NameManager {
 
     private val FRESH_PREFIX = "N"
+    private val IN_PARAMETER_PREFIX = "PI"
+    private val OUT_PARAMETER_PREFIX = "PO"
+    private val RECEIVER_PREFIX = "RECV"
     private val VARIABLE_PREFIX = "V"
     private val FIELD_PREFIX = "A"
     private val COPY_PREFIX = "C"
@@ -1410,6 +1392,10 @@ object Desugar {
       counter += 1
       f
     }
+
+    def inParam(idx: Int, s: PScope): String = name(IN_PARAMETER_PREFIX)("P" + idx, s)
+    def outParam(idx: Int, s: PScope): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s)
+    def receiver(s: PScope): String = name(RECEIVER_PREFIX)("R", s)
 
     private var structCounter: Int = 0
     private var structNames: Map[SourcePosition, String] = Map.empty

@@ -3,10 +3,8 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{ActualStructMember, Method}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 

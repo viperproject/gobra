@@ -133,8 +133,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showResult(res: PResult): Doc = res match {
-    case PVoidResult() => emptyDoc
-    case PResultClause(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
+    case PResult(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
   }
 
   def showAddressable(addressable: Boolean, id: PIdnNode): Doc =
@@ -292,9 +291,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
       case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
-      case PAccess(exp) => exp match {
-        case n: PExpression => "acc" <> parens(showExpr(n))
-      }
+      case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
         case n: PExpression => "acc" <> parens(showExpr(n))
       }

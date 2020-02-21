@@ -143,6 +143,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
     case localVar: LocalVar => showVar(localVar)
+    case outParam: Parameter.Out => showVar(outParam)
   }
 
   protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =
@@ -232,14 +233,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // variables
 
   def showVar(v: Var): Doc = v match {
-    case Parameter(id, _)    => id
+    case Parameter.In(id, _)    => id
+    case Parameter.Out(id, _)    => id
     case LocalVar.Ref(id, _) => id
     case LocalVar.Val(id, _) => id
     case LocalVar.Inter(id, _) => id
   }
 
   def showVarDecl(v: Var): Doc = v match {
-    case Parameter(id, t)    => id <> ":" <+> showType(t)
+    case Parameter.In(id, t)    => id <> ":" <+> showType(t)
+    case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
     case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
     case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)

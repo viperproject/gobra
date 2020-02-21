@@ -307,7 +307,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -317,9 +317,9 @@ case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpressi
 
 case class PReceive(operand: PExpression) extends PUnaryExp
 
-case class PReference(operand: PExpression) extends PUnaryExp with PAccessible
+case class PReference(operand: PExpression) extends PUnaryExp
 
-case class PDeref(base: PExpressionOrType) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PAccessible with PTypeLit
+case class PDeref(base: PExpressionOrType) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PTypeLit
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
@@ -534,11 +534,7 @@ case class PNamedReceiver(id: PIdnDef, typ: PMethodRecvType, addressable: Boolea
 case class PUnnamedReceiver(typ: PMethodRecvType) extends PReceiver
 
 
-sealed trait PResult extends PNode with PActualMisc
-
-case class PVoidResult() extends PResult
-
-case class PResultClause(outs: Vector[PParameter]) extends PResult
+case class PResult(outs: Vector[PParameter]) extends PNode with PActualMisc
 
 sealed trait PEmbeddedType extends PNode with PActualMisc {
   def typ: PNamedType
@@ -644,10 +640,10 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-case class PAccess(exp: PAccessible) extends PGhostExpression
+/** expression has to be deref, field seclection, or predicate call */
+case class PAccess(exp: PExpression) extends PGhostExpression
 
-sealed trait PAccessible extends PGhostNode with PExpression
-
+/** speczialized version of PAccess that only handles predicae accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 

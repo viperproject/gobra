@@ -79,9 +79,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   class TestFrontend {
     private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Messages, T]): T = {
       parser(StringSource(source)) match {
-        case Right(ast) if classTag[T].runtimeClass.isAssignableFrom(ast.getClass) => ast
-        case Left(messages) => sys.error(s"Parsing failed: $messages")
-        case Right(ast) => sys.error(s"Parsing resulted in unexpected AST node ${ast.getClass.getSimpleName}")
+        case Right(ast) => ast
+        case Left(messages) => fail(s"Parsing failed: $messages")
       }
     }
 

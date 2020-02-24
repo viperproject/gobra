@@ -123,7 +123,7 @@ object SymbolTable extends Environments {
     override def result: PResult = spec.result
   }
 
-  case class Package(decl: PQualifiedImport) extends ActualRegular {
+  case class PackageUse(decl: PImportDecl) extends ActualRegular {
     override def rep: PNode = decl
     // TODO: requires checks that no actual entity from package is taken
     override def ghost: Boolean = false
@@ -132,6 +132,11 @@ object SymbolTable extends Environments {
   case class Label(decl: PLabeledStmt) extends ActualRegular {
     override def rep: PNode = decl
     // TODO: requires check that label is not used in any goto (can still be used for old expressions)
+    override def ghost: Boolean = false
+  }
+
+  case class Wildcard(decl: PWildcard) extends ActualRegular {
+    override def rep: PNode = decl
     override def ghost: Boolean = false
   }
 

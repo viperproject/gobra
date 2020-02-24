@@ -16,7 +16,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
-      case PWildcard() => ???
+      case w: PWildcard => Wildcard(w)
       case id@ tree.parent(p) =>
 
         val isGhost = isGhostDef(id)
@@ -56,6 +56,8 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
+
+        case decl: PImportDecl => PackageUse(decl)
 
             // Ghost additions
 
@@ -206,6 +208,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())
+
+      case tree.parent.pair(id: PDefLikeId, _: PQualifiedImport) => defEntity(id)
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 

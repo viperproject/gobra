@@ -89,6 +89,10 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
 
+    case _: PackageUse => LocalMessages(noMessages) // not typed
+
+    case _: Wildcard => LocalMessages(noMessages) // not typed
+
     case _ => violation("untypable")
   }
 

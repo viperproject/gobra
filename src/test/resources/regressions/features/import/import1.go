@@ -13,8 +13,5 @@ import (
 )
 
 import "lib/math"
-//:: ExpectedOutput(type_error)
-import m "lib/mathm" // currently not supported by the type checker
+import m "lib/mathm"
 import . "lib/mathn"
-//:: ExpectedOutput(type_error)
-import _ "lib/matho" // currently not supported by the type checker

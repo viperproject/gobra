@@ -80,6 +80,12 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImportDecl]] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
+  }
+
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
     r match {
       case Success(ast, _) => Right(ast)
@@ -117,10 +123,13 @@ object Parser {
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
       val integer = """[0-9]+"""
+      val rawStringLit = """`(?:.|\n)*`"""
+      val interpretedStringLit = """\".*\""""
+      val stringLit = s"$rawStringLit|$interpretedStringLit"
       val specialKeywords = """break|continue|fallthrough|return"""
       val specialOperators = """\+\+|--"""
       val closingParens = """\)|]|}"""
-      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$stringLit|$specialKeywords|$specialOperators|$closingParens"
 
       val ignoreLineComments = """\/\/.*"""
       val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
@@ -194,7 +203,7 @@ object Parser {
 
     lazy val importDecl: Parser[Vector[PImportDecl]] =
       ("import" ~> importSpec ^^ (decl => Vector(decl))) |
-        ("import" ~> "(" ~> (importSpec <~ eos).* <~ ")")
+        ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
 
     lazy val importSpec: Parser[PImportDecl] =
       unqualifiedImportSpec | qualifiedImportSpec
@@ -203,8 +212,7 @@ object Parser {
       "." ~> idnImportPath ^^ PUnqualifiedImport
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
-      idnDef.? ~ idnImportPath ^^ {
-        //case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+      idnDefLike.? ~ idnImportPath ^^ {
         case id ~ pkg => PQualifiedImport(id, pkg)
       }
 
@@ -793,7 +801,8 @@ object Parser {
 
 
     lazy val identifier: Parser[String] =
-      "[a-zA-Z_][a-zA-Z0-9_]*".r into (s => {
+      // "_" is not an identifier (but a wildcard)
+      "(?:_[a-zA-Z0-9_]+|[a-zA-Z][a-zA-Z0-9_]*)".r into (s => {
         if (isReservedWord(s))
           failure(s"""keyword "$s" found where identifier expected""")
         else
@@ -801,7 +810,7 @@ object Parser {
       })
 
     lazy val idnImportPath: Parser[String] =
-      "\"[a-zA-Z0-9_/]*\"".r
+      "\"" ~> "[a-zA-Z0-9_/]*".r <~ "\""
       // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**

@@ -15,3 +15,8 @@ import (
 import "lib/math"
 import m "lib/mathm"
 import . "lib/mathn"
+
+func test() {
+  //:: ExpectedOutput(type_error)
+  m.foo();
+}

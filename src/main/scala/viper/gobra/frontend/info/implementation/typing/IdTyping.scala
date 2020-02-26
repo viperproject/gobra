@@ -89,7 +89,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
 
-    case _: PackageUse => LocalMessages(noMessages) // not typed
+    case _: Import => LocalMessages(noMessages)
 
     case _: Wildcard => LocalMessages(noMessages) // not typed
 
@@ -151,6 +151,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Field(PFieldDecl(_, typ), _) => typeType(typ)
 
     case Embbed(PEmbeddedDecl(_, fieldId), _) => idType(fieldId)
+
+    case Import(decl) => ImportT(decl)
 
     case _ => violation("untypable")
   }

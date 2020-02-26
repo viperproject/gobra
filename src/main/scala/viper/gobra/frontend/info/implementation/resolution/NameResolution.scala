@@ -57,7 +57,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
 
-        case decl: PImportDecl => PackageUse(decl)
+        case decl: PImportDecl => Import(decl)
 
             // Ghost additions
 
@@ -145,7 +145,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PProgram => n.declarations flatMap { m =>
+      case n: PProgram => (n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
           case d: PConstDecl => d.left
@@ -161,7 +161,11 @@ trait NameResolution { this: TypeInfoImpl =>
           case p: PMPredicateDecl => Vector(p.id)
           case p: PFPredicateDecl => Vector(p.id)
         }
-      }
+      }) ++ (n.imports flatMap {
+        case PQualifiedImport(Some(id: PIdnDef), _) => Vector(id)
+          // TODO: add support for PQualifiedImport(None, _)
+        case _ => Vector.empty
+      })
 
       case n: PStructType => n.clauses.flatMap { c =>
         def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
@@ -209,8 +213,6 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())
 
-      case tree.parent.pair(id: PDefLikeId, _: PQualifiedImport) => defEntity(id)
-
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
@@ -223,6 +225,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case n =>
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
+        // TODO: if UnknownEntity is returned perform lookup in unqualified imported packages
     }
 
 }

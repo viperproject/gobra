@@ -262,6 +262,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoolLit(lit) => if(lit) "true" else "false"
       case PIntLit(lit) => lit.toString
       case PNilLit() => "nil"
+      case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
@@ -326,6 +327,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNamedOperand(id) => showId(id)
       case PBoolType() => "bool"
       case PIntType() => "int"
+      case PStringType() => "string"
       case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
       case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
       case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)

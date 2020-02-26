@@ -26,6 +26,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
     case _: PBoolType | _: PIntType => noMessages
+    case n: PStringType => message(n, "string are currently unsupported")
 
     case n@PArrayType(len, t) =>
       message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty) ++ isType(t).out
@@ -60,6 +61,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBoolType() => BooleanT
     case PIntType() => IntT
+    case PStringType() => violation("strings are currently unsupported")
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)

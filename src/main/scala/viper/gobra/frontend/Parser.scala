@@ -10,6 +10,7 @@ import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
+import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
@@ -117,10 +118,13 @@ object Parser {
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
       val integer = """[0-9]+"""
+      val rawStringLit = """`[^`]*`"""
+      val interpretedStringLit = """\"(?:\\"|[^"\n])*\""""
+      val stringLit = s"$rawStringLit|$interpretedStringLit"
       val specialKeywords = """break|continue|fallthrough|return"""
       val specialOperators = """\+\+|--"""
       val closingParens = """\)|]|}"""
-      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$stringLit|$specialKeywords|$specialOperators|$closingParens"
 
       val ignoreLineComments = """\/\/.*"""
       val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
@@ -132,7 +136,7 @@ object Parser {
       val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
       // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
       // group(2) contains the line's remainder after finalTokenRequiringSemicolon
-      r.replaceAllIn(line, m => m.group(1) ++ ";" ++ m.group(2))
+      r.replaceAllIn(line, m => StringEscapeUtils.escapeJava(m.group(1) ++ ";" ++ m.group(2)))
     }
   }
 
@@ -168,7 +172,9 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old"
+      "predicate", "old",
+      // predeclared types:// predeclared types:
+      "bool", "int", "string"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -585,7 +591,20 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit)))
+        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
+        //runeLit |
+        stringLit
+
+    lazy val stringLit: Parser[PStringLit] =
+      rawStringLit | interpretedStringLit
+
+    lazy val rawStringLit: Parser[PStringLit] =
+      // unicode characters and newlines are allowed
+      "`" ~> "[^`]*".r <~ "`" ^^ (lit => PStringLit(lit))
+
+    lazy val interpretedStringLit: Parser[PStringLit] =
+    // unicode values and byte values are allowed
+      "\"" ~> """(?:\\"|[^"\n])*""".r <~ "\"" ^^ (lit => PStringLit(lit))
 
     lazy val compositeLit: Parser[PCompositeLit] =
       literalType ~ literalValue ^^ PCompositeLit
@@ -627,7 +646,7 @@ object Parser {
       */
 
     lazy val typ: Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | namedType
+      "(" ~> typ <~ ")" | typeLit | predeclaredType | namedType
 
     lazy val typeLit: Parser[PTypeLit] =
       pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
@@ -695,7 +714,8 @@ object Parser {
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
       "bool" ^^^ PBoolType() |
-        "int" ^^^ PIntType()
+        "int" ^^^ PIntType() |
+        "string" ^^^ PStringType()
 
     lazy val declaredType: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand

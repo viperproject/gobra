@@ -95,6 +95,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
+    case n: PStringLit => message(n, "strings are currently unsupported")
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
@@ -229,6 +230,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit => BooleanT
     case _: PIntLit => IntT
     case _: PNilLit => NilType
+    case _: PStringLit => violation("strings are currently unsupported")
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 

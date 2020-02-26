@@ -3,7 +3,7 @@ package viper.gobra
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnUse, PIntLit, PInvoke, PNamedOperand, PStatement}
+import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnUse, PIntLit, PInvoke, PNamedOperand, PStatement, PStringLit, PStringType}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.{ClassTag, classTag}
@@ -73,6 +73,32 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseStmt("p.x = p.y") should matchPattern {
       case PAssignment(Vector(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("y"))),
       Vector(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("x")))) =>
+    }
+  }
+
+  test("Parser: string conversion") {
+    // 0xf8 == 248
+    val parseRes = frontend.parseExp("string(248)")
+    inside (parseRes) {
+      case PInvoke(PStringType(), Vector(PIntLit(value))) => value should be (0xf8)
+    }
+  }
+
+  test("Parser: raw string") {
+    frontend.parseExp("`Hello World`") should matchPattern {
+      case PStringLit("Hello World") =>
+    }
+  }
+
+  test("Parser: interpreted string") {
+    frontend.parseExp("\"Hello World\"") should matchPattern {
+      case PStringLit("Hello World") =>
+    }
+  }
+
+  test("Parser: interpreted string with a quote") {
+    frontend.parseExp("\"\\\"\"") should matchPattern {
+      case PStringLit("""\"""") =>
     }
   }
 

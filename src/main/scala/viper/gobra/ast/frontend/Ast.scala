@@ -281,6 +281,8 @@ case class PIntLit(lit: BigInt) extends PBasicLiteral
 
 case class PNilLit() extends PBasicLiteral
 
+case class PStringLit(lit: String) extends PBasicLiteral
+
 // TODO: add other literals
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
@@ -381,6 +383,8 @@ sealed abstract class PPredeclaredType(override val name: String) extends PNamed
 case class PBoolType() extends PPredeclaredType("bool")
 
 case class PIntType() extends PPredeclaredType("int")
+
+case class PStringType() extends PPredeclaredType("string")
 
 // TODO: add more types
 

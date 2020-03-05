@@ -1,9 +1,10 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Field, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.Variable
 import viper.gobra.frontend.info.base.Type.{ArrayT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -20,19 +21,23 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   // depends on: entity, tipe
   lazy val addressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => addressableVar(id)
-    case _: PDereference => true
+    case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
     case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && addressable(b))
-    case PSelection(b, id) => entity(id).isInstanceOf[Field] && goAddressable(b)
-    case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
+    case n: PDot => resolve(n) match {
+      case Some(s: ap.FieldSelection) => goAddressable(s.base)
+      case _ => false
+    }
     case _ => false
   }
 
   lazy val goAddressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
-    case _: PDereference => true
+    case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
     case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
-    case PSelection(b, id) => entity(id).isInstanceOf[Field] && goAddressable(b)
-    case PSelectionOrMethodExpr(b, id) => entity(id).isInstanceOf[Field]
+    case n: PDot => resolve(n) match {
+      case Some(s: ap.FieldSelection) => goAddressable(s.base)
+      case _ => false
+    }
     case _ => false
   }
 

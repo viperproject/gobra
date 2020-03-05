@@ -53,9 +53,11 @@ object Type {
 
   case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
+
+
   sealed trait GhostType extends Type
 
-  case object PredicateInstance extends GhostType
+  case object AssertionT extends GhostType
 
 
   /**

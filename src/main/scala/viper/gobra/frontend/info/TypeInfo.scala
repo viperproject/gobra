@@ -2,9 +2,8 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{MPredicate, Method, Regular, StructMember}
+import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.Type.Type
-import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
 trait TypeInfo {
 
@@ -18,6 +17,8 @@ trait TypeInfo {
 
   def scope(n: PIdnNode): PScope
 
+  def codeRoot(n: PNode): PScope
+
   def addressableVar(id: PIdnNode): Boolean
 
   def tree: Tree[PNode, PProgram]
@@ -26,13 +27,7 @@ trait TypeInfo {
 
   def variables(s: PScope): Vector[PIdnNode]
 
-  def fieldLookup(t: Type, id: PIdnUse): (StructMember, Vector[MemberPath])
-
-  def methodLookup(e: PExpression, id: PIdnUse): (Method, Vector[MemberPath])
-  def methodLookup(e: PIdnNode, id: PIdnUse): (Method, Vector[MemberPath])
-  def methodLookup(e: Type, id: PIdnUse): (Method, Vector[MemberPath])
-  def predicateLookup(e: PExpression, id: PIdnUse): (MPredicate, Vector[MemberPath])
-  def predicateLookup(e: PIdnNode, id: PIdnUse): (MPredicate, Vector[MemberPath])
-  def predicateLookup(e: Type, id: PIdnUse): (MPredicate, Vector[MemberPath])
+  def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
+  def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
 
 }

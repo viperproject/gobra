@@ -30,6 +30,12 @@ class AssertionsImpl extends Assertions {
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access => ctx.loc.access(acc)(ctx)
+
+      case in.SepForall(vars, _, body) => {
+        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
+        val newVars = decls.flatten
+        for { assn <- goA(body) } yield vpr.Forall(newVars, Seq(), assn)(pos, info, errT)
+      }
     }
 
     ret

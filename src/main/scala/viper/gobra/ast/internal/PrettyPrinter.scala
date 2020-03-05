@@ -142,8 +142,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
-    case bvar : BoundVar => showVar(bvar)
-    case lvar: LocalVar => showVar(lvar)
+    case bvar: BoundVar => showVar(bvar)
+    case localVar: LocalVar => showVar(localVar)
+    case outParam: Parameter.Out => showVar(outParam)
   }
 
   protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =
@@ -179,6 +180,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
+    case SepForall(vars, _, body) => "forall" <+> showVarDeclList(vars) <+> showAss(body)
   }
 
   def showAcc(acc: Accessible): Doc = acc match {
@@ -236,16 +238,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // variables
 
   def showVar(v: Var): Doc = v match {
-    case Parameter(id, _) => id
     case BoundVar(id, _) => id
+    case Parameter.In(id, _)    => id
+    case Parameter.Out(id, _)    => id
     case LocalVar.Ref(id, _) => id
     case LocalVar.Val(id, _) => id
     case LocalVar.Inter(id, _) => id
   }
 
   def showVarDecl(v: Var): Doc = v match {
-    case Parameter(id, t) => id <> ":" <+> showType(t)
     case BoundVar(id, t) => id <> ":" <+> showType(t)
+    case Parameter.In(id, t)    => id <> ":" <+> showType(t)
+    case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
     case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
     case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)

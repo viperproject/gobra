@@ -17,8 +17,8 @@ func infinite() {
 };
 
 func shortStatement() {
-  if s := sum(4); s == 10 { }
-  else { assert s != s; };
+  if s := sum(4); s == 10 {
+  } else { assert s != s; };
 };
 
 /* switch is not supported yet

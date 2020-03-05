@@ -3,16 +3,16 @@ package trivial;
 ensures x <= r && y <= r;
 ensures r == x || r == y;
 func max(x, y int) (r int) {
-  if (x < y) { r = y; }
-  else { r = x; };
+  if (x < y) { r = y;
+  } else { r = x; };
 };
 
 ensures s <= l;
 ensures s == x || s == y;
 ensures l == x || l == y;
 func sort(x, y int) (s, l int) {
-  if (x < y) { s = x; l = y; }
-  else { s = y; l = x; };
+  if (x < y) { s = x; l = y;
+  } else { s = y; l = x; };
 };
 
 

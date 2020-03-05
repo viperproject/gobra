@@ -21,11 +21,9 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   private def filterParamList[T <: PParameter](paras: Vector[T]): Vector[T] =
     paras.filter(!classifier.isParamGhost(_))
 
-  private def filterResult(res: PResult): PResult = res match {
-    case n: PVoidResult => n
-    case PResultClause(outs) =>
-      val aOuts = outs.filter(!classifier.isParamGhost(_))
-      if (aOuts.isEmpty) PVoidResult() else PResultClause(aOuts)
+  private def filterResult(res: PResult): PResult = {
+    val aOuts = res.outs.filter(!classifier.isParamGhost(_))
+    PResult(aOuts)
   }
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
@@ -70,10 +68,10 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
   override def showExpr(expr: PExpression): Doc = expr match {
 
-    case n@ PCall(callee, args) =>
+    case n: PInvoke =>
       val gt = classifier.expectedArgGhostTyping(n)
-      val aArgs = args.zip(gt.toTuple).filter(!_._2).map(_._1)
-      super.showExpr(PCall(callee, aArgs))
+      val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
+      super.showExpr(n.copy(args = aArgs))
 
     case e: PActualExprProofAnnotation => showExpr(e.op)
     case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed

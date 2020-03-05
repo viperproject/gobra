@@ -26,7 +26,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   with IdTyping
   with MiscTyping
 
-  with AssertionTyping
   with GhostMemberTyping
   with GhostStmtTyping
   with GhostExprTyping
@@ -65,6 +64,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   override def typ(id: PIdnNode): Type.Type = idType(id)
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
+
+  override def codeRoot(n: PNode): PScope = enclosingCodeRoot(n)
 
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r

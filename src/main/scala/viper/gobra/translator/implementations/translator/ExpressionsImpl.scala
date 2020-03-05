@@ -77,17 +77,13 @@ class ExpressionsImpl extends Expressions {
       case in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Mod(vl, vr)(pos, info, errT)
       case in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Div(vl, vr)(pos, info, errT)
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
-      case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)
-                                                  } yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
+      case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)} yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
-      case in.PureForall(vars, triggers, body) =>
-        // translate bound variable declarations
+      case in.PureForall(vars, _, body) => {
         val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
         val newVars = decls.flatten
-
-        for {
-          expr <- goE(body)
-        } yield vpr.Forall(newVars, Seq(), expr)(pos, info, errT)
+        for { expr <- goE(body) } yield vpr.Forall(newVars, Seq(), expr)(pos, info, errT)
+      }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)

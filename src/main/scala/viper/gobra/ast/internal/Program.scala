@@ -59,20 +59,20 @@ object Field {
 
 
 case class Method(
-                 receiver: Parameter,
+                 receiver: Parameter.In,
                  name: MethodProxy,
-                 args: Vector[Parameter],
-                 results: Vector[LocalVar.Val],
+                 args: Vector[Parameter.In],
+                 results: Vector[Parameter.Out],
                  pres: Vector[Assertion],
                  posts: Vector[Assertion],
                  body: Option[Block]
                  )(val info: Source.Parser.Info) extends Member
 
 case class PureMethod(
-                       receiver: Parameter,
+                       receiver: Parameter.In,
                        name: MethodProxy,
-                       args: Vector[Parameter],
-                       results: Vector[LocalVar.Val],
+                       args: Vector[Parameter.In],
+                       results: Vector[Parameter.Out],
                        pres: Vector[Assertion],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member {
@@ -81,8 +81,8 @@ case class PureMethod(
 
 case class Function(
                      name: FunctionProxy,
-                     args: Vector[Parameter],
-                     results: Vector[LocalVar.Val],
+                     args: Vector[Parameter.In],
+                     results: Vector[Parameter.Out],
                      pres: Vector[Assertion],
                      posts: Vector[Assertion],
                      body: Option[Block]
@@ -90,8 +90,8 @@ case class Function(
 
 case class PureFunction(
                          name: FunctionProxy,
-                         args: Vector[Parameter],
-                         results: Vector[LocalVar.Val],
+                         args: Vector[Parameter.In],
+                         results: Vector[Parameter.Out],
                          pres: Vector[Assertion],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member {
@@ -100,14 +100,14 @@ case class PureFunction(
 
 case class FPredicate(
                      name: FPredicateProxy,
-                     args: Vector[Parameter],
+                     args: Vector[Parameter.In],
                      body: Option[Assertion]
                      )(val info: Source.Parser.Info) extends Member
 
 case class MPredicate(
                      receiver: Parameter,
                      name: MPredicateProxy,
-                     args: Vector[Parameter],
+                     args: Vector[Parameter.In],
                      body: Option[Assertion]
                      )(val info: Source.Parser.Info) extends Member
 
@@ -143,7 +143,7 @@ sealed trait Assignee extends Node {
 }
 
 object Assignee {
-  case class Var(op: BodyVar) extends Assignee
+  case class Var(op: AssignableVar) extends Assignee
   case class Pointer(op: Deref) extends Assignee
   case class Field(op: FieldRef) extends Assignee
   // TODO: Index
@@ -230,6 +230,8 @@ case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: E
   override def typ: Type = BoolT
 }
 
+case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -286,7 +288,9 @@ object Addressable {
 
   def isNonAddressable(x: Expr): Boolean = {
     x match {
+      case _: BoundVar => true
       case _: LocalVar.Inter => true
+      case _: Parameter => true
       case _: Lit | _: DfltVal => true
       case f: FieldRef => isNonAddressable(f.recv)
       case _ => false
@@ -366,18 +370,31 @@ sealed trait CompositeLit extends Lit
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
-
 sealed trait Var extends Expr with Location {
   def id: String
+
+  def unapply(arg: Var): Option[(String, Type)] =
+    Some((arg.id, arg.typ))
 }
 
-case class Parameter(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with TopDeclaration
+sealed trait AssignableVar extends Var with BottomDeclaration
+
+sealed trait Parameter extends Var with TopDeclaration {
+  def unapply(arg: Parameter): Option[(String, Type)] =
+    Some((arg.id, arg.typ))
+}
+
+object Parameter {
+  case class In(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter
+  case class Out(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter with AssignableVar
+}
+
 
 case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with TopDeclaration
 
 sealed trait BodyVar extends Var
 
-sealed trait LocalVar extends BodyVar with BottomDeclaration {
+sealed trait LocalVar extends BodyVar with AssignableVar {
   def unapply(arg: LocalVar): Option[(String, Type)] =
     Some((arg.id, arg.typ))
 }

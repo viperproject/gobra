@@ -3,6 +3,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
@@ -40,13 +41,12 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
-      case PCall(callee, _) => calleeReturnGhostTyping(callee)
-
-      case n: PConversionOrUnaryCall => resolveConversionOrUnaryCall(n) {
-        case (base, id) => notGhost // conversions cannot be ghost (for now)
-      } {
-        case (base, id) => calleeReturnGhostTyping(base)
-      }.get
+      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+        case (Right(_), Some(p: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+        case (Left(callee), Some(p: ap.FunctionCall)) => calleeReturnGhostTyping(callee)
+        case (Left(_), Some(p: ap.PredicateCall)) => isGhost
+        case _ => Violation.violation("expected conversion, function call, or predicate call")
+      }
 
         // ghostness of proof annotations is decided by the argument
       case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
@@ -136,19 +136,17 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     case _: PInterfaceClause => assert(false); ???
   }
 
-  override def expectedReturnGhostTyping(ret: PReturn): GhostType = enclosingCodeRootWithResult(ret).result match {
-    case PVoidResult() => GhostType.ghostTuple(Vector.empty)
-    case PResultClause(left) => GhostType.ghostTuple(left.map(isParamGhost))
+  override def expectedReturnGhostTyping(ret: PReturn): GhostType = {
+    val res = enclosingCodeRootWithResult(ret).result
+    GhostType.ghostTuple(res.outs.map(isParamGhost))
   }
 
-  override def expectedArgGhostTyping(call: PCall): GhostType =
-    calleeArgGhostTyping(call.callee)
-
-  override def expectedArgGhostTyping(call: PConversionOrUnaryCall): GhostType =
-    resolveConversionOrUnaryCall(call) {
-      case (base, id) => GhostType.notGhost
-    } {
-      case (base, id) => calleeArgGhostTyping(base)
-    }.get
-
+  override def expectedArgGhostTyping(n: PInvoke): GhostType = {
+    (exprOrType(n.base), resolve(n)) match {
+      case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
+      case (Left(callee), Some(_: ap.FunctionCall)) => calleeArgGhostTyping(callee)
+      case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
+      case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
+    }
+  }
 }

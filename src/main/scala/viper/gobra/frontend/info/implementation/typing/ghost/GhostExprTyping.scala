@@ -1,9 +1,10 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{BooleanT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, Type}
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
@@ -11,20 +12,54 @@ import viper.gobra.util.Violation.violation
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
-    case POld(op) => isPureExpr(op)
+
+    case POld(op) => isExpr(op).out ++ isPureExpr(op)
+
     case PConditional(cond, thn, els) =>
       // check that cond is of type bool:
-      comparableTypes.errors(exprType(cond), BooleanT)(expr) ++
-      // check that thn and els have a common type
-      mergeableTypes.errors(exprType(thn), exprType(els))(expr)
-    case PPureForall(_, _, body) => isPureExpr(body)
+      isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
+        assignableTo.errors(exprType(cond), BooleanT)(expr) ++
+        // check that thn and els have a common type
+        mergeableTypes.errors(exprType(thn), exprType(els))(expr)
+
+    case PForall(_, _, body) =>
+      // check that the quantifier `body` is either Boolean or an assertion
+      assignableTo.errors(exprType(body), AssertionT)(expr)
+
+    case n: PImplication =>
+      isExpr(n.left).out ++ isExpr(n.right).out ++
+      // check that left side is a boolean expression
+        assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
+      // check that right side is either boolean or an assertion
+        assignableTo.errors(exprType(n.right), AssertionT)(expr)
+
+    case n: PAccess => n.exp match {
+      case m: PReference => isExpr(m).out // TODO: Maybe add reference to ast patterns
+      case m: PExpression => resolve(m) match {
+        case Some(p: ap.Deref) => noMessages
+        case Some(p: ap.FieldSelection) => noMessages
+        case _ => message(m, s"expected reference, dereference, or field selection, but got $m")
+      }
+    }
+
+    case n: PPredicateAccess => resolve(n.pred) match {
+      case Some(p: ap.PredicateCall) => noMessages
+      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
+
     case POld(op) => exprType(op)
+
     case PConditional(cond, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
-    case PPureForall(_, _, _) => BooleanT
+
+    case PForall(_, _, body) => exprType(body)
+
+    case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
+
+    case _: PAccess | _: PPredicateAccess => AssertionT
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -44,22 +79,26 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private lazy val isPureExprAttr: PExpression => Boolean =
     attr[PExpression, Boolean] {
       case n@ PNamedOperand(id) => isPureId(id)
+
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
-      case n@PCall(base, paras) => isPureExprAttr(base) && paras.forall(isPureExprAttr)
+      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+        case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
+        case (Left(callee), Some(p: ap.FunctionCall)) => isPureExprAttr(callee) && p.args.forall(isPureExprAttr)
+        case _ => false
+      }
 
-      case n: PConversionOrUnaryCall =>
-        resolveConversionOrUnaryCall(n)
-        { case (_, _) => false }
-        { case (id, arg) => isPureId(id) && isPureExprAttr(arg)}
-          .getOrElse(false)
-
-      case n@PMethodExpr(t, id) => isPureId(id)
-      case n@PSelection(base, id) => isPureExprAttr(base) && isPureId(id)
-      case n@PSelectionOrMethodExpr(base, id) => isPureId(id)
+      case n: PDot => exprOrType(n.base) match {
+        case Left(e) => isPureExprAttr(e) && isPureId(n.id)
+        case Right(_) => isPureId(n.id) // Maybe replace with a violation
+      }
 
       case n@PReference(e) => isPureExprAttr(e)
-      case n@PDereference(exp) => isPureExprAttr(exp)
+      case n: PDeref =>
+        resolve(n) match {
+          case Some(p: ap.Deref) => isPureExprAttr(p.base)
+          case _ => true
+        }
 
       case PNegation(e) => isPureExprAttr(e)
 
@@ -73,9 +112,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PUnfolding => true
       case _: POld => true
-      case _: PPureForall => true
+      case _: PForall => true
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
+
+      case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
+
+      case _: PAccess | _: PPredicateAccess => false
 
       case n@PCompositeLit(t, lit) => true
 
@@ -84,7 +127,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // Might change as some point
       case _: PFunctionLit => false
-      case n@PConversion(t, arg) => false
       case n@PSliceExp(base, low, high, cap) => false
 
       // Others

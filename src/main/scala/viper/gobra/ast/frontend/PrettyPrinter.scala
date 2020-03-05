@@ -293,9 +293,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PForall(vars, triggers, body) =>
         "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
-      case PAccess(exp) => exp match {
-        case n: PExpression => "acc" <> parens(showExpr(n))
-      }
+      case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
         case n: PExpression => "acc" <> parens(showExpr(n))
       }

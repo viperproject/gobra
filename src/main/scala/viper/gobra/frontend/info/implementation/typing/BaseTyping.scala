@@ -34,6 +34,10 @@ trait BaseTyping { this: TypeInfoImpl =>
     override def invalid(ret: ValidityMessages): Boolean = !ret.valid
   }
 
+  def allChildren(n: PNode): Vector[PNode] = {
+    tree.child(n).flatMap(m => m +: allChildren(m))
+  }
+
   trait WellDefinedness[-A] extends Error[A]
 
   private[typing] def children[T <: PNode](n: T): Vector[PNode] =

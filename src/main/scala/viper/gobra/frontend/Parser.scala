@@ -10,10 +10,10 @@ import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
-import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, Parsers, Success}
+import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
-import org.bitbucket.inkytonik.kiama.util.Messaging.message
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
 import viper.gobra.util.OutputUtil
@@ -65,6 +65,30 @@ object Parser {
         pom.positions.setFinish(ns, pos)
         val messages = message(ns, label)
         Left(pom.translate(messages, ParserError))
+    }
+  }
+
+  def parseStmt(source: Source): Either[Messages, PStatement] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
+  }
+
+  def parseExpr(source: Source): Either[Messages, PExpression] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
+  }
+
+  private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
+    r match {
+      case Success(ast, _) => Right(ast)
+
+      case ns@NoSuccess(label, next) =>
+        val pos = next.position
+        pom.positions.setStart(ns, pos)
+        pom.positions.setFinish(ns, pos)
+        Left(message(ns, label))
     }
   }
 
@@ -487,7 +511,6 @@ object Parser {
 
 
     lazy val unaryExp: Parser[PExpression] =
-      ghostUnaryExpression |
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
@@ -509,6 +532,7 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+
     lazy val primaryExp: Parser[PExpression] =
       ghostPrimaryExpression |
         conversion |
@@ -517,6 +541,7 @@ object Parser {
         indexedExp |
         sliceExp |
         typeAssertion |
+        ghostPrimaryExp |
         operand
 
 
@@ -807,16 +832,12 @@ object Parser {
         ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostUnaryExpression: Parser[PGhostExpression] =
+    lazy val ghostPrimaryExp: Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> accessible <~ ")" ^^ PAccess |
-        "acc" ~> "(" ~> predicateCall <~ ")" ^^ PPredicateAccess
+        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-
-    lazy val accessible: Parser[PAccessible] =
-      dereference | reference | idBasedSelection | selection
 
     lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
         idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |

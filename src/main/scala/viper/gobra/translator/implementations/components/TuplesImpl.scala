@@ -90,7 +90,7 @@ class TuplesImpl extends Tuples {
         )()
       }
 
-      vpr.DomainAxiom(
+      vpr.NamedDomainAxiom(
         name = s"getter_over_tuple$arity",
         exp = vpr.Forall(
           decls,
@@ -105,7 +105,7 @@ class TuplesImpl extends Tuples {
         vpr.DomainFuncApp(f, Seq(domainVar), typVarMap)()
         )
 
-      vpr.DomainAxiom(
+      vpr.NamedDomainAxiom(
         name = s"tuple${arity}_over_getter",
         exp = vpr.Forall(
           Seq(domainDecl),

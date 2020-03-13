@@ -28,9 +28,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
-      // check that left side is a boolean expression
+      // check that left side is a Boolean expression
         assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
-      // check that right side is either boolean or an assertion
+      // check that right side is either Boolean or an assertion
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
     case n: PAccess => resolve(n.exp) match {

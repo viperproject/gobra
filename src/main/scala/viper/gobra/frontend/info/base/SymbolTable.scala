@@ -123,7 +123,7 @@ object SymbolTable extends Environments {
     override def result: PResult = spec.result
   }
 
-  case class Import(decl: PImportDecl) extends ActualRegular {
+  case class Import(decl: PImportDecl) extends ActualRegular with TypeEntity {
     override def rep: PNode = decl
     // TODO: requires checks that no actual entity from package is taken
     override def ghost: Boolean = false

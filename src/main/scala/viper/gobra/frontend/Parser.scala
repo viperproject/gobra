@@ -642,7 +642,7 @@ object Parser {
       */
 
     lazy val typ: Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | namedType
+      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType
 
     lazy val typeLit: Parser[PTypeLit] =
       pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
@@ -711,6 +711,9 @@ object Parser {
     lazy val predeclaredType: Parser[PPredeclaredType] =
       "bool" ^^^ PBoolType() |
         "int" ^^^ PIntType()
+
+    lazy val qualifiedType: Parser[PDot] =
+      declaredType ~ ("." ~> idnUse) ^^ PDot
 
     lazy val declaredType: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand

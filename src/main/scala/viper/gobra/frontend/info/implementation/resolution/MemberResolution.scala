@@ -153,7 +153,10 @@ trait MemberResolution { this: TypeInfoImpl =>
         if (methodLikeAttempt.isDefined) methodLikeAttempt
         else tryFieldLookup(exprType(expr), id)
 
-      case Right(typ) => tryMethodLikeLookup(typ, id)
+      case Right(typ) => typeType(typ) match {
+        case _: ImportT => None // TODO do lookup in the corresponding package
+        case _ => tryMethodLikeLookup(typ, id)
+      }
     }
   }
 

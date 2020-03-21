@@ -1271,7 +1271,11 @@ object Desugar {
 
         case PForall(vars, _, body) => {
           val newVars = vars map boundVariableD(ctx)
-          for { newBody <- goA(body) } yield in.SepForall(newVars, Vector(), newBody)(src)
+          for { newBody <- goA(body) } yield newBody match {
+            case in.ExprAssertion(eBody) =>
+              in.ExprAssertion(in.PureForall(newVars, Vector(), eBody)(src))(src)
+            case _ => in.SepForall(newVars, Vector(), newBody)(src)
+          }
         }
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression

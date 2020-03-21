@@ -389,7 +389,6 @@ object Parameter {
   case class Out(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter with AssignableVar
 }
 
-
 case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with TopDeclaration
 
 sealed trait BodyVar extends Var

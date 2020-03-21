@@ -34,7 +34,13 @@ class AssertionsImpl extends Assertions {
       case in.SepForall(vars, _, body) => {
         val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
         val newVars = decls.flatten
-        for { assn <- goA(body) } yield vpr.Forall(newVars, Seq(), assn)(pos, info, errT)
+
+        for {
+          newBody <- goA(body)
+          newForall = vpr.Forall(newVars, Seq(), newBody)(pos, info, errT)
+          desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
+          reducedForall = desugaredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
+        } yield reducedForall
       }
     }
 

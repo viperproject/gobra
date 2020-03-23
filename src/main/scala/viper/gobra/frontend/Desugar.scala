@@ -144,14 +144,14 @@ object Desugar {
 
     class FunctionContext(
                            val ret: Vector[in.Expr] => Meta => in.Stmt,
-                           private var substitutions: Map[Identity, in.BodyVar] = Map.empty
+                           private var substitutions: Map[Identity, in.Var] = Map.empty
                          ) {
 
-      def apply(id: PIdnNode): Option[in.BodyVar] =
+      def apply(id: PIdnNode): Option[in.Var] =
         substitutions.get(abstraction(id))
 
 
-      def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
+      def addSubst(from: PIdnNode, to: in.Var): Unit =
         substitutions += abstraction(from) -> to
 
       def copy: FunctionContext = new FunctionContext(ret, substitutions)
@@ -236,10 +236,12 @@ object Desugar {
       val specCtx = new FunctionContext(assignReturns)
 
       // extent context
-      (decl.args zip argsWithSubs).foreach{
+      (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(_))) => {
+          specCtx.addSubst(id, in.Parameter.In(p.id, p.typ)(p.info))
+        }
         case _ =>
       }
 
@@ -752,7 +754,7 @@ object Desugar {
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee.Var(varD(ctx)(p.id)))
+          unit(in.Assignee.Var(localVarD(ctx)(p.id)))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -1050,10 +1052,14 @@ object Desugar {
       case _ => ???
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
+    def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {
       require(info.regular(id).isInstanceOf[st.Variable])
 
-      localVarD(ctx)(id)
+      ctx(id) match {
+        case Some(v : in.Var) => v
+        case Some(_) => violation("expected a variable")
+        case None => localVarD(ctx)(id)
+      }
     }
 
     def freshVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =

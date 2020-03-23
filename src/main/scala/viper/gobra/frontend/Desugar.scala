@@ -239,9 +239,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(_))) => {
-          specCtx.addSubst(id, in.Parameter.In(p.id, p.typ)(p.info))
-        }
+        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(_))) => specCtx.addSubst(id, p)
         case _ =>
       }
 

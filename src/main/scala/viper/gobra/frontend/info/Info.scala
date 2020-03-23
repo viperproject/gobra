@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.Tree
-import viper.gobra.ast.frontend.{PNode, PProgram}
+import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
@@ -12,9 +12,9 @@ import viper.gobra.reporting.{TypeError, VerifierError}
 import viper.gobra.util.OutputUtil
 
 object Info {
-  type GoTree = Tree[PNode, PProgram]
+  type GoTree = Tree[PNode, PPackage]
 
-  def check(program: PProgram)(config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  def check(program: PPackage)(config: Config): Either[Vector[VerifierError], TypeInfo] = {
     val tree = new GoTree(program)
     //    println(program.declarations.head)
     //    println("-------------------")

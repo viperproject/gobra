@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
@@ -35,37 +35,56 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
+  def parse(file: File)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val source = SemicolonPreprocessor.preprocess(file)
-    parse(source)(config)
+    parse(Vector(source))(config)
   }
 
-  private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def parse(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
-    parsers.parseAll(parsers.program, source) match {
-      case Success(ast, _) =>
+    def parseSource(prev: Either[Vector[VerifierError], Vector[PProgram]], source: Source): Either[Vector[VerifierError], Vector[PProgram]] = {
+      parsers.parseAll(parsers.program, source) match {
+        case Success(ast, _) =>
 
-        // print parsed program if set in config
-        if (config.unparse()) {
-          val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
-          FileUtils.writeStringToFile(
-            outputFile,
-            ast.formatted,
-            UTF_8
-          )
-        }
+          // print parsed program if set in config
+          val filename: Option[String] = source match {
+            case ffs: FromFileSource => Some(ffs.filename)
+            case fs: FileSource => Some(fs.filename)
+            case _ => None
+          }
+          if (config.unparse() && filename.orNull.equals(config.inputFile().getPath)) {
+            val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
+            FileUtils.writeStringToFile(
+              outputFile,
+              ast.formatted,
+              UTF_8
+            )
+          }
 
-        Right(ast)
+          prev.right.map(r => r :+ ast)
 
-      case ns@NoSuccess(label, next) =>
-        val pos = next.position
-        pom.positions.setStart(ns, pos)
-        pom.positions.setFinish(ns, pos)
-        val messages = message(ns, label)
-        Left(pom.translate(messages, ParserError))
+        case ns@NoSuccess(label, next) =>
+          val pos = next.position
+          pom.positions.setStart(ns, pos)
+          pom.positions.setFinish(ns, pos)
+          val messages = message(ns, label)
+          prev.left.map(l => l ++ pom.translate(messages, ParserError))
+      }
     }
+
+    val parsedPrograms = sources.foldLeft[Either[Vector[VerifierError], Vector[PProgram]]](Right(Vector()))(parseSource)
+    // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+    // of the same package has failed
+    assert(parsedPrograms.fold(
+      _ => true,
+      programs => programs.map(_.packageClause.id.name).forall(_ == programs.head.packageClause.id.name)))
+
+    for {
+      // firstPackageClause <- parsedPrograms.map(programs => programs.head.packageClause)
+      parsedPackage <- parsedPrograms.map(programs => PPackage(/*firstPackageClause, */programs, pom))
+    } yield parsedPackage
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
@@ -180,7 +199,7 @@ object Parser {
     lazy val program: Parser[PProgram] =
       (packageClause <~ eos) ~ (member <~ eos).* ^^ {
         case pkgClause ~ members =>
-          PProgram(pkgClause, Vector.empty, members.flatten, pom)
+          PProgram(pkgClause, Vector.empty, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

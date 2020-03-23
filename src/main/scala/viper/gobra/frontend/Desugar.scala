@@ -16,7 +16,7 @@ import viper.silver.ast.SourcePosition
 
 object Desugar {
 
-  def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+  def desugar(program: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val internalProgram = new Desugarer(program.positions, info).programD(program)
 
     // print internal if set in config
@@ -165,7 +165,7 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
-    def programD(p: PProgram): in.Program = {
+    def programD(p: PPackage): in.Program = {
       val dMembers = p.declarations.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
@@ -183,7 +183,8 @@ object Desugar {
 
       val table = new in.LookupTable(definedTypes)
 
-      in.Program(types.toVector, dMembers, table)(meta(p))
+      // TODO how can we fix this? in.Program(types.toVector, dMembers, table)(meta(p))
+      in.Program(types.toVector, dMembers, table)(meta(p.programs.head))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???

@@ -9,7 +9,7 @@ package viper.gobra
 import java.io.File
 
 import com.typesafe.scalalogging.StrictLogging
-import viper.gobra.ast.frontend.PProgram
+import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -65,7 +65,7 @@ class Gobra extends GoVerifier {
     }, identity)
   }
 
-  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
       Parser.parse(file)(config)
     } else {
@@ -73,7 +73,7 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performTypeChecking(parsedProgram: PProgram, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedProgram: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(parsedProgram)(config)
     } else {
@@ -81,7 +81,7 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(parsedProgram: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedProgram, typeInfo)(config))
     } else {

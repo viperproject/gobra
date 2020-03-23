@@ -110,7 +110,7 @@ trait NameResolution { this: TypeInfoImpl =>
     chain(defenvin, defenvout)
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
-    case n: PProgram => addShallowDefToEnv(rootenv())(n)
+    case n: PPackage => addShallowDefToEnv(rootenv())(n)
     case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
@@ -143,7 +143,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PProgram => n.declarations flatMap { m =>
+      case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
           case d: PConstDecl => d.left

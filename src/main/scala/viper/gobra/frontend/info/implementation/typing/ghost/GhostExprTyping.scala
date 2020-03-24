@@ -22,9 +22,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that thn and els have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
+    // triggers are currently not type checked (for now we lift on any Viper errors on the use of triggers)
     case PForall(_, _, body) =>
       // check that the quantifier `body` is either Boolean or an assertion
-      assignableTo.errors(exprType(body), AssertionT)(expr)
+      isExpr(body).out ++ assignableTo.errors(exprType(body), AssertionT)(expr)
+
+    // triggers are currently not type checked (for now we lift on any Viper errors on the use of triggers)
+    case PExists(_, _, body) =>
+      isExpr(body).out ++ assignableTo.errors(exprType(body), BooleanT)(expr)
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
@@ -54,6 +59,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
 
     case PForall(_, _, body) => exprType(body)
+
+    case PExists(_, _, body) => exprType(body)
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 

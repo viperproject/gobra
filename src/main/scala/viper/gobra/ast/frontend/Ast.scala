@@ -648,6 +648,9 @@ case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
+case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+
 /**
   * Types
   */

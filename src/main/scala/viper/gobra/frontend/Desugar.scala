@@ -1211,6 +1211,14 @@ object Desugar {
           } yield in.PureForall(newVars, newTriggers, newBody)(src)
         }
 
+        case PExists(vars, triggers, body) => {
+          val newVars = vars map boundVariableD(ctx)
+          for {
+            newTriggers <- sequence(triggers map triggerD(ctx))
+            newBody <- go(body)
+          } yield in.Exists(newVars, newTriggers, newBody)(src)
+        }
+
         case PImplication(left, right) =>
           for {
             wcond <- go(left)

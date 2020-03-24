@@ -211,6 +211,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> showTriggers(triggers) <+> showExpr(body)
 
+    case Exists(vars, triggers, body) =>
+      "exists" <+>  showVarDeclList(vars) <+> showTriggers(triggers) <+> showExpr(body)
+
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 

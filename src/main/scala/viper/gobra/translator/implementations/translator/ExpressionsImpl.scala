@@ -94,6 +94,16 @@ class ExpressionsImpl extends Expressions {
         } yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
       }
 
+      case in.Exists(vars, triggers, body) => {
+        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
+        val newVars = decls.flatten
+
+        for {
+          newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+          newBody <- goE(body)
+        } yield vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT)
+      }
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

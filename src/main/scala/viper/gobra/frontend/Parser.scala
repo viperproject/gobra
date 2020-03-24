@@ -858,7 +858,8 @@ object Parser {
       "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
 
     lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
-      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
+        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     /**
       * EOS

@@ -602,13 +602,13 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(localVarD(ctx)(l)))
+                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l => in.Assignee.Var(localVarD(ctx)(l))})
+                les <- unit(left.map{l => in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
@@ -618,17 +618,17 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(localVarD(ctx)(l)))
+                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l =>  in.Assignee.Var(localVarD(ctx)(l))})
+                les <- unit(left.map{l =>  in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(localVarD(ctx)(l)) }
+              val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
 
@@ -641,7 +641,6 @@ object Desugar {
 
           case _ => ???
         }
-
       }
     }
 
@@ -1056,7 +1055,7 @@ object Desugar {
       ctx(id) match {
         case Some(v : in.Var) => v
         case Some(_) => violation("expected a variable")
-        case None => localVarD(ctx)(id)
+        case None => localVarContextFreeD(id)
       }
     }
 
@@ -1066,7 +1065,7 @@ object Desugar {
       ctx(id) match {
         case Some(v: in.AssignableVar) => v
         case Some(_) => violation("expected an assignable variable")
-        case None => localVarD(ctx)(id)
+        case None => localVarContextFreeD(id)
       }
     }
 

@@ -50,7 +50,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // entire package
 
   def showPackage(p: PPackage): Doc = p match {
-    case PPackage(/*_,*/ programs, _) =>
+    case PPackage(_, programs, _) =>
       ssep(programs map showProgram, line) <> line
   }
 

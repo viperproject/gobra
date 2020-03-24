@@ -183,8 +183,7 @@ object Desugar {
 
       val table = new in.LookupTable(definedTypes)
 
-      // TODO how can we fix this? in.Program(types.toVector, dMembers, table)(meta(p))
-      in.Program(types.toVector, dMembers, table)(meta(p.programs.head))
+      in.Program(types.toVector, dMembers, table)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???

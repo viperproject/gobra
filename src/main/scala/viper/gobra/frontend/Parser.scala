@@ -8,6 +8,7 @@ package viper.gobra.frontend
 
 import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
@@ -36,55 +37,77 @@ object Parser {
     */
 
   def parse(file: File)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val source = SemicolonPreprocessor.preprocess(file)
-    parse(Vector(source))(config)
+    val samePackageSource = SamePackageSourceLocator.locate(FileSource(file.getPath))
+    val preprocessedSources = samePackageSource map SemicolonPreprocessor.preprocess
+    parse(preprocessedSources)(config)
   }
 
   private def parse(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
-    def parseSource(prev: Either[Vector[VerifierError], Vector[PProgram]], source: Source): Either[Vector[VerifierError], Vector[PProgram]] = {
+    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
 
-          // print parsed program if set in config
-          val filename: Option[String] = source match {
-            case ffs: FromFileSource => Some(ffs.filename)
-            case fs: FileSource => Some(fs.filename)
-            case _ => None
-          }
-          if (config.unparse() && filename.orNull.equals(config.inputFile().getPath)) {
-            val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
-            FileUtils.writeStringToFile(
-              outputFile,
-              ast.formatted,
-              UTF_8
-            )
+          if (config.unparse()) {
+            // print parsed program if set in config (but print only the input file itself)
+            val inputfilename = config.inputFile().getPath
+            val filename = source match {
+              case ffs: FromFileSource if ffs.filename == inputfilename => Some(new File(ffs.filename))
+              case fs: FileSource if fs.filename == inputfilename => Some(new File(fs.filename))
+              case _ => None
+            }
+
+            if(filename.isDefined) {
+              val outputFile = OutputUtil.postfixFile(filename.get, "unparsed")
+              FileUtils.writeStringToFile(
+                outputFile,
+                ast.formatted,
+                UTF_8
+              )
+            }
           }
 
-          prev.right.map(r => r :+ ast)
+          Right(ast)
 
         case ns@NoSuccess(label, next) =>
           val pos = next.position
           pom.positions.setStart(ns, pos)
           pom.positions.setFinish(ns, pos)
           val messages = message(ns, label)
-          prev.left.map(l => l ++ pom.translate(messages, ParserError))
+          Left(pom.translate(messages, ParserError))
       }
     }
 
-    val parsedPrograms = sources.foldLeft[Either[Vector[VerifierError], Vector[PProgram]]](Right(Vector()))(parseSource)
-    // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
-    // of the same package has failed
-    assert(parsedPrograms.fold(
-      _ => true,
-      programs => programs.map(_.packageClause.id.name).forall(_ == programs.head.packageClause.id.name)))
+    val parsedPrograms = {
+      val parserResults = sources.map(parseSource)
+      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
+      val errors = errorLefts.flatMap(_.left.get)
+      val programs = programRights.map(_.right.get)
 
-    for {
-      // firstPackageClause <- parsedPrograms.map(programs => programs.head.packageClause)
-      parsedPackage <- parsedPrograms.map(programs => PPackage(/*firstPackageClause, */programs, pom))
-    } yield parsedPackage
+      if (errors.nonEmpty) {
+        Left(errors)
+      } else {
+        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+        // of the same package has failed
+        assert(programs.nonEmpty)
+        assert{
+          val packageName = programs.head.packageClause.id.name
+          programs.forall(_.packageClause.id.name == packageName)
+        }
+
+        Right(programs)
+      }
+    }
+
+    parsedPrograms.map(programs => {
+      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
+      val parsedPackage = PPackage(clause, programs, pom)
+      // The package parse tree node gets the position of the package clause:
+      pom.positions.dupPos(clause, parsedPackage)
+      parsedPackage
+    })
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
@@ -111,18 +134,35 @@ object Parser {
     }
   }
 
+  private object SamePackageSourceLocator {
+
+    /**
+      * Searches for source files belonging to the same package as `source` in the same directory of `source`.
+      * Currently, the following valid restriction from the Go Spec is enforced:
+      * "An implementation may require that all source files for a package inhabit the same directory"
+      * @param source
+      * @return All file sources that belong to the same package. `source` is returned as the first element
+      */
+    def locate(source: FileSource): Vector[FileSource] = {
+      val currentFile = Paths.get(source.filename)
+      val currentDir = currentFile.getParent
+      val files = Files.walk(currentDir)
+
+      Vector(source)
+    }
+  }
+
   private object SemicolonPreprocessor {
 
     /**
-      * Assumes that file corresponds to an existing file
+      * Assumes that source corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8"): Source = {
-      val filename = file.getPath
-      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+    def preprocess(source: FileSource): Source = {
+      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
       val content = bufferedSource.mkString
       bufferedSource.close()
       val translatedContent = translate(content)
-      FromFileSource(filename, translatedContent)
+      FromFileSource(source.filename, translatedContent)
     }
 
     def preprocess(content: String): Source = {

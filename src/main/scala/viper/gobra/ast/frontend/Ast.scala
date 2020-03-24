@@ -36,13 +36,11 @@ sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
 case class PPackage(
-                     //packageClause: PPackageClause,
+                     packageClause: PPackageClause,
                      programs: Vector[PProgram],
                      positions: PositionManager
                    ) extends PNode with PUnorderedScope {
-  def declarations: Vector[PMember] = programs.foldLeft(Vector[PMember]()) { (prev, p) =>
-    prev ++ p.declarations
-  }
+  lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
 }
 
 case class PProgram(

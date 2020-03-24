@@ -224,7 +224,7 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class Trigger(exprs: Vector[Expr])
+case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT

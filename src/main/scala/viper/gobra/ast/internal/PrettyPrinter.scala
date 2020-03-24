@@ -180,7 +180,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
-    case SepForall(vars, _, body) => "forall" <+> showVarDeclList(vars) <+> showAss(body)
+    case SepForall(vars, triggers, body) =>
+      "forall" <+> showVarDeclList(vars) <+> showTriggers(triggers) <+> showAss(body)
   }
 
   def showAcc(acc: Accessible): Doc = acc match {
@@ -195,6 +196,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
+  def showTrigger(trigger: Trigger) : Doc = showExprList(trigger.exprs)
+  def showTriggers(triggers: Vector[Trigger]) : Doc = "{" <+> showList(triggers)(showTrigger) <+> "}"
+
   // expressions
 
   def showExpr(e: Expr): Doc = e match {
@@ -205,7 +209,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
     case PureForall(vars, triggers, body) =>
-      "forall" <+> showVarDeclList(vars) <+> showExpr(body)
+      "forall" <+> showVarDeclList(vars) <+> showTriggers(triggers) <+> showExpr(body)
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))

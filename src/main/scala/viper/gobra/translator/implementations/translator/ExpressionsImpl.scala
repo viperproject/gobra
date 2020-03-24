@@ -12,7 +12,12 @@ class ExpressionsImpl extends Expressions {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def finalize(col: Collector): Unit = {
+  }
 
+  override def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
+    val (pos, info, errT) = trigger.vprMeta
+    for { expr <- sequence(trigger.exprs map (translate(_)(ctx))) }
+      yield vpr.Trigger(expr)(pos, info, errT)
   }
 
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
@@ -79,10 +84,14 @@ class ExpressionsImpl extends Expressions {
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)} yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
-      case in.PureForall(vars, _, body) => {
+      case in.PureForall(vars, triggers, body) => {
         val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
         val newVars = decls.flatten
-        for { expr <- goE(body) } yield vpr.Forall(newVars, Seq(), expr)(pos, info, errT)
+
+        for {
+          newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+          newBody <- goE(body)
+        } yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
       }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)

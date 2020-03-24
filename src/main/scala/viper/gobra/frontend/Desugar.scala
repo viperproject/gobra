@@ -1203,9 +1203,12 @@ object Desugar {
             wels <- go(els)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
-        case PForall(vars, _, body) => {
+        case PForall(vars, triggers, body) => {
           val newVars = vars map boundVariableD(ctx)
-          for { newBody <- go(body) } yield in.PureForall(newVars, Vector(), newBody)(src)
+          for {
+            newTriggers <- sequence(triggers map triggerD(ctx))
+            newBody <- go(body)
+          } yield in.PureForall(newVars, newTriggers, newBody)(src)
         }
 
         case PImplication(left, right) =>
@@ -1269,12 +1272,15 @@ object Desugar {
 
         case n: PInvoke => predicateCallD(ctx)(n)
 
-        case PForall(vars, _, body) => {
+        case PForall(vars, triggers, body) => {
           val newVars = vars map boundVariableD(ctx)
-          for { newBody <- goA(body) } yield newBody match {
-            case in.ExprAssertion(eBody) =>
-              in.ExprAssertion(in.PureForall(newVars, Vector(), eBody)(src))(src)
-            case _ => in.SepForall(newVars, Vector(), newBody)(src)
+          for {
+            newTriggers <- sequence(triggers map triggerD(ctx))
+            newBody <- goA(body)
+          } yield newBody match {
+            case in.ExprAssertion(exprBody) =>
+              in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
+            case _ => in.SepForall(newVars, newTriggers, newBody)(src)
           }
         }
 
@@ -1336,10 +1342,12 @@ object Desugar {
       }
     }
 
-    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] =
-      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)
+    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
+      val src: Meta = meta(trigger)
+      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
 
-//    private def origin(n: PNode): in.Origin = {
+    //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get
 //      val finish = pom.positions.getFinish(n).get
 //      val pos = pom.translate(start, finish)

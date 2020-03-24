@@ -40,7 +40,8 @@ class AssertionsImpl extends Assertions {
           newBody <- goA(body)
           newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
           desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
-          reducedForall = desugaredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
+          triggeredForall = desugaredForall.map(_.autoTrigger)
+          reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
         } yield reducedForall
       }
     }

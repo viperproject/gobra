@@ -91,7 +91,7 @@ class ExpressionsImpl extends Expressions {
         for {
           newTriggers <- sequence(triggers map (trigger(_)(ctx)))
           newBody <- goE(body)
-        } yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
+        } yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
       }
 
       case in.Exists(vars, triggers, body) => {
@@ -101,7 +101,7 @@ class ExpressionsImpl extends Expressions {
         for {
           newTriggers <- sequence(triggers map (trigger(_)(ctx)))
           newBody <- goE(body)
-        } yield vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT)
+        } yield vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
       }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)

@@ -752,7 +752,7 @@ object Desugar {
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee.Var(localVarD(ctx)(p.id)))
+          unit(in.Assignee.Var(assignableVarD(ctx)(p.id)))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -1056,6 +1056,16 @@ object Desugar {
       ctx(id) match {
         case Some(v : in.Var) => v
         case Some(_) => violation("expected a variable")
+        case None => localVarD(ctx)(id)
+      }
+    }
+
+    def assignableVarD(ctx: FunctionContext)(id: PIdnNode) : in.AssignableVar = {
+      require(info.regular(id).isInstanceOf[st.Variable])
+
+      ctx(id) match {
+        case Some(v: in.AssignableVar) => v
+        case Some(_) => violation("expected an assignable variable")
         case None => localVarD(ctx)(id)
       }
     }

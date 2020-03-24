@@ -8,7 +8,7 @@ package viper.gobra.frontend
 
 import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.{Files, Paths}
+import java.nio.file.Paths
 
 import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
@@ -145,10 +145,38 @@ object Parser {
       */
     def locate(source: FileSource): Vector[FileSource] = {
       val currentFile = Paths.get(source.filename)
-      val currentDir = currentFile.getParent
-      val files = Files.walk(currentDir)
+      val currentFilename = currentFile.toFile.getName
+      getPackageClause(currentFile.toFile) match {
+        case None => Vector(source)
+        case Some(currentPackage) => {
+          val currentDir = currentFile.getParent
+          val additionalSamePkgFiles = currentDir.toFile
+            .listFiles
+            .filter(_.isFile)
+            // ignore source for now:
+            .filter(_.getName != currentFilename)
+            // get package name for each file:
+            .map(f => (f, getPackageClause(f)))
+            // ignore all files that have a different package name:
+            .collect { case (f, Some(pkgName)) if pkgName == currentPackage => f }
+            .map(f => FileSource(f.getPath))
+            .toVector
+          // source is now prepended
+          source +:  additionalSamePkgFiles
+        }
+      }
+    }
 
-      Vector(source)
+    private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
+
+    private def getPackageClause(file: File): Option[String] = {
+      val bufferedSource = scala.io.Source.fromFile(file)
+      val content = bufferedSource.mkString
+      bufferedSource.close()
+      // TODO is there a way to perform the regex lazily on the file's content?
+      pkgClauseRegex
+        .findAllMatchIn(content)
+        .collectFirst { case m if m.group(1) != null => m.group(1) }
     }
   }
 
@@ -237,9 +265,12 @@ object Parser {
       */
 
     lazy val program: Parser[PProgram] =
-      (packageClause <~ eos) ~ (member <~ eos).* ^^ {
-        case pkgClause ~ members =>
-          PProgram(pkgClause, Vector.empty, members.flatten)
+      (packageClause <~ eos).? ~ (member <~ eos).* ^^ {
+        case pkgClause ~ members => {
+          val flatMembers = members.flatten
+          PProgram(pkgClause.getOrElse(PPackageClause(PPkgDef("main").at(flatMembers.head)).at(flatMembers.head)),
+            Vector.empty, flatMembers)
+        }
       }
 
     lazy val packageClause: Parser[PPackageClause] =

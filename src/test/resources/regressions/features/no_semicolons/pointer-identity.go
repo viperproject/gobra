@@ -1,6 +1,4 @@
 
-package pkg
-
 func test() {
 	v! := 42
 	ar!, br! := &v, &v

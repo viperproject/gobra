@@ -1,5 +1,3 @@
-package main;
-
 type Cell struct {
     a int;
     b int;

@@ -1,4 +1,4 @@
-package trivial
+package tree
 
 type Tree struct {
   Left  *Tree

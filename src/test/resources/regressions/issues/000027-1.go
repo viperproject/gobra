@@ -1,5 +1,3 @@
-package main;
-
 type List struct {
   val int
   next *List

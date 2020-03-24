@@ -1,4 +1,4 @@
-package trivial
+package test2
 
 requires 0 <= n
 ensures 2*e == (n+1)*n

@@ -1,4 +1,4 @@
-package trivial;
+package test4;
 
 type Point struct {
   x int;

@@ -1,6 +1,4 @@
 
-package pkg;
-
 type Cell struct {
   val int;
 };

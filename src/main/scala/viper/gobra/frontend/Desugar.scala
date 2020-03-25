@@ -275,7 +275,6 @@ object Desugar {
         case _ =>
       }
 
-
       val bodyOpt = decl.body.map{ s =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val body = argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
@@ -1216,21 +1215,13 @@ object Desugar {
             wels <- go(els)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
-        case PForall(vars, triggers, body) => {
-          val newVars = vars map boundVariableD(ctx)
-          for {
-            newTriggers <- sequence(triggers map triggerD(ctx))
-            newBody <- go(body)
-          } yield in.PureForall(newVars, newTriggers, newBody)(src)
-        }
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.PureForall(newVars, newTriggers, newBody)(src)
 
-        case PExists(vars, triggers, body) => {
-          val newVars = vars map boundVariableD(ctx)
-          for {
-            newTriggers <- sequence(triggers map triggerD(ctx))
-            newBody <- go(body)
-          } yield in.Exists(newVars, newTriggers, newBody)(src)
-        }
+        case PExists(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.Exists(newVars, newTriggers, newBody)(src)
 
         case PImplication(left, right) =>
           for {
@@ -1241,6 +1232,19 @@ object Desugar {
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
+    }
+
+    def quantifierD[T](ctx: FunctionContext)(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)(go : FunctionContext => PExpression => Writer[T]) : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
+      val newVars = vars map boundVariableD(ctx)
+
+      // substitution has to be added since otherwise all bound variables are translated to addressable variables
+      val bodyCtx = ctx.copy
+      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b) }
+
+      for {
+        newTriggers <- sequence(triggers map triggerD(bodyCtx))
+        newBody <- go(bodyCtx)(body)
+      } yield (newVars, newTriggers, newBody)
     }
 
     def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
@@ -1269,7 +1273,6 @@ object Desugar {
       specificationD(ctx)(ass)
     }
 
-
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -1293,17 +1296,13 @@ object Desugar {
 
         case n: PInvoke => predicateCallD(ctx)(n)
 
-        case PForall(vars, triggers, body) => {
-          val newVars = vars map boundVariableD(ctx)
-          for {
-            newTriggers <- sequence(triggers map triggerD(ctx))
-            newBody <- goA(body)
-          } yield newBody match {
-            case in.ExprAssertion(exprBody) =>
-              in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
-            case _ => in.SepForall(newVars, newTriggers, newBody)(src)
-          }
-        }
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
+            yield newBody match {
+              case in.ExprAssertion(exprBody) =>
+                in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
+              case _ => in.SepForall(newVars, newTriggers, newBody)(src)
+            }
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }

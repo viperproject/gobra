@@ -118,6 +118,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PUnfolding => true
       case _: POld => true
       case _: PForall => true
+      case _: PExists => true
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
 

@@ -20,6 +20,16 @@ class ExpressionsImpl extends Expressions {
       yield vpr.Trigger(expr)(pos, info, errT)
   }
 
+  def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {
+    val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
+    val newVars = decls.flatten
+
+    for {
+      newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+      newBody <- translate(body)(ctx)
+    } yield (newVars, newTriggers, newBody)
+  }
+
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val (pos, info, errT) = x.vprMeta
@@ -84,25 +94,13 @@ class ExpressionsImpl extends Expressions {
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)} yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
-      case in.PureForall(vars, triggers, body) => {
-        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
-        val newVars = decls.flatten
+      case in.PureForall(vars, triggers, body) =>
+        for { (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx) }
+          yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
 
-        for {
-          newTriggers <- sequence(triggers map (trigger(_)(ctx)))
-          newBody <- goE(body)
-        } yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
-      }
-
-      case in.Exists(vars, triggers, body) => {
-        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
-        val newVars = decls.flatten
-
-        for {
-          newTriggers <- sequence(triggers map (trigger(_)(ctx)))
-          newBody <- goE(body)
-        } yield vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
-      }
+      case in.Exists(vars, triggers, body) =>
+        for { (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx) }
+          yield vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)

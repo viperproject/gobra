@@ -1,4 +1,4 @@
-package test3;
+package trivial;
 
 requires acc(*p);
 ensures acc(*p) && *p == v;

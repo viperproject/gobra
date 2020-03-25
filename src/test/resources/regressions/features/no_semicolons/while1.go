@@ -1,3 +1,7 @@
+package pkg
+
+
+
 requires x >= 0
 ensures  z == x*y
 func test(x, y int) (z int) {

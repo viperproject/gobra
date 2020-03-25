@@ -1,3 +1,5 @@
+package main;
+
 type cell struct {
     val int;
 };

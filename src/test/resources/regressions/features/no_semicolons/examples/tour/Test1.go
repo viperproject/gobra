@@ -1,4 +1,4 @@
-package test1
+package trivial
 
 ensures x <= r && y <= r
 ensures r == x || r == y

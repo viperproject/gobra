@@ -1,4 +1,4 @@
-package tree;
+package trivial;
 
 type Tree struct {
   Left  *Tree;

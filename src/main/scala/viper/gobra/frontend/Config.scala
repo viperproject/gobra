@@ -14,7 +14,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
-import org.rogach.scallop.{ArgType, ScallopConf, ScallopOption, ValueConverter, listArgConverter, singleArgConverter}
+import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
 import viper.gobra.GoVerifier
 
@@ -43,85 +43,6 @@ class Config(arguments: Seq[String])
   )
 
   /**
-    * Checks whether the provided arguments have file ending ".go" if yes, they will be parsed as File.
-    * If not and only a single argument was provided the argument is interpreted as a package name and all source files belonging to the package are returned
-    */
-  private val inputFilesConverter: ValueConverter[List[File]] = new ValueConverter[List[File]] {
-    override val argType: ArgType.V = org.rogach.scallop.ArgType.LIST
-    private val goFileRgx = """(.*\.go)$""".r
-
-    override def parse(s: List[(String, List[String])]): Either[String, Option[List[File]]] =
-      try {
-        val args = s.flatMap(_._2)
-        val parsedArgs = args.map {
-          case goFileRgx(filepath) => Right(new File(filepath))
-          case pkgName => Left(pkgName)
-        }
-        if (parsedArgs.length == 1 && parsedArgs.exists {
-          case Left(_) => true
-          case _ => false
-        }) {
-          val packageName = parsedArgs.head.left.get
-          val sourceFiles = getPackageFiles(packageName)
-          if (sourceFiles.isEmpty) Left(s"no source files found for package '$packageName'") else Right(sourceFiles)
-        }
-        else if (parsedArgs.nonEmpty && parsedArgs.forall { case Right(_) => true }) Right(Some(parsedArgs.map(_.right.get)))
-        else Left("no input files or package specified")
-      } catch {
-        case _: Exception =>
-          Left("wrong arguments format")
-      }
-
-    private def getPackageFiles(pkg: String): Option[List[File]] = {
-      // run `go help gopath` to get a detailed explanation of package resolution in go
-      for {
-        path <- Properties.envOrNone("GOPATH")
-        paths = if (SystemUtils.IS_OS_WINDOWS) path.split(";") else path.split(":")
-        packagePaths = paths.map(p => Paths.get(p))
-          // for now, we restrict our search to the "src" subdirectory:
-          .map(_.resolve("src"))
-          // the desired package should now be located in a subdirectory named after the package name:
-          .map(_.resolve(pkg))
-        pkgDir <- packagePaths.collectFirst { case p if Files.exists(p) => p }
-        // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-        files = getSourceFiles(pkgDir.toFile, pkg)
-      } yield files
-    }
-
-    /**
-      * Returns all go source files in directory `dir` with package `pkg`
-      *
-      * @param dir
-      * @param pkg
-      * @return
-      */
-    private def getSourceFiles(dir: File, pkg: String): List[File] = {
-      dir
-        .listFiles
-        .filter(_.isFile)
-        // only consider file extensions "go"
-        .filter(f => FilenameUtils.getExtension(f.getName) == "go")
-        // get package name for each file:
-        .map(f => (f, getPackageClause(f)))
-        // ignore all files that have a different package name:
-        .collect { case (f, Some(pkgName)) if pkgName == pkg => f }
-        .toList
-    }
-
-    private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
-
-    private def getPackageClause(file: File): Option[String] = {
-      val bufferedSource = scala.io.Source.fromFile(file)
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      // TODO is there a way to perform the regex lazily on the file's content?
-      pkgClauseRegex
-        .findAllMatchIn(content)
-        .collectFirst { case m if m.group(1) != null => m.group(1) }
-    }
-  }
-
-  /**
     * Command-line options
     */
   val input: ScallopOption[List[String]] = opt[List[String]](
@@ -134,11 +55,7 @@ class Config(arguments: Seq[String])
     short = 'I',
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
     default = Some(List())
-  )(listArgConverter(dir => new File(dir)))/*{
-    val f = new File(dir)
-    if (f.exists() && f.isDirectory) f
-    else throw new IllegalArgumentException(s"'$dir' does not exist or is not a directory")
-  } ))*/
+  )(listArgConverter(dir => new File(dir)))
 
   val debug: ScallopOption[Boolean] = toggle(
     name = "debug",
@@ -232,7 +149,6 @@ class Config(arguments: Seq[String])
     // - validate fileOpt using includeOpt
     // - convert fileOpt using includeOpt
     //  - result should be non-empty, exist, be files and be readable
-
     val input: List[String] = inputOpt.get // this is a non-optional CLI argument
     for {
       convertedFiles <- checkConversion(input, includeOpt)
@@ -287,17 +203,6 @@ class Config(arguments: Seq[String])
       } yield files
       assert(res.isDefined, "validate function did not catch this problem")
       res.get
-      /*
-        val pkgName = isPackageInput(input)
-      }
-      pkgName match {
-        case Some(pkgName) => getPackageFiles(pkgName)
-      }
-      if (interpretedAsPackage) {
-        val packageName = parsedArgs.head.left.get
-        val sourceFiles = getPackageFiles(packageName)
-      }
-      */
     }
 
     private def isFilePath(input: String): Either[String, File] = input match {
@@ -321,27 +226,7 @@ class Config(arguments: Seq[String])
         case _ => None
       }
     }
-    /*
-    private def isPackageInput(input: List[String]): Option[String] = {
-      if (input.length == 1) input.head match {
-        case goFileRgx(_) => None
-        case pkgName => Some(pkgName)
-      }
-      else None
-    }
-     */
-    /*
-    private def AreInputFiles(input: List[String]): Option[Vector[File]] = {
-      for {
-        input map { case goFileRgx(filename) => new File(filename) }
-      }
-      if (input.length == 1) input.head match {
-        case goFileRgx(_) => None
-        case pkgName => Some(pkgName)
-      }
-      else None
-    }
-    */
+
     private def getFiles(pkgOrFiles: Either[String, Vector[File]], includeOpt: Option[List[File]]): Vector[File] = pkgOrFiles match {
       case Right(files) => files
       case Left(pkgName) =>
@@ -358,21 +243,6 @@ class Config(arguments: Seq[String])
         val pkgDirOpt = packagePaths.collectFirst { case p if Files.exists(p) => p }
         // pkgDir stores the path to the directory that should contain source files belonging to the desired package
         pkgDirOpt.map(pkgDir => getSourceFiles(pkgDir.toFile, pkgName)).getOrElse(Vector())
-
-        /*
-        for {
-          path <- Properties.envOrNone("GOPATH")
-          paths = if (SystemUtils.IS_OS_WINDOWS) path.split(";") else path.split(":")
-          packagePaths = paths.map(p => Paths.get(p))
-            // for now, we restrict our search to the "src" subdirectory:
-            .map(_.resolve("src"))
-            // the desired package should now be located in a subdirectory named after the package name:
-            .map(_.resolve(pkgName))
-          pkgDir <- packagePaths.collectFirst { case p if Files.exists(p) => p }
-          // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-          files = getSourceFiles(pkgDir.toFile, pkgName)
-        } yield files
-         */
     }
 
     /**

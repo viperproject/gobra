@@ -21,7 +21,7 @@ object Desugar {
 
     // print internal if set in config
     if (config.printInternal()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "internal")
+      val outputFile = OutputUtil.postfixFile(config.inputFiles.head, "internal")
       FileUtils.writeStringToFile(
         outputFile,
         internalProgram.formatted,

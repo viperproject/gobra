@@ -41,18 +41,18 @@ trait GoVerifier {
   }
 
   def verify(config: Config): VerifierResult = {
-    verify(config.inputFile(), config)
+    verify(config.inputFiles, config)
   }
 
-  protected[this] def verify(file: File, config: Config): VerifierResult
+  protected[this] def verify(files: Vector[File], config: Config): VerifierResult
 }
 
 class Gobra extends GoVerifier {
 
-  override def verify(file: File, config: Config): VerifierResult = {
+  override def verify(files: Vector[File], config: Config): VerifierResult = {
 
     val result = for {
-      parsedProgram <- performParsing(file, config)
+      parsedProgram <- performParsing(files, config)
       typeInfo <- performTypeChecking(parsedProgram, config)
       program <- performDesugaring(parsedProgram, typeInfo, config)
       viperTask <- performViperEncoding(program, config)
@@ -65,9 +65,9 @@ class Gobra extends GoVerifier {
     }, identity)
   }
 
-  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(files: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(file)(config)
+      Parser.parse(files)(config)
     } else {
       Left(Vector())
     }

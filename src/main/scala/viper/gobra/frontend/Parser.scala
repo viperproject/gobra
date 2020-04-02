@@ -8,9 +8,10 @@ package viper.gobra.frontend
 
 import java.io.{File, Reader}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 
-import org.apache.commons.io.FileUtils
+import org.apache.commons.io.{FileUtils, FilenameUtils}
+import org.apache.commons.lang3.SystemUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
@@ -19,13 +20,15 @@ import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParserError, VerifierError}
 import viper.gobra.util.OutputUtil
 
+import scala.util.Properties
+
 object Parser {
 
   /**
-    * Parses file and returns either the parsed program if the file was parsed successfully,
+    * Parses files and returns either the parsed program if the file was parsed successfully,
     * otherwise returns list of error messages
     *
-    * @param file
+    * @param files
     * @return
     *
     * The following transformations are performed:
@@ -36,13 +39,14 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val samePackageSource = SamePackageSourceLocator.locate(FileSource(file.getPath))
-    val preprocessedSources = samePackageSource map SemicolonPreprocessor.preprocess
-    parse(preprocessedSources)(config)
+  def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = files
+      .map{ file => FileSource(file.getPath) }
+      .map(SemicolonPreprocessor.preprocess)
+    parseSources(preprocessedSources)(config)
   }
 
-  private def parse(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
@@ -51,11 +55,9 @@ object Parser {
         case Success(ast, _) =>
 
           if (config.unparse()) {
-            // print parsed program if set in config (but print only the input file itself)
-            val inputfilename = config.inputFile().getPath
             val filename = source match {
-              case ffs: FromFileSource if ffs.filename == inputfilename => Some(new File(ffs.filename))
-              case fs: FileSource if fs.filename == inputfilename => Some(new File(fs.filename))
+              case ffs: FromFileSource => Some(new File(ffs.filename))
+              case fs: FileSource => Some(new File(fs.filename))
               case _ => None
             }
 
@@ -137,6 +139,31 @@ object Parser {
   private object SamePackageSourceLocator {
 
     /**
+      * Tries to locate source files belonging to package `pkg` based on $GOPATH
+      */
+    def locate(pkg: String): Either[Vector[VerifierError], Vector[FileSource]] = {
+      // run `go help gopath` to get a detailed explanation of package resolution in go
+      for {
+        path <- Properties.envOrNone("GOPATH") match {
+          case Some(path) => Right(path)
+          case _ => Left(Vector(ParserError("$GOPATH is not set", None)))
+        }
+        paths = if (SystemUtils.IS_OS_WINDOWS) path.split(";") else path.split(":")
+        packagePaths = paths.map(p => Paths.get(p))
+          // for now, we restrict our search to the "src" subdirectory:
+          .map(_.resolve("src"))
+          // the desired package should now be located in a subdirectory named after the package name:
+          .map(_.resolve(pkg))
+        pkgDir <- packagePaths.collectFirst { case p if Files.exists(p) => p } match {
+          case Some(p) => Right(p)
+          case None => Left(Vector(ParserError(s"Package $pkg not found", None)))
+        }
+        // pkgDir stores the path to the directory that should contain source files belonging to the desired package
+        files = getSourceFiles(pkgDir.toFile, pkg)
+      } yield files
+    }
+
+    /**
       * Searches for source files belonging to the same package as `source` in the same directory of `source`.
       * Currently, the following valid restriction from the Go Spec is enforced:
       * "An implementation may require that all source files for a package inhabit the same directory"
@@ -150,17 +177,7 @@ object Parser {
         case None => Vector(source)
         case Some(currentPackage) => {
           val currentDir = currentFile.getParent
-          val additionalSamePkgFiles = currentDir.toFile
-            .listFiles
-            .filter(_.isFile)
-            // ignore source for now:
-            .filter(_.getName != currentFilename)
-            // get package name for each file:
-            .map(f => (f, getPackageClause(f)))
-            // ignore all files that have a different package name:
-            .collect { case (f, Some(pkgName)) if pkgName == currentPackage => f }
-            .map(f => FileSource(f.getPath))
-            .toVector
+          val additionalSamePkgFiles = getSourceFiles(currentDir.toFile, currentPackage, Some(currentFilename))
           // source is now prepended
           source +:  additionalSamePkgFiles
         }
@@ -169,7 +186,7 @@ object Parser {
 
     private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r
 
-    private def getPackageClause(file: File): Option[String] = {
+    def getPackageClause(file: File): Option[String] = {
       val bufferedSource = scala.io.Source.fromFile(file)
       val content = bufferedSource.mkString
       bufferedSource.close()
@@ -177,6 +194,29 @@ object Parser {
       pkgClauseRegex
         .findAllMatchIn(content)
         .collectFirst { case m if m.group(1) != null => m.group(1) }
+    }
+
+    /**
+      * Returns all go source files in directory `dir` with package `pkg` and not having filename `excludeFilename`
+      * @param dir
+      * @param pkg
+      * @param excludeFilename
+      * @return
+      */
+    private def getSourceFiles(dir: File, pkg: String, excludeFilename: Option[String] = None): Vector[FileSource] = {
+      dir
+        .listFiles
+        .filter(_.isFile)
+        // only consider file extensions "go"
+        .filter(f => FilenameUtils.getExtension(f.getName) == "go")
+        // ignore file with name excludeFilename:
+        .filter(f => if (excludeFilename.isDefined) f.getName != excludeFilename.get else true)
+        // get package name for each file:
+        .map(f => (f, getPackageClause(f)))
+        // ignore all files that have a different package name:
+        .collect { case (f, Some(pkgName)) if pkgName == pkg => f }
+        .map(f => FileSource(f.getPath))
+        .toVector
     }
   }
 
@@ -265,12 +305,8 @@ object Parser {
       */
 
     lazy val program: Parser[PProgram] =
-      (packageClause <~ eos).? ~ (member <~ eos).* ^^ {
-        case pkgClause ~ members => {
-          val flatMembers = members.flatten
-          PProgram(pkgClause.getOrElse(PPackageClause(PPkgDef("main").at(flatMembers.head)).at(flatMembers.head)),
-            Vector.empty, flatMembers)
-        }
+      (packageClause <~ eos) ~ (member <~ eos).* ^^ {
+        case pkgClause ~ members => PProgram(pkgClause, Vector.empty, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

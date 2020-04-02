@@ -54,12 +54,12 @@ class PositionManager extends PositionStore with Messaging {
 
   def translate[E <: VerifierError](
                                      messages: Messages,
-                                     errorFactory: (String, SourcePosition) => E
+                                     errorFactory: (String, Option[SourcePosition]) => E
                                    ): Vector[VerifierError] = {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
-        translate(positions.getStart(m.value).get, positions.getFinish(m.value).get)
+        Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
   }

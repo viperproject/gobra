@@ -34,7 +34,7 @@ object BackendVerifier {
 
     // print generated viper file if set in config
     if (config.printVpr()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
+      val outputFile = OutputUtil.postfixFile(config.inputFiles.head, "vpr")
       FileUtils.writeStringToFile(
         outputFile,
         silver.ast.pretty.FastPrettyPrinter.pretty(task.program),

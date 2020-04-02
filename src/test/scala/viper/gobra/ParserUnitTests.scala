@@ -6,7 +6,7 @@ import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnUse, PIntLit, PInvoke, PNamedOperand, PStatement}
 import viper.gobra.frontend.Parser
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.ClassTag
 
 class ParserUnitTests extends FunSuite with Matchers with Inside {
   private val frontend = new TestFrontend()

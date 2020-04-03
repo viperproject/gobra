@@ -36,7 +36,7 @@ class Config(arguments: Seq[String])
   )
 
   banner(
-    s""" Usage: ${GoVerifier.name} -i <input-files> [OPTIONS]
+    s""" Usage: ${GoVerifier.name} -i <input-files or a single package name> [OPTIONS]
        |
        | Options:
        |""".stripMargin
@@ -47,7 +47,7 @@ class Config(arguments: Seq[String])
     */
   val input: ScallopOption[List[String]] = opt[List[String]](
     name = "input",
-    descr = "List of Go programs to verify"
+    descr = "List of Go programs or a single package name to verify"
   )
 
   val include: ScallopOption[List[File]] = opt[List[File]](

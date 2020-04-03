@@ -180,18 +180,19 @@ class Config(arguments: Seq[String])
   def shouldVerify: Boolean = shouldViperEncode
 
   private object InputConverter {
-    private val goFileRgx = """(.*\.go)$""".r
+    private val extension = """go"""
+    private val goFileRgx = s"""(.*\\.$extension)$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
 
     def validate(input: List[String], includeOpt: Option[List[File]]): Messages = {
-      val files = input map isFilePath
+      val files = input map isGoFilePath
       files.partition(_.isLeft) match {
         case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => noMessages
         case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => noMessages
         // error states:
         case (pkgs,  files) if pkgs.length > 1 && files.isEmpty =>
-          message(pkgs, s"multiple package names provided: '${getLeft(pkgs, ",")}'")
+          message(pkgs, s"multiple package names provided: '${concatLeft(pkgs, ",")}'")
         case (pkgs, files) if pkgs.nonEmpty && files.nonEmpty =>
-          message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${getRight(files, ",")}'; package names: '${getLeft(pkgs, ",")}')")
+          message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${concatRight(files, ",")}'; package names: '${concatLeft(pkgs, ",")}')")
         case (pkgs, files) if pkgs.isEmpty && files.isEmpty => message(null, s"no input specified")
       }
     }
@@ -199,27 +200,35 @@ class Config(arguments: Seq[String])
     def convert(input: List[String], includeOpt: Option[List[File]]): Vector[File] = {
       val res = for {
         i <- identifyInput(input)
-        files = getFiles(i, includeOpt)
+        files = resolvePackageOrFiles(i, includeOpt)
       } yield files
       assert(res.isDefined, "validate function did not catch this problem")
       res.get
     }
 
-    private def isFilePath(input: String): Either[String, File] = input match {
+    /**
+      * Checks whether string ends in ".<ext>" where <ext> corresponds to the extension defined in InputConverter
+      * @return Right with the string converted to a File if the condition is met, otherwise Left containing `input`
+      */
+    private def isGoFilePath(input: String): Either[String, File] = input match {
       case goFileRgx(filename) => Right(new File(filename))
       case pkgName => Left(pkgName)
     }
 
-    private def getLeft(p: List[Either[String, File]], sep: String): String = {
+    private def concatLeft(p: List[Either[String, File]], sep: String): String = {
       (for(Left(pkg) <- p.toVector) yield pkg).mkString(sep)
     }
 
-    private def getRight(p: List[Either[String, File]], sep: String): String = {
+    private def concatRight(p: List[Either[String, File]], sep: String): String = {
       (for(Right(f) <- p.toVector) yield f).mkString(sep)
     }
 
+    /**
+      * Decides whether the provided input strings should be interpreted as a single package name (Left) or
+      * a vector of file paths (Right). If a mix is provided None is returned.
+      */
     private def identifyInput(input: List[String]): Option[Either[String, Vector[File]]] = {
-      val files = input map isFilePath
+      val files = input map isGoFilePath
       files.partition(_.isLeft) match {
         case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => Some(Left(pkgs.head.left.get))
         case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s))
@@ -227,7 +236,13 @@ class Config(arguments: Seq[String])
       }
     }
 
-    private def getFiles(pkgOrFiles: Either[String, Vector[File]], includeOpt: Option[List[File]]): Vector[File] = pkgOrFiles match {
+    /**
+      * Resolves a package name to specific input files
+      * @param pkgOrFiles package name that should be resolved or files that will be returned unchanged
+      * @param includeOpt list of directories that will be used for package resolution before falling back to $GOPATH
+      * @return list of files belonging to the package or the input files in case pkgOrFiles is Right
+      */
+    private def resolvePackageOrFiles(pkgOrFiles: Either[String, Vector[File]], includeOpt: Option[List[File]]): Vector[File] = pkgOrFiles match {
       case Right(files) => files
       case Left(pkgName) =>
         // run `go help gopath` to get a detailed explanation of package resolution in go
@@ -246,18 +261,14 @@ class Config(arguments: Seq[String])
     }
 
     /**
-      * Returns all go source files in directory `dir` with package `pkg`
-      *
-      * @param dir
-      * @param pkg
-      * @return
+      * Returns all source files with file extension 'extension' in a specific directory `dir` with package name `pkg`
       */
     private def getSourceFiles(dir: File, pkg: String): Vector[File] = {
       dir
         .listFiles
         .filter(_.isFile)
         // only consider file extensions "go"
-        .filter(f => FilenameUtils.getExtension(f.getName) == "go")
+        .filter(f => FilenameUtils.getExtension(f.getName) == extension)
         // get package name for each file:
         .map(f => (f, getPackageClause(f)))
         // ignore all files that have a different package name:

@@ -25,9 +25,9 @@ object Info {
     val result = if (errors.isEmpty) {
 
       // print program with ghost code erased
-      if (config.eraseGhost()) {
+      if (config.eraseGhost) {
         val ghostLessPrinter = new GhostLessPrinter(info)
-        val outputFile = OutputUtil.postfixFile(config.inputFile(), "ghostLess")
+        val outputFile = OutputUtil.postfixFile(config.inputFile, "ghostLess")
         FileUtils.writeStringToFile(
           outputFile,
           ghostLessPrinter.format(program),
@@ -41,9 +41,9 @@ object Info {
     }
 
     // print debug information
-    if (config.debug()) {
+    if (config.debug) {
       val infoDebugPrinter = new InfoDebugPrettyPrinter(info)
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "debugType")
+      val outputFile = OutputUtil.postfixFile(config.inputFile, "debugType")
       FileUtils.writeStringToFile(
         outputFile,
         infoDebugPrinter.format(program),

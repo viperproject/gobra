@@ -20,8 +20,8 @@ object Desugar {
     val internalProgram = new Desugarer(program.positions, info).programD(program)
 
     // print internal if set in config
-    if (config.printInternal()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "internal")
+    if (config.printInternal) {
+      val outputFile = OutputUtil.postfixFile(config.inputFile, "internal")
       FileUtils.writeStringToFile(
         outputFile,
         internalProgram.formatted,

@@ -14,8 +14,29 @@ import com.typesafe.scalalogging.StrictLogging
 import org.rogach.scallop.{ScallopConf, ScallopOption, Util, singleArgConverter}
 import org.slf4j.LoggerFactory
 import viper.gobra.GoVerifier
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 
-class Config(arguments: Seq[String])
+case class Config(
+                 inputFile: File,
+                 backend: ViperBackend = ViperBackends.SiliconBackend,
+                 // TODO: The following flag should not be replaced by the reporter b.c. of its impact on performance
+                 logLevel: Level = Level.INFO,
+                 // TODO: The following flags might be replaced by the reporter, depending on how much lazy we want
+                 shouldParse: Boolean = true,
+                 shouldTypeCheck: Boolean = true,
+                 shouldDesugar: Boolean = true,
+                 shouldViperEncode: Boolean = true,
+                 shouldVerify: Boolean = true,
+                 // TODO: The following flags will be replaced by the reporter
+                 unparse: Boolean = false,
+                 debug: Boolean = false, // maybe keep this one
+                 eraseGhost: Boolean = false,
+                 printInternal: Boolean = false,
+                 printVpr: Boolean = false
+            )
+
+
+class ScallopGobraConfig(arguments: Seq[String])
     extends ScallopConf(arguments)
     with StrictLogging {
 
@@ -44,6 +65,17 @@ class Config(arguments: Seq[String])
     name = "input",
     descr = "Go program to verify is read from this file"
   )(singleArgConverter(arg => new File(arg)))
+
+  val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
+    name = "backend",
+    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    default = Some(ViperBackends.SiliconBackend),
+    noshort = true
+  )(singleArgConverter({
+    case "SILICON" => ViperBackends.SiliconBackend
+    case "CARBON" => ViperBackends.CarbonBackend
+    case _ => ViperBackends.SiliconBackend
+  }))
 
   val debug: ScallopOption[Boolean] = toggle(
     name = "debug",
@@ -131,4 +163,21 @@ class Config(arguments: Seq[String])
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
+
+
+  lazy val config: Config = Config(
+    inputFile = inputFile(),
+    backend = backend(),
+    logLevel = logLevel(),
+    shouldParse = shouldParse,
+    shouldTypeCheck = shouldTypeCheck,
+    shouldDesugar = shouldDesugar,
+    shouldViperEncode = shouldViperEncode,
+    shouldVerify = shouldVerify,
+    unparse = unparse(),
+    debug = debug(),
+    eraseGhost = eraseGhost(),
+    printInternal = printInternal(),
+    printVpr = printVpr()
+  )
 }

@@ -48,8 +48,8 @@ object Parser {
       case Success(ast, _) =>
 
         // print parsed program if set in config
-        if (config.unparse()) {
-          val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
+        if (config.unparse) {
+          val outputFile = OutputUtil.postfixFile(config.inputFile, "unparsed")
           FileUtils.writeStringToFile(
             outputFile,
             ast.formatted,

@@ -33,8 +33,8 @@ object BackendVerifier {
 
 
     // print generated viper file if set in config
-    if (config.printVpr()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
+    if (config.printVpr) {
+      val outputFile = OutputUtil.postfixFile(config.inputFile, "vpr")
       FileUtils.writeStringToFile(
         outputFile,
         silver.ast.pretty.FastPrettyPrinter.pretty(task.program),
@@ -42,7 +42,7 @@ object BackendVerifier {
       )
     }
 
-    val verifier = setupSilicon(config)
+    val verifier = config.backend.create
     verifier.start()
     val verificationResult = verifier.handle(task.program)
     verifier.stop()
@@ -59,22 +59,6 @@ object BackendVerifier {
 
         Failure(verificationError.toVector, task.backtrack)
     }
-  }
-
-  private def setupSilicon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
-    options ++= Vector("--disableCatchingExceptions")
-    options ++= Vector("--enableMoreCompleteExhale")
-
-    new Silicon(options)
-  }
-
-  private def setupCarbon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
-
-    new Carbon(options)
   }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

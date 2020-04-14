@@ -13,7 +13,7 @@ import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, Parser}
+import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{BackTranslator, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
@@ -115,7 +115,8 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    val config = new Config(args)
+    val scallopGobraconfig = new ScallopGobraConfig(args)
+    val config = scallopGobraconfig.config
     val verifier = createVerifier(config)
     val result = verifier.verify(config)
 

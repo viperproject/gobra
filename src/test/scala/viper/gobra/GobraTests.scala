@@ -2,6 +2,7 @@ package viper.gobra
 
 import java.nio.file.Path
 
+import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -31,10 +32,10 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        val config = new Config(Array(
-          "--logLevel", "Error",
-          "-i", input.file.toFile.getPath,
-        ))
+        val config = Config(
+          logLevel = Level.INFO,
+          inputFiles = Vector(input.file.toFile)
+        )
 
         val (result, elapsedMilis) = time(() => gobraInstance.verify(config))
 

@@ -16,11 +16,31 @@ import org.apache.commons.lang3.SystemUtils
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
+import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
-
 import scala.util.Properties
 
-class Config(arguments: Seq[String])
+case class Config(
+                 inputFiles: Vector[File],
+                 backend: ViperBackend = ViperBackends.SiliconBackend,
+                 // TODO: The following flag should not be replaced by the reporter b.c. of its impact on performance
+                 logLevel: Level = Level.INFO,
+                 // TODO: The following flags might be replaced by the reporter, depending on how much lazy we want
+                 shouldParse: Boolean = true,
+                 shouldTypeCheck: Boolean = true,
+                 shouldDesugar: Boolean = true,
+                 shouldViperEncode: Boolean = true,
+                 shouldVerify: Boolean = true,
+                 // TODO: The following flags will be replaced by the reporter
+                 unparse: Boolean = false,
+                 debug: Boolean = false, // maybe keep this one
+                 eraseGhost: Boolean = false,
+                 printInternal: Boolean = false,
+                 printVpr: Boolean = false
+            )
+
+
+class ScallopGobraConfig(arguments: Seq[String])
     extends ScallopConf(arguments)
     with StrictLogging {
 
@@ -56,6 +76,17 @@ class Config(arguments: Seq[String])
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
     default = Some(List())
   )(listArgConverter(dir => new File(dir)))
+
+  val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
+    name = "backend",
+    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    default = Some(ViperBackends.SiliconBackend),
+    noshort = true
+  )(singleArgConverter({
+    case "SILICON" => ViperBackends.SiliconBackend
+    case "CARBON" => ViperBackends.CarbonBackend
+    case _ => ViperBackends.SiliconBackend
+  }))
 
   val debug: ScallopOption[Boolean] = toggle(
     name = "debug",
@@ -288,4 +319,20 @@ class Config(arguments: Seq[String])
         .collectFirst { case m if m.group(1) != null => m.group(1) }
     }
   }
+
+  lazy val config: Config = Config(
+    inputFiles = inputFiles,
+    backend = backend(),
+    logLevel = logLevel(),
+    shouldParse = shouldParse,
+    shouldTypeCheck = shouldTypeCheck,
+    shouldDesugar = shouldDesugar,
+    shouldViperEncode = shouldViperEncode,
+    shouldVerify = shouldVerify,
+    unparse = unparse(),
+    debug = debug(),
+    eraseGhost = eraseGhost(),
+    printInternal = printInternal(),
+    printVpr = printVpr()
+  )
 }

@@ -50,7 +50,7 @@ object Parser {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
 
-          if (config.unparse()) {
+          if (config.unparse) {
             val filename = source match {
               case ffs: FromFileSource => Some(new File(ffs.filename))
               case fs: FileSource => Some(new File(fs.filename))

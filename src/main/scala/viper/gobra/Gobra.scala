@@ -47,7 +47,7 @@ trait GoVerifier {
   protected[this] def verify(file: File, config: Config): VerifierResult
 }
 
-class Gobra extends GoVerifier() {
+class Gobra extends GoVerifier {
 
   override def verify(file: File, config: Config): VerifierResult = {
 

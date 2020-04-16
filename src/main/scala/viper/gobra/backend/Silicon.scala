@@ -10,9 +10,7 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
   def start(reporter: Reporter): Unit = {
     require(backend == null)
 
-    backend = new silicon.Silicon(reporter, List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
-
-    backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
+    backend = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
     backend.start()
   }
 

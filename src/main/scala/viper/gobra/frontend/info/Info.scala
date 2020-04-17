@@ -5,7 +5,7 @@ import viper.gobra.ast.frontend.{PNode, PProgram}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
-import viper.gobra.reporting.{TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
+import viper.gobra.reporting.{TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 object Info {
   type GoTree = Tree[PNode, PProgram]
@@ -18,13 +18,13 @@ object Info {
     val info = new TypeInfoImpl(tree)
 
     val errors = info.errors
+    config.reporter report TypeCheckDebugMessage(config.inputFile, () => program, () => getDebugInfo(program, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program,
-        () => getErasedGhostCode(program, info), () => getDebugInfo(program, info))
+      config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info))
       Right(info)
     } else {
       val typeErrors = program.positions.translate(errors, TypeError)
-      config.reporter report TypeCheckFailureMessage(config.inputFile, () => program, typeErrors, () => getDebugInfo(program, info))
+      config.reporter report TypeCheckFailureMessage(config.inputFile, () => program, typeErrors)
       Left(typeErrors)
     }
   }

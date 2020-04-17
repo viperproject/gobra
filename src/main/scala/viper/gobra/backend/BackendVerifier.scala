@@ -28,7 +28,7 @@ object BackendVerifier {
                     ) extends Result
 
   def verify(task: Task)(config: Config): Result = {
-    
+
     config.reporter report GeneratedViperMessage(config.inputFile, () => task.program,
       () => silver.ast.pretty.FastPrettyPrinter.pretty(task.program))
 
@@ -40,6 +40,9 @@ object BackendVerifier {
     convertVerificationResult(verificationResult, task.backtrack)
   }
 
+  /**
+    * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
+    */
   def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
     case silver.verifier.Success => Success
     case failure: silver.verifier.Failure =>

@@ -12,7 +12,7 @@ import viper.silver.reporter.Message
   * The only possible messages for the reporter are defined in this file.
   */
 sealed trait GobraMessage {
-  override def toString: String = s"generic_message"
+  override def toString: String = name
   val name: String
 }
 
@@ -76,25 +76,32 @@ sealed trait TypeCheckMessage extends GobraMessage {
   override val name: String = s"type_check_message"
   val input: File
   val ast: () => PProgram
-  val debugTypeInfo: () => String
 
   override def toString: String = s"type_check_message(" +
     s"file=${input.toPath})"
 }
 
-case class TypeCheckSuccessMessage(input: File, ast: () => PProgram, erasedGhostCode: () => String, debugTypeInfo: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(input: File, ast: () => PProgram, erasedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
     s"file=${input.toPath})"
 }
 
-case class TypeCheckFailureMessage(input: File, ast: () => PProgram, result: Vector[TypeError], debugTypeInfo: () => String) extends TypeCheckMessage {
+case class TypeCheckFailureMessage(input: File, ast: () => PProgram, result: Vector[TypeError]) extends TypeCheckMessage {
   override val name: String = s"type_check_failure_message"
 
   override def toString: String = s"type_check_failure_message(" +
     s"file=${input.toPath}), " +
     s"failures=${result.map(_.toString).mkString(",")})"
+}
+
+case class TypeCheckDebugMessage(input: File, ast: () => PProgram, debugTypeInfo: () => String) extends TypeCheckMessage {
+  override val name: String = s"type_check_debug_message"
+
+  override def toString: String = s"type_check_debug_message(" +
+    s"file=${input.toPath}), " +
+    s"debugInfo=${debugTypeInfo()})"
 }
 
 case class DesugaredMessage(input: File, internal: () => in.Program) extends GobraMessage {

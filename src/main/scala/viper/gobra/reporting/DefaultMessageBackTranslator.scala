@@ -1,6 +1,6 @@
 package viper.gobra.reporting
 
-import viper.gobra.backend.BackendVerifier.convertVerificationResult
+import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver.reporter.{EntityFailureMessage, EntitySuccessMessage, Message, OverallFailureMessage, OverallSuccessMessage}
@@ -19,5 +19,5 @@ class DefaultMessageBackTranslator(backTrackInfo: BackTrackInfo, config: Config)
   }
 
   private def translate(result: VerificationResult): VerifierResult =
-    BackTranslator.backTranslate(convertVerificationResult(result, backTrackInfo))(config)
+    BackTranslator.backTranslate(BackendVerifier.convertVerificationResult(result, backTrackInfo))(config)
 }

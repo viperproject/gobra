@@ -29,8 +29,7 @@ object BackendVerifier {
 
   def verify(task: Task)(config: Config): Result = {
 
-    config.reporter report GeneratedViperMessage(config.inputFile, () => task.program,
-      () => silver.ast.pretty.FastPrettyPrinter.pretty(task.program))
+    config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 
     val verifier = config.backend.create
     verifier.start(BacktranslatingReporter(config.reporter, task.backtrack, config))

@@ -15,7 +15,7 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, Util, singleArgConverter}
 import org.slf4j.LoggerFactory
 import viper.gobra.GoVerifier
 import viper.gobra.backend.{ViperBackend, ViperBackends}
-import viper.gobra.reporting.{GobraReporter, StdIOReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
@@ -88,6 +88,34 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = true
   )(singleArgConverter(arg => Level.toLevel(arg.toUpperCase)))
 
+  val eraseGhost: ScallopOption[Boolean] = toggle(
+    name = "eraseGhost",
+    descrYes = "Print the input program without ghost code",
+    default = Some(false),
+    noshort = true
+  )
+
+  val unparse: ScallopOption[Boolean] = toggle(
+    name = "unparse",
+    descrYes = "Print the parsed program",
+    default = Some(debug()),
+    noshort = true
+  )
+
+  val printInternal: ScallopOption[Boolean] = toggle(
+    name = "printInternal",
+    descrYes = "Print the internal program representation",
+    default = Some(debug()),
+    noshort = true
+  )
+
+  val printVpr: ScallopOption[Boolean] = toggle(
+    name = "printVpr",
+    descrYes = "Print the encoded Viper program",
+    default = Some(debug()),
+    noshort = true
+  )
+
   val parseOnly: ScallopOption[Boolean] = toggle(
     name = "parseOnly",
     descrYes = "Perform only the parsing step",
@@ -136,7 +164,12 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   lazy val config: Config = Config(
     inputFile = inputFile(),
-    reporter = StdIOReporter(level=logLevel()),
+    reporter = FileWriterReporter(
+      unparse = unparse(),
+      eraseGhost = eraseGhost(),
+      debug = debug(),
+      printInternal = printInternal(),
+      printVpr = printVpr()),
     backend = backend(),
     logLevel = logLevel(),
     shouldParse = shouldParse,

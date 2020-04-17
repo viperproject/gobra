@@ -5,11 +5,12 @@ import java.io.File
 import viper.gobra.ast.frontend.PProgram
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.VerifierResult.Success
+import viper.silver
 import viper.silver.{ast => vpr}
 import viper.silver.reporter.Message
 
 /**
-  * The only possible messages for the reporter are defined in this file.
+  * Messages reported by GobraReporter
   */
 sealed trait GobraMessage {
   override def toString: String = name
@@ -112,12 +113,14 @@ case class DesugaredMessage(input: File, internal: () => in.Program) extends Gob
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program, vprFormated: () => String) extends GobraMessage {
+case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
     s"file=${input.toPath}, " +
-    s"vprFormated=${vprFormated()})"
+    s"vprFormated=$vprAstFormatted)"
+
+  lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }
 
 case class RawMessage(msg: Message) extends GobraMessage {

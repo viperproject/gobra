@@ -14,12 +14,12 @@ import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
-import viper.gobra.reporting.{BackTranslator, VerifierError, VerifierResult}
+import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2019"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2020"
 
   val name = "Gobra"
 
@@ -50,6 +50,8 @@ trait GoVerifier {
 class Gobra extends GoVerifier {
 
   override def verify(file: File, config: Config): VerifierResult = {
+
+    config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
     val result = for {
       parsedProgram <- performParsing(file, config)

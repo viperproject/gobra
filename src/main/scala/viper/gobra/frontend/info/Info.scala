@@ -1,15 +1,11 @@
 package viper.gobra.frontend.info
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend.{PNode, PProgram}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
-import viper.gobra.reporting.{TypeError, VerifierError}
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 object Info {
   type GoTree = Tree[PNode, PProgram]
@@ -22,35 +18,22 @@ object Info {
     val info = new TypeInfoImpl(tree)
 
     val errors = info.errors
-    val result = if (errors.isEmpty) {
-
-      // print program with ghost code erased
-      if (config.eraseGhost()) {
-        val ghostLessPrinter = new GhostLessPrinter(info)
-        val outputFile = OutputUtil.postfixFile(config.inputFile(), "ghostLess")
-        FileUtils.writeStringToFile(
-          outputFile,
-          ghostLessPrinter.format(program),
-          UTF_8
-        )
-      }
-
+    config.reporter report TypeCheckDebugMessage(config.inputFile, () => program, () => getDebugInfo(program, info))
+    if (errors.isEmpty) {
+      config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info))
       Right(info)
     } else {
-      Left(program.positions.translate(errors, TypeError))
+      val typeErrors = program.positions.translate(errors, TypeError)
+      config.reporter report TypeCheckFailureMessage(config.inputFile, () => program, typeErrors)
+      Left(typeErrors)
     }
+  }
 
-    // print debug information
-    if (config.debug()) {
-      val infoDebugPrinter = new InfoDebugPrettyPrinter(info)
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "debugType")
-      FileUtils.writeStringToFile(
-        outputFile,
-        infoDebugPrinter.format(program),
-        UTF_8
-      )
-    }
+  private def getErasedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
+    new GhostLessPrinter(info).format(program)
+  }
 
-    result
+  private def getDebugInfo(program: PProgram, info: TypeInfoImpl): String = {
+    new InfoDebugPrettyPrinter(info).format(program)
   }
 }

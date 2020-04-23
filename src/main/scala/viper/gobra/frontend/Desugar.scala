@@ -1,8 +1,5 @@
 package viper.gobra.frontend
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal.Node.Meta
 import viper.gobra.ast.{internal => in}
@@ -10,32 +7,15 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.reporting.Source
-import viper.gobra.util.{DesugarWriter, OutputUtil, Violation}
+import viper.gobra.reporting.{DesugaredMessage, Source}
+import viper.gobra.util.{DesugarWriter, Violation}
 import viper.silver.ast.SourcePosition
 
 object Desugar {
 
   def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val internalProgram = new Desugarer(program.positions, info).programD(program)
-
-    // print internal if set in config
-    if (config.printInternal()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "internal")
-      FileUtils.writeStringToFile(
-        outputFile,
-        internalProgram.formatted,
-        UTF_8
-      )
-
-//      val uglyOutputFile = OutputUtil.postfixFile(config.inputFile(), "ugly")
-//      FileUtils.writeStringToFile(
-//        uglyOutputFile,
-//        internalProgram.toString,
-//        UTF_8
-//      )
-    }
-
+    config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
     internalProgram
   }
 
@@ -144,14 +124,14 @@ object Desugar {
 
     class FunctionContext(
                            val ret: Vector[in.Expr] => Meta => in.Stmt,
-                           private var substitutions: Map[Identity, in.BodyVar] = Map.empty
+                           private var substitutions: Map[Identity, in.Var] = Map.empty
                          ) {
 
-      def apply(id: PIdnNode): Option[in.BodyVar] =
+      def apply(id: PIdnNode): Option[in.Var] =
         substitutions.get(abstraction(id))
 
 
-      def addSubst(from: PIdnNode, to: in.BodyVar): Unit =
+      def addSubst(from: PIdnNode, to: in.Var): Unit =
         substitutions += abstraction(from) -> to
 
       def copy: FunctionContext = new FunctionContext(ret, substitutions)
@@ -236,10 +216,10 @@ object Desugar {
       val specCtx = new FunctionContext(assignReturns)
 
       // extent context
-      (decl.args zip argsWithSubs).foreach{
+      (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -602,13 +582,13 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(localVarD(ctx)(l)))
+                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l => in.Assignee.Var(localVarD(ctx)(l))})
+                les <- unit(left.map{l => in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
@@ -618,17 +598,17 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(localVarD(ctx)(l)))
+                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l =>  in.Assignee.Var(localVarD(ctx)(l))})
+                les <- unit(left.map{l =>  in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(localVarD(ctx)(l)) }
+              val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
 
@@ -641,7 +621,6 @@ object Desugar {
 
           case _ => ???
         }
-
       }
     }
 
@@ -752,7 +731,7 @@ object Desugar {
 
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
-          unit(in.Assignee.Var(varD(ctx)(p.id)))
+          unit(in.Assignee.Var(assignableVarD(ctx)(p.id)))
         case Some(p: ap.Deref) =>
           derefD(ctx)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
@@ -1050,10 +1029,24 @@ object Desugar {
       case _ => ???
     }
 
-    def varD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
+    def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {
       require(info.regular(id).isInstanceOf[st.Variable])
 
-      localVarD(ctx)(id)
+      ctx(id) match {
+        case Some(v : in.Var) => v
+        case Some(_) => violation("expected a variable")
+        case None => localVarContextFreeD(id)
+      }
+    }
+
+    def assignableVarD(ctx: FunctionContext)(id: PIdnNode) : in.AssignableVar = {
+      require(info.regular(id).isInstanceOf[st.Variable])
+
+      ctx(id) match {
+        case Some(v: in.AssignableVar) => v
+        case Some(_) => violation("expected an assignable variable")
+        case None => localVarContextFreeD(id)
+      }
     }
 
     def freshVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =

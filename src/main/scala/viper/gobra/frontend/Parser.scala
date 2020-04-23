@@ -7,16 +7,13 @@
 package viper.gobra.frontend
 
 import java.io.{File, Reader}
-import java.nio.charset.StandardCharsets.UTF_8
 
-import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParserError, VerifierError}
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
 
 object Parser {
 
@@ -36,7 +33,7 @@ object Parser {
     */
 
   def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val source = SemicolonPreprocessor.preprocess(file)
+    val source = SemicolonPreprocessor.preprocess(file)(config)
     parse(source)(config)
   }
 
@@ -46,17 +43,7 @@ object Parser {
 
     parsers.parseAll(parsers.program, source) match {
       case Success(ast, _) =>
-
-        // print parsed program if set in config
-        if (config.unparse()) {
-          val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
-          FileUtils.writeStringToFile(
-            outputFile,
-            ast.formatted,
-            UTF_8
-          )
-        }
-
+        config.reporter report ParsedInputMessage(config.inputFile, () => ast)
         Right(ast)
 
       case ns@NoSuccess(label, next) =>
@@ -103,12 +90,13 @@ object Parser {
     /**
       * Assumes that file corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8"): Source = {
+    def preprocess(file: File, encoding : String = "UTF-8")(config: Config): Source = {
       val filename = file.getPath
       val bufferedSource = scala.io.Source.fromFile(filename, encoding)
       val content = bufferedSource.mkString
       bufferedSource.close()
       val translatedContent = translate(content)
+      config.reporter report PreprocessedInputMessage(file, () => translatedContent)
       FromFileSource(filename, translatedContent)
     }
 

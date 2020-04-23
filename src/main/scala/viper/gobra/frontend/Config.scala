@@ -14,8 +14,26 @@ import com.typesafe.scalalogging.StrictLogging
 import org.rogach.scallop.{ScallopConf, ScallopOption, Util, singleArgConverter}
 import org.slf4j.LoggerFactory
 import viper.gobra.GoVerifier
+import viper.gobra.backend.{ViperBackend, ViperBackends}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
-class Config(arguments: Seq[String])
+object LoggerDefaults {
+  val DefaultLevel: Level = Level.INFO
+}
+case class Config(
+                 inputFile: File,
+                 reporter: GobraReporter = StdIOReporter(),
+                 backend: ViperBackend = ViperBackends.SiliconBackend,
+                 logLevel: Level = LoggerDefaults.DefaultLevel,
+                 shouldParse: Boolean = true,
+                 shouldTypeCheck: Boolean = true,
+                 shouldDesugar: Boolean = true,
+                 shouldViperEncode: Boolean = true,
+                 shouldVerify: Boolean = true
+            )
+
+
+class ScallopGobraConfig(arguments: Seq[String])
     extends ScallopConf(arguments)
     with StrictLogging {
 
@@ -45,6 +63,17 @@ class Config(arguments: Seq[String])
     descr = "Go program to verify is read from this file"
   )(singleArgConverter(arg => new File(arg)))
 
+  val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
+    name = "backend",
+    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    default = Some(ViperBackends.SiliconBackend),
+    noshort = true
+  )(singleArgConverter({
+    case "SILICON" => ViperBackends.SiliconBackend
+    case "CARBON" => ViperBackends.CarbonBackend
+    case _ => ViperBackends.SiliconBackend
+  }))
+
   val debug: ScallopOption[Boolean] = toggle(
     name = "debug",
     descrYes = "Output additional debug information",
@@ -55,7 +84,7 @@ class Config(arguments: Seq[String])
     name = "logLevel",
     descr =
       "One of the log levels ALL, TRACE, DEBUG, INFO, WARN, ERROR, OFF (default: OFF)",
-    default = Some(if (debug()) Level.DEBUG else Level.INFO),
+    default = Some(if (debug()) Level.DEBUG else LoggerDefaults.DefaultLevel),
     noshort = true
   )(singleArgConverter(arg => Level.toLevel(arg.toUpperCase)))
 
@@ -131,4 +160,22 @@ class Config(arguments: Seq[String])
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
+
+
+  lazy val config: Config = Config(
+    inputFile = inputFile(),
+    reporter = FileWriterReporter(
+      unparse = unparse(),
+      eraseGhost = eraseGhost(),
+      debug = debug(),
+      printInternal = printInternal(),
+      printVpr = printVpr()),
+    backend = backend(),
+    logLevel = logLevel(),
+    shouldParse = shouldParse,
+    shouldTypeCheck = shouldTypeCheck,
+    shouldDesugar = shouldDesugar,
+    shouldViperEncode = shouldViperEncode,
+    shouldVerify = shouldVerify
+  )
 }

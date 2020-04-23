@@ -2,16 +2,15 @@ package viper.gobra.backend
 
 import viper.silicon
 import viper.silver
+import viper.silver.reporter.Reporter
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
   var backend: silicon.Silicon = _
 
-  def start(): Unit = {
+  def start(reporter: Reporter): Unit = {
     require(backend == null)
 
-    backend = new silicon.Silicon(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
-
-    backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
+    backend = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
     backend.start()
   }
 

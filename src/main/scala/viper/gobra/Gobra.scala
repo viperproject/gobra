@@ -9,7 +9,7 @@ package viper.gobra
 import java.io.File
 
 import com.typesafe.scalalogging.StrictLogging
-import viper.gobra.ast.frontend.PProgram
+import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
@@ -41,20 +41,20 @@ trait GoVerifier {
   }
 
   def verify(config: Config): VerifierResult = {
-    verify(config.inputFile, config)
+    verify(config.inputFiles, config)
   }
 
-  protected[this] def verify(file: File, config: Config): VerifierResult
+  protected[this] def verify(files: Vector[File], config: Config): VerifierResult
 }
 
 class Gobra extends GoVerifier {
 
-  override def verify(file: File, config: Config): VerifierResult = {
+  override def verify(files: Vector[File], config: Config): VerifierResult = {
 
     config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
     val result = for {
-      parsedProgram <- performParsing(file, config)
+      parsedProgram <- performParsing(files, config)
       typeInfo <- performTypeChecking(parsedProgram, config)
       program <- performDesugaring(parsedProgram, typeInfo, config)
       viperTask <- performViperEncoding(program, config)
@@ -67,15 +67,15 @@ class Gobra extends GoVerifier {
     }, identity)
   }
 
-  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def performParsing(files: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(file)(config)
+      Parser.parse(files)(config)
     } else {
       Left(Vector())
     }
   }
 
-  private def performTypeChecking(parsedProgram: PProgram, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedProgram: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
       Info.check(parsedProgram)(config)
     } else {
@@ -83,7 +83,7 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(parsedProgram: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedProgram, typeInfo)(config))
     } else {

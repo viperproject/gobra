@@ -157,7 +157,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val pkgFile = new File("src/test/resources/regressions/features/import/simple_example/bar.go")
         (for {
           // TODO parse only decls and specs
-          parsedProgram <- Parser.parse(pkgFile)(config)
+          parsedProgram <- Parser.parse(Vector(pkgFile))(config)
           // TODO maybe don't check whole file but only members that are actually used/imported
           typeChecker <- Info.check(parsedProgram, context)(config)
           // store typeChecker for reuse:

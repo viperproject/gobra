@@ -2,7 +2,7 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend.PNode.PPkg
-import viper.gobra.ast.frontend.{PNode, PProgram}
+import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
@@ -11,7 +11,7 @@ import viper.gobra.reporting.{TypeCheckDebugMessage, TypeCheckFailureMessage, Ty
 import scala.collection.immutable.ListMap
 
 object Info {
-  type GoTree = Tree[PNode, PProgram]
+  type GoTree = Tree[PNode, PPackage]
 
   class Context {
     private var contextMap: Map[PPkg, ExternalTypeInfo] = ListMap[PPkg, ExternalTypeInfo]()
@@ -24,7 +24,7 @@ object Info {
     def getContexts: Iterable[ExternalTypeInfo] = contextMap.values
   }
 
-  def check(program: PProgram, context: Context = new Context)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
+  def check(program: PPackage, context: Context = new Context)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
     val tree = new GoTree(program)
     //    println(program.declarations.head)
     //    println("-------------------")
@@ -32,22 +32,22 @@ object Info {
     val info = new TypeInfoImpl(tree, context)(config: Config)
 
     val errors = info.errors
-    config.reporter report TypeCheckDebugMessage(config.inputFile, () => program, () => getDebugInfo(program, info))
+    config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => program, () => getDebugInfo(program, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info))
+      config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => program, () => getErasedGhostCode(program, info))
       Right(info)
     } else {
       val typeErrors = program.positions.translate(errors, TypeError)
-      config.reporter report TypeCheckFailureMessage(config.inputFile, () => program, typeErrors)
+      config.reporter report TypeCheckFailureMessage(config.inputFiles.head, () => program, typeErrors)
       Left(typeErrors)
     }
   }
 
-  private def getErasedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
+  private def getErasedGhostCode(program: PPackage, info: TypeInfoImpl): String = {
     new GhostLessPrinter(info).format(program)
   }
 
-  private def getDebugInfo(program: PProgram, info: TypeInfoImpl): String = {
+  private def getDebugInfo(program: PPackage, info: TypeInfoImpl): String = {
     new InfoDebugPrettyPrinter(info).format(program)
   }
 }

@@ -14,7 +14,7 @@ import viper.silver.ast.SourcePosition
 
 object Desugar {
 
-  def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+  def desugar(program: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     // TODO only desugare used imported members
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: viper.gobra.frontend.info.TypeInfo = tI.asInstanceOf[viper.gobra.frontend.info.TypeInfo]
@@ -24,7 +24,7 @@ object Desugar {
     }}
     val mainDesugarer = new Desugarer(/*program.positions, */info)
     val internalProgram = combine(mainDesugarer, mainDesugarer.programD(program), importedPrograms)
-    config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
+    config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
     internalProgram
   }
 
@@ -164,7 +164,7 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
-    def programD(p: PProgram): in.Program = {
+    def programD(p: PPackage): in.Program = {
       val dMembers = p.declarations.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)

@@ -35,24 +35,34 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
+case class PPackage(
+                     packageClause: PPackageClause,
+                     programs: Vector[PProgram],
+                     positions: PositionManager
+                   ) extends PNode with PUnorderedScope {
+  // TODO: remove duplicate package imports:
+  lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
+  lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
+}
+
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
                      declarations: Vector[PMember],
                      positions: PositionManager
-                   ) extends PNode with PUnorderedScope
+                   ) extends PNode
 
 
 class PositionManager extends PositionStore with Messaging {
 
   def translate[E <: VerifierError](
                                      messages: Messages,
-                                     errorFactory: (String, SourcePosition) => E
+                                     errorFactory: (String, Option[SourcePosition]) => E
                                    ): Vector[E] = {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
-        translate(positions.getStart(m.value).get, positions.getFinish(m.value).get)
+        Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
   }

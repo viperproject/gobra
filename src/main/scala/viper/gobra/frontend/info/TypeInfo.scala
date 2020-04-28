@@ -23,7 +23,7 @@ trait TypeInfo {
 
   def addressableVar(id: PIdnNode): Boolean
 
-  def tree: Tree[PNode, PProgram]
+  def tree: Tree[PNode, PPackage]
 
   def regular(n: PIdnNode): Regular
 

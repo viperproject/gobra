@@ -15,14 +15,14 @@ object PackageResolver {
   /**
     * Resolves a package name to specific input files
     * @param pkgName package name that should be resolved
-    * @param includeOpt list of directories that will be used for package resolution before falling back to $GOPATH
+    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
     * @return list of files belonging to the package or the input files in case pkgOrFiles is Right
     */
-  def resolve(pkgName: String, includeOpt: Option[List[File]]): Vector[File] = {
+  def resolve(pkgName: String, includeDirs: Vector[File]): Vector[File] = {
     // run `go help gopath` to get a detailed explanation of package resolution in go
     val path = Properties.envOrElse("GOPATH", "")
     val paths = (if (SystemUtils.IS_OS_WINDOWS) path.split(";") else path.split(":")).filter(_.nonEmpty)
-    val includePaths = includeOpt.getOrElse(List()).map(_.toPath)
+    val includePaths = includeDirs.map(_.toPath)
     // prepend includePaths before paths that have been derived based on $GOPATH:
     val packagePaths = includePaths ++ paths.map(p => Paths.get(p))
       // for now, we restrict our search to the "src" subdirectory:

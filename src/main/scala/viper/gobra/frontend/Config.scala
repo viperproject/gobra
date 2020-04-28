@@ -23,6 +23,7 @@ object LoggerDefaults {
 }
 case class Config(
                  inputFiles: Vector[File],
+                 includeDirs: Vector[File] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
@@ -31,7 +32,24 @@ case class Config(
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
                  shouldVerify: Boolean = true
-            )
+            ) {
+  def merge(other: Config): Config = {
+    // this config takes precedence over other config
+    Config(
+      inputFiles = (inputFiles ++ other.inputFiles).distinct,
+      includeDirs = (includeDirs ++ other.includeDirs).distinct,
+      reporter = reporter,
+      backend = backend,
+      logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
+      // TODO merge strategy for following properties is unclear (maybe AND or OR)
+      shouldParse = shouldParse,
+      shouldTypeCheck = shouldTypeCheck,
+      shouldDesugar = shouldDesugar,
+      shouldViperEncode = shouldViperEncode,
+      shouldVerify = shouldVerify
+    )
+  }
+}
 
 
 class ScallopGobraConfig(arguments: Seq[String])
@@ -147,7 +165,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
     def checkConversion(input: List[String], includeOpt: Option[List[File]]): Either[String, Vector[File]] = {
       val msgs = InputConverter.validate(input, includeOpt)
-      if (msgs.isEmpty) Right(InputConverter.convert(input, includeOpt))
+      if (msgs.isEmpty) Right(InputConverter.convert(input, includeOpt.map(_.toVector).getOrElse(Vector())))
       else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
@@ -190,7 +208,8 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   verify()
 
-  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, include.toOption)
+  lazy val includeDirs: Vector[File] = include.toOption.map(_.toVector).getOrElse(Vector())
+  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, includeDirs)
 
   /** set log level */
 
@@ -222,12 +241,12 @@ class ScallopGobraConfig(arguments: Seq[String])
       }
     }
 
-    def convert(input: List[String], includeOpt: Option[List[File]]): Vector[File] = {
+    def convert(input: List[String], includeDirs: Vector[File]): Vector[File] = {
       val res = for {
         i <- identifyInput(input)
         files = i match {
           case Right(files) => files
-          case Left(pkgName) => PackageResolver.resolve(pkgName, includeOpt)
+          case Left(pkgName) => PackageResolver.resolve(pkgName, includeDirs)
         }
       } yield files
       assert(res.isDefined, "validate function did not catch this problem")
@@ -267,6 +286,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   lazy val config: Config = Config(
     inputFiles = inputFiles,
+    includeDirs = includeDirs,
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),

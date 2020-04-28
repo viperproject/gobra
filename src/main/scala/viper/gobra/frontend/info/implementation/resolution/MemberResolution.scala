@@ -1,9 +1,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
-import java.io.File
-
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.Parser
+import viper.gobra.frontend.{PackageResolver, Parser}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
@@ -153,16 +151,17 @@ trait MemberResolution { this: TypeInfoImpl =>
     def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] =
       // check if package was already parsed:
       context.getTypeInfo(importedPkg.decl.pkg).map(Some(_)).getOrElse {
-        // TODO get files belonging to package
-        val pkgFile = new File("src/test/resources/regressions/features/import/simple_example/bar.go")
-        (for {
-          // TODO parse only decls and specs
-          parsedProgram <- Parser.parse(Vector(pkgFile))(config)
-          // TODO maybe don't check whole file but only members that are actually used/imported
-          typeChecker <- Info.check(parsedProgram, context)(config)
-          // store typeChecker for reuse:
-          _ = context.addPackage(typeChecker)
-        } yield Some(typeChecker)).getOrElse(None)
+        val pkgFiles = PackageResolver.resolve(importedPkg.decl.pkg, config.includeDirs)
+        if (pkgFiles.nonEmpty) {
+          (for {
+            // TODO parse only decls and specs
+            parsedProgram <- Parser.parse(pkgFiles)(config)
+            // TODO maybe don't check whole file but only members that are actually used/imported
+            typeChecker <- Info.check(parsedProgram, context)(config)
+            // store typeChecker for reuse:
+            _ = context.addPackage(typeChecker)
+          } yield Some(typeChecker)).getOrElse(None)
+        } else None
       }
 
 

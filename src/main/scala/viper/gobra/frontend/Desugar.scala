@@ -63,82 +63,58 @@ object Desugar {
 
     type Identity = Meta
 
-    private def abstraction(id: PIdnNode, context: ExternalTypeInfo): Identity = {
-      val entity = context.regular(id)
-      meta(entity.rep, entity.context)
+    private def abstraction(id: PIdnNode): Identity = {
+      val entity = info.regular(id)
+      meta(entity.rep)
     }
 
     // TODO: make thread safe
     private var proxies: Map[Meta, in.Proxy] = Map.empty
 
-    def getProxy(id: PIdnNode, context: ExternalTypeInfo): Option[in.Proxy] =
-      proxies.get(abstraction(id, context))
+    def getProxy(id: PIdnNode): Option[in.Proxy] =
+      proxies.get(abstraction(id))
 
-    def addProxy(from: PIdnNode, to: in.Proxy, context: ExternalTypeInfo): Unit =
-      proxies += abstraction(from, context) -> to
+    def addProxy(from: PIdnNode, to: in.Proxy): Unit =
+      proxies += abstraction(from) -> to
 
-    def functionProxyD(decl: PFunctionDecl, context: ExternalTypeInfo): in.FunctionProxy = {
-      getProxy(decl.id, context).getOrElse{
-        val name = idName(decl.id, context)
-        val proxy = in.FunctionProxy(name)(meta(decl, context))
-        addProxy(decl.id, proxy, context)
-        proxy
-      }.asInstanceOf[in.FunctionProxy]
+    def functionProxyD(decl: PFunctionDecl): in.FunctionProxy = {
+      val name = idName(decl.id)
+      in.FunctionProxy(name)(meta(decl))
     }
 
-    def methodProxyD(decl: PMethodDecl, context: ExternalTypeInfo): in.MethodProxy = {
-      getProxy(decl.id, context).getOrElse{
-        val name = idName(decl.id)
-        val proxy = in.MethodProxy(decl.id.name, name)(meta(decl, context))
-        addProxy(decl.id, proxy, context)
-        proxy
-      }.asInstanceOf[in.MethodProxy]
+    def functionProxyD(id: PIdnUse): in.FunctionProxy = {
+      val name = idName(id)
+      in.FunctionProxy(name)(meta(id))
     }
 
-    def methodProxy(sym: st.Method): in.MethodProxy = {
-      val (metaInfo, id) = sym match {
-        case st.MethodImpl(decl, isGhost, context) => (meta(decl, context), decl.id)
-        case st.MethodSpec(spec, isGhost, context) => (meta(spec, context), spec.id)
-      }
-
-      getProxy(id, sym.context).getOrElse{
-        val name = idName(id, sym.context)
-        val proxy = in.MethodProxy(id.name, name)(metaInfo)
-        addProxy(id, proxy, sym.context)
-        proxy
-      }.asInstanceOf[in.MethodProxy]
+    def methodProxyD(decl: PMethodDecl): in.MethodProxy = {
+      val name = idName(decl.id)
+      in.MethodProxy(decl.id.name, name)(meta(decl))
     }
 
-    def fpredicateProxyD(decl: PFPredicateDecl, context: ExternalTypeInfo): in.FPredicateProxy = {
-      getProxy(decl.id, context).getOrElse{
-        val name = idName(decl.id, context)
-        val proxy = in.FPredicateProxy(name)(meta(decl, context))
-        addProxy(decl.id, proxy, context)
-        proxy
-      }.asInstanceOf[in.FPredicateProxy]
+    def methodProxy(id: PIdnUse): in.MethodProxy = {
+      val name = idName(id)
+      in.MethodProxy(id.name, name)(meta(id))
     }
 
-    def mpredicateProxyD(decl: PMPredicateDecl, context: ExternalTypeInfo): in.MPredicateProxy = {
-      getProxy(decl.id, context).getOrElse{
-        val name = idName(decl.id, context)
-        val proxy = in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
-        addProxy(decl.id, proxy, context)
-        proxy
-      }.asInstanceOf[in.MPredicateProxy]
+    def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
+      val name = idName(decl.id)
+      in.FPredicateProxy(name)(meta(decl))
     }
 
-    def mpredicateProxy(sym: st.MPredicate): in.MPredicateProxy = {
-      val (metaInfo, id) = sym match {
-        case st.MPredicateImpl(decl, context) => (meta(decl, context), decl.id)
-        case st.MPredicateSpec(_, _) => assert(false); ???
-      }
+    def fpredicateProxyD(id: PIdnUse): in.FPredicateProxy = {
+      val name = idName(id)
+      in.FPredicateProxy(name)(meta(id))
+    }
 
-      getProxy(id, sym.context).getOrElse{
-        val name = idName(id, sym.context)
-        val proxy = in.MPredicateProxy(id.name, name)(metaInfo)
-        addProxy(id, proxy, sym.context)
-        proxy
-      }.asInstanceOf[in.MPredicateProxy]
+    def mpredicateProxyD(decl: PMPredicateDecl): in.MPredicateProxy = {
+      val name = idName(decl.id)
+      in.MPredicateProxy(decl.id.name, name)(meta(decl))
+    }
+
+    def mpredicateProxy(id: PIdnUse): in.MPredicateProxy = {
+      val name = idName(id)
+      in.MPredicateProxy(id.name, name)(meta(id))
     }
 
     class FunctionContext(
@@ -147,11 +123,11 @@ object Desugar {
                          ) {
 
       def apply(id: PIdnNode): Option[in.Var] =
-        substitutions.get(abstraction(id, info.asInstanceOf[ExternalTypeInfo]))
+        substitutions.get(abstraction(id))
 
 
       def addSubst(from: PIdnNode, to: in.Var): Unit =
-        substitutions += abstraction(from, info.asInstanceOf[ExternalTypeInfo]) -> to
+        substitutions += abstraction(from) -> to
 
       def copy: FunctionContext = new FunctionContext(ret, substitutions)
 //
@@ -194,7 +170,7 @@ object Desugar {
     def functionD(decl: PFunctionDecl): in.Member =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
-      val name = functionProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
@@ -287,7 +263,7 @@ object Desugar {
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
       require(decl.spec.isPure)
 
-      val name = functionProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = functionProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
@@ -318,7 +294,7 @@ object Desugar {
     def methodD(decl: PMethodDecl): in.Member =
       if (decl.spec.isPure) pureMethodD(decl) else {
 
-      val name = methodProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = methodProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -425,7 +401,7 @@ object Desugar {
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
       require(decl.spec.isPure)
 
-      val name = methodProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = methodProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -455,7 +431,7 @@ object Desugar {
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
-      val name = fpredicateProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = fpredicateProxyD(decl)
       val fsrc = meta(decl)
 
       val argsWithSubs = decl.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
@@ -472,7 +448,7 @@ object Desugar {
     }
 
     def mpredicateD(decl: PMPredicateDecl): in.MPredicate = {
-      val name = mpredicateProxyD(decl, info.asInstanceOf[ExternalTypeInfo])
+      val name = mpredicateProxyD(decl)
       val fsrc = meta(decl)
 
       val recvWithSubs = receiverD(decl.receiver)
@@ -685,7 +661,7 @@ object Desugar {
 
               base match {
                 case base: ap.Function =>
-                  val fproxy = functionProxyD(base.symb.decl, fsym.context)
+                  val fproxy = functionProxyD(base.id)
 
                   if (base.symb.isPure) {
                     for {
@@ -700,7 +676,7 @@ object Desugar {
                   }
 
                 case base: ap.ReceivedMethod =>
-                  val fproxy = methodProxy(base.symb)
+                  val fproxy = methodProxy(base.id)
 
                   val dRecv = for {
                     r <- exprD(ctx)(base.recv)
@@ -721,7 +697,7 @@ object Desugar {
                   }
 
                 case base: ap.MethodExpr =>
-                  val fproxy = methodProxy(base.symb)
+                  val fproxy = methodProxy(base.id)
 
                   // first argument is the receiver, the remaining arguments are the rest
                   val dRecvWithArgs = dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
@@ -1036,16 +1012,16 @@ object Desugar {
 
     // Identifier
 
-    def idName(id: PIdnNode, context: ExternalTypeInfo = info.asInstanceOf[ExternalTypeInfo]): String = context.regular(id) match {
-      case f: st.Function => nm.function(id.name, f.context.scope(id), context)
-      case m: st.MethodSpec => nm.spec(id.name, m.context.scope(id), context)
-      case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, context)
-      case f: st.FPredicate => nm.function(id.name, f.context.scope(id), context)
-      case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, context)
-      case v: st.Variable => nm.variable(id.name, v.context.scope(id), context)
-      case e: st.Embbed => nm.field(id.name, e.context.scope(id), context)
-      case e: st.Field => nm.field(id.name, e.context.scope(id), context)
-      case n: st.NamedType => nm.typ(id.name, n.context.scope(id), context)
+    def idName(id: PIdnNode): String = info.regular(id) match {
+      case f: st.Function => nm.function(id.name, info.scope(id), f.context)
+      case m: st.MethodSpec => nm.spec(id.name, info.scope(id), m.context)
+      case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
+      case f: st.FPredicate => nm.function(id.name, info.scope(id), f.context)
+      case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
+      case v: st.Variable => nm.variable(id.name, info.scope(id), v.context)
+      case e: st.Embbed => nm.field(id.name, info.scope(id), e.context)
+      case e: st.Field => nm.field(id.name, info.scope(id), e.context)
+      case n: st.NamedType => nm.typ(id.name, info.scope(id), n.context)
       case _ => ???
     }
 
@@ -1296,18 +1272,18 @@ object Desugar {
 
       p.predicate match {
         case b: ap.Predicate =>
-          val fproxy = fpredicateProxyD(b.symb.decl, b.symb.context)
+          val fproxy = fpredicateProxyD(b.id)
           unit(in.FPredicateAccess(fproxy, dArgs)(src))
 
         case b: ap.ReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
-          val proxy = mpredicateProxy(b.symb)
+          val proxy = mpredicateProxy(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
 
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
-          val proxy = mpredicateProxy(b.symb)
+          val proxy = mpredicateProxy(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
       }
     }
@@ -1342,7 +1318,7 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode, info: ExternalTypeInfo = info.asInstanceOf[ExternalTypeInfo]): Meta = {
+    private def meta(n: PNode): Meta = {
       val pom = info.asInstanceOf[TypeInfo].tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
@@ -1389,7 +1365,7 @@ object Desugar {
 
     private def nameWithoutScope(postfix: String)(n: String, context: ExternalTypeInfo): String = {
       // n has occur first in order that function inverse properly works
-      s"${n}_${context.pkgName}_$postfix}" // deterministic
+      s"${n}_${context.pkgName}_$postfix" // deterministic
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)

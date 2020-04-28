@@ -6,14 +6,12 @@
 
 package viper.gobra.backend
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.BackTranslator
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
+import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.VerificationResult
 
 object BackendVerifier {
 
@@ -31,34 +29,30 @@ object BackendVerifier {
 
   def verify(task: Task)(config: Config): Result = {
 
-
-    // print generated viper file if set in config
-    if (config.printVpr) {
-      val outputFile = OutputUtil.postfixFile(config.inputFiles.head, "vpr")
-      FileUtils.writeStringToFile(
-        outputFile,
-        silver.ast.pretty.FastPrettyPrinter.pretty(task.program),
-        UTF_8
-      )
-    }
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => task.program)
 
     val verifier = config.backend.create
-    verifier.start()
+    verifier.start(BacktranslatingReporter(config.reporter, task.backtrack, config))
     val verificationResult = verifier.handle(task.program)
     verifier.stop()
 
-    verificationResult match {
-      case silver.verifier.Success => Success
-      case failure: silver.verifier.Failure =>
+    convertVerificationResult(verificationResult, task.backtrack)
+  }
 
-        val (verificationError, otherError) = failure.errors
-          .partition(_.isInstanceOf[silver.verifier.VerificationError])
-          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
+  /**
+    * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
+    */
+  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
+    case silver.verifier.Success => Success
+    case failure: silver.verifier.Failure =>
 
-        checkAbstractViperErrors(otherError)
+      val (verificationError, otherError) = failure.errors
+        .partition(_.isInstanceOf[silver.verifier.VerificationError])
+        .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-        Failure(verificationError.toVector, task.backtrack)
-    }
+      checkAbstractViperErrors(otherError)
+
+      Failure(verificationError.toVector, backTrackInfo)
   }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

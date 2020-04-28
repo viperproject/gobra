@@ -7,16 +7,13 @@
 package viper.gobra.frontend
 
 import java.io.{File, Reader}
-import java.nio.charset.StandardCharsets.UTF_8
 
-import org.apache.commons.io.FileUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParserError, VerifierError}
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
 
 object Parser {
 
@@ -38,7 +35,7 @@ object Parser {
   def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = files
       .map{ file => FileSource(file.getPath) }
-      .map(SemicolonPreprocessor.preprocess)
+      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
     parseSources(preprocessedSources)(config)
   }
 
@@ -50,21 +47,14 @@ object Parser {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
 
-          if (config.unparse) {
-            val filename = source match {
-              case ffs: FromFileSource => Some(new File(ffs.filename))
-              case fs: FileSource => Some(new File(fs.filename))
-              case _ => None
-            }
+          val filename = source match {
+            case ffs: FromFileSource => Some(new File(ffs.filename))
+            case fs: FileSource => Some(new File(fs.filename))
+            case _ => None
+          }
 
-            if(filename.isDefined) {
-              val outputFile = OutputUtil.postfixFile(filename.get, "unparsed")
-              FileUtils.writeStringToFile(
-                outputFile,
-                ast.formatted,
-                UTF_8
-              )
-            }
+          if(filename.isDefined) {
+            config.reporter report ParsedInputMessage(filename.get, () => ast)
           }
 
           Right(ast)
@@ -137,11 +127,12 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: FileSource): Source = {
+    def preprocess(source: FileSource)(config: Config): Source = {
       val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
       val content = bufferedSource.mkString
       bufferedSource.close()
       val translatedContent = translate(content)
+      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
       FromFileSource(source.filename, translatedContent)
     }
 

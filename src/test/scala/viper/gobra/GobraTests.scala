@@ -6,7 +6,7 @@ import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.reporting.VerifierError
+import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, AnnotationBasedTestSuite, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -34,6 +34,7 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
         val config = Config(
           logLevel = Level.INFO,
+          reporter = NoopReporter,
           inputFiles = Vector(input.file.toFile)
         )
 

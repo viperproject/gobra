@@ -34,7 +34,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.ReceivedPredicate) => noMessages
         case Some(p: ap.MethodExpr) => noMessages
         case Some(p: ap.PredicateExpr) => noMessages
-
+        // imported members
+        case Some(p: ap.Function) => noMessages
         // TODO: supporting packages results in further options: named type, global variable, function, predicate
         case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, or predicate expression, but got $n")
       }
@@ -69,6 +70,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case f: FunctionT => extentFunctionType(f, typeType(p.typ))
           case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
+
+        // imported members
+        case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
         // TODO: supporting packages results in further options: named type, global variable, function, predicate
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")

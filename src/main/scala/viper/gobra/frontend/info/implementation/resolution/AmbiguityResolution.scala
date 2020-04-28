@@ -58,6 +58,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
         case (Right(base), Some((s: st.Method, path))) => Some(ap.MethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.MPredicate, path))) => Some(ap.PredicateExpr(base, n.id, path, s))
+        // imported members
+        case (Right(base), Some((s: st.Function, path))) => Some(ap.Function(n.id, s))
 
         case _ => None
       }

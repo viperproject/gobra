@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnDef, PIdnUse, PImportDecl, PIntLit, PInvoke, PNamedOperand, PQualifiedImport, PStatement, PUnqualifiedImport, PWildcard}
+import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnDef, PIdnUse, PImport, PIntLit, PInvoke, PNamedOperand, PQualifiedImport, PStatement, PUnqualifiedImport, PWildcard}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
@@ -122,6 +122,6 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
     def parseStmt(source: String): PStatement = parseOrFail(source, Parser.parseStmt)
     def parseExp(source: String): PExpression = parseOrFail(source, Parser.parseExpr)
-    def parseImportDecl(source: String): Vector[PImportDecl] = parseOrFail(source, Parser.parseImportDecl)
+    def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
   }
 }

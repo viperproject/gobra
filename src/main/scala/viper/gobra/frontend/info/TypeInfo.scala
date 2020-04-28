@@ -7,6 +7,8 @@ import viper.gobra.frontend.info.base.Type.Type
 
 trait TypeInfo {
 
+  def context: Info.Context
+
   def typ(expr: PExpression): Type
 
   def typ(misc: PMisc): Type

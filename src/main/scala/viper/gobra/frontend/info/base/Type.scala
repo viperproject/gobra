@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.base
 
-import viper.gobra.ast.frontend.{PImportDecl, PInterfaceType, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PImport, PInterfaceType, PStructType, PTypeDecl}
 
 object Type {
 
@@ -42,10 +42,12 @@ object Type {
 
   }
 
+  // TODO: at least add type info
   case class StructT(decl: PStructType) extends Type
 
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 
+  // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType) extends Type
 
 
@@ -53,7 +55,7 @@ object Type {
 
   case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
-  case class ImportT(decl: PImportDecl) extends Type
+  case class ImportT(decl: PImport) extends Type
 
 
 

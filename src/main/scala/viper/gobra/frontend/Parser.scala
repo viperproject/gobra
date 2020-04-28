@@ -67,7 +67,7 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
-  def parseImportDecl(source: Source): Either[Messages, Vector[PImportDecl]] = {
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
@@ -183,17 +183,17 @@ object Parser {
     lazy val packageClause: Parser[PPackageClause] =
       "package" ~> pkgDef ^^ PPackageClause
 
-    lazy val importDecls: Parser[Vector[Vector[PImportDecl]]] =
+    lazy val importDecls: Parser[Vector[Vector[PImport]]] =
       (importDecl <~ eos).*
 
     lazy val members: Parser[Vector[Vector[PMember]]] =
       (member <~ eos).*
 
-    lazy val importDecl: Parser[Vector[PImportDecl]] =
+    lazy val importDecl: Parser[Vector[PImport]] =
       ("import" ~> importSpec ^^ (decl => Vector(decl))) |
         ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
 
-    lazy val importSpec: Parser[PImportDecl] =
+    lazy val importSpec: Parser[PImport] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =

@@ -1,6 +1,10 @@
 package viper.gobra.frontend.info.implementation.resolution
 
+import java.io.File
+
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.Parser
+import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -59,7 +63,7 @@ trait MemberResolution { this: TypeInfoImpl =>
           AdvancedMemberSet.union {
             es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {
-                case NamedType(PTypeDef(t: PInterfaceType, _), _) => InterfaceT(t)
+                case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t)
               }
             ))
           }
@@ -145,8 +149,32 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
+  def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
+    def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] =
+      // check if package was already parsed:
+      context.getTypeInfo(importedPkg.decl.pkg).map(Some(_)).getOrElse {
+        // TODO get files belonging to package
+        val pkgFile = new File("src/test/resources/regressions/features/import/simple_example/bar.go")
+        (for {
+          // TODO parse only decls and specs
+          parsedProgram <- Parser.parse(pkgFile)(config)
+          // TODO maybe don't check whole file but only members that are actually used/imported
+          typeChecker <- Info.check(parsedProgram, context)(config)
+          // store typeChecker for reuse:
+          _ = context.addPackage(typeChecker)
+        } yield Some(typeChecker)).getOrElse(None)
+      }
 
-  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
+
+    val foreignPkgResult = for {
+      typeChecker <- getTypeChecker(importedPkg)
+      entity <- typeChecker.externalRegular(id)
+    } yield entity
+    foreignPkgResult.flatMap(m => Some((m, Vector())))
+  }
+
+
+  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
@@ -154,7 +182,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         else tryFieldLookup(exprType(expr), id)
 
       case Right(typ) => typeType(typ) match {
-        case _: ImportT => None // TODO do lookup in the corresponding package
+        case pkg: ImportT => tryPackageLookup(pkg, id)
         case _ => tryMethodLikeLookup(typ, id)
       }
     }

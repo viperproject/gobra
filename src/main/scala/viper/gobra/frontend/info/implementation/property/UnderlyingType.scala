@@ -16,8 +16,8 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingTypeP: PType => Option[PType] =
     attr[PType, Option[PType]] {
       case PNamedOperand(t) => entity(t) match {
-        case st.NamedType(decl, _) => underlyingTypeP(decl.right)
-        case st.TypeAlias(decl, _) => underlyingTypeP(decl.right)
+        case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
+        case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
         case _ => None // type not defined
       }
       case t => Some(t)

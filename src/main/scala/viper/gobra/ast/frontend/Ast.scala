@@ -37,7 +37,7 @@ sealed trait PUnorderedScope extends PScope
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     imports: Vector[PImportDecl],
+                     imports: Vector[PImport],
                      declarations: Vector[PMember],
                      positions: PositionManager
                    ) extends PNode with PUnorderedScope
@@ -74,13 +74,13 @@ class PositionManager extends PositionStore with Messaging {
 case class PPackageClause(id: PPkgDef) extends PNode
 
 
-sealed trait PImportDecl extends PNode {
+sealed trait PImport extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImport
 
-case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
+case class PUnqualifiedImport(pkg: PPkg) extends PImport
 
 
 sealed trait PGhostifiable extends PNode

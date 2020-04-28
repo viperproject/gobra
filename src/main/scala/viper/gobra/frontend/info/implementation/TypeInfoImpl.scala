@@ -2,17 +2,19 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
+import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.Config
+import viper.gobra.frontend.info.base.SymbolTable.{Regular, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
-import viper.gobra.frontend.info.{Info, TypeInfo}
+import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 
-class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInfo
+class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
   with MemberResolution
@@ -55,6 +57,8 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   import org.bitbucket.inkytonik.kiama.attribution.Decorators
   protected val decorators = new Decorators(tree)
 
+  override def pkgName: PPkgDef = tree.originalRoot.packageClause.id
+
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
   override def typ(misc: PMisc): Type.Type = miscType(misc)
@@ -70,6 +74,14 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   override def regular(n: PIdnNode): SymbolTable.Regular = entity(n) match {
     case r: Regular => r
     case _ => violation("found non-regular entity")
+  }
+
+  override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
+    // TODO restrict lookup to members starting with a capital letter
+    lookup(topLevelEnvironment, n.name, UnknownEntity()) match {
+      case r: Regular => Some(r)
+      case _ => None
+    }
   }
 
   private lazy val variablesMap: Map[PScope, Vector[PIdnNode]] = {

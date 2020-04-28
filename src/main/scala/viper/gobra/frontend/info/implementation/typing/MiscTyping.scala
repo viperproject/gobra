@@ -108,12 +108,12 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 
-    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _) => FunctionT(args map miscType, miscType(result))
+    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _, _) => FunctionT(args map miscType, miscType(result))
 
-    case MethodSpec(PMethodSig(_, args, result), _) => FunctionT(args map miscType, miscType(result))
+    case MethodSpec(PMethodSig(_, args, result), _, _) => FunctionT(args map miscType, miscType(result))
 
-    case Field(PFieldDecl(_, typ), _) => typeType(typ)
+    case Field(PFieldDecl(_, typ), _, _) => typeType(typ)
 
-    case Embbed(PEmbeddedDecl(typ, _), _) => miscType(typ)
+    case Embbed(PEmbeddedDecl(typ, _), _, _) => miscType(typ)
   }
 }

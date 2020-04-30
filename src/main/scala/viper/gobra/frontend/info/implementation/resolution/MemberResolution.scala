@@ -156,6 +156,8 @@ trait MemberResolution { this: TypeInfoImpl =>
           (for {
             parsedProgram <- Parser.parse(pkgFiles, specOnly = true)(config)
             // TODO maybe don't check whole file but only members that are actually used/imported
+            // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
+            // Info.check would probably need some restructuring to type check only certain members
             typeChecker <- Info.check(parsedProgram, context)(config)
             // store typeChecker for reuse:
             _ = context.addPackage(typeChecker)

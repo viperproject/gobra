@@ -76,12 +76,21 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     case _ => violation("found non-regular entity")
   }
 
+  private var externallyAccessedMembers: Vector[PNode] = Vector()
+
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
     // TODO restrict lookup to members starting with a capital letter
     lookup(topLevelEnvironment, n.name, UnknownEntity()) match {
-      case r: Regular => Some(r)
+      case r: Regular => {
+        if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+        Some(r)
+      }
       case _ => None
     }
+  }
+
+  override def isUsed(m: PMember): Boolean = {
+    externallyAccessedMembers.contains(m)
   }
 
   private lazy val variablesMap: Map[PScope, Vector[PIdnNode]] = {

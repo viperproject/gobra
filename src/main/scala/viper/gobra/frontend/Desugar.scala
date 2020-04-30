@@ -15,12 +15,11 @@ import viper.silver.ast.SourcePosition
 object Desugar {
 
   def desugar(program: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    // TODO only desugare used imported members
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: viper.gobra.frontend.info.TypeInfo = tI.asInstanceOf[viper.gobra.frontend.info.TypeInfo]
       val importedProgram = typeInfo.tree.originalRoot
       val d = new Desugarer(/*importedProgram.positions, */typeInfo)
-      (d, d.programD(importedProgram))
+      (d, d.programD(importedProgram, tI.isUsed))
     }}
     val mainDesugarer = new Desugarer(/*program.positions, */info)
     val internalProgram = combine(mainDesugarer, mainDesugarer.programD(program), importedPrograms)
@@ -140,8 +139,13 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
-    def programD(p: PPackage): in.Program = {
-      val dMembers = p.declarations.flatMap{
+    /**
+      * Desugars a package with an optional `desugarMember` function indicating whether a particular member should be
+      * desugared or skipped
+      */
+    def programD(p: PPackage, desugarMember: PMember => Boolean = _ => true): in.Program = {
+      val consideredDecls = p.declarations.filter(desugarMember)
+      val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(methodD(x))
@@ -151,7 +155,7 @@ object Desugar {
         case _ => Vector.empty
       }
 
-      p.declarations.foreach{
+      consideredDecls.foreach{
         case NoGhost(x: PTypeDef) => typeDefD(x)
         case _ =>
       }

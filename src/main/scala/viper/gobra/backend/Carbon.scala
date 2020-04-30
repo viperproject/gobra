@@ -4,7 +4,29 @@ import viper.carbon
 import viper.silver
 import viper.silver.reporter.Reporter
 
-class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
+
+import viper.silver.ast.Program
+import viper.silver.verifier.VerificationResult
+
+import scala.concurrent.{ExecutionContextExecutor, Future}
+
+class Carbon(commandLineArguments: Seq[String])
+            (implicit val executionContext: ExecutionContextExecutor) extends ViperVerifier {
+
+  def verify(repoter:Reporter, config: ViperBackendConfig, program: Program): Future[VerificationResult] = {
+    Future {
+      val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
+      backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
+
+      backend.start()
+      val result = backend.verify(program)
+      backend.stop()
+
+      result
+    }
+  }
+
+/*
   var backend: carbon.CarbonVerifier = _
 
   def start(reporter: Reporter): Unit = {
@@ -17,10 +39,14 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
     backend.start()
   }
 
-  def handle(program: silver.ast.Program): silver.verifier.VerificationResult = {
+  def handle(program: silver.ast.Program): Future[silver.verifier.VerificationResult] = {
     require(backend != null)
 
-    backend.verify(program)
+    Future {
+      backend.verify(program)
+    }
+
+    //backend.verify(program)
   }
 
   def stop(): Unit = {
@@ -29,4 +55,5 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
     backend.stop()
     backend = null
   }
+*/
 }

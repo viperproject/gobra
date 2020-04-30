@@ -31,16 +31,18 @@ lazy val server = (project in file("."))
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
     libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
 
+	libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.5.22",
+
     scalacOptions ++= Seq(
       "-Ypartial-unification",
       "-Ypatmat-exhaust-depth", "40"
     ),
-    
+
     // Run settings
     run / javaOptions += "-Xss128m",
 
     fork := true,
-    
+
 
     // Test settings
     Test / javaOptions ++= (run / javaOptions).value,

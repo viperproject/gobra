@@ -17,6 +17,10 @@ import viper.gobra.GoVerifier
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
+
+import viper.gobra.backend.{ViperBackendConfig, ViperBackendConfigs}
+
+
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
@@ -24,6 +28,7 @@ case class Config(
                  inputFile: File,
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
+                 backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,

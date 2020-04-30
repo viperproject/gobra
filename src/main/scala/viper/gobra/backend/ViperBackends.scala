@@ -1,12 +1,15 @@
 package viper.gobra.backend
 
+import scala.concurrent.ExecutionContextExecutor
+
 trait ViperBackend {
-  def create: ViperVerifier
+  def create(implicit executionContext: ExecutionContextExecutor): ViperVerifier
 }
 
 object ViperBackends {
   object SiliconBackend extends ViperBackend {
-    def create: Silicon = {
+    def create (implicit executionContext: ExecutionContextExecutor): Silicon = {
+
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
@@ -17,7 +20,7 @@ object ViperBackends {
   }
 
   object CarbonBackend extends ViperBackend {
-    def create: Carbon = {
+    def create(implicit executionContext: ExecutionContextExecutor): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
 

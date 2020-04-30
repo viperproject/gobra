@@ -19,9 +19,10 @@ object Parser {
 
   /**
     * Parses files and returns either the parsed program if the file was parsed successfully,
-    * otherwise returns list of error messages
+    * otherwise returns list of error messages.
     *
     * @param files
+    * @param specOnly specifies whether only declarations and specifications should be parsed and implementation should be ignored
     * @return
     *
     * The following transformations are performed:
@@ -32,16 +33,16 @@ object Parser {
     *
     */
 
-  def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(files: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = files
       .map{ file => FileSource(file.getPath) }
       .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
-    parseSources(preprocessedSources)(config)
+    parseSources(preprocessedSources, specOnly)(config)
   }
 
-  private def parseSources(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
-    val parsers = new SyntaxAnalyzer(pom)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
@@ -96,6 +97,12 @@ object Parser {
       pom.positions.dupPos(clause, parsedPackage)
       parsedPackage
     })
+  }
+
+  def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    translateParseResult(pom)(parsers.parseAll(parsers.member, source))
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
@@ -180,7 +187,7 @@ object Parser {
     def reader : Reader = IO.stringreader(content)
   }
 
-  private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
+  private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
 
@@ -296,7 +303,7 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ block.? ^^ {
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ optBlock ^^ {
         case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
@@ -306,7 +313,7 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ optBlock ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
@@ -394,6 +401,19 @@ object Parser {
 
     lazy val deferStmt: Parser[PDeferStmt] =
       "defer" ~> expression ^^ PDeferStmt
+
+    /**
+      * Parses an optional block. If specOnly is enabled consumes nested blocks but returns None
+      */
+    lazy val optBlock: Parser[Option[PBlock]] =
+      if (specOnly) nestedCurlyBracketsConsumer
+      else block.?
+
+    /**
+      * Consumes nested curly brackets with arbitrary content and returns None
+      */
+    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
+      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
 
     lazy val block: Parser[PBlock] =
       "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
@@ -858,13 +878,17 @@ object Parser {
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
+
+    lazy val predicateBody: Parser[Option[PExpression]] =
+      if (specOnly) nestedCurlyBracketsConsumer
+      else ("{" ~> expression <~ eos.? ~ "}").?
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |

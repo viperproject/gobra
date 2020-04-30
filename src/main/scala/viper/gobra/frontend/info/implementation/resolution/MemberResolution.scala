@@ -154,8 +154,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val pkgFiles = PackageResolver.resolve(importedPkg.decl.pkg, config.includeDirs)
         if (pkgFiles.nonEmpty) {
           (for {
-            // TODO parse only decls and specs
-            parsedProgram <- Parser.parse(pkgFiles)(config)
+            parsedProgram <- Parser.parse(pkgFiles, specOnly = true)(config)
             // TODO maybe don't check whole file but only members that are actually used/imported
             typeChecker <- Info.check(parsedProgram, context)(config)
             // store typeChecker for reuse:

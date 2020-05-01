@@ -7,7 +7,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.util.{DesugarWriter, Violation}
 import viper.silver.ast.SourcePosition
@@ -18,10 +18,10 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: viper.gobra.frontend.info.TypeInfo = tI.asInstanceOf[viper.gobra.frontend.info.TypeInfo]
       val importedProgram = typeInfo.tree.originalRoot
-      val d = new Desugarer(/*importedProgram.positions, */typeInfo)
+      val d = new Desugarer(importedProgram.positions, typeInfo)
       (d, d.programD(importedProgram, tI.isUsed))
     }}
-    val mainDesugarer = new Desugarer(/*program.positions, */info)
+    val mainDesugarer = new Desugarer(program.positions, info)
     val internalProgram = combine(mainDesugarer, mainDesugarer.programD(program), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
     internalProgram
@@ -43,7 +43,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(/*pom: PositionManager, */info: viper.gobra.frontend.info.TypeInfo) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
 
     // TODO: clean initialization
 
@@ -1323,7 +1323,6 @@ object Desugar {
 //    }
 
     private def meta(n: PNode): Meta = {
-      val pom = info.asInstanceOf[TypeInfo].tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)

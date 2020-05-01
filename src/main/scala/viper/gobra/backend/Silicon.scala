@@ -9,13 +9,14 @@ import viper.silver.ast.Program
 import viper.silver.verifier.VerificationResult
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
+import viper.server.ViperBackendConfig
 
 class Silicon(commandLineArguments: Seq[String])
              (implicit val executionContext: ExecutionContextExecutor) extends ViperVerifier {
 
-  def verify(reporter: Reporter, config: ViperBackendConfig, program: Program): Future[VerificationResult] = {
+  def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: Program): Future[VerificationResult] = {
     Future {
-      val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(config.partialCommandLine, reporter)
+      val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
       
       backend.start()
       val result = backend.verify(program)

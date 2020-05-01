@@ -7,13 +7,14 @@ import viper.silver.reporter.Reporter
 
 import viper.silver.ast.Program
 import viper.silver.verifier.VerificationResult
+import viper.server.ViperBackendConfig
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 class Carbon(commandLineArguments: Seq[String])
             (implicit val executionContext: ExecutionContextExecutor) extends ViperVerifier {
 
-  def verify(repoter:Reporter, config: ViperBackendConfig, program: Program): Future[VerificationResult] = {
+  def verify(programID: String, config: ViperBackendConfig, reporter:Reporter, program: Program): Future[VerificationResult] = {
     Future {
       val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
       backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))

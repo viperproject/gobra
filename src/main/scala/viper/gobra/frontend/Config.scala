@@ -18,7 +18,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
 
-import viper.gobra.backend.{ViperBackendConfig, ViperBackendConfigs}
+import viper.server.{ViperBackendConfig, ViperBackendConfigs}
 
 
 object LoggerDefaults {
@@ -28,7 +28,8 @@ case class Config(
                  inputFile: File,
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
-                 backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
+                 // backendConfig is used for the ViperServer
+                 var backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
@@ -70,12 +71,13 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
-    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    descr = "Specifies the used Viper backend, one of SILICON, CARBON, VIPERSERVER (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
     noshort = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
+    case "VIPERSERVER" => ViperBackends.ViperServerBackend
     case _ => ViperBackends.SiliconBackend
   }))
 

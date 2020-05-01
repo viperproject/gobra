@@ -5,12 +5,15 @@ import scala.util.Try
 lazy val silver = project in file("silver")
 lazy val silicon = project in file("silicon")
 lazy val carbon = project in file("carbon")
+lazy val server = project in file("viperserver")
+
 
 // Gobra specific project settings
-lazy val server = (project in file("."))
+lazy val gobra = (project in file("."))
   .dependsOn(silver % "compile->compile;test->test")
   .dependsOn(silicon % "compile->compile;test->test")
   .dependsOn(carbon % "compile->compile;test->test")
+  .dependsOn(server % "compile->compile;test->test")
   .settings(
     // General settings
     name := "Gobra",
@@ -30,8 +33,6 @@ lazy val server = (project in file("."))
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
     libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
-
-	libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.5.22",
 
     scalacOptions ++= Seq(
       "-Ypartial-unification",

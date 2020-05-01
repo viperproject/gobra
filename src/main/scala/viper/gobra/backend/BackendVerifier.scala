@@ -47,7 +47,9 @@ object BackendVerifier {
 
     val verifier = config.backend.create
 
-    val verificationResult = verifier.verify(BacktranslatingReporter(config.reporter, task.backtrack, config), config.backendConfig, task.program)
+    val programID = "_programID_" + config.inputFile.getName()
+
+    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)
     
 
     verificationResult.map(

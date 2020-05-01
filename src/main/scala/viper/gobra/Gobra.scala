@@ -23,6 +23,19 @@ import akka.actor.ActorSystem
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
+// TODO: move to separate file
+case class FutureEither[E, T](x: Future[Either[E, T]])
+                             (implicit executionContext: ExecutionContextExecutor) {
+  def map[Q](f: T => Q): FutureEither[E, Q] = FutureEither(x.map(_.map(f)))
+  def flatMap[Q](f: T => FutureEither[E, Q]): FutureEither[E, Q] =
+    FutureEither(x.flatMap{
+      _.map(f) match {
+        case Left(data) => Future(Left(data))
+        case Right(z) => z.x
+      }
+    })
+}
+
 
 object GoVerifier {
 
@@ -47,29 +60,21 @@ trait GoVerifier {
     this.getClass.getSimpleName
   }
 
-  def verify(config: Config): VerifierResult = {
+  def verify(config: Config): Future[VerifierResult] = {
     verify(config.inputFile, config)
   }
 
-  protected[this] def verify(file: File, config: Config): VerifierResult
+  protected[this] def verify(file: File, config: Config): Future[VerifierResult]
 }
 
-class Gobra extends GoVerifier {
+class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoVerifier {
 
-  implicit val system: ActorSystem = ActorSystem("Main")
-  implicit val executionContext: ExecutionContextExecutor = system.dispatcher
-
-  // TODO: implement here what was spoken about in the meeting
-  /*
-   * NEXT STEPS: change the returntype of performVerification to this FutureEither type and rewrite the method as spoken about in the second meeting
-   *             such that the overall return type of the verify method below is Future[VerifierResult]
-   */
-
-  override def verify(file: File, config: Config): VerifierResult = {
+  override def verify(file: File, config: Config): Future[VerifierResult] = {
 
     config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
-    val result = for {
+
+    val futureResult = for {
       parsedProgram <- performParsing(file, config)
       typeInfo <- performTypeChecking(parsedProgram, config)
       program <- performDesugaring(parsedProgram, typeInfo, config)
@@ -77,71 +82,133 @@ class Gobra extends GoVerifier {
       verifierResult <- performVerification(viperTask, config)
     } yield BackTranslator.backTranslate(verifierResult)(config)
 
-    result.fold({
-      case Vector() => VerifierResult.Success
-      case errs => VerifierResult.Failure(errs)
-    }, identity)
+    futureResult.x.map{ result =>
+      result.fold({
+        case Vector() => VerifierResult.Success
+        case errs => VerifierResult.Failure(errs)
+      }, identity)
+    }
   }
 
-  private def performParsing(file: File, config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def performParsing(file: File, config: Config): FutureEither[Vector[VerifierError], PProgram] = {
     if (config.shouldParse) {
-      Parser.parse(file)(config)
+      FutureEither(Future(Parser.parse(file)(config)))
     } else {
-      Left(Vector())
+      FutureEither(Future(Left(Vector())))
     }
   }
 
-  private def performTypeChecking(parsedProgram: PProgram, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedProgram: PProgram, config: Config): FutureEither[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedProgram)(config)
+      FutureEither(Future(Info.check(parsedProgram)(config)))
     } else {
-      Left(Vector())
+      FutureEither(Future(Left(Vector())))
     }
   }
 
-  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): FutureEither[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
-      Right(Desugar.desugar(parsedProgram, typeInfo)(config))
+      FutureEither(Future(Right(Desugar.desugar(parsedProgram, typeInfo)(config))))
     } else {
-      Left(Vector())
+      FutureEither(Future(Left(Vector())))
     }
   }
 
-  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(program: Program, config: Config): FutureEither[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program)(config))
+      FutureEither(Future(Right(Translator.translate(program)(config))))
     } else {
-      Left(Vector())
+      FutureEither(Future(Left(Vector())))
     }
   }
 
-  private def performVerification(viperTask: BackendVerifier.Task, config: Config): Either[Vector[VerifierError], BackendVerifier.Result] = {
+  private def performVerification(viperTask: BackendVerifier.Task, config: Config): FutureEither[Vector[VerifierError], BackendVerifier.Result] = {
     if (config.shouldVerify) {
-      // Only for testing
-      val result = BackendVerifier.verify(viperTask)(config)
-      val res = Await.result(result, Duration.Inf)
-      Right(res)
-
-      //Right(BackendVerifier.verify(viperTask)(config))
+      val resultFuture = BackendVerifier.verify(viperTask)(config)
+      FutureEither(resultFuture.map(result => Right(result)))
     } else {
-      Left(Vector())
+      FutureEither(Future(Left(Vector())))
     }
   }
 }
 
 class GobraFrontend {
 
-  def createVerifier(config: Config): GoVerifier = {
+  def createVerifier(config: Config)
+                    (implicit executionContext: ExecutionContextExecutor): GoVerifier = {
     new Gobra
   }
 }
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
+    implicit val system: ActorSystem = ActorSystem("Main")
+    implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+
+/*
+    // for testing with ViperServer as backend ######################################
+    import viper.server.ViperCoreServer
+    import viper.server.ViperConfig
+    import viper.gobra.backend.ViperBackends.ViperServerBackend
+    import viper.server.ViperBackendConfigs._
+
+    // Viper Server config with empty arguments
+    val serverConfig: ViperConfig = new ViperConfig(List())
+    val server: ViperCoreServer = new ViperCoreServer(serverConfig)
+
+    ViperServerBackend.setServer(server)
+    server.start()
+
     val scallopGobraconfig = new ScallopGobraConfig(args)
     val config = scallopGobraconfig.config
+
+    val carbonBackendConfig = CarbonConfig(List())
+    val siliconBackendConfig = SiliconConfig(List("--logLevel", "ERROR"))
+    config.backendConfig = siliconBackendConfig
+
     val verifier = createVerifier(config)
-    val result = verifier.verify(config)
+
+    println("first verification")
+    val start1 = System.currentTimeMillis
+    val firstResultFuture = verifier.verify(config)
+    val firstResult = Await.result(firstResultFuture, Duration.Inf)
+    val elapsedTime1 = System.currentTimeMillis - start1
+    println("Elapsed time: " + elapsedTime1 + " ms")
+
+    println("second (real) verification")
+    val start2 = System.currentTimeMillis
+    val resultFuture = verifier.verify(config)
+    val result = Await.result(resultFuture, Duration.Inf)
+    val elapsedTime2 = System.currentTimeMillis - start2
+    println("Elapsed time: " + elapsedTime2 + " ms")
+
+
+    result match {
+      case VerifierResult.Success =>
+        logger.info(s"${verifier.name} found no errors")
+
+        server.stop()
+
+        sys.exit(0)
+      case VerifierResult.Failure(errors) =>
+        logger.error(s"${verifier.name} has found ${errors.length} error(s):")
+        errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
+
+        server.stop()
+
+        sys.exit(1)
+    }
+    // end testing ##################################################################
+*/
+
+
+
+    val scallopGobraconfig = new ScallopGobraConfig(args)
+    val config = scallopGobraconfig.config
+
+    val verifier = createVerifier(config)
+    val resultFuture = verifier.verify(config)
+    val result = Await.result(resultFuture, Duration.Inf)
 
     result match {
       case VerifierResult.Success =>
@@ -152,6 +219,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
         sys.exit(1)
     }
+
   }
 }
 
@@ -160,42 +228,16 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 // def nonBlockingVerify(file: File, config: Config /** with backend and reporter */): Future[VerifierResult]
 
  /* 
-  trait ViperBackend2 {
+  trait Backend2 { // This is extended by ViperVerifier2
 
     def verify(reporter: Reporter, config: ViperConfig, program: ast.Program): Future[ViperResult]
     // this is intended to have the same singnature as the veriy method of ViperCoreServer
   }
 
-  /*
-   # I am not quite sure but I think the main() which is referred to here is the real main method.
-   # This would mean that we would need to have two objects GobraRunner. Lets call them GobraRunnerSingleRun and GobraRunnerServer.
-   #
-   # GobraRunnerSingleRun would work in the same way as now which is just creating a config, verifier and everything that is needed.
-   # Afterwards the verification is performed and the output is given.
-   #
-   # The GobraRunnerServer would just start the server and do verification until the interruption or stop of the runner is requested.
-   # When a verification request is made the server simply verifies the program and keeps on running.
-   */
-
 
   // single run main() --------------------------------------------------------------------------------------------------------------------
 
     // this would happen in config parsing, default value of ViperBackends.SiliconBackend, where the following code is the implementation of the create method
-    /*
-     # I think what is meant above is:
-     # the block below is the implementation of the create method in ViperBackends.SiliconBackend.
-     # This would just create the verifier.
-     # The verify method would use the silicon backend in Silicon.scala to obtain the verification result.
-     # => So we would need to implement a create method which creates a ViperVerifier2 which is the nonblocking version of the ViperVerifier trait.
-     #    So actually we would need to replace the ViperVerifier trait with a nonblocking version which then gets used for this single run verification.
-     #
-     # This nonblocking single run verification method will then later be used for the server run verification by calling Gobra.verify(config, reporter)
-     # with the correct arguments.
-     #
-     # Note: As I understand this ViperVerifier2 should not be a second ViperVerifier trait but instead the evolution of the VieprVerifier trait which
-     #       is just a nonblocking version which gets a Future[VerificationResult] instead of just a VerificationResult.
-     */
-
     backend = new ViperBackend {
       def create(): ViperVerifier2 { // this is ViperBackends.SiliconBackend
 
@@ -220,7 +262,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     }
 
     // to verify a file with gobra in single run mode this is invoked
-    // (the get is used because we want the actual result instead of the future which would be returned by just calling verify)
     Gobra.verify(file, config /* contains siliconFrontend and gobraReporter */).get()
 
 
@@ -237,18 +278,35 @@ object GobraRunner extends GobraFrontend with StrictLogging {
      *
      * Note: I think in the single-run case the backendConfig can just be omitted (will default to EmptyConfig) but this is never used anyways.
      */
-    def newConfigFromTask(task, server, gobraRporter) = { // Config.scala (this also includes a ViperBackend)
+
+     /*
+      * Additional note: The ViperBackend below should be an instance of ViperServer. This ViperServer should have as an input the server -> which is then used for the creation.
+      *                  In order for ViperServer to have an instance of ViperServer add a setServer(server): Unit function to class ViperServer and call this in newConfigFromTask
+      */
+
+    // I think this method should be in Gobra IDE server
+    def newConfigFromTask(task, server, gobraReporter) = { // returns Config.scala (this also includes a ViperBackend -> the ViperBackend in our case would be the ViperServer)
+                          -> task is most likely meant to be the ViperVerifier Config which arrive at the Gobra IDE server.
+
         ...
-        backend = new ViperBackend { // in ViperBackends.scala
+        backend = new ViperBackend { // in ViperBackends.scala (ViperBackend is an object and thus needs no initialization)
+      
+          // Note: the create method gets called only afterwards in the BackendVerifier.verify method for now. I don't think this will work like this then
+                   maybe make the setServer method in the object ViperBackend such that it can be accessed all the time -> could work since only one ViperServer is ever started in Gobra IDE server.
           def create(): ViperVerifer2 = {
-             new ViperVerifer { // ServerBackend.scala
-               def verify(viperReporter, viperConfig, viperProgram): Future[ViperResult] = {
-                 VerificationJobHandler handler = server.verify(viperRepoter, viperConfig, viperProgram)
-                 server.getFuture(handler.id)
-               }
-             }
+            new ViperVerifer { // ServerBackend.scala
+              def verify(viperReporter, viperConfig, viperProgram): Future[ViperResult] = {
+                VerificationJobHandler handler = server.verify(viperRepoter, viperConfig, viperProgram)
+                server.getFuture(handler.id)
+              }
+            }
           }
         }
+        // set server in the backend:
+        backend.setServer(server)           // or maybe ViperBackend.setServer(server) -> think this would work better (could also be done at start of server and then simply require server != null for the create method)
+                                            // could then also have ViperBackend.resetServer() to delete server after stopping
+
+        backendConfig = // create a backendConfig from the given task config... (this would be again the VerifierConfig I think. (could also change that the task is changed to the Gobra Config first which then is used to create the BackendConfig with the partialCommandLine string))
     }
 
      ViperServer server = createServer();
@@ -260,7 +318,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
          */
         newTask <- receiveTask
 
-        Reporter reporter = new Reporter()
+        Reporter reporter = new Reporter() // maybe use gobraReporter from Config
         GobraConfig config = newConfigFromTask(newTask, server, reporter)
 
         future = Gobra.verify(config, reporter)
@@ -279,36 +337,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
 // CODE FROM SECOND MEETING #########################################################################################################
 /*
- 
-  * We handle nested futures with the FutureEither pattern as follows:
-
-     case class FutureEither[E, T](x: Future[Either[E, T]]) {
-        def map[Q](f: T => Q): FutureEither[E, Q] = FutureEither(x.map(_.map(f)))
-        def flatMap[Q](f: T => FutureEither[E, Q]): FutureEither[E, Q] =
-          FutureEither(x.flatMap{
-            _.map(f) match {
-              case Left(data) => Future(Left(data))
-              case Right(z) => z.x
-            }
-          })
-      }
-
-       // you add Future[.] to result of signature of performParsing, performTypeChecking, performDesugaring, performViperEncoding, performVerification, backTranslate
-      def stepQ1: FutureEither[Vector[VerifierError], Int] = ???
-      def stepQ2(in: Int): FutureEither[Vector[VerifierError], Int] = ???
-      def stepQ3(in: Int): FutureEither[Vector[VerifierError], VerifierResult] = ???
-
-      val futureResult = for {
-        a <- stepQ1
-        b <- stepQ2(a)
-      } yield b
-
-      futureResult.x.map{ result =>
-        result.fold({
-          case Vector() => VerifierResult.Success
-          case errs => VerifierResult.Failure(errs)
-        }, identity)
-      }
 
    * How does the Gobra VS plugin communicate the choice of backend to Gobra Server?
       * The VS setting, define the choice of backend

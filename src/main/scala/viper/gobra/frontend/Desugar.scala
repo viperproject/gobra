@@ -1,16 +1,14 @@
 package viper.gobra.frontend
 
 import viper.gobra.ast.frontend._
-import viper.gobra.ast.internal.Node.Meta
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.util.{DesugarWriter, Violation}
-import viper.silver.ast.SourcePosition
 
 object Desugar {
 
@@ -169,7 +167,7 @@ object Desugar {
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConst] = ???
 
-    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl))
+    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl, info.asInstanceOf[ExternalTypeInfo]))(meta(decl))
 
     def functionD(decl: PFunctionDecl): in.Member =
       if (decl.spec.isPure) pureFunctionD(decl) else {
@@ -546,7 +544,7 @@ object Desugar {
                 for{le <- goL(left.head); re <- goE(right.head)} yield in.SingleAss(le, re)(src)
               } else {
                 // copy results to temporary variables and then to assigned variables
-                val temps = left map (l => freshVar(typeD(info.typ(l)))(src))
+                val temps = left map (l => freshVar(typeD(info.typ(l))(src))(src))
                 val resToTemps = (temps zip right).map{ case (l, r) =>
                   for{re <- goE(r)} yield in.SingleAss(in.Assignee.Var(l), re)(src)
                 }
@@ -608,7 +606,7 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get)))(meta(l)) }
+              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get))(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
 
             } else { violation("invalid declaration") }
@@ -638,7 +636,7 @@ object Desugar {
     }
 
     def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
-      val f = structMemberD(p.symb)
+      val f = structMemberD(p.symb)(src)
       for {
         r <- exprD(ctx)(p.base)
       } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
@@ -658,8 +656,8 @@ object Desugar {
               }
 
               // encode result
-              val resT = typeD(fsym.context.typ(fsym.result))
-              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ)))(src))
+              val resT = typeD(fsym.context.typ(fsym.result))(src)
+              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src))(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
 
@@ -766,7 +764,7 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      val typ: in.Type = typeD(info.typ(expr))
+      val typ: in.Type = typeD(info.typ(expr))(src)
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
@@ -836,12 +834,12 @@ object Desugar {
       }
     }
 
-    def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(info: Source.Parser.Info): in.Expr = {
+    def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {
       path.foldLeft(base){ case (e, p) => p match {
         case MemberPath.Underlying => e
-        case MemberPath.Deref => in.Deref(e)(info)
-        case MemberPath.Ref => in.Ref(e)(info)
-        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl))(info)
+        case MemberPath.Deref => in.Deref(e)(pinfo)
+        case MemberPath.Ref => in.Ref(e)(pinfo)
+        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl, info.asInstanceOf[ExternalTypeInfo])(pinfo))(pinfo)
       }}
     }
 
@@ -865,14 +863,14 @@ object Desugar {
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
       case t: PType =>
-        val it = typeD(info.typ(t))
+        val it = typeD(info.typ(t))(meta(lit))
         literalValD(ctx)(lit.lit, it)
 
       case _ => ???
     }
 
     def underlyingType(t: Type.Type): Type.Type = t match {
-      case Type.DeclaredT(d) => underlyingType(info.typ(d.right))
+      case Type.DeclaredT(d, context) => underlyingType(context.typ(d.right))
       case _ => t
     }
 
@@ -915,7 +913,7 @@ object Desugar {
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
             val wArgs = fields.zip(lit.elems).map{ case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev)  => exprD(ctx)(ev)
+              case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
             }}
 
@@ -963,52 +961,52 @@ object Desugar {
     var definedTypes: Map[String, in.Type] = Map.empty
     var definedTypesSet: Set[String] = Set.empty
 
-    def registerDefinedType(t: Type.DeclaredT): in.DefinedT = {
-      val name = idName(t.decl.left)
+    def registerDefinedType(t: Type.DeclaredT)(src: Meta): in.DefinedT = {
+      // this type was declared in the current package
+      val name = nm.typ(t.decl.left.name, t.context)
 
       if (!definedTypesSet.contains(name)) {
         definedTypesSet += name
-        val newEntry = typeD(info.typ(t.decl.right))
+        val newEntry = typeD(t.context.typ(t.decl.right))(src)
         definedTypes += (name -> newEntry)
       }
 
       in.DefinedT(name)
     }
 
-    def embeddedTypeD(t: PEmbeddedType): in.Type = t match {
-      case PEmbeddedName(typ) => typeD(info.typ(typ))
-      case PEmbeddedPointer(typ) => registerType(in.PointerT(typeD(info.typ(typ))))
+    def embeddedTypeD(t: PEmbeddedType)(src: Meta): in.Type = t match {
+      case PEmbeddedName(typ) => typeD(info.typ(typ))(src)
+      case PEmbeddedPointer(typ) => registerType(in.PointerT(typeD(info.typ(typ))(src)))
     }
 
-    def typeD(t: Type): in.Type = t match {
+    def typeD(t: Type)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
       case Type.NilType => in.NilT
-      case t: DeclaredT => registerType(registerDefinedType(t))
+      case t: DeclaredT => registerDefinedType(t)(src)
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
       case Type.ArrayT(length, elem) => ???
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
-      case PointerT(elem) => registerType(in.PointerT(typeD(elem)))
+      case PointerT(elem) => in.PointerT(typeD(elem)(src))
       case Type.ChannelT(elem, mod) => ???
 
-      case Type.StructT(decl) =>
-        var fields: List[in.Field] = List.empty
+      case t: Type.StructT =>
+        /*
+        val inFields: Vector[in.Field] = clauses.map {
+          case (name, (true, typ)) => fieldDeclD((name, typ), t)(src)
+          case (name, (false, typ)) => embeddedDeclD((name, typ), t)(src)
+        }.toVector.reverse
+         */
+        val inFields: Vector[in.Field] = structD(t)(src)
 
-        decl.clauses foreach{
-          case NoGhost(PFieldDecls(fs)) => fs foreach (f => fields ::= fieldDeclD(f))
-          case NoGhost(e: PEmbeddedDecl) => fields ::= embeddedDeclD(e)
-        }
-
-        fields = fields.reverse
-
-        val structName = nm.struct(decl, meta(decl))
-        registerType(in.StructT(structName, fields.toVector))
+        val structName = nm.struct(t)
+        registerType(in.StructT(structName, inFields))
 
       case Type.FunctionT(args, result) => ???
       case Type.InterfaceT(decl) => ???
 
-      case Type.InternalTupleT(ts) => in.TupleT(ts map typeD)
+      case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t)(src)))
 
       case _ => Violation.violation(s"got unexpected type $t")
     }
@@ -1016,16 +1014,16 @@ object Desugar {
 
     // Identifier
 
-    def idName(id: PIdnNode): String = info.regular(id) match {
-      case f: st.Function => nm.function(id.name, info.scope(id), f.context)
-      case m: st.MethodSpec => nm.spec(id.name, info.scope(id), m.context)
+    def idName(id: PIdnNode, context: ExternalTypeInfo = info.asInstanceOf[ExternalTypeInfo]): String = context.regular(id) match {
+      case f: st.Function => nm.function(id.name, f.context)
+      case m: st.MethodSpec => nm.spec(id.name, m.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
-      case f: st.FPredicate => nm.function(id.name, info.scope(id), f.context)
+      case f: st.FPredicate => nm.function(id.name, f.context)
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
-      case v: st.Variable => nm.variable(id.name, info.scope(id), v.context)
-      case e: st.Embbed => nm.field(id.name, info.scope(id), e.context)
-      case e: st.Field => nm.field(id.name, info.scope(id), e.context)
-      case n: st.NamedType => nm.typ(id.name, info.scope(id), n.context)
+      case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
+      case e: st.Embbed => ???
+      case e: st.Field => ???
+      case n: st.NamedType => nm.typ(id.name, n.context)
       case _ => ???
     }
 
@@ -1067,7 +1065,7 @@ object Desugar {
 
       val src: Meta = meta(id)
 
-      val typ = typeD(info.typ(id))
+      val typ = typeD(info.typ(id))(meta(id))
 
       if (info.addressableVar(id)) {
         in.LocalVar.Ref(idName(id), typ)(src)
@@ -1084,48 +1082,57 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def inParameterD(p: PParameter, idx: Int): (in.Parameter.In, Option[in.LocalVar]) = p match {
-      case NoGhost(noGhost: PActualParameter) =>
-        noGhost match {
-          case PNamedParameter(id, typ, _) =>
-            val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
-            val local = Some(localAlias(localVarContextFreeD(id)))
-            (param, local)
+    def inParameterD(p: PParameter, idx: Int): (in.Parameter.In, Option[in.LocalVar]) = {
+      val src: Meta = meta(p)
+      p match {
+        case NoGhost(noGhost: PActualParameter) =>
+          noGhost match {
+            case PNamedParameter(id, typ, _) =>
+              val param = in.Parameter.In(idName(id), typeD(info.typ(typ))(src))(src)
+              val local = Some(localAlias(localVarContextFreeD(id)))
+              (param, local)
 
-          case PUnnamedParameter(typ) =>
-            val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ)))(meta(p))
-            val local = None
-            (param, local)
-        }
+            case PUnnamedParameter(typ) =>
+              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
+              val local = None
+              (param, local)
+          }
+      }
     }
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def outParameterD(p: PParameter, idx: Int): (in.Parameter.Out, Option[in.LocalVar]) = p match {
-      case NoGhost(noGhost: PActualParameter) =>
-        noGhost match {
-          case PNamedParameter(id, typ, _) =>
-            val param = in.Parameter.Out(idName(id), typeD(info.typ(typ)))(meta(p))
-            val local = Some(localAlias(localVarContextFreeD(id)))
-            (param, local)
+    def outParameterD(p: PParameter, idx: Int): (in.Parameter.Out, Option[in.LocalVar]) = {
+      val src: Meta = meta(p)
+      p match {
+        case NoGhost(noGhost: PActualParameter) =>
+          noGhost match {
+            case PNamedParameter(id, typ, _) =>
+              val param = in.Parameter.Out(idName(id), typeD(info.typ(typ))(src))(src)
+              val local = Some(localAlias(localVarContextFreeD(id)))
+              (param, local)
 
-          case PUnnamedParameter(typ) =>
-            val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ)))(meta(p))
-            val local = None
-            (param, local)
-        }
+            case PUnnamedParameter(typ) =>
+              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
+              val local = None
+              (param, local)
+          }
+      }
     }
 
-    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = p match {
+    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = {
+      val src: Meta = meta(p)
+      p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter.In(idName(id), typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(idName(id), typeD(info.typ(typ))(src))(src)
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ)))(meta(p))
+          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
           val local = None
           (param, local)
+      }
     }
 
     def localAlias(internal: in.LocalVar): in.LocalVar = internal match {
@@ -1134,26 +1141,36 @@ object Desugar {
       case in.LocalVar.Inter(id, typ) => assert(false); ???
     }
 
-    def structClauseD(clause: PStructClause): Vector[in.Field] = clause match {
-      case NoGhost(clause: PActualStructClause) => clause match {
-        case PFieldDecls(fields) => fields map fieldDeclD
-        case d: PEmbeddedDecl => Vector(embeddedDeclD(d))
-      }
+    def structD(struct: StructT)(src: Meta): Vector[in.Field] =
+      struct.clauses.map {
+        case (name, (true, typ)) => fieldDeclD((name, typ), struct)(src)
+        case (name, (false, typ)) => embeddedDeclD((name, typ), struct)(src)
+      }.toVector.reverse
+
+    def structMemberD(m: st.StructMember)(src: Meta): in.Field = m match {
+      case st.Field(decl, _, context) => fieldDeclD(decl, context)(src)
+      case st.Embbed(decl, _, context) => embeddedDeclD(decl, context)(src)
     }
 
-    def structMemberD(m: st.StructMember): in.Field = m match {
-      case st.Field(decl, _, _)  => fieldDeclD(decl)
-      case st.Embbed(decl, _, _) => embeddedDeclD(decl)
+    def embeddedDeclD(embedded: (String, Type), struct: StructT)(src: Source.Parser.Info): in.Field = {
+      val idname = nm.field(embedded._1, struct)
+      val td = embeddedTypeD(???)(src) // TODO fix me or embeddedTypeD
+      in.Field.Ref(idname, td)(src)
+  }
+
+    def embeddedDeclD(decl: PEmbeddedDecl, context: ExternalTypeInfo)(src: Meta): in.Field =
+      in.Field.Ref(idName(decl.id, context), embeddedTypeD(decl.typ)(src))(src)
+
+    def fieldDeclD(field: (String, Type), struct: StructT)(src: Source.Parser.Info): in.Field = {
+      val idname = nm.field(field._1, struct)
+      val td = typeD(field._2)(src)
+      in.Field.Ref(idname, td)(src)
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl): in.Field =
-      in.Field.Ref(idName(decl.id), embeddedTypeD(decl.typ))(meta(decl))
-
-    def fieldDeclD(decl: PFieldDecl): in.Field = {
-      val idname = idName(decl.id)
-      val infoT = info.typ(decl.typ)
-      val td = typeD(infoT)
-      in.Field.Ref(idname, td)(meta(decl))
+    def fieldDeclD(decl: PFieldDecl, context: ExternalTypeInfo)(src: Meta): in.Field = {
+      val struct = context.struct(decl)
+      val field: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      fieldDeclD(field, struct.get)(src)
     }
 
 
@@ -1185,7 +1202,7 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      val typ = typeD(info.typ(expr))
+      val typ = typeD(info.typ(expr))(src)
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
@@ -1322,7 +1339,7 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode): Meta = {
+    def meta(n: PNode): Meta = {
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)
@@ -1372,11 +1389,10 @@ object Desugar {
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
-    def typ     (n: String, s: PScope, context: ExternalTypeInfo): String = name(TYPE_PREFIX)(n, s, context)
-    // TODO for fields: add struct name (cast s to PStructType)
-    def field   (n: String, s: PScope, context: ExternalTypeInfo): String = name(FIELD_PREFIX)(n, s, context)
-    def function(n: String, s: PScope, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
-    def spec    (n: String, s: PScope, context: ExternalTypeInfo): String = nameWithoutScope(METHODSPEC_PREFIX)(n, context)
+    def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
+    def field   (n: String, s: StructT): String = nameWithoutScope(s"$FIELD_PREFIX${struct(s)}")(n, s.context)
+    def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
+    def spec    (n: String, context: ExternalTypeInfo): String = nameWithoutScope(METHODSPEC_PREFIX)(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
@@ -1396,18 +1412,16 @@ object Desugar {
     def outParam(idx: Int, s: PScope, context: ExternalTypeInfo): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s, context)
     def receiver(s: PScope, context: ExternalTypeInfo): String = name(RECEIVER_PREFIX)("R", s, context)
 
-    private var structCounter: Int = 0
-    private var structNames: Map[SourcePosition, String] = Map.empty
-
-    def struct(s: PStructType, m: Meta): String = {
-      structNames.getOrElse(m.origin.get.pos, {
-        val newName = s"$STRUCT_PREFIX$$$structCounter"
-        structCounter += 1
-        structNames += m.origin.get.pos -> newName
-        newName
-      })
+    def struct(s: StructT): String = {
+      // we assume that structs are uniquely identified by the SourcePosition at which they were declared:
+      val pom = s.context.asInstanceOf[TypeInfo].tree.originalRoot.positions
+      val start = pom.positions.getStart(s.decl).get
+      val finish = pom.positions.getFinish(s.decl).get
+      val pos = pom.translate(start, finish)
+      // replace characters that could be misinterpreted:
+      val structName = pos.toString.replace(".", "$")
+      s"$STRUCT_PREFIX$$$structName"
     }
-
   }
 }
 

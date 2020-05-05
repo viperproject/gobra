@@ -80,13 +80,13 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t: StructT =>
           e.key match {
             case Some(k: PIdentifierKey) =>
-              val fieldOpt = t.decl.fields.find(f => f.id.name == k.id.name)
-              fieldOpt.map(f => typeType(f.typ)).getOrElse(UnknownType)
+              val fieldOpt = t.fields.find(_._1 == k.id.name)
+              fieldOpt.map(_._2).getOrElse(UnknownType)
 
             case _ =>
               val idx = lv.elems.indexOf(e)
-              val fieldOpt = t.decl.fields.lift(idx)
-              fieldOpt.map(f => typeType(f.typ)).getOrElse(UnknownType)
+              val fieldOpt = t.fields.values.toVector.lift(idx)
+              fieldOpt.getOrElse(UnknownType)
           }
         case t => Violation.violation(s"found unexpected type: $t")
       }
@@ -108,12 +108,12 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 
-    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _, _) => FunctionT(args map miscType, miscType(result))
+    case MethodImpl(PMethodDecl(_, _, args, result, _, _), _, context) => FunctionT(args map context.typ, context.typ(result))
 
-    case MethodSpec(PMethodSig(_, args, result), _, _) => FunctionT(args map miscType, miscType(result))
+    case MethodSpec(PMethodSig(_, args, result), _, context) => FunctionT(args map context.typ, context.typ(result))
 
-    case Field(PFieldDecl(_, typ), _, _) => typeType(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
 
-    case Embbed(PEmbeddedDecl(typ, _), _, _) => miscType(typ)
+    case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
   }
 }

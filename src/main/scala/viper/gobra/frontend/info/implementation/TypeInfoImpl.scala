@@ -6,6 +6,7 @@ import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, lookup}
+import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
@@ -121,5 +122,18 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
     case _ => None
   }
+
+  lazy val struct: PNode => Option[StructT] =
+    // lookup PStructType based on PFieldDecl and get then StructT
+    attr[PNode, Option[StructT]] {
+
+      case tree.parent.pair(decl: PFieldDecl, decls: PFieldDecls) =>
+        struct(decls)
+
+      case tree.parent.pair(decls: PFieldDecls, structDecl: PStructType) =>
+        Some(typ(structDecl).asInstanceOf[StructT])
+
+      case _ => None
+    }
 }
 

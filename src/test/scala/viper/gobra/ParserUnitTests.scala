@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PFunctionDecl, PFunctionSpec, PIdnDef, PIdnUse, PImport, PIntLit, PInvoke, PMember, PNamedOperand, PQualifiedImport, PResult, PStatement, PUnqualifiedImport, PWildcard}
+import viper.gobra.ast.frontend.{PAssignment, PCompositeLit, PDot, PExpCompositeVal, PExpression, PFunctionDecl, PFunctionSpec, PIdnDef, PIdnUnk, PIdnUse, PImport, PIntLit, PInvoke, PKeyedElement, PLiteralValue, PMember, PNamedOperand, PQualifiedImport, PResult, PShortVarDecl, PStatement, PUnqualifiedImport, PWildcard}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
@@ -127,6 +127,14 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: spec only function with incomplete nested blocks") {
     an [TestFailedException] should be thrownBy
       frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
+  }
+
+  test("Parser: imported struct initialization") {
+    val parseRes = frontend.parseStmt("a := b.BarCell{10}")
+    inside (parseRes) {
+      case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(PIdnUnk("a")), Vector(false)) => value should be (10)
+    }
   }
 
   class TestFrontend {

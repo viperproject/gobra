@@ -1,7 +1,8 @@
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PIdnNode, PMember, PMisc, PPkgDef, PScope, PType}
-import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.ast.frontend.{PEmbeddedDecl, PFieldDecl, PIdnNode, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PPkgDef, PScope, PType}
+import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular}
 import viper.gobra.frontend.info.base.Type.Type
 
 trait ExternalTypeInfo {
@@ -20,10 +21,24 @@ trait ExternalTypeInfo {
 
   def regular(n: PIdnNode): Regular
 
+  def createField(decl: PFieldDecl): Field
+
+  def createEmbbed(decl: PEmbeddedDecl): Embbed
+
+  def createMethodImpl(decl: PMethodDecl): MethodImpl
+
+  def createMethodSpec(spec: PMethodSig): MethodSpec
+
+  def createMPredImpl(decl: PMPredicateDecl): MPredicateImpl
+
+  def createMPredSpec(spec: PMPredicateSig): MPredicateSpec
+
   def typ(misc: PMisc): Type
 
   def typ(typ: PType): Type
 
   def scope(n: PIdnNode): PScope
+
+  def struct: PNode => Option[StructT]
 
 }

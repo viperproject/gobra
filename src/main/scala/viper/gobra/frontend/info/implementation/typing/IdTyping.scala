@@ -131,7 +131,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Function(PFunctionDecl(_, args, r, _, _), _, _) =>
       FunctionT(args map miscType, miscType(r))
 
-    case NamedType(decl, _, _) => DeclaredT(decl)
+    case NamedType(decl, _, _) => DeclaredT(decl, this)
     case TypeAlias(PTypeAlias(right, _), _, _) => typeType(right)
 
     case InParameter(p, _, _, _) => typeType(p.typ)

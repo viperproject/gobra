@@ -12,22 +12,22 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   import scala.collection.breakOut
 
-  private def createField(decl: PFieldDecl): Field =
+  override def createField(decl: PFieldDecl): Field =
     defEntity(decl.id).asInstanceOf[Field]
 
-  private def createEmbbed(decl: PEmbeddedDecl): Embbed =
+  override def createEmbbed(decl: PEmbeddedDecl): Embbed =
     defEntity(decl.id).asInstanceOf[Embbed]
 
-  private def createMethodImpl(decl: PMethodDecl): MethodImpl =
+  override def createMethodImpl(decl: PMethodDecl): MethodImpl =
     defEntity(decl.id).asInstanceOf[MethodImpl]
 
-  private def createMethodSpec(spec: PMethodSig): MethodSpec =
+  override def createMethodSpec(spec: PMethodSig): MethodSpec =
     defEntity(spec.id).asInstanceOf[MethodSpec]
 
-  private def createMPredImpl(decl: PMPredicateDecl): MPredicateImpl =
+  override def createMPredImpl(decl: PMPredicateDecl): MPredicateImpl =
     defEntity(decl.id).asInstanceOf[MPredicateImpl]
 
-  private def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
+  override def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
     defEntity(spec.id).asInstanceOf[MPredicateSpec]
 
   private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
@@ -72,11 +72,11 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
 
-      case DeclaredT(decl) => go(pastDeref)(typeType(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
-      case StructT(t) =>
-        AdvancedMemberSet.union(t.embedded map { e =>
+      case s: StructT =>
+        AdvancedMemberSet.union(s.decl.embedded map { e =>
           val et = miscType(e.typ)
           (cont(et) union go(pastDeref = false)(et)).promote(createEmbbed(e))
         })
@@ -91,12 +91,12 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
 
-      case DeclaredT(decl) => go(pastDeref)(typeType(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
-      case StructT(t) =>
-        val (es, fs) = (t.embedded, t.fields)
-        AdvancedMemberSet.init[StructMember](fs map createField) union AdvancedMemberSet.init(es map createEmbbed)
+      case s: StructT =>
+        val (es, fs) = (s.decl.embedded, s.decl.fields)
+        AdvancedMemberSet.init[StructMember](fs map s.context.createField) union AdvancedMemberSet.init(es map s.context.createEmbbed)
 
       case _ => AdvancedMemberSet.empty
     }

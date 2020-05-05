@@ -769,7 +769,7 @@ object Parser {
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType | declaredType
+      sliceType | arrayType | implicitSizeArrayType | mapType | structType | qualifiedType | declaredType
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType

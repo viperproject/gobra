@@ -1,6 +1,9 @@
 package viper.gobra.frontend.info.base
 
 import viper.gobra.ast.frontend.{PImport, PInterfaceType, PStructType, PTypeDecl}
+import viper.gobra.frontend.info.ExternalTypeInfo
+
+import scala.collection.immutable.ListMap
 
 object Type {
 
@@ -12,7 +15,7 @@ object Type {
 
   case object NilType extends Type
 
-  case class DeclaredT(decl: PTypeDecl) extends Type
+  case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends Type
 
   case object BooleanT extends Type
 
@@ -42,8 +45,12 @@ object Type {
 
   }
 
-  // TODO: at least add type info
-  case class StructT(decl: PStructType) extends Type
+  case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends Type {
+    lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(removeFieldIndicator)
+    lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(removeFieldIndicator)
+    private def isField(clause: (String, (Boolean, Type))): Boolean = clause._2._1
+    private def removeFieldIndicator(clause: (String, (Boolean, Type))): (String, Type) = (clause._1, clause._2._2)
+  }
 
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 

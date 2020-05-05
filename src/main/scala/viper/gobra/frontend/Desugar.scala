@@ -982,22 +982,16 @@ object Desugar {
     def typeD(t: Type)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
       case Type.NilType => in.NilT
-      case t: DeclaredT => registerDefinedType(t)(src)
+      case t: DeclaredT => registerType(registerDefinedType(t)(src))
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
       case Type.ArrayT(length, elem) => ???
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
-      case PointerT(elem) => in.PointerT(typeD(elem)(src))
+      case PointerT(elem) => registerType(in.PointerT(typeD(elem)(src)))
       case Type.ChannelT(elem, mod) => ???
 
       case t: Type.StructT =>
-        /*
-        val inFields: Vector[in.Field] = clauses.map {
-          case (name, (true, typ)) => fieldDeclD((name, typ), t)(src)
-          case (name, (false, typ)) => embeddedDeclD((name, typ), t)(src)
-        }.toVector.reverse
-         */
         val inFields: Vector[in.Field] = structD(t)(src)
 
         val structName = nm.struct(t)
@@ -1145,7 +1139,7 @@ object Desugar {
       struct.clauses.map {
         case (name, (true, typ)) => fieldDeclD((name, typ), struct)(src)
         case (name, (false, typ)) => embeddedDeclD((name, typ), struct)(src)
-      }.toVector.reverse
+      }.toVector
 
     def structMemberD(m: st.StructMember)(src: Meta): in.Field = m match {
       case st.Field(decl, _, context) => fieldDeclD(decl, context)(src)

@@ -11,12 +11,18 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.util.{DesugarWriter, Violation}
 import viper.silver.ast.SourcePosition
 
+import scala.concurrent.{Future, ExecutionContext}
+
 object Desugar {
 
-  def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    val internalProgram = new Desugarer(program.positions, info).programD(program)
-    config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
-    internalProgram
+  implicit val executionContext = ExecutionContext.global
+
+  def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): Future[in.Program] = {
+    Future {
+      val internalProgram = new Desugarer(program.positions, info).programD(program)
+      config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
+      internalProgram
+    }
   }
 
   object NoGhost {

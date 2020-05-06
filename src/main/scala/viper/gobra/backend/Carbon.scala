@@ -9,10 +9,11 @@ import viper.silver.ast.Program
 import viper.silver.verifier.VerificationResult
 import viper.server.ViperBackendConfig
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContextExecutor, Future, ExecutionContext}
 
-class Carbon(commandLineArguments: Seq[String])
-            (implicit val executionContext: ExecutionContextExecutor) extends ViperVerifier {
+class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
+
+  implicit val executionContext = ExecutionContext.global
 
   def verify(programID: String, config: ViperBackendConfig, reporter:Reporter, program: Program): Future[VerificationResult] = {
     Future {

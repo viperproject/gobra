@@ -1,15 +1,18 @@
 package viper.gobra.backend
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.ExecutionContext
 import viper.server.ViperCoreServer
 
 trait ViperBackend {
-  def create(implicit executionContext: ExecutionContextExecutor): ViperVerifier
+  def create: ViperVerifier
 }
 
 object ViperBackends {
+
+  implicit val executionContext = ExecutionContext.global
+
   object SiliconBackend extends ViperBackend {
-    def create(implicit executionContext: ExecutionContextExecutor): Silicon = {
+    def create: Silicon = {
 
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
@@ -21,7 +24,7 @@ object ViperBackends {
   }
 
   object CarbonBackend extends ViperBackend {
-    def create(implicit executionContext: ExecutionContextExecutor): Carbon = {
+    def create: Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
 
@@ -37,7 +40,7 @@ object ViperBackends {
       server = coreServer
     }
 
-    def create(implicit executionContext: ExecutionContextExecutor): ViperServer = {
+    def create: ViperServer = {
       require(server != null, "ViperCoreServer needs to be set before creation.")
       new ViperServer(server)
     }

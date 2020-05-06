@@ -13,10 +13,11 @@ import viper.silver
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.VerificationResult
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
-import akka.actor.ActorSystem
+import scala.concurrent.{Future, ExecutionContext}
 
 object BackendVerifier {
+
+  implicit val executionContext = ExecutionContext.global
 
   case class Task(
                    program: vpr.Program,
@@ -30,8 +31,7 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config)
-            (implicit executionContext: ExecutionContextExecutor): Future[Result] = {
+  def verify(task: Task)(config: Config): Future[Result] = {
 /*
     config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 

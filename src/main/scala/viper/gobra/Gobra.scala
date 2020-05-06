@@ -17,15 +17,17 @@ import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContextExecutor, Future, ExecutionContext}
 import akka.actor.ActorSystem
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 // TODO: move to separate file
-case class FutureEither[E, T](x: Future[Either[E, T]])
-                             (implicit executionContext: ExecutionContextExecutor) {
+case class FutureEither[E, T](x: Future[Either[E, T]]) {
+
+  implicit val executionContext = ExecutionContext.global
+
   def map[Q](f: T => Q): FutureEither[E, Q] = FutureEither(x.map(_.map(f)))
   def flatMap[Q](f: T => FutureEither[E, Q]): FutureEither[E, Q] =
     FutureEither(x.flatMap{
@@ -67,7 +69,10 @@ trait GoVerifier {
   protected[this] def verify(file: File, config: Config): Future[VerifierResult]
 }
 
-class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoVerifier {
+class Gobra extends GoVerifier {
+
+  implicit val executionContext = ExecutionContext.global
+  
 
   override def verify(file: File, config: Config): Future[VerifierResult] = {
 
@@ -92,7 +97,7 @@ class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoV
 
   private def performParsing(file: File, config: Config): FutureEither[Vector[VerifierError], PProgram] = {
     if (config.shouldParse) {
-      FutureEither(Future(Parser.parse(file)(config)))
+      FutureEither(Parser.parse(file)(config))
     } else {
       FutureEither(Future(Left(Vector())))
     }
@@ -100,7 +105,7 @@ class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoV
 
   private def performTypeChecking(parsedProgram: PProgram, config: Config): FutureEither[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      FutureEither(Future(Info.check(parsedProgram)(config)))
+      FutureEither(Info.check(parsedProgram)(config))
     } else {
       FutureEither(Future(Left(Vector())))
     }
@@ -108,7 +113,8 @@ class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoV
 
   private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): FutureEither[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
-      FutureEither(Future(Right(Desugar.desugar(parsedProgram, typeInfo)(config))))
+      val programFuture = Desugar.desugar(parsedProgram, typeInfo)(config)
+      FutureEither(programFuture.map(program => Right(program)))
     } else {
       FutureEither(Future(Left(Vector())))
     }
@@ -116,7 +122,8 @@ class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoV
 
   private def performViperEncoding(program: Program, config: Config): FutureEither[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      FutureEither(Future(Right(Translator.translate(program)(config))))
+      val translationFuture = Translator.translate(program)(config)
+      FutureEither(translationFuture.map(translation => Right(translation)))
     } else {
       FutureEither(Future(Left(Vector())))
     }
@@ -134,16 +141,14 @@ class Gobra(implicit val executionContext: ExecutionContextExecutor) extends GoV
 
 class GobraFrontend {
 
-  def createVerifier(config: Config)
-                    (implicit executionContext: ExecutionContextExecutor): GoVerifier = {
+  def createVerifier(config: Config): GoVerifier = {
     new Gobra
   }
 }
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    implicit val system: ActorSystem = ActorSystem("Main")
-    implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+    implicit val executionContext = ExecutionContext.global
 
 /*
     // for testing with ViperServer as backend ######################################

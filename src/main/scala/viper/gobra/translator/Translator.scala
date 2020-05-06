@@ -13,12 +13,19 @@ import viper.gobra.frontend.Config
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 
+import scala.concurrent.{Future, ExecutionContext}
+
 object Translator {
 
-  def translate(program: Program)(config: Config): BackendVerifier.Task = {
-    val translationConfig = new DfltTranslatorConfig()
-    val programTranslator = new ProgramsImpl()
-    programTranslator.translate(program)(translationConfig)
+  implicit val executionContext = ExecutionContext.global
+
+  def translate(program: Program)(config: Config): Future[BackendVerifier.Task] = {
+    Future {
+      val translationConfig = new DfltTranslatorConfig()
+      val programTranslator = new ProgramsImpl()
+      programTranslator.translate(program)(translationConfig)
+    }
+
   }
 
 }

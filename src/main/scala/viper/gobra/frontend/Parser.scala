@@ -15,7 +15,11 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
 
+import scala.concurrent.{Future, ExecutionContext}
+
 object Parser {
+
+  implicit val executionContext = ExecutionContext.global
 
   /**
     * Parses file and returns either the parsed program if the file was parsed successfully,
@@ -32,9 +36,12 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val source = SemicolonPreprocessor.preprocess(file)(config)
-    parse(source)(config)
+  def parse(file: File)(config: Config): Future[Either[Vector[VerifierError], PProgram]] = {
+    Future {
+      val source = SemicolonPreprocessor.preprocess(file)(config)
+      parse(source)(config)
+    }
+    
   }
 
   private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {

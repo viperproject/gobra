@@ -8,11 +8,12 @@ import viper.silver.reporter.Reporter
 import viper.silver.ast.Program
 import viper.silver.verifier.VerificationResult
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContextExecutor, Future, ExecutionContext}
 import viper.server.ViperBackendConfig
 
-class Silicon(commandLineArguments: Seq[String])
-             (implicit val executionContext: ExecutionContextExecutor) extends ViperVerifier {
+class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
+
+  implicit val executionContext = ExecutionContext.global
 
   def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: Program): Future[VerificationResult] = {
     Future {

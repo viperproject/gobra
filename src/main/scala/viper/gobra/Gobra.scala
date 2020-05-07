@@ -13,13 +13,13 @@ import viper.gobra.ast.frontend.PProgram
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
-import viper.gobra.frontend.{Config, Desugar, Parser}
-import viper.gobra.reporting.{BackTranslator, VerifierError, VerifierResult}
+import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
+import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2019"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2020"
 
   val name = "Gobra"
 
@@ -41,7 +41,7 @@ trait GoVerifier {
   }
 
   def verify(config: Config): VerifierResult = {
-    verify(config.inputFile(), config)
+    verify(config.inputFile, config)
   }
 
   protected[this] def verify(file: File, config: Config): VerifierResult
@@ -50,6 +50,8 @@ trait GoVerifier {
 class Gobra extends GoVerifier {
 
   override def verify(file: File, config: Config): VerifierResult = {
+
+    config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
     val result = for {
       parsedProgram <- performParsing(file, config)
@@ -115,7 +117,8 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    val config = new Config(args)
+    val scallopGobraconfig = new ScallopGobraConfig(args)
+    val config = scallopGobraconfig.config
     val verifier = createVerifier(config)
     val result = verifier.verify(config)
 

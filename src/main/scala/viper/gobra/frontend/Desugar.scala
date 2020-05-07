@@ -1234,7 +1234,21 @@ object Desugar {
       }
     }
 
-    def quantifierD[T](ctx: FunctionContext)(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)(go : FunctionContext => PExpression => Writer[T]) : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
+    /**
+      * Desugars a quantifier-like structure: a sequence `vars` of variable declarations,
+      * together with a sequence `triggers` of triggers and a quantifier `body`.
+      * @param ctx A function context consisting of variable substitutions.
+      * @param vars The sequence of variable (declarations) bound by the quantifier.
+      * @param triggers The sequence of triggers for the quantifier.
+      * @param body The quantifier body.
+      * @param go The desugarer for `body`, for example `exprD` or `assertionD`.
+      * @tparam T The type of the desugared quantifier body (e.g., expression, or assertion).
+      * @return The desugared versions of `vars`, `triggers` and `body`.
+      */
+    def quantifierD[T](ctx: FunctionContext)
+                      (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
+                      (go : FunctionContext => PExpression => Writer[T])
+        : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
       val newVars = vars map boundVariableD(ctx)
 
       // substitution has to be added since otherwise all bound variables are translated to addressable variables

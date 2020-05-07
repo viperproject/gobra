@@ -181,7 +181,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
     case SepForall(vars, triggers, body) =>
-      "forall" <+> showVarDeclList(vars) <+> showTriggers(triggers) <+> showAss(body)
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
   }
 
   def showAcc(acc: Accessible): Doc = acc match {
@@ -209,10 +209,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
     case PureForall(vars, triggers, body) =>
-      "forall" <+> showVarDeclList(vars) <+> showTriggers(triggers) <+> showExpr(body)
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
 
     case Exists(vars, triggers, body) =>
-      "exists" <+>  showVarDeclList(vars) <+> showTriggers(triggers) <+> showExpr(body)
+      "exists" <+>  showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))

@@ -5,6 +5,6 @@ pure func foo() int {
 }
 
 // invalid trigger: doesn't contain the quantified variable
-//:: ExpectedOutput(logic_error)
-requires forall x int :: { foo() } 0 < x 
+//:: ExpectedOutput(type_error)
+requires exists x int :: { foo() } 0 < x 
 func bar () { }

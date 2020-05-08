@@ -5,22 +5,27 @@ type Cell struct {
 }
 
 requires forall x int :: { x } 0 < x 
+requires exists x int :: { x } 0 < x 
 func example1 () { }
 
 requires forall c Cell :: { c.val } 0 < c.val
+requires exists c Cell :: { c.val } 0 < c.val
 func example2 () { }
 
 pure func f(ghost n int) int
 
 requires forall x int :: { f(x) } 0 < x 
+requires exists x int :: { f(x) } 0 < x 
 func example3 () { }
 
 requires forall x int :: { f(f(x)) } 0 < x 
+requires exists x int :: { f(f(x)) } 0 < x 
 func example4 () { }
 
 pure func g(ghost c Cell) int
 
 requires forall c Cell :: { f(g(c)) } 0 < c.val
+requires exists c Cell :: { f(g(c)) } 0 < c.val
 func example5 () { }
 
 requires forall c *Cell :: { c } acc(c.val)

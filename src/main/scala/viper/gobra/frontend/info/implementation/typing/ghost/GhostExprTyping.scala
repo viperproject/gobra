@@ -22,15 +22,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check that thn and els have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
-    // triggers are currently not type checked (for now we lift on any Viper errors on the use of triggers)
-    case PForall(_, triggers, body) =>
-      // check whether all triggers are valid
-      validTriggers(triggers) ++
+    case PForall(vars, triggers, body) =>
+      // check whether all triggers are valid and consistent
+      validTriggers(vars, triggers) ++
       // check that the quantifier `body` is either Boolean or an assertion
       isExpr(body).out ++ assignableTo.errors(exprType(body), AssertionT)(expr)
 
-    // triggers are currently not type checked (for now we lift on any Viper errors on the use of triggers)
-    case PExists(_, _, body) =>
+    case PExists(vars, triggers, body) =>
+      // check whether all triggers are valid and consistent
+      validTriggers(vars, triggers) ++
+        // check that the quantifier `body` is Boolean
       isExpr(body).out ++ assignableTo.errors(exprType(body), BooleanT)(expr)
 
     case n: PImplication =>
@@ -143,44 +144,75 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
   /**
+    * Helper operation for composing two results of `validTriggerPattern` into one.
+    */
+  private def combineTriggerResults(p1 : (Vector[String], Messages), p2 : (Vector[String], Messages)) : (Vector[String], Messages) =
+    (p1._1 ++ p2._1, p1._2 ++ p2._2)
+
+  /**
+    * Helper operator for composing a sequence of results
+    * of of `validTriggerPattern` into one.
+    */
+  private def combineTriggerResults(xs : Vector[(Vector[String], Messages)]) : (Vector[String], Messages) =
+    xs.fold(Vector(), noMessages)(combineTriggerResults)
+
+  /**
     * Determines whether `expr` is a valid trigger pattern.
     * @param expr The expression that is to be checked for validity.
-    * @return True if (but currently not only if) `expr` is a valid expression pattern.
+    * @return A pair consisting of (1) all identifiers occurring freely in `expr`,
+    *         to be used later for extra consistency checking; and (2) a sequence
+    *         of error messages. The latter sequence is empty if
+    *         (but currently not only if) `expr` is a valid trigger pattern.
     */
-  private def validTriggerPattern(expr : PExpression) : Messages = {
+  private def validTriggerPattern(expr : PExpression) : (Vector[String], Messages) = {
     // shorthand definition
-    def goEorT(node : PExpressionOrType) : Messages = node match {
+    def goEorT(node : PExpressionOrType) : (Vector[String], Messages) = node match {
       case PDeref(base) => goEorT(base)
       case e : PExpression => validTriggerPattern(e)
-      case _ => noMessages
+      case _ => (Vector(), noMessages)
     }
 
     expr match {
       case PDot(base, _) => goEorT(base)
-      case PInvoke(base, args) => goEorT(base) ++ args.map(validTriggerPattern).flatten
-      case PNamedOperand(_) => noMessages
-      case _ => message(expr, s"invalid trigger pattern '$expr'")
+      case PInvoke(base, args) => {
+        val res1 = goEorT(base)
+        val res2 = combineTriggerResults(args.map(validTriggerPattern))
+        combineTriggerResults(res1, res2)
+      }
+      case PNamedOperand(id) => (Vector(id.name), noMessages)
+      case _ => (Vector(), message(expr, s"invalid trigger pattern '$expr'"))
     }
   }
 
   /**
-    * Determines whether `trigger` is a valid trigger.
-    * Currently any trigger `t` is valid if all `t`'s expressions
-    * are valid trigger patterns.
-    * @param trigger The trigger to be tested for validity.
-    * @return True if (but currently not only if) `trigger` is a valid trigger.
+    * Determines whether `trigger` is a valid and consistent trigger.
+    * Validity and consistency in this sense mean:
+    *
+    * 1. Any trigger expression in `trigger` must be valid according to `validTriggerPattern`;
+    * 2. All variables `boundVars` bound by the quantified must occur in `trigger`.
+    *
+    * @param boundVars The variables bound by the quantifier in which `trigger` is used.
+    * @param trigger The trigger to be tested for validity and consistency.
+    * @return True if  `trigger` is a valid and consistent trigger.
     */
-  private def validTrigger(trigger : PTrigger) : Messages =
-    trigger.exps.map(validTriggerPattern).flatten
+  private def validTrigger(boundVars: Vector[PBoundVariable], trigger : PTrigger) : Messages = {
+    // [validity] check whether all expressions in `trigger` are valid trigger expressions
+    val (usedVars, msgs1) = combineTriggerResults(trigger.exps.map(validTriggerPattern))
+
+    // [consistency] check whether all `boundVars` occur inside `trigger`
+    val msgs2 = (boundVars filterNot (v => usedVars.contains(v.id.name)))
+      .flatMap(v => message(v, s"consistency error: variable '${v.id}' is not mentioned in the trigger pattern '$trigger'"))
+
+    msgs1 ++ msgs2
+  }
 
   /**
-    * Determines whether `triggers` is a valid sequence of triggers.
+    * Determines whether `triggers` is a valid and consistent sequence of triggers.
     * Currently `triggers` is valid if every trigger `t` in this
-    * sequence is valid with respect to `validTrigger(t)`.
+    * sequence is valid and consistent with respect to `validTrigger(t)`.
     * @param triggers The sequence of triggers to be tested for validity.
-    * @return True if (but currently not only if) `triggers` is
-    *         a valid sequence of triggers.
+    * @return True if `triggers` is a valid sequence of triggers.
     */
-  private def validTriggers(triggers : Vector[PTrigger]) : Messages =
-    triggers.map(validTrigger).flatten
+  private def validTriggers(vars: Vector[PBoundVariable], triggers : Vector[PTrigger]) : Messages =
+    triggers.flatMap(validTrigger(vars, _))
 }

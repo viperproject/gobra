@@ -6,6 +6,7 @@ type Point struct {
 }
 
 requires exists p Point :: p.x < p.y
+requires exists p Point :: { p.x } p.x < p.y
 requires exists p Point :: { p.x, p.y } p.x < p.y
 func test1() { }
 

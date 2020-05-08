@@ -30,3 +30,6 @@ requires acc(p.x)
 func test6(p *Point) {
   assert forall q *Point :: q == p ==> acc(q.x)
 }
+
+requires forall p *Point :: { p.x, p.y } acc(p.x)
+func test7() { }

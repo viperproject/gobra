@@ -77,7 +77,9 @@ object SymbolTable extends Environments {
 
   sealed trait TypeEntity extends Regular
 
-  sealed trait ActualTypeEntity extends TypeEntity with ActualRegular
+  sealed trait ActualTypeEntity extends TypeEntity with ActualRegular {
+    val decl: PTypeDecl
+  }
 
   case class NamedType(decl: PTypeDef, ghost: Boolean, context: ExternalTypeInfo) extends ActualTypeEntity {
     require(!ghost, "type entities are not supported to be ghost yet") // TODO

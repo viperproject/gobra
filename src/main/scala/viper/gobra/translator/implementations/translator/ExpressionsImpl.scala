@@ -94,9 +94,14 @@ class ExpressionsImpl extends Expressions {
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)} yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
-      case in.PureForall(vars, triggers, body) =>
-        for { (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx) }
-          yield vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+        // FIXME Wytse
+      case in.PureForall(vars, triggers, body) => for {
+        (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
+        newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+      } yield newForall.check match {
+        case Seq() => newForall
+        case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
+      }
 
       case in.Exists(vars, triggers, body) =>
         for { (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx) }

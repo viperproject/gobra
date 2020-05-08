@@ -93,7 +93,6 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
     uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
   }
 
-
   case class UniqueRegular(r: Regular, s: PScope)
 
   def uniqueRegular(id: PIdnNode): Option[UniqueRegular] = entity(id) match {

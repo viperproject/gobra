@@ -23,7 +23,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
     // triggers are currently not type checked (for now we lift on any Viper errors on the use of triggers)
-    case PForall(_, _, body) =>
+    case PForall(_, triggers, body) =>
+      // check whether all triggers are valid
+      validTriggers(triggers) ++
       // check that the quantifier `body` is either Boolean or an assertion
       isExpr(body).out ++ assignableTo.errors(exprType(body), AssertionT)(expr)
 
@@ -39,14 +41,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
     case n: PAccess => resolve(n.exp) match {
-      case Some(p: ap.Deref) => noMessages
-      case Some(p: ap.FieldSelection) => noMessages
-      case Some(p: ap.PredicateCall) => noMessages
+      case Some(_: ap.Deref) => noMessages
+      case Some(_: ap.FieldSelection) => noMessages
+      case Some(_: ap.PredicateCall) => noMessages
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
     }
 
     case n: PPredicateAccess => resolve(n.pred) match {
-      case Some(p: ap.PredicateCall) => noMessages
+      case Some(_: ap.PredicateCall) => noMessages
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
     }
   }
@@ -55,7 +57,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case POld(op) => exprType(op)
 
-    case PConditional(cond, thn, els) =>
+    case PConditional(_, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
 
     case PForall(_, _, body) => exprType(body)
@@ -140,5 +142,45 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@PReceive(e) => false
     }
 
+  /**
+    * Determines whether `expr` is a valid trigger pattern.
+    * @param expr The expression that is to be checked for validity.
+    * @return True if (but currently not only if) `expr` is a valid expression pattern.
+    */
+  private def validTriggerPattern(expr : PExpression) : Messages = {
+    // shorthand definition
+    def goEorT(node : PExpressionOrType) : Messages = node match {
+      case PDeref(base) => goEorT(base)
+      case e : PExpression => validTriggerPattern(e)
+      case _ => noMessages
+    }
 
+    expr match {
+      case PDot(base, _) => goEorT(base)
+      case PInvoke(base, args) => goEorT(base) ++ args.map(validTriggerPattern).flatten
+      case PNamedOperand(_) => noMessages
+      case _ => message(expr, s"invalid trigger pattern '$expr'")
+    }
+  }
+
+  /**
+    * Determines whether `trigger` is a valid trigger.
+    * Currently any trigger `t` is valid if all `t`'s expressions
+    * are valid trigger patterns.
+    * @param trigger The trigger to be tested for validity.
+    * @return True if (but currently not only if) `trigger` is a valid trigger.
+    */
+  private def validTrigger(trigger : PTrigger) : Messages =
+    trigger.exps.map(validTriggerPattern).flatten
+
+  /**
+    * Determines whether `triggers` is a valid sequence of triggers.
+    * Currently `triggers` is valid if every trigger `t` in this
+    * sequence is valid with respect to `validTrigger(t)`.
+    * @param triggers The sequence of triggers to be tested for validity.
+    * @return True if (but currently not only if) `triggers` is
+    *         a valid sequence of triggers.
+    */
+  private def validTriggers(triggers : Vector[PTrigger]) : Messages =
+    triggers.map(validTrigger).flatten
 }

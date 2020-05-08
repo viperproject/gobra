@@ -640,10 +640,10 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-/** expression has to be deref, field seclection, or predicate call */
+/** expression has to be deref, field selection, or predicate call */
 case class PAccess(exp: PExpression) extends PGhostExpression
 
-/** speczialized version of PAccess that only handles predicae accesses. E.g, used for foldings.  */
+/** specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope

@@ -31,8 +31,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PExists(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
-        // check that the quantifier `body` is Boolean
-      isExpr(body).out ++ assignableTo.errors(exprType(body), BooleanT)(expr)
+      // check that the quantifier `body` is Boolean
+      isPureExpr(body) ++ isExpr(body).out ++ assignableTo.errors(exprType(body), BooleanT)(expr)
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
@@ -127,7 +127,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
 
-      case _: PAccess | _: PPredicateAccess => false
+        case _: PAccess | _: PPredicateAccess => false
 
       case n@PCompositeLit(t, lit) => true
 

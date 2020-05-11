@@ -17,6 +17,8 @@ sealed trait VerifierError {
     s"<${position.line}:${position.column}> $message"
 
   override def toString: String = formattedMessage
+
+  var cached: Boolean = false
 }
 
 case class ParserError(message: String, position: SourcePosition) extends VerifierError {

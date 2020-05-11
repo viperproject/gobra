@@ -26,7 +26,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // check whether all triggers are valid and consistent
       validTriggers(vars, triggers) ++
       // check that the quantifier `body` is either Boolean or an assertion
-      isExpr(body).out ++ assignableTo.errors(exprType(body), AssertionT)(expr)
+      isWeaklyPureExpr(body) ++ isExpr(body).out ++ assignableTo.errors(exprType(body), AssertionT)(expr)
 
     case PExists(vars, triggers, body) =>
       // check whether all triggers are valid and consistent
@@ -70,8 +70,97 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess => AssertionT
   }
 
-  private[typing] def isPureExpr(expr: PExpression): Messages = {
+  /**
+    * Determines whether `expr` is a (strongly) pure expression
+    * in the standard separation logic sense.
+    */
+  private[typing] def isPureExpr(expr: PExpression): Messages =
     message(expr, s"expected pure expression but got $expr", !isPureExprAttr(expr))
+
+  /**
+    * Determines whether `expr` is a weakly pure expression,
+    * meaning that `expr` must be pure in the separation logic
+    * sense but is allowed to contain (accessibility) predicates.
+    */
+  private[typing] def isWeaklyPureExpr(expr: PExpression): Messages =
+    message(expr, s"expression '$expr' is an invalid quantified permission body'",
+      !isWeaklyPureExprAttr(expr))
+
+  /**
+    * Determines whether `expr` is a _(strongly) pure_ expression,
+    * where _(strongly) pure_ means purity in the standard
+    * separation logic sense; that is, doesn't have side-effect
+    * on the shared state.
+    *
+    * We say that `expr` is _weakly pure_ if `expr` is pure
+    * but is allowed to contain (accessibility) predicates.
+    * Any weakly pure expression would for example be
+    * a valid quantified permission body.
+    *
+    * @param expr The expression to test for (strong/weak) purity.
+    * @param strong If `true`, then `isPure` tests for strong purity;
+    *               otherwise for weak purity. (Is `true`` by default.)
+    */
+  private def isPure(expr : PExpression)(strong : Boolean = true) : Boolean = {
+    def go(e : PExpression) = isPure(e)(strong)
+
+    expr match {
+      case PNamedOperand(id) => isPureId(id)
+
+      case _: PBoolLit | _: PIntLit | _: PNilLit => true
+
+      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+        case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
+        case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
+        case _ => false
+      }
+
+      case n: PDot => exprOrType(n.base) match {
+        case Left(e) => go(e) && isPureId(n.id)
+        case Right(_) => isPureId(n.id) // Maybe replace with a violation
+      }
+
+      case PReference(e) => go(e)
+      case n: PDeref =>
+        resolve(n) match {
+          case Some(p: ap.Deref) => go(p.base)
+          case _ => true
+        }
+
+      case PNegation(e) => go(e)
+
+      case x: PBinaryExp => go(x.left) && go(x.right) && (x match {
+        case _: PEquals | _: PUnequals |
+             _: PAnd | _: POr |
+             _: PLess | _: PAtMost | _: PGreater | _: PAtLeast |
+             _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => true
+        case _ => false
+      })
+
+      case _: PUnfolding => true
+      case _: POld => true
+      case _: PForall => true
+      case _: PExists => true
+
+      case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(go)
+
+      case PImplication(left, right) => Seq(left, right).forall(go)
+
+      case _: PAccess | _: PPredicateAccess => !strong
+
+      case PCompositeLit(_, _) => true
+
+      // Might change soon:
+      case PIndexedExp(_, _) => false
+
+      // Might change as some point
+      case _: PFunctionLit => false
+      case PSliceExp(_, _, _, _) => false
+
+      // Others
+      case PTypeAssertion(_, _) => false
+      case PReceive(_) => false
+    }
   }
 
   private def isPureId(id: PIdnNode): Boolean = entity(id) match {
@@ -85,63 +174,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private lazy val isPureExprAttr: PExpression => Boolean =
-    attr[PExpression, Boolean] {
-      case n@ PNamedOperand(id) => isPureId(id)
+    attr[PExpression, Boolean] { isPure(_)(true) }
 
-      case _: PBoolLit | _: PIntLit | _: PNilLit => true
-
-      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
-        case (Left(callee), Some(p: ap.FunctionCall)) => isPureExprAttr(callee) && p.args.forall(isPureExprAttr)
-        case _ => false
-      }
-
-      case n: PDot => exprOrType(n.base) match {
-        case Left(e) => isPureExprAttr(e) && isPureId(n.id)
-        case Right(_) => isPureId(n.id) // Maybe replace with a violation
-      }
-
-      case n@PReference(e) => isPureExprAttr(e)
-      case n: PDeref =>
-        resolve(n) match {
-          case Some(p: ap.Deref) => isPureExprAttr(p.base)
-          case _ => true
-        }
-
-      case PNegation(e) => isPureExprAttr(e)
-
-      case x: PBinaryExp => isPureExprAttr(x.left) && isPureExprAttr(x.right) && (x match {
-          case _: PEquals | _: PUnequals |
-               _: PAnd | _: POr |
-               _: PLess | _: PAtMost | _: PGreater | _: PAtLeast |
-               _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => true
-          case _ => false
-        })
-
-      case _: PUnfolding => true
-      case _: POld => true
-      case _: PForall => true
-      case _: PExists => true
-
-      case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
-
-      case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
-
-        case _: PAccess | _: PPredicateAccess => false
-
-      case n@PCompositeLit(t, lit) => true
-
-      // Might change soon:
-      case n@PIndexedExp(base, index) => false
-
-      // Might change as some point
-      case _: PFunctionLit => false
-      case n@PSliceExp(base, low, high, cap) => false
-
-      // Others
-      case n@PTypeAssertion(base, typ) => false
-      case n@PReceive(e) => false
-    }
+  private lazy val isWeaklyPureExprAttr: PExpression => Boolean =
+    attr[PExpression, Boolean] { isPure(_)(false) }
 
   /**
     * Helper operation for composing two results of `validTriggerPattern` into one.

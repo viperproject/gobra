@@ -65,7 +65,7 @@ class LocationsImpl extends Locations {
   /**
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
     */
-  override def parameter(v: in.TopDeclaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+  override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     v match {
       case v: in.Var =>
         val trans = values(v.typ)(ctx)

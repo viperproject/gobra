@@ -1,18 +1,18 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.PGhostType
-import viper.gobra.frontend.info.base.Type.Type
+import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
-trait GhostTypeTyping extends BaseTyping { this: TypeInfoImpl =>
+trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
-  private[typing] def wellDefGhostType(typ: PGhostType): Messages = typ match {
-    case _ => ???
+  private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
+    case PSequenceType(elem) => isType(elem).out
   }
 
-  private[typing] def ghostTypeType(typ: PGhostType): Type = typ match {
-    case _ => ???
+  private[typing] def ghostTypeType(typ : PGhostType) : Type = typ match {
+    case PSequenceType(elem) => SequenceT(typeType(elem))
   }
 }

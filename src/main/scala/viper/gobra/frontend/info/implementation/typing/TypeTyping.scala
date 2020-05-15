@@ -43,7 +43,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
-      t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
+      t.fields.flatMap(wellDefActualMisc) ++
       structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)

@@ -12,7 +12,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
 
-    case n: PNamedOperand => noMessages // no checks to avoid cycles
+    case _: PNamedOperand => noMessages // no checks to avoid cycles
 
     case n: PDeref =>
       resolve(n) match {

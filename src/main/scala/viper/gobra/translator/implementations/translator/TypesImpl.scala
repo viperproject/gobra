@@ -18,6 +18,7 @@ class TypesImpl extends Types {
     * [*t]     -> ref
     * [nil]    -> ref
     * [S]      -> ??? // TODO: will be the tuple type
+    * [seq t]  -> seq[t]
     * [void] undef
     */
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
@@ -29,7 +30,7 @@ class TypesImpl extends Types {
     case in.NilT => vpr.Ref
     case st: in.StructT => vpr.Int // TODO
     case in.TupleT(ts) => Violation.violation("Tuple types are not supported at this point in time")
-
+    case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
     case in.VoidT => Violation.violation("void is not a translatable type")
   }
 

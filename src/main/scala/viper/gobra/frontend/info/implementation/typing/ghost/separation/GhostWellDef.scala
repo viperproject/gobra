@@ -13,6 +13,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case s: PStatement => stmtGhostSeparation(s)
     case e: PExpression => exprGhostSeparation(e)
     case t: PType => typeGhostSeparation(t)
+    case m: PMisc => miscGhostSeparation(m)
   }{ n => selfWellDefined(n) && children(n).forall(wellGhostSeparated.valid) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
@@ -23,7 +24,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case _: PGhostMember => noMessages
 
+    case n : PVarDecl => n.typ match {
+      case Some(typ) => message(n, s"ghost error: expected an actual type but found $typ",
+        isTypeGhost(typ) && !enclosingGhostContext(n))
+      case None => noMessages
+    }
+
     case m if enclosingGhostContext(m) => noMessages
+
     case _ => noMessages
   }
 
@@ -52,7 +60,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PContinue
       |  _: PGoto
       |  _: PDeferStmt
-      ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      ) => message(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
     case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
     case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
@@ -64,7 +72,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       if (right.nonEmpty) {
         ghostAssignableToParam(right: _*)(res.outs: _*)
       } else noMessages
-
   }
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
@@ -99,5 +106,19 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def typeGhostSeparation(typ: PType): Messages = typ match {
     case _: PGhostType => noMessages
     case n: PType => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+  }
+
+  private def miscGhostSeparation(misc : PMisc) : Messages = {
+    // helper definition
+    def check(n : PNode, t : PType) : Messages =
+      message(n, s"ghost error: expected an actual type but found $t",
+        isTypeGhost(t) && !enclosingGhostContext(n))
+
+    misc match {
+      case _: PGhostMisc => noMessages
+      case p: PActualParameter => check(p, p.typ)
+      case f: PFieldDecl => check(f, f.typ)
+      case _ => noMessages
+    }
   }
 }

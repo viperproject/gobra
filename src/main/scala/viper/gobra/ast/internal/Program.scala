@@ -224,6 +224,12 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
+/**
+  * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
+  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  */
+case class SequenceLiteral(typ: Type, exprs: Vector[Expr])(val info: Source.Parser.Info) extends Expr
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -427,6 +433,12 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
+/**
+  * The type of mathematical sequences with elements of type `t`.
+  * @param t The type of elements
+  */
+case class SequenceT(t : Type) extends Type
+
 case class DefinedT(name: String) extends Type with TopType
 
 case class PointerT(t: Type) extends Type with TopType
@@ -434,7 +446,6 @@ case class PointerT(t: Type) extends Type with TopType
 case class TupleT(ts: Vector[Type]) extends Type with TopType
 
 case class StructT(name: String, fields: Vector[Field]) extends Type with TopType
-
 
 
 

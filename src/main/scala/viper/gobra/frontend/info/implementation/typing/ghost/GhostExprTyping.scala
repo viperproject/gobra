@@ -3,15 +3,13 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, SequenceT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
 
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
-
-
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
 
@@ -42,6 +40,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(p: ap.PredicateCall) => noMessages
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
     }
+
+    case PSequenceLiteral(typ, exprs) => {
+      val t = typeType(typ)
+      exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e))
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
@@ -54,6 +57,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
     case _: PAccess | _: PPredicateAccess => AssertionT
+
+    case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -111,6 +116,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
 
       case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
+
+      case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
 
       case _: PAccess | _: PPredicateAccess => false
 

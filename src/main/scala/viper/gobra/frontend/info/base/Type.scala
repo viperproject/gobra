@@ -26,6 +26,8 @@ object Type {
 
   case class MapT(key: Type, elem: Type) extends Type
 
+  case class SequenceT(elem: Type) extends Type
+
   case class PointerT(elem: Type) extends Type
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends Type

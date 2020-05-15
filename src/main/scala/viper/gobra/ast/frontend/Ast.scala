@@ -428,7 +428,7 @@ sealed trait PActualStructClause extends PStructClause
 // TODO: maybe change to misc
 case class PFieldDecls(fields: Vector[PFieldDecl]) extends PActualStructClause
 
-case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
+case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode with PActualMisc
 
 case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause {
   require(id.name == typ.name)
@@ -623,7 +623,7 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 /**
-  * Ghost Expression and Assertions
+  * Ghost Expressions and Assertions
   */
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
@@ -640,11 +640,25 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-/** expression has to be deref, field seclection, or predicate call */
+/** Expression has to be deref, field selection, or predicate call */
 case class PAccess(exp: PExpression) extends PGhostExpression
 
-/** speczialized version of PAccess that only handles predicae accesses. E.g, used for foldings.  */
+/** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
+
+/**
+  * Conceals all sequence ghost expressions
+  * (for example sequence literals, sequence concatenation, etc.).
+  */
+sealed trait PSequenceExpression extends PGhostExpression
+
+/**
+  * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
+  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  * @param typ The sequence type.
+  * @param exprs The expression vector constituting the sequence literal.
+  */
+case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
 
 
 /**
@@ -652,6 +666,18 @@ case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
   */
 
 sealed trait PGhostType extends PType with PGhostNode
+
+/**
+  * Conceals the type of ghost literal.
+  */
+sealed trait PGhostTypeLit extends PGhostType
+
+/**
+  * The type of mathematical sequences with elements of type `elem`.
+  * @param elem The types of the sequence's elements.
+  */
+case class PSequenceType(elem : PType) extends PGhostTypeLit
+
 
 /**
   * Miscellaneous

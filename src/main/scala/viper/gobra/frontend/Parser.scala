@@ -67,6 +67,12 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
+  def parseType(source : Source) : Either[Messages, PType] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
+  }
+
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
     r match {
       case Success(ast, _) => Right(ast)
@@ -156,7 +162,7 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old"
+      "predicate", "old", "seq"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -607,19 +613,22 @@ object Parser {
 
 
 
-
-
-
     /**
       * Types
       */
 
-    lazy val typ: Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | namedType
+    lazy val typ : Parser[PType] =
+      "(" ~> typ <~ ")" | typeLit | namedType | ghostTypeLit
+
+    lazy val ghostTyp : Parser[PGhostType] =
+      "(" ~> ghostTyp <~ ")" | ghostTypeLit
 
     lazy val typeLit: Parser[PTypeLit] =
-      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
+      pointerType | sliceType | arrayType | mapType |
+        channelType | functionType | structType | interfaceType
 
+    lazy val ghostTypeLit : Parser[PGhostTypeLit] =
+      sequenceType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -640,6 +649,9 @@ object Parser {
 
     lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
+
+    lazy val sequenceType : Parser[PSequenceType] =
+      "seq" ~> ("[" ~> typ <~ "]") ^^ PSequenceType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
@@ -813,15 +825,18 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold
 
-
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
         ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostPrimaryExp: Parser[PGhostExpression] =
+    lazy val ghostPrimaryExp : Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
+        sequenceLiteral
+
+    lazy val sequenceLiteral : Parser[PSequenceLiteral] =
+      "seq" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSequenceLiteral
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

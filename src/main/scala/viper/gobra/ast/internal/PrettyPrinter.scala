@@ -208,6 +208,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
+    case SequenceLiteral(typ, exprs) =>
+      "seq" <> "[" <> showType(typ) <> "]" <+> "{" <+> showExprList(exprs) <+> "}"
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
@@ -216,7 +219,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
-    case v: Var   => showVar(v)
+    case v: Var => showVar(v)
   }
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
@@ -250,7 +253,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // types
 
-  def showType(typ: Type): Doc = typ match {
+  def showType(typ : Type) : Doc = typ match {
     case BoolT => "bool"
     case IntT => "int"
     case VoidT => "void"
@@ -260,6 +263,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
+    case SequenceT(elem) => "seq" <> "[" <> showType(elem) <> "]"
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

@@ -981,7 +981,7 @@ object Desugar {
       case PEmbeddedPointer(typ) => registerType(in.PointerT(typeD(info.typ(typ))))
     }
 
-    def typeD(t: Type): in.Type = t match {
+    def typeD(t : Type) : in.Type = t match {
       case Type.VoidType => in.VoidT
       case Type.NilType => in.NilT
       case t: DeclaredT => registerType(registerDefinedType(t))
@@ -992,6 +992,7 @@ object Desugar {
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)))
       case Type.ChannelT(elem, mod) => ???
+      case Type.SequenceT(elem) => in.SequenceT(typeD(elem))
 
       case Type.StructT(decl) =>
         var fields: List[in.Field] = List.empty
@@ -1202,6 +1203,11 @@ object Desugar {
             wthn <- go(right)
             wels = in.BoolLit(b = true)(src)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PSequenceLiteral(t, exprs) => for {
+          dexprs <- sequence(exprs map go)
+          dt = typeD(info.typ(t))
+        } yield in.SequenceLiteral(dt, dexprs)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

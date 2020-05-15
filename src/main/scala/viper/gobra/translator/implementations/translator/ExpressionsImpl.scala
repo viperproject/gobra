@@ -80,6 +80,13 @@ class ExpressionsImpl extends Expressions {
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)
                                                   } yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
+      case in.SequenceLiteral(typ, exprs) => for {
+        exprsT <- sequence(exprs map goE)
+      } yield exprsT match {
+        case Seq() => vpr.EmptySeq(goT(typ))(pos, info, errT)
+        case _ => vpr.ExplicitSeq(exprsT)(pos, info, errT)
+      }
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

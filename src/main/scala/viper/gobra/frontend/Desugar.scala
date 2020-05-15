@@ -1209,6 +1209,11 @@ object Desugar {
           dt = typeD(info.typ(t))
         } yield in.SequenceLiteral(dt, dexprs)(src)
 
+        case PSequenceAppend(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.SequenceAppend(dleft, dright)(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }

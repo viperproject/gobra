@@ -45,6 +45,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       val t = typeType(typ)
       exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e))
     }
+
+    case n@PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
+      case (SequenceT(t1), SequenceT(t2)) =>
+        message(n, s"both operands are expected to be of an identical type, but got '$t1' and '$t2'", !identicalTypes(t1, t2))
+      case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
@@ -59,6 +65,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess => AssertionT
 
     case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
+
+    case PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
+      case (SequenceT(t1), SequenceT(t2)) if identicalTypes(t1, t2) => SequenceT(t1)
+      case (t1, t2) => violation(s"operands of sequence append are of unidentical types '$t1' and '$t2'")
+    }
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -118,6 +129,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
 
       case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
+      case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
 
       case _: PAccess | _: PPredicateAccess => false
 

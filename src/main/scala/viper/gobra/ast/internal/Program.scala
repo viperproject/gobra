@@ -230,6 +230,14 @@ case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: So
   */
 case class SequenceLiteral(typ: Type, exprs: Vector[Expr])(val info: Source.Parser.Info) extends Expr
 
+/**
+  * The appending of two sequences represented by `left` and `right`
+  * (which should be of identical types as result of type checking).
+  */
+case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = left.typ // should be identical to `right.typ`
+}
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 

@@ -490,7 +490,8 @@ object Parser {
         precedence5
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
+      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+        precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6
 

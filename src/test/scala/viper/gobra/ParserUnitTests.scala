@@ -119,7 +119,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: singular integer sequence literal") {
+  test("Parser: singleton integer sequence literal") {
     frontend.parseExp("seq[int] { 42 }") should matchPattern {
       case Right(PSequenceLiteral(PIntType(), Vector(PIntLit(n))))
         if n == BigInt(42) =>
@@ -151,7 +151,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: incorrect singular sequence literal") {
+  test("Parser: incorrect singleton sequence literal") {
     frontend.parseExp("seq[bool] { true, }") should matchPattern {
       case Left(_) =>
     }
@@ -160,6 +160,83 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: incorrect sequence literal with multiple elements") {
     frontend.parseExp("seq[bool] { true, false,, false }") should matchPattern {
       case Left(_) =>
+    }
+  }
+
+  test("Parser: appending two simple sequences") {
+    frontend.parseExpOrFail("xs ++ ys" ) should matchPattern {
+      case PSequenceAppend(PNamedOperand(PIdnUse("xs")), PNamedOperand(PIdnUse("ys"))) =>
+    }
+  }
+
+  test("Parser: appending two Booleans as sequences") {
+    frontend.parseExpOrFail("true ++ false" ) should matchPattern {
+      case PSequenceAppend(PBoolLit(true), PBoolLit(false)) =>
+    }
+  }
+
+  test("Parser: appending three sequences (1)") {
+    frontend.parseExpOrFail("xs ++ ys ++ zs" ) should matchPattern {
+      case PSequenceAppend(
+        PSequenceAppend(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("ys"))
+        ),
+        PNamedOperand(PIdnUse("zs"))
+      ) =>
+    }
+  }
+
+  test("Parser: appending three sequences (2)") {
+    frontend.parseExpOrFail("xs ++ (ys ++ zs)" ) should matchPattern {
+      case PSequenceAppend(
+        PNamedOperand(PIdnUse("xs")),
+        PSequenceAppend(
+          PNamedOperand(PIdnUse("ys")),
+          PNamedOperand(PIdnUse("zs"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: expressions of the form '+e' should be parsed to '0 + e'") {
+    frontend.parseExpOrFail("+x") should matchPattern {
+      case PAdd(PIntLit(n), PNamedOperand(PIdnUse("x"))) if n == BigInt(0) =>
+    }
+  }
+
+  test("Parser: expressions of the form '++e' should be parsed to '0 + 0 + e'") {
+    frontend.parseExp("++ x") should matchPattern {
+      case Right(PAdd(PIntLit(a), PAdd(PIntLit(b), PNamedOperand(PIdnUse("x")))))
+        if a == BigInt(0) && b == BigInt(0) =>
+    }
+  }
+
+  test("Parser: expressions of the form 'e++' should not be parsed") {
+    frontend.parseExp("x ++") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: expressions of the form 'e1 + + e2' should be parsed as 'e1 + (+e2)'") {
+    frontend.parseExpOrFail("x + + y") should matchPattern {
+      case PAdd(PNamedOperand(PIdnUse("x")), PAdd(PIntLit(n), PNamedOperand(PIdnUse("y"))))
+        if n == BigInt(0) =>
+    }
+  }
+
+  test("Parser: expressions of the form 'e+' should not be parsed") {
+    frontend.parseExp("x+") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: appending two sequence literals") {
+    frontend.parseExpOrFail("seq[bool] { true } ++ seq[bool] { false, true }") should matchPattern {
+      case PSequenceAppend(
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(true))),
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+      ) =>
     }
   }
 

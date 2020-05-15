@@ -87,6 +87,11 @@ class ExpressionsImpl extends Expressions {
         case _ => vpr.ExplicitSeq(exprsT)(pos, info, errT)
       }
 
+      case in.SequenceAppend(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqAppend(leftT, rightT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

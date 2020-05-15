@@ -267,7 +267,7 @@ sealed trait PUnaryExp extends PActualExpression {
 }
 
 case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
-  override val name: String = id.name
+  override val name : String = id.name
 }
 
 
@@ -659,6 +659,11 @@ sealed trait PSequenceExpression extends PGhostExpression
   * @param exprs The expression vector constituting the sequence literal.
   */
 case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
+
+/**
+  * The appending of two sequences represented by `left` and `right`.
+  */
+case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExpression
 
 
 /**

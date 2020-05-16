@@ -288,8 +288,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PPredicateAccess(exp) => exp match {
         case n: PExpression => "acc" <> parens(showExpr(n))
       }
+
+      case PSize(operand) => "|" <> showExpr(operand) <> "|"
+
       case PSequenceLiteral(typ, exprs) =>
         "seq" <> "[" <> showType(typ) <> "]" <+> "{" <+> showExprList(exprs) <+> "}"
+
       case PSequenceAppend(left, right) =>
         showExpr(left) <+> "++" <+> showExpr(right)
     }

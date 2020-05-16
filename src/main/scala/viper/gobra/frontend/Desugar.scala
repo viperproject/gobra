@@ -1204,6 +1204,10 @@ object Desugar {
             wels = in.BoolLit(b = true)(src)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
+        case PSize(op) => for {
+          dop <- go(op)
+        } yield in.Size(dop)(src)
+
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
           dt = typeD(info.typ(t))

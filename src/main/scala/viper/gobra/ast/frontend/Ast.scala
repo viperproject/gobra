@@ -647,6 +647,13 @@ case class PAccess(exp: PExpression) extends PGhostExpression
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 /**
+  * Denotes the size of `exp`, which has to be either a sequence or (multi)set.
+  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
+  * if `exp` is a (multi)set it denotes set cardinality.
+  */
+case class PSize(exp : PExpression) extends PGhostExpression
+
+/**
   * Conceals all sequence ghost expressions
   * (for example sequence literals, sequence concatenation, etc.).
   */

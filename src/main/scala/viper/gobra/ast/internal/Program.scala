@@ -225,10 +225,22 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 /**
-  * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
-  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  * Denotes the _size_ of `exp`, which for now has to be either a sequence or a (multi)set.
+  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
+  * if `exp` is a (multi)set it denotes set cardinality.
   */
-case class SequenceLiteral(typ: Type, exprs: Vector[Expr])(val info: Source.Parser.Info) extends Expr
+case class Size(exp : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
+/**
+  * A mathematical sequence literal "seq[exprTyp] { e_0, ..., e_n }",
+  * where `exprs` constitute the vector "e_0, ..., e_n"
+  * of (sub)expressions in the literal.
+  */
+case class SequenceLiteral(exprTyp : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = SequenceT(exprTyp)
+}
 
 /**
   * The appending of two sequences represented by `left` and `right`

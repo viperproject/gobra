@@ -240,6 +240,31 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse basic '|e|'-shaped expressions") {
+    frontend.parseExp("|xs|") should matchPattern {
+      case Right(PSize(PNamedOperand(PIdnUse("xs")))) =>
+    }
+  }
+
+  test ("Parser: length of concatenated sequences") {
+    frontend.parseExp("|xs ++ ys|") should matchPattern {
+      case Right(
+        PSize(
+          PSequenceAppend(
+            PNamedOperand(PIdnUse("xs")),
+            PNamedOperand(PIdnUse("ys"))
+          )
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse simple disjunctions") {
+    frontend.parseExpOrFail("x || y") should matchPattern {
+      case POr(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

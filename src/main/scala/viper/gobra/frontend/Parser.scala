@@ -513,6 +513,7 @@ object Parser {
         dereference |
         receiveExp |
         unfolding |
+        ghostUnaryExp |
         primaryExp
 
     lazy val reference: Parser[PReference] =
@@ -527,6 +528,8 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+    lazy val ghostUnaryExp : Parser[PGhostExpression] =
+      "|" ~> expression <~ "|" ^^ PSize
 
     lazy val primaryExp: Parser[PExpression] =
         conversion |

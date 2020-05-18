@@ -1,6 +1,5 @@
 package viper.gobra.translator.implementations.translator
 
-import viper.gobra.ast.internal.SequenceT
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
@@ -81,12 +80,9 @@ class ExpressionsImpl extends Expressions {
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)
                                                   } yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
 
-      case in.Size(op) => for {
+      case in.SequenceLength(op) => for {
         opT <- goE(op)
-      } yield op.typ match {
-        case SequenceT(_) => vpr.SeqLength(opT)(pos, info, errT)
-        case t => Violation.violation(s"cannot translate the size operator for operands of type '$t'")
-      }
+      } yield vpr.SeqLength(opT)(pos, info, errT)
 
       case in.SequenceLiteral(exprTyp, exprs) => for {
         exprsT <- sequence(exprs map goE)

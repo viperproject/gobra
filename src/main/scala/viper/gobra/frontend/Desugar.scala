@@ -1206,7 +1206,10 @@ object Desugar {
 
         case PSize(op) => for {
           dop <- go(op)
-        } yield in.Size(dop)(src)
+        } yield dop.typ match {
+          case in.SequenceT(_) => in.SequenceLength(dop)(src)
+          case t => violation(s"expected sequence type but got '$t'")
+        }
 
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)

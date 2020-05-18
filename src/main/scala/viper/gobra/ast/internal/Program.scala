@@ -225,11 +225,9 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 /**
-  * Denotes the _size_ of `exp`, which for now has to be either a sequence or a (multi)set.
-  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
-  * if `exp` is a (multi)set it denotes set cardinality.
+  * Denotes the length of `exp`, which has to be a sequence.
   */
-case class Size(exp : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
 }
 

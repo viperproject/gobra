@@ -2,13 +2,15 @@ package viper.gobra.backend
 
 import viper.carbon
 import viper.silver
+import viper.silver.reporter.Reporter
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
   var backend: carbon.CarbonVerifier = _
 
-  def start(): Unit = {
+  def start(reporter: Reporter): Unit = {
     require(backend == null)
 
+    // TODO pass reporter to Carbon
     backend = carbon.CarbonVerifier(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
 
     backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))

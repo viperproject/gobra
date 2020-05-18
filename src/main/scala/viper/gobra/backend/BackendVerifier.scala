@@ -6,14 +6,12 @@
 
 package viper.gobra.backend
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.BackTranslator
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
+import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.VerificationResult
 
 object BackendVerifier {
 
@@ -31,50 +29,30 @@ object BackendVerifier {
 
   def verify(task: Task)(config: Config): Result = {
 
+    config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 
-    // print generated viper file if set in config
-    if (config.printVpr()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
-      FileUtils.writeStringToFile(
-        outputFile,
-        silver.ast.pretty.FastPrettyPrinter.pretty(task.program),
-        UTF_8
-      )
-    }
-
-    val verifier = setupSilicon(config)
-    verifier.start()
+    val verifier = config.backend.create
+    verifier.start(BacktranslatingReporter(config.reporter, task.backtrack, config))
     val verificationResult = verifier.handle(task.program)
     verifier.stop()
 
-    verificationResult match {
-      case silver.verifier.Success => Success
-      case failure: silver.verifier.Failure =>
-
-        val (verificationError, otherError) = failure.errors
-          .partition(_.isInstanceOf[silver.verifier.VerificationError])
-          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
-
-        checkAbstractViperErrors(otherError)
-
-        Failure(verificationError.toVector, task.backtrack)
-    }
+    convertVerificationResult(verificationResult, task.backtrack)
   }
 
-  private def setupSilicon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
-    options ++= Vector("--disableCatchingExceptions")
-    options ++= Vector("--enableMoreCompleteExhale")
+  /**
+    * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
+    */
+  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
+    case silver.verifier.Success => Success
+    case failure: silver.verifier.Failure =>
 
-    new Silicon(options)
-  }
+      val (verificationError, otherError) = failure.errors
+        .partition(_.isInstanceOf[silver.verifier.VerificationError])
+        .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-  private def setupCarbon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
+      checkAbstractViperErrors(otherError)
 
-    new Carbon(options)
+      Failure(verificationError.toVector, backTrackInfo)
   }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

@@ -1,8 +1,5 @@
 package viper.gobra.frontend
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.internal.Node.Meta
 import viper.gobra.ast.{internal => in}
@@ -10,32 +7,15 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.reporting.Source
-import viper.gobra.util.{DesugarWriter, OutputUtil, Violation}
+import viper.gobra.reporting.{DesugaredMessage, Source}
+import viper.gobra.util.{DesugarWriter, Violation}
 import viper.silver.ast.SourcePosition
 
 object Desugar {
 
   def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val internalProgram = new Desugarer(program.positions, info).programD(program)
-
-    // print internal if set in config
-    if (config.printInternal()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "internal")
-      FileUtils.writeStringToFile(
-        outputFile,
-        internalProgram.formatted,
-        UTF_8
-      )
-
-//      val uglyOutputFile = OutputUtil.postfixFile(config.inputFile(), "ugly")
-//      FileUtils.writeStringToFile(
-//        uglyOutputFile,
-//        internalProgram.toString,
-//        UTF_8
-//      )
-    }
-
+    config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
     internalProgram
   }
 

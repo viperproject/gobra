@@ -215,6 +215,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case SequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
 
+    case SequenceUpdate(seq, left, right) =>
+      showExpr(seq) <> "[" <> showExpr(left) <+> "=" <+> showExpr(right) <> "]"
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)

@@ -12,7 +12,7 @@ import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, S
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
-import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{_}
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
 
 object Parser {
@@ -537,6 +537,7 @@ object Parser {
         selection |
         indexedExp |
         sliceExp |
+          seqUpdExp |
         typeAssertion |
         ghostPrimaryExp |
         operand
@@ -566,6 +567,9 @@ object Parser {
 
     lazy val sliceExp: PackratParser[PSliceExp] =
       primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
+
+    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
+      primaryExp ~ ("[" ~> expression <~ "=") ~ expression <~ "]" ^^ PSequenceUpdate
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion

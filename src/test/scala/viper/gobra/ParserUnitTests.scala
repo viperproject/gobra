@@ -265,6 +265,113 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: simple sequence update") {
+    frontend.parseExpOrFail("xs[i = 42]") should matchPattern {
+      case PSequenceUpdate(
+        PNamedOperand(PIdnUse("xs")),
+        PNamedOperand(PIdnUse("i")),
+        PIntLit(n)
+      ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: sequence update with an append on left-hand side") {
+    frontend.parseExp("(xs ++ ys)[i = true]") should matchPattern {
+      case Right(PSequenceUpdate(
+        PSequenceAppend(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("ys"))
+        ),
+      PNamedOperand(PIdnUse("i")),
+      PBoolLit(true)
+      )) =>
+    }
+  }
+
+  test("Parser: sequence update in combination with append") {
+    frontend.parseExp("xs ++ ys[i = v]") should matchPattern {
+      case Right(PSequenceAppend(
+        PNamedOperand(PIdnUse("xs")),
+        PSequenceUpdate(
+          PNamedOperand(PIdnUse("ys")),
+          PNamedOperand(PIdnUse("i")),
+          PNamedOperand(PIdnUse("v"))
+        )
+      )) =>
+    }
+  }
+
+  test("Parser: taking the length of sequence update expression") {
+    frontend.parseExp("|xs[x = false]|") should matchPattern {
+      case Right(PSize(
+        PSequenceUpdate(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("x")),
+          PBoolLit(false)
+        )
+      )) =>
+    }
+  }
+
+  test("Parser: updating sequence literals") {
+    frontend.parseExp("seq[bool] { true, false, false }[1 = true]") should matchPattern {
+      case Right(PSequenceUpdate(
+        PSequenceLiteral(
+          PBoolType(),
+          Vector(PBoolLit(true), PBoolLit(false), PBoolLit(false))
+        ),
+        PIntLit(i),
+        PBoolLit(true)
+      )) if i == BigInt(1) =>
+    }
+  }
+
+  test("Parser: chaining sequence updates") {
+    frontend.parseExp("xs[i = true][j = false]") should matchPattern {
+      case Right(PSequenceUpdate(
+        PSequenceUpdate(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("i")),
+          PBoolLit(true)
+        ),
+        PNamedOperand(PIdnUse("j")),
+        PBoolLit(false)
+      )) =>
+    }
+  }
+
+  test("Parser: nested sequence updates") {
+    frontend.parseExp("xs[i = ys[j = v]]") should matchPattern {
+      case Right(PSequenceUpdate(
+        PNamedOperand(PIdnUse("xs")),
+        PNamedOperand(PIdnUse("i")),
+        PSequenceUpdate(
+        PNamedOperand(PIdnUse("ys")),
+          PNamedOperand(PIdnUse("j")),
+          PNamedOperand(PIdnUse("v"))
+        )
+      )) =>
+    }
+  }
+
+  test("Parser: should not parse incorrectly typed sequence update (1)") {
+    frontend.parseExp("xs[x := v]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse incorrectly typed sequence update (2)") {
+    frontend.parseExp("xs[x = v") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse incorrectly typed sequence update (3)") {
+    frontend.parseExp("xs[x =]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

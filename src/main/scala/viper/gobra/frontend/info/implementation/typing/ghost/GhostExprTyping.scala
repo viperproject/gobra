@@ -56,12 +56,20 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         message(n, s"both operands are expected to be of an identical type, but got '$t1' and '$t2'", !identicalTypes(t1, t2))
       case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
     }
+
+    case PSequenceUpdate(seq, left, right) => exprType(seq) match {
+      case SequenceT(t) => exprType(left) match {
+        case IntT => assignableTo.errors(exprType(right), t)(right)
+        case u => message(left, s"expected an integer type but got '$u'")
+      }
+      case t => message(seq, s"expected a sequence type but got '$t'")
+    }
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
 
-    case PConditional(cond, thn, els) =>
+    case PConditional(_, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
@@ -76,6 +84,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (SequenceT(t1), SequenceT(t2)) if identicalTypes(t1, t2) => SequenceT(t1)
       case (t1, t2) => violation(s"operands of sequence append are of unidentical types '$t1' and '$t2'")
     }
+
+    case PSequenceUpdate(seq, _, _) => exprType(seq)
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -137,6 +147,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSize(op) => isPureExprAttr(op)
       case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
       case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
+      case PSequenceUpdate(seq, left, right) => Seq(seq, left, right).forall(isPureExprAttr)
 
       case _: PAccess | _: PPredicateAccess => false
 

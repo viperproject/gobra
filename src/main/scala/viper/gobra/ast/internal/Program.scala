@@ -248,6 +248,14 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   override def typ : Type = left.typ // should be identical to `right.typ`
 }
 
+/**
+  * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
+  * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
+  */
+case class SequenceUpdate(seq : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = seq.typ
+}
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 

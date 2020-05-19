@@ -54,6 +54,10 @@ object DefaultErrorBackTranslator {
       AssertionFalseError(info)
     case vprrea.AssertionFalse(Source(info)) =>
       AssertionFalseError(info)
+    case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
+      SeqIndexExceedsLengthError(node, index)
+    case vprrea.SeqIndexNegative(Source(node), Source(index)) =>
+      SeqIndexNegative(node, index)
     //      case vprrea.DummyReason =>
     //      case vprrea.InternalReason(offendingNode, explanation) =>
     //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>
@@ -72,8 +76,6 @@ object DefaultErrorBackTranslator {
     //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
     //      case vprrea.ReceiverNotInjective(offendingNode) =>
     //      case vprrea.LabelledStateNotReached(offendingNode) =>
-    //      case vprrea.SeqIndexNegative(seq, offendingNode) =>
-    //      case vprrea.SeqIndexExceedsLength(seq, offendingNode) =>
   }
 }
 

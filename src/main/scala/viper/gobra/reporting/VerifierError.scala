@@ -147,6 +147,16 @@ case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Assertion ${info.origin.tag} might not hold"
 }
 
+case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "seq_index_exceeds_length_error"
+  override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might exceed sequence length"
+}
+
+case class SeqIndexNegative(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "seq_index_negative_error"
+  override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

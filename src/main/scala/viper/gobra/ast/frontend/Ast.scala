@@ -672,6 +672,12 @@ case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PS
   */
 case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExpression
 
+/**
+  * Denotes a sequence update "`seq`[`left` = `right`]", resulting in a
+  * new sequence equal to `seq` but with `right` at position `left`.
+  */
+case class PSequenceUpdate(seq : PExpression, left : PExpression, right : PExpression) extends PSequenceExpression
+
 
 /**
   * Types

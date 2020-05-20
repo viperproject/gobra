@@ -84,31 +84,22 @@ class ExpressionsImpl extends Expressions {
         opT <- goE(op)
       } yield vpr.SeqLength(opT)(pos, info, errT)
 
-      case in.SequenceLiteral(exprTyp, exprs) => for {
+      case in.EmptySequence(typ) => unit(vpr.EmptySeq(goT(typ))(pos, info, errT))
+
+      case in.SequenceLiteral(exprs) => for {
         exprsT <- sequence(exprs map goE)
-      } yield exprsT match {
-        case Seq() => vpr.EmptySeq(goT(exprTyp))(pos, info, errT)
-        case _ => vpr.ExplicitSeq(exprsT)(pos, info, errT)
-      }
+      } yield vpr.ExplicitSeq(exprsT)(pos, info, errT)
 
       case in.SequenceAppend(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)
-        nodeT = vpr.SeqAppend(leftT, rightT)(pos, info, errT)
-      } yield nodeT.check match {
-        case Seq() => nodeT
-        case errors => Violation.violation(s"sequence append failed consistency check (${errors.head.readableMessage})")
-      }
+      } yield vpr.SeqAppend(leftT, rightT)(pos, info, errT)
 
       case in.SequenceUpdate(seq, left, right) => for {
         seqT <- goE(seq)
         leftT <- goE(left)
         rightT <- goE(right)
-        nodeT = vpr.SeqUpdate(seqT, leftT, rightT)(pos, info, errT)
-      } yield nodeT.check match {
-        case Seq() => nodeT
-        case errors => Violation.violation(s"sequence update failed consistency check (${errors.head.readableMessage})")
-      }
+      } yield vpr.SeqUpdate(seqT, leftT, rightT)(pos, info, errT)
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)

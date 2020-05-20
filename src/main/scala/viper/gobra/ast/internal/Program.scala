@@ -232,12 +232,18 @@ case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr
 }
 
 /**
-  * A mathematical sequence literal "seq[exprTyp] { e_0, ..., e_n }",
-  * where `exprs` constitute the vector "e_0, ..., e_n"
-  * of (sub)expressions in the literal.
+  * The empty sequence of type `typ`.
   */
-case class SequenceLiteral(exprTyp : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = SequenceT(exprTyp)
+case class EmptySequence(typ : Type)(val info : Source.Parser.Info) extends Expr
+
+/**
+  * A mathematical sequence literal "seq { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  * The `exprs` vector should be non-empty.
+  */
+case class SequenceLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  /** Is set to be the type of the first element in `exprs`. */
+  override def typ : Type = SequenceT(exprs.head.typ)
 }
 
 /**
@@ -245,7 +251,8 @@ case class SequenceLiteral(exprTyp : Type, exprs : Vector[Expr])(val info : Sour
   * (which should be of identical types as result of type checking).
   */
 case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = left.typ // should be identical to `right.typ`
+  /** Should be identical to `right.typ`. */
+  override def typ : Type = left.typ
 }
 
 /**

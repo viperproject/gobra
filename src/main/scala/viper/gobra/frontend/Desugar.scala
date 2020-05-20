@@ -1213,8 +1213,10 @@ object Desugar {
 
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
-          dt = typeD(info.typ(t))
-        } yield in.SequenceLiteral(dt, dexprs)(src)
+        } yield dexprs match {
+          case Vector() => in.EmptySequence(typeD(info.typ(t)))(src)
+          case _ => in.SequenceLiteral(dexprs)(src)
+        }
 
         case PSequenceAppend(left, right) => for {
           dleft <- go(left)

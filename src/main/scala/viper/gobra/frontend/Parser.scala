@@ -841,10 +841,14 @@ object Parser {
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
-        sequenceLiteral
+        sequenceLiteral |
+        rangeSequence
 
     lazy val sequenceLiteral : Parser[PSequenceLiteral] =
       "seq" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSequenceLiteral
+
+    lazy val rangeSequence : Parser[PRangeSequence] =
+      "seq" ~> ("[" ~> expression ~ (".." ~> expression <~ "]")) ^^ PRangeSequence
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

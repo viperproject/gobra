@@ -372,6 +372,42 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse a simple sequence range expression") {
+    frontend.parseExpOrFail("seq[1..5]") should matchPattern {
+      case PRangeSequence(PIntLit(low), PIntLit(high))
+        if low == BigInt(1) && high == BigInt(5) =>
+    }
+  }
+
+  test("Parser: should parse a slightly more complex sequence range expression") {
+    frontend.parseExpOrFail("seq[x + y .. |seq[bool] { true }|]") should matchPattern {
+      case PRangeSequence(
+        PAdd(
+          PNamedOperand(PIdnUse("x")),
+          PNamedOperand(PIdnUse("y"))
+        ),
+        PSize(
+          PSequenceLiteral(
+            PBoolType(),
+            Vector(PBoolLit(true))
+          )
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not allow sequence range expressions to have the left-hand side optional") {
+    frontend.parseExp("seq[..x]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not allow sequence range expressions to have the right-hand side optional") {
+    frontend.parseExp("seq[x..]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

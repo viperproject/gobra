@@ -678,6 +678,12 @@ case class PSequenceAppend(left : PExpression, right : PExpression) extends PSeq
   */
 case class PSequenceUpdate(seq : PExpression, left : PExpression, right : PExpression) extends PSequenceExpression
 
+/**
+  * Denotes the range of integers from `low` to `high`
+  * (which should both be integers), not including `high` but including `low`.
+  */
+case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExpression
+
 
 /**
   * Types

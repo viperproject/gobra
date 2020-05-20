@@ -90,6 +90,11 @@ class ExpressionsImpl extends Expressions {
         exprsT <- sequence(exprs map goE)
       } yield vpr.ExplicitSeq(exprsT)(pos, info, errT)
 
+      case in.RangeSequence(low, high) => for {
+        lowT <- goE(low)
+        highT <- goE(high)
+      } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
+
       case in.SequenceAppend(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)

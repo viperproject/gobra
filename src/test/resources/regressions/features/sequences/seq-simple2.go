@@ -48,5 +48,25 @@ ensures xs[x1 = v1][x2 = v2] == xs[x2 = v2][x1 = v1]
 func example8(ghost xs seq[bool], x1 int, x2 int, v1 bool, v2 bool) {
 }
 
+func example9() {
+  assert seq[1 .. 4] == seq[int] { 1, 2, 3 }
+}
 
+func example10() {
+  assert seq[4 .. 1] == seq[int] { }
+}
+
+func example11() {
+  assert seq[-4 .. -1] == seq[int] { -4, -3, -2 }
+}
+
+func example12() {
+  assert |seq[1..4]| == 3
+  assert seq[1..4] ++ seq[4..8] == seq[1..8]
+}
+
+requires x <= y
+func example13(x int, y int) {
+  assert |seq[x..y + 1]| == y - x + 1
+}
 

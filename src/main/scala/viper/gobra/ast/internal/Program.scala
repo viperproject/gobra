@@ -247,6 +247,14 @@ case class SequenceLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) 
 }
 
 /**
+  * Denotes the range of integers from `low` to `high`
+  * (both of which should be integers), not including `high` but including `low`.
+  */
+case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = SequenceT(IntT)
+}
+
+/**
   * The appending of two sequences represented by `left` and `right`
   * (which should be of identical types as result of type checking).
   */

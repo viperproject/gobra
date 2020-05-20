@@ -41,25 +41,36 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
     }
 
-    case PSize(op) => isExpr(op).out ++ (exprType(op) match {
-      case SequenceT(_) => noMessages
+    case PSize(op) => exprType(op) match {
+      case SequenceT(_) => isExpr(op).out
       case t => message(op, s"expected sequence or (multi)set, but got '$t'")
-    })
+    }
 
     case PSequenceLiteral(typ, exprs) => {
       val t = typeType(typ)
-      exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e))
+      exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
+    }
+
+    case PRangeSequence(low, high) => {
+      val lowT = exprType(low)
+      val highT = exprType(high)
+
+      isExpr(low).out ++ isExpr(high).out ++
+        message(low, s"expected an integer but got '$lowT'", lowT != IntT) ++
+        message(high, s"expected an integer but got '$highT'", highT != IntT)
     }
 
     case n@PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
       case (SequenceT(t1), SequenceT(t2)) =>
+        isExpr(left).out ++ isExpr(right).out ++
         message(n, s"both operands are expected to be of an identical type, but got '$t1' and '$t2'", !identicalTypes(t1, t2))
       case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
     }
 
     case PSequenceUpdate(seq, left, right) => exprType(seq) match {
       case SequenceT(t) => exprType(left) match {
-        case IntT => assignableTo.errors(exprType(right), t)(right)
+        case IntT => isExpr(seq).out ++ isExpr(left).out ++ isExpr(right).out ++
+          assignableTo.errors(exprType(right), t)(right)
         case u => message(left, s"expected an integer type but got '$u'")
       }
       case t => message(seq, s"expected a sequence type but got '$t'")
@@ -79,6 +90,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PSize(_) => IntT
 
     case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
+
+    case PRangeSequence(_, _) => SequenceT(IntT)
 
     case PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
       case (SequenceT(t1), SequenceT(t2)) if identicalTypes(t1, t2) => SequenceT(t1)
@@ -146,6 +159,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PSize(op) => isPureExprAttr(op)
       case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
+      case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
       case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
       case PSequenceUpdate(seq, left, right) => Seq(seq, left, right).forall(isPureExprAttr)
 
@@ -164,6 +178,4 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@PTypeAssertion(base, typ) => false
       case n@PReceive(e) => false
     }
-
-
 }

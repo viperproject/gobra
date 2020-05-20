@@ -1218,6 +1218,11 @@ object Desugar {
           case _ => in.SequenceLiteral(dexprs)(src)
         }
 
+        case PRangeSequence(low, high) => for {
+          dlow <- go(low)
+          dhigh <- go(high)
+        } yield in.RangeSequence(dlow, dhigh)(src)
+
         case PSequenceAppend(left, right) => for {
           dleft <- go(left)
           dright <- go(right)

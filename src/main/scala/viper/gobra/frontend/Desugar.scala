@@ -1208,7 +1208,15 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case in.SequenceT(_) => in.SequenceLength(dop)(src)
-          case t => violation(s"expected sequence type but got '$t'")
+          case t => violation(s"expected a sequence type but got '$t'")
+        }
+
+        case PIn(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield dright.typ match {
+          case in.SequenceT(_) => in.SequenceContains(dleft, dright)(src)
+          case t => violation(s"expected a sequence type but got '$t'")
         }
 
         case PSequenceLiteral(t, exprs) => for {

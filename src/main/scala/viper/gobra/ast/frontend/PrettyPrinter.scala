@@ -290,6 +290,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
 
       case PSize(operand) => "|" <> showExpr(operand) <> "|"
+      case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
 
       case PSequenceLiteral(typ, exprs) =>
         "seq" <> "[" <> showType(typ) <> "]" <+> "{" <+> showExprList(exprs) <+> "}"

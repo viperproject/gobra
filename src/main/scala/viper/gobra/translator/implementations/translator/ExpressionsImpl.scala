@@ -84,6 +84,11 @@ class ExpressionsImpl extends Expressions {
         opT <- goE(op)
       } yield vpr.SeqLength(opT)(pos, info, errT)
 
+      case in.SequenceContains(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqContains(leftT, rightT)(pos, info, errT)
+
       case in.EmptySequence(typ) => unit(vpr.EmptySeq(goT(typ))(pos, info, errT))
 
       case in.SequenceLiteral(exprs) => for {

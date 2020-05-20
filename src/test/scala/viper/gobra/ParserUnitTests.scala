@@ -175,7 +175,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: appending three sequences (1)") {
+  test("Parser: should have the '++' operator associate to the left") {
     frontend.parseExpOrFail("xs ++ ys ++ zs" ) should matchPattern {
       case PSequenceAppend(
         PSequenceAppend(
@@ -405,6 +405,69 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should not allow sequence range expressions to have the right-hand side optional") {
     frontend.parseExp("seq[x..]") should matchPattern {
       case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse simple sequence membership expressions") {
+    frontend.parseExpOrFail("x in xs") should matchPattern {
+      case PIn(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should have membership expressions associate to the left") {
+    frontend.parseExp("x in xs in ys") should matchPattern {
+      case Right(PIn(
+        PIn(
+          PNamedOperand(PIdnUse("x")),
+          PNamedOperand(PIdnUse("xs"))
+        ),
+        PNamedOperand(PIdnUse("ys"))
+      )) =>
+    }
+  }
+
+  test("Parser: should parse a simple chain of membership expressions with parentheses left") {
+    frontend.parseExp("(x in xs) in ys") should matchPattern {
+      case Right(PIn(
+        PIn(
+          PNamedOperand(PIdnUse("x")),
+          PNamedOperand(PIdnUse("xs"))
+        ),
+        PNamedOperand(PIdnUse("ys"))
+      )) =>
+    }
+  }
+
+  test("Parser: should parse a simple chain of membership expressions with parentheses right") {
+    frontend.parseExp("x in (xs in ys)") should matchPattern {
+      case Right(PIn(
+        PNamedOperand(PIdnUse("x")),
+        PIn(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("ys"))
+        )
+      )) =>
+    }
+  }
+
+  test("Parser: should not parse a membership expression with missing left-hand side") {
+    frontend.parseExp("in xs") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a membership expression with missing right-hand side") {
+    frontend.parseExp("x in") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse a membership expression with a sequence range expression") {
+    frontend.parseExpOrFail("x + 12 in seq[1..100]") should matchPattern {
+      case PIn(
+        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
+        PRangeSequence(PIntLit(b), PIntLit(c))
+      ) if a == BigInt(12) && b == BigInt(1) && c == BigInt(100) =>
     }
   }
 

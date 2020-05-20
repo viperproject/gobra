@@ -264,6 +264,14 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 }
 
 /**
+  * A sequence membership expression "`left` in `right`",
+  * denoting whether `left` occurs in the sequence `right`.
+  */
+case class SequenceContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = BoolT
+}
+
+/**
   * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
   * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
   */

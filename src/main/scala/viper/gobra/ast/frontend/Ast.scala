@@ -654,6 +654,14 @@ case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 case class PSize(exp : PExpression) extends PGhostExpression
 
 /**
+  * Represents expressions of the form "`left` in `right`",
+  * that is, (multi)set/sequence membership.
+  */
+case class PIn(left : PExpression, right : PExpression) extends PGhostExpression
+
+/* ** Sequence expressions */
+
+/**
   * Conceals all sequence ghost expressions
   * (for example sequence literals, sequence concatenation, etc.).
   */

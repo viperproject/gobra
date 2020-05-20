@@ -269,8 +269,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("xs[i = 42]") should matchPattern {
       case PSequenceUpdate(
         PNamedOperand(PIdnUse("xs")),
-        PNamedOperand(PIdnUse("i")),
-        PIntLit(n)
+        Vector(
+          PSequenceUpdateClause(
+            PNamedOperand(PIdnUse("i")),
+            PIntLit(n)
+          )
+        )
       ) if n == BigInt(42) =>
     }
   }
@@ -282,8 +286,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PNamedOperand(PIdnUse("xs")),
           PNamedOperand(PIdnUse("ys"))
         ),
-      PNamedOperand(PIdnUse("i")),
-      PBoolLit(true)
+        Vector(
+          PSequenceUpdateClause(
+            PNamedOperand(PIdnUse("i")),
+            PBoolLit(true)
+          )
+        )
       )) =>
     }
   }
@@ -294,8 +302,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
         PNamedOperand(PIdnUse("xs")),
         PSequenceUpdate(
           PNamedOperand(PIdnUse("ys")),
-          PNamedOperand(PIdnUse("i")),
-          PNamedOperand(PIdnUse("v"))
+          Vector(
+            PSequenceUpdateClause(
+              PNamedOperand(PIdnUse("i")),
+              PNamedOperand(PIdnUse("v"))
+            )
+          )
         )
       )) =>
     }
@@ -306,8 +318,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
       case Right(PSize(
         PSequenceUpdate(
           PNamedOperand(PIdnUse("xs")),
-          PNamedOperand(PIdnUse("x")),
-          PBoolLit(false)
+          Vector(
+            PSequenceUpdateClause(
+              PNamedOperand(PIdnUse("x")),
+              PBoolLit(false)
+            )
+          )
         )
       )) =>
     }
@@ -320,8 +336,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PBoolType(),
           Vector(PBoolLit(true), PBoolLit(false), PBoolLit(false))
         ),
-        PIntLit(i),
-        PBoolLit(true)
+        Vector(PSequenceUpdateClause(PIntLit(i), PBoolLit(true)))
       )) if i == BigInt(1) =>
     }
   }
@@ -331,11 +346,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
       case Right(PSequenceUpdate(
         PSequenceUpdate(
           PNamedOperand(PIdnUse("xs")),
-          PNamedOperand(PIdnUse("i")),
-          PBoolLit(true)
+          Vector(
+            PSequenceUpdateClause(
+              PNamedOperand(PIdnUse("i")),
+              PBoolLit(true)
+            )
+          )
         ),
-        PNamedOperand(PIdnUse("j")),
-        PBoolLit(false)
+        Vector(
+          PSequenceUpdateClause(
+            PNamedOperand(PIdnUse("j")),
+            PBoolLit(false)
+          )
+        )
       )) =>
     }
   }
@@ -344,11 +367,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExp("xs[i = ys[j = v]]") should matchPattern {
       case Right(PSequenceUpdate(
         PNamedOperand(PIdnUse("xs")),
-        PNamedOperand(PIdnUse("i")),
-        PSequenceUpdate(
-        PNamedOperand(PIdnUse("ys")),
-          PNamedOperand(PIdnUse("j")),
-          PNamedOperand(PIdnUse("v"))
+        Vector(
+          PSequenceUpdateClause(
+            PNamedOperand(PIdnUse("i")),
+            PSequenceUpdate(
+              PNamedOperand(PIdnUse("ys")),
+              Vector(
+                PSequenceUpdateClause(
+                  PNamedOperand(PIdnUse("j")),
+                  PNamedOperand(PIdnUse("v"))
+                )
+              )
+            )
+          )
         )
       )) =>
     }
@@ -468,6 +499,43 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
         PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
         PRangeSequence(PIntLit(b), PIntLit(c))
       ) if a == BigInt(12) && b == BigInt(1) && c == BigInt(100) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence update expression without any updates") {
+    frontend.parseExp("xs[]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse a sequence update expression with three clauses") {
+    frontend.parseExpOrFail("xs[1 = true,2 = b , 7 = |xs|]") should matchPattern {
+      case PSequenceUpdate(
+        PNamedOperand(PIdnUse("xs")),
+        Vector(
+          PSequenceUpdateClause(PIntLit(a), PBoolLit(true)),
+          PSequenceUpdateClause(PIntLit(b), PNamedOperand(PIdnUse("b"))),
+          PSequenceUpdateClause(PIntLit(c), PSize(PNamedOperand(PIdnUse("xs"))))
+        )
+      ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(7) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence update with incomplete clauses") {
+    frontend.parseExp("xs[1 = true, ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse any sequence update with an incorrectly starting clause") {
+    frontend.parseExp("xs[,2 = false]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse any sequence update with only commas as clauses") {
+    frontend.parseExp("ys[,,,]") should matchPattern {
+      case Left(_) =>
     }
   }
 

@@ -74,15 +74,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
     }
 
-    case PSequenceUpdate(seq, left, right) => exprType(seq) match {
-      case SequenceT(t) => exprType(left) match {
-        case IntT => isExpr(seq).out ++ isExpr(left).out ++ isExpr(right).out ++
-          assignableTo.errors(exprType(right), t)(right)
-        case u => message(left, s"expected an integer type but got '$u'")
-      }
+    case PSequenceUpdate(seq, clauses) => exprType(seq) match {
+      case SequenceT(t) => isExpr(seq).out ++ clauses.flatMap(wellDefSeqUpdClause(t, _))
       case t => message(seq, s"expected a sequence type but got '$t'")
     }
   }
+
+  private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
+    case IntT => isExpr(clause.left).out ++ isExpr(clause.right).out ++
+      assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
+    case t => message(clause.left, s"expected an integer type but got $t")
+  }
+
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
@@ -103,7 +106,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (SequenceT(t1), SequenceT(t2)) if identicalTypes(t1, t2) => SequenceT(t1)
       case (t1, t2) => violation(s"operands of sequence append are of unidentical types '$t1' and '$t2'")
     }
-    case PSequenceUpdate(seq, _, _) => exprType(seq)
+    case PSequenceUpdate(seq, _) => exprType(seq)
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -167,7 +170,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
       case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
       case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
-      case PSequenceUpdate(seq, left, right) => Seq(seq, left, right).forall(isPureExprAttr)
+      case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
 
       case _: PAccess | _: PPredicateAccess => false
 
@@ -184,4 +187,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n@PTypeAssertion(base, typ) => false
       case n@PReceive(e) => false
     }
+
+  private def isPureSeqUpdClause(clause : PSequenceUpdateClause) : Boolean =
+    isPureExprAttr(clause.left) && isPureExprAttr(clause.right)
 }

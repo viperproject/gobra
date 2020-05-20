@@ -301,10 +301,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PSequenceAppend(left, right) =>
         showExpr(left) <+> "++" <+> showExpr(right)
 
-      case PSequenceUpdate(seq, left, right) =>
-        showExpr(seq) <> "[" <> showExpr(left) <+> "=" <+> showExpr(right) <> "]"
+      case PSequenceUpdate(seq, clauses) =>
+        showExpr(seq) <> "[" <> showList(clauses)(showSeqUpdateClause) <> "]"
     }
   }
+
+  def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
+    showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
     case t: PType => showType(t)

@@ -1236,11 +1236,12 @@ object Desugar {
           dright <- go(right)
         } yield in.SequenceAppend(dleft, dright)(src)
 
-        case PSequenceUpdate(seq, left, right) => for {
-          dseq <- go(seq)
-          dleft <- go(left)
-          dright <- go(right)
-        } yield in.SequenceUpdate(dseq, dleft, dright)(src)
+        case PSequenceUpdate(seq, clauses) => clauses.foldLeft(go(seq)) {
+          case (dseq, clause) => for {
+            dleft <- go(clause.left)
+            dright <- go(clause.right)
+          } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
+        }
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

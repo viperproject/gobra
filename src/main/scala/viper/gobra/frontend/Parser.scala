@@ -570,7 +570,10 @@ object Parser {
       primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
 
     lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
-      primaryExp ~ ("[" ~> expression <~ "=") ~ expression <~ "]" ^^ PSequenceUpdate
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+
+    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion

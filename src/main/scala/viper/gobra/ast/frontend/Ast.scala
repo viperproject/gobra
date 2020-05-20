@@ -659,6 +659,7 @@ case class PSize(exp : PExpression) extends PGhostExpression
   */
 case class PIn(left : PExpression, right : PExpression) extends PGhostExpression
 
+
 /* ** Sequence expressions */
 
 /**
@@ -670,8 +671,6 @@ sealed trait PSequenceExpression extends PGhostExpression
 /**
   * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
   * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
-  * @param typ The sequence type.
-  * @param exprs The expression vector constituting the sequence literal.
   */
 case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
 
@@ -681,10 +680,21 @@ case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PS
 case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExpression
 
 /**
-  * Denotes a sequence update "`seq`[`left` = `right`]", resulting in a
-  * new sequence equal to `seq` but with `right` at position `left`.
+  * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
+  * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
+  * The `clauses` vector should contain at least one element.
   */
-case class PSequenceUpdate(seq : PExpression, left : PExpression, right : PExpression) extends PSequenceExpression
+case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExpression {
+  /** Constructs a sequence update with only a single clause built from `left` and `right`. */
+  def this(seq : PExpression, left : PExpression, right : PExpression) =
+    this(seq, Vector(PSequenceUpdateClause(left, right)))
+}
+
+/**
+  * Represents a single update clause "`left` = `right`"
+  * in a sequence update expression "`seq`[`left` = `right`]".
+  */
+case class PSequenceUpdateClause(left : PExpression, right : PExpression) extends PNode
 
 /**
   * Denotes the range of integers from `low` to `high`

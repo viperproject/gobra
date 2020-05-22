@@ -149,7 +149,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val idxOpt = intConstantEval(index)
             message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (SliceT(elem), IntT) => noMessages
+          case (SequenceT(_), IntT) => noMessages
+
+          case (SliceT(_), IntT) => noMessages
+
           case (MapT(key, elem), indexT) =>
             message(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
@@ -248,6 +251,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem
       case (PointerT(ArrayT(_, elem)), IntT) => elem
+      case (SequenceT(elem), IntT) => elem
       case (SliceT(elem), IntT) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))

@@ -131,6 +131,16 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
   override def localMessage: String = "Method contract is not well-formed"
 }
 
+case class IfError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "conditional_error"
+  override def localMessage: String = "Conditional statement might fail"
+}
+
+case class ForLoopError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "for_loop_error"
+  override def localMessage: String = "For loop statement might fail"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

@@ -830,6 +830,14 @@ object Desugar {
             val dOp = pureExprD(ctx)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
+          case PIndexedExp(left, right) => for {
+            dleft <- go(left)
+            dright <- go(right)
+          } yield dleft.typ match {
+            case in.SequenceT(_) => in.SequenceIndex(dleft, dright)(src)
+            case t => Violation.violation(s"indexed expressions are currently only supported for sequences, but found $t")
+          }
+
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
           case e => Violation.violation(s"desugarer: $e is not supported")

@@ -539,6 +539,90 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse simple indexed expressions") {
+    frontend.parseExpOrFail("xs[i]") should matchPattern {
+      case PIndexedExp(PNamedOperand(PIdnUse("xs")), PNamedOperand(PIdnUse("i"))) =>
+    }
+  }
+
+  test("Parser: should be able to parse slightly complex indexed expressions") {
+    frontend.parseExpOrFail("(xs ++ ys)[|zs| + 2]") should matchPattern {
+      case PIndexedExp(
+        PSequenceAppend(
+          PNamedOperand(PIdnUse("xs")),
+          PNamedOperand(PIdnUse("ys"))
+        ),
+        PAdd(
+          PSize(PNamedOperand(PIdnUse("zs"))),
+          PIntLit(n)
+        )
+      ) if n == BigInt(2) =>
+    }
+  }
+
+  test("Parser: should be able to parse a chain of indexed expressions") {
+    frontend.parseExpOrFail("xs[i][j][k]") should matchPattern {
+      case PIndexedExp(
+        PIndexedExp(
+          PIndexedExp(
+            PNamedOperand(PIdnUse("xs")),
+            PNamedOperand(PIdnUse("i")),
+          ),
+          PNamedOperand(PIdnUse("j")),
+        ),
+        PNamedOperand(PIdnUse("k")),
+      ) =>
+    }
+  }
+
+  test("Parser: shouldn't parse an indexed expression with a missing opening bracket") {
+    frontend.parseExp("xs]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: shouldn't parse an indexed expression with a missing closing bracket") {
+    frontend.parseExp("xs[2") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: shouldn't parse an indexed expression with too many opening brackets") {
+    frontend.parseExp("xs[[2]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: shouldn't parse an indexed expression with too many closing brackets") {
+    frontend.parseExp("xs[2]]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse an indexed expression together with a sequence literal") {
+    frontend.parseExpOrFail("seq[bool] { true, false }[1]") should matchPattern {
+      case PIndexedExp(
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false))),
+        PIntLit(n)
+      ) if n == BigInt(1) =>
+    }
+  }
+
+  test("Parser: should parse indexed expression with sequence range expressions") {
+    frontend.parseExpOrFail("seq[1..10][2]") should matchPattern {
+      case PIndexedExp(
+        PRangeSequence(PIntLit(low), PIntLit(high)),
+        PIntLit(i)
+      ) if low == BigInt(1) && high == BigInt(10) && i == BigInt(2) =>
+    }
+  }
+
+  test("Parser: shouldn't parse a chain of sequence range operations") {
+    frontend.parseExp("seq[1..10][11..20]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

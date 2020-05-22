@@ -279,6 +279,17 @@ case class SequenceUpdate(seq : Expr, left : Expr, right : Expr)(val info: Sourc
   override def typ : Type = seq.typ
 }
 
+/**
+  * Denotes an indexing expression "`left`[`right`]" where `left` should be
+  * of a sequence type and `right` should be the integer-typed index.
+  */
+case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = left.typ match {
+    case SequenceT(t) => t
+    case t =>Violation.violation(s"expected a sequence type but got $t")
+  }
+}
+
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 

@@ -27,6 +27,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PLabelNode => showLabel(n)
     case n: PPackegeNode => showPackageId(n)
     case n: PMisc => showMisc(n)
+    case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
@@ -260,10 +261,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
-      case PSliceExp(base, low, high, cap) => (low, high, cap) match {
-        case (l, h, None)    => showExpr(base) <> brackets(showExprList(Vector(l, h)))
-        case (l, h, Some(c)) => showExpr(base) <> brackets(showExprList(Vector(l, h, c)))
+
+      case PSliceExp(base, low, high, cap) => {
+        val lowP = low.fold(emptyDoc)(showExpr)
+        val highP = ":" <> high.fold(emptyDoc)(showExpr)
+        val capP = cap.fold(emptyDoc)(":" <> showExpr(_))
+        showExpr(base) <> brackets(lowP <> highP <> capP)
       }
+
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
       case PEquals(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
       case PUnequals(left, right) => showExpr(left) <+> "!=" <+> showExpr(right)
@@ -292,17 +297,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PSize(operand) => "|" <> showExpr(operand) <> "|"
       case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
 
-      case PSequenceLiteral(typ, exprs) =>
-        "seq" <> "[" <> showType(typ) <> "]" <+> "{" <+> showExprList(exprs) <+> "}"
+      case PSequenceLiteral(typ, exprs) => {
+        val typP = brackets(showType(typ))
+        val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
+        "seq" <> typP <+> braces(exprsP)
+      }
 
       case PRangeSequence(low, high) =>
-        "seq" <> "[" <> showExpr(low) <+> ".." <+> showExpr(high) <> "]"
+        "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
 
       case PSequenceAppend(left, right) =>
         showExpr(left) <+> "++" <+> showExpr(right)
 
-      case PSequenceUpdate(seq, clauses) =>
-        showExpr(seq) <> "[" <> showList(clauses)(showSeqUpdateClause) <> "]"
+      case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
+        (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
     }
   }
 
@@ -411,4 +419,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
     case f : PFieldDecl => showFieldDecl(f)
   }
+
+  def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =
+    showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }

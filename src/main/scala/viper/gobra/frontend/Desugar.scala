@@ -835,7 +835,26 @@ object Desugar {
             dright <- go(right)
           } yield dleft.typ match {
             case in.SequenceT(_) => in.SequenceIndex(dleft, dright)(src)
-            case t => Violation.violation(s"indexed expressions are currently only supported for sequences, but found $t")
+            case t => Violation.violation(s"desugaring of indexed expressions is currently only supported for sequences, yet found $t")
+          }
+
+          case PSliceExp(base, low, high, cap) => for {
+            dbase <- go(base)
+            dlow <- option(low map go)
+            dhigh <- option(high map go)
+            dcap <- option(cap map go)
+          } yield dbase.typ match {
+            case in.SequenceT(_) => (dlow, dhigh) match {
+              case (None, None) => dbase
+              case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
+              case (None, Some(hi)) => in.SequenceTake(dbase, hi)(src)
+              case (Some(lo), Some(hi)) => {
+                val sub = in.Sub(hi, lo)(src)
+                val drop = in.SequenceDrop(dbase, lo)(src)
+                in.SequenceTake(drop, sub)(src)
+              }
+            }
+            case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
           case g: PGhostExpression => ghostExprD(ctx)(g)

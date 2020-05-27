@@ -623,6 +623,79 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse a slicing expression with two 'range' indices") {
+    frontend.parseExpOrFail("xs[i:j]") should matchPattern {
+      case PSliceExp(
+        PNamedOperand(PIdnUse("xs")),
+        Some(PNamedOperand(PIdnUse("i"))),
+        Some(PNamedOperand(PIdnUse("j"))),
+        None
+      ) =>
+    }
+  }
+
+  test("Parser: should parse a slicing expression with three 'range' indices") {
+    frontend.parseExpOrFail("xs[i:j:k]") should matchPattern {
+      case PSliceExp(
+        PNamedOperand(PIdnUse("xs")),
+        Some(PNamedOperand(PIdnUse("i"))),
+        Some(PNamedOperand(PIdnUse("j"))),
+        Some(PNamedOperand(PIdnUse("k")))
+      ) =>
+    }
+  }
+
+  test("Parser: should not parse a slicing expression with an expected but missing capacity") {
+    frontend.parseExp("xs[i:j:]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse slice expressions with only a 'low' index") {
+    frontend.parseExpOrFail("xs[i:]") should matchPattern {
+      case PSliceExp(
+        PNamedOperand(PIdnUse("xs")),
+        Some(PNamedOperand(PIdnUse("i"))),
+        None,
+        None
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse slice expressions with only a 'high' index") {
+    frontend.parseExpOrFail("zs[:42]") should matchPattern {
+      case PSliceExp(
+        PNamedOperand(PIdnUse("zs")),
+        None,
+        Some(PIntLit(n)),
+        None
+      ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse slice expression without a 'low' or 'high' index") {
+    frontend.parseExpOrFail("xs[:]") should matchPattern {
+      case PSliceExp(
+        PNamedOperand(PIdnUse("xs")),
+        None,
+        None,
+        None
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse slice expressions without any indices while three were expected") {
+    frontend.parseExp("xs[::]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse slcie expressions with only a 'high' index while three were expected") {
+    frontend.parseExp("xs[:i:]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

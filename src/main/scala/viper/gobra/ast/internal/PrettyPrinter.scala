@@ -209,15 +209,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case SequenceLength(op) => "|" <> showExpr(op) <> "|"
-    case SequenceLiteral(exprs) => "seq" <+> "{" <+> showExprList(exprs) <+> "}"
+    case SequenceLiteral(exprs) =>
+      "seq" <+> braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
     case RangeSequence(low, high) =>
-      "seq" <> "[" <> showExpr(low) <+> ".." <+> showExpr(high) <> "]"
-    case EmptySequence(typ) => "seq" <> "[" <> showType(typ) <> "]" <+> "{" <+> "}"
+      "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+    case EmptySequence(typ) => "seq" <> brackets(showType(typ)) <+> braces(space)
     case SequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
     case SequenceUpdate(seq, left, right) =>
-      showExpr(seq) <> "[" <> showExpr(left) <+> "=" <+> showExpr(right) <> "]"
+      showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
-    case SequenceIndex(left, right) => showExpr(left) <> "[" <> showExpr(right) <> "]"
+    case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
+
+    case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
+    case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

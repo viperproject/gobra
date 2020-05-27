@@ -91,6 +91,104 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("ExprTypeChecker: should classify a sequence slice expression as ghost") {
+    val inArgs = Vector(
+      PExplicitGhostParameter(
+        PNamedParameter(PIdnDef("xs"), PSequenceType(PIntType()), false)
+      )
+    )
+    val expr = PSliceExp(
+      PNamedOperand(PIdnUse("xs")),
+      Some(PIntLit(2)),
+      Some(PIntLit(4)),
+      None
+    )
+    frontend.isGhostExpr(expr)(inArgs) should matchPattern {
+      case true =>
+    }
+  }
+
+  test("ExprTypeChecker: should classify a proper sequence slice expression as well-defined") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, Some(PIntLit(2)), Some(PIntLit(4)), None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case true =>
+    }
+  }
+
+  test("ExprTypeChecker: should not classify a sequence slice expression with a capacity as being well-defined") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, Some(PIntLit(2)), Some(PIntLit(4)), Some(PIntLit(6)))
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case false =>
+    }
+  }
+
+  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'low' index as well-defined") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, None, Some(PIntLit(4)), None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case true =>
+    }
+  }
+
+  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'high' index as well-defined") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, Some(PIntLit(1)), None, None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case true =>
+    }
+  }
+
+  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'low' and 'high' index as well-defined") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, None, None, None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case true =>
+    }
+  }
+
+  test("ExprTypeChecker: should not allow the 'low' index of a slice expression to be anything other than an integer") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, Some(PBoolLit(false)), Some(PIntLit(2)), None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case false =>
+    }
+  }
+
+  test("ExprTypeChecker: should not allow the 'high' index of a slice expression to be anything other than an integer") {
+    val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    val expr = PSliceExp(base, Some(PIntLit(2)), Some(PBoolLit(false)), None)
+
+    frontend.wellDefExpr(expr)().valid should matchPattern {
+      case false =>
+    }
+  }
+
+  test("ExprTypeChecker: should correctly identify the type of a Boolean sequence slice expression") {
+    val base = PSequenceLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false)))
+    val expr = PSliceExp(base, Some(PIntLit(1)), Some(PIntLit(4)), None)
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.BooleanT) =>
+    }
+  }
+
+  test("ExprTypeChecker: should correctly identify the type of a nested sequence slice expression") {
+    val base = PSequenceLiteral(PSequenceType(PIntType()), Vector())
+    val expr = PSliceExp(base, Some(PIntLit(1)), Some(PIntLit(4)), None)
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.SequenceT(Type.IntT)) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

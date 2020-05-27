@@ -275,8 +275,9 @@ case class SequenceContains(left : Expr, right : Expr)(val info: Source.Parser.I
   * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
   * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
   */
-case class SequenceUpdate(seq : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = seq.typ
+case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `base`. */
+  override def typ : Type = base.typ
 }
 
 /**
@@ -286,9 +287,32 @@ case class SequenceUpdate(seq : Expr, left : Expr, right : Expr)(val info: Sourc
 case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ : Type = left.typ match {
     case SequenceT(t) => t
-    case t =>Violation.violation(s"expected a sequence type but got $t")
+    case t => Violation.violation(s"expected a sequence type but got $t")
   }
 }
+
+/**
+  * Represents a _sequence drop expression_ roughly of
+  * the form "`left`[`right`:]".
+  * Here `left` is the base sequence and `right` an integer
+  * denoting the number of elements to drop from `left`.
+  */
+case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `left`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a _sequence take operation_ roughly of
+  * the form "`left`[:`right`]", where `left` is the base sequence
+  * and `right` an integer denoting the number of elements to
+  * take from `left`.
+  */
+case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `left`. */
+  override def typ : Type = left.typ
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

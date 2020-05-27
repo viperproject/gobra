@@ -311,7 +311,12 @@ case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression 
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
-case class PSliceExp(base: PExpression, low: PExpression, high: PExpression, cap: Option[PExpression] = None) extends PActualExpression
+/**
+  * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",
+  * where one or more of the indices `low`, `high` and `cap` are optional
+  * depending on the type of `base`.
+  */
+case class PSliceExp(base: PExpression, low: Option[PExpression] = None, high: Option[PExpression] = None, cap: Option[PExpression] = None) extends PActualExpression
 
 case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpression
 

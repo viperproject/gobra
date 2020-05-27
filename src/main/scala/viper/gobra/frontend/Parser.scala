@@ -567,7 +567,7 @@ object Parser {
       primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
 
     lazy val sliceExp: PackratParser[PSliceExp] =
-      primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
+      primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
 
     lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
       primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate

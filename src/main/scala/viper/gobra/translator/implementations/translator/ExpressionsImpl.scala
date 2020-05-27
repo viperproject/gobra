@@ -116,6 +116,16 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.SeqIndex(leftT, rightT)(pos, info, errT)
 
+      case in.SequenceDrop(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
+
+      case in.SequenceTake(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

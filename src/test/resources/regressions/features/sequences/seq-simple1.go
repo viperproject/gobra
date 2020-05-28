@@ -26,28 +26,3 @@ func example5(n int) (ghost xs seq[bool]) {
 func example6(ghost xs seq[seq[seq[int]]]) {
 }
 
-// empty integer sequence literal
-func example7() {
-  ghost xs := seq[int] { }
-}
-
-// singular integer sequence literal
-func example8() {
-  ghost xs := seq[int] { 1 }
-}
-
-// integer sequence literal
-func example9() {
-  ghost xs := seq[int] { 1, 17, 142 }
-}
-
-// Boolean sequence literal
-func example10() {
-  ghost xs := seq[bool] { true, false, true }
-}
-
-// nested sequences
-func example11() {
-  ghost xs := seq[seq[int]] { seq[int] { 1 }, seq[int] { 17, 142 } }
-}
-

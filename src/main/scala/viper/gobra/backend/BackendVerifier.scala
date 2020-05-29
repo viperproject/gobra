@@ -32,16 +32,6 @@ object BackendVerifier {
                     ) extends Result
 
   def verify(task: Task)(config: Config): Future[Result] = {
-/*
-    config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
-
-    val verifier = config.backend.create
-    verifier.start(BacktranslatingReporter(config.reporter, task.backtrack, config))
-    val verificationResult = verifier.handle(task.program)
-    verifier.stop()
-
-    convertVerificationResult(verificationResult, task.backtrack)
-*/
 
     config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 

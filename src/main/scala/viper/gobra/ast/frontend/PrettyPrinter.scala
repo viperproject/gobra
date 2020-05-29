@@ -69,6 +69,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // members
 
+  def showFPredicateDeclHeader(id: PIdnDef, args: Vector[PParameter]): Doc = "pred" <+> showId(id) <> parens(showParameterList(args))
+  def showMPredicateDeclHeader(id: PIdnDef, recv: PReceiver, args: Vector[PParameter]): Doc = "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
+
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
@@ -83,19 +86,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) => "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) => "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PFPredicateDecl(id, args, body) => showFPredicateDeclHeader(id, args) <> opt(body)(b => space <> block(showExpr(b)))
+      case PMPredicateDecl(id, recv, args, body) => showMPredicateDeclHeader(id, recv, args) <> opt(body)(b => space <> block(showExpr(b)))
     }
   }
 
+  def showPure: Doc = "pure" <> line
+  def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
+  def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
+  def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
+
   def showSpec(spec: PSpecification): Doc = spec match {
     case PFunctionSpec(pres, posts, isPure) =>
-      (if (isPure) "pure" <> line else emptyDoc) <>
-      hcat(pres map (p => "requires" <+> showExpr(p) <> line)) <>
-        hcat(posts map (p => "ensures" <+> showExpr(p) <> line))
+      (if (isPure) showPure else emptyDoc) <>
+      hcat(pres map (showPre(_) <> line)) <>
+        hcat(posts map (showPost(_) <> line))
 
     case PLoopSpec(inv) =>
-      hcat(inv map (p => "invariants" <+> showExpr(p) <> line))
+      hcat(inv map (showInv(_) <> line))
   }
 
   def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))

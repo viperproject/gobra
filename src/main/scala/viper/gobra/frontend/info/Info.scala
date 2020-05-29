@@ -38,7 +38,14 @@ object Info {
   }
 
   private def getErasedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
-    new GhostLessPrinter(info).format(program)
+    
+    
+
+    import viper.gobra.frontend.info.implementation.typing.ghost.separation.GoifyingPrinter
+    new GoifyingPrinter(info).format(program)
+
+    //TODO: CHANGE THIS BACK TO GHOSTLESSPRINTER (was used only for testing)
+    //new GhostLessPrinter(info).format(program)
   }
 
   private def getDebugInfo(program: PProgram, info: TypeInfoImpl): String = {

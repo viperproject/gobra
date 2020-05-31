@@ -28,7 +28,9 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
   def showFullFunctionInvocations: Doc = {
     val doc =
       if (fullFunctionInvocations.isEmpty) emptyDoc
-      else specComment <+> "ghost-invocations:" <+> showList(fullFunctionInvocations)(super.showExpr(_))
+      //else specComment <+> "ghost-invocations:" <+> showList(fullFunctionInvocations)(super.showExpr(_))
+      else specComment <+> "ghost-invocations:" <+>
+        showList(fullFunctionInvocations)({ case PInvoke(base, args) => super.showExprOrType(base) <+> "->" <+> parens(showExprList(args))})
     fullFunctionInvocations = Vector()
     doc
   }
@@ -99,11 +101,11 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
 
     case PFPredicateDecl(id, args, body) =>
       specComment <+> showFPredicateDeclHeader(id, args) <>
-      opt(body)(b => space <> blockClosingBraceGoified(specComment <+> showExpr(b)))
+      opt(body)(b => space <> blockClosingBraceGoified(specComment <+> showExpr(b) <+> showFullFunctionInvocations))
 
     case PMPredicateDecl(id, recv, args, body) =>
       specComment <+> showMPredicateDeclHeader(id, recv, args) <>
-      opt(body)(b => space <> blockClosingBraceGoified(specComment <+> showExpr(b)))
+      opt(body)(b => space <> blockClosingBraceGoified(specComment <+> showExpr(b) <+> showFullFunctionInvocations))
 
     case m if classifier.isMemberGhost(m) => specComment <+> super.showMember(m)
     case m => super.showMember(m)
@@ -188,8 +190,9 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
     case n: PInvoke =>
       val gt = classifier.expectedArgGhostTyping(n)
       val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
+      val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
 
-      if (!n.args.isEmpty && n.args != aArgs) fullFunctionInvocations = fullFunctionInvocations :+ n
+      if (!ghostArgs.isEmpty) fullFunctionInvocations = fullFunctionInvocations :+ n.copy(args = ghostArgs)
 
       super.showExpr(n.copy(args = aArgs))
 

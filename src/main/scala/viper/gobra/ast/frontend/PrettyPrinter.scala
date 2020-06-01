@@ -141,7 +141,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showResult(res: PResult): Doc = res match {
-    case PResult(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
+    case PResult(outs) => space <> parens(showParameterList(outs))
   }
 
   def showAddressable(addressable: Boolean, id: PIdnNode): Doc =
@@ -255,7 +255,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // expressions
 
   def showExprOrType(expr: PExpressionOrType): Doc = expr match {
-    case expr: PExpression => showExpr(expr)
+    case expr: PExpression => expr match {
+      case _: PReference => parens(showExpr(expr))
+      case _ => showExpr(expr)
+    }
     case typ: PType => showType(typ)
   }
 

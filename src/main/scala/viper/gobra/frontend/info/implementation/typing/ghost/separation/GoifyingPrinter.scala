@@ -55,7 +55,7 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
   def showDeclarationSpec(spec: DeclarationSpec): Doc = spec match {
     case DeclarationSpec(ghostParams, ghostResults, spec) =>
       (if (ghostParams.isEmpty) emptyDoc else specComment <+> "ghost-parameters:" <+> showParameterList(ghostParams) <> line) <>
-      (if (ghostResults.outs.isEmpty) emptyDoc else specComment <+> "ghost-results:" <+> showResult(ghostResults) <> line) <>
+      (if (ghostResults.outs.isEmpty) emptyDoc else specComment <+> "ghost-results:" <> showResult(ghostResults) <> line) <>
       showSpec(spec)
   }
 
@@ -197,6 +197,7 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
       super.showExpr(n.copy(args = aArgs))
 
     case e: PActualExprProofAnnotation => showExpr(e.op)
+    
     // TODO: see if this works with just commenting out
     //case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed
     case e => super.showExpr(e)

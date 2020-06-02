@@ -850,10 +850,14 @@ object Parser {
       "old" ~> "(" ~> expression <~ ")" ^^ POld |
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
         sequenceLiteral |
+        setLiteral |
         rangeSequence
 
     lazy val sequenceLiteral : Parser[PSequenceLiteral] =
       "seq" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSequenceLiteral
+
+    lazy val setLiteral : Parser[PSetLiteral] =
+      "set" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSetLiteral
 
     lazy val rangeSequence : Parser[PRangeSequence] =
       "seq" ~> ("[" ~> expression ~ (".." ~> expression <~ "]")) ^^ PRangeSequence

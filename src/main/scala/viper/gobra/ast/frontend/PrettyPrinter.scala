@@ -297,11 +297,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PSize(operand) => "|" <> showExpr(operand) <> "|"
       case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
 
-      case PSequenceLiteral(typ, exprs) => {
-        val typP = brackets(showType(typ))
-        val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
-        "seq" <> typP <+> braces(exprsP)
-      }
+      case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
+      case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
 
       case PRangeSequence(low, high) =>
         "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
@@ -312,6 +309,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
         (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
     }
+  }
+
+  def showCollectionLiteral(front : String, typ : PType, exprs : Vector[PExpression]) : Doc = {
+    val typP = brackets(showType(typ))
+    val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
+    front <> typP <+> braces(exprsP)
   }
 
   def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =

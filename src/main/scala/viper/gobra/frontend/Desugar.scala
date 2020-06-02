@@ -1249,8 +1249,8 @@ object Desugar {
 
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
-        } yield dexprs match {
-          case Vector() => in.EmptySequence(typeD(info.typ(t)))(src)
+        } yield dexprs.length match {
+          case 0 => in.EmptySequence(typeD(info.typ(t)))(src)
           case _ => in.SequenceLiteral(dexprs)(src)
         }
 
@@ -1269,6 +1269,13 @@ object Desugar {
             dleft <- go(clause.left)
             dright <- go(clause.right)
           } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
+        }
+
+        case PSetLiteral(t, exprs) => for {
+          dexprs <- sequence(exprs map go)
+        } yield dexprs.length match {
+          case 0 => in.EmptySet(typeD(info.typ(t)))(src)
+          case _ => in.SetLiteral(dexprs)(src)
         }
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")

@@ -3,7 +3,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, IntT, SequenceT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, IntT, SequenceT, SetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -55,7 +55,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PSequenceLiteral(typ, exprs) => {
       val t = typeType(typ)
-      exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
+      isType(typ).out ++
+        exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
     }
 
     case PRangeSequence(low, high) => {
@@ -77,6 +78,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PSequenceUpdate(seq, clauses) => exprType(seq) match {
       case SequenceT(t) => isExpr(seq).out ++ clauses.flatMap(wellDefSeqUpdClause(t, _))
       case t => message(seq, s"expected a sequence type but got '$t'")
+    }
+
+    case PSetLiteral(typ, exprs) => {
+      val t = typeType(typ)
+      isType(typ).out ++
+        exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
     }
   }
 
@@ -107,6 +114,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (t1, t2) => violation(s"operands of sequence append are of unidentical types '$t1' and '$t2'")
     }
     case PSequenceUpdate(seq, _) => exprType(seq)
+
+    case PSetLiteral(typ, _) => SetT(typeType(typ))
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -171,6 +180,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
       case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
       case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
+
+      case PSetLiteral(_, exprs) => exprs.forall(isPureExprAttr)
 
       case _: PAccess | _: PPredicateAccess => false
 

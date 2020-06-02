@@ -730,8 +730,99 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("Parser: should not parse set types with a missing closing square bracket (2)") {
-    frontend.parseType("set [ seq[bool ] ") should matchPattern {
+    frontend.parseType("set [ seq[bool ]") should matchPattern {
       case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse a simple empty integer set literal") {
+    frontend.parseExpOrFail("set[int] {  }") should matchPattern {
+      case PSetLiteral(PIntType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should parse a simple empty integer set literal with some spaces added") {
+    frontend.parseExpOrFail("set [ int ] {}") should matchPattern {
+      case PSetLiteral(PIntType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should not parse an empty integer set literal with a missing opening bracet") {
+    frontend.parseExp("set[int]  }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an empty integer set literal with a missing closing bracet") {
+    frontend.parseExp("set[int] {") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer set literal with just a comma in it") {
+    frontend.parseExp("set[int] { , }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer set literal with a missing opening bracket") {
+    frontend.parseExp("set int] { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer set literal with a missing closing bracket") {
+    frontend.parseExp("set[int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a singleton integer set literal") {
+    frontend.parseExpOrFail("set[int] { 42 }") should matchPattern {
+      case PSetLiteral(PIntType(), Vector(PIntLit(n)))
+        if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a singleton integer set literal with a wrongly placed extra comma (1)") {
+    frontend.parseExp("set[int] { ,42 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a singleton integer set literal with a wrongly placed extra comma (2)") {
+    frontend.parseExp("set[int] { 42, }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a Boolean set literal with multiple elements") {
+    frontend.parseExpOrFail("set[bool] { true, false, true }") should matchPattern {
+      case PSetLiteral(PBoolType(), Vector(
+        PBoolLit(true),
+        PBoolLit(false),
+        PBoolLit(true)
+      )) =>
+    }
+  }
+
+  test("Parser: should be able to parse a set literal with a nested type") {
+    frontend.parseExpOrFail("set[set[set[bool]]] { }") should matchPattern {
+      case PSetLiteral(
+        PSetType(PSetType(PBoolType())),
+        Vector()
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse nested set literals") {
+    frontend.parseExpOrFail("set[bool] { set[int] { 42 } }") should matchPattern {
+      case PSetLiteral(
+        PBoolType(),
+        Vector(
+          PSetLiteral(PIntType(), Vector(PIntLit(n)))
+        )
+      ) if n == BigInt(42) =>
     }
   }
 

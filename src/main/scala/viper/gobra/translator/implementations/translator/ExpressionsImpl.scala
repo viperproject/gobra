@@ -126,6 +126,12 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
 
+      case in.EmptySet(typ) => unit(vpr.EmptySet(goT(typ))(pos, info, errT))
+
+      case in.SetLiteral(exprs) => for {
+        exprsT <- sequence(exprs map goE)
+      } yield vpr.ExplicitSet(exprsT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

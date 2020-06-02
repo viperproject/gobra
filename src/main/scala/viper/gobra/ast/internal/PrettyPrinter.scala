@@ -210,8 +210,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case SequenceLength(op) => "|" <> showExpr(op) <> "|"
-    case SequenceLiteral(exprs) =>
-      "seq" <+> braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+    case SequenceLiteral(exprs) => "seq" <+> braces(space <> showExprList(exprs) <>
+      (if (exprs.nonEmpty) space else emptyDoc))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case EmptySequence(typ) => "seq" <> brackets(showType(typ)) <+> braces(space)
@@ -220,9 +220,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
     case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
-
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
+
+    case EmptySet(typ) => "set" <> brackets(showType(typ)) <+> braces(space)
+    case SetLiteral(exprs) => "set" <+> braces(space <> showExprList(exprs) <>
+      (if (exprs.nonEmpty) space else emptyDoc))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

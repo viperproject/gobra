@@ -9,55 +9,55 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
-  test("ExprTypeChecker: should classify an integer literal as integer") {
+  test("TypeChecker: should classify an integer literal as integer") {
     frontend.exprType(PIntLit(42))() should matchPattern {
       case Type.IntT =>
     }
   }
 
-  test("ExprTypeChecker: should not classify integer literals as ghost") {
+  test("TypeChecker: should not classify integer literals as ghost") {
     assert(!frontend.isGhostExpr(PIntLit(42))())
   }
 
-  test("ExprTypeChecker: should classify a Boolean literal as Boolean") {
+  test("TypeChecker: should classify a Boolean literal as Boolean") {
     frontend.exprType(PBoolLit(false))() should matchPattern {
       case Type.BooleanT =>
     }
   }
 
-  test("ExprTypeChecker: should not classify Boolean literals as ghost") {
+  test("TypeChecker: should not classify Boolean literals as ghost") {
     assert(!frontend.isGhostExpr(PBoolLit(true))())
   }
 
-  test("ExprTypeChecker: should classify a named operand by its type") {
+  test("TypeChecker: should classify a named operand by its type") {
     val inArgs = Vector(PNamedParameter(PIdnDef("x"), PIntType(), false))
     frontend.exprType(PNamedOperand(PIdnUse("x")))(inArgs) should matchPattern {
       case Type.IntT =>
     }
   }
 
-  test("ExprTypeChecker: should classify a ghost input parameter as being ghost") {
+  test("TypeChecker: should classify a ghost input parameter as being ghost") {
     val inArgs = Vector(PExplicitGhostParameter(PNamedParameter(PIdnDef("x"), PIntType(), false)))
-    assert(frontend.isGhostExpr(PNamedOperand(PIdnUse("x")))(inArgs))
+    assert (frontend.isGhostExpr(PNamedOperand(PIdnUse("x")))(inArgs))
   }
 
-  test("ExprTypeChecker: should classify a sequence literal as ghost") {
-    assert(frontend.isGhostExpr(PSequenceLiteral(PBoolType(), Vector()))())
+  test("TypeChecker: should classify a sequence literal as ghost") {
+    assert (frontend.isGhostExpr(PSequenceLiteral(PBoolType(), Vector()))())
   }
 
-  test("ExprTypeChecker: should correctly type a Boolean sequence") {
+  test("TypeChecker: should correctly type a Boolean sequence") {
     frontend.exprType(PSequenceLiteral(PBoolType(), Vector()))() should matchPattern {
       case Type.SequenceT(Type.BooleanT) =>
     }
   }
 
-  test("ExprTypeChecker: should classify an sequence indexed expression as ghost") {
+  test("TypeChecker: should classify an sequence indexed expression as ghost") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PIndexedExp(base, PIntLit(0))
     assert(frontend.isGhostExpr(expr)())
   }
 
-  test("ExprTypeChecker: should correctly type a simple sequence indexed expression") {
+  test("TypeChecker: should correctly type a simple sequence indexed expression") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PIndexedExp(base, PIntLit(0))
     frontend.exprType(expr)() should matchPattern {
@@ -65,18 +65,18 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: mark a sequence indexed expression with an incorrect left-hand side as not well-defined") {
+  test("TypeChecker: mark a sequence indexed expression with an incorrect left-hand side as not well-defined") {
     val expr = PIndexedExp(PIntLit(42), PIntLit(0))
     assert(!frontend.wellDefExpr(expr)().valid)
   }
 
-  test("ExprTypeChecker: mark a sequence indexed expression with an incorrect right-hand side as not well-defined") {
+  test("TypeChecker: mark a sequence indexed expression with an incorrect right-hand side as not well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PIndexedExp(base, PBoolLit(false))
     assert(!frontend.wellDefExpr(expr)().valid)
   }
 
-  test("ExprTypeChecker: should correctly type chained sequence indexing expressions") {
+  test("TypeChecker: should correctly type chained sequence indexing expressions") {
     val inArgs = Vector(
       PExplicitGhostParameter(
         PNamedParameter(PIdnDef("xs"), PSequenceType(PSequenceType(PIntType())), false)
@@ -91,7 +91,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should classify a sequence slice expression as ghost") {
+  test("TypeChecker: should classify a sequence slice expression as ghost") {
     val inArgs = Vector(
       PExplicitGhostParameter(
         PNamedParameter(PIdnDef("xs"), PSequenceType(PIntType()), false)
@@ -108,7 +108,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should classify a proper sequence slice expression as well-defined") {
+  test("TypeChecker: should classify a proper sequence slice expression as well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, Some(PIntLit(2)), Some(PIntLit(4)), None)
 
@@ -117,7 +117,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should not classify a sequence slice expression with a capacity as being well-defined") {
+  test("TypeChecker: should not classify a sequence slice expression with a capacity as being well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, Some(PIntLit(2)), Some(PIntLit(4)), Some(PIntLit(6)))
 
@@ -126,7 +126,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'low' index as well-defined") {
+  test("TypeChecker: should classify a proper sequence slice expression with a missing 'low' index as well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, None, Some(PIntLit(4)), None)
 
@@ -135,7 +135,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'high' index as well-defined") {
+  test("TypeChecker: should classify a proper sequence slice expression with a missing 'high' index as well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, Some(PIntLit(1)), None, None)
 
@@ -144,7 +144,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should classify a proper sequence slice expression with a missing 'low' and 'high' index as well-defined") {
+  test("TypeChecker: should classify a proper sequence slice expression with a missing 'low' and 'high' index as well-defined") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, None, None, None)
 
@@ -153,7 +153,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should not allow the 'low' index of a slice expression to be anything other than an integer") {
+  test("TypeChecker: should not allow the 'low' index of a slice expression to be anything other than an integer") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, Some(PBoolLit(false)), Some(PIntLit(2)), None)
 
@@ -162,7 +162,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should not allow the 'high' index of a slice expression to be anything other than an integer") {
+  test("TypeChecker: should not allow the 'high' index of a slice expression to be anything other than an integer") {
     val base = PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2)))
     val expr = PSliceExp(base, Some(PIntLit(2)), Some(PBoolLit(false)), None)
 
@@ -171,7 +171,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should correctly identify the type of a Boolean sequence slice expression") {
+  test("TypeChecker: should correctly identify the type of a Boolean sequence slice expression") {
     val base = PSequenceLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false)))
     val expr = PSliceExp(base, Some(PIntLit(1)), Some(PIntLit(4)), None)
 
@@ -180,13 +180,61 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("ExprTypeChecker: should correctly identify the type of a nested sequence slice expression") {
+  test("TypeChecker: should correctly identify the type of a nested sequence slice expression") {
     val base = PSequenceLiteral(PSequenceType(PIntType()), Vector())
     val expr = PSliceExp(base, Some(PIntLit(1)), Some(PIntLit(4)), None)
 
     frontend.exprType(expr)() should matchPattern {
       case Type.SequenceT(Type.SequenceT(Type.IntT)) =>
     }
+  }
+
+  test("TypeChecker: should classify an (integer) set literal as ghost") {
+    val expr = PSetLiteral(PIntType(), Vector())
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should correctly type an (empty) integer set literal") {
+    val expr = PSetLiteral(PIntType(), Vector())
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a nested (empty) set literal") {
+    val expr = PSetLiteral(PSetType(PBoolType()), Vector())
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.SetT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should classify empty Boolean set literal as well-defined") {
+    val expr = PSetLiteral(PIntType(), Vector())
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a singleton (integer) set literal with wrong subexpressions") {
+    val expr = PSetLiteral(PIntType(), Vector(PBoolLit(false)))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a set literal with (right and) wrong members") {
+    val expr = PSetLiteral(PIntType(), Vector(
+      PIntLit(1),
+      PIntLit(5),
+      PBoolLit(false),
+      PIntLit(7)
+    ))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a non-empty set literal") {
+    val expr = PSetLiteral(PIntType(), Vector(
+      PIntLit(1),
+      PIntLit(5),
+      PIntLit(7)
+    ))
+    assert (frontend.wellDefExpr(expr)().valid)
   }
 
 

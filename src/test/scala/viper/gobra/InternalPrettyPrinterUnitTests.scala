@@ -153,6 +153,39 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show an empty integer set") {
+    val expr = EmptySet(IntT)(Unsourced)
+    frontend.show(expr) should matchPattern {
+      case "set[int] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty nested set") {
+    val expr = EmptySet(SetT(BoolT))(Unsourced)
+    frontend.show(expr) should matchPattern {
+      case "set[set[bool]] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show a singleton integer set literal") {
+    val expr = SetLiteral(Vector(IntLit(42)(Unsourced)))(Unsourced)
+    frontend.show(expr) should matchPattern {
+      case "set { 42 }" =>
+    }
+  }
+
+  test("Printer: should correctly show a non-empty Boolean set literal") {
+    val expr = SetLiteral(Vector(
+      BoolLit(false)(Unsourced),
+      BoolLit(true)(Unsourced),
+      BoolLit(true)(Unsourced)
+    ))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set { false, true, true }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

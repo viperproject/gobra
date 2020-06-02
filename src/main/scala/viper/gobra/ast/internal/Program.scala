@@ -224,6 +224,9 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
+
+/* ** Mathematical sequences */
+
 /**
   * Denotes the length of `exp`, which has to be a sequence.
   */
@@ -242,8 +245,14 @@ case class EmptySequence(typ : Type)(val info : Source.Parser.Info) extends Expr
   * The `exprs` vector should be non-empty.
   */
 case class SequenceLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
-  /** Is set to be the type of the first element in `exprs`. */
-  override def typ : Type = SequenceT(exprs.head.typ)
+  /**
+    * Is set to be the type of the first element in `exprs`
+    * (which is expected not to be empty).
+    */
+  override def typ : Type = exprs.length match {
+    case 0 => Violation.violation("sequence literal is expected not to be empty")
+    case _ => SequenceT(exprs.head.typ)
+  }
 }
 
 /**
@@ -311,6 +320,30 @@ case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info)
 case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
   override def typ : Type = left.typ
+}
+
+
+/* ** Mathematical sets */
+
+/**
+  * The empty sequence of type `typ`.
+  */
+case class EmptySet(typ : Type)(val info : Source.Parser.Info) extends Expr
+
+/**
+  * Represents a (mathematical) set literal "set { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members
+  * of the literal.
+  */
+case class SetLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  /**
+    * Is set to be the type of the first element in `exprs`
+    * (which is expected to be non-empty).
+    */
+  override def typ : Type = exprs.length match {
+    case 0 => Violation.violation("set literal is not expected to be empty")
+    case _ => SetT(exprs.head.typ)
+  }
 }
 
 

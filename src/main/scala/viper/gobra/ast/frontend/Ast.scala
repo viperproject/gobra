@@ -708,6 +708,15 @@ case class PSequenceUpdateClause(left : PExpression, right : PExpression) extend
 case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExpression
 
 
+/* ** Set expressions */
+
+/**
+  * A mathematical set literal "set[typ] { e_0, ..., e_n }",
+  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  */
+case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
+
+
 /**
   * Types
   */

@@ -4,7 +4,8 @@ import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 
 trait PrettyPrinter {
-  def format(node: Node): String
+  def format(node : Node): String
+  def format(typ : Type): String
 }
 
 class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter with PrettyPrinterCombinators {
@@ -12,8 +13,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override val defaultIndent = 2
   override val defaultWidth  = 80
 
-  override def format(node: Node): String =
-    pretty(show(node)).layout
+  override def format(node : Node) : String = pretty(show(node)).layout
+  override def format(typ : Type) : String = pretty(showType(typ)).layout
 
   def show(n: Node): Doc = n match {
     case n: Program => showProgram(n)
@@ -275,7 +276,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case SequenceT(elem) => "seq" <> "[" <> showType(elem) <> "]"
+    case SequenceT(elem) => "seq" <> brackets(showType(elem))
+    case SetT(elem) => "set" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

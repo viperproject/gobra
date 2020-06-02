@@ -7,7 +7,7 @@ import viper.gobra.reporting.Source.Parser.Unsourced
 class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
-  test("PrettyPrinter: should correctly show a standard sequence index expression") {
+  test("Printer: should correctly show a standard sequence index expression") {
     val expr = SequenceIndex(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced),
       IntLit(BigInt(42))(Unsourced)
@@ -18,7 +18,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show a sequence update expression") {
+  test("Printer: should correctly show a sequence update expression") {
     val expr = SequenceUpdate(
       LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced),
       IntLit(BigInt(4))(Unsourced),
@@ -30,7 +30,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show an empty integer sequence") {
+  test("Printer: should correctly show an empty integer sequence") {
     val expr = EmptySequence(IntT)(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -38,7 +38,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show an empty (nested) Boolean sequence") {
+  test("Printer: should correctly show an empty (nested) Boolean sequence") {
     val expr = EmptySequence(SequenceT(SequenceT(BoolT)))(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -46,7 +46,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show a sequence range expression") {
+  test("Printer: should correctly show a sequence range expression") {
     val expr = RangeSequence(
       IntLit(BigInt(2))(Unsourced),
       IntLit(BigInt(44))(Unsourced)
@@ -57,7 +57,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show a non-empty simple integer sequence literal") {
+  test("Printer: should correctly show a non-empty simple integer sequence literal") {
     val expr = SequenceLiteral(
       Vector(
         IntLit(BigInt(2))(Unsourced),
@@ -71,7 +71,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show a singleton integer sequence literal") {
+  test("Printer: should correctly show a singleton integer sequence literal") {
     val expr = SequenceLiteral(
       Vector(IntLit(BigInt(42))(Unsourced))
     )(Unsourced)
@@ -81,7 +81,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show an empty sequence literal") {
+  test("Printer: should correctly show an empty sequence literal") {
     val expr = SequenceLiteral(Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -89,7 +89,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show an ordinary sequence drop operation") {
+  test("Printer: should correctly show an ordinary sequence drop operation") {
     val expr = SequenceDrop(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced),
       IntLit(BigInt(42))(Unsourced)
@@ -100,7 +100,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show an ordinary sequence take operation") {
+  test("Printer: should correctly show an ordinary sequence take operation") {
     val expr = SequenceTake(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced),
       IntLit(BigInt(4))(Unsourced)
@@ -111,7 +111,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("PrettyPrinter: should correctly show a sequence drop followed by a take") {
+  test("Printer: should correctly show a sequence drop followed by a take") {
     val expr1 = SequenceDrop(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced),
       IntLit(BigInt(2))(Unsourced)
@@ -125,8 +125,37 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show an integer sequence type") {
+    val t = SequenceT(IntT)
+    frontend.show(t) should matchPattern {
+      case "seq[int]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested sequence type") {
+    val t = SequenceT(SequenceT(SequenceT(BoolT)))
+    frontend.show(t) should matchPattern {
+      case "seq[seq[seq[bool]]]" =>
+    }
+  }
+
+  test("Printer: should correctly show an integer set type") {
+    val t = SetT(IntT)
+    frontend.show(t) should matchPattern {
+      case "set[int]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested set type") {
+    val t = SetT(SetT(SetT(BoolT)))
+    frontend.show(t) should matchPattern {
+      case "set[set[set[bool]]]" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)
+    def show(t : Type) : String = printer.format(t)
   }
 }

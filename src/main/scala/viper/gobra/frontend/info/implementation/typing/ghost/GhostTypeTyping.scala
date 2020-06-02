@@ -10,9 +10,11 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
     case PSequenceType(elem) => isType(elem).out
+    case PSetType(elem) => isType(elem).out
   }
 
   private[typing] def ghostTypeType(typ : PGhostType) : Type = typ match {
     case PSequenceType(elem) => SequenceT(typeType(elem))
+    case PSetType(elem) => SetT(typeType(elem))
   }
 }

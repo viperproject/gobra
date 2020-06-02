@@ -725,6 +725,12 @@ sealed trait PGhostTypeLit extends PGhostType
   */
 case class PSequenceType(elem : PType) extends PGhostTypeLit
 
+/**
+  * The type of mathematical sets with elements of type `elem`.
+  */
+case class PSetType(elem : PType) extends PGhostTypeLit
+
+
 
 /**
   * Miscellaneous

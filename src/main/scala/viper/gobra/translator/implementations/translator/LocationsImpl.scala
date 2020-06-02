@@ -264,6 +264,10 @@ class LocationsImpl extends Locations {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptySeq(elemT)(pos, info, errT))
       }
+      case in.SetT(elem) => {
+        val elemT = ctx.typ.translate(elem)(ctx)
+        unit(vpr.EmptySet(elemT)(pos, info, errT))
+      }
     }
 
     ctx.typeProperty.underlyingType(t)(ctx) match {

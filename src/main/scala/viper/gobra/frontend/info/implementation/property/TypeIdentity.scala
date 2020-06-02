@@ -16,10 +16,9 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (DeclaredT(l), DeclaredT(r)) => l == r
 
       case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
-
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
-
       case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
+      case (SetT(l), SetT(r)) => identicalTypes(l, r)
 
       case (StructT(l), StructT(r)) =>
         val (les, lfs, res, rfs) = (l.embedded, l.fields, r.embedded, r.fields)

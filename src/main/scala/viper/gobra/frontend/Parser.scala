@@ -162,7 +162,7 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old", "seq"
+      "predicate", "old", "seq", "set"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -640,7 +640,8 @@ object Parser {
         channelType | functionType | structType | interfaceType
 
     lazy val ghostTypeLit : Parser[PGhostTypeLit] =
-      sequenceType
+      sequenceType |
+      setType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -664,6 +665,9 @@ object Parser {
 
     lazy val sequenceType : Parser[PSequenceType] =
       "seq" ~> ("[" ~> typ <~ "]") ^^ PSequenceType
+
+    lazy val setType : Parser[PSetType] =
+      "set" ~> ("[" ~> typ <~ "]") ^^ PSetType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType

@@ -75,7 +75,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  /* ** Sequences */
+  /* ** Mathematical sequences */
 
   test("Parser: simple integer sequence") {
     frontend.parseType("seq[int]") should matchPattern {
@@ -690,8 +690,47 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not parse slcie expressions with only a 'high' index while three were expected") {
+  test("Parser: should not parse slice expressions with only a 'high' index while three were expected") {
     frontend.parseExp("xs[:i:]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+
+  /* ** Mathematical sets */
+
+  test("Parser: should parse standard (integer) set types as expected") {
+    frontend.parseTypeOrFail("set[int]") should matchPattern {
+      case PSetType(PIntType()) =>
+    }
+  }
+
+  test("Parser: should parse standard set types with spacings as expected") {
+    frontend.parseTypeOrFail(" set [ int ] ") should matchPattern {
+      case PSetType(PIntType()) =>
+    }
+  }
+
+  test("Parser: should parse nested set types as expected") {
+    frontend.parseTypeOrFail("set[set[bool]]") should matchPattern {
+      case PSetType(PSetType(PBoolType())) =>
+    }
+  }
+
+  test("Parser: should not parse set types with a missing opening square bracket") {
+    frontend.parseType("set int]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse set types with a missing closing square bracket (1)") {
+    frontend.parseType("set [ int ") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse set types with a missing closing square bracket (2)") {
+    frontend.parseType("set [ seq[bool ] ") should matchPattern {
       case Left(_) =>
     }
   }

@@ -523,6 +523,11 @@ case object PermissionT extends Type
   */
 case class SequenceT(t : Type) extends Type
 
+/**
+  * The type of mathematical sets with elements of type `t`.
+  */
+case class SetT(t : Type) extends Type
+
 case class DefinedT(name: String) extends Type with TopType
 
 case class PointerT(t: Type) extends Type with TopType

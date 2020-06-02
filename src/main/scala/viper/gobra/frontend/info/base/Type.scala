@@ -28,6 +28,8 @@ object Type {
 
   case class SequenceT(elem: Type) extends Type
 
+  case class SetT(elem: Type) extends Type
+
   case class PointerT(elem: Type) extends Type
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends Type

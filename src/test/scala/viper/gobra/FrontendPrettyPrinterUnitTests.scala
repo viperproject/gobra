@@ -164,6 +164,34 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("PrettyPrinter: should correctly show a simple sequence type") {
+    val node = PSequenceType(PIntType())
+    frontend.show(node) should matchPattern {
+      case "seq[int]" =>
+    }
+  }
+
+  test("PrettyPrinter: should correctly show a nested sequence type") {
+    val node = PSequenceType(PSequenceType(PBoolType()))
+    frontend.show(node) should matchPattern {
+      case "seq[seq[bool]]" =>
+    }
+  }
+
+  test("PrettyPrinter: should correctly show a simple set type") {
+    val node = PSetType(PIntType())
+    frontend.show(node) should matchPattern {
+      case "set[int]" =>
+    }
+  }
+
+  test("PrettyPrinter: should correctly show a nested set type") {
+    val node = PSetType(PSetType(PBoolType()))
+    frontend.show(node) should matchPattern {
+      case "set[set[bool]]" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

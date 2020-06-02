@@ -1020,6 +1020,7 @@ object Desugar {
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)))
       case Type.ChannelT(elem, mod) => ???
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem))
+      case Type.SetT(elem) => in.SetT(typeD(elem))
 
       case Type.StructT(decl) =>
         var fields: List[in.Field] = List.empty

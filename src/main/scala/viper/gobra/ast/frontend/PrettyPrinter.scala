@@ -297,17 +297,20 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PSize(operand) => "|" <> showExpr(operand) <> "|"
       case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
 
-      case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
-      case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
+      case expr : PSequenceExpression => expr match {
+        case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
+        case PRangeSequence(low, high) =>
+          "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+        case PSequenceAppend(left, right) =>
+          showExpr(left) <+> "++" <+> showExpr(right)
+        case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
+          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
+      }
 
-      case PRangeSequence(low, high) =>
-        "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-
-      case PSequenceAppend(left, right) =>
-        showExpr(left) <+> "++" <+> showExpr(right)
-
-      case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
-        (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
+      case expr : PSetExpression => expr match {
+        case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
+        case PSetUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
+      }
     }
   }
 

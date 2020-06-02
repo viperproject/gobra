@@ -226,6 +226,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case EmptySet(typ) => "set" <> brackets(showType(typ)) <+> braces(space)
     case SetLiteral(exprs) => "set" <+> braces(space <> showExprList(exprs) <>
       (if (exprs.nonEmpty) space else emptyDoc))
+    case SetUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

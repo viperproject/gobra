@@ -85,6 +85,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isType(typ).out ++
         exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
     }
+
+    case n@PSetUnion(left, right) => (exprType(left), exprType(right)) match {
+      case (SetT(t1), SetT(t2)) =>
+        isExpr(left).out ++ isExpr(right).out ++
+          message(n, s"both operands are expected to be of an identical type, but got '$t1' and '$t2'", !identicalTypes(t1, t2))
+      case (t1, t2) => message(n, s"both operands are expected to be of a set type, but got '$t1' and '$t2'")
+    }
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
@@ -116,6 +123,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PSequenceUpdate(seq, _) => exprType(seq)
 
     case PSetLiteral(typ, _) => SetT(typeType(typ))
+    case PSetUnion(left, right) => (exprType(left), exprType(right)) match {
+      case (SetT(t1), SetT(t2)) if identicalTypes(t1, t2) => SetT(t1)
+      case (t1, t2) => violation(s"operands of set union are of unidentical types '$t1' and '$t2'")
+    }
   }
 
   private[typing] def isPureExpr(expr: PExpression): Messages = {
@@ -182,6 +193,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
 
       case PSetLiteral(_, exprs) => exprs.forall(isPureExprAttr)
+      case PSetUnion(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
 
       case _: PAccess | _: PPredicateAccess => false
 

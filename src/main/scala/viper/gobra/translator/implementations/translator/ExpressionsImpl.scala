@@ -132,6 +132,11 @@ class ExpressionsImpl extends Expressions {
         exprsT <- sequence(exprs map goE)
       } yield vpr.ExplicitSet(exprsT)(pos, info, errT)
 
+      case in.SetUnion(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetUnion(leftT, rightT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

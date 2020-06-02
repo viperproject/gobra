@@ -711,10 +711,22 @@ case class PRangeSequence(low : PExpression, high : PExpression) extends PSequen
 /* ** Set expressions */
 
 /**
+  * Conceals all set ghost expressions
+  * (for example set literals, set union, etc.).
+  */
+sealed trait PSetExpression extends PGhostExpression
+
+/**
   * A mathematical set literal "set[typ] { e_0, ..., e_n }",
   * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
   */
-case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
+case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExpression
+
+/**
+  * Represents a union "`left` union `right`" of two sets,
+  * `left` and `right`, which should be of comparable types.
+  */
+case class PSetUnion(left : PExpression, right : PExpression) extends PSetExpression
 
 
 /**

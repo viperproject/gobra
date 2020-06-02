@@ -222,6 +222,55 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple set union") {
+    val expr = PSetUnion(
+      PNamedOperand(PIdnUse("s")),
+      PNamedOperand(PIdnUse("t"))
+    )
+    frontend.show(expr) should matchPattern {
+      case "s union t" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of three set unions (1)") {
+    val expr = PSetUnion(
+      PSetUnion(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ),
+      PNamedOperand(PIdnUse("u"))
+    )
+    frontend.show(expr) should matchPattern {
+      case "s union t union u" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of three set unions (2)") {
+    val expr = PSetUnion(
+      PNamedOperand(PIdnUse("s")),
+      PSetUnion(
+        PNamedOperand(PIdnUse("t")),
+        PNamedOperand(PIdnUse("u"))
+      )
+    )
+
+    // TODO perhaps generate parentheses?
+    frontend.show(expr) should matchPattern {
+      case "s union t union u" =>
+    }
+  }
+
+  test("Printer: should correctly show set union in combination with literals") {
+    val expr = PSetUnion(
+      PSetLiteral(PBoolType(), Vector()),
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(7)))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set[bool] { } union set[int] { 1, 7 }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

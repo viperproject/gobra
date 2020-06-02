@@ -237,6 +237,68 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
+  test("TypeChecker: should classify a set union operation as ghost") {
+    val expr = PSetUnion(
+      PSetLiteral(PBoolType(), Vector()),
+      PSetLiteral(PBoolType(), Vector()),
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should type check a set union with operands of matching type") {
+    val expr = PSetUnion(
+      PSetLiteral(PIntType(), Vector(PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a set union operation") {
+    val expr = PSetUnion(
+      PSetLiteral(PIntType(), Vector(PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should not type check the union of a set and sequence") {
+    val expr = PSetUnion(
+      PSetLiteral(PIntType(), Vector(PIntLit(2))),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a union of two integers") {
+    val expr = PSetUnion(
+      PIntLit(42),
+      PIntLit(22)
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should type check a chain of unions") {
+    val expr = PSetUnion(
+      PSetLiteral(PIntType(), Vector(PIntLit(2))),
+      PSetUnion(
+        PSetLiteral(PIntType(), Vector(PIntLit(4))),
+        PSetLiteral(PIntType(), Vector(PIntLit(5))),
+      )
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

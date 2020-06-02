@@ -162,7 +162,7 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old", "seq", "set"
+      "predicate", "old", "seq", "set", "in", "union"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -492,6 +492,7 @@ object Parser {
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+        precedence5 ~ ("union" ~> precedence6) ^^ PSetUnion |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6

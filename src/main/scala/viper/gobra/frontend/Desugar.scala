@@ -1278,6 +1278,11 @@ object Desugar {
           case _ => in.SetLiteral(dexprs)(src)
         }
 
+        case PSetUnion(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.SetUnion(dleft, dright)(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }
@@ -1476,7 +1481,6 @@ object Desugar {
         newName
       })
     }
-
   }
 }
 

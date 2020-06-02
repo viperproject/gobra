@@ -186,6 +186,61 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should show a set union as expected") {
+    val expr = SetUnion(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s union t" =>
+    }
+  }
+
+  test("Printer: should show a chain of set unions as expected (1)") {
+    val expr = SetUnion(
+      SetUnion(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+      )(Unsourced),
+      LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s union t union u" =>
+    }
+  }
+
+  test("Printer: should show a chain of set unions as expected (2)") {
+    val expr = SetUnion(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      SetUnion(
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s union t union u" =>
+    }
+  }
+
+  test("Printer: should correctly show set union in combination with literals") {
+    val expr = SetUnion(
+      SetLiteral(Vector(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      ))(Unsourced),
+      SetLiteral(Vector(
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+      ))(Unsourced),
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set { s } union set { t, u }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

@@ -346,6 +346,15 @@ case class SetLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) exten
   }
 }
 
+/**
+  * Represents a (mathematical) set union "`left` union `right`",
+  * where `left` and `right` should be sets of identical types.
+  */
+case class SetUnion(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** Note that `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

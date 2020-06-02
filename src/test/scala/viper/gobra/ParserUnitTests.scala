@@ -493,6 +493,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should not be able to parse 'in' as a keyword") {
+    frontend.parseExp("in") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
   test("Parser: should parse a membership expression with a sequence range expression") {
     frontend.parseExpOrFail("x + 12 in seq[1..100]") should matchPattern {
       case PIn(
@@ -823,6 +829,69 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PSetLiteral(PIntType(), Vector(PIntLit(n)))
         )
       ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should not be able to parse 'seq' as an identifier") {
+    frontend.parseExp("seq") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse 'set' as an identifier") {
+    frontend.parseExp("set") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse 'union' as an identifier") {
+    frontend.parseExp("union") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple set union expression") {
+    frontend.parseExpOrFail("s union t") should matchPattern {
+      case PSetUnion(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ) =>
+    }
+  }
+
+  test("Parser: set union should by default associate to the left") {
+    frontend.parseExpOrFail("s union t union u") should matchPattern {
+      case PSetUnion(
+        PSetUnion(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t"))
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
+  test("Parser: set union with parentheses should correctly be parsed") {
+    frontend.parseExpOrFail("s union (t union u)") should matchPattern {
+      case PSetUnion(
+        PNamedOperand(PIdnUse("s")),
+        PSetUnion(
+          PNamedOperand(PIdnUse("t")),
+          PNamedOperand(PIdnUse("u"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse set union with missing left-hand side") {
+    frontend.parseExp("union t") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse set union with missing right-hand side") {
+    frontend.parseExp("s union") should matchPattern {
+      case Left(_) =>
     }
   }
 

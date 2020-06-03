@@ -231,6 +231,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
     case Subset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
     case SetContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
+    case SetCardinality(op) => "|" <> showExpr(op) <> "|"
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

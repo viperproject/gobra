@@ -445,6 +445,27 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should show the unary size operator for sequences and (multi)sets as expected") {
+    val expr = PSize(PNamedOperand(PIdnUse("s")))
+    frontend.show(expr) should matchPattern {
+      case "|s|" =>
+    }
+  }
+
+  test("Printer: should correctly show the size operator in combination with set union") {
+    val expr = PSize(
+      PSetUnion(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      )
+    )
+    frontend.show(expr) should matchPattern {
+      case "|s union t|" =>
+    }
+  }
+
+
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

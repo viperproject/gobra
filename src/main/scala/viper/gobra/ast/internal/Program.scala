@@ -382,6 +382,14 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
+  * Represents the cardinality of `exp`, which is assumed to be a
+  * set of multiset.
+  */
+case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
+/**
   * Represents a (multi)set membership expression "`left` in `right`",
   * where `right` should be a set of a type compatible with the one of `left`.
   */

@@ -530,6 +530,58 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify a sequence length operator as ghost") {
+    val expr = PSize(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify the sequence length operator as well-defined when applied to a proper sequence") {
+    val expr = PSize(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a sequence length operator") {
+    val expr = PSize(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should not typecheck any seq/set size operator when no sequence of (multi)set is provided") {
+    val expr = PSize(PIntLit(42))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a set cardinality operator as ghost") {
+    val expr = PSize(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify the set cardinality operator as well-defined when given a proper set") {
+    val expr = PSize(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a set cardinality operator") {
+    val expr = PSize(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

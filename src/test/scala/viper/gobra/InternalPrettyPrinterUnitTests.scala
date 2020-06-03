@@ -451,6 +451,52 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show the size of a simple set") {
+    val expr = SetCardinality(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "|s|" =>
+    }
+  }
+
+  test("Printer: should correctly show the size of a set in combination with a set intersection") {
+    val expr = SetCardinality(
+      SetIntersection(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "|s intersection t|" =>
+    }
+  }
+
+  test("Printer: should correctly show the size of a set literal") {
+    val expr = SetCardinality(
+      SetLiteral(Vector(
+        IntLit(1)(Unsourced),
+        IntLit(42)(Unsourced)
+      ))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "|set { 1, 42 }|" =>
+    }
+  }
+
+  test("Printer: should correctly show the size of an empty set") {
+    val expr = SetCardinality(
+      EmptySet(SequenceT(IntT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "|set[seq[int]] { }|" =>
+    }
+  }
+
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

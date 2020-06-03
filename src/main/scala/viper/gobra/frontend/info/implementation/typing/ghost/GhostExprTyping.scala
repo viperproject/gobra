@@ -42,7 +42,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PSize(op) => exprType(op) match {
-      case SequenceT(_) => isExpr(op).out
+      case SequenceT(_) | SetT(_) => isExpr(op).out
       case t => message(op, s"expected a sequence or (multi)set, but got $t")
     }
 
@@ -108,14 +108,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PSize(_) => IntT
     case PIn(_, _) => BooleanT
-
     case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
     case PRangeSequence(_, _) => SequenceT(IntT)
     case PSequenceAppend(left, _) => exprType(left)
     case PSequenceUpdate(seq, _) => exprType(seq)
-
     case PSetLiteral(typ, _) => SetT(typeType(typ))
-
     case expr : PBinarySetOperation => expr match {
       case PSubset(_, _) => BooleanT
       case _ => exprType(expr.left)

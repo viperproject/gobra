@@ -10,14 +10,6 @@ trait PrettyPrinterCombinators { this: kiama.output.PrettyPrinter =>
     braces(nest(line <> doc) <> line)
   }
 
-  def blockBothBracesGoified(doc: Doc): Doc = {
-    "//@" <+> braces(nest(line <> doc) <> line <> "//@" <> space)
-  }
-
-  def blockClosingBraceGoified(doc: Doc): Doc = {
-    braces(nest(line <> doc) <> line <> "//@" <> space)
-  }
-
   def sequence(doc: Doc): Doc = nest(line <> doc)
 
   def spec(doc: Doc): Doc = nest(line <> doc)

@@ -69,30 +69,23 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // members
 
-  def showFPredicateDeclHeader(id: PIdnDef, args: Vector[PParameter]): Doc =
-    "pred" <+> showId(id) <> parens(showParameterList(args))
-  def showMPredicateDeclHeader(id: PIdnDef, recv: PReceiver, args: Vector[PParameter]): Doc =
-    "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
-
-  def showPFunctionDeclHeader(id: PIdnDef, args: Vector[PParameter], res: PResult): Doc =
-    "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-  def showPMethodDeclHeader(id: PIdnDef, recv: PReceiver, args: Vector[PParameter], res: PResult): Doc =
-    "func" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-
   def showMember(mem: PMember): Doc = mem match {
     case mem: PActualMember => mem match {
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, result, spec, body) =>
-        showSpec(spec) <> showPFunctionDeclHeader(id, args, result) <> opt(body)(b => space <> block(showStmt(b)))
+      case PFunctionDecl(id, args, res, spec, body) =>
+        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> showStmt(b))
       case PMethodDecl(id, rec, args, res, spec, body) =>
-        showSpec(spec) <> showPMethodDeclHeader(id, rec, args, res) <> opt(body)(b => space <> block(showStmt(b)))
+        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> 
+        opt(body)(b => space <> showStmt(b))
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) => showFPredicateDeclHeader(id, args) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) => showMPredicateDeclHeader(id, recv, args) <> opt(body)(b => space <> block(showExpr(b)))
+      case PFPredicateDecl(id, args, body) =>
+        "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PMPredicateDecl(id, recv, args, body) =>
+        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
     }
   }
 

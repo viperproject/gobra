@@ -46,10 +46,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => message(op, s"expected a sequence or (multi)set, but got $t")
     }
 
-    case n@PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++
+    case expr @ PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++
       ((exprType(left), exprType(right)) match {
-        case (t1, SequenceT(t2)) => comparableTypes.errors(t1, t2)(n)
-        case (_, t) => message(right, s"expected a sequence but got $t")
+        case (t1, SequenceT(t2)) => comparableTypes.errors(t1, t2)(expr)
+        case (t1, SetT(t2)) => comparableTypes.errors(t1, t2)(expr)
+        case (_, t) => message(right, s"expected a sequence or set but got $t")
       })
 
     case PSequenceLiteral(typ, exprs) => isType(typ).out ++ {

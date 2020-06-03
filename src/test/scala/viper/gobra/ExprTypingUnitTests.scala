@@ -456,14 +456,79 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   test("TypeChecker: should not just typecheck a chain of subsets") {
     val expr = PSubset(
       PSubset(
-        PSetLiteral(PSetType(PIntType()), Vector()),
-        PSetLiteral(PSetType(PIntType()), Vector())
+        PSetLiteral(PIntType(), Vector()),
+        PSetLiteral(PIntType(), Vector())
       ),
-      PSetLiteral(PSetType(PBoolType()), Vector())
+      PSetLiteral(PIntType(), Vector())
     )
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
+  test("TypeChecker: should classify any use of a sequence inclusion as ghost") {
+    val expr = PIn(
+      PIntLit(2),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify any proper use of a sequence inclusion as being well-defined") {
+    val expr = PIn(
+      PIntLit(2),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a sequence inclusion as being well-defined if the types don't match") {
+    val expr = PIn(
+      PBoolLit(false),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a seq/set inclusion as well-defined if the right-hand side is not a sequence of (multi)set") {
+    val expr = PIn(PBoolLit(false), PBoolLit(true))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a sequence inclusion operation") {
+    val expr = PIn(
+      PIntLit(2),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should classify any use of a set inclusion as ghost") {
+    val expr = PIn(
+      PIntLit(2),
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify any proper use of a set inclusion as being well-defined") {
+    val expr = PIn(
+      PIntLit(2),
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a set inclusion operation") {
+    val expr = PIn(
+      PIntLit(2),
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
 
   /* * Stubs, mocks, and other test setup  */
 

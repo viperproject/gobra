@@ -420,6 +420,31 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a use of the 'in' operator for sequences and (multi)sets") {
+    val expr = PIn(
+      PNamedOperand(PIdnUse("x")),
+      PNamedOperand(PIdnUse("xs"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "x in xs" =>
+    }
+  }
+
+  test("Printer: should correctly show a short 'chain' of seq/set inclusions") {
+    val expr = PIn(
+      PNamedOperand(PIdnUse("x")),
+      PIn(
+        PNamedOperand(PIdnUse("xs")),
+        PNamedOperand(PIdnUse("ys")),
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "x in xs in ys" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

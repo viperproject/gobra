@@ -381,6 +381,14 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
   override def typ : Type = BoolT
 }
 
+/**
+  * Represents a (multi)set membership expression "`left` in `right`",
+  * where `right` should be a set of a type compatible with the one of `left`.
+  */
+case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = BoolT
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

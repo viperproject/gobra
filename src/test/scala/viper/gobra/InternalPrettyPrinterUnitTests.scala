@@ -387,6 +387,70 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a standard sequence inclusion") {
+    val expr = SequenceContains(
+      LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
+      LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "x in xs" =>
+    }
+  }
+
+  test("Printer: should correctly show a 'chain' of sequence inclusions") {
+    val expr = SequenceContains(
+      SequenceContains(
+        LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+      )(Unsourced),
+      LocalVar.Ref("ys", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "x in xs in ys" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple set membership expression") {
+    val expr = SetContains(
+      LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "x in s" =>
+    }
+  }
+
+  test("Printer: should correctly show a small 'chain' of set membership expressions") {
+    val expr = SetContains(
+      SetContains(
+        LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
+      )(Unsourced),
+      LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "x in s in t" =>
+    }
+  }
+
+  test("Printer: should correctly show set membership in the context of literals") {
+    val expr = SetContains(
+      SetLiteral(Vector(
+        BoolLit(true)(Unsourced),
+        BoolLit(false)(Unsourced))
+      )(Unsourced),
+      EmptySet(SetT(SetT(IntT)))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set { true, false } in set[set[set[int]]] { }" =>
+    }
+  }
+
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

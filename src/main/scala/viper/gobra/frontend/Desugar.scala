@@ -1244,7 +1244,8 @@ object Desugar {
           dright <- go(right)
         } yield dright.typ match {
           case in.SequenceT(_) => in.SequenceContains(dleft, dright)(src)
-          case t => violation(s"expected a sequence type but got '$t'")
+          case in.SetT(_) => in.SetContains(dleft, dright)(src)
+          case t => violation(s"expected a sequence of set type but got '$t'")
         }
 
         case PSequenceLiteral(t, exprs) => for {

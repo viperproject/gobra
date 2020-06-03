@@ -152,6 +152,11 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.AnySetSubset(leftT, rightT)(pos, info, errT)
 
+      case in.SetContains(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetContains(leftT, rightT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

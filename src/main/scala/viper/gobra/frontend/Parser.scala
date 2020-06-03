@@ -163,7 +163,7 @@ object Parser {
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection"
+      "intersection", "setminus"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -495,6 +495,7 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("union" ~> precedence6) ^^ PSetUnion |
         precedence5 ~ ("intersection" ~> precedence6) ^^ PSetIntersection |
+        precedence5 ~ ("setminus" ~> precedence6) ^^ PSetMinus |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6

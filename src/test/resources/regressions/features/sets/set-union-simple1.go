@@ -40,3 +40,8 @@ func example9() (b bool) {
   // should work since `b` is assigned false by default
   assert set[bool] { true, false } == set[bool] { true } union set[bool] { b }
 }
+
+func example10(ghost s set[int], ghost t set[int]) {
+  assert s union t == t union s
+}
+

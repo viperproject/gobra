@@ -320,6 +320,56 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple set difference") {
+    val expr = PSetMinus(
+      PNamedOperand(PIdnUse("s")),
+      PNamedOperand(PIdnUse("t"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of set differences (1)") {
+    val expr = PSetMinus(
+      PSetMinus(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ),
+      PNamedOperand(PIdnUse("u"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t setminus u" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of set differences (2)") {
+    val expr = PSetMinus(
+      PNamedOperand(PIdnUse("s")),
+      PSetMinus(
+        PNamedOperand(PIdnUse("t")),
+        PNamedOperand(PIdnUse("u"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t setminus u" =>
+    }
+  }
+
+  test("Printer: should correctly show set difference in combination with literals") {
+    val expr = PSetMinus(
+      PSetLiteral(PIntType(), Vector(PBoolLit(true))),
+      PSetLiteral(PBoolType(), Vector())
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set[int] { true } setminus set[bool] { }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

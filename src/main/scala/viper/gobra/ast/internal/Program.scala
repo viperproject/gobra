@@ -364,6 +364,15 @@ case class SetIntersection(left : Expr, right : Expr)(val info : Source.Parser.I
   override def typ : Type = left.typ
 }
 
+/**
+  * Represents a (mathematical) (multi)set difference "`left` setminus `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

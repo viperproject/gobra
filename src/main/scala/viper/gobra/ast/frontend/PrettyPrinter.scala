@@ -311,6 +311,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
         case PSetUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
         case PSetIntersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
+        case PSetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
       }
     }
   }

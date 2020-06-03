@@ -971,6 +971,78 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse simple set differences") {
+    frontend.parseExpOrFail("s setminus t") should matchPattern {
+      case PSetMinus(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ) =>
+    }
+  }
+
+  test("Parser: should have set difference associate to the left") {
+    frontend.parseExpOrFail("s setminus t setminus u") should matchPattern {
+      case PSetMinus(
+      PSetMinus(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t"))
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
+  test("Parser: should let set difference correctly handle parentheses") {
+    frontend.parseExpOrFail("s setminus (t setminus u)") should matchPattern {
+      case PSetMinus(
+        PNamedOperand(PIdnUse("s")),
+        PSetMinus(
+          PNamedOperand(PIdnUse("t")),
+          PNamedOperand(PIdnUse("u"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not let 'setminus' be parsed as an identifier") {
+    frontend.parseExp("setminus") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse set difference with missing left-hand side") {
+    frontend.parseExp("setminus t") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse set difference with missing right-hand side") {
+    frontend.parseExp("s setminus") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should correctly parse set difference with literals") {
+    frontend.parseExpOrFail("set[bool] { true } setminus set[int] { }") should matchPattern {
+      case PSetMinus(
+        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+        PSetLiteral(PIntType(), Vector())
+      ) =>
+    }
+  }
+
+  test("Parser: should let set union and difference have the same precedence") {
+    frontend.parseExpOrFail("s union t setminus u") should matchPattern {
+      case PSetMinus(
+        PSetUnion(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t")),
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

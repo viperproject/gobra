@@ -296,6 +296,61 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should show a set difference as expected") {
+    val expr = SetMinus(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t" =>
+    }
+  }
+
+  test("Printer: should show a chain of set differences as expected (1)") {
+    val expr = SetMinus(
+      SetMinus(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+      )(Unsourced),
+      LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t setminus u" =>
+    }
+  }
+
+  test("Printer: should show a chain of set differences as expected (2)") {
+    val expr = SetMinus(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      SetMinus(
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s setminus t setminus u" =>
+    }
+  }
+
+  test("Printer: should correctly show set differences in combination with literals") {
+    val expr = SetMinus(
+      SetLiteral(Vector(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      ))(Unsourced),
+      SetLiteral(Vector(
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+      ))(Unsourced),
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set { s } setminus set { t, u }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

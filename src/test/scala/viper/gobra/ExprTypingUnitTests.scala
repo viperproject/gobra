@@ -337,6 +337,44 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify set difference as ghost") {
+    val expr = PSetMinus(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should let the difference of two Boolean sets be well-defined") {
+    val expr = PSetMinus(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let the difference of a Boolean set and an integer set be well-defined") {
+    val expr = PSetMinus(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PSetLiteral(PIntType(), Vector(PIntLit(42)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type an integer set difference") {
+    val expr = PSetMinus(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(3)))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

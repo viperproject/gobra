@@ -732,16 +732,22 @@ sealed trait PBinarySetOperation extends PSetExpression {
 }
 
 /**
-  * Represents a union "`left` union `right`" of two sets,
+  * Represents a union "`left` union `right`" of two (multi)sets,
   * `left` and `right`, which should be of comparable types.
   */
 case class PSetUnion(left : PExpression, right : PExpression) extends PBinarySetOperation
 
 /**
-  * Represents the set intersection "`left` intersection `right`" of
-  * `left` and `right`, which should be sets of a comparable type.
+  * Represents the (multi)set intersection "`left` intersection `right`" of
+  * `left` and `right`, which should be (multi)sets of a comparable type.
   */
 case class PSetIntersection(left : PExpression, right : PExpression) extends PBinarySetOperation
+
+/**
+  * Represents the (multi)set difference "`left` setminus `right`" of
+  * `left` and `right`, which should be (multi)sets of a comparable type.
+  */
+case class PSetMinus(left : PExpression, right : PExpression) extends PBinarySetOperation
 
 
 /**

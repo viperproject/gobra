@@ -254,7 +254,6 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
       )
     )
 
-    // TODO perhaps generate parentheses?
     frontend.show(expr) should matchPattern {
       case "s union t union u" =>
     }
@@ -268,6 +267,56 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "set[bool] { } union set[int] { 1, 7 }" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple set intersection") {
+    val expr = PSetIntersection(
+      PNamedOperand(PIdnUse("s")),
+      PNamedOperand(PIdnUse("t"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s intersection t" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of set intersections (1)") {
+    val expr = PSetIntersection(
+      PSetIntersection(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ),
+      PNamedOperand(PIdnUse("u"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s intersection t intersection u" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of set intersections (2)") {
+    val expr = PSetIntersection(
+      PNamedOperand(PIdnUse("s")),
+      PSetIntersection(
+        PNamedOperand(PIdnUse("t")),
+        PNamedOperand(PIdnUse("u"))
+      ),
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s intersection t intersection u" =>
+    }
+  }
+
+  test("Printer: should correctly show set intersection in combination with literals") {
+    val expr = PSetIntersection(
+      PSetLiteral(PIntType(), Vector()),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(true)))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set[int] { } intersection set[bool] { true }" =>
     }
   }
 

@@ -347,11 +347,20 @@ case class SetLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) exten
 }
 
 /**
-  * Represents a (mathematical) set union "`left` union `right`",
-  * where `left` and `right` should be sets of identical types.
+  * Represents a (mathematical) (multi)set union "`left` union `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
   */
 case class SetUnion(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
-  /** Note that `left.typ` is expected to be identical to `right.typ`. */
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a (mathematical) (multi)set intersection "`left` intersection `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class SetIntersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** `left.typ` is expected to be identical to `right.typ`. */
   override def typ : Type = left.typ
 }
 

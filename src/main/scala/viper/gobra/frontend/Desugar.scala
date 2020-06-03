@@ -1283,6 +1283,11 @@ object Desugar {
           dright <- go(right)
         } yield in.SetUnion(dleft, dright)(src)
 
+        case PSetIntersection(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.SetIntersection(dleft, dright)(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }

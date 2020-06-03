@@ -895,6 +895,82 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse simple set intersection") {
+    frontend.parseExpOrFail("s intersection t") should matchPattern {
+      case PSetIntersection(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ) =>
+    }
+  }
+
+  test("Parser: should have set intersection associate to the left") {
+    frontend.parseExpOrFail("s intersection t intersection u") should matchPattern {
+      case PSetIntersection(
+        PSetIntersection(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t"))
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
+  test("Parser: should let set intersection correctly handle parentheses") {
+    frontend.parseExpOrFail("s intersection (t intersection u)") should matchPattern {
+      case PSetIntersection(
+        PNamedOperand(PIdnUse("s")),
+        PSetIntersection(
+          PNamedOperand(PIdnUse("t")),
+          PNamedOperand(PIdnUse("u"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not let 'intersection' be parsed as an identifier") {
+    frontend.parseExp("intersection") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse set intersection with missing left-hand side") {
+    frontend.parseExp("intersection t") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  // TODO is this desirable?
+  test("Parser: should parse set intersection with missing right-hand side as set/seq inclusion") {
+    frontend.parseExpOrFail("s intersection") should matchPattern {
+      case PIn(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("tersection")),
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse set intersection with literals") {
+    frontend.parseExpOrFail("set[bool] { true } intersection set[int] { }") should matchPattern {
+      case PSetIntersection(
+        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+        PSetLiteral(PIntType(), Vector())
+      ) =>
+    }
+  }
+
+  test("Parser: should let set union and intersection have the same precedence") {
+    frontend.parseExpOrFail("s union t intersection u") should matchPattern {
+      case PSetIntersection(
+        PSetUnion(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t")),
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

@@ -137,6 +137,11 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.AnySetUnion(leftT, rightT)(pos, info, errT)
 
+      case in.SetIntersection(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetIntersection(leftT, rightT)(pos, info, errT)
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

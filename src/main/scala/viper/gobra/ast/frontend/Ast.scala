@@ -723,10 +723,25 @@ sealed trait PSetExpression extends PGhostExpression
 case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExpression
 
 /**
+  * Conceals binary operations over sets, like union, intersection, etc.
+  * Here `left` and `right` are expected to both be sets of an identical type.
+  */
+sealed trait PBinarySetOperation extends PSetExpression {
+  def left : PExpression
+  def right : PExpression
+}
+
+/**
   * Represents a union "`left` union `right`" of two sets,
   * `left` and `right`, which should be of comparable types.
   */
-case class PSetUnion(left : PExpression, right : PExpression) extends PSetExpression
+case class PSetUnion(left : PExpression, right : PExpression) extends PBinarySetOperation
+
+/**
+  * Represents the set intersection "`left` intersection `right`" of
+  * `left` and `right`, which should be sets of a comparable type.
+  */
+case class PSetIntersection(left : PExpression, right : PExpression) extends PBinarySetOperation
 
 
 /**

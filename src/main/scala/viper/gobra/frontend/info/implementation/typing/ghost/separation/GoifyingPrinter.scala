@@ -93,11 +93,18 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
   override def showMember(mem: PMember): Doc = mem match {
     case PMethodDecl(id, rec, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(unfilterParamList(args), unfilterResult(res), spec)) <>
-      super.showMember(PMethodDecl(id, rec, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      showPMethodDeclHeader(id, rec, filterParamList(args), filterResult(res)) <>
+      opt(body)(b => space <> (if (spec.isPure) showStmt(b) else block(showStmt(b))))
+
+      //showDeclarationSpec(DeclarationSpec(unfilterParamList(args), unfilterResult(res), spec)) <>
+      //super.showMember(PMethodDecl(id, rec, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
 
     case PFunctionDecl(id, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(unfilterParamList(args), unfilterResult(res), spec)) <>
-      super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      showPFunctionDeclHeader(id, filterParamList(args), filterResult(res)) <>
+      opt(body)(b => space <> (if (spec.isPure) showStmt(b) else block(showStmt(b))))
+      
+      //super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
 
     case PFPredicateDecl(id, args, body) =>
       specComment <+> showFPredicateDeclHeader(id, args) <>
@@ -196,10 +203,9 @@ class GoifyingPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter 
 
       super.showExpr(n.copy(args = aArgs))
 
+    case PUnfolding(pred, op) => showExpr(op) <+> specComment <+> "predicate-access:" <+> "unfolding" <+> super.showExpr(pred) <+> "in" <+> showExpr(op)
+
     case e: PActualExprProofAnnotation => showExpr(e.op)
-    
-    // TODO: see if this works with just commenting out
-    //case e if classifier.isExprGhost(e) => "<removed expr>" // should not be printed
     case e => super.showExpr(e)
   }
 

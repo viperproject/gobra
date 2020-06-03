@@ -1043,6 +1043,67 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse a standard use of the subset relation") {
+    frontend.parseExpOrFail("s subset t") should matchPattern {
+      case PSubset(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ) =>
+    }
+  }
+
+  test("Parser: should let the subset relation associate to the left") {
+    frontend.parseExpOrFail("s subset t subset u") should matchPattern {
+      case PSubset(
+        PSubset(
+          PNamedOperand(PIdnUse("s")),
+          PNamedOperand(PIdnUse("t"))
+        ),
+        PNamedOperand(PIdnUse("u"))
+      ) =>
+    }
+  }
+
+  test("Parser: should let a subset relation correctly handle parentheses") {
+    frontend.parseExpOrFail("s subset (t subset u)") should matchPattern {
+      case PSubset(
+        PNamedOperand(PIdnUse("s")),
+        PSubset(
+          PNamedOperand(PIdnUse("t")),
+          PNamedOperand(PIdnUse("u"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse 'subset' as an identifier") {
+    frontend.parseExp("subset") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a use of the subset relation with a missing left-hand side") {
+    frontend.parseExp("subset t") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a use of the subset relation with a missing right-hand side") {
+    frontend.parseExp("s subset") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a subset relation in combination with set literals") {
+    frontend.parseExpOrFail("set[bool] { true } subset set[int] { 42 }") should matchPattern {
+      case PSubset(
+        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+        PSetLiteral(PIntType(), Vector(PIntLit(n)))
+      ) if n == BigInt(42) =>
+    }
+  }
+
+
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =
       parser(StringSource(source))

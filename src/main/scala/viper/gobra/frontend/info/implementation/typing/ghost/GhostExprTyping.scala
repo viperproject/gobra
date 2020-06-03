@@ -43,42 +43,37 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PSize(op) => exprType(op) match {
       case SequenceT(_) => isExpr(op).out
-      case t => message(op, s"expected sequence or (multi)set, but got '$t'")
+      case t => message(op, s"expected a sequence or (multi)set, but got $t")
     }
 
-    case n@PIn(left, right) => (exprType(left), exprType(right)) match {
-      case (t1, SequenceT(t2)) =>
-        isExpr(left).out ++ isExpr(right).out ++
-        message(n, s"$t1 and $t2 are of incomparable types", !comparableTypes(t1, t2))
-      case (_, t) => message(right, s"expected a sequence but got $t")
-    }
+    case n@PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++
+      ((exprType(left), exprType(right)) match {
+        case (t1, SequenceT(t2)) => comparableTypes.errors(t1, t2)(n)
+        case (_, t) => message(right, s"expected a sequence but got $t")
+      })
 
-    case PSequenceLiteral(typ, exprs) => {
+    case PSequenceLiteral(typ, exprs) => isType(typ).out ++ {
       val t = typeType(typ)
-      isType(typ).out ++
-        exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
+      exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
     }
 
-    case PRangeSequence(low, high) => {
+    case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
       val lowT = exprType(low)
       val highT = exprType(high)
-
-      isExpr(low).out ++ isExpr(high).out ++
-        message(low, s"expected an integer but got '$lowT'", lowT != IntT) ++
-        message(high, s"expected an integer but got '$highT'", highT != IntT)
+      message(low, s"expected an integer but got $lowT", lowT != IntT) ++
+        message(high, s"expected an integer but got $highT", highT != IntT)
     }
 
-    case n@PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
-      case (SequenceT(t1), SequenceT(t2)) =>
-        isExpr(left).out ++ isExpr(right).out ++
-        message(n, s"both operands are expected to be of an identical type, but got '$t1' and '$t2'", !identicalTypes(t1, t2))
-      case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
-    }
+    case n@PSequenceAppend(left, right) => isExpr(left).out ++ isExpr(right).out ++
+      ((exprType(left), exprType(right)) match {
+        case (SequenceT(t1), SequenceT(t2)) => comparableTypes.errors(t1, t2)(n)
+        case (t1, t2) => message(n, s"both operands are expected to be of a sequence type, but got '$t1' and '$t2'")
+      })
 
-    case PSequenceUpdate(seq, clauses) => exprType(seq) match {
-      case SequenceT(t) => isExpr(seq).out ++ clauses.flatMap(wellDefSeqUpdClause(t, _))
+    case PSequenceUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
+      case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
       case t => message(seq, s"expected a sequence type but got '$t'")
-    }
+    })
 
     case PSetLiteral(typ, exprs) => isType(typ).out ++ {
       val t = typeType(typ)
@@ -87,8 +82,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PBinarySetOperation => isExpr(n.left).out ++ isExpr(n.right).out ++
       ((exprType(n.left), exprType(n.right)) match {
-        case (SetT(t1), SetT(t2)) =>
-          message(n, s"both operands are expected to be of an identical type, but got $t1 and $t2", !identicalTypes(t1, t2))
+        case (SetT(t1), SetT(t2)) => comparableTypes.errors(t1, t2)(n)
         case (t1, t2) => message(n, s"both operands are expected to be of a set type, but got $t1 and $t2")
       })
   }
@@ -116,17 +110,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
     case PRangeSequence(_, _) => SequenceT(IntT)
-    case PSequenceAppend(left, right) => (exprType(left), exprType(right)) match {
-      case (SequenceT(t1), SequenceT(t2)) if identicalTypes(t1, t2) => SequenceT(t1)
-      case (t1, t2) => violation(s"operands of sequence append are of unidentical types '$t1' and '$t2'")
-    }
+    case PSequenceAppend(left, _) => exprType(left)
     case PSequenceUpdate(seq, _) => exprType(seq)
 
     case PSetLiteral(typ, _) => SetT(typeType(typ))
 
-    case n: PBinarySetOperation => (exprType(n.left), exprType(n.right)) match {
-      case (SetT(t1), SetT(t2)) if identicalTypes(t1, t2) => SetT(t1)
-      case (t1, t2) => violation(s"operands of set union are of unidentical types $t1 and $t2")
+    case expr : PBinarySetOperation => expr match {
+      case PSubset(_, _) => BooleanT
+      case _ => exprType(expr.left)
     }
   }
 
@@ -194,8 +185,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
 
       case PSetLiteral(_, exprs) => exprs.forall(isPureExprAttr)
-      case PSetUnion(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
-      case PSetIntersection(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
+      case n:PBinarySetOperation => isPureExprAttr(n.left) && isPureExprAttr(n.right)
 
       case _: PAccess | _: PPredicateAccess => false
 

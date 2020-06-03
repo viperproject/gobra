@@ -351,6 +351,43 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should print a subset relation as expected") {
+    val expr = Subset(
+      LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+      LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s subset t" =>
+    }
+  }
+
+  test("Printer: should print a chain of subset relations as expected") {
+    val expr = Subset(
+      Subset(
+        LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
+      )(Unsourced),
+      LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "s subset t subset u" =>
+    }
+  }
+
+  test("Printer: should properly print a subset relation in combination with literals") {
+    val expr = Subset(
+      SetLiteral(Vector(IntLit(42)(Unsourced)))(Unsourced),
+      EmptySet(BoolT)(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set { 42 } subset set[bool] { }" =>
+    }
+  }
+
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

@@ -373,6 +373,14 @@ case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) ex
   override def typ : Type = left.typ
 }
 
+/**
+  * Represents a subset relation "`left` subset `right`", where
+  * `left` and `right` are assumed to be sets of comparable types.
+  */
+case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = BoolT
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

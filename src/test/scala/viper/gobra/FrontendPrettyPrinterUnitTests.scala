@@ -370,6 +370,56 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple subset expression") {
+    val expr = PSubset(
+      PNamedOperand(PIdnUse("s")),
+      PNamedOperand(PIdnUse("t"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s subset t" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of subset uses (1)") {
+    val expr = PSubset(
+      PSubset(
+        PNamedOperand(PIdnUse("s")),
+        PNamedOperand(PIdnUse("t"))
+      ),
+      PNamedOperand(PIdnUse("u"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s subset t subset u" =>
+    }
+  }
+
+  test("Printer: should correctly show a chain of set subset uses (2)") {
+    val expr = PSubset(
+      PNamedOperand(PIdnUse("s")),
+      PSubset(
+        PNamedOperand(PIdnUse("t")),
+        PNamedOperand(PIdnUse("u"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "s subset t subset u" =>
+    }
+  }
+
+  test("Printer: should correctly show a subset relation in combination with literals") {
+    val expr = PSubset(
+      PSetLiteral(PIntType(), Vector(PBoolLit(true))),
+      PSetLiteral(PBoolType(), Vector())
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set[int] { true } subset set[bool] { }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

@@ -375,6 +375,95 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should mark any use of the subset relation as ghost") {
+    val expr = PSubset(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(3)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should mark a normal use of the subset relation as well-defined") {
+    val expr = PSubset(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(3)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the expected type to the result of a subset expression (1)") {
+    val expr = PSubset(
+      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+      PSetLiteral(PIntType(), Vector(PIntLit(3)))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should assign the expected type to the result of a subset expression (2)") {
+    val expr = PSubset(
+      PSetLiteral(PBoolType(), Vector()),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should not mark the use of a subset relation with incompatible operands as well-defined") {
+    val expr = PSubset(
+      PSetLiteral(PIntType(), Vector(PIntLit(3))),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not mark a subset relation well-defined if its operand is not well-defined") {
+    val expr = PSubset(
+      PSetLiteral(PBoolType(), Vector(PIntLit(42))),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify any use of a sequence append as ghost") {
+    val expr = PSequenceAppend(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1))),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(2))),
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify any proper use of a sequence append as well-defined") {
+    val expr = PSequenceAppend(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1))),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(2))),
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a sequence append of integers") {
+    val expr = PSequenceAppend(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1))),
+      PSequenceLiteral(PIntType(), Vector(PIntLit(2))),
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should not just typecheck a chain of subsets") {
+    val expr = PSubset(
+      PSubset(
+        PSetLiteral(PSetType(PIntType()), Vector()),
+        PSetLiteral(PSetType(PIntType()), Vector())
+      ),
+      PSetLiteral(PSetType(PBoolType()), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

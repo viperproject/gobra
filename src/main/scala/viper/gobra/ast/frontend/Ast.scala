@@ -749,6 +749,12 @@ case class PSetIntersection(left : PExpression, right : PExpression) extends PBi
   */
 case class PSetMinus(left : PExpression, right : PExpression) extends PBinarySetOperation
 
+/**
+  * Denotes the (multi) subset relation "`left` subset `right`",
+  * where `left` and `right` should be sets of comparable types.
+  */
+case class PSubset(left : PExpression, right : PExpression) extends PBinarySetOperation
+
 
 /**
   * Types

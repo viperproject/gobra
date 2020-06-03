@@ -163,7 +163,7 @@ object Parser {
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection", "setminus"
+      "intersection", "setminus", "subset"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -489,6 +489,7 @@ object Parser {
         precedence4 ~ (">" ~> precedence5) ^^ PGreater |
         precedence4 ~ (">=" ~> precedence5) ^^ PAtLeast |
         precedence4 ~ ("in" ~> precedence5) ^^ PIn |
+        precedence4 ~ ("subset" ~> precedence5) ^^ PSubset |
         precedence5
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */

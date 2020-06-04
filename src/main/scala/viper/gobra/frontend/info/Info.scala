@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend.{PNode, PProgram}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
+import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 import scala.concurrent.{Future, ExecutionContext}
@@ -27,6 +27,7 @@ object Info {
       config.reporter report TypeCheckDebugMessage(config.inputFile, () => program, () => getDebugInfo(program, info))
       if (errors.isEmpty) {
         config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info))
+        config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getGoifiedGhostCode(program, info))
         Right(info)
       } else {
         val typeErrors = program.positions.translate(errors, TypeError)
@@ -38,14 +39,11 @@ object Info {
   }
 
   private def getErasedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
-    
-    
+    new GhostLessPrinter(info).format(program)
+  }
 
-    import viper.gobra.frontend.info.implementation.typing.ghost.separation.GoifyingPrinter
+  private def getGoifiedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
     new GoifyingPrinter(info).format(program)
-
-    //TODO: CHANGE THIS BACK TO GHOSTLESSPRINTER (was used only for testing)
-    //new GhostLessPrinter(info).format(program)
   }
 
   private def getDebugInfo(program: PProgram, info: TypeInfoImpl): String = {

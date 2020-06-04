@@ -222,9 +222,10 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     
     case e: PUnfolding if unfoldingNotInGoifiedScope(e) =>
-      showExpr(e.op) <+> inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred))
+      //parens(showExpr(e.op) <+> inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)))
+      parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
 
-    case e: PUnfolding => super.showExpr(e)
+    case e: PUnfolding => parens(super.showExpr(e))
 
     case e: PActualExprProofAnnotation => showExpr(e.op)
     case e => super.showExpr(e)

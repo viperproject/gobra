@@ -102,6 +102,13 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = true
   )
 
+  val goify: ScallopOption[Boolean] = toggle(
+    name = "goify",
+    descrYes = "Print the input program with the ghost code commented out",
+    default = Some(false),
+    noshort = true
+  )
+
   val unparse: ScallopOption[Boolean] = toggle(
     name = "unparse",
     descrYes = "Print the parsed program",
@@ -139,6 +146,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   /** Argument Dependencies */
   requireOne(inputFile)
+  mutuallyExclusive(eraseGhost, goify)
 
   /** File Validation */
   def validateFileIsReadable(fileOption: ScallopOption[File]): Unit = addValidation {
@@ -174,6 +182,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),
+      goify = goify(),
       debug = debug(),
       printInternal = printInternal(),
       printVpr = printVpr()),

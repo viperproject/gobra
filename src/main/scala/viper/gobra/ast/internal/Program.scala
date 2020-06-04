@@ -225,7 +225,7 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 
-/* ** Mathematical sequences */
+/* ** Sequence expressions */
 
 /**
   * Denotes the length of `exp`, which has to be a sequence.
@@ -323,7 +323,61 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
 }
 
 
-/* ** Mathematical sets */
+/* ** Unordered collection expressions */
+
+/**
+  * Represents a (multi)set union "`left` union `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a (multi)set intersection "`left` intersection `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a (multi)set difference "`left` setminus `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a subset relation "`left` subset `right`", where
+  * `left` and `right` are assumed to be sets of comparable types.
+  */
+case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = BoolT
+}
+
+/**
+  * Represents the cardinality of `exp`,
+  * which is assumed to be a set or a multiset.
+  */
+case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
+/**
+  * Represents a (multi)set membership expression "`left` in `right`",
+  * where `right` should be a set of a type compatible with the one of `left`.
+  */
+case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = BoolT
+}
+
+
+/* ** Set expressions */
 
 /**
   * The empty sequence of type `typ`.
@@ -346,56 +400,9 @@ case class SetLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) exten
   }
 }
 
-/**
-  * Represents a (mathematical) (multi)set union "`left` union `right`",
-  * where `left` and `right` should be (multi)sets of identical types.
-  */
-case class SetUnion(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
-}
+/* ** Multiset expressions */
 
-/**
-  * Represents a (mathematical) (multi)set intersection "`left` intersection `right`",
-  * where `left` and `right` should be (multi)sets of identical types.
-  */
-case class SetIntersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
-}
 
-/**
-  * Represents a (mathematical) (multi)set difference "`left` setminus `right`",
-  * where `left` and `right` should be (multi)sets of identical types.
-  */
-case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
-  /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
-}
-
-/**
-  * Represents a subset relation "`left` subset `right`", where
-  * `left` and `right` are assumed to be sets of comparable types.
-  */
-case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = BoolT
-}
-
-/**
-  * Represents the cardinality of `exp`, which is assumed to be a
-  * set of multiset.
-  */
-case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT
-}
-
-/**
-  * Represents a (multi)set membership expression "`left` in `right`",
-  * where `right` should be a set of a type compatible with the one of `left`.
-  */
-case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = BoolT
-}
 
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -611,6 +618,11 @@ case class SequenceT(t : Type) extends Type
   * The type of mathematical sets with elements of type `t`.
   */
 case class SetT(t : Type) extends Type
+
+/**
+  * The type of mathematical multisets with elements of type `t`.
+  */
+case class MultisetT(t : Type) extends Type
 
 case class DefinedT(name: String) extends Type with TopType
 

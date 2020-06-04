@@ -26,10 +26,6 @@ object Type {
 
   case class MapT(key: Type, elem: Type) extends Type
 
-  case class SequenceT(elem: Type) extends Type
-
-  case class SetT(elem: Type) extends Type
-
   case class PointerT(elem: Type) extends Type
 
   case class ChannelT(elem: Type, mod: ChannelModus) extends Type
@@ -62,6 +58,18 @@ object Type {
   sealed trait GhostType extends Type
 
   case object AssertionT extends GhostType
+
+  sealed trait GhostCollectionType extends GhostType {
+    def elem : Type
+  }
+
+  case class SequenceT(elem : Type) extends GhostCollectionType
+
+  sealed trait GhostUnorderedCollectionType extends GhostCollectionType
+
+  case class SetT(elem : Type) extends GhostUnorderedCollectionType
+
+  case class MultisetT(elem : Type) extends GhostUnorderedCollectionType
 
 
   /**

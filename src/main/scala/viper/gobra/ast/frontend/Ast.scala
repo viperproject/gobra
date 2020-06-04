@@ -633,6 +633,15 @@ case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
 
+/**
+  * Conceals all binary ghost expressions, like sequence concatenation,
+  * set union, et cetera.
+  */
+sealed trait PBinaryGhostExp extends PGhostExpression {
+  def left : PExpression
+  def right : PExpression
+}
+
 //sealed trait PPermission extends PGhostExpression
 //
 //case class PFullPerm() extends PPermission
@@ -651,18 +660,27 @@ case class PAccess(exp: PExpression) extends PGhostExpression
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
+
+/* ** Ghost collections */
+
 /**
-  * Denotes the size of `exp`, which has to be either a sequence or (multi)set.
-  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
-  * if `exp` is a (multi)set it denotes set cardinality.
+  * Conceals the type of ordered and unordered ghost collections,
+  * e.g., sequences, sets, and multisets.
   */
-case class PSize(exp : PExpression) extends PGhostExpression
+sealed trait PGhostCollectionExp extends PGhostExpression
 
 /**
   * Represents expressions of the form "`left` in `right`",
-  * that is, (multi)set/sequence membership.
+  * that is, membership of a ghost collection.
   */
-case class PIn(left : PExpression, right : PExpression) extends PGhostExpression
+case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Denotes the size of `exp`, which has to be a ghost collection.
+  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
+  * if `exp` is a (multi)set it denotes set cardinality.
+  */
+case class PSize(exp : PExpression) extends PGhostCollectionExp
 
 
 /* ** Sequence expressions */
@@ -671,25 +689,25 @@ case class PIn(left : PExpression, right : PExpression) extends PGhostExpression
   * Conceals all sequence ghost expressions
   * (for example sequence literals, sequence concatenation, etc.).
   */
-sealed trait PSequenceExpression extends PGhostExpression
+sealed trait PSequenceExp extends PGhostCollectionExp
 
 /**
   * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
   * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
   */
-case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExpression
+case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExp
 
 /**
   * The appending of two sequences represented by `left` and `right`.
   */
-case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExpression
+case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExp with PBinaryGhostExp
 
 /**
   * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
   * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExpression {
+case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
     this(seq, Vector(PSequenceUpdateClause(left, right)))
@@ -705,55 +723,66 @@ case class PSequenceUpdateClause(left : PExpression, right : PExpression) extend
   * Denotes the range of integers from `low` to `high`
   * (which should both be integers), not including `high` but including `low`.
   */
-case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExpression
+case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExp
+
+
+/* ** Unordered ghost collections */
+
+/**
+  * Conceals all unsorted ghost collections, like sets and multisets.
+  */
+sealed trait PUnorderedGhostCollectionExp extends PGhostCollectionExp
+
+/**
+  * Represents a union "`left` union `right`" of two unordered ghost collections,
+  * `left` and `right`, which should be of comparable types.
+  */
+case class PUnion(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Represents the intersection "`left` intersection `right`" of
+  * `left` and `right`, which should be unordered ghost collections
+  * of a comparable type.
+  */
+case class PIntersection(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Represents the (multi)set difference "`left` setminus `right`" of
+  * `left` and `right`, which should be unordered ghost collections
+  * of a comparable type.
+  */
+case class PSetMinus(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Denotes the subset relation "`left` subset `right`",
+  * where `left` and `right` should be unordered ghost collections
+  * of comparable types.
+  */
+case class PSubset(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
 
 
 /* ** Set expressions */
 
 /**
-  * Conceals all set ghost expressions
-  * (for example set literals, set union, etc.).
+  * Conceals all set expressions, e.g., set literals.
   */
-sealed trait PSetExpression extends PGhostExpression
+sealed trait PSetExp extends PUnorderedGhostCollectionExp
 
 /**
-  * A mathematical set literal "set[typ] { e_0, ..., e_n }",
-  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
+  * A mathematical set literal "set[`typ`] { e_0, ..., e_n }",
+  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions
+  * in the literal, which should all be of type `typ`.
   */
-case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExpression
+case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp
+
+
+/* ** Multiset expressions */
 
 /**
-  * Conceals binary operations over sets, like union, intersection, etc.
-  * Here `left` and `right` are expected to both be sets of an identical type.
+  * Conceals all multiset expressions, like multiset literals.
   */
-sealed trait PBinarySetOperation extends PSetExpression {
-  def left : PExpression
-  def right : PExpression
-}
+sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
 
-/**
-  * Represents a union "`left` union `right`" of two (multi)sets,
-  * `left` and `right`, which should be of comparable types.
-  */
-case class PSetUnion(left : PExpression, right : PExpression) extends PBinarySetOperation
-
-/**
-  * Represents the (multi)set intersection "`left` intersection `right`" of
-  * `left` and `right`, which should be (multi)sets of a comparable type.
-  */
-case class PSetIntersection(left : PExpression, right : PExpression) extends PBinarySetOperation
-
-/**
-  * Represents the (multi)set difference "`left` setminus `right`" of
-  * `left` and `right`, which should be (multi)sets of a comparable type.
-  */
-case class PSetMinus(left : PExpression, right : PExpression) extends PBinarySetOperation
-
-/**
-  * Denotes the (multi) subset relation "`left` subset `right`",
-  * where `left` and `right` should be sets of comparable types.
-  */
-case class PSubset(left : PExpression, right : PExpression) extends PBinarySetOperation
 
 
 /**
@@ -777,6 +806,11 @@ case class PSequenceType(elem : PType) extends PGhostTypeLit
   * The type of mathematical sets with elements of type `elem`.
   */
 case class PSetType(elem : PType) extends PGhostTypeLit
+
+/**
+  * The type of mathematical multisets with elements of type `elem`.
+  */
+case class PMultiSetType(elem : PType) extends PGhostTypeLit
 
 
 

@@ -20,6 +20,7 @@ class TypesImpl extends Types {
     * [S]      -> ??? // TODO: will be the tuple type
     * [seq t]  -> seq[t]
     * [set t]  -> set[t]
+    * [mset t] -> mset[t]
     * [void] undef
     */
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
@@ -36,6 +37,7 @@ class TypesImpl extends Types {
     case in.TupleT(_) => Violation.violation("Tuple types are not supported at this point in time")
     case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SetT(elem) => vpr.SetType(translate(elem)(ctx))
+    case in.MultisetT(elem) => vpr.MultisetType(translate(elem)(ctx))
     case in.VoidT => Violation.violation("void is not a translatable type")
   }
 }

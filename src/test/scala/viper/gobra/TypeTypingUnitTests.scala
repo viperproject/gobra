@@ -43,6 +43,31 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.isWellDef(t).valid)
   }
 
+  test("Typing: should classify any multiset as ghost") {
+    val t = PMultiSetType(PIntType())
+    assert (frontend.isGhostType(t))
+  }
+
+  test("Typing: should let a normal use of the multiset type be well-defined") {
+    val t = PMultiSetType(PIntType())
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should correctly type a simple multiset type") {
+    val t = PMultiSetType(PBoolType())
+    frontend.typType(t) should matchPattern {
+      case Type.MultisetT(Type.BooleanT) =>
+    }
+  }
+
+  test("Typing: should correctly type a nested multiset type") {
+    val t = PMultiSetType(PMultiSetType(PIntType()))
+    frontend.typType(t) should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.IntT)) =>
+    }
+  }
+
+
 
   /* ** Stubs, mocks, and other test setup  */
 

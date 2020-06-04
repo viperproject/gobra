@@ -163,7 +163,7 @@ object Parser {
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection", "setminus", "subset"
+      "intersection", "setminus", "subset", "mset"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -494,8 +494,8 @@ object Parser {
 
     lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
-        precedence5 ~ ("union" ~> precedence6) ^^ PSetUnion |
-        precedence5 ~ ("intersection" ~> precedence6) ^^ PSetIntersection |
+        precedence5 ~ ("union" ~> precedence6) ^^ PUnion |
+        precedence5 ~ ("intersection" ~> precedence6) ^^ PIntersection |
         precedence5 ~ ("setminus" ~> precedence6) ^^ PSetMinus |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
@@ -645,8 +645,7 @@ object Parser {
         channelType | functionType | structType | interfaceType
 
     lazy val ghostTypeLit : Parser[PGhostTypeLit] =
-      sequenceType |
-      setType
+      sequenceType | setType | multisetType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -673,6 +672,9 @@ object Parser {
 
     lazy val setType : Parser[PSetType] =
       "set" ~> ("[" ~> typ <~ "]") ^^ PSetType
+
+    lazy val multisetType : Parser[PMultiSetType] =
+      "mset" ~> ("[" ~> typ <~ "]") ^^ PMultiSetType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType

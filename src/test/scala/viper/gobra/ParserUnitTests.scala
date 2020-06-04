@@ -852,7 +852,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a simple set union expression") {
     frontend.parseExpOrFail("s union t") should matchPattern {
-      case PSetUnion(
+      case PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       ) =>
@@ -861,8 +861,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: set union should by default associate to the left") {
     frontend.parseExpOrFail("s union t union u") should matchPattern {
-      case PSetUnion(
-        PSetUnion(
+      case PUnion(
+        PUnion(
           PNamedOperand(PIdnUse("s")),
           PNamedOperand(PIdnUse("t"))
         ),
@@ -873,9 +873,9 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: set union with parentheses should correctly be parsed") {
     frontend.parseExpOrFail("s union (t union u)") should matchPattern {
-      case PSetUnion(
+      case PUnion(
         PNamedOperand(PIdnUse("s")),
-        PSetUnion(
+        PUnion(
           PNamedOperand(PIdnUse("t")),
           PNamedOperand(PIdnUse("u"))
         )
@@ -897,7 +897,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse simple set intersection") {
     frontend.parseExpOrFail("s intersection t") should matchPattern {
-      case PSetIntersection(
+      case PIntersection(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       ) =>
@@ -906,8 +906,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should have set intersection associate to the left") {
     frontend.parseExpOrFail("s intersection t intersection u") should matchPattern {
-      case PSetIntersection(
-        PSetIntersection(
+      case PIntersection(
+        PIntersection(
           PNamedOperand(PIdnUse("s")),
           PNamedOperand(PIdnUse("t"))
         ),
@@ -918,9 +918,9 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should let set intersection correctly handle parentheses") {
     frontend.parseExpOrFail("s intersection (t intersection u)") should matchPattern {
-      case PSetIntersection(
+      case PIntersection(
         PNamedOperand(PIdnUse("s")),
-        PSetIntersection(
+        PIntersection(
           PNamedOperand(PIdnUse("t")),
           PNamedOperand(PIdnUse("u"))
         )
@@ -952,7 +952,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should correctly parse set intersection with literals") {
     frontend.parseExpOrFail("set[bool] { true } intersection set[int] { }") should matchPattern {
-      case PSetIntersection(
+      case PIntersection(
         PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
         PSetLiteral(PIntType(), Vector())
       ) =>
@@ -961,8 +961,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should let set union and intersection have the same precedence") {
     frontend.parseExpOrFail("s union t intersection u") should matchPattern {
-      case PSetIntersection(
-        PSetUnion(
+      case PIntersection(
+        PUnion(
           PNamedOperand(PIdnUse("s")),
           PNamedOperand(PIdnUse("t")),
         ),
@@ -1034,7 +1034,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should let set union and difference have the same precedence") {
     frontend.parseExpOrFail("s union t setminus u") should matchPattern {
       case PSetMinus(
-        PSetUnion(
+        PUnion(
           PNamedOperand(PIdnUse("s")),
           PNamedOperand(PIdnUse("t")),
         ),
@@ -1100,6 +1100,36 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
         PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
         PSetLiteral(PIntType(), Vector(PIntLit(n)))
       ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse the type of integer multisets") {
+    frontend.parseTypeOrFail("mset[int]") should matchPattern {
+      case PMultiSetType(PIntType()) =>
+    }
+  }
+
+  test("Parser: should be able to parse a nested multiset type") {
+    frontend.parseTypeOrFail("mset[mset[bool]]") should matchPattern {
+      case PMultiSetType(PMultiSetType(PBoolType())) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiset type with missing opening bracket") {
+    frontend.parseType("mset int]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiset type with missing closing bracket") {
+    frontend.parseType("mset [ int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse 'mset' as an identifier") {
+    frontend.parseType("mset") should matchPattern {
+      case Left(_) =>
     }
   }
 

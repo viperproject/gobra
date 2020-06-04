@@ -187,7 +187,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a set union as expected") {
-    val expr = SetUnion(
+    val expr = Union(
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
     )(Unsourced)
@@ -198,8 +198,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a chain of set unions as expected (1)") {
-    val expr = SetUnion(
-      SetUnion(
+    val expr = Union(
+      Union(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
       )(Unsourced),
@@ -212,9 +212,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a chain of set unions as expected (2)") {
-    val expr = SetUnion(
+    val expr = Union(
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
-      SetUnion(
+      Union(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       )(Unsourced)
@@ -226,7 +226,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show set union in combination with literals") {
-    val expr = SetUnion(
+    val expr = Union(
       SetLiteral(Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
@@ -242,7 +242,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a set intersection as expected") {
-    val expr = SetIntersection(
+    val expr = Intersection(
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
     )(Unsourced)
@@ -253,8 +253,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a chain of set intersections as expected (1)") {
-    val expr = SetIntersection(
-      SetIntersection(
+    val expr = Intersection(
+      Intersection(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
       )(Unsourced),
@@ -267,9 +267,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a chain of set intersections as expected (2)") {
-    val expr = SetIntersection(
+    val expr = Intersection(
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
-      SetIntersection(
+      Intersection(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       )(Unsourced)
@@ -281,7 +281,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show set intersection in combination with literals") {
-    val expr = SetIntersection(
+    val expr = Intersection(
       SetLiteral(Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
@@ -463,7 +463,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size of a set in combination with a set intersection") {
     val expr = SetCardinality(
-      SetIntersection(
+      Intersection(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
       )(Unsourced)
@@ -497,6 +497,19 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple integer multiset type") {
+    val typ = MultisetT(IntT)
+    frontend.show(typ) should matchPattern {
+      case "mset[int]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested multiset type") {
+    val typ = MultisetT(MultisetT(BoolT))
+    frontend.show(typ) should matchPattern {
+      case "mset[mset[bool]]" =>
+    }
+  }
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

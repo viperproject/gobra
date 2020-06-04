@@ -226,8 +226,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case EmptySet(typ) => "set" <> brackets(showType(typ)) <+> braces(space)
     case SetLiteral(exprs) => "set" <+> braces(space <> showExprList(exprs) <>
       (if (exprs.nonEmpty) space else emptyDoc))
-    case SetUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
-    case SetIntersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
+    case Union(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
+    case Intersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
     case SetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
     case Subset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
     case SetContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
@@ -287,6 +287,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case SequenceT(elem) => "seq" <> brackets(showType(elem))
     case SetT(elem) => "set" <> brackets(showType(elem))
+    case MultisetT(elem) => "mset" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

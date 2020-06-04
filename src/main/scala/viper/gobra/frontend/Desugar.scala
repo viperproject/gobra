@@ -1021,6 +1021,7 @@ object Desugar {
       case Type.ChannelT(elem, mod) => ???
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem))
       case Type.SetT(elem) => in.SetT(typeD(elem))
+      case Type.MultisetT(elem) => in.MultisetT(typeD(elem))
 
       case Type.StructT(decl) =>
         var fields: List[in.Field] = List.empty
@@ -1280,15 +1281,15 @@ object Desugar {
           case _ => in.SetLiteral(dexprs)(src)
         }
 
-        case PSetUnion(left, right) => for {
+        case PUnion(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.SetUnion(dleft, dright)(src)
+        } yield in.Union(dleft, dright)(src)
 
-        case PSetIntersection(left, right) => for {
+        case PIntersection(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield in.SetIntersection(dleft, dright)(src)
+        } yield in.Intersection(dleft, dright)(src)
 
         case PSetMinus(left, right) => for {
           dleft <- go(left)

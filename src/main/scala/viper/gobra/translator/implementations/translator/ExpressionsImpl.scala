@@ -132,12 +132,12 @@ class ExpressionsImpl extends Expressions {
         exprsT <- sequence(exprs map goE)
       } yield vpr.ExplicitSet(exprsT)(pos, info, errT)
 
-      case in.SetUnion(left, right) => for {
+      case in.Union(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)
       } yield vpr.AnySetUnion(leftT, rightT)(pos, info, errT)
 
-      case in.SetIntersection(left, right) => for {
+      case in.Intersection(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)
       } yield vpr.AnySetIntersection(leftT, rightT)(pos, info, errT)

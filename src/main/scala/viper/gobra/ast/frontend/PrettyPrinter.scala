@@ -294,25 +294,27 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression => "acc" <> parens(showExpr(n))
       }
 
-      case PSize(operand) => "|" <> showExpr(operand) <> "|"
-      case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
-
-      case expr : PSequenceExpression => expr match {
-        case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
-        case PRangeSequence(low, high) =>
-          "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-        case PSequenceAppend(left, right) =>
-          showExpr(left) <+> "++" <+> showExpr(right)
-        case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
-          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
-      }
-
-      case expr : PSetExpression => expr match {
-        case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
-        case PSetUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
-        case PSetIntersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
-        case PSetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
-        case PSubset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
+      case expr : PGhostCollectionExp => expr match {
+        case PSize(operand) => "|" <> showExpr(operand) <> "|"
+        case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
+        case expr : PSequenceExp => expr match {
+          case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
+          case PRangeSequence(low, high) =>
+            "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+          case PSequenceAppend(left, right) =>
+            showExpr(left) <+> "++" <+> showExpr(right)
+          case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
+            (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
+        }
+        case expr : PUnorderedGhostCollectionExp => expr match {
+          case PUnion(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
+          case PIntersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
+          case PSetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
+          case PSubset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
+          case expr : PSetExp => expr match {
+            case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
+          }
+        }
       }
     }
   }
@@ -383,6 +385,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showGhostType(typ : PGhostType) : Doc = typ match {
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
+    case PMultiSetType(elem) => "mset" <> brackets(showType(elem))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {

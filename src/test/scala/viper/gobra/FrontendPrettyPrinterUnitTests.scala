@@ -223,7 +223,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple set union") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PNamedOperand(PIdnUse("s")),
       PNamedOperand(PIdnUse("t"))
     )
@@ -233,8 +233,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a chain of three set unions (1)") {
-    val expr = PSetUnion(
-      PSetUnion(
+    val expr = PUnion(
+      PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       ),
@@ -246,9 +246,9 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a chain of three set unions (2)") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PNamedOperand(PIdnUse("s")),
-      PSetUnion(
+      PUnion(
         PNamedOperand(PIdnUse("t")),
         PNamedOperand(PIdnUse("u"))
       )
@@ -260,7 +260,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show set union in combination with literals") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PBoolType(), Vector()),
       PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(7)))
     )
@@ -271,7 +271,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple set intersection") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PNamedOperand(PIdnUse("s")),
       PNamedOperand(PIdnUse("t"))
     )
@@ -282,8 +282,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a chain of set intersections (1)") {
-    val expr = PSetIntersection(
-      PSetIntersection(
+    val expr = PIntersection(
+      PIntersection(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       ),
@@ -296,9 +296,9 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a chain of set intersections (2)") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PNamedOperand(PIdnUse("s")),
-      PSetIntersection(
+      PIntersection(
         PNamedOperand(PIdnUse("t")),
         PNamedOperand(PIdnUse("u"))
       ),
@@ -310,7 +310,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show set intersection in combination with literals") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PSetLiteral(PIntType(), Vector()),
       PSetLiteral(PBoolType(), Vector(PBoolLit(true)))
     )
@@ -454,7 +454,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size operator in combination with set union") {
     val expr = PSize(
-      PSetUnion(
+      PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       )
@@ -464,6 +464,19 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show the type of integer multisets") {
+    val typ = PMultiSetType(PIntType())
+    frontend.show(typ) should matchPattern {
+      case "mset[int]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested multiset type") {
+    val typ = PMultiSetType(PMultiSetType(PBoolType()))
+    frontend.show(typ) should matchPattern {
+      case "mset[mset[bool]]" =>
+    }
+  }
 
 
   class TestFrontend {

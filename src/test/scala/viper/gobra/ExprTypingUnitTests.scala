@@ -238,7 +238,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify a set union operation as ghost") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PBoolType(), Vector()),
       PSetLiteral(PBoolType(), Vector()),
     )
@@ -246,7 +246,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should type check a set union with operands of matching type") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PIntType(), Vector(PIntLit(2))),
       PSetLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
     )
@@ -255,7 +255,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a set union operation") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PIntType(), Vector(PIntLit(2))),
       PSetLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
     )
@@ -266,7 +266,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not type check the union of a set and sequence") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PIntType(), Vector(PIntLit(2))),
       PSequenceLiteral(PIntType(), Vector(PIntLit(4), PIntLit(5))),
     )
@@ -275,7 +275,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not type check a union of two integers") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PIntLit(42),
       PIntLit(22)
     )
@@ -284,9 +284,9 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should type check a chain of unions") {
-    val expr = PSetUnion(
+    val expr = PUnion(
       PSetLiteral(PIntType(), Vector(PIntLit(2))),
-      PSetUnion(
+      PUnion(
         PSetLiteral(PIntType(), Vector(PIntLit(4))),
         PSetLiteral(PIntType(), Vector(PIntLit(5))),
       )
@@ -300,7 +300,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify set intersection as ghost") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
       PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
     )
@@ -309,7 +309,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should let an intersection of two Boolean sets be well-defined") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
       PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
     )
@@ -318,7 +318,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not let the intersection of a Boolean set and an integer set be well-defined") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
       PSetLiteral(PIntType(), Vector(PIntLit(42)))
     )
@@ -327,7 +327,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type an integer set intersection") {
-    val expr = PSetIntersection(
+    val expr = PIntersection(
       PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
       PSetLiteral(PIntType(), Vector(PIntLit(3)))
     )
@@ -579,6 +579,21 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     frontend.exprType(expr)() should matchPattern {
       case Type.IntT =>
     }
+  }
+
+  test("TypeChecker: should not type check the intersection of two Booleans") {
+    val expr = PIntersection(PBoolLit(false), PBoolLit(true))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the set difference of two Booleans") {
+    val expr = PSetMinus(PBoolLit(false), PBoolLit(true))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the subset of two Booleans") {
+    val expr = PSubset(PBoolLit(false), PBoolLit(true))
+    assert (!frontend.wellDefExpr(expr)().valid)
   }
 
 

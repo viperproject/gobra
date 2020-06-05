@@ -521,6 +521,16 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a multiset union") {
+    val expr = PUnion(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+    )
+    frontend.show(expr) should matchPattern {
+      case "mset[bool] { true } union mset[int] { 42 }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

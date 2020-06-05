@@ -1247,6 +1247,15 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a union of two multiset literals") {
+    frontend.parseExpOrFail("mset[bool] { true } union mset[int] { 2 }") should matchPattern {
+      case PUnion(
+        PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(n)))
+      ) if n == BigInt(2) =>
+    }
+  }
+
 
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =

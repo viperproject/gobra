@@ -349,7 +349,7 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents the cardinality of `exp`,
+  * Represents the (multi)set cardinality of `exp`,
   * which is assumed to be a set or a multiset.
   */
 case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {

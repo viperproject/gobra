@@ -235,24 +235,12 @@ case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr
 }
 
 /**
-  * The empty sequence of type `typ`.
+  * A (mathematical) sequence literal "seq[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
   */
-case class EmptySequence(typ : Type)(val info : Source.Parser.Info) extends Expr
-
-/**
-  * A mathematical sequence literal "seq { e_0, ..., e_n }",
-  * where `exprs` constitutes the vector "e_0, ..., e_n" of (sub)expressions in the literal.
-  * The `exprs` vector should be non-empty.
-  */
-case class SequenceLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
-  /**
-    * Is set to be the type of the first element in `exprs`
-    * (which is expected not to be empty).
-    */
-  override def typ : Type = exprs.length match {
-    case 0 => Violation.violation("sequence literal is expected not to be empty")
-    case _ => SequenceT(exprs.head.typ)
-  }
+case class SequenceLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = SequenceT(memberType)
 }
 
 /**
@@ -380,25 +368,14 @@ case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) 
 /* ** Set expressions */
 
 /**
-  * The empty sequence of type `typ`.
+  * Represents a (mathematical) set literal "set[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
   */
-case class EmptySet(typ : Type)(val info : Source.Parser.Info) extends Expr
-
-/**
-  * Represents a (mathematical) set literal "set { e_0, ..., e_n }",
-  * where `exprs` constitutes the vector "e_0, ..., e_n" of members
-  * of the literal.
-  */
-case class SetLiteral(exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
-  /**
-    * Is set to be the type of the first element in `exprs`
-    * (which is expected to be non-empty).
-    */
-  override def typ : Type = exprs.length match {
-    case 0 => Violation.violation("set literal is not expected to be empty")
-    case _ => SetT(exprs.head.typ)
-  }
+case class SetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = SetT(memberType)
 }
+
 
 /* ** Multiset expressions */
 

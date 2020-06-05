@@ -1252,10 +1252,8 @@ object Desugar {
 
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
-        } yield dexprs.length match {
-          case 0 => in.EmptySequence(typeD(info.typ(t)))(src)
-          case _ => in.SequenceLiteral(dexprs)(src)
-        }
+          dtyp = typeD(info.typ(t))
+        } yield in.SequenceLiteral(dtyp, dexprs)(src)
 
         case PRangeSequence(low, high) => for {
           dlow <- go(low)
@@ -1276,10 +1274,8 @@ object Desugar {
 
         case PSetLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
-        } yield dexprs.length match {
-          case 0 => in.EmptySet(typeD(info.typ(t)))(src)
-          case _ => in.SetLiteral(dexprs)(src)
-        }
+          dtype = typeD(info.typ(t))
+        } yield in.SetLiteral(dtype, dexprs)(src)
 
         case PUnion(left, right) => for {
           dleft <- go(left)

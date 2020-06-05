@@ -210,11 +210,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case SequenceLength(op) => "|" <> showExpr(op) <> "|"
-    case SequenceLiteral(exprs) => "seq" <+> braces(space <> showExprList(exprs) <>
+    case SequenceLiteral(typ, exprs) =>
+      "seq" <> brackets(showType(typ)) <+> braces(space <> showExprList(exprs) <>
       (if (exprs.nonEmpty) space else emptyDoc))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case EmptySequence(typ) => "seq" <> brackets(showType(typ)) <+> braces(space)
     case SequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
     case SequenceUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
@@ -223,9 +223,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
 
-    case EmptySet(typ) => "set" <> brackets(showType(typ)) <+> braces(space)
-    case SetLiteral(exprs) => "set" <+> braces(space <> showExprList(exprs) <>
-      (if (exprs.nonEmpty) space else emptyDoc))
+    case SetLiteral(typ, exprs) => "set" <> brackets(showType(typ)) <+>
+      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
     case Union(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
     case Intersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
     case SetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)

@@ -31,7 +31,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty integer sequence") {
-    val expr = EmptySequence(IntT)(Unsourced)
+    val expr = SequenceLiteral(IntT, Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "seq[int] { }" =>
@@ -39,7 +39,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty (nested) Boolean sequence") {
-    val expr = EmptySequence(SequenceT(SequenceT(BoolT)))(Unsourced)
+    val expr = SequenceLiteral(SequenceT(SequenceT(BoolT)), Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "seq[seq[seq[bool]]] { }" =>
@@ -59,6 +59,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a non-empty simple integer sequence literal") {
     val expr = SequenceLiteral(
+      IntT,
       Vector(
         IntLit(BigInt(2))(Unsourced),
         IntLit(BigInt(4))(Unsourced),
@@ -67,25 +68,26 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "seq { 2, 4, 8 }" =>
+      case "seq[int] { 2, 4, 8 }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer sequence literal") {
     val expr = SequenceLiteral(
+      IntT,
       Vector(IntLit(BigInt(42))(Unsourced))
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "seq { 42 }" =>
+      case "seq[int] { 42 }" =>
     }
   }
 
   test("Printer: should correctly show an empty sequence literal") {
-    val expr = SequenceLiteral(Vector())(Unsourced)
+    val expr = SequenceLiteral(BoolT, Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "seq { }" =>
+      case "seq[bool] { }" =>
     }
   }
 
@@ -154,35 +156,35 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty integer set") {
-    val expr = EmptySet(IntT)(Unsourced)
+    val expr = SetLiteral(IntT, Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "set[int] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty nested set") {
-    val expr = EmptySet(SetT(BoolT))(Unsourced)
+    val expr = SetLiteral(SetT(BoolT), Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "set[set[bool]] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer set literal") {
-    val expr = SetLiteral(Vector(IntLit(42)(Unsourced)))(Unsourced)
+    val expr = SetLiteral(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced)
     frontend.show(expr) should matchPattern {
-      case "set { 42 }" =>
+      case "set[int] { 42 }" =>
     }
   }
 
   test("Printer: should correctly show a non-empty Boolean set literal") {
-    val expr = SetLiteral(Vector(
+    val expr = SetLiteral(BoolT, Vector(
       BoolLit(false)(Unsourced),
       BoolLit(true)(Unsourced),
       BoolLit(true)(Unsourced)
     ))(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { false, true, true }" =>
+      case "set[bool] { false, true, true }" =>
     }
   }
 
@@ -227,17 +229,17 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set union in combination with literals") {
     val expr = Union(
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { s } union set { t, u }" =>
+      case "set[bool] { s } union set[bool] { t, u }" =>
     }
   }
 
@@ -282,17 +284,17 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set intersection in combination with literals") {
     val expr = Intersection(
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { s } intersection set { t, u }" =>
+      case "set[bool] { s } intersection set[bool] { t, u }" =>
     }
   }
 
@@ -337,17 +339,17 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set differences in combination with literals") {
     val expr = SetMinus(
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { s } setminus set { t, u }" =>
+      case "set[bool] { s } setminus set[bool] { t, u }" =>
     }
   }
 
@@ -378,12 +380,12 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should properly print a subset relation in combination with literals") {
     val expr = Subset(
-      SetLiteral(Vector(IntLit(42)(Unsourced)))(Unsourced),
-      EmptySet(BoolT)(Unsourced)
+      SetLiteral(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced),
+      SetLiteral(BoolT, Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { 42 } subset set[bool] { }" =>
+      case "set[int] { 42 } subset set[bool] { }" =>
     }
   }
 
@@ -439,15 +441,15 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set membership in the context of literals") {
     val expr = SetContains(
-      SetLiteral(Vector(
+      SetLiteral(BoolT, Vector(
         BoolLit(true)(Unsourced),
         BoolLit(false)(Unsourced))
       )(Unsourced),
-      EmptySet(SetT(SetT(IntT)))(Unsourced)
+      SetLiteral(SetT(SetT(IntT)), Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "set { true, false } in set[set[set[int]]] { }" =>
+      case "set[bool] { true, false } in set[set[set[int]]] { }" =>
     }
   }
 
@@ -476,20 +478,20 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size of a set literal") {
     val expr = SetCardinality(
-      SetLiteral(Vector(
+      SetLiteral(IntT, Vector(
         IntLit(1)(Unsourced),
         IntLit(42)(Unsourced)
       ))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
-      case "|set { 1, 42 }|" =>
+      case "|set[int] { 1, 42 }|" =>
     }
   }
 
   test("Printer: should correctly show the size of an empty set") {
     val expr = SetCardinality(
-      EmptySet(SequenceT(IntT))(Unsourced)
+      SetLiteral(SequenceT(IntT), Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {

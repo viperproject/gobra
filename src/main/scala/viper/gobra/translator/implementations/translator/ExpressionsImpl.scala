@@ -89,12 +89,14 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.SeqContains(leftT, rightT)(pos, info, errT)
 
-      case in.EmptySequence(typ) => unit(vpr.EmptySeq(goT(typ))(pos, info, errT))
-
-      case in.SequenceLiteral(exprs) => for {
+      case in.SequenceLiteral(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)
-      } yield vpr.ExplicitSeq(exprsT)(pos, info, errT)
-
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptySeq(typT)(pos, info, errT)
+        case _ => vpr.ExplicitSeq(exprsT)(pos, info, errT)
+      }
+        
       case in.RangeSequence(low, high) => for {
         lowT <- goE(low)
         highT <- goE(high)
@@ -126,11 +128,13 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
 
-      case in.EmptySet(typ) => unit(vpr.EmptySet(goT(typ))(pos, info, errT))
-
-      case in.SetLiteral(exprs) => for {
+      case in.SetLiteral(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)
-      } yield vpr.ExplicitSet(exprsT)(pos, info, errT)
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptySet(typT)(pos, info, errT)
+        case _ => vpr.ExplicitSet(exprsT)(pos, info, errT)
+      }
 
       case in.Union(left, right) => for {
         leftT <- goE(left)

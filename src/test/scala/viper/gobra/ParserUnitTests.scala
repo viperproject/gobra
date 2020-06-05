@@ -1105,13 +1105,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse the type of integer multisets") {
     frontend.parseTypeOrFail("mset[int]") should matchPattern {
-      case PMultiSetType(PIntType()) =>
+      case PMultisetType(PIntType()) =>
     }
   }
 
   test("Parser: should be able to parse a nested multiset type") {
     frontend.parseTypeOrFail("mset[mset[bool]]") should matchPattern {
-      case PMultiSetType(PMultiSetType(PBoolType())) =>
+      case PMultisetType(PMultisetType(PBoolType())) =>
     }
   }
 
@@ -1129,6 +1129,120 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should not be able to parse 'mset' as an identifier") {
     frontend.parseType("mset") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse an empty Boolean multiset literal") {
+    frontend.parseExpOrFail("mset[bool] { }") should matchPattern {
+      case PMultisetLiteral(PBoolType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse an empty integer multiset literal") {
+    frontend.parseExpOrFail("mset [ int ]{}") should matchPattern {
+      case PMultisetLiteral(PIntType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse an empty multiset literal with a nested type") {
+    frontend.parseExpOrFail("mset[mset[mset[bool]]] { }") should matchPattern {
+      case PMultisetLiteral(PMultisetType(PMultisetType(PBoolType())), Vector()) =>
+    }
+  }
+
+  test("Parser: should not be able to parse an empty multiset literal with a missing opening bracket") {
+    frontend.parseExp("mset int] { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse an empty multiset literal with a missing closing bracket") {
+    frontend.parseExp("mset [int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse an empty multiset literal with a missing opening curly bracket") {
+    frontend.parseExp("mset [bool] }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse an empty multiset literal with a missing closing curly bracket") {
+    frontend.parseExp("mset [bool] {") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a singleton Boolean multiset literal") {
+    frontend.parseExpOrFail("mset[bool] { false }") should matchPattern {
+      case PMultisetLiteral(PBoolType(), Vector(
+        PBoolLit(false)
+      )) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiset literal with just a comma inside") {
+    frontend.parseExp("mset[int] { , }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a singleton integer multiset literal with a missing opening curly bracket") {
+    frontend.parseExp("mset[int] 42 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a singleton integer multiset literal with a missing closing curly bracket") {
+    frontend.parseExp("mset[int] { 42") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a Boolean multiset literal with multiple elements") {
+    frontend.parseExpOrFail("mset[bool] { true, false, false }") should matchPattern {
+      case PMultisetLiteral(PBoolType(), Vector(
+        PBoolLit(true),
+        PBoolLit(false),
+        PBoolLit(false)
+      )) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a Boolean multiset literal with a missing comma") {
+    frontend.parseExp("mset[bool] { true false }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer multiset literal with an extra comma on the left") {
+    frontend.parseExp("mset[int] { ,1, 2 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer multiset literal with an extra comma on the right") {
+    frontend.parseExp("mset[int] { 1, 2, }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer multiset literal with an extra comma in the middle") {
+    frontend.parseExp("mset[int] { 1,, 2 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse something like a set range expression (for now)") {
+    frontend.parseExp("set[1..10]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse something like a multiset range expression (for now)") {
+    frontend.parseExp("mset[1..10]") should matchPattern {
       case Left(_) =>
     }
   }

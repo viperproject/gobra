@@ -465,19 +465,61 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the type of integer multisets") {
-    val typ = PMultiSetType(PIntType())
+    val typ = PMultisetType(PIntType())
     frontend.show(typ) should matchPattern {
       case "mset[int]" =>
     }
   }
 
   test("Printer: should correctly show a nested multiset type") {
-    val typ = PMultiSetType(PMultiSetType(PBoolType()))
+    val typ = PMultisetType(PMultisetType(PBoolType()))
     frontend.show(typ) should matchPattern {
       case "mset[mset[bool]]" =>
     }
   }
 
+  test("Printer: should correctly show an empty Boolean multiset literal") {
+    val expr = PMultisetLiteral(PBoolType(), Vector())
+    frontend.show(expr) should matchPattern {
+      case "mset[bool] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty nested multiset literal") {
+    val expr = PMultisetLiteral(PMultisetType(PMultisetType(PIntType())), Vector())
+    frontend.show(expr) should matchPattern {
+      case "mset[mset[mset[int]]] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show a singleton integer multiset literal") {
+    val expr = PMultisetLiteral(PIntType(), Vector(
+      PIntLit(42)
+    ))
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { 42 }" =>
+    }
+  }
+
+  test("Printer: should correctly show a non-empty Boolean multiset literal") {
+    val expr = PMultisetLiteral(PBoolType(), Vector(
+      PBoolLit(false), PBoolLit(true), PBoolLit(true)
+    ))
+    frontend.show(expr) should matchPattern {
+      case "mset[bool] { false, true, true }" =>
+    }
+  }
+
+  test("Printer: should correctly show a nesting of multiset literals") {
+    val expr = PMultisetLiteral(PMultisetType(PIntType()), Vector(
+      PMultisetLiteral(PIntType(), Vector(
+        PIntLit(42)
+      ))
+    ))
+    frontend.show(expr) should matchPattern {
+      case "mset[mset[int]] { mset[int] { 42 } }" =>
+    }
+  }
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

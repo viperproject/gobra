@@ -682,6 +682,15 @@ case class PIn(left : PExpression, right : PExpression) extends PGhostCollection
   */
 case class PSize(exp : PExpression) extends PGhostCollectionExp
 
+/**
+  * Represents a ghost collection literal, e.g., a sequence
+  * (or set or multiset) literal "seq[`typ`] { `exprs` }".
+  */
+sealed trait PGhostCollectionLiteral {
+  def typ : PType
+  def exprs : Vector[PExpression]
+}
+
 
 /* ** Sequence expressions */
 
@@ -695,7 +704,7 @@ sealed trait PSequenceExp extends PGhostCollectionExp
   * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
   * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
   */
-case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExp
+case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExp with PGhostCollectionLiteral
 
 /**
   * The appending of two sequences represented by `left` and `right`.
@@ -773,7 +782,7 @@ sealed trait PSetExp extends PUnorderedGhostCollectionExp
   * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions
   * in the literal, which should all be of type `typ`.
   */
-case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp
+case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp with PGhostCollectionLiteral
 
 
 /* ** Multiset expressions */
@@ -783,6 +792,12 @@ case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp
   */
 sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
 
+/**
+  * Represents a multiset literal "mset[`typ`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `typ`.
+  */
+case class PMultisetLiteral(typ : PType, exprs : Vector[PExpression]) extends PMultisetExp with PGhostCollectionLiteral
 
 
 /**
@@ -810,7 +825,7 @@ case class PSetType(elem : PType) extends PGhostTypeLit
 /**
   * The type of mathematical multisets with elements of type `elem`.
   */
-case class PMultiSetType(elem : PType) extends PGhostTypeLit
+case class PMultisetType(elem : PType) extends PGhostTypeLit
 
 
 

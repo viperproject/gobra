@@ -513,6 +513,54 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show an empty multiset integer literal") {
+    val expr = MultisetLiteral(IntT, Vector())(Unsourced)
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty multiset literal of a nested type") {
+    val expr = MultisetLiteral(MultisetT(MultisetT(BoolT)), Vector())(Unsourced)
+    frontend.show(expr) should matchPattern {
+      case "mset[mset[mset[bool]]] { }" =>
+    }
+  }
+
+  test("Printer: should correctly show a singleton integer multiset literal") {
+    val expr = MultisetLiteral(IntT, Vector(
+      IntLit(42)(Unsourced)
+    ))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { 42 }" =>
+    }
+  }
+
+  test("Printer: should correctly show a singleton nested multiset literal") {
+    val expr = MultisetLiteral(MultisetT(BoolT), Vector(
+      MultisetLiteral(BoolT, Vector(
+        BoolLit(false)(Unsourced)
+      ))(Unsourced)
+    ))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset[mset[bool]] { mset[bool] { false } }" =>
+    }
+  }
+
+  test("Printer: should correctly show a non-empty integer multiset literal") {
+    val expr = MultisetLiteral(IntT, Vector(
+      IntLit(1)(Unsourced),
+      IntLit(2)(Unsourced),
+      IntLit(3)(Unsourced)
+    ))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { 1, 2, 3 }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

@@ -596,6 +596,96 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
+  test("TypeChecker: should classify a simple empty Boolean multiset literal as ghost") {
+    val expr = PMultisetLiteral(PBoolType(), Vector())
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should let a simple empty integer multiset literal be well-defined") {
+    val expr = PMultisetLiteral(PIntType(), Vector())
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple empty multiset literal of a nested type be well-defined") {
+    val expr = PMultisetLiteral(PMultisetType(PBoolType()), Vector())
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type an empty Boolean multiset literal") {
+    val expr = PMultisetLiteral(PBoolType(), Vector())
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type an empty multiset literal of a nested type") {
+    val expr = PMultisetLiteral(PMultisetType(PIntType()), Vector())
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.IntT)) =>
+    }
+  }
+
+  test("TypeChecker: should classify a singleton integer multiset literal as ghost") {
+    val expr = PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a simple singleton integer multiset literal as well-defined") {
+    val expr = PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let a singleton multiset literal be well-defined if the types do not match") {
+    val expr = PMultisetLiteral(PIntType(), Vector(PBoolLit(false)))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a non-empty integer multiset literal as ghost") {
+    val expr = PMultisetLiteral(PIntType(), Vector(
+      PIntLit(1), PIntLit(2), PIntLit(3)
+    ))
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a proper non-empty integer multiset literal as well-defined") {
+    val expr = PMultisetLiteral(PIntType(), Vector(
+      PIntLit(1), PIntLit(2), PIntLit(3)
+    ))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a non-empty multiset literal with incorrect types as not well-defined (1)") {
+    val expr = PMultisetLiteral(PIntType(), Vector(
+      PIntLit(1), PIntLit(3), PBoolLit(false)
+    ))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a non-empty multiset literal with incorrect types as not well-defined (2)") {
+    val expr = PMultisetLiteral(PSetType(PIntType()), Vector(
+      PSequenceLiteral(PIntType(), Vector())
+    ))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a non-empty integer multiset literal") {
+    val expr = PMultisetLiteral(PIntType(), Vector(
+      PIntLit(1), PIntLit(2), PIntLit(3)
+    ))
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a nested multiset literal") {
+    val expr = PMultisetLiteral(PMultisetType(PBoolType()), Vector(
+      PMultisetLiteral(PBoolType(), Vector())
+    ))
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

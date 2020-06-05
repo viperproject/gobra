@@ -1297,6 +1297,11 @@ object Desugar {
           dright <- go(right)
         } yield in.Subset(dleft, dright)(src)
 
+        case PMultisetLiteral(t, exprs) => for {
+          dexprs <- sequence(exprs map go)
+          dtype = typeD(info.typ(t))
+        } yield in.MultisetLiteral(dtype, dexprs)(src)
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }

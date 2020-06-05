@@ -165,6 +165,14 @@ class ExpressionsImpl extends Expressions {
         expT <- goE(exp)
       } yield vpr.AnySetCardinality(expT)(pos, info, errT)
 
+      case in.MultisetLiteral(typ, exprs) => for {
+        exprsT <- sequence(exprs map goE)
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptyMultiset(typT)(pos, info, errT)
+        case _ => vpr.ExplicitMultiset(exprsT)(pos, info, errT)
+      }
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

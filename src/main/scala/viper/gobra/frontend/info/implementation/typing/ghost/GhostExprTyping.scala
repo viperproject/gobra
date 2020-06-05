@@ -3,7 +3,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -55,10 +55,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
       case expr : PSequenceExp => expr match {
-        case PSequenceLiteral(typ, exprs) => isType(typ).out ++ {
-          val t = typeType(typ)
-          exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
-        }
+        case expr : PSequenceLiteral => wellDefGhostCollectionLiteral(expr)
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
           val highT = exprType(high)
@@ -87,23 +84,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             comparableTypes.errors(t1, t2)(expr)
         }
 
-        case expr : PSetExp => expr match {
-          case PSetLiteral(typ, exprs) => isType(typ).out ++ {
-            val t = typeType(typ)
-            exprs.flatMap(e => assignableTo.errors(exprType(e), t)(e) ++ isExpr(e).out)
-          }
-        }
+        case expr : PSetLiteral => wellDefGhostCollectionLiteral(expr)
+        case expr : PMultisetLiteral => wellDefGhostCollectionLiteral(expr)
       }
     }
   }
 
+  private[typing] def wellDefGhostCollectionLiteral(lit : PGhostCollectionLiteral) : Messages = {
+    val typ = typeType(lit.typ)
+    lit.exprs.flatMap(e => assignableTo.errors(exprType(e), typ)(e) ++ isExpr(e).out)
+  }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
     case IntT => isExpr(clause.left).out ++ isExpr(clause.right).out ++
       assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
     case t => message(clause.left, s"expected an integer type but got $t")
   }
-
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
@@ -129,9 +125,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case PSubset(_, _) => BooleanT
           case _ => exprType(expr.left)
         }
-        case expr : PSetExp => expr match {
-          case PSetLiteral(typ, _) => SetT(typeType(typ))
-        }
+        case PSetLiteral(typ, _) => SetT(typeType(typ))
+        case PMultisetLiteral(typ, _) => MultisetT(typeType(typ))
       }
     }
   }
@@ -193,20 +188,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PImplication(left, right) => Seq(left, right).forall(isPureExprAttr)
 
       case expr : PGhostCollectionExp => expr match {
-        case PIn(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
+        case n : PBinaryGhostExp => isPureExprAttr(n.left) && isPureExprAttr(n.right)
+        case n : PGhostCollectionLiteral => n.exprs.forall(isPureExprAttr)
         case PSize(op) => isPureExprAttr(op)
-        case expr : PSequenceExp => expr match {
-          case PSequenceLiteral(_, exprs) => exprs.forall(isPureExprAttr)
-          case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
-          case PSequenceAppend(left, right) => isPureExprAttr(left) && isPureExprAttr(right)
-          case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
-        }
-        case expr : PUnorderedGhostCollectionExp => expr match {
-          case n : PBinaryGhostExp => isPureExprAttr(n.left) && isPureExprAttr(n.right)
-          case expr : PSetExp => expr match {
-            case PSetLiteral(_, exprs) => exprs.forall(isPureExprAttr)
-          }
-        }
+        case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
+        case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)
       }
 
       case _: PAccess | _: PPredicateAccess => false

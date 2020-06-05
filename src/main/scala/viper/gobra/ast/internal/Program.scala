@@ -255,7 +255,7 @@ case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info)
   * The appending of two sequences represented by `left` and `right`
   * (which should be of identical types as result of type checking).
   */
-case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("++") {
   /** Should be identical to `right.typ`. */
   override def typ : Type = left.typ
 }
@@ -264,7 +264,7 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   * A sequence membership expression "`left` in `right`",
   * denoting whether `left` occurs in the sequence `right`.
   */
-case class SequenceContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SequenceContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
   override def typ : Type = BoolT
 }
 
@@ -317,7 +317,7 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * Represents a (multi)set union "`left` union `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("union") {
   /** `left.typ` is expected to be identical to `right.typ`. */
   override def typ : Type = left.typ
 }
@@ -326,7 +326,7 @@ case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) exten
   * Represents a (multi)set intersection "`left` intersection `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("intersection") {
   /** `left.typ` is expected to be identical to `right.typ`. */
   override def typ : Type = left.typ
 }
@@ -335,7 +335,7 @@ case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info
   * Represents a (multi)set difference "`left` setminus `right`",
   * where `left` and `right` should be (multi)sets of identical types.
   */
-case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("setminus") {
   /** `left.typ` is expected to be identical to `right.typ`. */
   override def typ : Type = left.typ
 }
@@ -344,7 +344,7 @@ case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) ex
   * Represents a subset relation "`left` subset `right`", where
   * `left` and `right` are assumed to be sets of comparable types.
   */
-case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends Expr {
+case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("subset") {
   override def typ : Type = BoolT
 }
 
@@ -360,7 +360,7 @@ case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Exp
   * Represents a (multi)set membership expression "`left` in `right`",
   * where `right` should be a set of a type compatible with the one of `left`.
   */
-case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
   override def typ : Type = BoolT
 }
 
@@ -379,6 +379,14 @@ case class SetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source
 
 /* ** Multiset expressions */
 
+/**
+  * Represents a multiset literal "mset[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
+  */
+case class MultisetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = MultisetT(memberType)
+}
 
 
 

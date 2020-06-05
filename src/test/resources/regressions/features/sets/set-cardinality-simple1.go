@@ -19,3 +19,7 @@ ensures n == |s union set[int] { 42 }|;
 func example4(ghost s set[int]) (ghost n int) {
   n = |s union set[int] { 42 }|;
 }
+
+requires |s| == |t|;
+func example5(ghost s set[int], ghost t set[bool]) {
+}

@@ -314,6 +314,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case expr : PSetExp => expr match {
             case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
           }
+          case expr : PMultisetExp => expr match {
+            case PMultisetLiteral(typ, exprs) => showCollectionLiteral("mset", typ, exprs)
+          }
         }
       }
     }
@@ -385,7 +388,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showGhostType(typ : PGhostType) : Doc = typ match {
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
-    case PMultiSetType(elem) => "mset" <> brackets(showType(elem))
+    case PMultisetType(elem) => "mset" <> brackets(showType(elem))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {

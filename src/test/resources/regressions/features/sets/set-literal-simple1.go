@@ -36,6 +36,7 @@ func example8() {
   assert set[int] { 1, 2, 3 } == set[int] { 3, 2, 1 }
   assert set[int] { 1, 1, 1, 1, 1 } == set[int] { 1 }
   assert set[bool] { true, true } == set[bool] { true }
+  assert set[int] { 1 } != set[int] { 2 }
 }
 
 func example9() (ghost s set[int])  {

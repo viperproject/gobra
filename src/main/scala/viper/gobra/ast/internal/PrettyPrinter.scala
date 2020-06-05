@@ -210,27 +210,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case SequenceLength(op) => "|" <> showExpr(op) <> "|"
-    case SequenceLiteral(typ, exprs) =>
-      "seq" <> brackets(showType(typ)) <+> braces(space <> showExprList(exprs) <>
-      (if (exprs.nonEmpty) space else emptyDoc))
+    case SequenceLiteral(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case SequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
     case SequenceUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
-    case SequenceContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
     case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
-
-    case SetLiteral(typ, exprs) => "set" <> brackets(showType(typ)) <+>
-      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
-    case Union(left, right) => showExpr(left) <+> "union" <+> showExpr(right)
-    case Intersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
-    case SetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
-    case Subset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
-    case SetContains(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
+    case SetLiteral(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case SetCardinality(op) => "|" <> showExpr(op) <> "|"
+    case MultisetLiteral(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
@@ -242,6 +232,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
   }
+
+  def showGhostCollectionLiteral(front : String, typ : Type, exprs : Vector[Expr]) : Doc =
+    front <> brackets(showType(typ)) <+>
+      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 

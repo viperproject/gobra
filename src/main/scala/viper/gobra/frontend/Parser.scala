@@ -673,8 +673,8 @@ object Parser {
     lazy val setType : Parser[PSetType] =
       "set" ~> ("[" ~> typ <~ "]") ^^ PSetType
 
-    lazy val multisetType : Parser[PMultiSetType] =
-      "mset" ~> ("[" ~> typ <~ "]") ^^ PMultiSetType
+    lazy val multisetType : Parser[PMultisetType] =
+      "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
@@ -858,13 +858,18 @@ object Parser {
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
         sequenceLiteral |
         setLiteral |
+        multisetLiteral |
         rangeSequence
 
     lazy val sequenceLiteral : Parser[PSequenceLiteral] =
-      "seq" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSequenceLiteral
-
+      ghostCollectionLiteral("seq") ^^ PSequenceLiteral
     lazy val setLiteral : Parser[PSetLiteral] =
-      "set" ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PSetLiteral
+      ghostCollectionLiteral("set") ^^ PSetLiteral
+    lazy val multisetLiteral : Parser[PMultisetLiteral] =
+      ghostCollectionLiteral("mset") ^^ PMultisetLiteral
+
+    def ghostCollectionLiteral(front : String) : Parser[PType ~ Vector[PExpression]] =
+      front ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}")
 
     lazy val rangeSequence : Parser[PRangeSequence] =
       "seq" ~> ("[" ~> expression ~ (".." ~> expression <~ "]")) ^^ PRangeSequence

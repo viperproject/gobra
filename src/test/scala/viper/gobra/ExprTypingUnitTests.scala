@@ -822,6 +822,74 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify the set difference of two multiset integer literals as well-defined") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a set difference of a multiset and a set as well-defined") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+      PSetLiteral(PIntType(), Vector(PIntLit(2)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a set difference of a multiset and a sequence as well-defined") {
+    val expr = PSetMinus(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1))),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(2)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify the set difference of two incompatible multisets as well-defined") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a set difference of multisets as well-defined if there is a typing error in the left operand") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PIntType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(2)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a set difference of multisets as well-defined if there is a typing error in the right operand") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(2))),
+      PMultisetLiteral(PIntType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type the set difference of two integer multisets") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PIntType(), Vector()),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type the set difference of two nested multiset literals") {
+    val expr = PSetMinus(
+      PMultisetLiteral(PMultisetType(PBoolType()), Vector()),
+      PMultisetLiteral(PMultisetType(PBoolType()), Vector())
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

@@ -572,6 +572,17 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show the intersection of two multiset integer literals") {
+    val expr = Intersection(
+      MultisetLiteral(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
+      MultisetLiteral(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { 1, 2 } intersection mset[int] { 3 }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

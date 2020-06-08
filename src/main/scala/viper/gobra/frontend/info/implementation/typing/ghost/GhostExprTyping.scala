@@ -112,8 +112,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess => AssertionT
 
     case expr : PGhostCollectionExp => expr match {
-      case PIn(_, _) => BooleanT
       case PSize(_) => IntT
+      case PIn(_, right) => exprType(right) match {
+        case MultisetT(_) => IntT
+        case _ => BooleanT
+      }
       case expr : PSequenceExp => expr match {
         case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
         case PRangeSequence(_, _) => SequenceT(IntT)

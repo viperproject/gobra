@@ -482,21 +482,27 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence5) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence5) ^^ PUnequals |
-        precedence4 ~ ("<" ~> precedence5) ^^ PLess |
-        precedence4 ~ ("<=" ~> precedence5) ^^ PAtMost |
-        precedence4 ~ (">" ~> precedence5) ^^ PGreater |
-        precedence4 ~ (">=" ~> precedence5) ^^ PAtLeast |
-        precedence4 ~ ("in" ~> precedence5) ^^ PIn |
-        precedence4 ~ ("subset" ~> precedence5) ^^ PSubset |
+      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
+        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+        precedence4 ~ ("<" ~> precedence4P1) ^^ PLess |
+        precedence4 ~ ("<=" ~> precedence4P1) ^^ PAtMost |
+        precedence4 ~ (">" ~> precedence4P1) ^^ PGreater |
+        precedence4 ~ (">=" ~> precedence4P1) ^^ PAtLeast |
+        precedence4P1
+
+    lazy val precedence4P1 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P1 ~ ("in" ~> precedence4P2) ^^ PIn |
+        precedence4P1 ~ ("subset" ~> precedence4P2) ^^ PSubset |
+        precedence4P2
+
+    lazy val precedence4P2 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P2 ~ ("union" ~> precedence5) ^^ PUnion |
+        precedence4P2 ~ ("intersection" ~> precedence5) ^^ PIntersection |
+        precedence4P2 ~ ("setminus" ~> precedence5) ^^ PSetMinus |
         precedence5
 
-    lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
+    lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
-        precedence5 ~ ("union" ~> precedence6) ^^ PUnion |
-        precedence5 ~ ("intersection" ~> precedence6) ^^ PIntersection |
-        precedence5 ~ ("setminus" ~> precedence6) ^^ PSetMinus |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6

@@ -554,6 +554,28 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a multiset inclusion expression (1)") {
+    val expr = PIn(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(12), PIntLit(42)))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "42 in mset[int] { 12, 42 }" =>
+    }
+  }
+
+  test("Printer: should correctly show a multiset inclusion expression (2)") {
+    val expr = PIn(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "mset[int] { 1 } in mset[int] { 2, 3 }" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

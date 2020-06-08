@@ -1011,6 +1011,151 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should mark a simple multiset inclusion expression as ghost") {
+    val expr = PIn(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a simple multiset inclusion expression as well-defined") {
+    val expr = PIn(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a multiset inclusion as well-defined if the types of the operands aren't compatible") {
+    val expr = PIn(
+      PBoolLit(false),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a multiset inclusion operation as well-defined if there is a typing problem in the left operand") {
+    val expr = PIn(
+      PMultisetLiteral(PIntType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PMultisetType(PIntType()), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a multiset inclusion operation as well-defined if there is a typing problem in the right operand") {
+    val expr = PIn(
+      PBoolLit(false),
+      PMultisetLiteral(PBoolType(), Vector(PIntLit(42)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a multiset inclusion operation as well-defined if it mixed multisets with ordinary sets") {
+    val expr = PIn(
+      PMultisetLiteral(PIntType(), Vector()),
+      PMultisetLiteral(PSetType(PIntType()), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a simple multiset inclusion operation") {
+    val expr = PIn(
+      PIntLit(2),
+      PMultisetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a slightly more complicated multiset inclusion operation") {
+    val expr = PIn(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(42))),
+      PMultisetLiteral(PMultisetType(PIntType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should not type a (multi)set inclusion with integer literals as operands") {
+    val expr = PIn(PIntLit(1), PIntLit(2))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should be able to handle a comparison of multiset inclusions") {
+    val expr = PEquals(
+      PIn(PIntLit(2), PMultisetLiteral(PIntType(), Vector(PIntLit(2)))),
+      PIn(PIntLit(3), PMultisetLiteral(PIntType(), Vector(PIntLit(4))))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should be able to correctly type a comparison of multiset inclusions") {
+    val expr = PEquals(
+      PIn(PIntLit(2), PMultisetLiteral(PIntType(), Vector(PIntLit(2)))),
+      PIn(PIntLit(3), PMultisetLiteral(PIntType(), Vector(PIntLit(4))))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should be able to correctly type a comparison of (multi)set union") {
+    val expr = PEquals(
+      PUnion(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2)))
+      ),
+      PUnion(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(4)))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should be able to correctly type a comparison of (multi)set intersection") {
+    val expr = PEquals(
+      PIntersection(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2)))
+      ),
+      PIntersection(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(4)))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should be able to correctly type a comparison of (multi)set difference") {
+    val expr = PEquals(
+      PSetMinus(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2)))
+      ),
+      PSetMinus(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(4)))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

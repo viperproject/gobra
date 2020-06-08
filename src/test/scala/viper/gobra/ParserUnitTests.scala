@@ -1289,6 +1289,162 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should correctly parse multiset inclusion (1)") {
+    frontend.parseExpOrFail("true in mset[bool] { false, true }") should matchPattern {
+      case PIn(
+        PBoolLit(true),
+        PMultisetLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse multiset inclusion (2)") {
+    frontend.parseExpOrFail("mset[int] { } in mset[bool] { }") should matchPattern {
+      case PIn(
+        PMultisetLiteral(PIntType(), Vector()),
+        PMultisetLiteral(PBoolType(), Vector())
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a comparison of (multi)set inclusions") {
+    frontend.parseExpOrFail("x in s == y in s") should matchPattern {
+      case PEquals(
+        PIn(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("s"))),
+        PIn(PNamedOperand(PIdnUse("y")), PNamedOperand(PIdnUse("s")))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a comparison of (multi)set unions") {
+    frontend.parseExpOrFail("a union b == c union d") should matchPattern {
+      case PEquals(
+        PUnion(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PUnion(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a comparison of (multi)set intersections") {
+    frontend.parseExpOrFail("a intersection b == c intersection d") should matchPattern {
+      case PEquals(
+        PIntersection(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+      PIntersection(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a comparison of (multi)set differences") {
+    frontend.parseExpOrFail("a setminus b == c setminus d") should matchPattern {
+      case PEquals(
+        PSetMinus(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PSetMinus(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a comparison of set cardinality expressions") {
+    frontend.parseExpOrFail("|s| == |t|") should matchPattern {
+      case PEquals(
+        PSize(PNamedOperand(PIdnUse("s"))),
+        PSize(PNamedOperand(PIdnUse("t")))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a comparison of (multi)set subset expressions") {
+    frontend.parseExpOrFail("a subset b == c subset d") should matchPattern {
+      case PEquals(
+        PSubset(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PSubset(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (1)") {
+    frontend.parseExpOrFail("a in b + c") should matchPattern {
+      case PIn(
+        PNamedOperand(PIdnUse("a")),
+        PAdd(PNamedOperand(PIdnUse("b")), PNamedOperand(PIdnUse("c")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (2)") {
+    frontend.parseExpOrFail("a + b in c") should matchPattern {
+      case PIn(
+        PAdd(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PNamedOperand(PIdnUse("c"))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set inclusion in combination with ordinary addition (3)") {
+    frontend.parseExpOrFail("a in b + c in d") should matchPattern {
+      case PIn(
+        PIn(
+          PNamedOperand(PIdnUse("a")),
+          PAdd(PNamedOperand(PIdnUse("b")), PNamedOperand(PIdnUse("c")))
+        ),
+        PNamedOperand(PIdnUse("d"))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set union in combination with addition") {
+    frontend.parseExpOrFail("a + b union c + d") should matchPattern {
+      case PUnion(
+        PAdd(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PAdd(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set intersection in combination with addition") {
+    frontend.parseExpOrFail("a + b intersection c + d") should matchPattern {
+      case PIntersection(
+        PAdd(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PAdd(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (multi)set difference in combination with addition") {
+    frontend.parseExpOrFail("a + b setminus c + d") should matchPattern {
+      case PSetMinus(
+        PAdd(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PAdd(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse (multi)set union in combination with subset") {
+    frontend.parseExpOrFail("a union b subset c union d") should matchPattern {
+      case PSubset(
+        PUnion(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PUnion(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse (multi)set intersection in combination with subset") {
+    frontend.parseExpOrFail("a intersection b subset c intersection d") should matchPattern {
+      case PSubset(
+        PIntersection(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PIntersection(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to correctly parse (multi)set difference in combination with subset") {
+    frontend.parseExpOrFail("a setminus b subset c setminus d") should matchPattern {
+      case PSubset(
+        PSetMinus(PNamedOperand(PIdnUse("a")), PNamedOperand(PIdnUse("b"))),
+        PSetMinus(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("d")))
+      ) =>
+    }
+  }
+
 
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =

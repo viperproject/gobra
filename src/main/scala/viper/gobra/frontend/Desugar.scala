@@ -1237,8 +1237,8 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case in.SequenceT(_) => in.SequenceLength(dop)(src)
-          case in.SetT(_) => in.SetCardinality(dop)(src)
-          case t => violation(s"expected a sequence or (multi)set type but got '$t'")
+          case in.SetT(_) | in.MultisetT(_) => in.SetCardinality(dop)(src)
+          case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
         case PIn(left, right) => for {
@@ -1247,7 +1247,7 @@ object Desugar {
         } yield dright.typ match {
           case in.SequenceT(_) => in.SequenceContains(dleft, dright)(src)
           case in.SetT(_) => in.SetContains(dleft, dright)(src)
-          case t => violation(s"expected a sequence or (multi)set type but got '$t'")
+          case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
         case PSequenceLiteral(t, exprs) => for {

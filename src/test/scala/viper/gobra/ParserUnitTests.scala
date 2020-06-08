@@ -1283,6 +1283,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to correctly parse multiset cardinality") {
+    frontend.parseExpOrFail("|mset[bool] { }|") should matchPattern {
+      case PSize(PMultisetLiteral(PBoolType(), Vector())) =>
+    }
+  }
+
 
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =

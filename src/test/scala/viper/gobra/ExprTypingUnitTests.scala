@@ -967,6 +967,50 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should mark the use of a multiset cardinality as ghost") {
+    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a normal use of the multiset cardinality as well-defined") {
+    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a multiset cardinality as well-defined if there is a typing error in the operand") {
+    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PIntLit(42))))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify the cardinality of a nested multiset as well-defined") {
+    val expr = PSize(
+      PMultisetLiteral(PMultisetType(PIntType()), Vector(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+      ))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a standard use of the multiset cardinality") {
+    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a 'nested' multiset cardinality") {
+    val expr = PSize(
+      PMultisetLiteral(PMultisetType(PIntType()), Vector(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+      ))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

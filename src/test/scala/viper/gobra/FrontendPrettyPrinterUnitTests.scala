@@ -541,6 +541,19 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show the cardinality of a multiset literal") {
+    val expr = PSize(
+      PMultisetLiteral(PMultisetType(PIntType()), Vector(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+      ))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "|mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } }|" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

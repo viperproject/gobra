@@ -890,6 +890,83 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify a use of the subset relation between multisets as ghost") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a standard use of the subset relation between two multisets as well-defined") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a subset of multisets as well-defined if the left operand is a set instead of a multiset") {
+    val expr = PSubset(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a subset of multisets as well-defined if the right operand is a set instead of a multiset") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a subset of multisets as well-defined if there is a type error in the left operand") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PIntLit(12))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify a subset of multisets as well-defined if there is a type error in the right operand") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PBoolType(), Vector(PIntLit(24)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type a subset relation of two incompatible multisets") {
+    val expr = PSubset(
+      PMultisetLiteral(PIntType(), Vector(PIntLit(12))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should be able to correctly type a subset relation of Boolean multiset literals") {
+    val expr = PSubset(
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
+      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: must correctly type a subset of two type-nested multiset literals") {
+    val expr = PSubset(
+      PMultisetLiteral(PMultisetType(PIntType()), Vector()),
+      PMultisetLiteral(PMultisetType(PIntType()), Vector())
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

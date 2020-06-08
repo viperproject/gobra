@@ -66,7 +66,12 @@ trait GoVerifier {
     verify(config.inputFile, config)
   }
 
+  def goify(config: Config): Future[VerifierResult] = {
+    goify(config.inputFile, config)
+  }
+
   protected[this] def verify(file: File, config: Config): Future[VerifierResult]
+  protected[this] def goify(file: File, config: Config): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier {
@@ -77,7 +82,6 @@ class Gobra extends GoVerifier {
   override def verify(file: File, config: Config): Future[VerifierResult] = {
 
     config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
-
 
     val futureResult = for {
       parsedProgram <- performParsing(file, config)
@@ -93,6 +97,26 @@ class Gobra extends GoVerifier {
         case errs => VerifierResult.Failure(errs)
       }, identity)
     }
+  }
+
+  /**
+    * Executes the parsing and typechecking step of Gobra to obtain the
+    * Goified version of the given program.
+    */
+  override def goify(file: File, config: Config): Future[VerifierResult] = {
+
+    val futureResult = for {
+      parsedProgram <- performParsing(file, config)
+      typeInfo <- performTypeChecking(parsedProgram, config)
+    } yield typeInfo
+
+    futureResult.x.map{ result =>
+      result match {
+        case Right(_) => VerifierResult.Success
+        case Left(errs) => VerifierResult.Failure(errs)
+      }
+    }
+
   }
 
   private def performParsing(file: File, config: Config): FutureEither[Vector[VerifierError], PProgram] = {

@@ -24,7 +24,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualRegular(entity: ActualRegular, id: PIdnNode): ValidityMessages = entity match {
 
 
-    case SingleConstant(_, exp, opt, _, _) => unsafeMessage(! {
+    case SingleConstant(_, _, exp, opt, _, _) => unsafeMessage(! {
       opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
     })
 
@@ -106,7 +106,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualEntityType(entity: ActualRegular, id: PIdnNode): Type = entity match {
 
-    case SingleConstant(_, exp, opt, _, _) => opt.map(typeType)
+    case SingleConstant(_, _, exp, opt, _, _) => opt.map(typeType)
       .getOrElse(exprType(exp) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")

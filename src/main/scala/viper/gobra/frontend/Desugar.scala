@@ -167,8 +167,7 @@ object Desugar {
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
-      case sc@ st.SingleConstant(id, expr, _, _, context) => {
-        val name = nm.variable(id.name, info.scope(id), context)
+      case sc@ st.SingleConstant(_, id, expr, _, _, context) => {
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
@@ -806,7 +805,7 @@ object Desugar {
 
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
-            case Some(p: ap.Constant) => ???
+            case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
             case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
           }
 
@@ -1037,9 +1036,14 @@ object Desugar {
       case _ => ???
     }
 
-    def globalConstD(sc: st.SingleConstant)(src: Meta): in.GlobalConst = {
-      val typ = typeD(sc.context.typ(sc.decl))(src)
-      in.GlobalConst.Val(nm.variable(sc.decl.name, sc.context.scope(sc.decl), sc.context), typ)(src)
+    def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
+      c match {
+        case sc: st.SingleConstant => {
+          val typ = typeD(c.context.typ(sc.idDef))(src)
+          in.GlobalConst.Val(nm.variable(sc.idDef.name, c.context.scope(sc.idDef), c.context), typ)(src)
+        }
+        case _ => ???
+      }
     }
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {

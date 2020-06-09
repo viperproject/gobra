@@ -25,7 +25,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
           case _ => None
         }
       case PNamedOperand(id) => entity(id) match {
-        case SingleConstant(_, exp, _, _, _) => intConstantEval(exp)
+        case SingleConstant(_, _, exp, _, _, _) => intConstantEval(exp)
         case _ => None
       }
 

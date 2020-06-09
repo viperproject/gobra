@@ -34,17 +34,17 @@ object SymbolTable extends Environments {
   }
 
   sealed trait Constant extends DataEntity {
-    def decl: PIdnDef
+    def decl: PConstDecl
   }
 
   sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  case class SingleConstant(decl: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
-    override def rep: PNode = exp
+  case class SingleConstant(decl: PConstDecl, idDef: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+    override def rep: PNode = decl
   }
 
-  case class MultiConstant(decl: PIdnDef, idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
-    override def rep: PNode = exp
+  case class MultiConstant(decl: PConstDecl, idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+    override def rep: PNode = decl
   }
 
   sealed trait Variable extends DataEntity {

@@ -3,6 +3,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -37,6 +38,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(p: ap.Function) => noMessages
         case Some(p: ap.NamedType) => noMessages
+        case Some(p: ap.Constant) => noMessages
         // TODO: supporting packages results in further options: named type, global variable, function, predicate
         case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, or predicate expression, but got $n")
       }
@@ -75,6 +77,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(p: ap.Constant) => p.symb.context.typ(p.symb.decl)
 
         // TODO: supporting packages results in further options: named type, global variable, function, predicate
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")

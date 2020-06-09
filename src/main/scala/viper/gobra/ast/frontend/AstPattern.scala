@@ -18,6 +18,7 @@ object AstPattern {
 
   sealed trait Expr extends Pattern
 
+  case class Constant(id: PIdnUse, symb: st.Constant) extends Expr with Symbolic
   case class LocalVariable(id: PIdnUse, symb: st.Variable) extends Expr with Symbolic // In the future: with FunctionKind
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic

@@ -27,8 +27,8 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleConstant(decl.right(idx), decl.typ, isGhost, this)
-            case AssignMode.Multi => MultiConstant(idx, decl.right.head, isGhost, this)
+            case AssignMode.Single => SingleConstant(decl.left(idx), decl.right(idx), decl.typ, isGhost, this)
+            case AssignMode.Multi => MultiConstant(decl.left(idx), idx, decl.right.head, isGhost, this)
             case _ => UnknownEntity()
           }
 

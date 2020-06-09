@@ -33,15 +33,17 @@ object SymbolTable extends Environments {
     def isPure: Boolean = decl.spec.isPure
   }
 
-  sealed trait Constant extends DataEntity
+  sealed trait Constant extends DataEntity {
+    def decl: PIdnDef
+  }
 
   sealed trait ActualConstant extends Constant with ActualDataEntity
 
-  case class SingleConstant(exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+  case class SingleConstant(decl: PIdnDef, exp: PExpression, opt: Option[PType], ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
     override def rep: PNode = exp
   }
 
-  case class MultiConstant(idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
+  case class MultiConstant(decl: PIdnDef, idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
     override def rep: PNode = exp
   }
 

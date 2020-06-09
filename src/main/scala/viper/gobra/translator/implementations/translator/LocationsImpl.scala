@@ -2,6 +2,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import in.Addressable.isAddressable
+import viper.gobra.ast.internal.GlobalConst
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
@@ -45,7 +46,7 @@ class LocationsImpl extends Locations {
   /**
     * [v]w -> v
     */
-  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val (pos, info, errT) = v.vprMeta
 
@@ -54,10 +55,23 @@ class LocationsImpl extends Locations {
     v match {
       case in.Parameter.In(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.Out(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
-      case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case lv: in.LocalVar.Val => variableVal(lv)(ctx)
       case in.LocalVar.Inter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
+      case gc: in.GlobalConst => unit(ctx.fixpoint.get(gc)(ctx))
     }
+  }
+
+  /**
+    * [v]w -> v
+    */
+  def variableVal(v: in.LocalVar.Val)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+
+    val (pos, info, errT) = v.vprMeta
+
+    def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
+
+    unit(vpr.LocalVar(v.id, goT(v.typ))(pos, info, errT))
   }
 
 
@@ -371,7 +385,7 @@ class LocationsImpl extends Locations {
 
         seqn{
           for {
-            vTarget <- variable(mk.target)(ctx)
+            vTarget <- variableVal(mk.target)(ctx)
             _ <- write(vpr.NewStmt(vTarget, Vector.empty)(pos, info, errT))
             _ <- initValues(deref)(ctx)
             vMake <- seqns(perField map ctx.stmt.translateF(ctx))
@@ -565,9 +579,11 @@ class LocationsImpl extends Locations {
     l match {
       case v: in.Var => variable(v)(ctx)
       case in.Deref(exp, _) => rvalue(exp)(ctx)
-      case in.FieldRef(recv, field) =>
-        if (isAddressable(recv)) for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = true)(l)(ctx)
-        else for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = true)(l)(ctx)
+      case in.FieldRef(recv, field) => recv match {
+        case gc: GlobalConst => unit(ctx.fixpoint.get(gc)(ctx))
+        case _ if isAddressable(recv) => for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = true)(l)(ctx)
+        case _ => for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = true)(l)(ctx)
+      }
 
       case _ => Violation.violation(s"encountered unexpected addressable location $l")
     }
@@ -586,12 +602,23 @@ class LocationsImpl extends Locations {
     */
   def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 
+    def hasGlobalConstRecv(l: in.Expr): Boolean = {
+      l match {
+        case fr: in.FieldRef => fr.recv match {
+          case gc: GlobalConst => true
+          case _ => false
+        }
+        case _ => false
+      }
+    }
+
     val (pos, info, errT) = l.vprMeta
 
     l match {
       case l: in.Location =>
         if (isAddressable(l)) {
           if (ctx.typeProperty.isStructType(l.typ)(ctx)) avalue(l)(ctx)
+          else if (hasGlobalConstRecv(l)) avalue(l)(ctx)
           else for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
         } else {
           l match {
@@ -641,7 +668,7 @@ class LocationsImpl extends Locations {
           field = z.field.copy(name = Names.fieldExtension(z.field.name, vprF.name), typ = vprF.typ)(pos, info, errT)
         )(pos, info, errT)
 
-      case _ => Violation.violation(s"expected vpr variable or field access, but got $x")
+      case _ => Violation.violation(s"expected vpr variable or field access but got $x")
     }
   }
 

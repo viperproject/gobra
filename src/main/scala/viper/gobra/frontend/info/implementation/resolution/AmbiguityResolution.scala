@@ -61,6 +61,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         // imported members
         case (Right(base), Some((s: st.Function, path))) => Some(ap.Function(n.id, s))
         case (Right(base), Some((s: st.ActualTypeEntity, path))) => Some(ap.NamedType(n.id, s))
+        case (Right(base), Some((s: st.Constant, path))) => Some(ap.Constant(n.id, s))
 
         case _ => None
       }

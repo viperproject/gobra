@@ -6,6 +6,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.util.{DesugarWriter, Violation}
@@ -165,7 +166,18 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConst] = ???
+    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
+      case sc@ st.SingleConstant(id, expr, _, _, context) => {
+        val name = nm.variable(id.name, info.scope(id), context)
+        val src = meta(id)
+        val gVar = globalConstD(sc)(src)
+        val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+        (for {
+          e <- exprD(ctx)(expr)
+        } yield in.SingleGlobalConstDecl(gVar, e)(src)).res
+      }
+      case _ => ???
+    })
 
     def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl, info.asInstanceOf[ExternalTypeInfo]))(meta(decl))
 
@@ -768,7 +780,10 @@ object Desugar {
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
-          case PNamedOperand(id) => unit[in.Expr](varD(ctx)(id))
+          case PNamedOperand(id) => info.regular(id) match {
+            case sc: SingleConstant => unit[in.Expr](globalConstD(sc)(src))
+            case _ => unit[in.Expr](varD(ctx)(id))
+          }
 
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)
@@ -791,6 +806,7 @@ object Desugar {
 
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
+            case Some(p: ap.Constant) => ???
             case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
           }
 
@@ -1019,6 +1035,11 @@ object Desugar {
       case e: st.Field => ???
       case n: st.NamedType => nm.typ(id.name, n.context)
       case _ => ???
+    }
+
+    def globalConstD(sc: st.SingleConstant)(src: Meta): in.GlobalConst = {
+      val typ = typeD(sc.context.typ(sc.decl))(src)
+      in.GlobalConst.Val(nm.variable(sc.decl.name, sc.context.scope(sc.decl), sc.context), typ)(src)
     }
 
     def varD(ctx: FunctionContext)(id: PIdnNode): in.Var = {

@@ -140,7 +140,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     //case s if isEnclosedInGoifiedScope(s) => super.showStmt(s)
 
-    case PForStmt(pre, cond, post, _, body) =>
+    case PForStmt(pre, cond, post, spec, body) =>
+      showSpec(spec) <>
       super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
 
     case PAssignment(right, left) =>

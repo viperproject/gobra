@@ -175,9 +175,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           ssep(cases map showTypeSwitchClause, line)) <>
           ssep(dflt map {d => "default"  <> ":" <> showNestedStmtList(d.stmts) }, line)
       case PForStmt(pre, cond, post, spec, body) => showSpec(spec) <> ((pre, cond, post) match {
-        case (None, PBoolLit(true), None) =>  "for" <+> block(showStmt(body))
-        case (None, _, None) => "for" <+> showExpr(cond) <+> block(showStmt(body))
-        case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> block(showStmt(body))
+        case (None, PBoolLit(true), None) =>  "for" <+> showStmt(body)
+        case (None, _, None) => "for" <+> showExpr(cond) <+> showStmt(body)
+        case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> showStmt(body)
       })
       case PAssForRange(range, ass, body) =>
         "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
@@ -260,6 +260,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case typ: PType => showType(typ)
   }
 
+
+  def showMultSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _: PSub => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+  def showSubtractionSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+  def showDivSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _: PSub => parens(showExpr(expr))
+    case _: PMul => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+
   def showExpr(expr: PExpression): Doc = expr match {
     case expr: PActualExpression => expr match {
       case PReceive(operand) => "<-" <> showExpr(operand)
@@ -290,10 +310,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PGreater(left, right) => showExpr(left) <+> ">" <+> showExpr(right)
       case PAtLeast(left, right) => showExpr(left) <+> ">=" <+> showExpr(right)
       case PAdd(left, right) => showExpr(left) <+> "+" <+> showExpr(right)
-      case PSub(left, right) => showExpr(left) <+> "-" <+> showExpr(right)
-      case PMul(left, right) => showExpr(left) <+> "*" <+> showExpr(right)
+      case PSub(left, right) => showSubtractionSubExpr(left) <+> "-" <+> showSubtractionSubExpr(right)
+      case PMul(left, right) => showMultSubExpr(left) <+> "*" <+> showMultSubExpr(right)
       case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
-      case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
+      case PDiv(left, right) => showDivSubExpr(left) <+> "/" <+> showDivSubExpr(right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
     }
     case expr: PGhostExpression => expr match {

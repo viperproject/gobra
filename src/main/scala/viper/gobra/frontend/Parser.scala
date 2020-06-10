@@ -36,9 +36,9 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Future[Either[Vector[VerifierError], PProgram]] = {
+  def parse(input: Either[File, String])(config: Config): Future[Either[Vector[VerifierError], PProgram]] = {
     Future {
-      val source = SemicolonPreprocessor.preprocess(file)(config)
+      val source = SemicolonPreprocessor.preprocess(input)(config)
       parse(source)(config)
     }
     
@@ -91,14 +91,20 @@ object Parser {
     /**
       * Assumes that file corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8")(config: Config): Source = {
-      val filename = file.getPath
-      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
-      val content = bufferedSource.mkString
-      bufferedSource.close()
+    def preprocess(input: Either[File, String], encoding : String = "UTF-8")(config: Config): Source = {
+      val content = input match {
+        case Left(file) =>
+          val filename = file.getPath
+          val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+          val content = bufferedSource.mkString
+          bufferedSource.close()
+          content
+        case Right(str) => str
+      }
+
       val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(file, () => translatedContent)
-      FromFileSource(filename, translatedContent)
+      config.reporter report PreprocessedInputMessage(config.inputFile, () => translatedContent)
+      FromFileSource(config.inputFile.getPath, translatedContent)
     }
 
     def preprocess(content: String): Source = {

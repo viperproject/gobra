@@ -279,6 +279,62 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case _ => showExpr(expr)
   }
 
+  /**
+    * Precedence of expressions.
+    */
+  object Precedence extends Enumeration {
+    val p1 = Value(1)
+    val p1P5 = Value(2)
+    val p2 = Value(3)
+    val p3 = Value(4)
+    val p4 = Value(5)
+    val p5 = Value(6)
+    val p6 = Value(7)
+    val p7 = Value(8)
+  }
+
+  def getPrecedence(expr: PExpression): Precedence.Value = expr match {
+    case _: PConditional => Precedence.p1
+    case _: PImplication => Precedence.p1P5
+    case _: POr => Precedence.p2
+    case _: PAnd => Precedence.p3
+    case _: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast => Precedence.p4
+    case _: PAdd | _: PSub => Precedence.p5
+    case _: PMul | _: PDiv | _: PMod => Precedence.p6
+    case _ => Precedence.p7
+  }
+
+  def isExprTypeEqual(expr: PExpression, subExpr: PExpression): Boolean = {
+    if (getPrecedence(expr) == getPrecedence(subExpr))
+      expr match {
+        case _: PEquals => subExpr.isInstanceOf[PEquals]
+        case _: PUnequals => subExpr.isInstanceOf[PUnequals]
+        case _: PLess => subExpr.isInstanceOf[PLess]
+        case _: PAtMost => subExpr.isInstanceOf[PAtMost]
+        case _: PGreater => subExpr.isInstanceOf[PGreater]
+        case _: PAtLeast => subExpr.isInstanceOf[PAtLeast]
+        case _: PAdd => subExpr.isInstanceOf[PAdd]
+        case _: PSub => subExpr.isInstanceOf[PSub]
+        case _: PMul => subExpr.isInstanceOf[PMul]
+        case _: PDiv => subExpr.isInstanceOf[PDiv]
+        case _: PMod => subExpr.isInstanceOf[PMod]
+        case _ => false
+      }
+    else
+      false
+  }
+
+
+  def showSubExpr(expr: PExpression, subExpr: PExpression): Doc = {
+    val exprPrecedence = getPrecedence(expr)
+    val subExprPrecedence = getPrecedence(subExpr)
+
+    if (subExprPrecedence <= exprPrecedence && !isExprTypeEqual(expr, subExpr))
+      parens(showExpr(subExpr))
+    else
+      showExpr(subExpr)
+  }
+
 
   def showExpr(expr: PExpression): Doc = expr match {
     case expr: PActualExpression => expr match {
@@ -301,25 +357,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case (l, h, Some(c)) => showExpr(base) <> brackets(showExprList(Vector(l, h, c)))
       }
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
-      case PEquals(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
-      case PUnequals(left, right) => showExpr(left) <+> "!=" <+> showExpr(right)
-      case PAnd(left, right) => showExpr(left) <+> "&&" <+> showExpr(right)
-      case POr(left, right) => showExpr(left) <+> "||" <+> showExpr(right)
-      case PLess(left, right) => showExpr(left) <+> "<" <+> showExpr(right)
-      case PAtMost(left, right) => showExpr(left) <+> "<=" <+> showExpr(right)
-      case PGreater(left, right) => showExpr(left) <+> ">" <+> showExpr(right)
-      case PAtLeast(left, right) => showExpr(left) <+> ">=" <+> showExpr(right)
-      case PAdd(left, right) => showExpr(left) <+> "+" <+> showExpr(right)
-      case PSub(left, right) => showSubtractionSubExpr(left) <+> "-" <+> showSubtractionSubExpr(right)
-      case PMul(left, right) => showMultSubExpr(left) <+> "*" <+> showMultSubExpr(right)
-      case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
-      case PDiv(left, right) => showDivSubExpr(left) <+> "/" <+> showDivSubExpr(right)
+      case PEquals(left, right) => showSubExpr(expr, left) <+> "==" <+> showSubExpr(expr, right)
+      case PUnequals(left, right) => showSubExpr(expr, left) <+> "!=" <+> showSubExpr(expr, right)
+      case PAnd(left, right) => showSubExpr(expr, left) <+> "&&" <+> showSubExpr(expr, right)
+      case POr(left, right) => showSubExpr(expr, left) <+> "||" <+> showSubExpr(expr, right)
+      case PLess(left, right) => showSubExpr(expr, left) <+> "<" <+> showSubExpr(expr, right)
+      case PAtMost(left, right) => showSubExpr(expr, left) <+> "<=" <+> showSubExpr(expr, right)
+      case PGreater(left, right) => showSubExpr(expr, left) <+> ">" <+> showSubExpr(expr, right)
+      case PAtLeast(left, right) => showSubExpr(expr, left) <+> ">=" <+> showSubExpr(expr, right)
+      case PAdd(left, right) => showSubExpr(expr, left) <+> "+" <+> showSubExpr(expr, right)
+      case PSub(left, right) => showSubExpr(expr, left) <+> "-" <+> showSubExpr(expr, right)
+      case PMul(left, right) => showSubExpr(expr, left) <+> "*" <+> showSubExpr(expr, right)
+      case PMod(left, right) => showSubExpr(expr, left) <+> "%" <+> showSubExpr(expr, right)
+      case PDiv(left, right) => showSubExpr(expr, left) <+> "/" <+> showSubExpr(expr, right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
     }
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
-      case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
-      case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
+      case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
+      case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
       case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
         case n: PInvoke => showExpr(n)

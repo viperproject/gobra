@@ -313,6 +313,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
           case expr : PSetExp => expr match {
             case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
+            case PSetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
           }
           case expr : PMultisetExp => expr match {
             case PMultisetLiteral(typ, exprs) => showCollectionLiteral("mset", typ, exprs)

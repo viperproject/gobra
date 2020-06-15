@@ -784,6 +784,13 @@ sealed trait PSetExp extends PUnorderedGhostCollectionExp
   */
 case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp with PGhostCollectionLiteral
 
+/**
+  * Represents the explicit conversion of `exp` to a set
+  * (of a matching, appropriate type), written "set(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PSetConversion(exp : PExpression) extends PSetExp
+
 
 /* ** Multiset expressions */
 

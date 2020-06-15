@@ -1277,6 +1277,13 @@ object Desugar {
           dtype = typeD(info.typ(t))
         } yield in.SetLiteral(dtype, dexprs)(src)
 
+        case PSetConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case in.SetT(_) => dop
+          case t => violation(s"expected a set type, but found $t")
+        }
+
         case PUnion(left, right) => for {
           dleft <- go(left)
           dright <- go(right)

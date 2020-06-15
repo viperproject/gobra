@@ -83,8 +83,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
             comparableTypes.errors(t1, t2)(expr)
         }
-
         case expr : PSetLiteral => wellDefGhostCollectionLiteral(expr)
+        case PSetConversion(op) => exprType(op) match {
+          case SequenceT(_) | SetT(_) => isExpr(op).out
+          case t => message(op, s"expected a sequence or a set, but got $t")
+        }
         case expr : PMultisetLiteral => wellDefGhostCollectionLiteral(expr)
       }
     }
@@ -129,6 +132,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => exprType(expr.left)
         }
         case PSetLiteral(typ, _) => SetT(typeType(typ))
+        case PSetConversion(op) => exprType(op) match {
+          case t : GhostCollectionType => SetT(t.elem)
+          case t => violation(s"expected a ghost collection type, but got $t")
+        }
         case PMultisetLiteral(typ, _) => MultisetT(typeType(typ))
       }
     }
@@ -193,6 +200,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case expr : PGhostCollectionExp => expr match {
         case n : PBinaryGhostExp => isPureExprAttr(n.left) && isPureExprAttr(n.right)
         case n : PGhostCollectionLiteral => n.exprs.forall(isPureExprAttr)
+        case PSetConversion(op) => isPureExprAttr(op)
         case PSize(op) => isPureExprAttr(op)
         case PRangeSequence(low, high) => isPureExprAttr(low) && isPureExprAttr(high)
         case PSequenceUpdate(seq, clauses) => isPureExprAttr(seq) && clauses.forall(isPureSeqUpdClause)

@@ -1156,6 +1156,80 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify the conversion of a sequence to a set as ghost") {
+    val expr = PSetConversion(PRangeSequence(PIntLit(1), PIntLit(10)))
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify the conversion of a sequence range to a set as well-defined") {
+    val expr = PSetConversion(PRangeSequence(PIntLit(1), PIntLit(10)))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify the (explicit) conversion of an integer to a set as well-defined") {
+    val expr = PSetConversion(PIntLit(42))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify the explicit conversion of a set to a set as well-defined") {
+    val expr = PSetConversion(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false)))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not classify an explicit set conversion as well-defined if there is a typing error in the inner expression") {
+    val expr = PSetConversion(
+      PSetLiteral(PBoolType(), Vector(PIntLit(42)))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let two nested explicit set conversions be well-defined") {
+    val expr = PSetConversion(
+      PSetConversion(PSequenceLiteral(PIntType(), Vector()))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the set conversion of a Boolean literal") {
+    val expr = PSetConversion(PBoolLit(false))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the nested set conversion of a Boolean literal") {
+    val expr = PSetConversion(PSetConversion(PBoolLit(false)))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a simple explicit conversion expression from a sequence (range) to a set") {
+    val expr = PSetConversion(
+      PRangeSequence(PIntLit(1), PIntLit(100))
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a simple explicit conversion from a set to a set") {
+    val expr = PSetConversion(
+      PSetLiteral(PBoolType(), Vector())
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a simple nested explicit set conversion expression") {
+    val expr = PSetConversion(
+      PSetConversion(
+        PSequenceLiteral(PIntType(), Vector())
+      )
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.IntT) =>
+    }
+  }
 
   /* * Stubs, mocks, and other test setup  */
 

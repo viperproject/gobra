@@ -1445,6 +1445,38 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to translate a simple set conversion") {
+    frontend.parseExpOrFail("set(xs)") should matchPattern {
+      case PSetConversion(PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a set conversion expression with a more complex body expression") {
+    frontend.parseExpOrFail("set(seq[int] { 1 } ++ seq[2..3])") should matchPattern {
+      case PSetConversion(
+        PSequenceAppend(
+          PSequenceLiteral(PIntType(), Vector(PIntLit(a))),
+          PRangeSequence(PIntLit(b), PIntLit(c))
+        )
+      ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(3) =>
+    }
+  }
+
+  test("Parser: should be able to parse the union of two set conversions") {
+    frontend.parseExpOrFail("set(xs) union set(ys)") should matchPattern {
+      case PUnion(
+        PSetConversion(PNamedOperand(PIdnUse("xs"))),
+        PSetConversion(PNamedOperand(PIdnUse("ys")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a nested set conversion") {
+    frontend.parseExpOrFail("set(set(xs))") should matchPattern {
+      case PSetConversion(PSetConversion(PNamedOperand(PIdnUse("xs")))) =>
+    }
+  }
+
 
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =

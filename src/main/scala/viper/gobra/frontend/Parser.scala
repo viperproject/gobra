@@ -541,7 +541,8 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PSize
+      "|" ~> expression <~ "|" ^^ PSize |
+        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
 
     lazy val primaryExp: Parser[PExpression] =
         conversion |

@@ -576,6 +576,44 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should be able to show a very simple set conversion expression") {
+    val expr = PSetConversion(PNamedOperand(PIdnUse("xs")))
+    frontend.show(expr) should matchPattern {
+      case "set(xs)" =>
+    }
+  }
+
+  test("Printer: should be able to show a set conversion with a composite body") {
+    val expr = PSetConversion(
+      PSequenceAppend(
+        PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+        PNamedOperand(PIdnUse("ys"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set(seq[int] { 1, 2 } ++ ys)" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show the union of two simple set conversions") {
+    val expr = PUnion(
+      PSetConversion(PNamedOperand(PIdnUse("xs"))),
+      PSetConversion(PNamedOperand(PIdnUse("ys")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "set(xs) union set(ys)" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show a nested set conversion") {
+    val expr = PSetConversion(PSetConversion(PNamedOperand(PIdnUse("xs"))))
+    frontend.show(expr) should matchPattern {
+      case "set(set(xs))" =>
+    }
+  }
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : PNode) : String = printer.format(n)

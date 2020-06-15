@@ -5,4 +5,4 @@ type cell struct{
 };
 
 //:: ExpectedOutput(type_error)
-const Answer = cell{42}
+const Answer = &cell{42}

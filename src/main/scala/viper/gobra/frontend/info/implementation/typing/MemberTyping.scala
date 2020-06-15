@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -14,6 +14,10 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
     case n: PFunctionDecl => wellDefIfPureFunction(n)
     case m: PMethodDecl => isClassType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
+    case c: PConstDecl =>
+      val idenNumMsgs = message(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length)
+      val constExprMsgs = c.right.flatMap(wellDefIfConstExpr)
+      idenNumMsgs ++ constExprMsgs
     case s: PActualStatement => wellDefStmt(s).out
   }
 }

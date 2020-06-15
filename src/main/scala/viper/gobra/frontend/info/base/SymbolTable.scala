@@ -43,10 +43,6 @@ object SymbolTable extends Environments {
     override def rep: PNode = decl
   }
 
-  case class MultiConstant(decl: PConstDecl, idx: Int, exp: PExpression, ghost: Boolean, context: ExternalTypeInfo) extends ActualConstant {
-    override def rep: PNode = decl
-  }
-
   sealed trait Variable extends DataEntity {
     def addressable: Boolean
   }

@@ -305,4 +305,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
     case t: PType => typeType(t)
   }
+
+  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
+    case BooleanT => message(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
+    case IntT => message(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
+    case _ => message(expr, s"expected a constant expression")
+  }
 }

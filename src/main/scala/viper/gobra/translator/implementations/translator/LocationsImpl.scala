@@ -580,7 +580,6 @@ class LocationsImpl extends Locations {
       case v: in.Var => variable(v)(ctx)
       case in.Deref(exp, _) => rvalue(exp)(ctx)
       case in.FieldRef(recv, field) => recv match {
-        case gc: GlobalConst => unit(ctx.fixpoint.get(gc)(ctx))
         case _ if isAddressable(recv) => for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = true)(l)(ctx)
         case _ => for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = true)(l)(ctx)
       }
@@ -602,24 +601,15 @@ class LocationsImpl extends Locations {
     */
   def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 
-    def hasGlobalConstRecv(l: in.Expr): Boolean = {
-      l match {
-        case fr: in.FieldRef => fr.recv match {
-          case gc: GlobalConst => true
-          case _ => false
-        }
-        case _ => false
-      }
-    }
-
     val (pos, info, errT) = l.vprMeta
 
     l match {
       case l: in.Location =>
         if (isAddressable(l)) {
-          if (ctx.typeProperty.isStructType(l.typ)(ctx)) avalue(l)(ctx)
-          else if (hasGlobalConstRecv(l)) avalue(l)(ctx)
-          else for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
+          l match {
+            case _ if ctx.typeProperty.isStructType(l.typ)(ctx) => avalue(l)(ctx)
+            case _ => for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
+          }
         } else {
           l match {
             case x: in.Var => variable(x)(ctx)

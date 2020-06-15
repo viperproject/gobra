@@ -51,7 +51,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
-    case n: SingleGlobalConstDecl => showSingleGlobalConstDecl(n)
+    case n: GlobalConstDecl => showGlobalConstDecl(n)
   }
 
   def showFunction(f: Function): Doc = f match {
@@ -88,9 +88,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
   }
 
-  def showSingleGlobalConstDecl(singleGlobalConstDecl: SingleGlobalConstDecl): Doc = singleGlobalConstDecl match {
-    case SingleGlobalConstDecl(left: GlobalConst, right: Expr) =>
-      "const" <+> showVarDecl(left) <+> "=" <+> showExpr(right)
+  def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
+    "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
   def showField(field: Field): Doc = field match {

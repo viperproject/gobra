@@ -28,13 +28,6 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
     })
 
-    case MultiConstant(_, idx, exp, _, _) => unsafeMessage(! {
-      wellDefAndExpr.valid(exp) && (exprType(exp) match {
-        case Assign(InternalTupleT(ts)) if idx < ts.size => true
-        case _ => false
-      })
-    })
-
     case SingleLocalVariable(exp, opt, _, _, _) => unsafeMessage(! {
       opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
@@ -111,11 +104,6 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
-
-    case MultiConstant(_, idx, exp, _, _) => exprType(exp) match {
-      case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
-      case t => violation(s"expected tuple but got $t")
-    }
 
     case SingleLocalVariable(exp, opt, _, _, _) => opt.map(typeType)
       .getOrElse(exprType(exp.get) match {

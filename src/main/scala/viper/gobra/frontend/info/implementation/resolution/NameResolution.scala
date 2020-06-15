@@ -28,7 +28,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleConstant(decl, decl.left(idx), decl.right(idx), decl.typ, isGhost, this)
-            case AssignMode.Multi => MultiConstant(decl, idx, decl.right.head, isGhost, this)
             case _ => UnknownEntity()
           }
 

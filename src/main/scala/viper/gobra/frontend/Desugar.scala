@@ -171,9 +171,15 @@ object Desugar {
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-        (for {
-          e <- exprD(ctx)(expr)
-        } yield in.SingleGlobalConstDecl(gVar, e)(src)).res
+        gVar.typ match {
+          case in.BoolT =>
+            val constValue = sc.context.boolConstantEvaluation(sc.exp)
+            in.BoolGlobalConstDecl(gVar, in.BoolLit(constValue.get)(src))(src)
+          case in.IntT =>
+            val constValue = sc.context.intConstantEvaluation(sc.exp)
+            in.IntGlobalConstDecl(gVar, in.IntLit(constValue.get)(src))(src)
+          case _ => ???
+        }
       }
       case _ => ???
     })
@@ -806,7 +812,7 @@ object Desugar {
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
-            case p => Violation.violation(s"only field selections can be desugared to an expression, but got $p")
+            case p => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
           }
 
           case n: PInvoke =>

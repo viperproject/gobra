@@ -29,7 +29,9 @@ case class Config(
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
-                 var backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
+                 backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
+                 z3Exe: String = null,
+                 boogieExe: String = null,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
@@ -137,6 +139,21 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = true
   )
 
+  val z3Exe: ScallopOption[String] = opt[String](
+    name = "z3Exe",
+    descr = "The Z3 executable",
+    default = Some(null),
+    noshort = true
+  )(singleArgConverter(arg => arg))
+
+  val boogieExe: ScallopOption[String] = opt[String](
+    name = "boogieExe",
+    descr = "The Boogie executable",
+    default = Some(null),
+    noshort = true
+  )(singleArgConverter(arg => arg))
+
+
   /**
     * Exception handling
     */
@@ -187,6 +204,8 @@ class ScallopGobraConfig(arguments: Seq[String])
       printInternal = printInternal(),
       printVpr = printVpr()),
     backend = backend(),
+    z3Exe = z3Exe(),
+    boogieExe = boogieExe(),
     logLevel = logLevel(),
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,

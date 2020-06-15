@@ -4,7 +4,7 @@ import scala.concurrent.ExecutionContext
 import viper.server.ViperCoreServer
 
 trait ViperBackend {
-  def create: ViperVerifier
+  def create(exePaths: Vector[String]): ViperVerifier
 }
 
 object ViperBackends {
@@ -12,21 +12,23 @@ object ViperBackends {
   implicit val executionContext = ExecutionContext.global
 
   object SiliconBackend extends ViperBackend {
-    def create: Silicon = {
+    def create(exePaths: Vector[String]): Silicon = {
 
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
       options ++= Vector("--enableMoreCompleteExhale")
+      options ++= exePaths
 
       new Silicon(options)
     }
   }
 
   object CarbonBackend extends ViperBackend {
-    def create: Carbon = {
+    def create(exePaths: Vector[String]): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
+      options ++= exePaths
 
       new Carbon(options)
     }
@@ -40,7 +42,7 @@ object ViperBackends {
       server = coreServer
     }
 
-    def create: ViperServer = {
+    def create(exePaths: Vector[String]): ViperServer = {
       require(server != null, "ViperCoreServer needs to be set before creation.")
       new ViperServer(server)
     }

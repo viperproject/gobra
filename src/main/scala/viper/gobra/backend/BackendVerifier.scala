@@ -12,6 +12,9 @@ import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.VerificationResult
+import viper.gobra.backend.ViperBackends.{SiliconBackend => Silicon, CarbonBackend => Carbon, ViperServerBackend => ViperServer}
+
+import java.nio.file.{ Files, Paths }
 
 import scala.concurrent.{Future, ExecutionContext}
 
@@ -35,7 +38,14 @@ object BackendVerifier {
 
     config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 
-    val verifier = config.backend.create
+    var exePaths: Vector[String] = Vector.empty
+    if (config.backend != ViperServer && config.z3Exe != null && Files.exists(Paths.get(config.z3Exe)))
+      exePaths ++= Vector("--z3Exe", config.z3Exe)
+
+    if (config.backend == Carbon && config.boogieExe != null && Files.exists(Paths.get(config.boogieExe)))
+      exePaths ++= Vector("--boogieExe", config.boogieExe)
+
+    val verifier = config.backend.create(exePaths)
 
     val programID = "_programID_" + config.inputFile.getName()
 

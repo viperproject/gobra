@@ -155,7 +155,7 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n")
+      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""

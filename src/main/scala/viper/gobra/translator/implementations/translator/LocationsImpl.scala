@@ -579,10 +579,9 @@ class LocationsImpl extends Locations {
     l match {
       case v: in.Var => variable(v)(ctx)
       case in.Deref(exp, _) => rvalue(exp)(ctx)
-      case in.FieldRef(recv, field) => recv match {
-        case _ if isAddressable(recv) => for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = true)(l)(ctx)
-        case _ => for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = true)(l)(ctx)
-      }
+      case in.FieldRef(recv, field) =>
+        if (isAddressable(recv)) for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = true)(l)(ctx)
+        else for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = true)(l)(ctx)
 
       case _ => Violation.violation(s"encountered unexpected addressable location $l")
     }
@@ -606,10 +605,8 @@ class LocationsImpl extends Locations {
     l match {
       case l: in.Location =>
         if (isAddressable(l)) {
-          l match {
-            case _ if ctx.typeProperty.isStructType(l.typ)(ctx) => avalue(l)(ctx)
-            case _ => for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
-          }
+          if (ctx.typeProperty.isStructType(l.typ)(ctx)) avalue(l)(ctx)
+          else for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
         } else {
           l match {
             case x: in.Var => variable(x)(ctx)
@@ -658,7 +655,7 @@ class LocationsImpl extends Locations {
           field = z.field.copy(name = Names.fieldExtension(z.field.name, vprF.name), typ = vprF.typ)(pos, info, errT)
         )(pos, info, errT)
 
-      case _ => Violation.violation(s"expected vpr variable or field access but got $x")
+      case _ => Violation.violation(s"expected vpr variable or field access, but got $x")
     }
   }
 

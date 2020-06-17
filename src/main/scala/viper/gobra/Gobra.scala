@@ -62,30 +62,15 @@ trait GoVerifier {
     this.getClass.getSimpleName
   }
 
-  /**
-    * Invocations of verify and goify with a given file.
-    */
   def verify(config: Config): Future[VerifierResult] = {
     verify(Left(config.inputFile), config)
   }
 
-  def goify(config: Config): Future[VerifierResult] = {
-    goify(Left(config.inputFile), config)
-  }
-
-  /**
-    * Invocations of verify and goify with a string representing the file.
-    */
   def verify(content: String, config: Config): Future[VerifierResult] = {
     verify(Right(content), config)
   }
 
-  def goify(content: String, config: Config): Future[VerifierResult] = {
-    goify(Right(content), config)
-  }
-
   protected[this] def verify(input: Either[File, String], config: Config): Future[VerifierResult]
-  protected[this] def goify(input: Either[File, String], config: Config): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier {
@@ -111,26 +96,6 @@ class Gobra extends GoVerifier {
         case errs => VerifierResult.Failure(errs)
       }, identity)
     }
-  }
-
-  /**
-    * Executes the parsing and typechecking step of Gobra to obtain the
-    * Goified version of the given program.
-    */
-  override def goify(input: Either[File, String], config: Config): Future[VerifierResult] = {
-
-    val futureResult = for {
-      parsedProgram <- performParsing(input, config)
-      typeInfo <- performTypeChecking(parsedProgram, config)
-    } yield typeInfo
-
-    futureResult.x.map{ result =>
-      result match {
-        case Right(_) => VerifierResult.Success
-        case Left(errs) => VerifierResult.Failure(errs)
-      }
-    }
-
   }
 
   private def performParsing(input: Either[File, String], config: Config): FutureEither[Vector[VerifierError], PProgram] = {

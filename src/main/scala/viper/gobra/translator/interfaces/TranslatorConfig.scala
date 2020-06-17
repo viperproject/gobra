@@ -1,10 +1,11 @@
 package viper.gobra.translator.interfaces
 
-import viper.gobra.translator.interfaces.components.{Tuples, TypeProperties}
+import viper.gobra.translator.interfaces.components.{SeqToSet, Tuples, TypeProperties}
 import viper.gobra.translator.interfaces.translator._
 
 trait TranslatorConfig {
 
+  def seqToSet : SeqToSet
   def tuple: Tuples
   def typeProperty: TypeProperties
 

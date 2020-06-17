@@ -136,6 +136,13 @@ class ExpressionsImpl extends Expressions {
         case _ => vpr.ExplicitSet(exprsT)(pos, info, errT)
       }
 
+      case in.SetConversion(exp) => for {
+        expT <- goE(exp)
+      } yield expT.typ match {
+        case vpr.SeqType(_) => ctx.seqToSet.create(expT)
+        case t => Violation.violation(s"conversion of type $t to sets is not implemented")
+      }
+
       case in.Union(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)

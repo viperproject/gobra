@@ -643,6 +643,54 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a set conversion of an identifier") {
+    val expr = SetConversion(
+      LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set(xs)" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple set conversion of a range sequence") {
+    val expr = SetConversion(
+      RangeSequence(
+        IntLit(1)(Unsourced),
+        IntLit(42)(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set(seq[1 .. 42])" =>
+    }
+  }
+
+  test("Printer: should correctly show a set conversion with a sequence append") {
+    val expr = SetConversion(
+      SequenceAppend(
+        LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("ys", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set(xs ++ ys)" =>
+    }
+  }
+
+  test("Printer: should correctly show the union of two set conversions") {
+    val expr = Union(
+      SetConversion(LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced))(Unsourced),
+      SetConversion(LocalVar.Ref("ys", SequenceT(BoolT))(Unsourced))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "set(xs) union set(ys)" =>
+    }
+  }
+
+
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

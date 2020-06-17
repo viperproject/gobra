@@ -1281,7 +1281,8 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case in.SetT(_) => dop
-          case t => violation(s"expected a set type, but found $t")
+          case in.SequenceT(_) => in.SetConversion(dop)(src)
+          case t => violation(s"expected a set or sequence type, but found $t")
         }
 
         case PUnion(left, right) => for {

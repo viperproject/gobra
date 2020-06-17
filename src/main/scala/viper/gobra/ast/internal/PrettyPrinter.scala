@@ -219,6 +219,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SetLiteral(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
+    case SetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
     case SetCardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetLiteral(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
 

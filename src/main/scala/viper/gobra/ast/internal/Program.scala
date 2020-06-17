@@ -376,6 +376,17 @@ case class SetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source
   override def typ : Type = SetT(memberType)
 }
 
+/**
+  * Represents the conversion of a collection of type 't', represented by `exp`,
+  * to a (mathematical) set of type 't'.
+  */
+case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case SequenceT(t) => SetT(t)
+    case t => Violation.violation(s"expected a sequence type but got $t")
+  }
+}
+
 
 /* ** Multiset expressions */
 

@@ -299,10 +299,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
         case expr : PSequenceExp => expr match {
           case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
-          case PRangeSequence(low, high) =>
-            "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-          case PSequenceAppend(left, right) =>
-            showExpr(left) <+> "++" <+> showExpr(right)
+          case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+          case PSequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
           case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
             (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
         }

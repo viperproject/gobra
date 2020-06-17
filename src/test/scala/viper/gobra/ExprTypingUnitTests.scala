@@ -1231,6 +1231,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

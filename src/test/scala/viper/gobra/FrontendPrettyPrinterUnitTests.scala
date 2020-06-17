@@ -609,10 +609,14 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to correctly show a nested set conversion") {
     val expr = PSetConversion(PSetConversion(PNamedOperand(PIdnUse("xs"))))
+
     frontend.show(expr) should matchPattern {
       case "set(set(xs))" =>
     }
   }
+
+
+  /* ** Stubs, mocks and other test setup */
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

@@ -730,7 +730,8 @@ case class PSequenceUpdateClause(left : PExpression, right : PExpression) extend
 
 /**
   * Denotes the range of integers from `low` to `high`
-  * (which should both be integers), not including `high` but including `low`.
+  * (which should both be integers), not including `high` but including `low`,
+  * written "seq[`low` .. `high`]" in Gobra's specification language.
   */
 case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExp
 

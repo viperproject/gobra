@@ -1235,12 +1235,6 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not parse something like a set range expression (for now)") {
-    frontend.parseExp("set[1..10]") should matchPattern {
-      case Left(_) =>
-    }
-  }
-
   test("Parser: should not parse something like a multiset range expression (for now)") {
     frontend.parseExp("mset[1..10]") should matchPattern {
       case Left(_) =>
@@ -1477,6 +1471,105 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should not be able to parse a set conversion with missing opening parenthesis") {
+    frontend.parseExp("set xs)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a set conversion with a missing closing parenthesis") {
+    frontend.parseExp("set(xs") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a set conversion with extra spaces added") {
+    frontend.parseExpOrFail("set ( xs )") should matchPattern {
+      case PSetConversion(PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should not parse a set conversion with a parsing problem in the argument") {
+    frontend.parseExp("set(xs ++ )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple range set") {
+    frontend.parseExpOrFail("set[1 .. 10]") should matchPattern {
+      case PSetConversion(PRangeSequence(PIntLit(a), PIntLit(b)))
+        if a == BigInt(1) && b == BigInt(10) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complicated range set expression") {
+    frontend.parseExpOrFail("set[x + y .. |xs|]") should matchPattern {
+      case PSetConversion(PRangeSequence(
+        PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
+        PSize(PNamedOperand(PIdnUse("xs")))
+      )) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a set range expression with a missing left-hand side") {
+    frontend.parseExp("set[ .. x]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a set range expression with a missing right-hand side") {
+    frontend.parseExp("set[x .. ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a set range expression with extra spaces added") {
+    frontend.parseExpOrFail("set [ x .. y ]") should matchPattern {
+      case PSetConversion(PRangeSequence(
+        PNamedOperand(PIdnUse("x")),
+        PNamedOperand(PIdnUse("y"))
+      )) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence range expression with too few dots") {
+    frontend.parseExp("seq[x . y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a set range expression with too few dots") {
+    frontend.parseExp("set[x . y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence range expression with too many dots") {
+    frontend.parseExp("seq[x ... y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a set range expression with too many dots") {
+    frontend.parseExp("set[x ... y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a set range with a missing opening bracket") {
+    frontend.parseExp("set x .. y ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a set range with a missing closing bracket") {
+    frontend.parseExp("set [ x .. y") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+
+  /* ** Stubs, mocks and other test setup */
 
   class TestFrontend {
     private def parse[T: ClassTag](source: String, parser: Source => Either[Messages, T]) : Either[Messages, T] =

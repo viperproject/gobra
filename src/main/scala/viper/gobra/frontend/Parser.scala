@@ -546,14 +546,14 @@ object Parser {
 
     lazy val primaryExp: Parser[PExpression] =
         conversion |
-        call |
-        selection |
-        indexedExp |
-        sliceExp |
+          call |
+          selection |
+          indexedExp |
+          sliceExp |
           seqUpdExp |
-        typeAssertion |
-        ghostPrimaryExp |
-        operand
+          typeAssertion |
+          ghostPrimaryExp |
+          operand
 
 
     lazy val conversion: Parser[PInvoke] =
@@ -866,7 +866,8 @@ object Parser {
         sequenceLiteral |
         setLiteral |
         multisetLiteral |
-        rangeSequence
+        rangeSequence |
+        rangeSet
 
     lazy val sequenceLiteral : Parser[PSequenceLiteral] =
       ghostCollectionLiteral("seq") ^^ PSequenceLiteral
@@ -878,8 +879,19 @@ object Parser {
     def ghostCollectionLiteral(front : String) : Parser[PType ~ Vector[PExpression]] =
       front ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}")
 
-    lazy val rangeSequence : Parser[PRangeSequence] =
-      "seq" ~> ("[" ~> expression ~ (".." ~> expression <~ "]")) ^^ PRangeSequence
+    private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
+      "[" ~> expression ~ (".." ~> expression <~ "]")
+
+    lazy val rangeSequence : Parser[PRangeSequence] = "seq" ~> rangeExprBody ^^ PRangeSequence
+
+    /**
+      * Expressions of the form "set[`left` .. `right`]" are directly
+      * transformed into "set(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeSet : Parser[PGhostExpression] = "set" ~> rangeExprBody ^^ {
+      case left ~ right => PSetConversion(PRangeSequence(left, right).range(left, right))
+    }
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

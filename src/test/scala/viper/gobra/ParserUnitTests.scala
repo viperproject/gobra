@@ -1568,6 +1568,18 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should not parse a sequence range expression with a space in between the two dots") {
+    frontend.parseExp("seq[x . . y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a set range expression with a space in between the two dots") {
+    frontend.parseExp("set[x . . y]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

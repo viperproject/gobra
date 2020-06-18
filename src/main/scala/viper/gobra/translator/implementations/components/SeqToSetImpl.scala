@@ -36,7 +36,8 @@ class SeqToSetImpl extends SeqToSet {
   }
 
   /**
-    * Definition of the "seq2set_in" domain axiom.
+    * Definition of the "seq2set_in_l" domain axiom, that relates
+    * sequence inclusion with set conclusion.
     */
   private lazy val axiom_in : vpr.DomainAxiom = {
     val xsDecl = vpr.LocalVarDecl("xs", vpr.SeqType(typeVar))()
@@ -48,12 +49,15 @@ class SeqToSetImpl extends SeqToSet {
     // the Viper expression `e in seq2set(xs)`
     val right = vpr.AnySetContains(eDecl.localVar, domainFuncApp(xsDecl.localVar))()
 
+    // NOTE: there doesn't seem to be an AST node for logical equivalence
+    // in Silver, so I translate to an equality comparison instead.
+
     vpr.NamedDomainAxiom(
       name = "seq2set_in",
       exp = vpr.Forall(
         Seq(xsDecl, eDecl),
         Seq(vpr.Trigger(Seq(right))()),
-        vpr.And(vpr.Implies(left, right)(), vpr.Implies(right, left)())()
+        vpr.EqCmp(left, right)()
       )()
     )(domainName = domainName)
   }

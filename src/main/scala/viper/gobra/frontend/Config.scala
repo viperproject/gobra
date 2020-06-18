@@ -73,13 +73,12 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
-    descr = "Specifies the used Viper backend, one of SILICON, CARBON, VIPERSERVER (default: SILICON)",
+    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
     noshort = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
-    case "VIPERSERVER" => ViperBackends.ViperServerBackend
     case _ => ViperBackends.SiliconBackend
   }))
 

@@ -153,64 +153,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
     implicit val executionContext = ExecutionContext.global
 
-/*
-    // for testing with ViperServer as backend ######################################
-    import viper.server.ViperCoreServer
-    import viper.server.ViperConfig
-    import viper.gobra.backend.ViperBackends.ViperServerBackend
-    import viper.server.ViperBackendConfigs._
-
-    // Viper Server config with empty arguments
-    val serverConfig: ViperConfig = new ViperConfig(List())
-    val server: ViperCoreServer = new ViperCoreServer(serverConfig)
-
-    ViperServerBackend.setServer(server)
-    server.start()
-
-    val scallopGobraconfig = new ScallopGobraConfig(args)
-    val config = scallopGobraconfig.config
-
-    val carbonBackendConfig = CarbonConfig(List())
-    val siliconBackendConfig = SiliconConfig(List("--logLevel", "ERROR"))
-    config.backendConfig = siliconBackendConfig
-
-    val verifier = createVerifier(config)
-
-    println("first verification")
-    val start1 = System.currentTimeMillis
-    val firstResultFuture = verifier.verify(config)
-    val firstResult = Await.result(firstResultFuture, Duration.Inf)
-    val elapsedTime1 = System.currentTimeMillis - start1
-    println("Elapsed time: " + elapsedTime1 + " ms")
-
-    println("second (real) verification")
-    val start2 = System.currentTimeMillis
-    val resultFuture = verifier.verify(config)
-    val result = Await.result(resultFuture, Duration.Inf)
-    val elapsedTime2 = System.currentTimeMillis - start2
-    println("Elapsed time: " + elapsedTime2 + " ms")
-
-
-    result match {
-      case VerifierResult.Success =>
-        logger.info(s"${verifier.name} found no errors")
-
-        server.stop()
-
-        sys.exit(0)
-      case VerifierResult.Failure(errors) =>
-        logger.error(s"${verifier.name} has found ${errors.length} error(s):")
-        errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
-
-        server.stop()
-
-        sys.exit(1)
-    }
-    // end testing ##################################################################
-*/
-
-
-
     val scallopGobraconfig = new ScallopGobraConfig(args)
     val config = scallopGobraconfig.config
 

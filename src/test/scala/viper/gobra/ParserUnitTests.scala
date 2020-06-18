@@ -137,9 +137,15 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: fold predicate call") {
+  test("Parser: fold mpredicate call") {
     frontend.parseStmt("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
       case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))))) =>
+    }
+  }
+
+  test("Parser: fold fpredicate call") {
+    frontend.parseStmt("fold b.RectMem(&r)") should matchPattern {
+      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))))) =>
     }
   }
 

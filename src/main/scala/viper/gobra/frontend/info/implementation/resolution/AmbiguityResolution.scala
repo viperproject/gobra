@@ -4,6 +4,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.isDefinedInScope
+import viper.gobra.frontend.info.base.Type.ImportT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
@@ -19,7 +20,14 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       case n: PDeref =>
         if (exprOrType(n.base).isLeft) Left(n) else Right(n)
 
-      case n: PDot => Left(n) // TODO: when we support packages, then it can also be the type defined in a package
+      case n: PDot =>
+        exprOrType(n.base)
+          .fold(
+            _ => Left(n),
+            typ(_) match { // check if base is a package qualifier and id points to a type
+              case _: ImportT if pointsToType(n.id) => Right(n)
+              case _ => Left(n)
+            })
 
       // Otherwise just expression or type
       case n: PExpression => Left(n)

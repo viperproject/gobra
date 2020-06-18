@@ -24,7 +24,7 @@ sealed trait PNode extends Product {
 
   lazy val formatted: String = pretty()
 
-  override def toString: PPkg = formatted
+  override def toString: String = formatted
 }
 
 object PNode {
@@ -500,14 +500,14 @@ case class PLabelUse(name: String) extends PUseLikeLabel
 
 
 sealed trait PPackegeNode extends PNode {
-  def name: String
+  def name: PPkg
 }
 
 trait PDefLikePkg extends PPackegeNode
 trait PUseLikePkg extends PPackegeNode
 
-case class PPkgDef(name: String) extends PDefLikePkg
-case class PPkgUse(name: String) extends PUseLikePkg
+case class PPkgDef(name: PPkg) extends PDefLikePkg
+case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
 case class PWildcard() extends PDefLikeId with PUseLikeId {

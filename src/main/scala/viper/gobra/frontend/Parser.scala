@@ -887,8 +887,7 @@ object Parser {
       }
 
     lazy val predicateBody: Parser[Option[PExpression]] =
-      if (specOnly) nestedCurlyBracketsConsumer
-      else ("{" ~> expression <~ eos.? ~ "}").?
+      ("{" ~> expression <~ eos.? ~ "}").?
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
@@ -910,12 +909,7 @@ object Parser {
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-
-    lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
-        idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
-        nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
-        primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
+      call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
 
     /**
       * EOS

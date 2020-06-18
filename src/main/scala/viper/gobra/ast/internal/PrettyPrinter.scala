@@ -24,6 +24,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: CompositeObject => showCompositeObject(n)
     case n: Assertion => showAss(n)
     case n: Accessible => showAcc(n)
+    case n: PredicateAccess => showPredicateAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
     case n: Proxy => showProxy(n)

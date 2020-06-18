@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PCompositeLit, PDot, PExpCompositeVal, PExpression, PFunctionDecl, PFunctionSpec, PIdnDef, PIdnUnk, PIdnUse, PImport, PIntLit, PInvoke, PKeyedElement, PLiteralValue, PMember, PNamedOperand, PQualifiedImport, PResult, PShortVarDecl, PStatement, PUnqualifiedImport, PWildcard}
+import viper.gobra.ast.frontend.{PAssignment, PCompositeLit, PDeref, PDot, PExpCompositeVal, PExpression, PFold, PFunctionDecl, PFunctionSpec, PIdnDef, PIdnUnk, PIdnUse, PImport, PIntLit, PInvoke, PKeyedElement, PLiteralValue, PMember, PNamedOperand, PPredicateAccess, PQualifiedImport, PReference, PResult, PShortVarDecl, PStatement, PUnqualifiedImport, PWildcard}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
@@ -134,6 +134,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     inside (parseRes) {
       case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
         PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(PIdnUnk("a")), Vector(false)) => value should be (10)
+    }
+  }
+
+  test("Parser: fold predicate call") {
+    frontend.parseStmt("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
+      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))))) =>
     }
   }
 

@@ -4,6 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
 import viper.gobra.util.Violation
 
@@ -72,15 +73,15 @@ trait GhostAssignability {
 
   /** ghost type of the arguments of a callee */
   private[separation] def calleeArgGhostTyping(callee: PExpression): GhostType = {
-    def argTyping(args: Vector[PParameter]): GhostType =
-      GhostType.ghostTuple(args.map(ghostParameterClassification))
+    def argTyping(args: Vector[PParameter], context: ExternalTypeInfo): GhostType =
+      GhostType.ghostTuple(args.map(context.isParamGhost))
 
     val x = resolve(callee)
 
     resolve(callee) match {
-      case Some(p: ap.Function) => argTyping(p.symb.args)
-      case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args)
-      case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args).toTuple)
+      case Some(p: ap.Function) => argTyping(p.symb.args, p.symb.context)
+      case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)
+      case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
       case Some(p: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.notGhost // conservative choice
     }
@@ -88,14 +89,14 @@ trait GhostAssignability {
 
   /** ghost type of the result of a callee */
   private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = {
-    def resultTyping(result: PResult): GhostType = {
-      GhostType.ghostTuple(result.outs.map(ghostParameterClassification))
+    def resultTyping(result: PResult, context: ExternalTypeInfo): GhostType = {
+      GhostType.ghostTuple(result.outs.map(context.isParamGhost))
     }
 
     resolve(callee) match {
-      case Some(p: ap.Function) => resultTyping(p.symb.result)
-      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result)
-      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result)
+      case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.context)
+      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.context)
+      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.context)
       case Some(p: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.isGhost // conservative choice
     }

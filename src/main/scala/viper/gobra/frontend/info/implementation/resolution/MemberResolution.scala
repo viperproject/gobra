@@ -32,7 +32,10 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
     tree.root.declarations
-      .collect { case m: PMethodDecl => createMethodImpl(m) }(breakOut)
+      .collect {
+        case m: PMethodDecl => createMethodImpl(m)
+        case PExplicitGhostMember(m: PMethodDecl) => createMethodImpl(m)
+      }(breakOut)
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
       .mapValues(ms => AdvancedMemberSet.init(ms))
   }

@@ -170,7 +170,6 @@ object Desugar {
       case sc@ st.SingleConstant(_, id, expr, _, _, context) => {
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
-        val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
         gVar.typ match {
           case in.BoolT =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
@@ -1036,6 +1035,7 @@ object Desugar {
       case f: st.FPredicate => nm.function(id.name, f.context)
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
+      case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case e: st.Embbed => ???
       case e: st.Field => ???
       case n: st.NamedType => nm.typ(id.name, n.context)
@@ -1046,7 +1046,7 @@ object Desugar {
       c match {
         case sc: st.SingleConstant => {
           val typ = typeD(c.context.typ(sc.idDef))(src)
-          in.GlobalConst.Val(nm.variable(sc.idDef.name, c.context.scope(sc.idDef), c.context), typ)(src)
+          in.GlobalConst.Val(idName(sc.idDef, c.context), typ)(src)
         }
         case _ => ???
       }
@@ -1387,6 +1387,7 @@ object Desugar {
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val STRUCT_PREFIX = "X"
+    private val GLOBAL_PREFIX = "G"
 
     private var counter = 0
 
@@ -1414,6 +1415,7 @@ object Desugar {
     }
 
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
+    def global  (n: String, context: ExternalTypeInfo): String = nameWithoutScope(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
     def field   (n: String, s: StructT): String = nameWithoutScope(s"$FIELD_PREFIX${struct(s)}")(n, s.context)
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)

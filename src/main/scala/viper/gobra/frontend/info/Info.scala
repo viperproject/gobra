@@ -14,14 +14,19 @@ object Info {
   type GoTree = Tree[PNode, PPackage]
 
   class Context {
-    private var contextMap: Map[PPkg, ExternalTypeInfo] = ListMap[PPkg, ExternalTypeInfo]()
+    private var contextMap: Map[PPkg, Either[Vector[VerifierError], ExternalTypeInfo]] = ListMap[PPkg, Either[Vector[VerifierError], ExternalTypeInfo]]()
 
     def addPackage(typeInfo: ExternalTypeInfo): Unit =
-      contextMap = contextMap + (typeInfo.pkgName.name -> typeInfo)
+      contextMap = contextMap + (typeInfo.pkgName.name -> Right(typeInfo))
 
-    def getTypeInfo(pkg: PPkg): Option[ExternalTypeInfo] = contextMap.get(pkg)
+    def addErrenousPackage(pkg: PPkg, errors: Vector[VerifierError]): Unit =
+      contextMap = contextMap + (pkg -> Left(errors))
 
-    def getContexts: Iterable[ExternalTypeInfo] = contextMap.values
+    def getTypeInfo(pkg: PPkg): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = contextMap.get(pkg)
+
+    def getContexts: Iterable[ExternalTypeInfo] = contextMap.values.collect { case Right(info) => info }
+
+    def getExternalErrors: Vector[VerifierError] = contextMap.values.collect { case Left(errs) => errs }.flatten.toVector
   }
 
   def check(program: PPackage, context: Context = new Context)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
@@ -32,14 +37,17 @@ object Info {
     val info = new TypeInfoImpl(tree, context)(config: Config)
 
     val errors = info.errors
+    val externalErrors = context.getExternalErrors
     config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => program, () => getDebugInfo(program, info))
-    if (errors.isEmpty) {
+    if (errors.isEmpty && externalErrors.isEmpty) {
       config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => program, () => getErasedGhostCode(program, info))
       Right(info)
     } else {
       val typeErrors = program.positions.translate(errors, TypeError)
-      config.reporter report TypeCheckFailureMessage(config.inputFiles.head, () => program, typeErrors)
-      Left(typeErrors)
+      if (typeErrors.nonEmpty) {
+        config.reporter report TypeCheckFailureMessage(config.inputFiles.head, program.packageClause.id.name, () => program, typeErrors)
+      }
+      Left(typeErrors ++ externalErrors)
     }
   }
 

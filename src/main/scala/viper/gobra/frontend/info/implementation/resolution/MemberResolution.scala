@@ -6,6 +6,7 @@ import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.reporting.{ParserError, VerifierError}
 
 
 trait MemberResolution { this: TypeInfoImpl =>
@@ -148,22 +149,32 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
   def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
-    def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] =
-      // check if package was already parsed:
-      context.getTypeInfo(importedPkg.decl.pkg).map(Some(_)).getOrElse {
-        val pkgFiles = PackageResolver.resolve(importedPkg.decl.pkg, config.includeDirs)
-        if (pkgFiles.nonEmpty) {
-          (for {
-            parsedProgram <- Parser.parse(pkgFiles, specOnly = true)(config)
-            // TODO maybe don't check whole file but only members that are actually used/imported
-            // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-            // Info.check would probably need some restructuring to type check only certain members
-            typeChecker <- Info.check(parsedProgram, context)(config)
-            // store typeChecker for reuse:
-            _ = context.addPackage(typeChecker)
-          } yield Some(typeChecker)).getOrElse(None)
-        } else None
-      }
+    def parseAndTypeCheck(importedPkg: ImportT): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val pkgName = importedPkg.decl.pkg
+      val pkgFiles = PackageResolver.resolve(pkgName, config.includeDirs)
+      val res = for {
+        nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
+          Left(Vector(ParserError(s"No source files for package '$pkgName' found", None)))
+          else Right(pkgFiles)
+        parsedProgram <- Parser.parse(nonEmptyPkgFiles, specOnly = true)(config)
+        // TODO maybe don't check whole file but only members that are actually used/imported
+        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
+        // Info.check would probably need some restructuring to type check only certain members
+        info <- Info.check(parsedProgram, context)(config)
+      } yield info
+      res.fold(
+        errs => context.addErrenousPackage(pkgName, errs),
+        info => context.addPackage(info)
+      )
+      res
+    }
+
+    def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] = {
+      val pkgName = importedPkg.decl.pkg
+      // check if package was already parsed, otherwise do parsing and type checking:
+      val res = context.getTypeInfo(pkgName).getOrElse(parseAndTypeCheck(importedPkg))
+      res.fold(_ => None, Some(_))
+    }
 
 
     val foreignPkgResult = for {

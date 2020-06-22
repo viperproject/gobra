@@ -690,7 +690,45 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should be able to show a very simple (sequence) multiplicity operator") {
+    val expr = Multiplicity(
+      LocalVar.Ref("x", BoolT)(Unsourced),
+      LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced),
+    )(Unsourced)
 
+    frontend.show(expr) should matchPattern {
+      case "x # xs" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex (sequence) multiplicity operator") {
+    val expr = Multiplicity(
+      Add(IntLit(40)(Unsourced), IntLit(2)(Unsourced))(Unsourced),
+      SequenceLiteral(IntT, Vector(
+        IntLit(1)(Unsourced),
+        IntLit(2)(Unsourced),
+        IntLit(3)(Unsourced)
+      ))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "40 + 2 # seq[int] { 1, 2, 3 }" =>
+    }
+  }
+
+  test("Printer: should be able to show a nested (sequence) multiplicity") {
+    val expr = Multiplicity(
+      Multiplicity(
+        LocalVar.Ref("x", BoolT)(Unsourced),
+        LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced),
+      )(Unsourced),
+      LocalVar.Ref("ys", SequenceT(IntT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "x # xs # ys" =>
+    }
+  }
 
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()

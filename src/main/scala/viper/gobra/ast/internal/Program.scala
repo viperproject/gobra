@@ -225,6 +225,17 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 
+/* ** Collection expressions */
+
+/**
+  * Denotes the multiplicity operator "`left` # `right`", with `right`
+  * a sequence or (multi)set and `left` an expression of a matching type.
+  */
+case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("#") {
+  override def typ : Type = IntT
+}
+
+
 /* ** Sequence expressions */
 
 /**

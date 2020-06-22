@@ -1580,6 +1580,84 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a very simple multiplicity expression") {
+    frontend.parseExpOrFail("e # s") should matchPattern {
+      case PMultiplicity(
+        PNamedOperand(PIdnUse("e")),
+        PNamedOperand(PIdnUse("s"))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complex multiplicity expression") {
+    frontend.parseExpOrFail("x + 2 # seq[int] { n }") should matchPattern {
+      case PMultiplicity(
+        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
+        PSequenceLiteral(PIntType(), Vector(PNamedOperand(PIdnUse("n"))))
+      ) if a == BigInt(2) =>
+    }
+  }
+
+  test("Parser: should let multiplicity associate to the left") {
+    frontend.parseExpOrFail("x # y # z") should matchPattern {
+      case PMultiplicity(
+        PMultiplicity(
+          PNamedOperand(PIdnUse("x")),
+          PNamedOperand(PIdnUse("y"))
+        ),
+        PNamedOperand(PIdnUse("z"))
+      ) =>
+    }
+  }
+
+  test("Parser: should correctly parse a multiplicity expression with parentheses") {
+    frontend.parseExpOrFail("x # (y # z)") should matchPattern {
+      case PMultiplicity(
+        PNamedOperand(PIdnUse("x")),
+        PMultiplicity(
+          PNamedOperand(PIdnUse("y")),
+          PNamedOperand(PIdnUse("z"))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiplicity expression without operands") {
+    frontend.parseExp("#") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiplicity expression with a missing left-hand side") {
+    frontend.parseExp("# y") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiplicity expression with a missing right-hand side") {
+    frontend.parseExp("x #") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a doubly applied multiplicity operator") {
+    frontend.parseExp("x ## y") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiplicity operator with a parsing problem in the left-hand side") {
+    frontend.parseExp("seq[int] { x ++ } # ys") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multiplicity operator with a parsing problem in the right-hand side") {
+    frontend.parseExp("xs # seq[int] { x ++ }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

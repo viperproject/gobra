@@ -180,6 +180,14 @@ class ExpressionsImpl extends Expressions {
         case _ => vpr.ExplicitMultiset(exprsT)(pos, info, errT)
       }
 
+      case in.Multiplicity(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield rightT.typ match {
+        case vpr.SeqType(_) => ctx.seqMultiplicity.create(leftT, rightT)
+        case t => Violation.violation(s"translation for multiplicity with type $t is not implemented")
+      }
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

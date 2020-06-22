@@ -297,6 +297,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case expr : PGhostCollectionExp => expr match {
         case PSize(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
+        case PMultiplicity(left, right) => showExpr(left) <+> "#" <+> showExpr(right)
         case expr : PSequenceExp => expr match {
           case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))

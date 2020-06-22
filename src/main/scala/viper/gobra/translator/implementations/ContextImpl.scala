@@ -8,6 +8,7 @@ import viper.silver.ast.LocalVarDecl
 
 case class ContextImpl(
                         seqToSet : SeqToSet,
+                        seqMultiplicity : SeqMultiplicity,
                         tuple: Tuples,
                         typeProperty: TypeProperties,
                         ass: Assertions,
@@ -24,6 +25,7 @@ case class ContextImpl(
   def this(conf: TranslatorConfig, table: LookupTable) {
     this(
       conf.seqToSet,
+      conf.seqMultiplicity,
       conf.tuple,
       conf.typeProperty,
       conf.ass,
@@ -41,6 +43,7 @@ case class ContextImpl(
   /** copy constructor */
   override def :=(
                    seqToSetN : SeqToSet = seqToSet,
+                   seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
                    tupleN: Tuples = tuple,
                    typePropertyN: TypeProperties = typeProperty,
                    assN: Assertions = ass,
@@ -53,6 +56,7 @@ case class ContextImpl(
                    locN: Locations = loc,
                  ): Context = copy(
     seqToSet,
+    seqMultiplicity,
     tuple,
     typeProperty,
     assN,

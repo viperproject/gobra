@@ -683,6 +683,15 @@ case class PIn(left : PExpression, right : PExpression) extends PGhostCollection
 case class PSize(exp : PExpression) extends PGhostCollectionExp
 
 /**
+  * Represents a multiplicity expression of the form "`left` # `right`"
+  * in Gobra's specification language, where `right` should be a ghost
+  * collection of some type 't', and `left` an expression of type 't'.
+  * This expression evaluates to the number of times `left` occurs
+  * in the collection `right`, i.e., its multiplicity.
+  */
+case class PMultiplicity(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+
+/**
   * Represents a ghost collection literal, e.g., a sequence
   * (or set or multiset) literal "seq[`typ`] { `exprs` }".
   */

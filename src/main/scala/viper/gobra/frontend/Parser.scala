@@ -492,6 +492,7 @@ object Parser {
 
     lazy val precedence4P1 : PackratParser[PExpression] = /* Left-associative */
       precedence4P1 ~ ("in" ~> precedence4P2) ^^ PIn |
+        precedence4P1 ~ ("#" ~> precedence4P2) ^^ PMultiplicity |
         precedence4P1 ~ ("subset" ~> precedence4P2) ^^ PSubset |
         precedence4P2
 

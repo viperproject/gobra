@@ -615,6 +615,41 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should be able to parse a simple multiplicity expression") {
+    val expr = PMultiplicity(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y")))
+
+    frontend.show(expr) should matchPattern {
+      case "x # y" =>
+    }
+  }
+
+  test("Printer: should be able to show a slightly more complex multiplicity expression") {
+    val expr = PMultiplicity(
+      PAdd(PIntLit(2), PIntLit(3)),
+      PSequenceLiteral(PIntType(), Vector(
+        PMultiplicity(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y")))
+      ))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "2 + 3 # seq[int] { x # y }" =>
+    }
+  }
+
+  test("Printer: should correctly show nested multiplicity expressions") {
+    val expr = PMultiplicity(
+      PNamedOperand(PIdnUse("x")),
+      PMultiplicity(
+        PNamedOperand(PIdnUse("y")),
+        PNamedOperand(PIdnUse("z"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "x # y # z" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

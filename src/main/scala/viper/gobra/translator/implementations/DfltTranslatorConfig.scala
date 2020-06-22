@@ -1,13 +1,14 @@
 package viper.gobra.translator.implementations
 
-import viper.gobra.translator.implementations.components.{SeqToSetImpl, TuplesImpl, TypePropertiesImpl}
+import viper.gobra.translator.implementations.components.{SeqMultiplicityImpl, SeqToSetImpl, TuplesImpl, TypePropertiesImpl}
 import viper.gobra.translator.implementations.translator._
 import viper.gobra.translator.interfaces.TranslatorConfig
-import viper.gobra.translator.interfaces.components.{SeqToSet, Tuples, TypeProperties}
+import viper.gobra.translator.interfaces.components.{SeqMultiplicity, SeqToSet, Tuples, TypeProperties}
 import viper.gobra.translator.interfaces.translator._
 
 class DfltTranslatorConfig(
   val seqToSet : SeqToSet = new SeqToSetImpl(),
+  val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl(),
   val tuple : Tuples = new TuplesImpl(),
   val typeProperty : TypeProperties = new TypePropertiesImpl(),
   val ass : Assertions = new AssertionsImpl(),

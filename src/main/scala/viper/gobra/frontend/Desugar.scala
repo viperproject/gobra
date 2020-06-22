@@ -1250,6 +1250,11 @@ object Desugar {
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
+        case PMultiplicity(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.Multiplicity(dleft, dright)(src)
+
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
           dtyp = typeD(info.typ(t))

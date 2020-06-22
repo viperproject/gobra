@@ -1231,6 +1231,68 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify the sequence multiplicity operator as ghost") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PSequenceLiteral(PIntType(), Vector())
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a very simple use of the seq multiplicity operator as well-defined") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PSequenceLiteral(PIntType(), Vector())
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiplicity operator if the right-hand side is not a sequence but for example an integer") {
+    val expr = PMultiplicity(
+      PIntLit(2),
+      PIntLit(3)
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a sequence multiplicity operator if the types of the operands don't match") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a slightly more complex proper use of the sequence multiplicity operator be well-defined") {
+    val expr = PMultiplicity(
+      PSequenceLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PSequenceLiteral(PSequenceType(PBoolType()), Vector())
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple use of the sequence multiplicity operator be of type integer") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PSequenceLiteral(PIntType(), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should let a slightly more complex use of the sequence multiplicity operator be of type integer") {
+    val expr = PMultiplicity(
+      PSequenceLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PSequenceLiteral(PSequenceType(PBoolType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

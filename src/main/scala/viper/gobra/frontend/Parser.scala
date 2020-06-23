@@ -13,7 +13,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
+import viper.gobra.reporting.{ParsedInputMessage, ParserErrorMessage, ParserError, PreprocessedInputMessage, VerifierError}
 
 import scala.concurrent.{Future, ExecutionContext}
 
@@ -58,7 +58,10 @@ object Parser {
         pom.positions.setStart(ns, pos)
         pom.positions.setFinish(ns, pos)
         val messages = message(ns, label)
-        Left(pom.translate(messages, ParserError))
+        val errors = pom.translate(messages, ParserError)
+        config.reporter report ParserErrorMessage(config.inputFile, errors)
+        Left(errors)
+        //Left(pom.translate(messages, ParserError))
     }
   }
 

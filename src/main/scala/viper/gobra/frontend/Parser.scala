@@ -869,7 +869,8 @@ object Parser {
         setLiteral |
         multisetLiteral |
         rangeSequence |
-        rangeSet
+        rangeSet |
+        rangeMultiset
 
     lazy val sequenceLiteral : Parser[PSequenceLiteral] =
       ghostCollectionLiteral("seq") ^^ PSequenceLiteral
@@ -893,6 +894,15 @@ object Parser {
       */
     lazy val rangeSet : Parser[PGhostExpression] = "set" ~> rangeExprBody ^^ {
       case left ~ right => PSetConversion(PRangeSequence(left, right).range(left, right))
+    }
+
+    /**
+      * Expressions of the form "mset[`left` .. `right`]" are directly
+      * transformed into "mset(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeMultiset : Parser[PGhostExpression] = "mset" ~> rangeExprBody ^^ {
+      case left ~ right => PMultisetConversion(PRangeSequence(left, right).range(left, right))
     }
 
     lazy val predicateAccess: Parser[PPredicateAccess] =

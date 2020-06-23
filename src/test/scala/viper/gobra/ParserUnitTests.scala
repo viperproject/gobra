@@ -1235,12 +1235,6 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not parse something like a multiset range expression (for now)") {
-    frontend.parseExp("mset[1..10]") should matchPattern {
-      case Left(_) =>
-    }
-  }
-
   test("Parser: should be able to parse a union of two multiset literals") {
     frontend.parseExpOrFail("mset[bool] { true } union mset[int] { 2 }") should matchPattern {
       case PUnion(
@@ -1727,6 +1721,77 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should not parse a multiset conversion expression with an empty body") {
     frontend.parseExp("mset( )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple multiset range expression") {
+    frontend.parseExpOrFail("mset[1..10]") should matchPattern {
+      case PMultisetConversion(PRangeSequence(PIntLit(low), PIntLit(high)))
+        if low == BigInt(1) && high == BigInt(10) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complex multiset range expression") {
+    frontend.parseExpOrFail("mset [ x + (y) .. | xs | ]") should matchPattern {
+      case PMultisetConversion(
+        PRangeSequence(
+          PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
+          PSize(PNamedOperand(PIdnUse("xs")))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse the size of a multiset range expression") {
+    frontend.parseExpOrFail("|(mset[(x)..y])|") should matchPattern {
+      case PSize(
+        PMultisetConversion(PRangeSequence(
+          PNamedOperand(PIdnUse("x")),
+          PNamedOperand(PIdnUse("y"))
+        ))
+      ) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with a missing opening bracket") {
+    frontend.parseExp("mset x .. y ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with a missing closing bracket") {
+    frontend.parseExp("mset [ x .. y") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with a missing left operand") {
+    frontend.parseExp("mset [ .. y ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with a missing right operand") {
+    frontend.parseExp("mset [ x .. ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression without any operands") {
+    frontend.parseExp("mset [ .. ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with a space in between the dots") {
+    frontend.parseExp("mset [ x . . y ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset range expression with three dots instead of two") {
+    frontend.parseExp("mset [ x ... y ]") should matchPattern {
       case Left(_) =>
     }
   }

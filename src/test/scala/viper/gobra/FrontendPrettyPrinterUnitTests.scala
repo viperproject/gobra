@@ -650,6 +650,50 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a very simple bag conversion expression") {
+    val expr = PMultisetConversion(
+      PNamedOperand(PIdnUse("xs"))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "mset(xs)" =>
+    }
+  }
+
+  test("Printer: should show a multiset conversion expression with a slightly more complex inner expression") {
+    val expr = PMultisetConversion(
+      PSequenceAppend(
+        PSequenceLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3))),
+        PNamedOperand(PIdnUse("xs"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "mset(seq[int] { 2, 3 } ++ xs)" =>
+    }
+  }
+
+  test("Printer: should correctly show the union of two multiset conversions") {
+    val expr = PUnion(
+      PMultisetConversion(PNamedOperand(PIdnUse("xs"))),
+      PMultisetConversion(PNamedOperand(PIdnUse("ys")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "mset(xs) union mset(ys)" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested multiset conversion") {
+    val expr = PMultisetConversion(
+      PMultisetConversion(PNamedOperand(PIdnUse("xs")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "mset(mset(xs))" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

@@ -730,6 +730,55 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a very simple multiset conversion") {
+    val expr = MultisetConversion(
+      LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset(xs)" =>
+    }
+  }
+
+  test("Printer: should correctly show a multiset conversion with a sequence concatenation in the inner expression") {
+    val expr = MultisetConversion(
+      SequenceAppend(
+        LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced),
+        LocalVar.Ref("ys", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset(xs ++ ys)" =>
+    }
+  }
+
+  test("Printer: should correctly show the union of two multiset conversions") {
+    val expr = Union(
+      MultisetConversion(LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced))(Unsourced),
+      MultisetConversion(LocalVar.Ref("ys", SequenceT(BoolT))(Unsourced))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset(xs) union mset(ys)" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested multiset conversion") {
+    val expr = MultisetConversion(
+      MultisetConversion(
+        LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "mset(mset(xs))" =>
+    }
+  }
+
+
+  /* * Stubs, mocks, and other test setup  */
+
   class TestFrontend {
     val printer = new DefaultPrettyPrinter()
     def show(n : Node) : String = printer.format(n)

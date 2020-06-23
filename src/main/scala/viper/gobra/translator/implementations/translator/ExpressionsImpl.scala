@@ -180,6 +180,13 @@ class ExpressionsImpl extends Expressions {
         case _ => vpr.ExplicitMultiset(exprsT)(pos, info, errT)
       }
 
+      case in.MultisetConversion(exp) => for {
+        expT <- goE(exp)
+      } yield expT.typ match {
+        case vpr.SeqType(_) => ctx.seqToMultiset.create(expT)
+        case t => Violation.violation(s"conversion of type $t to multisets is not implemented")
+      }
+
       case in.Multiplicity(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)

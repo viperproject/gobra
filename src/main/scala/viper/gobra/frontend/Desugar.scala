@@ -1315,6 +1315,14 @@ object Desugar {
           dtype = typeD(info.typ(t))
         } yield in.MultisetLiteral(dtype, dexprs)(src)
 
+        case PMultisetConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case in.MultisetT(_) => dop
+          case in.SequenceT(_) => in.MultisetConversion(dop)(src)
+          case t => violation(s"expected a sequence or multiset type, but found $t")
+        }
+
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }

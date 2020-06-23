@@ -316,6 +316,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           }
           case expr : PMultisetExp => expr match {
             case PMultisetLiteral(typ, exprs) => showCollectionLiteral("mset", typ, exprs)
+            case PMultisetConversion(exp) => "mset" <> "(" <> showExpr(exp) <> ")"
           }
         }
       }

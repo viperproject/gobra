@@ -410,6 +410,16 @@ case class MultisetLiteral(memberType : Type, exprs : Vector[Expr])(val info : S
   override def typ : Type = MultisetT(memberType)
 }
 
+/**
+  * Represents the conversion of `exp` to a (mathematical) multiset of
+  * a matching type, where `exp` should be a collection, i.e., a sequence or (multi)set.
+  */
+case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case SequenceT(t) => MultisetT(t)
+    case t => Violation.violation(s"expected a sequence type but got $t")
+  }
+}
 
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

@@ -1658,6 +1658,79 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a very simple multiset conversion expression") {
+    frontend.parseExpOrFail("mset(xs)") should matchPattern {
+      case PMultisetConversion(PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complex multiset conversion expression") {
+    frontend.parseExpOrFail("mset(seq[int] { x } ++ set[bool] { y, z })") should matchPattern {
+      case PMultisetConversion(
+        PSequenceAppend(
+          PSequenceLiteral(PIntType(), Vector(PNamedOperand(PIdnUse("x")))),
+          PSetLiteral(PBoolType(), Vector(
+            PNamedOperand(PIdnUse("y")),
+            PNamedOperand(PIdnUse("z"))
+          ))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a union of multiset conversions") {
+    frontend.parseExpOrFail("mset(xs) union mset(ys)") should matchPattern {
+      case PUnion(
+        PMultisetConversion(PNamedOperand(PIdnUse("xs"))),
+        PMultisetConversion(PNamedOperand(PIdnUse("ys")))
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a nested multiset conversion") {
+    frontend.parseExpOrFail("mset(mset(xs))") should matchPattern {
+      case PMultisetConversion(
+        PMultisetConversion(PNamedOperand(PIdnUse("xs")))
+      ) =>
+    }
+  }
+
+  test("Parser: should parse a multiset conversion with some extra spaces added") {
+    frontend.parseExpOrFail("mset ( xs )") should matchPattern {
+      case PMultisetConversion(PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset conversion with a missing opening bracket") {
+    frontend.parseExp("mset xs )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset conversion with a missing closing bracket") {
+    frontend.parseExp("mset ( xs") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset conversion expression with a space in 'mset'") {
+    frontend.parseExp("m set(xs)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset conversion expression with a parsing error in the inner expression") {
+    frontend.parseExp("mset(xs ++)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a multiset conversion expression with an empty body") {
+    frontend.parseExp("mset( )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

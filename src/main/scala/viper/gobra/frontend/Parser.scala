@@ -543,7 +543,8 @@ object Parser {
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
       "|" ~> expression <~ "|" ^^ PSize |
-        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
+        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion |
+        "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
         conversion |

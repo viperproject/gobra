@@ -1293,6 +1293,185 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify a (proper) multiset conversion of a multiset as ghost") {
+    val expr = PMultisetConversion(
+      PMultisetLiteral(PBoolType(), Vector())
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should type check a standard multiset conversion of a multiset") {
+    val expr = PMultisetConversion(
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should type check a slightly more involved multiset conversion of a multiset") {
+    val expr = PMultisetConversion(
+      PUnion(
+        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
+        PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+      )
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should type check the union of two multiset conversions of multisets") {
+    val expr = PUnion(
+      PMultisetConversion(PMultisetLiteral(PIntType(), Vector())),
+      PMultisetConversion(PMultisetLiteral(PIntType(), Vector()))
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset conversion of something other than a collection") {
+    val expr = PMultisetConversion(PBoolLit(false))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset conversion of a multiset if there is a typing problem in the operand") {
+    val expr = PMultisetConversion(
+      PUnion(
+        PMultisetLiteral(PIntType(), Vector()),
+        PMultisetLiteral(PBoolType(), Vector())
+      )
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the union of the results of two incompatible multiset conversions of multisets") {
+    val expr = PUnion(
+      PMultisetConversion(PMultisetLiteral(PIntType(), Vector())),
+      PMultisetConversion(PMultisetLiteral(PBoolType(), Vector()))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a (proper) multiset conversion of a sequence as ghost") {
+    val expr = PMultisetConversion(
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should type check a simple proper multiset conversion of a sequence") {
+    val expr = PMultisetConversion(
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should type check a slightly more complex multiset conversion expression of a sequence") {
+    val expr = PMultisetConversion(
+      PSequenceAppend(
+        PSequenceLiteral(PIntType(), Vector(PIntLit(1))),
+        PSequenceLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+      )
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type check an mset union of the results of two multiset conversions of sequences") {
+    val expr = PUnion(
+      PMultisetConversion(PSequenceLiteral(PIntType(), Vector(PIntLit(1)))),
+      PMultisetConversion(PSequenceLiteral(PIntType(), Vector(PIntLit(2))))
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check an multiset conversion of sequences with an incorrect body expression") {
+    val expr = PMultisetConversion(
+      PSequenceAppend(
+        PSequenceLiteral(PIntType(), Vector()),
+        PSequenceLiteral(PBoolType(), Vector())
+      )
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the union of two incompatible results of multiset conversions of sequences") {
+    val expr = PUnion(
+      PMultisetConversion(PSequenceLiteral(PIntType(), Vector())),
+      PMultisetConversion(PSequenceLiteral(PBoolType(), Vector()))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a simple multiset conversion of a multiset") {
+    val expr = PMultisetConversion(
+      PMultisetLiteral(PSequenceType(PIntType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.SequenceT(Type.IntT)) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a simple multiset conversion of a sequence") {
+    val expr = PMultisetConversion(
+      PSequenceLiteral(PMultisetType(PBoolType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type the union of two matching multiset conversions") {
+    val expr = PUnion(
+      PMultisetConversion(PSequenceLiteral(PBoolType(), Vector())),
+      PMultisetConversion(PSequenceLiteral(PBoolType(), Vector())),
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should not type check the multiset conversion of a multiset literal that has a typing problem") {
+    val expr = PMultisetConversion(
+      PMultisetLiteral(PBoolType(), Vector(PIntLit(42)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check the multiset conversion of a sequence literal that has a typing problem") {
+    val expr = PMultisetConversion(
+      PSequenceLiteral(PIntType(), Vector(PBoolLit(false)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a set conversion of a multiset (yet)") {
+    val expr = PSetConversion(
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset conversion of an ordinary set (yet)") {
+    val expr = PMultisetConversion(
+      PSetLiteral(PBoolType(), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

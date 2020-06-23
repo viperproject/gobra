@@ -816,6 +816,13 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetLiteral(typ : PType, exprs : Vector[PExpression]) extends PMultisetExp with PGhostCollectionLiteral
 
+/**
+  * Represents the explicit conversion of `exp` to a multiset
+  * (of a matching, appropriate type), written "mset(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PMultisetConversion(exp : PExpression) extends PMultisetExp
+
 
 /**
   * Types

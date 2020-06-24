@@ -1066,7 +1066,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.BooleanT =>
     }
   }
 
@@ -1077,7 +1077,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.BooleanT =>
     }
   }
 
@@ -1471,6 +1471,224 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
 
     assert (!frontend.wellDefExpr(expr)().valid)
   }
+
+  test("TypeChecker: should mark the multiset multiplicity operator as ghost") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should correctly type check a simple use of the multiset multiplicity operator") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should type check a slightly more complex use of the multiset multiplicity operator") {
+    val expr = PMultiplicity(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PSetType(PBoolType()), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset multiplicity operator if the types of the operands don't match") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PMultisetLiteral(PBoolType(), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset multiplicity operator if there is a typing error in the left operand") {
+    val expr = PMultiplicity(
+      PSetLiteral(PIntType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PSetType(PIntType()), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a use of the multiset multiplicity operator if there is a typing error in the right operand") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector(PBoolLit(true)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type check a small chain of multiset multiplicity operators") {
+    val expr = PMultiplicity(
+      PMultiplicity(
+        PBoolLit(false),
+        PMultisetLiteral(PBoolType(), Vector())
+      ),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a simple multiset multiplicity operator") {
+    val expr = PMultiplicity(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a slightly more complicated use of the multiset multiplicity operator") {
+    val expr = PMultiplicity(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PSetType(PBoolType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should mark the multiset inclusion operator as ghost") {
+    val expr = PIn(PIntLit(42), PMultisetLiteral(PIntType(), Vector()))
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should let a simple use of the multiset inclusion operator be well-defined") {
+    val expr = PIn(PIntLit(42), PMultisetLiteral(PIntType(), Vector()))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let a multiset inclusion operator be well-defined if the types do not match") {
+    val expr = PIn(
+      PIntLit(42),
+      PMultisetLiteral(PBoolType(), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset inclusion operator if there is a typing error in the left operand") {
+    val expr = PIn(
+      PSetLiteral(PBoolType(), Vector(PIntLit(42))),
+      PMultisetLiteral(PSetType(PBoolType()), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a multiset inclusion operator if there is a typing error in the right operand") {
+    val expr = PIn(
+      PSetLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PMultisetLiteral(PSetType(PBoolType()), Vector(PIntLit(42)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let the type of a multiset inclusion operator be Boolean (instead of integer)") {
+    val expr = PIn(
+      PIntLit(42),
+      PMultisetLiteral(PIntType(), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a small chain of multiset inclusions") {
+    val expr = PIn(
+      PIn(
+        PIntLit(42),
+        PMultisetLiteral(PIntType(), Vector())
+      ),
+      PMultisetLiteral(PBoolType(), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should classify the set multiplicity operator as ghost") {
+    val expr = PMultiplicity(
+      PIntLit(12),
+      PSetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should let a standard use of the multiplicity operator on sets be well-defined") {
+    val expr = PMultiplicity(
+      PIntLit(12),
+      PSetLiteral(PIntType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a set multiplicity operator if the types of the operands don't match") {
+    val expr = PMultiplicity(
+      PIntLit(12),
+      PSetLiteral(PBoolType(), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a set multiplicity operator if there is a typing problem in the left operand") {
+    val expr = PMultiplicity(
+      PSequenceLiteral(PBoolType(), Vector(PIntLit(42))),
+      PSetLiteral(PSequenceType(PBoolType()), Vector())
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a set multiplicity operator if there is a typing problem in the right operand") {
+    val expr = PMultiplicity(
+      PSequenceLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PSetLiteral(PSequenceType(PBoolType()), Vector(PIntLit(42)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple use of a set multiplicity operator be of type integer") {
+    val expr = PMultiplicity(
+      PIntLit(12),
+      PSetLiteral(PIntType(), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a slightly more involved use of the set multiplicity operator") {
+    val expr = PMultiplicity(
+      PSequenceLiteral(PBoolType(), Vector(PBoolLit(false))),
+      PSetLiteral(PSequenceType(PBoolType()), Vector())
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
 
 
   /* * Stubs, mocks, and other test setup  */

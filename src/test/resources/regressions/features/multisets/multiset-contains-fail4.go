@@ -1,7 +1,6 @@
 package pkg
 
 func foo(ghost x int, ghost y int, ghost m mset[int]) {
-  // fails trivially
   //:: ExpectedOutput(assert_error:assertion_error)
-  assert 0 < x # m ==> 0 < y # m
+  assert x in m ==> y in m
 }

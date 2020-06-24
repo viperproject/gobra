@@ -192,6 +192,12 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield rightT.typ match {
         case vpr.SeqType(_) => ctx.seqMultiplicity.create(leftT, rightT)
+        case vpr.SetType(_) => vpr.CondExp(
+          vpr.AnySetContains(leftT, rightT)(pos, info, errT),
+          vpr.IntLit(1)(pos, info, errT),
+          vpr.IntLit(0)(pos, info, errT)
+        )(pos, info, errT)
+        case vpr.MultisetType(_) => vpr.AnySetContains(leftT, rightT)(pos, info, errT)
         case t => Violation.violation(s"translation for multiplicity with type $t is not implemented")
       }
 

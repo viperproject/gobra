@@ -4,8 +4,8 @@ func example1(ghost x int, y int, ghost m mset[int]) {
   ghost var n1 int
   ghost var n2 int
   
-  n1 = x in m
-  n2 = y in m
+  n1 = x # m
+  n2 = y # m
   
   assert 0 <= n1
   assert 0 <= n2
@@ -13,34 +13,34 @@ func example1(ghost x int, y int, ghost m mset[int]) {
 
 func example2(ghost x int, ghost y int, ghost m mset[int]) {
   ghost var b bool
-  b = x in m == y in m
+  b = x # m == y # m
 }
 
 func example3(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
   ghost var n int
-  n = x in m1 in m2
-  assert x in m1 in m2 == (x in m1) in m2
+  n = x # m1 # m2
+  assert x # m1 # m2 == (x # m1) # m2
 }
 
 func example4() {
-  assert 2 in mset[int] { 1, 2, 3 } == 1
-  assert 2 in mset[int] { 1, 3 } == 0
-  assert 2 in mset[int] { 1, 2, 2, 2, 3 } == 3
-  assert 1 in mset[int] { 1 } in mset[int] { 1 } in mset[int] { 1 } == 1
+  assert 2 # mset[int] { 1, 2, 3 } == 1
+  assert 2 # mset[int] { 1, 3 } == 0
+  assert 2 # mset[int] { 1, 2, 2, 2, 3 } == 3
+  assert 1 # mset[int] { 1 } # mset[int] { 1 } # mset[int] { 1 } == 1
 }
 
 func example5(ghost x int) {
-  assert x in mset[int] { } in mset[int] { } in mset[int] { } in mset[int] { } == 0
+  assert x # mset[int] { } # mset[int] { } # mset[int] { } # mset[int] { } == 0
 }
 
 func example6(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
-  assert x in m1 <= x in m1 union m2
-  assert 0 < x in m1 ==> 0 < x in m1 union m2
+  assert x # m1 <= x # m1 union m2
+  assert 0 < x # m1 ==> 0 < x # m1 union m2
   
-  assert x in m1 intersection m2 <= x in m1
-  assert 0 < x in m1 intersection m2 ==> 0 < x in m1
+  assert x # m1 intersection m2 <= x # m1
+  assert 0 < x # m1 intersection m2 ==> 0 < x # m1
 }
 
-ensures x in m1 union m2 == (x in m1) + (x in m2)
+ensures x # m1 union m2 == (x # m1) + (x # m2)
 func example7(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
 }

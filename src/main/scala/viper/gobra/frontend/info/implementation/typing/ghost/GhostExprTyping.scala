@@ -45,19 +45,19 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         exprType(right) match {
           case t : GhostCollectionType => comparableTypes.errors(exprType(left), t.elem)(expr)
-          case t => message(right, s"expected a collection, but got $t")
+          case t => message(right, s"expected a ghost collection, but got $t")
         }
       }
 
       case PSize(op) => isExpr(op).out ++ {
         val t = exprType(op)
-        message(op,s"expected a collection, but got $t", !t.isInstanceOf[GhostCollectionType])
+        message(op,s"expected a ghost collection, but got $t", !t.isInstanceOf[GhostCollectionType])
       }
 
       case PMultiplicity(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         (exprType(left), exprType(right)) match {
-          case (t1, SequenceT(t2)) => comparableTypes.errors(t1, t2)(expr)
-          case (_, t) => message(right, s"expected a sequence, but got $t")
+          case (t1, t2 : GhostCollectionType) => comparableTypes.errors(t1, t2.elem)(expr)
+          case (_, t) => message(right, s"expected a ghost collection, but got $t")
         }
       }
 
@@ -132,10 +132,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr : PGhostCollectionExp => expr match {
       case PSize(_) => IntT
       case PMultiplicity(_, _) => IntT
-      case PIn(_, right) => exprType(right) match {
-        case MultisetT(_) => IntT
-        case _ => BooleanT
-      }
+      case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
         case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
         case PRangeSequence(_, _) => SequenceT(IntT)

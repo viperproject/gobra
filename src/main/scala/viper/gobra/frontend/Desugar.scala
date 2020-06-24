@@ -1246,7 +1246,8 @@ object Desugar {
           dright <- go(right)
         } yield dright.typ match {
           case in.SequenceT(_) => in.SequenceContains(dleft, dright)(src)
-          case in.SetT(_) | in.MultisetT(_) => in.SetContains(dleft, dright)(src)
+          case in.SetT(_) => in.SetContains(dleft, dright)(src)
+          case in.MultisetT(_) => in.LessCmp(in.IntLit(0)(src), in.SetContains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 

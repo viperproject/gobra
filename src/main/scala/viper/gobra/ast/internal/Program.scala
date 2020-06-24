@@ -368,8 +368,9 @@ case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Exp
 }
 
 /**
-  * Represents a (multi)set membership expression "`left` in `right`",
-  * where `right` should be a set of a type compatible with the one of `left`.
+  * Represents a set membership expression "`left` in `right`",
+  * where `right` should be a set (not a multiset) of a type
+  * compatible with the one of `left`.
   */
 case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
   override def typ : Type = BoolT

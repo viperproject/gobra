@@ -1,8 +1,9 @@
 package pkg
 
 func foo(ghost x int, ghost m mset[bool]) {
-  ghost var n int
-  // fails since the types of `in`'s operands are incompatible
+  ghost var b bool
+  
+  // fails: operands are of incompatible types
   //:: ExpectedOutput(type_error)
-  n = x # m
+  b = x in m
 }

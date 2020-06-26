@@ -36,18 +36,16 @@ object Info {
     //    println(tree)
     val info = new TypeInfoImpl(tree, context)(config: Config)
 
-    val errors = info.errors
-    val externalErrors = context.getExternalErrors
+    // get errors and remove duplicates as errors related to imported packages might occur multiple times
+    val errors = info.errors.distinct
     config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => program, () => getDebugInfo(program, info))
-    if (errors.isEmpty && externalErrors.isEmpty) {
+    if (errors.isEmpty) {
       config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => program, () => getErasedGhostCode(program, info))
       Right(info)
     } else {
       val typeErrors = program.positions.translate(errors, TypeError)
-      if (typeErrors.nonEmpty) {
-        config.reporter report TypeCheckFailureMessage(config.inputFiles.head, program.packageClause.id.name, () => program, typeErrors)
-      }
-      Left(typeErrors ++ externalErrors)
+      config.reporter report TypeCheckFailureMessage(config.inputFiles.head, program.packageClause.id.name, () => program, typeErrors)
+      Left(typeErrors)
     }
   }
 

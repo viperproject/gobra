@@ -1,5 +1,6 @@
 package viper.gobra.frontend.info.implementation.resolution
 
+import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{PackageResolver, Parser}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
@@ -161,10 +162,10 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
-  def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
-    def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] = {
+  def tryPackageLookup(importedPkg: PImport, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
+    def getTypeChecker(importedPkg: PImport): Option[ExternalTypeInfo] = {
       // check if package was already parsed:
-      val pkgName = importedPkg.decl.pkg
+      val pkgName = importedPkg.pkg
       context.getTypeInfo(pkgName).map(Some(_)).getOrElse {
         val pkgFiles = PackageResolver.resolve(pkgName, config.includeDirs)
         if (pkgFiles.nonEmpty) {
@@ -198,7 +199,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
       case Right(typ) =>
         val externalAttempt = typeType(typ) match {
-          case pkg: ImportT => tryPackageLookup(pkg, id)
+          case pkg: ImportT => tryPackageLookup(pkg.decl, id)
           case _ => None
         }
         if (externalAttempt.isDefined) externalAttempt
@@ -206,7 +207,17 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-
+  def tryUnqualifiedPackageLookup(id: PIdnUse): Entity = {
+    val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
+    val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
+    if (results.isEmpty) {
+      UnknownEntity()
+    } else if (results.length > 1) {
+      MultipleEntity()
+    } else {
+      results.head._1
+    }
+  }
 
 
 

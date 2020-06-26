@@ -52,6 +52,8 @@ trait ExternalTypeInfo {
 
   def typ(typ: PIdnNode): Type
 
+  def typ(expr: PExpression): Type
+
   def scope(n: PIdnNode): PScope
 
   def struct: PNode => Option[StructT]

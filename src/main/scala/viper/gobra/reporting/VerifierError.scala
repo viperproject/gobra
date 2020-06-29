@@ -34,6 +34,10 @@ case class TypeError(message: String, position: Option[SourcePosition]) extends 
   val id = "type_error"
 }
 
+case class CyclicImportError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "cyclic_import_error"
+}
 
 
 sealed trait VerificationError extends VerifierError {

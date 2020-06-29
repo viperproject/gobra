@@ -173,11 +173,15 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def getTypeChecker(importedPkg: ImportT): Either[Messages, ExternalTypeInfo] = {
       def createImportError(errs: Vector[VerifierError]): Messages = {
-        val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
         // create an error message located at the import statement to indicate errors in the imported package
-              // we distinguish between parse and type errors and packages whose source files could not be found
+        // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
+        val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+        val alternativeErr = context.getImportCycle(importedPkg.decl.pkg) match {
+          case Some(cycle) => message(importedPkg.decl, s"Package '${importedPkg.decl.pkg}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+          case _ => message(importedPkg.decl, s"Package '${importedPkg.decl.pkg}' contains errors")
+        }
         notFoundErr.map(e => message(importedPkg.decl, e.message))
-          .getOrElse(message(importedPkg.decl, s"Package '${importedPkg.decl.pkg}' contains errors"))
+          .getOrElse(alternativeErr)
       }
 
       // check if package was already parsed, otherwise do parsing and type checking:

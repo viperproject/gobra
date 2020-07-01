@@ -145,9 +145,9 @@ class ScallopGobraConfig(arguments: Seq[String])
   def validateInput(inputOption: ScallopOption[List[String]],
                     includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
 
-    def checkConversion(input: List[String], includeOpt: Option[List[File]]): Either[String, Vector[File]] = {
-      val msgs = InputConverter.validate(input, includeOpt)
-      if (msgs.isEmpty) Right(InputConverter.convert(input, includeOpt))
+    def checkConversion(input: List[String], includeDirs: List[File]): Either[String, Vector[File]] = {
+      val msgs = InputConverter.validate(input)
+      if (msgs.isEmpty) Right(InputConverter.convert(input, includeDirs))
       else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
@@ -176,7 +176,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     //  - result should be non-empty, exist, be files and be readable
     val input: List[String] = inputOpt.get // this is a non-optional CLI argument
     for {
-      convertedFiles <- checkConversion(input, includeOpt)
+      convertedFiles <- checkConversion(input, includeOpt.getOrElse(List()))
       _ <- atLeastOneFile(convertedFiles)
       _ <- filesExist(convertedFiles)
       _ <- filesAreFiles(convertedFiles)
@@ -190,7 +190,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   verify()
 
-  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, include.toOption)
+  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, include.toOption.getOrElse(List()))
 
   /** set log level */
 
@@ -208,7 +208,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
     private val goFileRgx = s"""(.*\\.${PackageResolver.extension})$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
 
-    def validate(input: List[String], includeOpt: Option[List[File]]): Messages = {
+    def validate(input: List[String]): Messages = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
         case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => noMessages
@@ -222,12 +222,12 @@ class ScallopGobraConfig(arguments: Seq[String])
       }
     }
 
-    def convert(input: List[String], includeOpt: Option[List[File]]): Vector[File] = {
+    def convert(input: List[String], includeDirs: List[File]): Vector[File] = {
       val res = for {
         i <- identifyInput(input)
         files = i match {
           case Right(files) => files
-          case Left(pkgName) => PackageResolver.resolve(pkgName, includeOpt)
+          case Left(pkgName) => PackageResolver.resolve(pkgName, includeDirs)
         }
       } yield files
       assert(res.isDefined, "validate function did not catch this problem")

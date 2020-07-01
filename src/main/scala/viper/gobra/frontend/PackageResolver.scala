@@ -33,15 +33,15 @@ object PackageResolver {
   /**
     * Returns the qualifier with which members of the imported package can be accessed
     */
-  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Option[String] = {
-    (for {
+  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
+    for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(n.importPath, includeDirs)
       sourceFiles = getSourceFiles(pkgDir.toFile)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, n.importPath)
-    } yield pkgName).toOption
+    } yield pkgName
   }
 
   /**
@@ -99,7 +99,7 @@ object PackageResolver {
       if (differingClauses.isEmpty) Right(pkgClauses.head._2)
       else {
         val foundPackages = differingClauses.collect { case (f, clause) => s"$clause (${f.getPath})" }.mkString(", ")
-        Left(s"Found packages $foundPackages in $importPath")
+        Left(s"Found package(s) $foundPackages in $importPath. A folder can only contain source files belonging to a single package.")
       }
     }
 

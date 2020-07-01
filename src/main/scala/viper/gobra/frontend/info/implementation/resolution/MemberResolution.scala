@@ -164,10 +164,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         // Info.check would probably need some restructuring to type check only certain members
         info <- Info.check(parsedProgram, context)(config)
       } yield info
-      res.fold(
-        errs => context.addErrenousPackage(importPath, errs),
-        info => context.addPackage(info)
-      )
+      context.addPackage(importPath, res)
       res
     }
 

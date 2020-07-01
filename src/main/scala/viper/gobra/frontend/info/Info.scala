@@ -20,14 +20,9 @@ object Info {
     /** stores all cycles that have been discovered so far */
     private var knownImportCycles: Set[Vector[String]] = Set()
 
-    def addPackage(typeInfo: ExternalTypeInfo): Unit = {
-      pendingPackages = pendingPackages.filterNot(_ == typeInfo.pkgName.name)
-      contextMap = contextMap + (typeInfo.pkgName.name -> Right(typeInfo))
-    }
-
-    def addErrenousPackage(importPath: String, errors: Vector[VerifierError]): Unit = {
+    def addPackage(importPath: String, pkgRes: Either[Vector[VerifierError], ExternalTypeInfo]): Unit = {
       pendingPackages = pendingPackages.filterNot(_ == importPath)
-      contextMap = contextMap + (importPath -> Left(errors))
+      contextMap = contextMap + (importPath -> pkgRes)
     }
 
     def getTypeInfo(importPath: String): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = contextMap.get(importPath) match {

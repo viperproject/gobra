@@ -1,19 +1,19 @@
 package main
 
-import "fmt"
-import "a";
-import ("b")
-import ("c");
+import fmt "fmt"
+import a "a";
+import (b "b")
+import (c "c");
 import (
-    "d"
-    "e")
+    d "d"
+    e "e")
 import (
-    "f"
-    "g"
+    f "f"
+    g "g"
 )
 
-import "lib/math"
-import m "lib/mathm"
+import math "lib/math"
+import m "lib/mathm" // import of a package that does not exist
 import . "lib/mathn"
 
 func test() {

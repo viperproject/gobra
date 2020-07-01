@@ -12,11 +12,10 @@ import (
     g "g"
 )
 
-import math "lib/math"
-import m "lib/mathm" // import of a package that does not exist
+//:: ExpectedOutput(type_error)
+import m "lib/mathm" // wrong package name used on purpose such that this test case does not potentially depend on the configured Go path
 import . "lib/mathn"
 
 func test() {
-  //:: ExpectedOutput(type_error)
   m.foo();
 }

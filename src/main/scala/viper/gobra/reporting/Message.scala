@@ -89,11 +89,12 @@ case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhost
     s"file=${input.toPath})"
 }
 
-case class TypeCheckFailureMessage(input: File, ast: () => PPackage, result: Vector[TypeError]) extends TypeCheckMessage {
+case class TypeCheckFailureMessage(input: File, packageName: String, ast: () => PPackage, result: Vector[VerifierError]) extends TypeCheckMessage {
   override val name: String = s"type_check_failure_message"
 
   override def toString: String = s"type_check_failure_message(" +
-    s"file=${input.toPath}), " +
+    s"file=${input.toPath}, " +
+    s"package=$packageName, " +
     s"failures=${result.map(_.toString).mkString(",")})"
 }
 

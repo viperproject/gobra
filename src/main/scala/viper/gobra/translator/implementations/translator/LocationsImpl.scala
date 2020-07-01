@@ -2,7 +2,6 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import in.Addressable.isAddressable
-import viper.gobra.ast.internal.GlobalConst
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations

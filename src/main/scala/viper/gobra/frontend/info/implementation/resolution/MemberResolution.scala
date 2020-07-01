@@ -1,11 +1,14 @@
 package viper.gobra.frontend.info.implementation.resolution
 
+import org.bitbucket.inkytonik.kiama.util.Entity
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{PackageResolver, Parser}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.reporting.{NotFoundError, VerifierError}
 
 
 trait MemberResolution { this: TypeInfoImpl =>
@@ -147,34 +150,58 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
-  def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
-    def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] =
-      // check if package was already parsed:
-      context.getTypeInfo(importedPkg.decl.importPath).map(Some(_)).getOrElse {
-        val pkgFiles = PackageResolver.resolve(importedPkg.decl.importPath, config.includeDirs).right.getOrElse(Vector())
-        if (pkgFiles.nonEmpty) {
-          (for {
-            parsedProgram <- Parser.parse(pkgFiles, specOnly = true)(config)
-            // TODO maybe don't check whole file but only members that are actually used/imported
-            // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
-            // Info.check would probably need some restructuring to type check only certain members
-            typeChecker <- Info.check(parsedProgram, context)(config)
-            // store typeChecker for reuse:
-            _ = context.addPackage(typeChecker)
-          } yield Some(typeChecker)).getOrElse(None)
-        } else None
+  def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
+    def parseAndTypeCheck(importedPkg: ImportT): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val importPath = importedPkg.decl.importPath
+      val res = for {
+        pkgFiles <- PackageResolver.resolve(importPath, config.includeDirs).left.map(e => Vector(NotFoundError(e)))
+        nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
+          Left(Vector(NotFoundError(s"No source files for import path '$importPath' found")))
+          else Right(pkgFiles)
+        parsedProgram <- Parser.parse(nonEmptyPkgFiles, specOnly = true)(config)
+        // TODO maybe don't check whole file but only members that are actually used/imported
+        // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
+        // Info.check would probably need some restructuring to type check only certain members
+        info <- Info.check(parsedProgram, context)(config)
+      } yield info
+      res.fold(
+        errs => context.addErrenousPackage(importPath, errs),
+        info => context.addPackage(info)
+      )
+      res
+    }
+
+    def getTypeChecker(importedPkg: ImportT): Either[Messages, ExternalTypeInfo] = {
+      def createImportError(errs: Vector[VerifierError]): Messages = {
+        // create an error message located at the import statement to indicate errors in the imported package
+        // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
+        val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
+        val importPath = importedPkg.decl.importPath
+        val alternativeErr = context.getImportCycle(importPath) match {
+          case Some(cycle) => message(importedPkg.decl, s"Import path '${importPath}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+          case _ => message(importedPkg.decl, s"Import path '${importPath}' contains errors")
+        }
+        notFoundErr.map(e => message(importedPkg.decl, e.message))
+          .getOrElse(alternativeErr)
       }
 
+      // check if package was already parsed, otherwise do parsing and type checking:
+      val cachedInfo = context.getTypeInfo(importedPkg.decl.importPath)
+      cachedInfo.getOrElse(parseAndTypeCheck(importedPkg)).left.map(createImportError)
+    }
 
     val foreignPkgResult = for {
       typeChecker <- getTypeChecker(importedPkg)
-      entity <- typeChecker.externalRegular(id)
+      entity = typeChecker.externalRegular(id)
     } yield entity
-    foreignPkgResult.flatMap(m => Some((m, Vector())))
+    foreignPkgResult.fold(
+      msgs => Some((ErrorMsgEntity(msgs), Vector())),
+      m => m.flatMap(m => Some((m, Vector())))
+    )
   }
 
 
-  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
+  def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     exprOrType(b) match {
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)

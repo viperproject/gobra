@@ -7,7 +7,7 @@
 package viper.gobra.backend
 
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver
 import viper.silver.{ast => vpr}
@@ -35,8 +35,6 @@ object BackendVerifier {
                     ) extends Result
 
   def verify(task: Task)(config: Config): Future[Result] = {
-
-    config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
 
     var exePaths: Vector[String] = Vector.empty
     if (config.backend != ViperServer && config.z3Exe != null && Files.exists(Paths.get(config.z3Exe)))

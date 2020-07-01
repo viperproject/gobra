@@ -12,6 +12,7 @@ import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
+import viper.gobra.reporting.GeneratedViperMessage
 
 import scala.concurrent.{Future, ExecutionContext}
 
@@ -23,7 +24,10 @@ object Translator {
     Future {
       val translationConfig = new DfltTranslatorConfig()
       val programTranslator = new ProgramsImpl()
-      programTranslator.translate(program)(translationConfig)
+      val task = programTranslator.translate(program)(translationConfig)
+
+      config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
+      task
     }
 
   }

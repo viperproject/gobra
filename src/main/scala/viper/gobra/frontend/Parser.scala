@@ -110,6 +110,12 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImportDecl]] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
+  }
+
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
     r match {
       case Success(ast, _) => Right(ast)
@@ -142,15 +148,18 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n")
+      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
       val integer = """[0-9]+"""
+      val rawStringLit = """`(?:.|\n)*`"""
+      val interpretedStringLit = """\".*\""""
+      val stringLit = s"$rawStringLit|$interpretedStringLit"
       val specialKeywords = """break|continue|fallthrough|return"""
       val specialOperators = """\+\+|--"""
       val closingParens = """\)|]|}"""
-      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$stringLit|$specialKeywords|$specialOperators|$closingParens"
 
       val ignoreLineComments = """\/\/.*"""
       val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
@@ -208,26 +217,33 @@ object Parser {
       */
 
     lazy val program: Parser[PProgram] =
-      (packageClause <~ eos) ~ (member <~ eos).* ^^ {
-        case pkgClause ~ members => PProgram(pkgClause, Vector.empty, members.flatten)
+      (packageClause <~ eos) ~ importDecls ~ members ^^ {
+        case pkgClause ~ importDecls ~ members =>
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =
       "package" ~> pkgDef ^^ PPackageClause
 
+    lazy val importDecls: Parser[Vector[Vector[PImportDecl]]] =
+      (importDecl <~ eos).*
+
+    lazy val members: Parser[Vector[Vector[PMember]]] =
+      (member <~ eos).*
+
     lazy val importDecl: Parser[Vector[PImportDecl]] =
-      "import" ~> importSpec ^^ (decl => Vector(decl)) |
-        "import" ~> "(" ~> (importSpec <~ eos).* <~ ")"
+      ("import" ~> importSpec ^^ (decl => Vector(decl))) |
+        ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
 
     lazy val importSpec: Parser[PImportDecl] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =
-      "." ~> idnPackage ^^ PUnqualifiedImport
+      "." ~> idnImportPath ^^ PUnqualifiedImport
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
-      idnDef.? ~ idnPackage ^^ {
-        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+      idnDefLike.? ~ idnImportPath ^^ {
+        case id ~ pkg => PQualifiedImport(id, pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =
@@ -815,15 +831,17 @@ object Parser {
 
 
     lazy val identifier: Parser[String] =
-      "[a-zA-Z_][a-zA-Z0-9_]*".r into (s => {
+      // "_" is not an identifier (but a wildcard)
+      "(?:_[a-zA-Z0-9_]+|[a-zA-Z][a-zA-Z0-9_]*)".r into (s => {
         if (isReservedWord(s))
           failure(s"""keyword "$s" found where identifier expected""")
         else
           success(s)
       })
 
-    lazy val idnPackage: Parser[String] = ???
-
+    lazy val idnImportPath: Parser[String] =
+      "\"" ~> "[a-zA-Z0-9_/]*".r <~ "\""
+      // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**
       * Ghost

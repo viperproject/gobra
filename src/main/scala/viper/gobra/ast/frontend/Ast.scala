@@ -41,6 +41,7 @@ case class PPackage(
                      positions: PositionManager
                    ) extends PNode with PUnorderedScope {
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
+  lazy val imports: Vector[PImportDecl] = programs.flatMap(_.imports)
 }
 
 case class PProgram(
@@ -85,7 +86,7 @@ sealed trait PImportDecl extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImportDecl
 
 case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 

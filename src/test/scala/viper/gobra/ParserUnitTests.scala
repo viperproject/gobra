@@ -2,8 +2,9 @@ package viper.gobra
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
+import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnUse, PIntLit, PInvoke, PNamedOperand, PStatement}
+import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnDef, PIdnUse, PImportDecl, PIntLit, PInvoke, PNamedOperand, PQualifiedImport, PStatement, PUnqualifiedImport, PWildcard}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
@@ -76,6 +77,41 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: Wildcard") {
+    // PWildcard is not an expression
+    an [TestFailedException] should be thrownBy frontend.parseExp("_")
+  }
+
+  test("Parser: multi import") {
+    frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
+      case Vector(PQualifiedImport(None, "f"), PQualifiedImport(None, "g")) =>
+    }
+  }
+
+  test("Parser: dot import") {
+    frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
+      case Vector(PUnqualifiedImport("lib/math")) =>
+    }
+  }
+
+  test("Parser: underscore import") {
+    frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(Some(PWildcard()), "lib/math")) =>
+    }
+  }
+
+  test("Parser: default import") {
+    frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(None, "lib/math")) =>
+    }
+  }
+
+  test("Parser: qualified import") {
+    frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
+    }
+  }
+
   class TestFrontend {
     private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Messages, T]): T = {
       parser(StringSource(source)) match {
@@ -86,5 +122,6 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
     def parseStmt(source: String): PStatement = parseOrFail(source, Parser.parseStmt)
     def parseExp(source: String): PExpression = parseOrFail(source, Parser.parseExpr)
+    def parseImportDecl(source: String): Vector[PImportDecl] = parseOrFail(source, Parser.parseImportDecl)
   }
 }

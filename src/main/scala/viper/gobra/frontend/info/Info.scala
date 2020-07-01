@@ -1,7 +1,6 @@
 package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
-import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -14,12 +13,12 @@ object Info {
   type GoTree = Tree[PNode, PPackage]
 
   class Context {
-    private var contextMap: Map[PPkg, ExternalTypeInfo] = ListMap[PPkg, ExternalTypeInfo]()
+    private var contextMap: Map[String, ExternalTypeInfo] = ListMap[String, ExternalTypeInfo]()
 
     def addPackage(typeInfo: ExternalTypeInfo): Unit =
       contextMap = contextMap + (typeInfo.pkgName.name -> typeInfo)
 
-    def getTypeInfo(pkg: PPkg): Option[ExternalTypeInfo] = contextMap.get(pkg)
+    def getTypeInfo(importPath: String): Option[ExternalTypeInfo] = contextMap.get(importPath)
 
     def getContexts: Iterable[ExternalTypeInfo] = contextMap.values
   }

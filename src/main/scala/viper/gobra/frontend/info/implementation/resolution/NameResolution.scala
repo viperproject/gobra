@@ -161,8 +161,7 @@ trait NameResolution { this: TypeInfoImpl =>
           case p: PFPredicateDecl => Vector(p.id)
         }
       }) ++ (n.imports flatMap {
-        case PQualifiedImport(Some(id: PIdnDef), _) => Vector(id)
-          // TODO: add support for PQualifiedImport(None, _)
+        case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
         case _ => Vector.empty
       })
 

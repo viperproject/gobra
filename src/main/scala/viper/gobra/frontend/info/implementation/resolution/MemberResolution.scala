@@ -150,8 +150,8 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Regular, Vector[MemberPath])] = {
     def getTypeChecker(importedPkg: ImportT): Option[ExternalTypeInfo] =
       // check if package was already parsed:
-      context.getTypeInfo(importedPkg.decl.pkg).map(Some(_)).getOrElse {
-        val pkgFiles = PackageResolver.resolve(importedPkg.decl.pkg, config.includeDirs)
+      context.getTypeInfo(importedPkg.decl.importPath).map(Some(_)).getOrElse {
+        val pkgFiles = PackageResolver.resolve(importedPkg.decl.importPath, config.includeDirs).right.getOrElse(Vector())
         if (pkgFiles.nonEmpty) {
           (for {
             parsedProgram <- Parser.parse(pkgFiles, specOnly = true)(config)

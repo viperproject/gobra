@@ -8,12 +8,14 @@ package viper.gobra.ast.frontend
 
 import java.nio.file.Paths
 
+import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
-import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
+
+import scala.collection.immutable
 
 // TODO: comment describing identifier positions (resolution)
 
@@ -24,11 +26,10 @@ sealed trait PNode extends Product {
 
   lazy val formatted: String = pretty()
 
-  override def toString: PPkg = formatted
+  override def toString: String = formatted
 }
 
 object PNode {
-  type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
 }
 
@@ -85,12 +86,27 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 
 sealed trait PImport extends PNode {
-  def pkg: PPkg
+  def importPath: String
 }
 
-case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImport
+sealed trait PQualifiedImport extends PImport
 
-case class PUnqualifiedImport(pkg: PPkg) extends PImport
+case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String) extends PQualifiedImport
+
+/** will be converted to an PExplicitQualifiedImport in the parse postprocessing step */
+case class PImplicitQualifiedImport(importPath: String) extends PQualifiedImport with Rewritable {
+  override def arity: Int = 1
+
+  override def deconstruct: immutable.Seq[Any] = immutable.Seq(importPath)
+
+  override def reconstruct(components: immutable.Seq[Any]): Any =
+    components match {
+      case immutable.Seq(path: String) => PImplicitQualifiedImport(path)
+      case _ => new IllegalArgumentException
+    }
+}
+
+case class PUnqualifiedImport(importPath: String) extends PImport
 
 
 sealed trait PGhostifiable extends PNode

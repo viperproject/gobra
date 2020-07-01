@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import java.io.{File, Reader}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
-import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
+import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
@@ -37,7 +37,10 @@ object Parser {
     val preprocessedSources = files
       .map{ file => FileSource(file.getPath) }
       .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
-    parseSources(preprocessedSources, specOnly)(config)
+    for {
+      parseAst <- parseSources(preprocessedSources, specOnly)(config)
+      postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+    } yield postprocessedAst
   }
 
   private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -187,6 +190,51 @@ object Parser {
     def reader : Reader = IO.stringreader(content)
   }
 
+  private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
+    /**
+      * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
+      */
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
+      def createErrors(pom: PositionManager, failedNodes: Vector[PImplicitQualifiedImport]): Vector[VerifierError] = {
+        assert(failedNodes.nonEmpty)
+        val errors = failedNodes.flatMap(n => message(n, s"Explicit qualifier could not be derived"))
+        pom.translate(errors, ParserError)
+      }
+
+      // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
+      // hence, we keep ourselves track of to which nodes applying the strategy failed
+      var failedNodes: Vector[PImplicitQualifiedImport] = Vector()
+
+      def replace(n: PImplicitQualifiedImport): Option[PExplicitQualifiedImport] = {
+        val qualifierName = PackageResolver.getQualifier(n, config.includeDirs)
+        val qualifier = qualifierName.map(q => {
+          // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
+          // the same happens for the newly created PExplicitQualifiedImport)
+          val idnDef = PIdnDef(q)
+          pkg.positions.positions.dupPos(n, idnDef)
+          PExplicitQualifiedImport(idnDef, n.importPath)
+        })
+        if (qualifier.isEmpty) {
+          failedNodes = failedNodes :+ n // keep track of the failed node
+        }
+        qualifier
+      }
+
+      // note that the next term after PPackageClause to which the strategy will be applied is a Vector of PProgram
+      val resolveImports: Strategy =
+        strategyWithName[Any]("resolveImports", {
+          case n: PImplicitQualifiedImport => replace(n)
+          case n => Some(n)
+        })
+
+      // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
+      // failed strategy application
+      val res = rewrite(topdown(attempt(resolveImports)))(pkg) // apply the resolveImports to all nodes in the ParseAST and continue even if a strategy returns None
+      if (failedNodes.isEmpty) Right(res)
+      else Left(createErrors(pkg.positions, failedNodes))
+    }
+  }
+
   private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
@@ -250,7 +298,8 @@ object Parser {
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
       idnDefLike.? ~ idnImportPath ^^ {
-        case id ~ pkg => PQualifiedImport(id, pkg)
+        case Some(id) ~ pkg => PExplicitQualifiedImport(id, pkg)
+        case None ~ pkg => PImplicitQualifiedImport(pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =

@@ -226,7 +226,7 @@ object Parser {
     lazy val program: Parser[PProgram] =
       (packageClause <~ eos) ~ importDecls ~ members ^^ {
         case pkgClause ~ importDecls ~ members =>
-          PProgram(pkgClause, importDecls.flatten, members.flatten, pom)
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

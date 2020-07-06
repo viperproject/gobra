@@ -48,8 +48,7 @@ case class PPackage(
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
-                     declarations: Vector[PMember],
-                     positions: PositionManager
+                     declarations: Vector[PMember]
                    ) extends PNode
 
 

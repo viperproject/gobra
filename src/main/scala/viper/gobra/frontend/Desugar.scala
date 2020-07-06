@@ -13,15 +13,15 @@ import viper.gobra.util.{DesugarWriter, Violation}
 
 object Desugar {
 
-  def desugar(program: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: viper.gobra.frontend.info.TypeInfo = tI.asInstanceOf[viper.gobra.frontend.info.TypeInfo]
       val importedProgram = typeInfo.tree.originalRoot
       val d = new Desugarer(importedProgram.positions, typeInfo)
-      (d, d.programD(importedProgram, tI.isUsed))
+      (d, d.packageD(importedProgram, tI.isUsed))
     }}
-    val mainDesugarer = new Desugarer(program.positions, info)
-    val internalProgram = combine(mainDesugarer, mainDesugarer.programD(program), importedPrograms)
+    val mainDesugarer = new Desugarer(pkg.positions, info)
+    val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
     internalProgram
   }
@@ -142,7 +142,7 @@ object Desugar {
       * Desugars a package with an optional `desugarMember` function indicating whether a particular member should be
       * desugared or skipped
       */
-    def programD(p: PPackage, desugarMember: PMember => Boolean = _ => true): in.Program = {
+    def packageD(p: PPackage, desugarMember: PMember => Boolean = _ => true): in.Program = {
       val consideredDecls = p.declarations.filter(desugarMember)
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)

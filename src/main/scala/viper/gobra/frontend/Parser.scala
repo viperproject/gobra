@@ -10,7 +10,7 @@ import java.io.{File, Reader}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
@@ -18,10 +18,10 @@ import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInput
 object Parser {
 
   /**
-    * Parses file and returns either the parsed program if the file was parsed successfully,
+    * Parses files and returns either the parsed program if the file was parsed successfully,
     * otherwise returns list of error messages
     *
-    * @param file
+    * @param files
     * @return
     *
     * The following transformations are performed:
@@ -32,27 +32,70 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val source = SemicolonPreprocessor.preprocess(file)(config)
-    parse(source)(config)
+  def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = files
+      .map{ file => FileSource(file.getPath) }
+      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
+    parseSources(preprocessedSources)(config)
   }
 
-  private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def parseSources(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
-    parsers.parseAll(parsers.program, source) match {
-      case Success(ast, _) =>
-        config.reporter report ParsedInputMessage(config.inputFile, () => ast)
-        Right(ast)
+    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+      parsers.parseAll(parsers.program, source) match {
+        case Success(ast, _) =>
 
-      case ns@NoSuccess(label, next) =>
-        val pos = next.position
-        pom.positions.setStart(ns, pos)
-        pom.positions.setFinish(ns, pos)
-        val messages = message(ns, label)
-        Left(pom.translate(messages, ParserError))
+          val filename = source match {
+            case ffs: FromFileSource => Some(new File(ffs.filename))
+            case fs: FileSource => Some(new File(fs.filename))
+            case _ => None
+          }
+
+          if(filename.isDefined) {
+            config.reporter report ParsedInputMessage(filename.get, () => ast)
+          }
+
+          Right(ast)
+
+        case ns@NoSuccess(label, next) =>
+          val pos = next.position
+          pom.positions.setStart(ns, pos)
+          pom.positions.setFinish(ns, pos)
+          val messages = message(ns, label)
+          Left(pom.translate(messages, ParserError))
+      }
     }
+
+    val parsedPrograms = {
+      val parserResults = sources.map(parseSource)
+      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
+      val errors = errorLefts.flatMap(_.left.get)
+      val programs = programRights.map(_.right.get)
+
+      if (errors.nonEmpty) {
+        Left(errors)
+      } else {
+        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+        // of the same package has failed
+        assert(programs.nonEmpty)
+        assert{
+          val packageName = programs.head.packageClause.id.name
+          programs.forall(_.packageClause.id.name == packageName)
+        }
+
+        Right(programs)
+      }
+    }
+
+    parsedPrograms.map(programs => {
+      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
+      val parsedPackage = PPackage(clause, programs, pom)
+      // The package parse tree node gets the position of the package clause:
+      pom.positions.dupPos(clause, parsedPackage)
+      parsedPackage
+    })
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
@@ -88,16 +131,15 @@ object Parser {
   private object SemicolonPreprocessor {
 
     /**
-      * Assumes that file corresponds to an existing file
+      * Assumes that source corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8")(config: Config): Source = {
-      val filename = file.getPath
-      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+    def preprocess(source: FileSource)(config: Config): Source = {
+      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
       val content = bufferedSource.mkString
       bufferedSource.close()
       val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(file, () => translatedContent)
-      FromFileSource(filename, translatedContent)
+      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
+      FromFileSource(source.filename, translatedContent)
     }
 
     def preprocess(content: String): Source = {
@@ -177,7 +219,7 @@ object Parser {
     lazy val program: Parser[PProgram] =
       (packageClause <~ eos) ~ importDecls ~ members ^^ {
         case pkgClause ~ importDecls ~ members =>
-          PProgram(pkgClause, importDecls.flatten, members.flatten, pom)
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =

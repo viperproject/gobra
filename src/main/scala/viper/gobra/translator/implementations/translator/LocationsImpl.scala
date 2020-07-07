@@ -460,6 +460,7 @@ class LocationsImpl extends Locations {
     }
   }
 
+  // TODO: the function can accumulate redundant setup-statements: e.g. for a literal, the bindings are created twice
   override def values(e: in.Expr)(ctx: Context): Vector[CodeWriter[vpr.Exp]] =
     values(e.typ)(ctx).map(f => f(e)._1)
 

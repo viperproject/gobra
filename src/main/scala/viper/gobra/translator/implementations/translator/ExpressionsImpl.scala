@@ -34,7 +34,7 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(func.name, vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
@@ -45,8 +45,8 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vRecvs <- ctx.loc.argument(recv)(ctx)
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vRecvs <- sequence(ctx.loc.values(recv)(ctx))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(meth.uniqueName, vRecvs ++ vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))

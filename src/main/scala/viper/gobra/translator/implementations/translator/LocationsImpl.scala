@@ -67,12 +67,11 @@ class LocationsImpl extends Locations {
   override def parameter(v: in.TopDeclaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     v match {
       case v: in.Var =>
-        val trans = values(v.typ)(ctx)
-        sequence(trans map { a =>
-          a(v)._1.map{ x => // top declarations are not addressable, hence x is a variable
-            vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
-          }
-        }).cut
+        (
+          for {
+            xs <- sequence(values(v)(ctx))
+          } yield xs.map(x => vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])) // top declarations are not addressable, hence x is a variable
+        ).cut
     }
   }
 
@@ -114,21 +113,6 @@ class LocationsImpl extends Locations {
   }
 
 
-  override def target(v: in.LocalVar.Val)(ctx: Context): CodeWriter[Vector[vpr.LocalVar]] = {
-    val (decls, writer) = parameter(v)(ctx)
-    withoutWellDef(writer).map(_ => decls.map(vu.toVar))
-  }
-
-
-  /**
-    * Argument[e: T] -> { a(e) | a in Values[T] }
-    */
-  override def argument(e: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]] = {
-    val trans = values(e.typ)(ctx)
-    sequence(trans map (a => a(e)._1))
-  }
-
-
   /**
     * [decl x: T] -> InitValue<x>; FOREACH a in Values[T]. a(x) := Default(Type(a(x)))
     */
@@ -139,11 +123,11 @@ class LocationsImpl extends Locations {
         val (decls, valueUnit) = valueInits.cut
         val as = values(v.typ)(ctx).map(_(v))
         val valueAssigns = seqns(as map { case (r, t) =>
-
+          val (pos, info, errT) = v.vprMeta
           for {
             ax <- r
             dflt <- ctx.loc.defaultValue(t.typ)(v)(ctx)
-          } yield valueAssign(ax, dflt)(v)
+          } yield vu.valueAssign(ax, dflt)(pos, info, errT)
         })
         (decls, valueUnit flatMap (_ => valueAssigns))
     }
@@ -200,7 +184,7 @@ class LocationsImpl extends Locations {
     * T[e: T] -> tuple( a(e) | a in Values[T] )
     */
   def tvalue(exp: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
-    argument(exp)(ctx) map ctx.tuple.create
+    sequence(values(exp)(ctx)) map ctx.tuple.create
   }
 
 
@@ -335,21 +319,10 @@ class LocationsImpl extends Locations {
   override def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val trans = values(ass.left.op.typ)(ctx)
     seqns(trans map { a =>
-      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield valueAssign(l, r)(ass)
+      val (pos, info, errT) = ass.vprMeta
+      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield vu.valueAssign(l, r)(pos, info, errT)
     })
   }
-
-
-  /** left := right */
-  private def valueAssign(left: vpr.Exp, right: vpr.Exp)(src: in.Node): vpr.AbstractAssign = {
-    val (pos, info, errT) = src.vprMeta
-    left match {
-      case l: vpr.LocalVar => vpr.LocalVarAssign(l, right)(pos, info, errT)
-      case l: vpr.FieldAccess => vpr.FieldAssign(l, right)(pos, info, errT)
-      case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
-    }
-  }
-
 
   /**
     * [v := make(lit: S)] -> v := new(); InitValues[*v], [Foreach (f, e) in lit. (*v).f = e ]
@@ -453,14 +426,14 @@ class LocationsImpl extends Locations {
     acc match {
       case in.FPredicateAccess(pred, args) =>
         for {
-          vArgss <- sequence(args map (argument(_)(ctx)))
+          vArgss <- sequence(args map (a => sequence(values(a)(ctx))))
           pacc = vpr.PredicateAccess(vArgss.flatten, pred.name)(pos, info, errT)
         } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
 
       case in.MPredicateAccess(recv, pred, args) =>
         for {
-          vRecvs <- ctx.loc.argument(recv)(ctx)
-          vArgss <- sequence(args map (argument(_)(ctx)))
+          vRecvs <- sequence(values(recv)(ctx))
+          vArgss <- sequence(args map (a => sequence(values(a)(ctx))))
           pacc = vpr.PredicateAccess(vRecvs ++ vArgss.flatten, pred.uniqueName)(pos, info, errT)
         } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
 
@@ -486,6 +459,9 @@ class LocationsImpl extends Locations {
         Vector(r => (rvalue(r)(ctx), SubValueRep(r.typ)))
     }
   }
+
+  override def values(e: in.Expr)(ctx: Context): Vector[CodeWriter[vpr.Exp]] =
+    values(e.typ)(ctx).map(f => f(e)._1)
 
   /**
     * InitValue[?e: S] -> { InitValue[e.f] | f in S }

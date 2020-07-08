@@ -23,7 +23,7 @@ import akka.actor.ActorSystem
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-// TODO: move to separate file
+
 case class FutureEither[E, T](x: Future[Either[E, T]]) {
 
   implicit val executionContext = ExecutionContext.global

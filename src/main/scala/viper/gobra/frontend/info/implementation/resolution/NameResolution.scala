@@ -16,7 +16,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
-      case PWildcard() => ???
+      case w: PWildcard => Wildcard(w)
       case id@ tree.parent(p) =>
 
         val isGhost = isGhostDef(id)
@@ -56,6 +56,8 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
+
+        case decl: PImportDecl => Import(decl)
 
         // Ghost additions
         case decl: PBoundVariable => BoundVariable(decl)
@@ -111,7 +113,7 @@ trait NameResolution { this: TypeInfoImpl =>
     chain(defenvin, defenvout)
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
-    case n: PProgram => addShallowDefToEnv(rootenv())(n)
+    case n: PPackage => addShallowDefToEnv(rootenv())(n)
     case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
@@ -144,7 +146,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PProgram => n.declarations flatMap { m =>
+      case n: PPackage => (n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
           case d: PConstDecl => d.left
@@ -160,7 +162,11 @@ trait NameResolution { this: TypeInfoImpl =>
           case p: PMPredicateDecl => Vector(p.id)
           case p: PFPredicateDecl => Vector(p.id)
         }
-      }
+      }) ++ (n.imports flatMap {
+        case PQualifiedImport(Some(id: PIdnDef), _) => Vector(id)
+          // TODO: add support for PQualifiedImport(None, _)
+        case _ => Vector.empty
+      })
 
       case n: PStructType => n.clauses.flatMap { c =>
         def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
@@ -220,6 +226,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case n =>
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
+        // TODO: if UnknownEntity is returned perform lookup in unqualified imported packages
     }
 
 }

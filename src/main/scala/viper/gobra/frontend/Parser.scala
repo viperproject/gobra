@@ -10,7 +10,7 @@ import java.io.{File, Reader}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
@@ -18,10 +18,10 @@ import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInput
 object Parser {
 
   /**
-    * Parses file and returns either the parsed program if the file was parsed successfully,
+    * Parses files and returns either the parsed program if the file was parsed successfully,
     * otherwise returns list of error messages
     *
-    * @param file
+    * @param files
     * @return
     *
     * The following transformations are performed:
@@ -32,27 +32,70 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val source = SemicolonPreprocessor.preprocess(file)(config)
-    parse(source)(config)
+  def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = files
+      .map{ file => FileSource(file.getPath) }
+      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
+    parseSources(preprocessedSources)(config)
   }
 
-  private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
+  private def parseSources(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
 
-    parsers.parseAll(parsers.program, source) match {
-      case Success(ast, _) =>
-        config.reporter report ParsedInputMessage(config.inputFile, () => ast)
-        Right(ast)
+    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+      parsers.parseAll(parsers.program, source) match {
+        case Success(ast, _) =>
 
-      case ns@NoSuccess(label, next) =>
-        val pos = next.position
-        pom.positions.setStart(ns, pos)
-        pom.positions.setFinish(ns, pos)
-        val messages = message(ns, label)
-        Left(pom.translate(messages, ParserError))
+          val filename = source match {
+            case ffs: FromFileSource => Some(new File(ffs.filename))
+            case fs: FileSource => Some(new File(fs.filename))
+            case _ => None
+          }
+
+          if(filename.isDefined) {
+            config.reporter report ParsedInputMessage(filename.get, () => ast)
+          }
+
+          Right(ast)
+
+        case ns@NoSuccess(label, next) =>
+          val pos = next.position
+          pom.positions.setStart(ns, pos)
+          pom.positions.setFinish(ns, pos)
+          val messages = message(ns, label)
+          Left(pom.translate(messages, ParserError))
+      }
     }
+
+    val parsedPrograms = {
+      val parserResults = sources.map(parseSource)
+      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
+      val errors = errorLefts.flatMap(_.left.get)
+      val programs = programRights.map(_.right.get)
+
+      if (errors.nonEmpty) {
+        Left(errors)
+      } else {
+        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+        // of the same package has failed
+        assert(programs.nonEmpty)
+        assert{
+          val packageName = programs.head.packageClause.id.name
+          programs.forall(_.packageClause.id.name == packageName)
+        }
+
+        Right(programs)
+      }
+    }
+
+    parsedPrograms.map(programs => {
+      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
+      val parsedPackage = PPackage(clause, programs, pom)
+      // The package parse tree node gets the position of the package clause:
+      pom.positions.dupPos(clause, parsedPackage)
+      parsedPackage
+    })
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
@@ -65,6 +108,12 @@ object Parser {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
+  }
+
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImportDecl]] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
   }
 
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
@@ -82,16 +131,15 @@ object Parser {
   private object SemicolonPreprocessor {
 
     /**
-      * Assumes that file corresponds to an existing file
+      * Assumes that source corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8")(config: Config): Source = {
-      val filename = file.getPath
-      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
+    def preprocess(source: FileSource)(config: Config): Source = {
+      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
       val content = bufferedSource.mkString
       bufferedSource.close()
       val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(file, () => translatedContent)
-      FromFileSource(filename, translatedContent)
+      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
+      FromFileSource(source.filename, translatedContent)
     }
 
     def preprocess(content: String): Source = {
@@ -100,15 +148,18 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n")
+      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
       val integer = """[0-9]+"""
+      val rawStringLit = """`(?:.|\n)*`"""
+      val interpretedStringLit = """\".*\""""
+      val stringLit = s"$rawStringLit|$interpretedStringLit"
       val specialKeywords = """break|continue|fallthrough|return"""
       val specialOperators = """\+\+|--"""
       val closingParens = """\)|]|}"""
-      val finalTokenRequiringSemicolon = s"$identifier|$integer|$specialKeywords|$specialOperators|$closingParens"
+      val finalTokenRequiringSemicolon = s"$identifier|$integer|$stringLit|$specialKeywords|$specialOperators|$closingParens"
 
       val ignoreLineComments = """\/\/.*"""
       val ignoreSelfContainedGeneralComments = """\/\*.*?\*\/"""
@@ -166,27 +217,33 @@ object Parser {
       */
 
     lazy val program: Parser[PProgram] =
-      (packageClause <~ eos) ~ (member <~ eos).* ^^ {
-        case pkgClause ~ members =>
-          PProgram(pkgClause, Vector.empty, members.flatten, pom)
+      (packageClause <~ eos) ~ importDecls ~ members ^^ {
+        case pkgClause ~ importDecls ~ members =>
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =
       "package" ~> pkgDef ^^ PPackageClause
 
+    lazy val importDecls: Parser[Vector[Vector[PImportDecl]]] =
+      (importDecl <~ eos).*
+
+    lazy val members: Parser[Vector[Vector[PMember]]] =
+      (member <~ eos).*
+
     lazy val importDecl: Parser[Vector[PImportDecl]] =
-      "import" ~> importSpec ^^ (decl => Vector(decl)) |
-        "import" ~> "(" ~> (importSpec <~ eos).* <~ ")"
+      ("import" ~> importSpec ^^ (decl => Vector(decl))) |
+        ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
 
     lazy val importSpec: Parser[PImportDecl] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =
-      "." ~> idnPackage ^^ PUnqualifiedImport
+      "." ~> idnImportPath ^^ PUnqualifiedImport
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
-      idnDef.? ~ idnPackage ^^ {
-        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+      idnDefLike.? ~ idnImportPath ^^ {
+        case id ~ pkg => PQualifiedImport(id, pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =
@@ -775,15 +832,17 @@ object Parser {
 
 
     lazy val identifier: Parser[String] =
-      "[a-zA-Z_][a-zA-Z0-9_]*".r into (s => {
+      // "_" is not an identifier (but a wildcard)
+      "(?:_[a-zA-Z0-9_]+|[a-zA-Z][a-zA-Z0-9_]*)".r into (s => {
         if (isReservedWord(s))
           failure(s"""keyword "$s" found where identifier expected""")
         else
           success(s)
       })
 
-    lazy val idnPackage: Parser[String] = ???
-
+    lazy val idnImportPath: Parser[String] =
+      "\"" ~> "[a-zA-Z0-9_/]*".r <~ "\""
+      // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**
       * Ghost

@@ -35,7 +35,7 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFile = input.file.toFile
+          inputFiles = Vector(input.file.toFile)
         )
 
         val (result, elapsedMilis) = time(() => gobraInstance.verify(config))
@@ -61,7 +61,7 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
   case class GobraTestOuput(error: VerifierError) extends AbstractOutput {
     /** Whether the output belongs to the given line in the given file. */
-    override def isSameLine(file: Path, lineNr: Int): Boolean = error.position.line == lineNr
+    override def isSameLine(file: Path, lineNr: Int): Boolean = error.position.exists(_.line == lineNr)
 
     /** A short and unique identifier for this output. */
     override def fullId: String = error.id

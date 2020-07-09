@@ -15,8 +15,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override def format(node: PNode): String = pretty(show(node)).layout
 
   def show(node: PNode): Doc = node match {
+    case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
-    case n: PPackageClause => showPackage(n)
+    case n: PPackageClause => showPackageClause(n)
     case n: PImportDecl => showImport(n)
     case n: PMember => showMember(n)
     case n: PStatement => showStmt(n)
@@ -46,24 +47,33 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PPos(_) => emptyDoc
   }
 
+  // entire package
+
+  def showPackage(p: PPackage): Doc = p match {
+    case PPackage(_, programs, _) =>
+      ssep(programs map showProgram, line) <> line
+  }
+
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packages, imports, declarations, _) =>
-      showPackage(packages) <> line <> line <>
+    case PProgram(packageClause, imports, declarations) =>
+      showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // package
 
-  def showPackage(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
+  def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
   def showPackageId(id: PPackegeNode): Doc = id.name
 
   // imports
 
   def showImport(decl: PImportDecl): Doc = decl match {
-    case PQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PQualifiedImport(Some(PWildcard()), pkg) => "import" <+> "_" <+> pkg
+    case PQualifiedImport(Some(qualifier), pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PQualifiedImport(None, pkg) => "import" <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 

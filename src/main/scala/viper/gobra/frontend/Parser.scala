@@ -214,7 +214,7 @@ object Parser {
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection", "setminus", "subset", "mset"
+      "intersection", "setminus", "subset", "mset", "len"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -574,7 +574,6 @@ object Parser {
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
 
-
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
@@ -583,8 +582,12 @@ object Parser {
         dereference |
         receiveExp |
         unfolding |
+        len |
         ghostUnaryExp |
         primaryExp
+
+    lazy val len : Parser[PLength] =
+      "len" ~> ("(" ~> expression <~ ")") ^^ PLength
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -599,21 +602,20 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PSize |
+      "|" ~> expression <~ "|" ^^ PCardinality |
         "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion |
         "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
-      ghostPrimaryExpression |
-        conversion |
-          call |
-          selection |
-          indexedExp |
-          sliceExp |
-          seqUpdExp |
-          typeAssertion |
-          ghostPrimaryExp |
-          operand
+      conversion |
+        call |
+        selection |
+        indexedExp |
+        sliceExp |
+        seqUpdExp |
+        typeAssertion |
+        ghostPrimaryExp |
+        operand
 
 
     lazy val conversion: Parser[PInvoke] =
@@ -923,7 +925,9 @@ object Parser {
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld |
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
+        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists |
+        "old" ~> "(" ~> expression <~ ")" ^^ POld |
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
         sequenceLiteral |
         setLiteral |
@@ -986,9 +990,6 @@ object Parser {
     lazy val trigger: Parser[PTrigger] =
       "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
 
-    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
-      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
-        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     /**
       * EOS

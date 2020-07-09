@@ -164,7 +164,7 @@ case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might exceed sequence length"
 }
 
-case class SeqIndexNegative(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "seq_index_negative_error"
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
 }

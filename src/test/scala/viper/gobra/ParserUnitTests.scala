@@ -280,14 +280,14 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse basic '|e|'-shaped expressions") {
     frontend.parseExp("|xs|") should matchPattern {
-      case Right(PSize(PNamedOperand(PIdnUse("xs")))) =>
+      case Right(PCardinality(PNamedOperand(PIdnUse("xs")))) =>
     }
   }
 
   test ("Parser: length of concatenated sequences") {
     frontend.parseExp("|xs ++ ys|") should matchPattern {
       case Right(
-        PSize(
+      PCardinality(
           PSequenceAppend(
             PNamedOperand(PIdnUse("xs")),
             PNamedOperand(PIdnUse("ys"))
@@ -353,7 +353,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: taking the length of sequence update expression") {
     frontend.parseExp("|xs[x = false]|") should matchPattern {
-      case Right(PSize(
+      case Right(PCardinality(
         PSequenceUpdate(
           PNamedOperand(PIdnUse("xs")),
           Vector(
@@ -455,7 +455,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("y"))
         ),
-        PSize(
+        PCardinality(
           PSequenceLiteral(
             PBoolType(),
             Vector(PBoolLit(true))
@@ -559,7 +559,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
         Vector(
           PSequenceUpdateClause(PIntLit(a), PBoolLit(true)),
           PSequenceUpdateClause(PIntLit(b), PNamedOperand(PIdnUse("b"))),
-          PSequenceUpdateClause(PIntLit(c), PSize(PNamedOperand(PIdnUse("xs"))))
+          PSequenceUpdateClause(PIntLit(c), PCardinality(PNamedOperand(PIdnUse("xs"))))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(7) =>
     }
@@ -597,7 +597,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PNamedOperand(PIdnUse("ys"))
         ),
         PAdd(
-          PSize(PNamedOperand(PIdnUse("zs"))),
+          PCardinality(PNamedOperand(PIdnUse("zs"))),
           PIntLit(n)
         )
       ) if n == BigInt(2) =>
@@ -1311,7 +1311,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to correctly parse multiset cardinality") {
     frontend.parseExpOrFail("|mset[bool] { }|") should matchPattern {
-      case PSize(PMultisetLiteral(PBoolType(), Vector())) =>
+      case PCardinality(PMultisetLiteral(PBoolType(), Vector())) =>
     }
   }
 
@@ -1372,8 +1372,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse a comparison of set cardinality expressions") {
     frontend.parseExpOrFail("|s| == |t|") should matchPattern {
       case PEquals(
-        PSize(PNamedOperand(PIdnUse("s"))),
-        PSize(PNamedOperand(PIdnUse("t")))
+        PCardinality(PNamedOperand(PIdnUse("s"))),
+        PCardinality(PNamedOperand(PIdnUse("t")))
       ) =>
     }
   }
@@ -1538,7 +1538,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("set[x + y .. |xs|]") should matchPattern {
       case PSetConversion(PRangeSequence(
         PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
-        PSize(PNamedOperand(PIdnUse("xs")))
+        PCardinality(PNamedOperand(PIdnUse("xs")))
       )) =>
     }
   }
@@ -1775,7 +1775,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
       case PMultisetConversion(
         PRangeSequence(
           PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
-          PSize(PNamedOperand(PIdnUse("xs")))
+          PCardinality(PNamedOperand(PIdnUse("xs")))
         )
       ) =>
     }
@@ -1783,7 +1783,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse the size of a multiset range expression") {
     frontend.parseExpOrFail("|(mset[(x)..y])|") should matchPattern {
-      case PSize(
+      case PCardinality(
         PMultisetConversion(PRangeSequence(
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("y"))
@@ -1830,6 +1830,62 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should not parse a multiset range expression with three dots instead of two") {
     frontend.parseExp("mset [ x ... y ]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse a very simple use of the built-in 'len' function") {
+    frontend.parseExpOrFail("len(42)") should matchPattern {
+      case PLength(PIntLit(n)) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse a use of the 'len' function with some spaces added") {
+    frontend.parseExpOrFail("len ( xs )") should matchPattern {
+      case PLength(PNamedOperand(PIdnUse("xs"))) =>
+    }
+  }
+
+  test("Parser: should parse a slightly more complex use of the 'len' function") {
+    frontend.parseExpOrFail("len(seq[x .. y] ++ seq[bool] { false })") should matchPattern {
+      case PLength(
+        PSequenceAppend(
+          PRangeSequence(
+            PNamedOperand(PIdnUse("x")),
+            PNamedOperand(PIdnUse("y"))
+          ),
+          PSequenceLiteral(PBoolType(), Vector(PBoolLit(false)))
+        )
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse just 'len' as an identifier") {
+    frontend.parseExp("len") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a use of 'len' with a missing opening parenthesis") {
+    frontend.parseExp("len 42)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a use of 'len' with a missing closing parenthesis") {
+    frontend.parseExp("len ( 42") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a use of the built-in 'len' function if there is a wrong space inside 'len'") {
+    frontend.parseExp("le n(xs)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a use of the built-in 'len' function if there is a parsing problem in the operand") {
+    frontend.parseExp("len(n ++ |xs)") should matchPattern {
       case Left(_) =>
     }
   }

@@ -16,9 +16,9 @@ func example3() {
 
 func example4(ghost xs seq[int]) {
   assert xs[0:] == xs
-  assert xs[:|xs|] == xs
+  assert xs[:len(xs)] == xs
   assert xs[:] == xs
-  assert xs[0:|xs|] == xs
+  assert xs[0:len(xs)] == xs
 }
 
 func example5() {
@@ -35,9 +35,9 @@ func example6() {
 }
 
 func example7() {
-  assert |seq[0..9][5:]| == 4
-  assert |seq[0..9][:5]| == 5
-  assert |seq[0..9][2:8]| == 6
+  assert len(seq[0..9][5:]) == 4
+  assert len(seq[0..9][:5]) == 5
+  assert len(seq[0..9][2:8]) == 6
 }
 
 requires x in xs[4:]

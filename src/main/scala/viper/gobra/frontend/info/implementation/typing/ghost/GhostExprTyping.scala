@@ -62,9 +62,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-      case PSize(op) => isExpr(op).out ++ {
+      case PCardinality(op) => isExpr(op).out ++ {
         val t = exprType(op)
-        message(op,s"expected a ghost collection, but got $t", !t.isInstanceOf[GhostCollectionType])
+        message(op,s"expected a set or multiset, but got $t", !t.isInstanceOf[GhostUnorderedCollectionType])
       }
 
       case PMultiplicity(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
@@ -147,7 +147,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess => AssertionT
 
     case expr : PGhostCollectionExp => expr match {
-      case PSize(_) => IntT
+      case PCardinality(_) => IntT
       case PMultiplicity(_, _) => IntT
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
@@ -183,7 +183,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * Determines whether `expr` is a (strongly) pure expression
     * in the standard separation logic sense.
     */
-  private[typing] def isPureExpr(expr: PExpression): Messages =
+  def isPureExpr(expr: PExpression) : Messages =
     message(expr, s"expected pure expression but got $expr", !isPureExprAttr(expr))
 
   /**
@@ -255,12 +255,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PImplication(left, right) => Seq(left, right).forall(go)
 
+      case PLength(op) => go(op)
+
       case expr : PGhostCollectionExp => expr match {
         case n : PBinaryGhostExp => go(n.left) && go(n.right)
         case n : PGhostCollectionLiteral => n.exprs.forall(go)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
-        case PSize(op) => go(op)
+        case PCardinality(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
         case PSequenceUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
       }
@@ -269,12 +271,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PCompositeLit(_, _) => true
 
-      // Might change soon:
-      case PIndexedExp(_, _) => false
+      case PSliceExp(base, low, high, cap) =>
+        go(base) && Seq(low, high, cap).flatten.forall(go)
+
+      case PIndexedExp(base, index) => Seq(base, index).forall(go)
 
       // Might change as some point
       case _: PFunctionLit => false
-      case PSliceExp(_, _, _, _) => false
 
       // Others
       case PTypeAssertion(_, _) => false

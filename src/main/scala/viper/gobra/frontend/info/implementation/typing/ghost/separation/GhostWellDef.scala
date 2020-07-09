@@ -79,14 +79,15 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case e if enclosingGhostContext(e) => noMessages
 
     case _: PDot
-         |  _: PDeref
-         |  _: PIndexedExp
-         |  _: PSliceExp
-         |  _: PTypeAssertion
-         |  _: PNamedOperand
-         |  _: PNegation
-         |  _: PBinaryExp
-         |  _: PUnfolding
+       | _: PDeref
+       | _: PIndexedExp
+       | _: PSliceExp
+       | _: PTypeAssertion
+       | _: PNamedOperand
+       | _: PNegation
+       | _: PBinaryExp
+       | _: PUnfolding
+       | _: PLength
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.

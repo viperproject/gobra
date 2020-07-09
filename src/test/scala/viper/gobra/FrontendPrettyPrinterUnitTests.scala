@@ -446,14 +446,14 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show the unary size operator for sequences and (multi)sets as expected") {
-    val expr = PSize(PNamedOperand(PIdnUse("s")))
+    val expr = PCardinality(PNamedOperand(PIdnUse("s")))
     frontend.show(expr) should matchPattern {
       case "|s|" =>
     }
   }
 
   test("Printer: should correctly show the size operator in combination with set union") {
-    val expr = PSize(
+    val expr = PCardinality(
       PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
@@ -542,7 +542,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
-    val expr = PSize(
+    val expr = PCardinality(
       PMultisetLiteral(PMultisetType(PIntType()), Vector(
         PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
         PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
@@ -691,6 +691,38 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "mset(mset(xs))" =>
+    }
+  }
+
+  test("Printer: should correctly show a very simple use of the 'len' function") {
+    val expr = PLength(PIntLit(42))
+
+    frontend.show(expr) should matchPattern {
+      case "len(42)" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex of the use of the 'len' function applied to a sequence") {
+    val expr = PLength(
+      PSequenceAppend(
+        PRangeSequence(PIntLit(1), PIntLit(12)),
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "len(seq[1 .. 12] ++ seq[bool] { false, true })" =>
+    }
+  }
+
+  test("Printer: should be able to show the addition of two uses of the 'len' function") {
+    val expr = PAdd(
+      PLength(PRangeSequence(PIntLit(1), PIntLit(12))),
+      PLength(PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true))))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "len(seq[1 .. 12]) + len(seq[bool] { false, true })" =>
     }
   }
 

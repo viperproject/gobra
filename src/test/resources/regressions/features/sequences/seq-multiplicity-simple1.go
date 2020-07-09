@@ -5,9 +5,9 @@ func example1(ghost b bool, ghost xs seq[bool], ghost ys seq[int]) {
   ghost n2 := b # xs # ys
   
   assert 0 <= n1;
-  assert n1 <= |xs|;
+  assert n1 <= len(xs)
   assert 0 <= n2;
-  assert n2 <= |ys|;
+  assert n2 <= len(ys)
 }
 
 func example2() {
@@ -38,7 +38,7 @@ func example6(ghost x int, ghost y int) {
 }
 
 ensures 0 <= x # xs
-ensures x # xs <= |xs|;
+ensures x # xs <= len(xs)
 func example7(ghost x int, ghost xs seq[int]) {
 }
 

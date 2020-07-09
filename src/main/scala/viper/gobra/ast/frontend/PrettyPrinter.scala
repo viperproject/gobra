@@ -297,9 +297,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
       case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
+      case PLength(expr) => "len" <> parens(showExpr(expr))
     }
     case expr: PGhostExpression => expr match {
-      case POld(op) => "old(" <> showExpr(op) <> ")"
+      case POld(expr) => "old" <> parens(showExpr(expr))
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
       case PForall(vars, triggers, body) =>
         "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
@@ -312,7 +313,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
 
       case expr : PGhostCollectionExp => expr match {
-        case PSize(operand) => "|" <> showExpr(operand) <> "|"
+        case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
         case PMultiplicity(left, right) => showExpr(left) <+> "#" <+> showExpr(right)
         case expr : PSequenceExp => expr match {
@@ -329,11 +330,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
           case expr : PSetExp => expr match {
             case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
-            case PSetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
+            case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           }
           case expr : PMultisetExp => expr match {
             case PMultisetLiteral(typ, exprs) => showCollectionLiteral("mset", typ, exprs)
-            case PMultisetConversion(exp) => "mset" <> "(" <> showExpr(exp) <> ")"
+            case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
           }
         }
       }

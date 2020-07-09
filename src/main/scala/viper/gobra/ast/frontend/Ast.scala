@@ -320,6 +320,26 @@ case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
 /**
+  * Represents Go's built-in "len(`exp`)" function that returns the
+  * length of `exp`, according to its type. The documentation
+  * (https://golang.org/pkg/builtin/#len) gives the following
+  * possible cases:
+  *
+  * - Array: the number of elements in `exp`.
+  * - Pointer to array: the number of elements in `*exp`.
+  * - Slice, or map: the number of elements in `expr`;
+  *   if `exp` is nil, "len(`exp`)" is zero.
+  * - String: the number of bytes in `exp`.
+  * - Channel: the number of elements queued (unread) in the
+  *   channel buffer. If `exp` is nil, then "len(`exp`)" is zero.
+  *
+  * Gobra extends this with:
+  *
+  * - Sequence: the number of elements in `exp`.
+  */
+case class PLength(exp : PExpression) extends PActualExpression
+
+/**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",
   * where one or more of the indices `low`, `high` and `cap` are optional
   * depending on the type of `base`.
@@ -688,11 +708,10 @@ sealed trait PGhostCollectionExp extends PGhostExpression
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
 
 /**
-  * Denotes the size of `exp`, which has to be a ghost collection.
-  * In case `exp` is a sequence, then `PSize(exp)` denotes its length;
-  * if `exp` is a (multi)set it denotes set cardinality.
+  * Denotes the cardinality of `exp`, which is expected
+  * to be either a set or a multiset.
   */
-case class PSize(exp : PExpression) extends PGhostCollectionExp
+case class PCardinality(exp : PExpression) extends PGhostCollectionExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

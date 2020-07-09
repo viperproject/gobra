@@ -390,7 +390,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a standard sequence inclusion") {
-    val expr = SequenceContains(
+    val expr = Contains(
       LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
       LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
     )(Unsourced)
@@ -401,8 +401,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a 'chain' of sequence inclusions") {
-    val expr = SequenceContains(
-      SequenceContains(
+    val expr = Contains(
+      Contains(
         LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
       )(Unsourced),
@@ -415,7 +415,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple set membership expression") {
-    val expr = SetContains(
+    val expr = Contains(
       LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
     )(Unsourced)
@@ -426,8 +426,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a small 'chain' of set membership expressions") {
-    val expr = SetContains(
-      SetContains(
+    val expr = Contains(
+      Contains(
         LocalVar.Ref("x", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
       )(Unsourced),
@@ -440,7 +440,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show set membership in the context of literals") {
-    val expr = SetContains(
+    val expr = Contains(
       SetLiteral(BoolT, Vector(
         BoolLit(true)(Unsourced),
         BoolLit(false)(Unsourced))
@@ -454,7 +454,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the size of a simple set") {
-    val expr = SetCardinality(
+    val expr = Cardinality(
       LocalVar.Ref("s", SequenceT(BoolT))(Unsourced)
     )(Unsourced)
 
@@ -464,7 +464,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the size of a set in combination with a set intersection") {
-    val expr = SetCardinality(
+    val expr = Cardinality(
       Intersection(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced)
@@ -477,7 +477,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the size of a set literal") {
-    val expr = SetCardinality(
+    val expr = Cardinality(
       SetLiteral(IntT, Vector(
         IntLit(1)(Unsourced),
         IntLit(42)(Unsourced)
@@ -490,7 +490,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the size of an empty set") {
-    val expr = SetCardinality(
+    val expr = Cardinality(
       SetLiteral(SequenceT(IntT), Vector())(Unsourced)
     )(Unsourced)
 
@@ -595,7 +595,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
-    val expr = SetCardinality(
+    val expr = Cardinality(
       MultisetLiteral(MultisetT(IntT), Vector(
         MultisetLiteral(IntT, Vector(
           IntLit(1)(Unsourced)
@@ -613,7 +613,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a multiset inclusion expression (1)") {
-    val expr = SetContains(
+    val expr = Contains(
       IntLit(2)(Unsourced),
       MultisetLiteral(IntT, Vector(
         IntLit(1)(Unsourced),
@@ -628,7 +628,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a multiset inclusion expression (2)") {
-    val expr = SetContains(
+    val expr = Contains(
       MultisetLiteral(IntT, Vector(
         IntLit(1)(Unsourced)
       ))(Unsourced),

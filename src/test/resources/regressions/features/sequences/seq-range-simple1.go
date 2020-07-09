@@ -17,11 +17,11 @@ func example4() {
 }
 
 func example5() {
-  assert |seq[1..4]| == 3
+  assert len(seq[1..4]) == 3
   assert seq[1..4] ++ seq[4..8] == seq[1..8]
 }
 
 requires x <= y
 func example6(x int, y int) {
-  assert |seq[x..y + 1]| == y - x + 1
+  assert len(seq[x..y + 1]) == y - x + 1
 }

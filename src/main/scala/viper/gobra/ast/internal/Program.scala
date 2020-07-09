@@ -284,14 +284,6 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 }
 
 /**
-  * A sequence membership expression "`left` in `right`",
-  * denoting whether `left` occurs in the sequence `right`.
-  */
-case class SequenceContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
-  override def typ : Type = BoolT
-}
-
-/**
   * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
   * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
   */
@@ -372,19 +364,20 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents the (multi)set cardinality of `exp`,
-  * which is assumed to be a set or a multiset.
+  * Represents the cardinality of `exp`, which is assumed
+  * to be either a set or a multiset.
   */
-case class SetCardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
 }
 
 /**
-  * Represents a set membership expression "`left` in `right`",
-  * where `right` should be a set (not a multiset) of a type
-  * compatible with the one of `left`.
+  * Represents a membership expression "`left` in `right`".
+  * Here `right` should be a ghost collection (that is,
+  * a sequence, set, or multiset) of a type that is compatible
+  * with the one of `left`.
   */
-case class SetContains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
   override def typ : Type = BoolT
 }
 

@@ -219,17 +219,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
+    case PLength(op) => isExpr(op).out ++ isPureExpr(op) ++ {
+      val typ = exprType(op)
+      // currently only sequences are supported
+      message(op, s"expected a sequence type, but got $typ", !typ.isInstanceOf[SequenceT])
+    }
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
-
-
-
-
-
-
-
-
-
 
   lazy val exprType: Typing[PExpression] = createTyping {
     case expr: PActualExpression => actualExprType(expr)
@@ -294,7 +291,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => IntT
+    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength => IntT
 
     case n: PUnfolding => exprType(n.op)
 

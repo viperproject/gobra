@@ -12,7 +12,7 @@ func example2(ghost s set[int], ghost t set[int]) {
 
 func example3() {
   assert |set[int] { 1, 2, 3 }| == 3
-  assert |set[int] { 1 }| == |seq[int] { 2 }|;
+  assert |set[int] { 1 }| == len(seq[int] { 2 })
 }
 
 ensures n == |s union set[int] { 42 }|;

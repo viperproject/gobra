@@ -11,7 +11,7 @@ func example2(ghost xs seq[int], ghost ys seq[int]) {
 }
 
 func example3(ghost xs seq[int]) {
-  assert |set(xs)| <= |xs|
+  assert |set(xs)| <= len(xs)
 }
 
 func example4() {

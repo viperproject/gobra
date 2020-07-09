@@ -114,11 +114,6 @@ class ExpressionsImpl extends Expressions {
         opT <- goE(op)
       } yield vpr.SeqLength(opT)(pos, info, errT)
 
-      case in.SequenceContains(left, right) => for {
-        leftT <- goE(left)
-        rightT <- goE(right)
-      } yield vpr.SeqContains(leftT, rightT)(pos, info, errT)
-
       case in.SequenceLiteral(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)
         typT = goT(typ)
@@ -193,12 +188,17 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.AnySetSubset(leftT, rightT)(pos, info, errT)
 
-      case in.SetContains(left, right) => for {
+      case in.Contains(left, right) => for {
         leftT <- goE(left)
         rightT <- goE(right)
-      } yield vpr.AnySetContains(leftT, rightT)(pos, info, errT)
+      } yield rightT.typ match {
+        case _ : vpr.SeqType => vpr.SeqContains(leftT, rightT)(pos, info, errT)
+        case _ : vpr.SetType | _ : vpr.MultisetType =>
+          vpr.AnySetContains(leftT, rightT)(pos, info, errT)
+        case t => Violation.violation(s"expected a sequence or (multi)set, but got $t")
+      }
 
-      case in.SetCardinality(exp) => for {
+      case in.Cardinality(exp) => for {
         expT <- goE(exp)
       } yield vpr.AnySetCardinality(expT)(pos, info, errT)
 

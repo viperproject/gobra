@@ -1,11 +1,11 @@
 package pkg
 
-requires 2 < |xs|;
+requires 2 < len(xs)
 func example1(ghost xs seq[bool]) {
   ghost ys := xs[2 = false]
 }
 
-requires |xs| == 1
+requires len(xs) == 1
 ensures ys == seq[bool] { true }
 func example2(ghost xs seq[bool]) (ghost ys seq[bool]) {
   ys = xs[0 = true]
@@ -17,7 +17,7 @@ func example3() {
   assert (seq[int] {  } ++ seq[int] { 2 })[0 = 42] == seq[int] { 42 }
 }
 
-requires 0 <= x1 && x1 < x2 && x2 < |xs|;
+requires 0 <= x1 && x1 < x2 && x2 < len(xs)
 ensures xs[x1 = v1][x2 = v2] == xs[x2 = v2][x1 = v1]
 func example4(ghost xs seq[bool], x1 int, x2 int, v1 bool, v2 bool) {
 }

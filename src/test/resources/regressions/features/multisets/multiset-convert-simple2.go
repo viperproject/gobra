@@ -13,7 +13,7 @@ func example2(ghost xs seq[int], ghost ys seq[int]) {
 
 func example3(ghost xs seq[int]) {
   assert mset(mset(xs)) == mset(xs)
-  assert |mset(xs)| == |xs|
+  assert |mset(xs)| == len(xs)
 }
 
 func example4() {

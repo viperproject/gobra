@@ -58,7 +58,7 @@ object DefaultErrorBackTranslator {
     case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
       SeqIndexExceedsLengthError(node, index)
     case vprrea.SeqIndexNegative(Source(node), Source(index)) =>
-      SeqIndexNegative(node, index)
+      SeqIndexNegativeError(node, index)
     //      case vprrea.DummyReason =>
     //      case vprrea.InternalReason(offendingNode, explanation) =>
     //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>

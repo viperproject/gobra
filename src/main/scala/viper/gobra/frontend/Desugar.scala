@@ -856,6 +856,13 @@ object Desugar {
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
+          case PLength(op) => for {
+            dop <- go(op)
+          } yield dop.typ match {
+            case _: in.SequenceT => in.SequenceLength(dop)(src)
+            case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
+          }
+
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -1238,11 +1245,10 @@ object Desugar {
           wels = in.BoolLit(b = true)(src)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
-        case PSize(op) => for {
+        case PCardinality(op) => for {
           dop <- go(op)
         } yield dop.typ match {
-          case in.SequenceT(_) => in.SequenceLength(dop)(src)
-          case in.SetT(_) | in.MultisetT(_) => in.SetCardinality(dop)(src)
+          case _: in.SetT | _: in.MultisetT => in.Cardinality(dop)(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
@@ -1250,9 +1256,8 @@ object Desugar {
           dleft <- go(left)
           dright <- go(right)
         } yield dright.typ match {
-          case in.SequenceT(_) => in.SequenceContains(dleft, dright)(src)
-          case in.SetT(_) => in.SetContains(dleft, dright)(src)
-          case in.MultisetT(_) => in.LessCmp(in.IntLit(0)(src), in.SetContains(dleft, dright)(src))(src)
+          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
+          case in.MultisetT(_) => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 

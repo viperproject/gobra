@@ -531,21 +531,21 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify a sequence length operator as ghost") {
-    val expr = PSize(
+    val expr = PLength(
       PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     assert (frontend.isGhostExpr(expr)())
   }
 
   test("TypeChecker: should classify the sequence length operator as well-defined when applied to a proper sequence") {
-    val expr = PSize(
+    val expr = PLength(
       PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should assign the correct type to a sequence length operator") {
-    val expr = PSize(
+    val expr = PLength(
       PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     frontend.exprType(expr)() should matchPattern {
@@ -554,26 +554,26 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should not typecheck any seq/set size operator when no sequence of (multi)set is provided") {
-    val expr = PSize(PIntLit(42))
+    val expr = PCardinality(PIntLit(42))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should classify a set cardinality operator as ghost") {
-    val expr = PSize(
+    val expr = PCardinality(
       PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     assert (frontend.isGhostExpr(expr)())
   }
 
   test("TypeChecker: should classify the set cardinality operator as well-defined when given a proper set") {
-    val expr = PSize(
+    val expr = PCardinality(
       PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should assign the correct type to a set cardinality operator") {
-    val expr = PSize(
+    val expr = PCardinality(
       PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
     frontend.exprType(expr)() should matchPattern {
@@ -968,22 +968,22 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should mark the use of a multiset cardinality as ghost") {
-    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PCardinality(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
     assert (frontend.isGhostExpr(expr)())
   }
 
   test("TypeChecker: should classify a normal use of the multiset cardinality as well-defined") {
-    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PCardinality(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should not classify a multiset cardinality as well-defined if there is a typing error in the operand") {
-    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PIntLit(42))))
+    val expr = PCardinality(PMultisetLiteral(PBoolType(), Vector(PIntLit(42))))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should classify the cardinality of a nested multiset as well-defined") {
-    val expr = PSize(
+    val expr = PCardinality(
       PMultisetLiteral(PMultisetType(PIntType()), Vector(
         PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
       ))
@@ -992,7 +992,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a standard use of the multiset cardinality") {
-    val expr = PSize(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PCardinality(PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))))
 
     frontend.exprType(expr)() should matchPattern {
       case Type.IntT =>
@@ -1000,7 +1000,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a 'nested' multiset cardinality") {
-    val expr = PSize(
+    val expr = PCardinality(
       PMultisetLiteral(PMultisetType(PIntType()), Vector(
         PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
       ))
@@ -1689,6 +1689,137 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should classify the use of 'len' on sequences as ghost") {
+    val expr = PLength(
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should be able to type a very simple use of the built-in 'len' function applied on sequences") {
+    val expr = PLength(
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type a 'len' function application on an integer") {
+    val expr = PLength(PIntLit(42))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type a 'len' function application on, say, a Boolean") {
+    val expr = PLength(PBoolLit(false))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should be able to type check a slightly more complex application of 'len' on sequences") {
+    val expr = PLength(
+      PSequenceAppend(
+        PRangeSequence(PIntLit(1), PIntLit(10)),
+        PSequenceLiteral(PIntType(), Vector(PIntLit(42)))
+      )
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not type check a use of the 'len' function if there is a typing error in its argument") {
+    val expr = PLength(
+      PSequenceAppend(
+        PRangeSequence(PIntLit(1), PIntLit(10)),
+        PSequenceLiteral(PBoolType(), Vector())
+      )
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should be able to type the addition of two applications of 'len' to sequences") {
+    val expr = PAdd(
+      PLength(PRangeSequence(PIntLit(1), PIntLit(10))),
+      PLength(PSequenceLiteral(PBoolType(), Vector(PBoolLit(false))))
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a simple application of 'len' to a sequence (of some type)") {
+    val expr = PLength(PSequenceLiteral(PBoolType(), Vector()))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a slightly more complex application of 'len'") {
+    val expr = PLength(
+      PSequenceAppend(
+        PRangeSequence(PIntLit(1), PIntLit(10)),
+        PSequenceLiteral(PIntType(), Vector(PIntLit(42)))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should not type check a cardinality operation applied on a sequence") {
+    val expr = PCardinality(
+      PSequenceLiteral(PBoolType(), Vector())
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a sequence range expression be pure") {
+    val expr = PRangeSequence(PIntLit(1), PIntLit(10))
+    assert (frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should let a sequence drop operation be pure") {
+    val expr = PSliceExp(
+      PSequenceLiteral(PBoolType(), Vector()),
+      None,
+      Some(PIntLit(42)),
+      None
+    )
+
+    assert (frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should let a sequence take operation be pure") {
+    val expr = PSliceExp(
+      PSequenceLiteral(PBoolType(), Vector()),
+      Some(PIntLit(42)),
+      None,
+      None
+    )
+
+    assert (frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should let a complete sequence slice expression be marked as pure") {
+    val expr = PSliceExp(
+      PSequenceLiteral(PBoolType(), Vector()),
+      Some(PIntLit(2)),
+      Some(PIntLit(8)),
+      None
+    )
+
+    assert (frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should let a simple (integer) sequence index operation be marked a pure") {
+    val expr = PIndexedExp(
+      PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3))),
+      PIntLit(2)
+    )
+
+    assert (frontend.isPureExpr(expr)())
+  }
 
 
   /* * Stubs, mocks, and other test setup  */
@@ -1728,6 +1859,9 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
 
     def isGhostExpr(expr : PExpression)(inArgs: Vector[PParameter] = Vector()) : Boolean =
       singleExprTypeInfo(inArgs, expr).isExprGhost(expr)
+
+    def isPureExpr(expr : PExpression)(inArgs: Vector[PParameter] = Vector()) : Boolean =
+      singleExprTypeInfo(inArgs, expr).isPureExpr(expr).isEmpty
 
     def wellDefExpr(expr : PExpression)(inArgs: Vector[PParameter] = Vector()) =
       singleExprTypeInfo(inArgs, expr).wellDefExpr(expr)

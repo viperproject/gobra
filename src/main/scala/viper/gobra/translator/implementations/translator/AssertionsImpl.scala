@@ -30,6 +30,20 @@ class AssertionsImpl extends Assertions {
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access => ctx.loc.access(acc)(ctx)
+
+      case in.SepForall(vars, triggers, body) => {
+        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
+        val newVars = decls.flatten
+
+        for {
+          newTriggers <- sequence(triggers map (ctx.expr.trigger(_)(ctx)))
+          newBody <- goA(body)
+          newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT)
+          desugaredForall = vpr.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(newForall)
+          triggeredForall = desugaredForall.map(_.autoTrigger)
+          reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
+        } yield reducedForall
+      }
     }
 
     ret

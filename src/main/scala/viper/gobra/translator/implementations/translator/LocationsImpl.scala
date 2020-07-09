@@ -52,6 +52,7 @@ class LocationsImpl extends Locations {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     v match {
+      case in.BoundVar(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.In(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.Out(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
@@ -64,7 +65,7 @@ class LocationsImpl extends Locations {
   /**
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
     */
-  override def parameter(v: in.TopDeclaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+  override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     v match {
       case v: in.Var =>
         (

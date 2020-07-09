@@ -16,10 +16,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case POld(op) => isExpr(op).out ++ isPureExpr(op)
 
     case PConditional(cond, thn, els) =>
-      // check that cond is of type bool:
+      // check whether all operands are actually expressions indeed
       isExpr(cond).out ++ isExpr(thn).out ++ isExpr(els).out ++
+        // check that `cond` is of type bool
         assignableTo.errors(exprType(cond), BooleanT)(expr) ++
-        // check that thn and els have a common type
+        // check that `thn` and `els` have a common type
         mergeableTypes.errors(exprType(thn), exprType(els))(expr)
 
     case PForall(vars, triggers, body) =>
@@ -36,9 +37,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
-      // check that left side is a Boolean expression
+        // check whether the left operand is a Boolean expression
         assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
-      // check that right side is either Boolean or an assertion
+        // check whether the right operand is either Boolean or an assertion
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
     case n: PAccess => resolve(n.exp) match {
@@ -86,7 +87,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val t2 = exprType(right)
           message(left, s"expected a sequence, but got $t1", !t1.isInstanceOf[SequenceT]) ++
             message(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
-            comparableTypes.errors(t1, t2)(expr)
+            mergeableTypes.errors(t1, t2)(expr)
         }
         case PSequenceUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
           case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
@@ -100,7 +101,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val t2 = exprType(expr.right)
           message(expr.left, s"expected an unordered collection, but got $t1", !t1.isInstanceOf[GhostUnorderedCollectionType]) ++
             message(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
-            comparableTypes.errors(t1, t2)(expr)
+            mergeableTypes.errors(t1, t2)(expr)
         }
         case expr : PSetExp => expr match {
           case expr : PSetLiteral => wellDefGhostCollectionLiteral(expr)
@@ -255,7 +256,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PImplication(left, right) => Seq(left, right).forall(go)
 
       case expr : PGhostCollectionExp => expr match {
-        case n : PBinaryGhostExp => go(n.left) && gp(n.right)
+        case n : PBinaryGhostExp => go(n.left) && go(n.right)
         case n : PGhostCollectionLiteral => n.exprs.forall(go)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)

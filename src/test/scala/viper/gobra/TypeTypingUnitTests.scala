@@ -165,13 +165,17 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
         PResult(Vector()),
         PFunctionSpec(Vector(), Vector(), true),
         None
-      )),
-      new PositionManager()
+      ))
     )
 
     private def typeInfo(ts : Vector[PType]) : TypeInfoImpl = {
       val program = stubProgram(ts)
-      val tree = new Info.GoTree(program)
+      val pkg = PPackage(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(program),
+        new PositionManager()
+      )
+      val tree = new Info.GoTree(pkg)
       new TypeInfoImpl(tree)
     }
 

@@ -1218,12 +1218,11 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
-        case PConditional(cond, thn, els) =>
-          for {
-            wcond <- go(cond)
-            wthn <- go(thn)
-            wels <- go(els)
-          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        case PConditional(cond, thn, els) =>  for {
+          wcond <- go(cond)
+          wthn <- go(thn)
+          wels <- go(els)
+        } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
@@ -1233,12 +1232,11 @@ object Desugar {
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
             yield in.Exists(newVars, newTriggers, newBody)(src)
 
-        case PImplication(left, right) =>
-          for {
-            wcond <- go(left)
-            wthn <- go(right)
-            wels = in.BoolLit(b = true)(src)
-          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        case PImplication(left, right) => for {
+          wcond <- go(left)
+          wthn <- go(right)
+          wels = in.BoolLit(b = true)(src)
+        } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PSize(op) => for {
           dop <- go(op)

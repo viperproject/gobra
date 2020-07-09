@@ -1704,8 +1704,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
         PResult(Vector()),
         PFunctionSpec(Vector(), Vector(), true),
         Some(PBlock(Vector(body)))
-      )),
-      new PositionManager()
+      ))
     )
 
     def singleExprProgram(inArgs: Vector[PParameter], expr : PExpression) : PProgram = {
@@ -1715,7 +1714,12 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
 
     def singleExprTypeInfo(inArgs: Vector[PParameter], expr : PExpression) : TypeInfoImpl = {
       val program = singleExprProgram(inArgs, expr)
-      val tree = new Info.GoTree(program)
+      val pkg = PPackage(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(program),
+        new PositionManager()
+      )
+      val tree = new Info.GoTree(pkg)
       new TypeInfoImpl(tree)
     }
 

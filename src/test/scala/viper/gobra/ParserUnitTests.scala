@@ -2,7 +2,6 @@ package viper.gobra
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
-import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
 import scala.reflect.ClassTag
 import viper.gobra.ast.frontend._
@@ -76,40 +75,43 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-test("Parser: Wildcard") {
-// PWildcard is not an expression
-an [TestFailedException] should be thrownBy frontend.parseExp("_")
-}
+  test("Parser: Wildcard") {
+    // PWildcard is not an expression
+    frontend.parseExp("_") should matchPattern {
+      case Left(_) =>
+    }
+  }
 
-test("Parser: multi import") {
-frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
-case Vector(PQualifiedImport(None, "f"), PQualifiedImport(None, "g")) =>
-}
-}
+  test("Parser: multi import") {
+    frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
+      case Vector(PQualifiedImport(None, "f"), PQualifiedImport(None, "g")) =>
+    }
+  }
 
-test("Parser: dot import") {
-frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
-case Vector(PUnqualifiedImport("lib/math")) =>
-}
-}
+  test("Parser: dot import") {
+    frontend.parseImportDecl("import . \"lib/math\"") should matchPattern {
+      case Vector(PUnqualifiedImport("lib/math")) =>
+    }
+  }
 
-test("Parser: underscore import") {
-frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
-case Vector(PQualifiedImport(Some(PWildcard()), "lib/math")) =>
-}
-}
+  test("Parser: underscore import") {
+    frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(Some(PWildcard()), "lib/math")) =>
+    }
+  }
 
-test("Parser: default import") {
-frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
-case Vector(PQualifiedImport(None, "lib/math")) =>
-}
-}
+  test("Parser: default import") {
+    frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(None, "lib/math")) =>
+    }
+  }
 
-test("Parser: qualified import") {
-frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
-case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
-}
-}
+  test("Parser: qualified import") {
+    frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
+      case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
+    }
+  }
+
 
   /* ** Mathematical sequences */
 
@@ -1852,5 +1854,6 @@ case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
     def parseStmtOrFail(source : String) : PStatement = parseOrFail(source, Parser.parseStmt)
     def parseType(source : String) : Either[Messages, PType] = parse(source, Parser.parseType)
     def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
+    def parseImportDecl(source: String): Vector[PImportDecl] = parseOrFail(source, Parser.parseImportDecl)
   }
 }

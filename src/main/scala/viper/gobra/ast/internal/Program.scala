@@ -224,6 +224,18 @@ case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
+case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
+
+case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
+override def typ: Type = BoolT
+}
+
+case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
+
+case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
+override def typ: Type = BoolT
+}
+
 
 /* ** Collection expressions */
 
@@ -479,6 +491,7 @@ object Addressable {
 
   def isNonAddressable(x: Expr): Boolean = {
     x match {
+      case _: BoundVar => true
       case _: LocalVar.Inter => true
       case _: Parameter => true
       case _: Lit | _: DfltVal => true
@@ -579,6 +592,7 @@ object Parameter {
   case class Out(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter with AssignableVar
 }
 
+case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with BottomDeclaration
 
 sealed trait BodyVar extends Var
 

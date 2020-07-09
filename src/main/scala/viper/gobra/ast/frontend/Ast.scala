@@ -35,24 +35,32 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
+case class PPackage(
+                     packageClause: PPackageClause,
+                     programs: Vector[PProgram],
+                     positions: PositionManager
+                   ) extends PNode with PUnorderedScope {
+  lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
+  lazy val imports: Vector[PImportDecl] = programs.flatMap(_.imports)
+}
+
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImportDecl],
-                     declarations: Vector[PMember],
-                     positions: PositionManager
-                   ) extends PNode with PUnorderedScope
+                     declarations: Vector[PMember]
+                   ) extends PNode
 
 
 class PositionManager extends PositionStore with Messaging {
 
   def translate[E <: VerifierError](
                                      messages: Messages,
-                                     errorFactory: (String, SourcePosition) => E
+                                     errorFactory: (String, Option[SourcePosition]) => E
                                    ): Vector[E] = {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
-        translate(positions.getStart(m.value).get, positions.getFinish(m.value).get)
+        Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
   }
@@ -78,7 +86,7 @@ sealed trait PImportDecl extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImportDecl
 
 case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
 
@@ -660,6 +668,10 @@ case class PAccess(exp: PExpression) extends PGhostExpression
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
+case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
 
 /* ** Ghost collections */
 
@@ -858,6 +870,10 @@ case class PMultisetType(elem : PType) extends PGhostTypeLit
   */
 
 sealed trait PGhostMisc extends PMisc with PGhostNode
+
+case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
+
+case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

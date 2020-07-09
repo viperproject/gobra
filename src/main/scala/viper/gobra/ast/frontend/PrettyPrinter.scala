@@ -15,8 +15,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override def format(node: PNode): String = pretty(show(node)).layout
 
   def show(node: PNode): Doc = node match {
+    case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
-    case n: PPackageClause => showPackage(n)
+    case n: PPackageClause => showPackageClause(n)
     case n: PImportDecl => showImport(n)
     case n: PMember => showMember(n)
     case n: PStatement => showStmt(n)
@@ -29,8 +30,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
+    case n: PLiteralValue => showLiteralValue(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
+    case n: PKeyedElement => showKeyedElement(n)
+
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
@@ -40,24 +44,33 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PPos(_) => emptyDoc
   }
 
+  // entire package
+
+  def showPackage(p: PPackage): Doc = p match {
+    case PPackage(_, programs, _) =>
+      ssep(programs map showProgram, line) <> line
+  }
+
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packages, imports, declarations, _) =>
-      showPackage(packages) <> line <> line <>
+    case PProgram(packageClause, imports, declarations) =>
+      showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // package
 
-  def showPackage(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
+  def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
   def showPackageId(id: PPackegeNode): Doc = id.name
 
   // imports
 
   def showImport(decl: PImportDecl): Doc = decl match {
-    case PQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PQualifiedImport(Some(PWildcard()), pkg) => "import" <+> "_" <+> pkg
+    case PQualifiedImport(Some(qualifier), pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PQualifiedImport(None, pkg) => "import" <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 
@@ -288,6 +301,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+      case PForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PExists(vars, triggers, body) =>
+        "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
       case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
@@ -435,6 +452,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
     case f : PFieldDecl => showFieldDecl(f)
+    case misc: PGhostMisc => misc match {
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+    }
   }
 
   def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =

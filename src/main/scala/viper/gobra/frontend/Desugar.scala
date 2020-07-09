@@ -13,9 +13,9 @@ import viper.silver.ast.SourcePosition
 
 object Desugar {
 
-  def desugar(program: PProgram, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
-    val internalProgram = new Desugarer(program.positions, info).programD(program)
-    config.reporter report DesugaredMessage(config.inputFile, () => internalProgram)
+  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+    val internalProgram = new Desugarer(pkg.positions, info).packageD(pkg)
+    config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
     internalProgram
   }
 
@@ -145,7 +145,7 @@ object Desugar {
 //        proxies += abstraction(from) -> to
     }
 
-    def programD(p: PProgram): in.Program = {
+    def packageD(p: PPackage): in.Program = {
       val dMembers = p.declarations.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
@@ -254,7 +254,6 @@ object Desugar {
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
-
 
       val bodyOpt = decl.body.map{ s =>
         val vars = argSubs.flatten ++ returnSubs.flatten
@@ -1226,6 +1225,14 @@ object Desugar {
             wels <- go(els)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.PureForall(newVars, newTriggers, newBody)(src)
+
+        case PExists(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.Exists(newVars, newTriggers, newBody)(src)
+
         case PImplication(left, right) =>
           for {
             wcond <- go(left)
@@ -1328,6 +1335,36 @@ object Desugar {
       }
     }
 
+    /**
+      * Desugars a quantifier-like structure: a sequence `vars` of variable declarations,
+      * together with a sequence `triggers` of triggers and a quantifier `body`.
+      * @param ctx A function context consisting of variable substitutions.
+      * @param vars The sequence of variable (declarations) bound by the quantifier.
+      * @param triggers The sequence of triggers for the quantifier.
+      * @param body The quantifier body.
+      * @param go The desugarer for `body`, for example `exprD` or `assertionD`.
+      * @tparam T The type of the desugared quantifier body (e.g., expression, or assertion).
+      * @return The desugared versions of `vars`, `triggers` and `body`.
+      */
+    def quantifierD[T](ctx: FunctionContext)
+                      (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
+                      (go : FunctionContext => PExpression => Writer[T])
+        : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
+      val newVars = vars map boundVariableD(ctx)
+
+      // substitution has to be added since otherwise all bound variables are translated to addressable variables
+      val bodyCtx = ctx.copy
+      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b) }
+
+      for {
+        newTriggers <- sequence(triggers map triggerD(bodyCtx))
+        newBody <- go(bodyCtx)(body)
+      } yield (newVars, newTriggers, newBody)
+    }
+
+    def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
+      in.BoundVar(idName(x.id), typeD(info.typ(x.typ)))(meta(x))
+
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx)(expr)
       Violation.violation(dExp.stmts.isEmpty && dExp.decls.isEmpty, s"expected pure expression, but got $expr")
@@ -1351,7 +1388,6 @@ object Desugar {
       specificationD(ctx)(ass)
     }
 
-
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -1374,6 +1410,14 @@ object Desugar {
         case n: PPredicateAccess => predicateCallD(ctx)(n.pred)
 
         case n: PInvoke => predicateCallD(ctx)(n)
+
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
+            yield newBody match {
+              case in.ExprAssertion(exprBody) =>
+                in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
+              case _ => in.SepForall(newVars, newTriggers, newBody)(src)
+            }
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
@@ -1433,9 +1477,12 @@ object Desugar {
       }
     }
 
+    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
+      val src: Meta = meta(trigger)
+      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
 
-
-//    private def origin(n: PNode): in.Origin = {
+    //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get
 //      val finish = pom.positions.getFinish(n).get
 //      val pos = pom.translate(start, finish)

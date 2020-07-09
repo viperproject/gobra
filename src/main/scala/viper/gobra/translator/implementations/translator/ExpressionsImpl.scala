@@ -1,6 +1,7 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -79,7 +80,7 @@ class ExpressionsImpl extends Expressions {
 
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
       case in.LabelledOld(l, op) => for {o <- goE(op) } yield vpr.LabelledOld(o, l.name)(pos, info, errT)
-      case in.Now(op) => for { o <- goE(op); v <- copyResult(o) } yield v
+      case in.Now(op) => for { v <- ctx.loc.copyTo(op, Names.freshName)(ctx) } yield v
 
       case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)
                                                   } yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)

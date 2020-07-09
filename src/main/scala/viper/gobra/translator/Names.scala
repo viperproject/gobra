@@ -10,6 +10,8 @@ object Names {
   def addressableField(base: String): String = s"${base}R"
   def nonAddressableField(base: String): String = s"${base}V"
 
+  def labelledVar(base: String, label: String): String = s"${base}_${label}L"
+
   private var freshCounter = 0
   def freshName: String = {
     val str = s"fn$$$$$freshCounter"

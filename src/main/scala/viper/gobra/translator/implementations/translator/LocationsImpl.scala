@@ -179,19 +179,7 @@ class LocationsImpl extends Locations {
 
     ctx.typeProperty.underlyingType(e.typ)(ctx) match {
       case _: in.StructT => // TODO: We could optimize the single var case
-        val trans = values(e.typ)(ctx)
-        val multiVar = in.LocalVar.Inter(Names.freshName, e.typ)(e.info)
-        val assigns = sequence(trans map { a =>
-          for {
-            right <- a(e)._1
-            left <- a(multiVar)._1
-            l = left.asInstanceOf[vpr.LocalVar]
-            _ <- global(vu.toVarDecl(l))
-            _ <- bind(l, right)
-          } yield ()
-        })
-
-        assigns.flatMap(_ => variable(multiVar)(ctx))
+        copyTo(e, Names.freshName)(ctx)
 
       case _ =>
         Violation.violation(values(e.typ)(ctx).size == 1, s"expected type of size 1 but got $e")
@@ -199,7 +187,25 @@ class LocationsImpl extends Locations {
     }
   }
 
+  /**
+    * Copy[e: T, z]  -> var z; FOREACH a in Values[T]. Init<a(z)>; a(z) := a(e) ~ z
+    */
+  override def copyTo(e: in.Expr, name: String)(ctx: Context): CodeWriter[vpr.LocalVar] = {
 
+    val trans = values(e.typ)(ctx)
+    val multiVar = in.LocalVar.Inter(name, e.typ)(e.info)
+    val assigns = sequence(trans map { a =>
+      for {
+        right <- a(e)._1
+        left <- a(multiVar)._1
+        l = left.asInstanceOf[vpr.LocalVar]
+        _ <- global(vu.toVarDecl(l))
+        _ <- bind(l, right)
+      } yield ()
+    })
+
+    assigns.flatMap(_ => variable(multiVar)(ctx))
+  }
 
   /**
     * T[e: T] -> tuple( a(e) | a in Values[T] )

@@ -43,7 +43,15 @@ class StatementsImpl extends Statements {
       case in.Seqn(stmts) => seqns(stmts map goS)
 
       case in.Label(id, refs) =>
-        unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
+        val assignableVars: Vector[in.AssignableVar] = refs collect {
+          case x: in.Parameter.Out => x
+          case x: in.LocalVar.Val => x
+          case x: in.LocalVar.Inter => x
+        }
+        val copyAssignments = assignableVars.map { v =>
+          ctx.loc.copyTo(v, Names.labelledVar(v.id, id.name))(ctx)
+        }
+        sequence(copyAssignments).map(_ => vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
       case in.If(cond, thn, els) =>
           for {

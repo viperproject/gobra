@@ -508,6 +508,15 @@ object Desugar {
 
           case b: PBlock => unit(blockD(ctx)(b))
 
+          case l: PLabeledStmt =>
+            val proxy = labelProxy(l.label)
+            val varUses = info.labeledVarUses(l.label).map(varD(ctx))
+            for {
+              _ <- declare(proxy)
+              _ <- write(in.Label(proxy, varUses)(src))
+              s <- goS(l.stmt)
+            } yield s
+
           case s@ PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
             ifs.foldRight(elsStmt){
@@ -1080,6 +1089,11 @@ object Desugar {
       in.LocalVar.Val(p.id, p.typ)(p.info)
     }
 
+    def labelProxy(l: PLabelNode): in.LabelProxy = {
+      val src = meta(l)
+      in.LabelProxy(nm.label(l.name))(src)
+    }
+
     // Miscellaneous
 
     /** desugars parameter.
@@ -1189,6 +1203,9 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
+        case PLabelledOld(l, op) => for {o <- go(op)} yield in.LabelledOld(labelProxy(l), o)(src)
+        case PNow(op) => for {o <- go(op)} yield in.Now(o)(src)
+
         case PConditional(cond, thn, els) =>
           for {
             wcond <- go(cond)
@@ -1345,6 +1362,7 @@ object Desugar {
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val STRUCT_PREFIX = "X"
+    private val LABEL_PREFIX = "L"
 
     private var counter = 0
 
@@ -1389,6 +1407,8 @@ object Desugar {
     def inParam(idx: Int, s: PScope): String = name(IN_PARAMETER_PREFIX)("P" + idx, s)
     def outParam(idx: Int, s: PScope): String = name(OUT_PARAMETER_PREFIX)("P" + idx, s)
     def receiver(s: PScope): String = name(RECEIVER_PREFIX)("R", s)
+
+    def label(n: String): String = s"${n}_$LABEL_PREFIX"
 
     private var structCounter: Int = 0
     private var structNames: Map[SourcePosition, String] = Map.empty

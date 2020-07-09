@@ -28,6 +28,7 @@ object GobraStrategy {
         // Statements
       case (b: Block, Seq(v: Vector[BottomDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
+      case (l: Label, Seq(label: LabelProxy, refs: Vector[Var@unchecked])) => Label(label, refs)(meta)
       case (i: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (w: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
       case (n: Make, Seq(target: LocalVar.Val, co: CompositeObject)) => Make(target, co)(meta)
@@ -79,6 +80,8 @@ object GobraStrategy {
       case (e: Mod, Seq(l: Expr, r: Expr)) => Mod(l, r)(meta)
       case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (e: Old, Seq(op: Expr)) => Old(op)(meta)
+      case (e: LabelledOld, Seq(label: LabelProxy, op: Expr)) => LabelledOld(label, op)(meta)
+      case (e: Now, Seq(op: Expr)) => Now(op)(meta)
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
@@ -97,6 +100,7 @@ object GobraStrategy {
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
+      case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
       case _ => ???
     }
 

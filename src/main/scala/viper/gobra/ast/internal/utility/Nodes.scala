@@ -30,6 +30,7 @@ object Nodes {
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
+        case Label(id, refs) => id +: refs
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
         case Make(target, typ) => Seq(target, typ)
@@ -70,6 +71,8 @@ object Nodes {
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
         case Old(op) => Seq(op)
+        case LabelledOld(label, operand) => Seq(label, operand)
+        case Now(op) => Seq(op)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case l: Lit => l match {
           case IntLit(v) => Seq()
@@ -89,6 +92,7 @@ object Nodes {
         case MethodProxy(name, uniqueName) => Seq()
         case FPredicateProxy(name) => Seq()
         case MPredicateProxy(name, uniqueName) => Seq()
+        case LabelProxy(name) => Seq()
       }
     }
 //    n match {

@@ -42,6 +42,9 @@ class StatementsImpl extends Statements {
 
       case in.Seqn(stmts) => seqns(stmts map goS)
 
+      case in.Label(id, refs) =>
+        unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
+
       case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)

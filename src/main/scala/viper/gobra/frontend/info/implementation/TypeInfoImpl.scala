@@ -6,7 +6,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -15,6 +15,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInfo
 
   with NameResolution
+  with LabelResolution
   with MemberResolution
   with AmbiguityResolution
   with Enclosing
@@ -84,21 +85,11 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
   override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
 
 
-  private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
-    val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
-    ids.groupBy(uniqueRegular(_).get)
-  }
-
-  def uses(id: PIdnNode): Vector[PIdnUse] = {
-    uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
-  }
-
-
-  case class UniqueRegular(r: Regular, s: PScope)
-
-  def uniqueRegular(id: PIdnNode): Option[UniqueRegular] = entity(id) match {
-    case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
-    case _ => None
-  }
+  /** returns all identifier uses that occur in the tree starting from the argument node. */
+  lazy val usesInSubtree: PNode => Vector[PIdnUse] =
+    attr[PNode, Vector[PIdnUse]] {
+      case n: PIdnUse => Vector(n)
+      case n => tree.child(n).flatMap(c => usesInSubtree(c))
+    }
 }
 

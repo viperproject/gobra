@@ -27,6 +27,8 @@ trait TypeInfo {
 
   def variables(s: PScope): Vector[PIdnNode]
 
+  def labeledVarUses(l: PLabelDef): Vector[PIdnUse]
+
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
 

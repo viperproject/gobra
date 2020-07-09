@@ -14,6 +14,10 @@ trait NameResolution { this: TypeInfoImpl =>
 
   import decorators._
 
+  /**
+    * Resolution for identifiers
+    */
+
   private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
       case w: PWildcard => Wildcard(w)
@@ -104,11 +108,12 @@ trait NameResolution { this: TypeInfoImpl =>
       }
     }
 
-  private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
 
-  private[resolution] def serialize(id: PIdnNode): String = id.name
+  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
 
-  private[resolution] lazy val sequentialDefenv: Chain[Environment] =
+  private def serialize(id: PIdnNode): String = id.name
+
+  private lazy val sequentialDefenv: Chain[Environment] =
     chain(defenvin, defenvout)
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
@@ -207,6 +212,9 @@ trait NameResolution { this: TypeInfoImpl =>
         scopedDefenv(p)
     }
 
+  /** returns whether or not identified `id` is defined at node `n`. */
+  def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
+
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
 
@@ -227,5 +235,12 @@ trait NameResolution { this: TypeInfoImpl =>
         lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
         // TODO: if UnknownEntity is returned perform lookup in unqualified imported packages
     }
+
+
+  /**
+    * Resolution for labels
+    */
+
+
 
 }

@@ -148,7 +148,7 @@ sealed trait PActualStatement extends PStatement
 
 sealed trait PGhostifiableStatement extends PActualStatement with PGhostifiable
 
-case class PLabeledStmt(label: PIdnDef, stmt: PStatement) extends PActualStatement
+case class PLabeledStmt(label: PLabelDef, stmt: PStatement) extends PActualStatement
 
 
 sealed trait PSimpleStmt extends PActualStatement
@@ -643,6 +643,10 @@ sealed trait PGhostExpression extends PExpression with PGhostNode
 //case class PNoPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression
+
+case class PLabelledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
+
+case class PNow(operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 

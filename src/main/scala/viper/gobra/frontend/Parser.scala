@@ -207,7 +207,7 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old"
+      "predicate", "old", "now"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -317,22 +317,24 @@ object Parser {
     lazy val statement: Parser[PStatement] =
       ghostStatement |
       declarationStmt |
-        goStmt |
-        deferStmt |
-        returnStmt |
-        controlStmt |
-        ifStmt |
-        anyForStmt |
-        exprSwitchStmt |
-        typeSwitchStmt |
-        selectStmt |
-        block |
-        simpleStmt |
-        emptyStmt
+      goStmt |
+      deferStmt |
+      returnStmt |
+      controlStmt |
+      ifStmt |
+      anyForStmt |
+      exprSwitchStmt |
+      typeSwitchStmt |
+      selectStmt |
+      block |
+      simpleStmt |
+      labeledStmt |
+      expressionStmt |
+      emptyStmt
 
 
     lazy val simpleStmt: Parser[PSimpleStmt] =
-      sendStmt | assignmentWithOp | assignment | shortVarDecl | expressionStmt
+      sendStmt | assignmentWithOp |  assignment | shortVarDecl // expressionStmt is checked last before emptyStmt
 
     lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
       simpleStmt | emptyStmt
@@ -372,7 +374,10 @@ object Parser {
       }
 
     lazy val labeledStmt: Parser[PLabeledStmt] =
-      (idnDef <~ ":") ~ statement ^^ PLabeledStmt
+      (labelDef <~ ":") ~ statement.? ^^ {
+        case id ~ Some(s) => PLabeledStmt(id, s)
+        case id ~ None    => PLabeledStmt(id, PEmptyStmt().at(id))
+      }
 
     lazy val returnStmt: Parser[PReturn] =
       "return" ~> repsep(expression, ",") ^^ PReturn
@@ -879,8 +884,15 @@ object Parser {
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     lazy val ghostPrimaryExp: Parser[PGhostExpression] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+      oldExpression |
+      "now" ~> "(" ~> expression <~ ")" ^^ PNow |
+      "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+
+    lazy val oldExpression: Parser[PGhostExpression] =
+      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+        case Some(l) ~ e => PLabelledOld(l, e)
+        case None ~ e => POld(e)
+      }
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

@@ -129,6 +129,8 @@ case class Block(
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
+case class Label(id: LabelProxy, refs: Vector[Var])(val info: Source.Parser.Info) extends Stmt
+
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
@@ -219,6 +221,14 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
 }
 
 case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ
+}
+
+case class LabelledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = operand.typ
+}
+
+case class Now(operand: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = operand.typ
 }
 
@@ -444,6 +454,7 @@ case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Pro
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BottomDeclaration
 
 
 

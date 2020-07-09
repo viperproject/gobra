@@ -146,6 +146,11 @@ class LocationsImpl extends Locations {
           } yield valueAssign(ax, dflt)(v)
         })
         (decls, valueUnit flatMap (_ => valueAssigns))
+
+      case l: in.LabelProxy =>
+        val (pos, info, errT) = l.vprMeta
+        val decl = vpr.Label(l.name, Seq.empty)(pos, info, errT)
+        (Vector(decl), unit(vu.nop(pos, info, errT)))
     }
   }
 

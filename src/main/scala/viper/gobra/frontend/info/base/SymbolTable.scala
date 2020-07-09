@@ -129,12 +129,6 @@ object SymbolTable extends Environments {
     override def ghost: Boolean = false
   }
 
-  case class Label(decl: PLabeledStmt) extends ActualRegular {
-    override def rep: PNode = decl
-    // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-    override def ghost: Boolean = false
-  }
-
   case class Wildcard(decl: PWildcard) extends ActualRegular {
     override def rep: PNode = decl
     override def ghost: Boolean = false
@@ -176,5 +170,13 @@ object SymbolTable extends Environments {
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
+
+
+  /**
+    * Label
+    */
+
+  case class Label(decl: PLabeledStmt, ghost: Boolean) extends Entity with Product
+
 
 }

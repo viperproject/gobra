@@ -20,6 +20,14 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  implicit lazy val wellDefLabel: WellDefinedness[PLabelNode] = createWellDef {
+    id => label(id) match {
+      case _: UnknownEntity => message(id, s"got unknown label $id")
+      case _: MultipleEntity => message(id, s"got duplicate label $id")
+      case _ => noMessages
+    }
+  }
+
   private[typing] def wellDefActualRegular(entity: ActualRegular, id: PIdnNode): ValidityMessages = entity match {
 
 

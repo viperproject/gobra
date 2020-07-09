@@ -2,7 +2,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable, Label}
 import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -16,6 +16,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
 
     case POld(op) => isExpr(op).out ++ isPureExpr(op)
+
+    case PLabelledOld(l, op) =>
+      val operandErrors = isExpr(op).out ++ isPureExpr(op)
+      // checks that variables in old expression are defined at the label definition.
+      val labelErrors = label(l) match {
+        case ldef: Label =>
+          val uses = labeledVarUses(ldef.decl.label)
+          uses.flatMap(v =>
+            message(v, s"variable $v is not defined at label $l", !isDefinedAt(v, ldef.decl))
+          )
+
+        case e => violation(s"expected label, but got $e")
+      }
+      operandErrors ++ labelErrors
+
+    case PNow(op) => isExpr(op).out ++ isPureExpr(op)
 
     case PConditional(cond, thn, els) =>
       // check that cond is of type bool:
@@ -47,6 +63,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
 
     case POld(op) => exprType(op)
+    case PLabelledOld(_, op) => exprType(op)
+    case PNow(op) => exprType(op)
 
     case PConditional(cond, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
@@ -106,7 +124,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case n: PUnfolding => true
 
-      case _: POld => true
+      case _: POld | _: PLabelledOld | _: PNow => true
 
       case PConditional(cond, thn, els) => Seq(cond, thn, els).forall(isPureExprAttr)
 

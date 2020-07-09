@@ -579,6 +579,7 @@ object Parser {
 
 
     lazy val primaryExp: Parser[PExpression] =
+      ghostPrimaryExpression |
         conversion |
         call |
         selection |
@@ -889,6 +890,23 @@ object Parser {
         idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
         nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
         primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
+
+    lazy val boundVariables: Parser[Vector[PBoundVariable]] =
+      rep1sep(boundVariableDecl, ",") ^^ Vector.concat
+
+    lazy val boundVariableDecl: Parser[Vector[PBoundVariable]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PBoundVariable(id, t.copy).at(id))
+      }
+
+    lazy val triggers: Parser[Vector[PTrigger]] = trigger.*
+
+    lazy val trigger: Parser[PTrigger] =
+      "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
+
+    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
+        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     /**
       * EOS

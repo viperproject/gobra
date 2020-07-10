@@ -20,3 +20,13 @@ func test() {
 
   // assert old[L](x3) == pair{1, 2} // crashes
 }
+
+
+requires acc(*x) && acc(**x) && acc(*y) && acc(**y)
+requires **x == 1 && **y == 0
+func test2(x, y **int) {
+  *x  = *y
+  **y = 2
+
+  L: assert old(*old[L](*x)) == 0
+}

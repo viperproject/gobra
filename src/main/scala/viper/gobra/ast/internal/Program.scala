@@ -634,6 +634,13 @@ case object NilT extends Type
 case object PermissionT extends Type
 
 /**
+  * The type of arrays of length `length` and type `t`.
+  * Here `length` is assumed to be positive
+  * (this is ensured by the type checker).
+  */
+case class ArrayT(length : BigInt, t : Type) extends Type
+
+/**
   * The type of mathematical sequences with elements of type `t`.
   * @param t The type of elements
   */

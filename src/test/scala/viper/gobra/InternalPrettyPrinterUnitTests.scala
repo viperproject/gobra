@@ -776,6 +776,38 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple integer array type") {
+    val t = ArrayT(42, IntT)
+
+    frontend.show(t) should matchPattern {
+      case "[42]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a multidimensional Boolean array type") {
+    val t = ArrayT(1, ArrayT(2, ArrayT(3, BoolT)))
+
+    frontend.show(t) should matchPattern {
+      case "[1][2][3]bool" =>
+    }
+  }
+
+  test("Printer: should correctly show a sequence array type") {
+    val t = ArrayT(12, SequenceT(IntT))
+
+    frontend.show(t) should matchPattern {
+      case "[12]seq[int]" =>
+    }
+  }
+
+  test("Printer: should correctly show a sequence type of Boolean arrays") {
+    val t = SequenceT(ArrayT(42, BoolT))
+
+    frontend.show(t) should matchPattern {
+      case "seq[[42]bool]" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

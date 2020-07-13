@@ -261,6 +261,7 @@ class LocationsImpl extends Locations {
       case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
       case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
       case in.NilT => unit(vpr.NullLit()(pos, info, errT))
+      case in.ArrayT(_, _) => unit(vpr.NullLit()(pos, info, errT))
       case in.SequenceT(elem) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptySeq(elemT)(pos, info, errT))

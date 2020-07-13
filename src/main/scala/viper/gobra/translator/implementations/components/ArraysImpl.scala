@@ -1,0 +1,92 @@
+package viper.gobra.translator.implementations.components
+
+import viper.gobra.translator.interfaces.Collector
+import viper.gobra.translator.interfaces.components.Arrays
+import viper.silver.{ast => vpr}
+
+class ArraysImpl extends Arrays {
+  private val domainName : String = "Array"
+
+  /**
+    * Determines whether the "Array" domain should be generated upon finalisation.
+    */
+  private var generateDomain : Boolean = false
+
+  /**
+    * Definition of the "aslot" Viper domain function.
+    */
+  private lazy val aslot_func : vpr.DomainFunc = vpr.DomainFunc(
+    "aslot",
+    Seq(
+      vpr.LocalVarDecl("a", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq()))(),
+      vpr.LocalVarDecl("i", vpr.Int)()
+    ),
+    vpr.Ref
+  )(domainName = domainName)
+
+  /**
+    * Definition of the "alen" Viper domain function.
+    */
+  private lazy val alen_func : vpr.DomainFunc = vpr.DomainFunc(
+    "alen",
+    Seq(
+      vpr.LocalVarDecl("a", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq()))()
+    ),
+    vpr.Int
+  )(domainName = domainName)
+
+  /**
+    * Definition of the "alen_nonneg" axiom of the "Array"
+    * Viper domain, which captures that the length of any
+    * array is (invariably) non-negative.
+    */
+  private lazy val alen_nonneg_axiom : vpr.DomainAxiom = {
+    val aDecl = vpr.LocalVarDecl("a", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq()))()
+    val app = alenFuncApp(aDecl.localVar)
+
+    vpr.NamedDomainAxiom(
+      name = "alen_nonneg",
+      exp = vpr.Forall(
+        Seq(aDecl),
+        Seq(vpr.Trigger(Seq(app))()),
+        vpr.LeCmp(vpr.IntLit(0)(), app)()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * The "Array" Viper domain.
+    */
+  private lazy val domain : vpr.Domain = vpr.Domain(
+    domainName,
+    Seq(aslot_func, alen_func),
+    Seq(alen_nonneg_axiom),
+    Seq()
+  )()
+
+  /**
+    * Yields a function application of the "aslot" domain function,
+    * with argument `exp` (which should be of an array type).
+    */
+  private def alenFuncApp(exp : vpr.Exp) = vpr.DomainFuncApp(
+    func = alen_func,
+    args = Vector(exp),
+    typVarMap = Map()
+  )()
+
+  /**
+    * Finalizes translation.
+    * May add the "Array" Viper domain to the collector.
+    */
+  override def finalize(col : Collector) : Unit = {
+    if (generateDomain) col.addMember(domain)
+  }
+
+  /**
+    * Yields the Viper domain type of arrays.
+    */
+  def typ() : vpr.DomainType = {
+    generateDomain = true
+    vpr.DomainType(domain, Map())
+  }
+}

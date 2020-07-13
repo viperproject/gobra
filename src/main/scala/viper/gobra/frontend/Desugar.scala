@@ -1020,7 +1020,7 @@ object Desugar {
       case t: DeclaredT => registerType(registerDefinedType(t))
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
-      case Type.ArrayT(length, elem) => ???
+      case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem))
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)))

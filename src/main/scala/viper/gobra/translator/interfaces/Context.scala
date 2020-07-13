@@ -9,6 +9,7 @@ import viper.gobra.ast.{internal => in}
 trait Context {
 
   // components
+  def array : Arrays
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
   def seqMultiplicity : SeqMultiplicity
@@ -37,6 +38,7 @@ trait Context {
 
   /** copy constructor */
   def :=(
+          arrayN : Arrays = array,
           seqToSetN : SeqToSet = seqToSet,
           seqToMultisetN : SeqToMultiset = seqToMultiset,
           seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
@@ -55,6 +57,7 @@ trait Context {
 
   def finalize(col : Collector): Unit = {
     // components
+    array.finalize(col)
     seqToSet.finalize(col)
     seqToMultiset.finalize(col)
     seqMultiplicity.finalize(col)

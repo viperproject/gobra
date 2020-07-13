@@ -1890,6 +1890,86 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a simple integer array type") {
+    frontend.parseTypeOrFail("[42]int") should matchPattern {
+      case PArrayType(PIntLit(n), PIntType()) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse a Boolean type with a somewhat complicated length") {
+    frontend.parseTypeOrFail("[x + y]bool") should matchPattern {
+      case PArrayType(
+        PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
+        PBoolType()
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a multidimensional array type") {
+    frontend.parseTypeOrFail("[n][42]int") should matchPattern {
+      case PArrayType(
+        PNamedOperand(PIdnUse("n")),
+        PArrayType(
+          PIntLit(n),
+          PIntType()
+        )
+      ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse an array type of sequences") {
+    frontend.parseTypeOrFail("[n]seq[bool]") should matchPattern {
+      case PArrayType(
+        PNamedOperand(PIdnUse("n")),
+        PSequenceType(PBoolType())
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a sequence type of integer arrays") {
+    frontend.parseTypeOrFail("seq[[n]int]") should matchPattern {
+      case PSequenceType(
+        PArrayType(PNamedOperand(PIdnUse("n")), PIntType())
+      ) =>
+    }
+  }
+
+  test("Parser: should parse a simple integer array type with some extra spaces added") {
+    frontend.parseTypeOrFail("[ n ] int") should matchPattern {
+      case PArrayType(PNamedOperand(PIdnUse("n")), PIntType()) =>
+    }
+  }
+
+  test("Parser: should not parse an array type with a missing opening bracket") {
+    frontend.parseType(" n ] int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array type with a missing closing bracket") {
+    frontend.parseType("[ n int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array type with a missing right-hand side") {
+    frontend.parseType("[n]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array type with a parsing problem in the left-hand side") {
+    frontend.parseType("[ n ++ ]int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array type with a parsing problem in the right-hand side") {
+    frontend.parseType("[n]seq[a + b]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

@@ -726,6 +726,39 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple integer array type") {
+    val typ = PArrayType(PIntLit(42), PIntType())
+
+    frontend.show(typ) should matchPattern {
+      case "[42]int" =>
+    }
+  }
+
+  test("Printer: should be able to show a slightly more complex array type") {
+    val typ = PArrayType(
+      PAdd(PNamedOperand(PIdnUse("x")), PIntLit(12)),
+      PSequenceType(PBoolType())
+    )
+
+    frontend.show(typ) should matchPattern {
+      case "[x + 12]seq[bool]" =>
+    }
+  }
+
+  test("Printer: should correctly show a multidimensional array type") {
+    val typ = PArrayType(
+      PNamedOperand(PIdnUse("x")),
+      PArrayType(
+        PNamedOperand(PIdnUse("y")),
+        PIntType()
+      )
+    )
+
+    frontend.show(typ) should matchPattern {
+      case "[x][y]int" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

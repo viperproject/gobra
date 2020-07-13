@@ -145,6 +145,97 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (!frontend.areComparable(t1, t2))
   }
 
+  test("Typing: should mark a simple integer array type as non-ghost") {
+    val t = PArrayType(PIntLit(42), PIntType())
+    assert (!frontend.isGhostType(t))
+  }
+
+  test("Typing: should mark a simple sequence array type as ghost") {
+    val t = PArrayType(PIntLit(12), PSequenceType(PBoolType()))
+    assert (frontend.isGhostType(t))
+  }
+
+  test("Typing: should let a simple multidimensional array not be marked as ghost") {
+    val t = PArrayType(PIntLit(1), PArrayType(PIntLit(2), PIntType()))
+    assert (!frontend.isGhostType(t))
+  }
+
+  test("Typing: should let a simple integer array type be well-defined") {
+    val t = PArrayType(PIntLit(42), PIntType())
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should not let an integer array be well-defined if its length is not a constant expression (1)") {
+    val t = PArrayType(
+      PMultiplicity(PIntLit(1), PSetLiteral(PIntType(), Vector())),
+      PIntType()
+    )
+
+    assert (!frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should not let an integer array be well-defined if its length is not a constant expression (2)") {
+    val t = PArrayType(
+      PLength(PRangeSequence(PIntLit(1), PIntLit(10))),
+      PBoolType()
+    )
+
+    assert (!frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should let a very simple multidimensional integer array be well-defined") {
+    val t = PArrayType(PIntLit(1), PArrayType(PIntLit(2), PIntType()))
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should assign the correct type to a simple integer array") {
+    val t = PArrayType(PIntLit(42), PIntType())
+
+    frontend.typType(t) should matchPattern {
+      case Type.ArrayT(n, Type.IntT) if n == BigInt(42) =>
+    }
+  }
+
+  test("Typing: should correctly type a Boolean array with a slightly more complex length") {
+    val t = PArrayType(
+      PMul(PAdd(PIntLit(2), PIntLit(3)), PIntLit(4)),
+      PBoolType()
+    )
+
+    frontend.typType(t) should matchPattern {
+      case Type.ArrayT(n, Type.BooleanT)
+        if n == BigInt(20) =>
+    }
+  }
+
+  test("Typing: should correctly type a very simple multidimensional integer array") {
+    val t = PArrayType(PIntLit(1), PArrayType(PIntLit(2), PIntType()))
+
+    frontend.typType(t) should matchPattern {
+      case Type.ArrayT(m, Type.ArrayT(n, Type.IntT))
+        if m == BigInt(1) && n == BigInt(2) =>
+    }
+  }
+
+  test("Typing: should correctly type a simple sequence array type") {
+    val t = PArrayType(PIntLit(12), PSequenceType(PBoolType()))
+
+    frontend.typType(t) should matchPattern {
+      case Type.ArrayT(n, Type.SequenceT(Type.BooleanT))
+        if n == BigInt(12) =>
+    }
+  }
+
+  test("Typing: should not type an (integer) array type with a negative length") {
+    val t = PArrayType(PIntLit(-12), PIntType())
+    assert (!frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should type an (integer) array type with a length of zero") {
+    val t = PArrayType(PIntLit(0), PIntType())
+    assert (frontend.isWellDef(t).valid)
+  }
+
 
   /* ** Stubs, mocks, and other test setup  */
 

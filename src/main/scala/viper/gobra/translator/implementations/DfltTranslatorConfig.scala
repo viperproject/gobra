@@ -7,6 +7,7 @@ import viper.gobra.translator.interfaces.components._
 import viper.gobra.translator.interfaces.translator._
 
 class DfltTranslatorConfig(
+  val array : Arrays = new ArraysImpl(),
   val seqToSet : SeqToSet = new SeqToSetImpl(),
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl(),
   val tuple : Tuples = new TuplesImpl(),

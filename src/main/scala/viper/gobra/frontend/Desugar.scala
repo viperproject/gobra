@@ -811,7 +811,8 @@ object Desugar {
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
-            case p => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
+            case Some(p) => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
+            case _ => Violation.violation(s"could not resolve $n")
           }
 
           case n: PInvoke =>

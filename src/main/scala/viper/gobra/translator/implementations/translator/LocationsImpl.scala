@@ -66,13 +66,26 @@ class LocationsImpl extends Locations {
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
     */
   override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+    val (pos, info, errT) = v.vprMeta
+
     v match {
       case v: in.Var => {
         val trans = values(v.typ)(ctx)
         val (decls, valueUnit) = sequence(trans map { a =>
-          a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
-            vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
-          }
+          for {
+            decl <- a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
+              vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
+            }
+
+            // well-formedness conditions
+            _ <- a(v)._2.typ match {
+              // any array parameter should have the length that is specified in the array type
+              case t : in.ArrayT => wellDef(vpr.EqCmp(ctx.array.length(decl.localVar), vpr.IntLit(t.length)(pos, info, errT))(pos, info, errT))
+              // other types don't currently have any wf-conditions
+              case _ => write()
+            }
+
+          } yield decl
         }).cut
         (decls, valueUnit)
       }
@@ -142,7 +155,6 @@ class LocationsImpl extends Locations {
         val (decls, valueUnit) = valueInits.cut
         val as = values(v.typ)(ctx).map(_(v))
         val valueAssigns = seqns(as map { case (r, t) =>
-
           for {
             ax <- r
             dflt <- ctx.loc.defaultValue(t.typ)(v)(ctx)

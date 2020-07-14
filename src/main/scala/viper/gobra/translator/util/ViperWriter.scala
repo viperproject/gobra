@@ -257,7 +257,7 @@ object ViperWriter {
 
     def pure(w: Writer[vpr.Exp], assume: Boolean = false): MemberLevel.Writer[vpr.Exp] = {
       val (codeSum, remainder, r) = w.execute
-      require(!codeSum.code.exists(_.isPure))
+      require(codeSum.code.forall(_.isPure))
       val newR = codeSum.code.foldRight(r){
         case (WellDef(c), e) =>
           if (assume) vpr.Implies(c, e)(e.pos, e.info, e.errT) // c => e

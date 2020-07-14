@@ -859,6 +859,7 @@ object Desugar {
           case PLength(op) => for {
             dop <- go(op)
           } yield dop.typ match {
+            case _: in.ArrayT => in.ArrayLength(dop)(src)
             case _: in.SequenceT => in.SequenceLength(dop)(src)
             case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
           }

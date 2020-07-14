@@ -247,6 +247,13 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
   override def typ : Type = IntT
 }
 
+/* ** Array expressions */
+
+/** Denotes the length of `exp`, which should be of type `ArrayT`. */
+case class ArrayLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
 
 /* ** Sequence expressions */
 

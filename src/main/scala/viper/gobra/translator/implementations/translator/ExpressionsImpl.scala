@@ -99,7 +99,7 @@ class ExpressionsImpl extends Expressions {
         newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
       } yield newForall.check match {
         case Seq() => newForall
-        case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
+        case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
       case in.Exists(vars, triggers, body) => for {
@@ -107,12 +107,16 @@ class ExpressionsImpl extends Expressions {
         newExists =  vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
       } yield newExists.check match {
         case Seq() => newExists
-        case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
+        case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
-      case in.SequenceLength(op) => for {
-        opT <- goE(op)
-      } yield vpr.SeqLength(opT)(pos, info, errT)
+      case in.ArrayLength(exp) => for {
+        expT <- goE(exp)
+      } yield ctx.array.length(expT)
+
+      case in.SequenceLength(exp) => for {
+        expT <- goE(exp)
+      } yield vpr.SeqLength(expT)(pos, info, errT)
 
       case in.SequenceLiteral(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)

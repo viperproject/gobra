@@ -42,7 +42,7 @@ class ArraysImpl extends Arrays {
     */
   private lazy val alen_nonneg_axiom : vpr.DomainAxiom = {
     val aDecl = vpr.LocalVarDecl("a", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq()))()
-    val app = alenFuncApp(aDecl.localVar)
+    val app = length(aDecl.localVar)
 
     vpr.NamedDomainAxiom(
       name = "alen_nonneg",
@@ -65,12 +65,24 @@ class ArraysImpl extends Arrays {
   )()
 
   /**
-    * Yields a function application of the "aslot" domain function,
+    * Yields a function application of the "alen" domain function,
     * with argument `exp` (which should be of an array type).
     */
-  private def alenFuncApp(exp : vpr.Exp) = vpr.DomainFuncApp(
+  override def length(exp : vpr.Exp) = vpr.DomainFuncApp(
     func = alen_func,
     args = Vector(exp),
+    typVarMap = Map()
+  )()
+
+  /**
+    * Yields a function application of the "aslot" domain function,
+    * with arguments `base` and `index` for the array and the index,
+    * respectively. Here `base` should be of an array type and
+    * `index` of an integer type.
+    */
+  override def slot(base : vpr.Exp, index : vpr.Exp) = vpr.DomainFuncApp(
+    func = aslot_func,
+    args = Vector(base, index),
     typVarMap = Map()
   )()
 

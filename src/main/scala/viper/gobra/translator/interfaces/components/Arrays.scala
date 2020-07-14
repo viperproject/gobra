@@ -5,4 +5,6 @@ import viper.silver.{ast => vpr}
 
 trait Arrays extends Generator {
   def typ() : vpr.DomainType
+  def length(exp : vpr.Exp) : vpr.DomainFuncApp
+  def slot(base : vpr.Exp, index : vpr.Exp) : vpr.DomainFuncApp
 }

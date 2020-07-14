@@ -808,6 +808,94 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a very simple array length expression") {
+    val expr = ArrayLength(
+      LocalVar.Ref("a", ArrayT(12, IntT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(a)" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex array length expression") {
+    val expr = ArrayLength(
+      Add(
+        Cardinality(LocalVar.Ref("s", SetT(BoolT))(Unsourced))(Unsourced),
+        IntLit(42)(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(|s| + 42)" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested array length expression") {
+    val expr = ArrayLength(ArrayLength(IntLit(42)(Unsourced))(Unsourced))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(len(42))" =>
+    }
+  }
+
+  test("Printer: should be able to show the addition of two uses of the array length function") {
+    val expr = Add(
+      ArrayLength(LocalVar.Ref("a", ArrayT(24, BoolT))(Unsourced))(Unsourced),
+      ArrayLength(LocalVar.Ref("b", ArrayT(24, BoolT))(Unsourced))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(a) + len(b)" =>
+    }
+  }
+
+  test("Printer: should be able to show a very simple sequence length expression") {
+    val expr = SequenceLength(
+      LocalVar.Ref("xs", SequenceT(IntT))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(xs)" =>
+    }
+  }
+
+  test("Printer: should be able to show a slightly more complicated use of the sequence length function") {
+    val expr = SequenceLength(
+      SequenceAppend(
+        SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
+        IntLit(12)(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(seq[bool] { false } ++ 12)" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested use of the built-in sequence length operator") {
+    val expr = SequenceLength(
+      SequenceLength(
+        SequenceLiteral(IntT, Vector())(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(len(seq[int] { }))" =>
+    }
+  }
+
+  test("Printer: should correctly show a composition of two sequence length function applications") {
+    val expr = Add(
+      ArrayLength(LocalVar.Ref("xs", SequenceT(IntT))(Unsourced))(Unsourced),
+      ArrayLength(LocalVar.Ref("ys", SequenceT(IntT))(Unsourced))(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "len(xs) + len(ys)" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

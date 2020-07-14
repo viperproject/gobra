@@ -219,10 +219,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
-    case PLength(op) => isExpr(op).out ++ isPureExpr(op) ++ {
-      val typ = exprType(op)
-      // currently only sequences are supported
-      message(op, s"expected a sequence type, but got $typ", !typ.isInstanceOf[SequenceT])
+    case PLength(op) => isExpr(op).out ++ {
+      exprType(op) match {
+        case _: SequenceT | _: ArrayT => isPureExpr(op)
+        case typ => message(op, s"expected an array or sequence type, but got $typ")
+      }
     }
 
     case n: PExpressionAndType => wellDefExprAndType(n).out

@@ -221,7 +221,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
-    case SequenceLength(op) => "|" <> showExpr(op) <> "|"
+    case ArrayLength(exp) => "len" <> parens(showExpr(exp))
+    case SequenceLength(exp) => "len" <> parens(showExpr(exp))
     case SequenceLiteral(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
@@ -231,10 +232,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SetLiteral(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
-    case SetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
+    case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetLiteral(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
-    case MultisetConversion(exp) => "mset" <> "(" <> showExpr(exp) <> ")"
+    case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))

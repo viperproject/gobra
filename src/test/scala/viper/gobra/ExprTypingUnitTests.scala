@@ -1821,6 +1821,63 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.isPureExpr(expr)())
   }
 
+  test("TypeChecker: should mark the 'len' function applied on an integer array as non-ghost") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType()), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (!frontend.isGhostExpr(expr)(inargs))
+  }
+
+  test("TypeChecker: should let the 'len' function applied on a simple integer array be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType()), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should let the 'len' function applied on an array of sequences be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PSequenceType(PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should let the 'len' function applied on a multidimensional array be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(1), PArrayType(PIntLit(2), PBoolType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let the 'len' function applied on a wrongly typed array be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(-42), PIntType()), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should assign the correct type to the 'len' function applied on a simple integer array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a 'len' function applied on an array of sets of Booleans") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PSetType(PBoolType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to the 'len' function applied on a multidimensional array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(1), PArrayType(PIntLit(2), PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

@@ -67,13 +67,15 @@ class LocationsImpl extends Locations {
     */
   override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     v match {
-      case v: in.Var =>
+      case v: in.Var => {
         val trans = values(v.typ)(ctx)
-        sequence(trans map { a =>
-          a(v)._1.map{ x => // top declarations are not addressable, hence x is a variable
+        val (decls, valueUnit) = sequence(trans map { a =>
+          a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
             vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
           }
         }).cut
+        (decls, valueUnit)
+      }
     }
   }
 
@@ -261,7 +263,6 @@ class LocationsImpl extends Locations {
       case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
       case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
       case in.NilT => unit(vpr.NullLit()(pos, info, errT))
-      case in.ArrayT(_, _) => unit(vpr.NullLit()(pos, info, errT))
       case in.SequenceT(elem) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptySeq(elemT)(pos, info, errT))
@@ -273,6 +274,71 @@ class LocationsImpl extends Locations {
       case in.MultisetT(elem) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptyMultiset(elemT)(pos, info, errT))
+      }
+
+      case t @ in.ArrayT(len, elem) => {
+        val tmp = in.LocalVar.Inter(Names.freshName, t)(src.info)
+        val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
+
+        // gives a Viper field access representing "`array`[`index`]"
+        def array_index(typ : in.Type, array : vpr.Exp, index : vpr.Exp) : vpr.FieldAccess = regField(vpr.FieldAccess(
+          ctx.array.slot(array, index),
+          pointerField(typ)(ctx)
+        )(pos, info, errT))
+
+        // gives the Viper assumption that `array`s length equals `len`
+        def assume_length(array : vpr.Exp) : vpr.Stmt = vpr.Assume(
+          vpr.EqCmp(
+            ctx.array.length(array),
+            vpr.IntLit(len)(pos, info, errT)
+          )(pos, info, errT)
+        )(pos, info, errT)
+
+        // gives the Boolean expression describing that `index` is a proper index in `array`
+        def array_bounds(array : vpr.Exp, index : vpr.Exp) : vpr.Exp = vpr.And(
+          vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), index)(pos, info, errT),
+          vpr.LtCmp(index, ctx.array.length(array))(pos, info, errT)
+        )(pos, info, errT)
+
+        // gives the Viper inhale for getting full (write) ownership of all `array`s entries
+        def inhale_ownership(array : vpr.Exp) : vpr.Stmt = vpr.Inhale(
+          vpr.Forall(
+            Seq(iDecl),
+            Seq(vpr.Trigger(Seq(array_index(elem, array, iDecl.localVar)))(pos, info, errT)),
+            vpr.Implies(
+              array_bounds(array, iDecl.localVar),
+              vpr.FieldAccessPredicate(
+                array_index(elem, array, iDecl.localVar),
+                vpr.FullPerm()(pos, info, errT)
+              )(pos, info, errT)
+            )(pos, info, errT)
+          )(pos, info, errT)
+        )(pos, info, errT)
+
+        // gives the Viper assumption that all entries of `array` have the `dflt` value
+        def assume_defaultValues(array : vpr.Exp, dflt : vpr.Exp) : vpr.Stmt = vpr.Assume(
+          vpr.Forall(
+            Seq(iDecl),
+            Seq(vpr.Trigger(Seq(array_index(elem, array, iDecl.localVar)))(pos, info, errT)),
+            vpr.Implies(
+              array_bounds(array, iDecl.localVar),
+              vpr.EqCmp(array_index(elem, array, iDecl.localVar), dflt)(pos, info, errT)
+            )(pos, info, errT)
+          )(pos, info, errT)
+        )(pos, info, errT)
+
+        for {
+          // declare a new temporal variable representing the array's default value
+          tmpVar <- variable(tmp)(ctx)
+          _ <- local(vu.toVarDecl(tmpVar))
+          // assume that the length of `tmpVar` is equal to `len`
+          _ <- write(assume_length(tmpVar))
+          // inhale write access for every entry of the array
+          _ <- write(inhale_ownership(tmpVar))
+          // assume that every entry has a default value
+          dflt <- defaultValue(elem)(src)(ctx)
+          _ <- write(assume_defaultValues(tmpVar, dflt))
+        } yield tmpVar
       }
     }
 
@@ -596,7 +662,7 @@ class LocationsImpl extends Locations {
     * A[!r.?f] -> R[r].f
     * A[?r.?f] -> R[r]#f
     *
-    * translates a location for a receiver position
+    * tpo
     */
   def rvalue(l: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 

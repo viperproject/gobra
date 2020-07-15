@@ -9,11 +9,12 @@ pipelines:
     - step:
         name: build
         script:
+          - cwd=$(pwd)
           - git clone https://github.com/viperproject/silver.git ../silver
           - git clone https://github.com/viperproject/silicon.git ../silicon
           - git clone https://github.com/viperproject/carbon.git ../carbon
-          - cd ../silicon; ln --symbolic ../silver; cd ../gobra-one
-          - cd ../carbon; ln --symbolic ../silver; cd ../gobra-one
+          - cd ../silicon; ln --symbolic ../silver; cd $cwd
+          - cd ../carbon; ln --symbolic ../silver; cd $cwd
           - ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
           - sbt assembly
         artifacts:

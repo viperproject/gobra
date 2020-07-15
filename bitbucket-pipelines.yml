@@ -3,6 +3,7 @@ image:
   username: gobraverifier
   password: $DOCKER_HUB_PASSWORD
 
+
 pipelines:
   default:
     - step:

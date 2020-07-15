@@ -298,6 +298,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
       case PLength(expr) => "len" <> parens(showExpr(expr))
+      case PCapacity(expr) => "cap" <> parens(showExpr(expr))
     }
     case expr: PGhostExpression => expr match {
       case POld(expr) => "old" <> parens(showExpr(expr))

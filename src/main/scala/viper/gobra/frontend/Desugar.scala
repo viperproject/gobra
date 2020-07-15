@@ -829,12 +829,13 @@ object Desugar {
             val dOp = pureExprD(ctx)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
-          case PIndexedExp(left, right) => for {
-            dleft <- go(left)
-            dright <- go(right)
-          } yield dleft.typ match {
-            case in.SequenceT(_) => in.SequenceIndex(dleft, dright)(src)
-            case t => Violation.violation(s"desugaring of indexed expressions is currently only supported for sequences, yet found $t")
+          case PIndexedExp(base, index) => for {
+            dbase <- go(base)
+            dindex <- go(index)
+          } yield dbase.typ match {
+            case in.ArrayT(_, _) => in.ArrayIndex(dbase, dindex)(src)
+            case in.SequenceT(_) => in.SequenceIndex(dbase, dindex)(src)
+            case t => Violation.violation(s"desugaring of indexing expressions with base type $t is currently not supported")
           }
 
           case PSliceExp(base, low, high, cap) => for {
@@ -862,6 +863,13 @@ object Desugar {
             case _: in.ArrayT => in.ArrayLength(dop)(src)
             case _: in.SequenceT => in.SequenceLength(dop)(src)
             case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
+          }
+
+          case PCapacity(op) => for {
+            dop <- go(op)
+          } yield dop.typ match {
+            case _: in.ArrayT => in.ArrayLength(dop)(src) // for arrays `len` and `cap` are identical
+            case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
           }
 
           case g: PGhostExpression => ghostExprD(ctx)(g)

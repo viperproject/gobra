@@ -1970,6 +1970,72 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a very simple use of Go's built-in 'cap' function") {
+    frontend.parseExpOrFail("cap(e)") should matchPattern {
+      case PCapacity(PNamedOperand(PIdnUse("e"))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complex use of the 'cap' function") {
+    frontend.parseExpOrFail("cap(xs ++ seq[bool] { false })") should matchPattern {
+      case PCapacity(PSequenceAppend(
+        PNamedOperand(PIdnUse("xs")),
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false)))
+      )) =>
+    }
+  }
+
+  test("Parser: should be able to parse a nested 'cap' function application") {
+    frontend.parseExpOrFail("cap(cap(e))") should matchPattern {
+      case PCapacity(PCapacity(PNamedOperand(PIdnUse("e")))) =>
+    }
+  }
+
+  test("Parser: should be able to parse expressions built from 'cap' function applications") {
+    frontend.parseExpOrFail("cap(x) + cap(y)") should matchPattern {
+      case PAdd(
+        PCapacity(PNamedOperand(PIdnUse("x"))),
+        PCapacity(PNamedOperand(PIdnUse("y")))
+      ) =>
+    }
+  }
+
+  test("Parser: should not parse just 'cap' as a keyword") {
+    frontend.parseExp("cap") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should be able to parse an application of 'cap' with some extra spaces added") {
+    frontend.parseExpOrFail(" cap ( e ) ") should matchPattern {
+      case PCapacity(PNamedOperand(PIdnUse("e"))) =>
+    }
+  }
+
+  test("Parser: should not parse an application of the 'cap' function with a missing opening parenthesis") {
+    frontend.parseExp("cap e )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an application of the 'cap' function with a missing closing parenthesis") {
+    frontend.parseExp("cap ( e") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an function application of 'cap' if there are too many spaces added") {
+    frontend.parseExp("c ap (e)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a function application of 'cap' if there is a parsing problem in the argument") {
+    frontend.parseExp("cap(seq[int] { )") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

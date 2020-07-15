@@ -222,6 +222,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case ArrayLength(exp) => "len" <> parens(showExpr(exp))
+    case ArrayIndex(base, index) => showExpr(base) <> brackets(showExpr(index))
+
     case SequenceLength(exp) => "len" <> parens(showExpr(exp))
     case SequenceLiteral(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case RangeSequence(low, high) =>

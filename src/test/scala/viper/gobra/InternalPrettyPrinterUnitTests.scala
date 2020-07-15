@@ -896,6 +896,61 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple array indexing expression") {
+    val expr = ArrayIndex(
+      LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
+      IntLit(42)(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "a[42]" =>
+    }
+  }
+
+  test("Printer: should correctly show an array indexing expression with a slightly more complex base") {
+    val expr = ArrayIndex(
+      SequenceAppend(
+        SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
+        SequenceLength(
+          LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
+        )(Unsourced)
+      )(Unsourced),
+      IntLit(42)(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "seq[bool] { false } ++ len(xs)[42]" =>
+    }
+  }
+
+  test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
+    val expr = ArrayIndex(
+      LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
+      Add(
+        LocalVar.Ref("x", IntT)(Unsourced),
+        IntLit(2)(Unsourced)
+      )(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "a[x + 2]" =>
+    }
+  }
+
+  test("Printer: should correctly show a small chain of array indexing operations") {
+    val expr = ArrayIndex(
+      ArrayIndex(
+        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        IntLit(2)(Unsourced)
+      )(Unsourced),
+      IntLit(4)(Unsourced)
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "a[2][4]" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

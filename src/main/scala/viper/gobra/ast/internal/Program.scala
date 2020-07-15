@@ -254,6 +254,18 @@ case class ArrayLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
 }
 
+/**
+  * Represents indexing into an array "`base`[`index`]",
+  * where `base` is expected to be of an array type
+  * and `index` of an integer type.
+  */
+case class ArrayIndex(base : Expr, index : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = base.typ match {
+    case ArrayT(_, t) => t
+    case t => Violation.violation(s"expected an array type, but got $t")
+  }
+}
+
 
 /* ** Sequence expressions */
 

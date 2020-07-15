@@ -40,6 +40,8 @@ trait Locations extends Generator {
   def ttype(typ: in.Type)(ctx: Context): vpr.Type
 
   def copyFromTuple(exp: vpr.Exp, typ: in.Type)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def arrayIndex(typ : in.Type, base : vpr.Exp, index : vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess
 }
 
 object Locations {

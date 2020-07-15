@@ -759,6 +759,41 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show an application of the 'cap' function") {
+    val expr = PCapacity(PNamedOperand(PIdnUse("e")))
+
+    frontend.show(expr) should matchPattern {
+      case "cap(e)" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex application of the built-in 'cap' function") {
+    val expr = PCapacity(PSequenceLiteral(PIntType(), Vector(PIntLit(42))))
+
+    frontend.show(expr) should matchPattern {
+      case "cap(seq[int] { 42 })" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested 'cap' function application") {
+    val expr = PCapacity(PCapacity(PCapacity(PIntLit(41))))
+
+    frontend.show(expr) should matchPattern {
+      case "cap(cap(cap(41)))" =>
+    }
+  }
+
+  test("Printer: should correctly show a expression built from 'cap' function applications") {
+    val expr = PAdd(
+      PCapacity(PNamedOperand(PIdnUse("e1"))),
+      PCapacity(PNamedOperand(PIdnUse("e2")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "cap(e1) + cap(e2)" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

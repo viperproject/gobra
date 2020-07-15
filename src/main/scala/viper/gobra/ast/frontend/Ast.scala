@@ -322,8 +322,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
 /**
   * Represents Go's built-in "len(`exp`)" function that returns the
   * length of `exp`, according to its type. The documentation
-  * (https://golang.org/pkg/builtin/#len) gives the following
-  * possible cases:
+  * (https://golang.org/pkg/builtin/#len) gives the following possible cases:
   *
   * - Array: the number of elements in `exp`.
   * - Pointer to array: the number of elements in `*exp`.
@@ -338,6 +337,18 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * - Sequence: the number of elements in `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression
+
+/**
+  * Represents Go's built-in "cap(`exp`)" function that returns the
+  * capacity of `exp`, according to its type. The documentation
+  * (https://golang.org/pkg/builtin/#cap) gives the following possible cases:
+  *
+  * - Array: the number of elements in `exp`.
+  * - Pointer to array: the number of elements in `*exp`.
+  * - Slice: the max length `exp` can reach when resliced; or `0` if `exp` is `null`.
+  * - Channel: the channel buffer capacity (in units of elements); or `0` if `exp` is `null`.
+  */
+case class PCapacity(exp : PExpression) extends PActualExpression
 
 /**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",

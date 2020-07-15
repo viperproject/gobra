@@ -226,6 +226,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case PCapacity(op) => isExpr(op).out ++ {
+      exprType(op) match {
+        case _: ArrayT => isPureExpr(op)
+        case typ => message(op, s"expected an array type, but got $typ")
+      }
+    }
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
@@ -292,7 +299,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength => IntT
+    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength | _: PCapacity => IntT
 
     case n: PUnfolding => exprType(n.op)
 

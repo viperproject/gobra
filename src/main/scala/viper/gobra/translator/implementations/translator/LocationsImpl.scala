@@ -261,6 +261,15 @@ class LocationsImpl extends Locations {
     }).map(vu.bigAnd(_)(pos, info, errT))
   }
 
+  /**
+    * Gives a Viper field access representing "`array`[`index`]".
+    */
+  override def arrayIndex(typ : in.Type, base : vpr.Exp, index : vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess = {
+    regField(vpr.FieldAccess(
+      ctx.array.slot(base, index),
+      pointerField(typ)(ctx)
+    )(pos, info, errT))
+  }
 
   /**
     * [default(T)] -> var l; FOREACH a in Values[T]. a(l) := simpleDefault(Type(a(l)))
@@ -292,12 +301,6 @@ class LocationsImpl extends Locations {
         val tmp = in.LocalVar.Inter(Names.freshName, t)(src.info)
         val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
 
-        // gives a Viper field access representing "`array`[`index`]"
-        def array_index(typ : in.Type, array : vpr.Exp, index : vpr.Exp) : vpr.FieldAccess = regField(vpr.FieldAccess(
-          ctx.array.slot(array, index),
-          pointerField(typ)(ctx)
-        )(pos, info, errT))
-
         // gives the Viper assumption that `array`s length equals `len`
         def assume_length(array : vpr.Exp) : vpr.Stmt = vpr.Assume(
           vpr.EqCmp(
@@ -316,11 +319,11 @@ class LocationsImpl extends Locations {
         def inhale_ownership(array : vpr.Exp) : vpr.Stmt = vpr.Inhale(
           vpr.Forall(
             Seq(iDecl),
-            Seq(vpr.Trigger(Seq(array_index(elem, array, iDecl.localVar)))(pos, info, errT)),
+            Seq(vpr.Trigger(Seq(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT)))(pos, info, errT)),
             vpr.Implies(
               array_bounds(array, iDecl.localVar),
               vpr.FieldAccessPredicate(
-                array_index(elem, array, iDecl.localVar),
+                arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT),
                 vpr.FullPerm()(pos, info, errT)
               )(pos, info, errT)
             )(pos, info, errT)
@@ -331,10 +334,10 @@ class LocationsImpl extends Locations {
         def assume_defaultValues(array : vpr.Exp, dflt : vpr.Exp) : vpr.Stmt = vpr.Assume(
           vpr.Forall(
             Seq(iDecl),
-            Seq(vpr.Trigger(Seq(array_index(elem, array, iDecl.localVar)))(pos, info, errT)),
+            Seq(vpr.Trigger(Seq(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT)))(pos, info, errT)),
             vpr.Implies(
               array_bounds(array, iDecl.localVar),
-              vpr.EqCmp(array_index(elem, array, iDecl.localVar), dflt)(pos, info, errT)
+              vpr.EqCmp(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT), dflt)(pos, info, errT)
             )(pos, info, errT)
           )(pos, info, errT)
         )(pos, info, errT)

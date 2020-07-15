@@ -1878,6 +1878,154 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should mark a simple use of the 'cap' function (on arrays) as non-ghost") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+    assert (!frontend.isGhostExpr(expr)(inargs))
+  }
+
+  test("TypeChecker: should mark a simple use of the 'cap' function (applied on an array) as well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let the 'cap' function applied on an integer be well-defined") {
+    val expr = PCapacity(PIntLit(42))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let the 'len' function applied on an integer be well-defined") {
+    val expr = PLength(PIntLit(42))
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let a function application of 'cap' be well-defined if applied on an incorrectly typed array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(-12), PIntType()), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should let a function application of 'cap' be well-defined if applied on a multidimensional array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(1), PArrayType(PIntLit(2), PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a simple application of 'cap'") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a simple application of 'cap' on an array of sequences of Booleans") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PSequenceType(PBoolType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should mark an indexing operator on an array as non-ghost") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    assert (!frontend.isGhostExpr(expr)(inargs))
+  }
+
+  test("TypeChecker: should mark a very simple indexing on an integer array be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should mark integer array indexing be well-defined also if the index exceeds the array length") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(12), PIntType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(412))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let indexing on an integer array be well-defined if the array length happens to be negatieve") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(-12), PIntType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should let array indexing be well-defined if the array is multidimensional") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(10), PArrayType(PIntLit(20), PBoolType())), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let indexing be well-defined if the base is simply, say, a Boolean literal") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PBoolType(), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should let array indexing be well-defined if applied on an array of (ghost) sets") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PSetType(PIntType())), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should assign the correct type to simple indexing on an integer array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.IntT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to simple indexing on a Boolean array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to simple indexing on a multidimensional array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PIntType())), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(12))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.ArrayT(n, Type.IntT) if n == BigInt(12) =>
+    }
+  }
+
+  test("TypeChecker: should mark a small chain of indexing operations as well-defined if the base type allows it") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PIntType())), false))
+    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)), PIntLit(8))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a small chain of indexing operations") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PArrayType(PIntLit(12), PMultisetType(PBoolType()))), false))
+    val expr = PIndexedExp(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)), PIntLit(8))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.MultisetT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should not allow array indexing with a negative index") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(-12))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should allow array indexing with an index that is zero") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(0))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

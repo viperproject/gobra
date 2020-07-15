@@ -1,0 +1,23 @@
+image:
+  name: gobraverifier/gobra-base:v1
+  username: gobraverifier
+  password: $DOCKER_HUB_PASSWORD
+
+pipelines:
+  default:
+    - step:
+        name: build
+        script:
+          - git clone https://github.com/viperproject/silver.git ../silver
+          - git clone https://github.com/viperproject/silicon.git ../silicon
+          - git clone https://github.com/viperproject/carbon.git ../carbon
+          - cd ../silicon; ln --symbolic ../silver; cd ../gobra-one
+          - cd ../carbon; ln --symbolic ../silver; cd ../gobra-one
+          - ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
+          - sbt assembly
+        artifacts:
+          - target
+    - step:
+        name: test
+        script:
+          - sbt test

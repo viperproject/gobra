@@ -137,4 +137,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 
   override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
+
+  override def getTypeInfo: TypeInfo = this
 }

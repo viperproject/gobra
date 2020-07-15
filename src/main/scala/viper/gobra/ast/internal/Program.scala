@@ -38,13 +38,7 @@ sealed trait Location extends Expr
 
 sealed trait GlobalVarDecl extends Member
 
-sealed trait GlobalConstDecl extends Member {
-  def left: GlobalConst
-  def right: Lit
-}
-
-case class BoolGlobalConstDecl(left: GlobalConst, right: BoolLit)(val info: Source.Parser.Info) extends GlobalConstDecl
-case class IntGlobalConstDecl(left: GlobalConst, right: IntLit)(val info: Source.Parser.Info) extends GlobalConstDecl
+case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
 sealed trait Field extends Node {
   def name: String

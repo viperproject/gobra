@@ -19,8 +19,6 @@ trait ExternalTypeInfo {
     */
   def isUsed(m: PMember): Boolean
 
-  def regular(n: PIdnNode): Regular
-
   def createField(decl: PFieldDecl): Field
 
   def createEmbbed(decl: PEmbeddedDecl): Embbed
@@ -41,9 +39,11 @@ trait ExternalTypeInfo {
 
   def scope(n: PIdnNode): PScope
 
-  def struct: PNode => Option[StructT]
+  def struct: PFieldDecl => Option[StructT]
 
   def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 
   def intConstantEvaluation(expr: PExpression): Option[BigInt]
+
+  def getTypeInfo: TypeInfo
 }

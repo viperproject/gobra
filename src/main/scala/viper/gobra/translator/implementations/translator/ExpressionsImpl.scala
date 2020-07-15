@@ -114,12 +114,13 @@ class ExpressionsImpl extends Expressions {
         expT <- goE(exp)
       } yield ctx.array.length(expT)
 
-      case in.ArrayIndex(base, index) => for {
+      case in.IndexedExp(base, index) => for {
         baseT <- goE(base)
         indexT <- goE(index)
       } yield base.typ match {
         case in.ArrayT(_, t) => ctx.loc.arrayIndex(t, baseT, indexT)(ctx)(pos, info, errT)
-        case t => Violation.violation(s"expected an array type, but got $t")
+        case in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }
 
       case in.SequenceLength(exp) => for {
@@ -149,11 +150,6 @@ class ExpressionsImpl extends Expressions {
         leftT <- goE(left)
         rightT <- goE(right)
       } yield vpr.SeqUpdate(seqT, leftT, rightT)(pos, info, errT)
-
-      case in.SequenceIndex(left, right) => for {
-        leftT <- goE(left)
-        rightT <- goE(right)
-      } yield vpr.SeqIndex(leftT, rightT)(pos, info, errT)
 
       case in.SequenceDrop(left, right) => for {
         leftT <- goE(left)

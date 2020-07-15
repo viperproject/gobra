@@ -483,6 +483,8 @@ class LocationsImpl extends Locations {
     * [acc(e.f)] -> FieldAcc[e.f] && PointerAcc[e.f]
     * [acc(  p(as)] -> p(Argument[as])
     * [acc(e.p(as)] -> p(Argument[e], Argument[as])
+    * [acc(a[i])] -> FieldAcc(aslot([a],[i]).f),
+    *   with `f` the field generated for the type of `a`.
     *
     * // an idea:
     * [acc(&!e.!f)] -> ProjAcc[e](path(e.f);f)
@@ -532,6 +534,12 @@ class LocationsImpl extends Locations {
         } yield vpr.And(path, pointer)(pos, info, errT)
 
       case in.Accessible.Predicate(op) => predicateAccess(op)(ctx)
+
+      case in.Accessible.Index(op) => for {
+        baseT <- ctx.expr.translate(op.base)(ctx)
+        indexT <- ctx.expr.translate(op.index)(ctx)
+        lhs = arrayIndex(op.typ, baseT, indexT)(ctx)(pos, info, errT)
+      } yield vpr.FieldAccessPredicate(lhs, perm)(pos, info, errT)
     }
   }
 

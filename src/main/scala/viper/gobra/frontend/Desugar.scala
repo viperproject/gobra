@@ -760,6 +760,19 @@ object Desugar {
       }
     }
 
+
+    private def indexedExprD(base : PExpression, index : PExpression)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] = {
+      for {
+        dbase <- exprD(ctx)(base)
+        dindex <- exprD(ctx)(index)
+      } yield in.IndexedExp(dbase, dindex)(src)
+    }
+
+    def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx)(meta(expr))
+    def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] =
+      indexedExprD(expr.base, expr.index)(ctx)(src)
+
     def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -829,14 +842,7 @@ object Desugar {
             val dOp = pureExprD(ctx)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
-          case PIndexedExp(base, index) => for {
-            dbase <- go(base)
-            dindex <- go(index)
-          } yield dbase.typ match {
-            case in.ArrayT(_, _) => in.ArrayIndex(dbase, dindex)(src)
-            case in.SequenceT(_) => in.SequenceIndex(dbase, dindex)(src)
-            case t => Violation.violation(s"desugaring of indexing expressions with base type $t is currently not supported")
-          }
+          case n : PIndexedExp => indexedExprD(n)(ctx)
 
           case PSliceExp(base, low, high, cap) => for {
             dbase <- go(base)
@@ -1484,6 +1490,8 @@ object Desugar {
           fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
+        case Some(p : ap.IndexedExp) =>
+          indexedExprD(p)(ctx)(src) map in.Accessible.Index
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }

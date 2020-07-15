@@ -189,6 +189,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Accessible.Pointer(der) => showExpr(der)
     case Accessible.Field(op) => showExpr(op)
     case Accessible.Predicate(op) => showPredicateAcc(op)
+    case Accessible.Index(op) => showExpr(op)
   }
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
@@ -221,16 +222,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
+    case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayLength(exp) => "len" <> parens(showExpr(exp))
-    case ArrayIndex(base, index) => showExpr(base) <> brackets(showExpr(index))
-
     case SequenceLength(exp) => "len" <> parens(showExpr(exp))
     case SequenceLiteral(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
-    case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SetLiteral(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)

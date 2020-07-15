@@ -3,7 +3,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -46,6 +46,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(_: ap.Deref) => noMessages
       case Some(_: ap.FieldSelection) => noMessages
       case Some(_: ap.PredicateCall) => noMessages
+      case Some(n: ap.IndexedExp) => exprType(n.base) match {
+        case ArrayT(_, _) => noMessages
+        case t => message(n, s"expected an array type, but got $t")
+      }
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
     }
 
@@ -256,6 +260,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PImplication(left, right) => Seq(left, right).forall(go)
 
       case PLength(op) => go(op)
+      case PCapacity(op) => go(op)
 
       case expr : PGhostCollectionExp => expr match {
         case n : PBinaryGhostExp => go(n.left) && go(n.right)

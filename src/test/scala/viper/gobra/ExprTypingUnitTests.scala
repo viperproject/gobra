@@ -2026,6 +2026,45 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)(inargs).valid)
   }
 
+  test("TypeChecker: should mark a simple array access predicate as non-ghost") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)))
+    assert (frontend.isGhostExpr(expr)(inargs))
+  }
+
+  test("TypeChecker: should let a simple array access predicate be well-defined") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(4)))
+    assert (frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let a simple array access predicate be well-defined if the index is negative") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(-4)))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let a simple array access predicate be well-defined if the index exceeds the array length") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(42)))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should assign the correct type to a simple array access predicate") {
+    val inargs = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("a")), PIntLit(24)))
+
+    frontend.exprType(expr)(inargs) should matchPattern {
+      case Type.AssertionT =>
+    }
+  }
+
+  test("TypeChecker: should not let an 'acc' predicate be well-defined when used on a sequence instead of an array") {
+    val inargs = Vector(PNamedParameter(PIdnDef("xs"), PSequenceType(PBoolType()), false))
+    val expr = PAccess(PIndexedExp(PNamedOperand(PIdnUse("xs")), PIntLit(4)))
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

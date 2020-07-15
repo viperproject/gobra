@@ -23,6 +23,7 @@ object AstPattern {
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
+  case class IndexedExp(base : PExpression, index : PExpression) extends Expr
 
   sealed trait FunctionKind extends Expr
 

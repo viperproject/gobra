@@ -200,6 +200,7 @@ object Accessible {
   case class Pointer(op: Deref) extends Accessible
   case class Field(op: FieldRef) extends Accessible
   case class Predicate(op: PredicateAccess) extends Accessible
+  case class Index(op : IndexedExp) extends Accessible
 }
 
 sealed trait PredicateAccess extends Node
@@ -247,22 +248,21 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
   override def typ : Type = IntT
 }
 
-/* ** Array expressions */
-
 /** Denotes the length of `exp`, which should be of type `ArrayT`. */
-case class ArrayLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
+case class ArrayLength(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
 }
 
 /**
   * Represents indexing into an array "`base`[`index`]",
-  * where `base` is expected to be of an array type
+  * where `base` is expected to be of an array or sequence type
   * and `index` of an integer type.
   */
-case class ArrayIndex(base : Expr, index : Expr)(val info: Source.Parser.Info) extends Expr {
+case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = base.typ match {
     case ArrayT(_, t) => t
-    case t => Violation.violation(s"expected an array type, but got $t")
+    case SequenceT(t) => t
+    case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
 
@@ -309,17 +309,6 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `base`. */
   override def typ : Type = base.typ
-}
-
-/**
-  * Denotes an indexing expression "`left`[`right`]" where `left` should be
-  * of a sequence type and `right` should be the integer-typed index.
-  */
-case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = left.typ match {
-    case SequenceT(t) => t
-    case t => Violation.violation(s"expected a sequence type but got $t")
-  }
 }
 
 /**

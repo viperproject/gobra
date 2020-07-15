@@ -8,7 +8,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   val frontend = new TestFrontend()
 
   test("Printer: should correctly show a standard sequence index expression") {
-    val expr = SequenceIndex(
+    val expr = IndexedExp(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced),
       IntLit(BigInt(42))(Unsourced)
     )(Unsourced)
@@ -897,7 +897,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple array indexing expression") {
-    val expr = ArrayIndex(
+    val expr = IndexedExp(
       LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
       IntLit(42)(Unsourced)
     )(Unsourced)
@@ -908,7 +908,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an array indexing expression with a slightly more complex base") {
-    val expr = ArrayIndex(
+    val expr = IndexedExp(
       SequenceAppend(
         SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
         SequenceLength(
@@ -924,7 +924,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
-    val expr = ArrayIndex(
+    val expr = IndexedExp(
       LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
       Add(
         LocalVar.Ref("x", IntT)(Unsourced),
@@ -938,8 +938,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a small chain of array indexing operations") {
-    val expr = ArrayIndex(
-      ArrayIndex(
+    val expr = IndexedExp(
+      IndexedExp(
         LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
         IntLit(2)(Unsourced)
       )(Unsourced),
@@ -948,6 +948,21 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "a[2][4]" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show a very simple 'acc' predicae applied on an array") {
+    val expr = Access(
+      Accessible.Index(
+        IndexedExp(
+          LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+          IntLit(2)(Unsourced)
+        )(Unsourced)
+      )
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "acc(a[2])" =>
     }
   }
 

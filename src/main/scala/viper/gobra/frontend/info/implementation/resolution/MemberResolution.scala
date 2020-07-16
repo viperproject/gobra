@@ -141,20 +141,20 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
     val typ = exprType(e)
-    val context = getContext(typ)
+    val context = getMethodReceiverContext(typ)
     if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
     else context.tryNonAddressableMethodLikeLookup(typ, id)
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
-    val context = getContext(e)
+    val context = getMethodReceiverContext(e)
     context.tryNonAddressableMethodLikeLookup(e, id)
   }
 
-  private def getContext(t: Type): ExternalTypeInfo = {
+  private def getMethodReceiverContext(t: Type): ExternalTypeInfo = {
     t match {
       case ct: ContextualType => ct.context
-      case p: PointerT => getContext(p.elem)
+      case p: PointerT => getMethodReceiverContext(p.elem)
       case _ => this
     }
   }
@@ -197,12 +197,12 @@ trait MemberResolution { this: TypeInfoImpl =>
         else tryFieldLookup(exprType(expr), id)
 
       case Right(typ) =>
-        val externalAttempt = typeType(typ) match {
+        val methodLikeAttempt = tryMethodLikeLookup(typ, id)
+        if (methodLikeAttempt.isDefined) methodLikeAttempt
+        else typeType(typ) match {
           case pkg: ImportT => tryPackageLookup(pkg, id)
           case _ => None
         }
-        if (externalAttempt.isDefined) externalAttempt
-        else tryMethodLikeLookup(typ, id)
     }
   }
 

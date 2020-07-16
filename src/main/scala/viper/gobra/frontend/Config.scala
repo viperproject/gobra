@@ -162,7 +162,6 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   /** Argument Dependencies */
   requireOne(inputFile)
-  mutuallyExclusive(eraseGhost, goify)
 
   /** File Validation */
   def validateFileIsReadable(fileOption: ScallopOption[File]): Unit = addValidation {

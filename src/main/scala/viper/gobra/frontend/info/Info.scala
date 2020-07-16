@@ -26,8 +26,7 @@ object Info {
       val errors = info.errors
       config.reporter report TypeCheckDebugMessage(config.inputFile, () => program, () => getDebugInfo(program, info))
       if (errors.isEmpty) {
-        config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info))
-        config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getGoifiedGhostCode(program, info))
+        config.reporter report TypeCheckSuccessMessage(config.inputFile, () => program, () => getErasedGhostCode(program, info), () => getGoifiedGhostCode(program, info))
         Right(info)
       } else {
         val typeErrors = program.positions.translate(errors, TypeError)

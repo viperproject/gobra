@@ -70,7 +70,7 @@ class Gobra extends GoVerifier {
     }, identity)
   }
 
-  private val inFileConfigRegex = """(?:.|\n)*\/\/ ##\((.*)\)(?:.|\n)*""".r
+  private val inFileConfigRegex = """(?:.|\r\n|\r|\n)*\/\/ ##\((.*)\)(?:.|\r\n|\r|\n)*""".r
 
   /**
     * Parses all inputFiles given in the current config for in-file command line options (wrapped with "## (...)")

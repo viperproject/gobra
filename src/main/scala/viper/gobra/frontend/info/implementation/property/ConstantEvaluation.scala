@@ -43,6 +43,10 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case SingleConstant(_, _, exp, _, _, _) => boolConstantEval(exp)
         case _ => None
       }
+      case PDot(_, id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, _) => boolConstantEval(exp)
+        case _ => None
+      }
 
       case _ => None
     }
@@ -66,6 +70,10 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
           case _ => None
         }
       case PNamedOperand(id) => entity(id) match {
+        case SingleConstant(_, _, exp, _, _, _) => intConstantEval(exp)
+        case _ => None
+      }
+      case PDot(_, id) => entity(id) match {
         case SingleConstant(_, _, exp, _, _, _) => intConstantEval(exp)
         case _ => None
       }

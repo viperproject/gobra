@@ -78,12 +78,10 @@ class TypeInfoImpl(final val tree: Info.GoTree) extends Attribution with TypeInf
       case id: PIdnUnk if isDef(id) => id
     }
 
-    val sortedIds = ids.sortWith(_.name < _.name)
-    sortedIds.groupBy(enclosingIdScope)
-    //ids.groupBy(enclosingIdScope)
+    ids.groupBy(enclosingIdScope)
   }
 
-  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
+  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty).sortWith(_.name < _.name)
 
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {

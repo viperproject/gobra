@@ -12,10 +12,7 @@ import org.bitbucket.inkytonik.kiama.attribution.Decorators
 /**
   * Whole spec of a function or method which needs goification.
   */
-case class DeclarationSpec(ghostParams: Vector[PExplicitGhostParameter], ghostResultParams: Vector[PExplicitGhostParameter], spec: PFunctionSpec)
-
-
-
+case class DeclarationSpec(ghostParams: Vector[PExplicitGhostParameter], ghostResults: Vector[PExplicitGhostParameter], spec: PFunctionSpec)
 
 
 class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
@@ -26,22 +23,15 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Used to determine if current expression is already in Goified scope.
     */
   val decorators = new Decorators(info.tree)
-  lazy val isNotInGoifiedScope: PNode => Boolean =
-    decorators.down(true){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding  => false
+  lazy val isInGoifiedScope: PNode => Boolean =
+    decorators.down(false){
+      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement | _: PUnfolding  => true
     }
 
-  lazy val unfoldingNotInGoifiedScope: PUnfolding => Boolean =
-    decorators.down(true){
-      case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement => false
-    }
-
-  /*
-  lazy val isEnclosedInGoifiedScope: PNode => Boolean =
+  lazy val unfoldingInGoifiedScope: PUnfolding => Boolean =
     decorators.down(false){
       case _: PFPredicateDecl | _: PMPredicateDecl | _: PFunctionSpec | _: PGhostStatement => true
     }
-  */
 
   /**
     * Keywords used in Goified files.
@@ -64,13 +54,13 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Helper methods to get the parameters and results filtered (without ghost)
     * and also only ghost
     */
-  private def filterParamList[T <: PParameter](paras: Vector[T]): Vector[T] =
+  private def getActualParams[T <: PParameter](paras: Vector[T]): Vector[T] =
     paras.filter(!classifier.isParamGhost(_))
 
-  private def ghostParamList[T <: PParameter](paras: Vector[T]): Vector[PExplicitGhostParameter] =
+  private def getGhostParams[T <: PParameter](paras: Vector[T]): Vector[PExplicitGhostParameter] =
     paras.filter(classifier.isParamGhost(_)).asInstanceOf[Vector[PExplicitGhostParameter]]
 
-  private def filterResult(res: PResult): PResult = {
+  private def getActualResult(res: PResult): PResult = {
     val aOuts = res.outs.filter(!classifier.isParamGhost(_))
     PResult(aOuts)
   }
@@ -94,9 +84,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * of the function / method specification.
     */
   def showDeclarationSpec(spec: DeclarationSpec): Doc = spec match {
-    case DeclarationSpec(ghostParams, ghostResultParams, spec) =>
+    case DeclarationSpec(ghostParams, ghostResults, spec) =>
       (if (ghostParams.isEmpty) emptyDoc else specComment <+> ghost_parameters <+> showParameterList(ghostParams.map(_.actual)) <> line) <>
-      (if (ghostResultParams.isEmpty) emptyDoc else specComment <+> ghost_results <+> showParameterList(ghostResultParams.map(_.actual)) <> line) <>
+      (if (ghostResults.isEmpty) emptyDoc else specComment <+> ghost_results <+> showParameterList(ghostResults.map(_.actual)) <> line) <>
       showSpec(spec)
   }
 
@@ -113,12 +103,12 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   override def showMember(mem: PMember): Doc = mem match {
 
     case PMethodDecl(id, rec, args, res, spec, body) =>
-      showDeclarationSpec(DeclarationSpec(ghostParamList(args), ghostParamList(res.outs), spec)) <>
-      super.showMember(PMethodDecl(id, rec, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
+      super.showMember(PMethodDecl(id, rec, getActualParams(args), getActualResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
 
     case PFunctionDecl(id, args, res, spec, body) =>
-      showDeclarationSpec(DeclarationSpec(ghostParamList(args), ghostParamList(res.outs), spec)) <>
-      super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
+      super.showMember(PFunctionDecl(id, getActualParams(args), getActualResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
 
     case pred: PFPredicateDecl => blockSpecComment(super.showMember(pred))
 
@@ -133,16 +123,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows a ghost statement in the goified version with a given prefix.
     */
   def showGhostStmt(stmt: PStatement, prefix: Doc): Doc = specComment <> prefix <+> super.showStmt(stmt)
+  def showGhostExprList(exprs: Vector[PExpression], prefix: Doc): Doc = specComment <> prefix <+> super.showExprList(exprs)
 
   override def showStmt(stmt: PStatement): Doc = stmt match {
-
-    
-
-    //case s if isEnclosedInGoifiedScope(s) => super.showStmt(s)
-
-    case PForStmt(pre, cond, post, spec, body) =>
-      showSpec(spec) <>
-      super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
 
     case PAssignment(right, left) =>
       StrictAssignModi(left.size, right.size) match {
@@ -154,8 +137,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PAssignment(ghostRight, ghostLeft), with_prefix(aLeft)))
           
         case AssignMode.Multi =>
-          val aLeft = left.filter(!classifier.isExprGhost(_))
-          val ghostLeft = left.filter(classifier.isExprGhost(_))
+          val (aLeft, ghostLeft) = left.partition(!classifier.isExprGhost(_))
 
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PAssignment(right, aLeft))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PAssignment(right, ghostLeft), with_prefix(aLeft)))
@@ -180,10 +162,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           showAddressableVars(aAddressableVars, prefix)
 
         case AssignMode.Multi =>
-          val aLeft = left.filter(!classifier.isIdGhost(_))
+          val (aLeft, ghostLeft) = left.partition(!classifier.isIdGhost(_))
           // List of all non-ghost addressable variables.
           val aAddressableVars = left.zip(addressable).filter(p => !classifier.isIdGhost(p._1)).map(_._1)
-          val ghostLeft = left.filter(classifier.isIdGhost(_))
           // Boolean vector of whether ghost variables are addressable or not.
           val ghostAddressable = left.zip(addressable).filter(p => classifier.isIdGhost(p._1)).map(_._2)
 
@@ -202,9 +183,9 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       val ghostRight = right.zip(gt.toTuple).filter(_._2).map(_._1)
       
       (if (aRight.isEmpty) emptyDoc else super.showStmt(PReturn(aRight))) <>
-      (if (ghostRight.isEmpty) emptyDoc else showGhostStmt(PReturn(ghostRight), with_prefix(aRight)))
+      (if (ghostRight.isEmpty) emptyDoc else showGhostExprList(ghostRight, with_prefix(ghostRight)))
 
-    case s if isNotInGoifiedScope(s) => super.showStmt(s)
+    case s if !isInGoifiedScope(s) => super.showStmt(s)
     case s if classifier.isStmtGhost(s) => showGhostStmt(stmt, emptyDoc)
 
     case s => super.showStmt(stmt)
@@ -214,7 +195,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
   override def showExpr(expr: PExpression): Doc = expr match {
     
-    case n: PInvoke if isNotInGoifiedScope(n) =>
+    case n: PInvoke if !isInGoifiedScope(n) =>
       val gt = classifier.expectedArgGhostTyping(n)
       val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
       val ghostArgs = n.args.zip(gt.toTuple).filter(_._2).map(_._1)
@@ -222,8 +203,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
       super.showExpr(n.copy(args = aArgs)) <> (if (ghostArgs.isEmpty) emptyDoc else space <> inlinedSpecComment(with_keyword <+> showExprList(ghostArgs)))
 
     
-    case e: PUnfolding if unfoldingNotInGoifiedScope(e) =>
-      //parens(showExpr(e.op) <+> inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)))
+    case e: PUnfolding if !unfoldingInGoifiedScope(e) =>
       parens(inlinedSpecComment(unfolding_keyword <+> super.showExpr(e.pred)) <+> showExpr(e.op))
 
     case e: PUnfolding => parens(super.showExpr(e))
@@ -241,44 +221,36 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
   override def showType(typ: PType): Doc = typ match {
 
-    //case t if isEnclosedInGoifiedScope(t) => super.showType(t)
-
     case PStructType(clauses) =>
-      val ghostClauses = ghostStructClauses(clauses)
+      val (actualClauses, ghostClauses) = partitionStructClauses(clauses)
 
-      super.showType(PStructType(filterStructClauses(clauses))) <+>
+      super.showType(PStructType(actualClauses)) <+>
       (if (ghostClauses.isEmpty) emptyDoc else showGhostType(PStructType(ghostClauses)))
 
     case PInterfaceType(embedded, mspecs, pspecs) =>
-      val ghostEmbedded = ghostInterfaceClause(embedded)
-      val ghostMspecs = ghostInterfaceClause(mspecs)
-      val ghostPspecs = ghostInterfaceClause(pspecs)
+      val (actualEmbedded, ghostEmbedded) = partitionInterfaceClauses(embedded)
+      val (actualMspecs, ghostMspecs) = partitionInterfaceClauses(mspecs)
+      val (actualPspecs, ghostPspecs) = partitionInterfaceClauses(pspecs)
 
       "interface" <+> block(
-        ssep(filterInterfaceClause(embedded) map showInterfaceClause, line) <>
+        ssep(actualEmbedded map showInterfaceClause, line) <>
         (if (ghostEmbedded.isEmpty) emptyDoc else ssep(ghostEmbedded map (specComment <+> showInterfaceClause(_)), line)) <>
 
-        ssep(filterInterfaceClause(mspecs) map showInterfaceClause, line) <>
+        ssep(actualMspecs map showInterfaceClause, line) <>
         (if (ghostMspecs.isEmpty) emptyDoc else ssep(ghostMspecs map (specComment <+> showInterfaceClause(_)), line)) <>
 
-        ssep(filterInterfaceClause(pspecs) map showInterfaceClause, line) <>
+        ssep(actualPspecs map showInterfaceClause, line) <>
         (if (ghostPspecs.isEmpty) emptyDoc else ssep(ghostPspecs map (specComment <+> showInterfaceClause(_)), line))
       )
 
     case t => super.showType(t)
   }
 
-  private def filterStructClauses[T <: PStructClause](cl: Vector[T]): Vector[T] =
-    cl.filter(!classifier.isStructClauseGhost(_))
+  private def partitionStructClauses[T <: PStructClause](cl: Vector[T]): (Vector[T], Vector[T]) =
+    cl.partition(!classifier.isStructClauseGhost(_))
 
-  private def ghostStructClauses[T <: PStructClause](cl: Vector[T]): Vector[T] =
-    cl.filter(classifier.isStructClauseGhost(_))
-
-  private def filterInterfaceClause[T <: PInterfaceClause](cl: Vector[T]): Vector[T] =
-    cl.filter(!classifier.isInterfaceClauseGhost(_))
-
-  private def ghostInterfaceClause[T <: PInterfaceClause](cl: Vector[T]): Vector[T] =
-    cl.filter(classifier.isInterfaceClauseGhost(_))
+  private def partitionInterfaceClauses[T <: PInterfaceClause](cl: Vector[T]): (Vector[T], Vector[T]) =
+    cl.partition(!classifier.isInterfaceClauseGhost(_))
 
 
   private def errorMsg: Nothing = Violation.violation("GoifyingPrinter has to be run after the type check")

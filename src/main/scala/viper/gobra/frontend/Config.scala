@@ -30,8 +30,8 @@ case class Config(
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
                  backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
-                 z3Exe: Option[String],
-                 boogieExe: Option[String],
+                 z3Exe: Option[String] = None,
+                 boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,

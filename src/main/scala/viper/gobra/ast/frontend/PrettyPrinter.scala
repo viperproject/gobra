@@ -308,7 +308,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     val exprPrecedence = getPrecedence(expr)
     val subExprPrecedence = getPrecedence(subExpr)
 
-    if (subExprPrecedence <= exprPrecedence)
+    if (subExprPrecedence < exprPrecedence)
       parens(showExpr(subExpr))
     else
       showExpr(subExpr)

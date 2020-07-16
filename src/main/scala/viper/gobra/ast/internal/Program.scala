@@ -38,11 +38,7 @@ sealed trait Location extends Expr
 
 sealed trait GlobalVarDecl extends Member
 
-//case class SingleGlobalVarDecl(left: GlobalVar, right: Expr)
-
-//case class MultiGlobalVarDecl(lefts: Vector[GlobalVar], right: Expr)
-
-sealed trait GlobalConst extends Member
+case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
 sealed trait Field extends Node {
   def name: String
@@ -409,15 +405,14 @@ object LocalVar {
 
 }
 
-//sealed trait GlobalVar extends Var {
-//  def unapply(arg: LocalVar): Option[(String, Type)] =
-//    Some((arg.id, arg.typ))
-//}
+sealed trait GlobalConst extends Var {
+  def unapply(arg: GlobalConst): Option[(String, Type)] =
+    Some((arg.id, arg.typ))
+}
 
-//object GlobalVar {
-//  case class Var(id: String, typ: Type)(val src: Source) extends LocalVar
-//  case class Val(id: String, typ: Type)(val src: Source) extends LocalVar
-//}
+object GlobalConst {
+  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends GlobalConst
+}
 
 
 

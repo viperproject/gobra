@@ -1,13 +1,14 @@
 package viper.gobra.translator.implementations
 
-import viper.gobra.translator.implementations.components.{TuplesImpl, TypePropertiesImpl}
+import viper.gobra.translator.implementations.components.{FixpointImpl, TuplesImpl, TypePropertiesImpl}
 import viper.gobra.translator.implementations.translator._
 import viper.gobra.translator.interfaces.TranslatorConfig
-import viper.gobra.translator.interfaces.components.{Tuples, TypeProperties}
+import viper.gobra.translator.interfaces.components.{Fixpoint, Tuples, TypeProperties}
 import viper.gobra.translator.interfaces.translator._
 
 class DfltTranslatorConfig(
 
+   val fixpoint: Fixpoint = new FixpointImpl(),
    val tuple: Tuples     = new TuplesImpl(),
    val typeProperty: TypeProperties = new TypePropertiesImpl(),
 

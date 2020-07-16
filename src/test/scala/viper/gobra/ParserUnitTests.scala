@@ -4,7 +4,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
-import viper.gobra.ast.frontend.{PAssignment, PDot, PExpression, PIdnDef, PIdnUse, PImportDecl, PIntLit, PInvoke, PNamedOperand, PQualifiedImport, PStatement, PUnqualifiedImport, PWildcard}
+import viper.gobra.ast.frontend.{PAssignment, PCompositeLit, PDot, PExpCompositeVal, PExpression, PFunctionDecl, PFunctionSpec, PIdnDef, PIdnUnk, PIdnUse, PImport, PIntLit, PInvoke, PKeyedElement, PLiteralValue, PMember, PNamedOperand, PQualifiedImport, PResult, PShortVarDecl, PStatement, PUnqualifiedImport, PWildcard}
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
@@ -112,6 +112,31 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: spec only function") {
+    frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), false), None)) =>
+    }
+  }
+
+  test("Parser: spec only function with nested blocks") {
+    frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), false), None)) =>
+    }
+  }
+
+  test("Parser: spec only function with incomplete nested blocks") {
+    an [TestFailedException] should be thrownBy
+      frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
+  }
+
+  test("Parser: imported struct initialization") {
+    val parseRes = frontend.parseStmt("a := b.BarCell{10}")
+    inside (parseRes) {
+      case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(PIdnUnk("a")), Vector(false)) => value should be (10)
+    }
+  }
+
   class TestFrontend {
     private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Messages, T]): T = {
       parser(StringSource(source)) match {
@@ -122,6 +147,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
     def parseStmt(source: String): PStatement = parseOrFail(source, Parser.parseStmt)
     def parseExp(source: String): PExpression = parseOrFail(source, Parser.parseExpr)
-    def parseImportDecl(source: String): Vector[PImportDecl] = parseOrFail(source, Parser.parseImportDecl)
+    def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
+    def parseMember(source: String, specOnly: Boolean = false): Vector[PMember] = parseOrFail(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
   }
 }

@@ -1,5 +1,5 @@
 image:
-  name: gobraverifier/gobra-base:v1
+  name: gobraverifier/gobra-base:v2
   username: gobraverifier
   password: $DOCKER_HUB_PASSWORD
 

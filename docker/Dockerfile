@@ -34,5 +34,7 @@ RUN echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.lis
 RUN apt-get update && \
     apt-get install -y z3 && \
     rm -rf /var/lib/apt/lists/*
+# executing `which z3` and setting Z3_EXE based on its result is unfortunately not possible, therefore it is hardcoded
+ENV Z3_EXE /usr/bin/z3
 
 WORKDIR /

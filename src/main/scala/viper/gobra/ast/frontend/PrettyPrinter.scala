@@ -304,32 +304,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case _ => Precedence.p7
   }
 
-  def isExprTypeEqual(expr: PExpression, subExpr: PExpression): Boolean = {
-    if (getPrecedence(expr) == getPrecedence(subExpr))
-      expr match {
-        case _: PEquals => subExpr.isInstanceOf[PEquals]
-        case _: PUnequals => subExpr.isInstanceOf[PUnequals]
-        case _: PLess => subExpr.isInstanceOf[PLess]
-        case _: PAtMost => subExpr.isInstanceOf[PAtMost]
-        case _: PGreater => subExpr.isInstanceOf[PGreater]
-        case _: PAtLeast => subExpr.isInstanceOf[PAtLeast]
-        case _: PAdd => subExpr.isInstanceOf[PAdd]
-        case _: PSub => subExpr.isInstanceOf[PSub]
-        case _: PMul => subExpr.isInstanceOf[PMul]
-        case _: PDiv => subExpr.isInstanceOf[PDiv]
-        case _: PMod => subExpr.isInstanceOf[PMod]
-        case _ => false
-      }
-    else
-      false
-  }
-
-
   def showSubExpr(expr: PExpression, subExpr: PExpression): Doc = {
     val exprPrecedence = getPrecedence(expr)
     val subExprPrecedence = getPrecedence(subExpr)
 
-    if (subExprPrecedence <= exprPrecedence && !isExprTypeEqual(expr, subExpr))
+    if (subExprPrecedence <= exprPrecedence)
       parens(showExpr(subExpr))
     else
       showExpr(subExpr)

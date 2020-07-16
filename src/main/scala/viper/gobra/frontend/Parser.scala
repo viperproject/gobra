@@ -61,7 +61,6 @@ object Parser {
         val errors = pom.translate(messages, ParserError)
         config.reporter report ParserErrorMessage(config.inputFile, errors)
         Left(errors)
-        //Left(pom.translate(messages, ParserError))
     }
   }
 

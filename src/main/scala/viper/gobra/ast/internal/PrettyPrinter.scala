@@ -1,7 +1,6 @@
 package viper.gobra.ast.internal
 
 import org.bitbucket.inkytonik.kiama
-//import org.bitbucket.inkytonik.kiama.output.PrettyPrinter
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 

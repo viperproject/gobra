@@ -37,11 +37,15 @@ object BackendVerifier {
   def verify(task: Task)(config: Config): Future[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
-    if (config.backend != ViperServer && config.z3Exe != null && Files.exists(Paths.get(config.z3Exe)))
-      exePaths ++= Vector("--z3Exe", config.z3Exe)
 
-    if (config.backend == Carbon && config.boogieExe != null && Files.exists(Paths.get(config.boogieExe)))
-      exePaths ++= Vector("--boogieExe", config.boogieExe)
+    (config.backend, config.z3Exe, config.boogieExe) match {
+      case (Silicon, Some(z3Exe), _) =>
+        exePaths ++= Vector("--z3Exe", z3Exe)
+      case (Carbon, Some(z3Exe), Some(boogieExe)) =>
+        exePaths ++= Vector("--z3Exe", z3Exe)
+        exePaths ++= Vector("--boogieExe", boogieExe)
+      case _ => // ignore
+    }
 
     val verifier = config.backend.create(exePaths)
 

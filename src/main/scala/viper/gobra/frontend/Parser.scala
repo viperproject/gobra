@@ -879,16 +879,16 @@ object Parser {
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ specOnlyParser(predicateBody) ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ specOnlyParser(predicateBody) ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
 
-    lazy val predicateBody: Parser[PExpression] =
-      "{" ~> expression <~ eos.? ~ "}"
+    lazy val predicateBody: Parser[Option[PExpression]] =
+      ("{" ~> expression <~ eos.? ~ "}").?
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
@@ -910,12 +910,11 @@ object Parser {
         "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-
-    lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
-        idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
-        nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
-        primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
+      // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+      primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
+        case invoke: PInvoke => success(PPredicateAccess(invoke))
+        case e => failure(s"expected invoke but got ${e.getClass}")
+      }
 
     lazy val boundVariables: Parser[Vector[PBoundVariable]] =
       rep1sep(boundVariableDecl, ",") ^^ Vector.concat

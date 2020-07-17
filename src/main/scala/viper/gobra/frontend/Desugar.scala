@@ -147,7 +147,7 @@ object Desugar {
       * desugared or skipped
       */
     def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
-      val consideredDecls = p.declarations.filter(shouldDesugar)
+      val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)

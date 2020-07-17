@@ -36,11 +36,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.MethodExpr) => noMessages
         case Some(p: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
+        case Some(p: ap.Constant) => noMessages
         case Some(p: ap.Function) => noMessages
         case Some(p: ap.NamedType) => noMessages
-        case Some(p: ap.Constant) => noMessages
-        // TODO: supporting packages results in further options: named type, global variable, function, predicate
-        case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, or predicate expression, but got $n")
+        case Some(p: ap.Predicate) => noMessages
+        // TODO: supporting packages results in further options: global variable
+        case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
       }
   }
 
@@ -75,14 +76,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
-        case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
-        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
         case Some(p: ap.Constant) => p.symb match {
           case sc: SingleConstant => sc.context.typ(sc.idDef)
           case _ => ???
         }
+        case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
-        // TODO: supporting packages results in further options: named type, global variable, function, predicate
+        // TODO: supporting packages results in further options: global variable
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
       }
 

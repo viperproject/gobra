@@ -117,7 +117,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
 
-
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
     ids.groupBy(uniqueRegular(_).get)
@@ -126,7 +125,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   def uses(id: PIdnNode): Vector[PIdnUse] = {
     uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
   }
-
 
   case class UniqueRegular(r: Regular, s: PScope)
 
@@ -151,4 +149,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 
   override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
+
+  override def getTypeInfo: TypeInfo = this
 }

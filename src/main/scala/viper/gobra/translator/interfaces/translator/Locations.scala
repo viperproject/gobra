@@ -11,7 +11,7 @@ trait Locations extends Generator {
 
   def values(t: in.Type)(ctx: Context): Vector[in.Expr => (CodeWriter[vpr.Exp], Locations.SubValueRep)]
 
-  def parameter(v: in.TopDeclaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
+  def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
 
   def target(v: in.LocalVar.Val)(ctx: Context): CodeWriter[Vector[vpr.LocalVar]]
 

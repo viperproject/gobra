@@ -220,13 +220,26 @@ object Parser {
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
     /**
+      * Consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise applies the parser `p`
+      */
+    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
+      if (specOnly) nestedCurlyBracketsConsumer
+      else p.?
+
+    /**
+      * Consumes nested curly brackets with arbitrary content and returns None
+      */
+    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
+      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
+
+    /**
       * Member
       */
 
     lazy val program: Parser[PProgram] =
       (packageClause <~ eos) ~ importDecls ~ members ^^ {
         case pkgClause ~ importDecls ~ members =>
-          PProgram(pkgClause, importDecls.flatten, members.flatten, pom)
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =
@@ -303,7 +316,7 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ optBlock ^^ {
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(block) ^^ {
         case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
@@ -313,7 +326,7 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ optBlock ^^ {
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(block) ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
@@ -401,19 +414,6 @@ object Parser {
 
     lazy val deferStmt: Parser[PDeferStmt] =
       "defer" ~> expression ^^ PDeferStmt
-
-    /**
-      * Parses an optional block. If specOnly is enabled consumes nested blocks but returns None
-      */
-    lazy val optBlock: Parser[Option[PBlock]] =
-      if (specOnly) nestedCurlyBracketsConsumer
-      else block.?
-
-    /**
-      * Consumes nested curly brackets with arbitrary content and returns None
-      */
-    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
-      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
 
     lazy val block: Parser[PBlock] =
       "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
@@ -599,6 +599,7 @@ object Parser {
 
 
     lazy val primaryExp: Parser[PExpression] =
+      ghostPrimaryExpression |
         conversion |
         call |
         selection |
@@ -914,6 +915,23 @@ object Parser {
         case invoke: PInvoke => success(PPredicateAccess(invoke))
         case e => failure(s"expected invoke but got ${e.getClass}")
       }
+
+    lazy val boundVariables: Parser[Vector[PBoundVariable]] =
+      rep1sep(boundVariableDecl, ",") ^^ Vector.concat
+
+    lazy val boundVariableDecl: Parser[Vector[PBoundVariable]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PBoundVariable(id, t.copy).at(id))
+      }
+
+    lazy val triggers: Parser[Vector[PTrigger]] = trigger.*
+
+    lazy val trigger: Parser[PTrigger] =
+      "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
+
+    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
+        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     /**
       * EOS

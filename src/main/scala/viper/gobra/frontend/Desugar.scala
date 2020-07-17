@@ -6,6 +6,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.internal.Lit
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -13,15 +14,18 @@ import viper.gobra.util.{DesugarWriter, Violation}
 
 object Desugar {
 
-  def desugar(program: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
+    // independently desugar each imported package. Only used members (i.e. members for which `isUsed` returns true will be desugared:
     val importedPrograms = info.context.getContexts map { tI => {
-      val typeInfo: viper.gobra.frontend.info.TypeInfo = tI.asInstanceOf[viper.gobra.frontend.info.TypeInfo]
-      val importedProgram = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedProgram.positions, typeInfo)
-      (d, d.programD(importedProgram, tI.isUsed))
+      val typeInfo: TypeInfo = tI.getTypeInfo
+      val importedPackage = typeInfo.tree.originalRoot
+      val d = new Desugarer(importedPackage.positions, typeInfo)
+      (d, d.packageD(importedPackage, tI.isUsed))
     }}
-    val mainDesugarer = new Desugarer(program.positions, info)
-    val internalProgram = combine(mainDesugarer, mainDesugarer.programD(program), importedPrograms)
+    // desugar the main package, i.e. the package on which verification is performed:
+    val mainDesugarer = new Desugarer(pkg.positions, info)
+    // combine all desugared results into one Viper program:
+    val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
     internalProgram
   }
@@ -139,11 +143,11 @@ object Desugar {
     }
 
     /**
-      * Desugars a package with an optional `desugarMember` function indicating whether a particular member should be
+      * Desugars a package with an optional `shouldDesugar` function indicating whether a particular member should be
       * desugared or skipped
       */
-    def programD(p: PPackage, desugarMember: PMember => Boolean = _ => true): in.Program = {
-      val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if desugarMember(x) => m }
+    def packageD(p: PPackage, shouldDesugar: PMember => Boolean = _ => true): in.Program = {
+      val consideredDecls = p.declarations.collect { case m@NoGhost(x: PMember) if shouldDesugar(x) => m }
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
@@ -170,20 +174,21 @@ object Desugar {
       case sc@ st.SingleConstant(_, id, expr, _, _, context) => {
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
-        gVar.typ match {
+        val intLit: Lit = gVar.typ match {
           case in.BoolT =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
-            in.BoolGlobalConstDecl(gVar, in.BoolLit(constValue.get)(src))(src)
+            in.BoolLit(constValue.get)(src)
           case in.IntT =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
-            in.IntGlobalConstDecl(gVar, in.IntLit(constValue.get)(src))(src)
+            in.IntLit(constValue.get)(src)
           case _ => ???
         }
+        in.GlobalConstDecl(gVar, intLit)(src)
       }
       case _ => ???
     })
 
-    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl, info.asInstanceOf[ExternalTypeInfo]))(meta(decl))
+    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl, info))(meta(decl))
 
     def functionD(decl: PFunctionDecl): in.Member =
       if (decl.spec.isPure) pureFunctionD(decl) else {
@@ -267,7 +272,6 @@ object Desugar {
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
-
 
       val bodyOpt = decl.body.map{ s =>
         val vars = argSubs.flatten ++ returnSubs.flatten
@@ -811,7 +815,8 @@ object Desugar {
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
-            case p => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
+            case Some(p) => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
+            case _ => Violation.violation(s"could not resolve $n")
           }
 
           case n: PInvoke =>
@@ -859,7 +864,7 @@ object Desugar {
         case MemberPath.Underlying => e
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
-        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl, info.asInstanceOf[ExternalTypeInfo])(pinfo))(pinfo)
+        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl, info)(pinfo))(pinfo)
       }}
     }
 
@@ -1028,7 +1033,7 @@ object Desugar {
 
     // Identifier
 
-    def idName(id: PIdnNode, context: ExternalTypeInfo = info.asInstanceOf[ExternalTypeInfo]): String = context.regular(id) match {
+    def idName(id: PIdnNode, context: TypeInfo = info): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
       case m: st.MethodSpec => nm.spec(id.name, m.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
@@ -1036,8 +1041,7 @@ object Desugar {
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
-      case e: st.Embbed => ???
-      case e: st.Field => ???
+      case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
       case _ => ???
     }
@@ -1046,7 +1050,7 @@ object Desugar {
       c match {
         case sc: st.SingleConstant => {
           val typ = typeD(c.context.typ(sc.idDef))(src)
-          in.GlobalConst.Val(idName(sc.idDef, c.context), typ)(src)
+          in.GlobalConst.Val(idName(sc.idDef, c.context.getTypeInfo), typ)(src)
         }
         case _ => ???
       }
@@ -1118,7 +1122,7 @@ object Desugar {
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
               val local = None
               (param, local)
           }
@@ -1138,7 +1142,7 @@ object Desugar {
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
               val local = None
               (param, local)
           }
@@ -1154,7 +1158,7 @@ object Desugar {
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info.asInstanceOf[ExternalTypeInfo]), typeD(info.typ(typ))(src))(src)
+          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
           val local = None
           (param, local)
       }
@@ -1184,7 +1188,7 @@ object Desugar {
   }
 
     def embeddedDeclD(decl: PEmbeddedDecl, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field.Ref(idName(decl.id, context), embeddedTypeD(decl.typ)(src))(src)
+      in.Field.Ref(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ)(src))(src)
 
     def fieldDeclD(field: (String, Type), struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
@@ -1238,6 +1242,14 @@ object Desugar {
             wels <- go(els)
           } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.PureForall(newVars, newTriggers, newBody)(src)
+
+        case PExists(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
+            yield in.Exists(newVars, newTriggers, newBody)(src)
+
         case PImplication(left, right) =>
           for {
             wcond <- go(left)
@@ -1248,6 +1260,36 @@ object Desugar {
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
     }
+
+    /**
+      * Desugars a quantifier-like structure: a sequence `vars` of variable declarations,
+      * together with a sequence `triggers` of triggers and a quantifier `body`.
+      * @param ctx A function context consisting of variable substitutions.
+      * @param vars The sequence of variable (declarations) bound by the quantifier.
+      * @param triggers The sequence of triggers for the quantifier.
+      * @param body The quantifier body.
+      * @param go The desugarer for `body`, for example `exprD` or `assertionD`.
+      * @tparam T The type of the desugared quantifier body (e.g., expression, or assertion).
+      * @return The desugared versions of `vars`, `triggers` and `body`.
+      */
+    def quantifierD[T](ctx: FunctionContext)
+                      (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
+                      (go : FunctionContext => PExpression => Writer[T])
+        : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
+      val newVars = vars map boundVariableD(ctx)
+
+      // substitution has to be added since otherwise all bound variables are translated to addressable variables
+      val bodyCtx = ctx.copy
+      (vars zip newVars).foreach { case (a, b) => bodyCtx.addSubst(a.id, b) }
+
+      for {
+        newTriggers <- sequence(triggers map triggerD(bodyCtx))
+        newBody <- go(bodyCtx)(body)
+      } yield (newVars, newTriggers, newBody)
+    }
+
+    def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
+      in.BoundVar(idName(x.id), typeD(info.typ(x.typ))(meta(x)))(meta(x))
 
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx)(expr)
@@ -1272,7 +1314,6 @@ object Desugar {
       specificationD(ctx)(ass)
     }
 
-
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {
 
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
@@ -1295,6 +1336,14 @@ object Desugar {
         case n: PPredicateAccess => predicateCallD(ctx)(n.pred)
 
         case n: PInvoke => predicateCallD(ctx)(n)
+
+        case PForall(vars, triggers, body) =>
+          for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
+            yield newBody match {
+              case in.ExprAssertion(exprBody) =>
+                in.ExprAssertion(in.PureForall(newVars, newTriggers, exprBody)(src))(src)
+              case _ => in.SepForall(newVars, newTriggers, newBody)(src)
+            }
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
@@ -1354,9 +1403,12 @@ object Desugar {
       }
     }
 
+    def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
+      val src: Meta = meta(trigger)
+      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
 
-
-//    private def origin(n: PNode): in.Origin = {
+    //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get
 //      val finish = pom.positions.getFinish(n).get
 //      val pos = pom.translate(start, finish)
@@ -1364,7 +1416,7 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    def meta(n: PNode): Meta = {
+    private def meta(n: PNode): Meta = {
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)
@@ -1373,6 +1425,20 @@ object Desugar {
     }
   }
 
+  /**
+    * The NameManager returns unique names for various entities.
+    * It adheres to the following naming conventions:
+    * - variables, receiver, in-, and output parameter include scope counter in their names
+    * - the above mentioned entities and all others except structs include the package name in which they are declared
+    * - structs are differently handled as the struct type does not consist of a name. Hence, we include the positional
+    *   information of the struct in its name. This positional information consists of the file name, line nr and
+    *   column of the start of the struct declaration.
+    * As a result, the desugared name of all entities that can be accesses from outside of a package does not depend on
+    * any counters and/or maps but can be computed based on the package name and/or positional information of the
+    * entity's declaration.
+    * This is key to desugar packages in isolation without knowing the desugarer instance and/or name manager of each
+    * imported package.
+    */
   private class NameManager {
 
     private val FRESH_PREFIX = "N"
@@ -1441,7 +1507,7 @@ object Desugar {
 
     def struct(s: StructT): String = {
       // we assume that structs are uniquely identified by the SourcePosition at which they were declared:
-      val pom = s.context.asInstanceOf[TypeInfo].tree.originalRoot.positions
+      val pom = s.context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(s.decl).get
       val finish = pom.positions.getFinish(s.decl).get
       val pos = pom.translate(start, finish)

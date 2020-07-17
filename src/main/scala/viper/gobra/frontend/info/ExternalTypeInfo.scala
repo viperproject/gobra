@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodLike, MethodSpec, Regular}
 import viper.gobra.frontend.info.base.Type.Type
@@ -32,8 +32,6 @@ trait ExternalTypeInfo {
     */
   def isUsed(m: PMember): Boolean
 
-  def regular(n: PIdnNode): Regular
-
   def createField(decl: PFieldDecl): Field
 
   def createEmbbed(decl: PEmbeddedDecl): Embbed
@@ -56,9 +54,11 @@ trait ExternalTypeInfo {
 
   def scope(n: PIdnNode): PScope
 
-  def struct: PNode => Option[StructT]
+  def struct: PFieldDecl => Option[StructT]
 
   def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 
   def intConstantEvaluation(expr: PExpression): Option[BigInt]
+
+  def getTypeInfo: TypeInfo
 }

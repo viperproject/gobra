@@ -148,6 +148,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
+    case bvar: BoundVar => showVar(bvar)
     case localVar: LocalVar => showVar(localVar)
     case outParam: Parameter.Out => showVar(outParam)
   }
@@ -185,6 +186,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
+    case SepForall(vars, triggers, body) =>
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
   }
 
   def showAcc(acc: Accessible): Doc = acc match {
@@ -199,6 +202,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
+  def showTrigger(trigger: Trigger) : Doc = showExprList(trigger.exprs)
+  def showTriggers(triggers: Vector[Trigger]) : Doc = "{" <+> showList(triggers)(showTrigger) <+> "}"
+
   // expressions
 
   def showExpr(e: Expr): Doc = e match {
@@ -207,6 +213,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Old(op) => "old(" <> showExpr(op) <> ")"
 
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+
+    case PureForall(vars, triggers, body) =>
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
+
+    case Exists(vars, triggers, body) =>
+      "exists" <+>  showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
@@ -239,6 +251,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // variables
 
   def showVar(v: Var): Doc = v match {
+    case BoundVar(id, _) => id
     case Parameter.In(id, _)    => id
     case Parameter.Out(id, _)    => id
     case LocalVar.Ref(id, _) => id
@@ -248,6 +261,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showVarDecl(v: Var): Doc = v match {
+    case BoundVar(id, t) => id <> ":" <+> showType(t)
     case Parameter.In(id, t)    => id <> ":" <+> showType(t)
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
@@ -348,5 +362,4 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
   }
-
 }

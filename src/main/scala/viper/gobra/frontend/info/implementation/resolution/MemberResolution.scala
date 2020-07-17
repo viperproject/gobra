@@ -35,7 +35,10 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
     tree.root.declarations
-      .collect { case m: PMethodDecl => createMethodImpl(m) }(breakOut)
+      .collect {
+        case m: PMethodDecl => createMethodImpl(m)
+        case PExplicitGhostMember(m: PMethodDecl) => createMethodImpl(m)
+      }(breakOut)
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
       .mapValues(ms => AdvancedMemberSet.init(ms))
   }
@@ -140,12 +143,23 @@ trait MemberResolution { this: TypeInfoImpl =>
     structMemberSet(t).lookupWithPath(id.name)
 
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
-    if (effAddressable(e)) addressableMethodSet(exprType(e)).lookupWithPath(id.name)
-    else nonAddressableMethodSet(exprType(e)).lookupWithPath(id.name)
+    val typ = exprType(e)
+    val context = getMethodReceiverContext(typ)
+    if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
+    else context.tryNonAddressableMethodLikeLookup(typ, id)
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
-    nonAddressableMethodSet(e).lookupWithPath(id.name)
+    val context = getMethodReceiverContext(e)
+    context.tryNonAddressableMethodLikeLookup(e, id)
+  }
+
+  private def getMethodReceiverContext(t: Type): ExternalTypeInfo = {
+    t match {
+      case ct: ContextualType => ct.context
+      case p: PointerT => getMethodReceiverContext(p.elem)
+      case _ => this
+    }
   }
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
@@ -207,10 +221,13 @@ trait MemberResolution { this: TypeInfoImpl =>
         if (methodLikeAttempt.isDefined) methodLikeAttempt
         else tryFieldLookup(exprType(expr), id)
 
-      case Right(typ) => typeType(typ) match {
-        case pkg: ImportT => tryPackageLookup(pkg, id)
-        case _ => tryMethodLikeLookup(typ, id)
-      }
+      case Right(typ) =>
+        val methodLikeAttempt = tryMethodLikeLookup(typ, id)
+        if (methodLikeAttempt.isDefined) methodLikeAttempt
+        else typeType(typ) match {
+          case pkg: ImportT => tryPackageLookup(pkg, id)
+          case _ => None
+        }
     }
   }
 

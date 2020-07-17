@@ -5,11 +5,11 @@ import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.SymbolTable.{Regular, lookup}
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, lookup}
+import viper.gobra.frontend.info.base.Type.{StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -78,16 +78,29 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   }
 
   private var externallyAccessedMembers: Vector[PNode] = Vector()
+  private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
+    if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    r
+  }
 
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {
     // TODO restrict lookup to members starting with a capital letter
     lookup(topLevelEnvironment, n.name, UnknownEntity()) match {
-      case r: Regular => {
-        if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
-        Some(r)
-      }
+      case r: Regular => Some(registerExternallyAccessedEntity(r))
       case _ => None
     }
+  }
+
+  override def tryAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    val res = addressableMethodSet(typ).lookupWithPath(id.name)
+    res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
+    res
+  }
+
+  override def tryNonAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+    val res = nonAddressableMethodSet(typ).lookupWithPath(id.name)
+    res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
+    res
   }
 
   override def isUsed(m: PMember): Boolean = {
@@ -105,7 +118,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
 
-
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
     ids.groupBy(uniqueRegular(_).get)
@@ -114,7 +126,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   def uses(id: PIdnNode): Vector[PIdnUse] = {
     uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
   }
-
 
   case class UniqueRegular(r: Regular, s: PScope)
 
@@ -139,4 +150,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 
   override def intConstantEvaluation(expr: PExpression): Option[BigInt] = intConstantEval(expr)
+
+  override def getTypeInfo: TypeInfo = this
 }

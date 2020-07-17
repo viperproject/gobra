@@ -2,7 +2,6 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import in.Addressable.isAddressable
-import viper.gobra.ast.internal.GlobalConst
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Locations
@@ -53,6 +52,7 @@ class LocationsImpl extends Locations {
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     v match {
+      case in.BoundVar(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.In(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.Out(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case lv: in.LocalVar.Val => variableVal(lv)(ctx)
@@ -78,7 +78,7 @@ class LocationsImpl extends Locations {
   /**
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
     */
-  override def parameter(v: in.TopDeclaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+  override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     v match {
       case v: in.Var =>
         val trans = values(v.typ)(ctx)

@@ -49,15 +49,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // entire package
 
-  def showPackage(p: PPackage): Doc = p match {
-    case PPackage(_, programs, _) =>
-      ssep(programs map showProgram, line) <> line
-  }
+  def showPackage(p: PPackage): Doc =
+    ssep(p.programs map showProgram, line) <> line
 
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packageClause, imports, declarations, _) =>
+    case PProgram(packageClause, imports, declarations) =>
       showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
@@ -300,6 +298,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+      case PForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PExists(vars, triggers, body) =>
+        "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
       case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
@@ -402,6 +404,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case misc: PGhostMisc => ???
+    case misc: PGhostMisc => misc match {
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+    }
   }
 }

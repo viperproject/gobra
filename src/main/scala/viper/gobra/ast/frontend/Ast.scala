@@ -11,6 +11,7 @@ import java.nio.file.Paths
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
+import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
@@ -30,6 +31,7 @@ sealed trait PNode extends Product {
 }
 
 object PNode {
+  type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
 }
 
@@ -49,8 +51,7 @@ case class PPackage(
 case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
-                     declarations: Vector[PMember],
-                     positions: PositionManager
+                     declarations: Vector[PMember]
                    ) extends PNode
 
 
@@ -516,14 +517,14 @@ case class PLabelUse(name: String) extends PUseLikeLabel
 
 
 sealed trait PPackegeNode extends PNode {
-  def name: String
+  def name: PPkg
 }
 
 trait PDefLikePkg extends PPackegeNode
 trait PUseLikePkg extends PPackegeNode
 
-case class PPkgDef(name: String) extends PDefLikePkg
-case class PPkgUse(name: String) extends PUseLikePkg
+case class PPkgDef(name: PPkg) extends PDefLikePkg
+case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
 case class PWildcard() extends PDefLikeId with PUseLikeId {
@@ -666,11 +667,15 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-/** expression has to be deref, field seclection, or predicate call */
+/** expression has to be deref, field selection, or predicate call */
 case class PAccess(exp: PExpression) extends PGhostExpression
 
-/** speczialized version of PAccess that only handles predicae accesses. E.g, used for foldings.  */
+/** specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
+
+case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 
 /**
@@ -684,6 +689,10 @@ sealed trait PGhostType extends PType with PGhostNode
   */
 
 sealed trait PGhostMisc extends PMisc with PGhostNode
+
+case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
+
+case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

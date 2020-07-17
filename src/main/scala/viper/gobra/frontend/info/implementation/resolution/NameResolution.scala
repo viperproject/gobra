@@ -58,7 +58,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PImport => Import(decl, this)
 
-            // Ghost additions
+        // Ghost additions
+        case decl: PBoundVariable => BoundVariable(decl, this)
 
         case decl: PFPredicateDecl => FPredicate(decl, this)
         case decl: PMPredicateDecl => MPredicateImpl(decl, this)

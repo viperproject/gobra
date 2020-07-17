@@ -9,13 +9,17 @@ object Type {
 
   sealed trait Type
 
+  sealed trait ContextualType extends Type {
+    val context: ExternalTypeInfo
+  }
+
   case object UnknownType extends Type
 
   case object VoidType extends Type
 
   case object NilType extends Type
 
-  case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends Type
+  case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends ContextualType
 
   case object BooleanT extends Type
 
@@ -45,7 +49,7 @@ object Type {
 
   }
 
-  case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends Type {
+  case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
     lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(removeFieldIndicator)
     lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(removeFieldIndicator)
     private def isField(clause: (String, (Boolean, Type))): Boolean = clause._2._1

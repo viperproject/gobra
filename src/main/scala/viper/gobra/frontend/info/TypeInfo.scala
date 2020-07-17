@@ -5,19 +5,11 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.Type.Type
 
-trait TypeInfo {
+trait TypeInfo extends ExternalTypeInfo {
 
   def context: Info.Context
 
   def typ(expr: PExpression): Type
-
-  def typ(misc: PMisc): Type
-
-  def typ(typ: PType): Type
-
-  def typ(id: PIdnNode): Type
-
-  def scope(n: PIdnNode): PScope
 
   def codeRoot(n: PNode): PScope
 

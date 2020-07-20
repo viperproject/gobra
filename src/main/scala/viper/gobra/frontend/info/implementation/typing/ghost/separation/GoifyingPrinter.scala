@@ -138,9 +138,10 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           
         case AssignMode.Multi =>
           val (aLeft, ghostLeft) = left.partition(!classifier.isExprGhost(_))
+          val (aRight, ghostRight) = right.partition(!classifier.isExprGhost(_))
 
-          (if (aLeft.isEmpty) emptyDoc else super.showStmt(PAssignment(right, aLeft))) <>
-          (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PAssignment(right, ghostLeft), with_prefix(aLeft)))
+          (if (aLeft.isEmpty) emptyDoc else super.showStmt(PAssignment(aRight, aLeft))) <>
+          (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PAssignment(ghostRight, ghostLeft), with_prefix(aLeft)))
 
         case AssignMode.Error => errorMsg
       }
@@ -163,6 +164,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
         case AssignMode.Multi =>
           val (aLeft, ghostLeft) = left.partition(!classifier.isIdGhost(_))
+          val (aRight, ghostRight) = right.partition(!classifier.isExprGhost(_))
           // List of all non-ghost addressable variables.
           val aAddressableVars = left.zip(addressable).filter(p => !classifier.isIdGhost(p._1)).map(_._1)
           // Boolean vector of whether ghost variables are addressable or not.
@@ -170,8 +172,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
           val prefix: Doc = if (ghostLeft.isEmpty) specComment else ";"
           
-          (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(right, aLeft, aLeft.map(_ => false)))) <>
-          (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(right, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
+          (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))) <>
+          (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
           showAddressableVars(aAddressableVars, prefix)
 
         case AssignMode.Error => errorMsg

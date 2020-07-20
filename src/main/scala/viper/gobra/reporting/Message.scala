@@ -121,7 +121,7 @@ case class DesugaredMessage(input: File, internal: () => in.Program) extends Gob
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program) extends GobraMessage {
+case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +

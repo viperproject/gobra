@@ -11,6 +11,7 @@ import java.io.File
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PProgram
 import viper.gobra.ast.internal.Program
+import viper.silver.{ast => vpr}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
@@ -71,6 +72,7 @@ trait GoVerifier {
   }
 
   protected[this] def verify(input: Either[File, String], config: Config): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier {
@@ -87,6 +89,21 @@ class Gobra extends GoVerifier {
       typeInfo <- performTypeChecking(parsedProgram, config)
       program <- performDesugaring(parsedProgram, typeInfo, config)
       viperTask <- performViperEncoding(program, config)
+      verifierResult <- performVerification(viperTask, config)
+    } yield BackTranslator.backTranslate(verifierResult)(config)
+
+    futureResult.x.map{ result =>
+      result.fold({
+        case Vector() => VerifierResult.Success
+        case errs => VerifierResult.Failure(errs)
+      }, identity)
+    }
+  }
+
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult] = {
+    val viperTask = BackendVerifier.Task(ast, backtrack)
+
+    val futureResult = for {
       verifierResult <- performVerification(viperTask, config)
     } yield BackTranslator.backTranslate(verifierResult)(config)
 

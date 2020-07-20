@@ -41,7 +41,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
       if (goify) write(file, "go", goifiedGhostCode())
     case TypeCheckDebugMessage(file, _, debugTypeInfo) if debug => write(file, "debugType", debugTypeInfo())
     case DesugaredMessage(file, internal) if printInternal => write(file, "internal", internal().formatted)
-    case m@GeneratedViperMessage(file, _) if printVpr => write(file, "vpr", m.vprAstFormatted)
+    case m@GeneratedViperMessage(file, _, _) if printVpr => write(file, "vpr", m.vprAstFormatted)
     case CopyrightReport(text) => println(text)
     case _ => // ignore
   }

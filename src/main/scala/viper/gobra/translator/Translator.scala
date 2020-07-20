@@ -26,7 +26,7 @@ object Translator {
       val programTranslator = new ProgramsImpl()
       val task = programTranslator.translate(program)(translationConfig)
 
-      config.reporter report GeneratedViperMessage(config.inputFile, () => task.program)
+      config.reporter report GeneratedViperMessage(config.inputFile, () => task.program, () => task.backtrack)
       task
     }
 

@@ -25,6 +25,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: CompositeObject => showCompositeObject(n)
     case n: Assertion => showAss(n)
     case n: Accessible => showAcc(n)
+    case n: PredicateAccess => showPredicateAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
     case n: Proxy => showProxy(n)
@@ -52,6 +53,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
+    case n: GlobalConstDecl => showGlobalConstDecl(n)
   }
 
   def showFunction(f: Function): Doc = f match {
@@ -86,6 +88,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
     case MPredicate(recv, name, args, body) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+  }
+
+  def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
+    "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
   def showField(field: Field): Doc = field match {
@@ -273,6 +279,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case LocalVar.Ref(id, _) => id
     case LocalVar.Val(id, _) => id
     case LocalVar.Inter(id, _) => id
+    case GlobalConst.Val(id, _) => id
   }
 
   def showVarDecl(v: Var): Doc = v match {
@@ -282,6 +289,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
     case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
     case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)
+    case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
   }
 
   // types

@@ -17,6 +17,8 @@ import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 
+import scala.io.Source
+
 object GoVerifier {
 
   val copyright = "(c) Copyright ETH Zurich 2012 - 2020"
@@ -49,7 +51,8 @@ trait GoVerifier {
 
 class Gobra extends GoVerifier {
 
-  override def verify(files: Vector[File], config: Config): VerifierResult = {
+  override def verify(files: Vector[File], c: Config): VerifierResult = {
+    val config = getAndMergeInFileConfig(c)
 
     config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
@@ -65,6 +68,33 @@ class Gobra extends GoVerifier {
       case Vector() => VerifierResult.Success
       case errs => VerifierResult.Failure(errs)
     }, identity)
+  }
+
+  private val inFileConfigRegex = """(?:.|\r\n|\r|\n)*\/\/ ##\((.*)\)(?:.|\r\n|\r|\n)*""".r
+
+  /**
+    * Parses all inputFiles given in the current config for in-file command line options (wrapped with "## (...)")
+    * These in-file command options get combined for all files and passed to ScallopGobraConfig.
+    * The current config merged with the newly created config is then returned
+    */
+  private def getAndMergeInFileConfig(config: Config): Config = {
+    val inFileConfigStrings = config.inputFiles.map(file => {
+        val bufferedSource = Source.fromFile(file)
+        val content = bufferedSource.mkString
+        val config = content match {
+          case inFileConfigRegex(configString) => Some(configString)
+          case _ => None
+        }
+        bufferedSource.close()
+        config
+      }).collect { case Some(configString) => configString }
+
+    // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
+    val args = inFileConfigStrings.flatMap(configString => configString.split(" "))
+    // input files are mandatory, therefore we take the inputFiles from the old config:
+    val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
+    val inFileConfig = new ScallopGobraConfig(fullArgs).config
+    config.merge(inFileConfig)
   }
 
   private def performParsing(files: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {

@@ -1,8 +1,9 @@
 package viper.gobra
 
+import org.scalatest.{FunSuite, Inside, Matchers}
+import org.scalatest.exceptions.TestFailedException
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
-import org.scalatest.{FunSuite, Inside, Matchers}
 import scala.reflect.ClassTag
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
@@ -109,6 +110,43 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: qualified import") {
     frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
       case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
+    }
+  }
+
+  test("Parser: spec only function") {
+    frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), false), None)) =>
+    }
+  }
+  
+  test("Parser: spec only function with nested blocks") {
+    frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() } }", specOnly = true) should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), false), None)) =>
+    }
+  }
+  
+  test("Parser: spec only function with incomplete nested blocks") {
+    an [TestFailedException] should be thrownBy
+      frontend.parseMember("func foo() { if(true) { b.bar() } else { foo() }", specOnly = true)
+  }
+
+  test("Parser: imported struct initialization") {
+    frontend.parseStmtOrFail("a := b.BarCell{10}") should matchPattern {
+      case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(PIdnUnk("a")), Vector(false))
+          if value == 10 =>
+    }
+  }
+  
+  test("Parser: fold mpredicate call") {
+    frontend.parseStmtOrFail("fold (*(b.Rectangle)).RectMem(&r)") should matchPattern {
+      case PFold(PPredicateAccess(PInvoke(PDot(PDeref(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("Rectangle"))), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))))) =>
+    }
+  }
+  
+  test("Parser: fold fpredicate call") {
+    frontend.parseStmtOrFail("fold b.RectMem(&r)") should matchPattern {
+      case PFold(PPredicateAccess(PInvoke(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("RectMem")), Vector(PReference(PNamedOperand(PIdnUse("r"))))))) =>
     }
   }
 
@@ -2056,6 +2094,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     def parseStmtOrFail(source : String) : PStatement = parseOrFail(source, Parser.parseStmt)
     def parseType(source : String) : Either[Messages, PType] = parse(source, Parser.parseType)
     def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
-    def parseImportDecl(source: String): Vector[PImportDecl] = parseOrFail(source, Parser.parseImportDecl)
+    def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
+    def parseMember(source: String, specOnly: Boolean = false): Vector[PMember] = parseOrFail(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
   }
 }

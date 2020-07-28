@@ -2,6 +2,7 @@ package viper.gobra
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -267,7 +268,9 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
         new PositionManager()
       )
       val tree = new Info.GoTree(pkg)
-      new TypeInfoImpl(tree)
+      val context = new Info.Context()
+      val config = Config(Vector(), Vector())
+      new TypeInfoImpl(tree, context)(config)
     }
 
     def areComparable(t1 : PType, t2 : PType) : Boolean = {

@@ -45,7 +45,7 @@ class LocationsImpl extends Locations {
   /**
     * [v]w -> v
     */
-  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+  def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val (pos, info, errT) = v.vprMeta
 
@@ -55,10 +55,23 @@ class LocationsImpl extends Locations {
       case in.BoundVar(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.In(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.Parameter.Out(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
-      case in.LocalVar.Val(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case lv: in.LocalVar.Val => variableVal(lv)(ctx)
       case in.LocalVar.Inter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
+      case gc: in.GlobalConst => unit(ctx.fixpoint.get(gc)(ctx))
     }
+  }
+
+  /**
+    * [v]w -> v
+    */
+  def variableVal(v: in.LocalVar.Val)(ctx: Context): CodeWriter[vpr.LocalVar] = {
+
+    val (pos, info, errT) = v.vprMeta
+
+    def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
+
+    unit(vpr.LocalVar(v.id, goT(v.typ))(pos, info, errT))
   }
 
 
@@ -466,7 +479,7 @@ class LocationsImpl extends Locations {
 
         seqn{
           for {
-            vTarget <- variable(mk.target)(ctx)
+            vTarget <- variableVal(mk.target)(ctx)
             _ <- write(vpr.NewStmt(vTarget, Vector.empty)(pos, info, errT))
             _ <- initValues(deref)(ctx)
             vMake <- seqns(perField map ctx.stmt.translateF(ctx))

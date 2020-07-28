@@ -16,7 +16,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private[resolution] lazy val defEntity: PDefLikeId => Entity =
     attr[PDefLikeId, Entity] {
-      case w: PWildcard => Wildcard(w)
+      case w: PWildcard => Wildcard(w, this)
       case id@ tree.parent(p) =>
 
         val isGhost = isGhostDef(id)
@@ -27,8 +27,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleConstant(decl.right(idx), decl.typ, isGhost)
-            case AssignMode.Multi => MultiConstant(idx, decl.right.head, isGhost)
+            case AssignMode.Single => SingleConstant(decl, decl.left(idx), decl.right(idx), decl.typ, isGhost, this)
             case _ => UnknownEntity()
           }
 
@@ -36,35 +35,35 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx))
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx))
-            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost, decl.addressable(idx))
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), this)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
 
-        case decl: PTypeDef => NamedType(decl, isGhost)
-        case decl: PTypeAlias => TypeAlias(decl, isGhost)
-        case decl: PFunctionDecl => Function(decl, isGhost)
-        case decl: PMethodDecl => MethodImpl(decl, isGhost)
-        case spec: PMethodSig => MethodSpec(spec, isGhost)
+        case decl: PTypeDef => NamedType(decl, isGhost, this)
+        case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
+        case decl: PFunctionDecl => Function(decl, isGhost, this)
+        case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
+        case spec: PMethodSig => MethodSpec(spec, isGhost, this)
 
-        case decl: PFieldDecl => Field(decl, isGhost)
-        case decl: PEmbeddedDecl => Embbed(decl, isGhost)
+        case decl: PFieldDecl => Field(decl, isGhost, this)
+        case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, decl.addressable)
-        case decl: PNamedParameter => InParameter(decl, isGhost, decl.addressable)
-        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable)
+        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, decl.addressable, this)
+        case decl: PNamedParameter => InParameter(decl, isGhost, decl.addressable, this)
+        case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
 
-        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false) // TODO: check if type switch variables are addressable in Go
+        case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
 
-        case decl: PImportDecl => Import(decl)
+        case decl: PImport => Import(decl, this)
 
         // Ghost additions
-        case decl: PBoundVariable => BoundVariable(decl)
+        case decl: PBoundVariable => BoundVariable(decl, this)
 
-        case decl: PFPredicateDecl => FPredicate(decl)
-        case decl: PMPredicateDecl => MPredicateImpl(decl)
-        case decl: PMPredicateSig => MPredicateSpec(decl)
+        case decl: PFPredicateDecl => FPredicate(decl, this)
+        case decl: PMPredicateDecl => MPredicateImpl(decl, this)
+        case decl: PMPredicateSig => MPredicateSpec(decl, this)
       }
     }
 
@@ -81,23 +80,23 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx))
-            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx))
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx), this)
+            case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
 
         case decl: PShortForRange =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
-          RangeVariable(idx, decl.range, isGhost, addressable = false) // TODO: check if range variables are addressable in Go
+          RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
 
         case decl: PSelectShortRecv =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
           val len = decl.shorts.size
 
           StrictAssignModi(len, 1) match { // TODO: check if selection variables are addressable in Go
-            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost, addressable = false)
-            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost, addressable = false, this)
+            case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
             case _ => UnknownEntity()
           }
 
@@ -208,6 +207,8 @@ trait NameResolution { this: TypeInfoImpl =>
         scopedDefenv(p)
     }
 
+  lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
+
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
 
@@ -217,6 +218,8 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
+
+      case tree.parent.pair(id: PIdnDef, _: PImport) => defEntity(id)
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)

@@ -13,6 +13,7 @@ trait Context {
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
   def seqMultiplicity : SeqMultiplicity
+  def fixpoint: Fixpoint
   def tuple: Tuples
   def typeProperty: TypeProperties
 
@@ -42,6 +43,7 @@ trait Context {
           seqToSetN : SeqToSet = seqToSet,
           seqToMultisetN : SeqToMultiset = seqToMultiset,
           seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
+          fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
           typeN: TypeProperties = typeProperty,
           assN: Assertions = ass,
@@ -61,6 +63,7 @@ trait Context {
     seqToSet.finalize(col)
     seqToMultiset.finalize(col)
     seqMultiplicity.finalize(col)
+    fixpoint.finalize(col)
     tuple.finalize(col)
 
     // translators

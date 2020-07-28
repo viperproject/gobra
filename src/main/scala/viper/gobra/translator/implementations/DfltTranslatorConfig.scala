@@ -10,6 +10,7 @@ class DfltTranslatorConfig(
   val array : Arrays = new ArraysImpl(),
   val seqToSet : SeqToSet = new SeqToSetImpl(),
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl(),
+  val fixpoint: Fixpoint = new FixpointImpl(),
   val tuple : Tuples = new TuplesImpl(),
   val typeProperty : TypeProperties = new TypePropertiesImpl(),
   val ass : Assertions = new AssertionsImpl(),

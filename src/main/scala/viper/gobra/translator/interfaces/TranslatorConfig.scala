@@ -8,6 +8,7 @@ trait TranslatorConfig {
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
   def seqMultiplicity : SeqMultiplicity
+  def fixpoint: Fixpoint
   def tuple: Tuples
   def typeProperty: TypeProperties
 

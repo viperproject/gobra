@@ -23,6 +23,7 @@ object LoggerDefaults {
 }
 case class Config(
                  inputFiles: Vector[File],
+                 includeDirs: Vector[File] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
@@ -31,7 +32,24 @@ case class Config(
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
                  shouldVerify: Boolean = true
-            )
+            ) {
+  def merge(other: Config): Config = {
+    // this config takes precedence over other config
+    Config(
+      inputFiles = (inputFiles ++ other.inputFiles).distinct,
+      includeDirs = (includeDirs ++ other.includeDirs).distinct,
+      reporter = reporter,
+      backend = backend,
+      logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
+      // TODO merge strategy for following properties is unclear (maybe AND or OR)
+      shouldParse = shouldParse,
+      shouldTypeCheck = shouldTypeCheck,
+      shouldDesugar = shouldDesugar,
+      shouldViperEncode = shouldViperEncode,
+      shouldVerify = shouldVerify
+    )
+  }
+}
 
 
 class ScallopGobraConfig(arguments: Seq[String])
@@ -145,7 +163,7 @@ class ScallopGobraConfig(arguments: Seq[String])
   def validateInput(inputOption: ScallopOption[List[String]],
                     includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
 
-    def checkConversion(input: List[String], includeDirs: List[File]): Either[String, Vector[File]] = {
+    def checkConversion(input: List[String], includeDirs: Vector[File]): Either[String, Vector[File]] = {
       val msgs = InputConverter.validate(input)
       if (msgs.isEmpty) Right(InputConverter.convert(input, includeDirs))
       else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
@@ -176,7 +194,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     //  - result should be non-empty, exist, be files and be readable
     val input: List[String] = inputOpt.get // this is a non-optional CLI argument
     for {
-      convertedFiles <- checkConversion(input, includeOpt.getOrElse(List()))
+      convertedFiles <- checkConversion(input, includeOpt.map(_.toVector).getOrElse(Vector()))
       _ <- atLeastOneFile(convertedFiles)
       _ <- filesExist(convertedFiles)
       _ <- filesAreFiles(convertedFiles)
@@ -190,7 +208,8 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   verify()
 
-  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, include.toOption.getOrElse(List()))
+  lazy val includeDirs: Vector[File] = include.toOption.map(_.toVector).getOrElse(Vector())
+  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, includeDirs)
 
   /** set log level */
 
@@ -222,7 +241,7 @@ class ScallopGobraConfig(arguments: Seq[String])
       }
     }
 
-    def convert(input: List[String], includeDirs: List[File]): Vector[File] = {
+    def convert(input: List[String], includeDirs: Vector[File]): Vector[File] = {
       val res = for {
         i <- identifyInput(input)
         files = i match {
@@ -267,6 +286,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   lazy val config: Config = Config(
     inputFiles = inputFiles,
+    includeDirs = includeDirs,
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),

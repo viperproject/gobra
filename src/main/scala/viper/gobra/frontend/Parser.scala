@@ -19,9 +19,10 @@ object Parser {
 
   /**
     * Parses files and returns either the parsed program if the file was parsed successfully,
-    * otherwise returns list of error messages
+    * otherwise returns list of error messages.
     *
     * @param files
+    * @param specOnly specifies whether only declarations and specifications should be parsed and implementation should be ignored
     * @return
     *
     * The following transformations are performed:
@@ -32,16 +33,16 @@ object Parser {
     *
     */
 
-  def parse(files: Vector[File])(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(files: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = files
       .map{ file => FileSource(file.getPath) }
       .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
-    parseSources(preprocessedSources)(config)
+    parseSources(preprocessedSources, specOnly)(config)
   }
 
-  private def parseSources(sources: Vector[Source])(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val pom = new PositionManager
-    val parsers = new SyntaxAnalyzer(pom)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
@@ -98,6 +99,12 @@ object Parser {
     })
   }
 
+  def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    translateParseResult(pom)(parsers.parseAll(parsers.member, source))
+  }
+
   def parseStmt(source: Source): Either[Messages, PStatement] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
@@ -110,7 +117,7 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
-  def parseImportDecl(source: Source): Either[Messages, Vector[PImportDecl]] = {
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
     val pom = new PositionManager
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
@@ -186,7 +193,7 @@ object Parser {
     def reader : Reader = IO.stringreader(content)
   }
 
-  private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
+  private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
 
@@ -220,6 +227,19 @@ object Parser {
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
     /**
+      * Consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise applies the parser `p`
+      */
+    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
+      if (specOnly) nestedCurlyBracketsConsumer
+      else p.?
+
+    /**
+      * Consumes nested curly brackets with arbitrary content and returns None
+      */
+    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
+      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
+
+    /**
       * Member
       */
 
@@ -232,17 +252,17 @@ object Parser {
     lazy val packageClause: Parser[PPackageClause] =
       "package" ~> pkgDef ^^ PPackageClause
 
-    lazy val importDecls: Parser[Vector[Vector[PImportDecl]]] =
+    lazy val importDecls: Parser[Vector[Vector[PImport]]] =
       (importDecl <~ eos).*
 
     lazy val members: Parser[Vector[Vector[PMember]]] =
       (member <~ eos).*
 
-    lazy val importDecl: Parser[Vector[PImportDecl]] =
+    lazy val importDecl: Parser[Vector[PImport]] =
       ("import" ~> importSpec ^^ (decl => Vector(decl))) |
         ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
 
-    lazy val importSpec: Parser[PImportDecl] =
+    lazy val importSpec: Parser[PImport] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =
@@ -303,7 +323,7 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ block.? ^^ {
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(block) ^^ {
         case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
@@ -313,7 +333,7 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(block) ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
@@ -704,7 +724,7 @@ object Parser {
       */
 
     lazy val typ : Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | namedType | ghostTypeLit
+      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
 
     lazy val ghostTyp : Parser[PGhostType] =
       "(" ~> ghostTyp <~ ")" | ghostTypeLit
@@ -789,11 +809,14 @@ object Parser {
       "bool" ^^^ PBoolType() |
         "int" ^^^ PIntType()
 
+    lazy val qualifiedType: Parser[PDot] =
+      declaredType ~ ("." ~> idnUse) ^^ PDot
+
     lazy val declaredType: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType | declaredType
+      sliceType | arrayType | implicitSizeArrayType | mapType | structType | qualifiedType | declaredType
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
@@ -902,13 +925,16 @@ object Parser {
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
+
+    lazy val predicateBody: Parser[Option[PExpression]] =
+      ("{" ~> expression <~ eos.? ~ "}").?
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
@@ -970,12 +996,11 @@ object Parser {
     }
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-
-    lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
-        idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
-        nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
-        primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
+      // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+      primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
+        case invoke: PInvoke => success(PPredicateAccess(invoke))
+        case e => failure(s"expected invoke but got ${e.getClass}")
+      }
 
     lazy val boundVariables: Parser[Vector[PBoundVariable]] =
       rep1sep(boundVariableDecl, ",") ^^ Vector.concat

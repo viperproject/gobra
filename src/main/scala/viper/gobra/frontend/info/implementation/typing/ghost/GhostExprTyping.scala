@@ -293,8 +293,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: Variable => true
     case _: Field => true
     case _: Embbed => true
-    case Function(decl, _) => decl.spec.isPure
-    case MethodImpl(decl, _) => decl.spec.isPure
+    case Function(decl, _, _) => decl.spec.isPure
+    case MethodImpl(decl, _, _) => decl.spec.isPure
     case _ => false
   }
 

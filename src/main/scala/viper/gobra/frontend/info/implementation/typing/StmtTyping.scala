@@ -24,7 +24,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-    case n: PTypeDecl => isType(n.right).out ++ isClassOrInterfaceType.errors(typeType(n.right))(n)
+    case n: PTypeDecl => isType(n.right).out
 
     case n@PExpressionStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 

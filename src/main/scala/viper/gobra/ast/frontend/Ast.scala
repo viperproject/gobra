@@ -24,7 +24,7 @@ sealed trait PNode extends Product {
 
   lazy val formatted: String = pretty()
 
-  override def toString: PPkg = formatted
+  override def toString: String = formatted
 }
 
 object PNode {
@@ -40,13 +40,14 @@ case class PPackage(
                      programs: Vector[PProgram],
                      positions: PositionManager
                    ) extends PNode with PUnorderedScope {
+  // TODO: remove duplicate package imports:
+  lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
   lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
-  lazy val imports: Vector[PImportDecl] = programs.flatMap(_.imports)
 }
 
 case class PProgram(
                      packageClause: PPackageClause,
-                     imports: Vector[PImportDecl],
+                     imports: Vector[PImport],
                      declarations: Vector[PMember]
                    ) extends PNode
 
@@ -82,13 +83,13 @@ class PositionManager extends PositionStore with Messaging {
 case class PPackageClause(id: PPkgDef) extends PNode
 
 
-sealed trait PImportDecl extends PNode {
+sealed trait PImport extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImport
 
-case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
+case class PUnqualifiedImport(pkg: PPkg) extends PImport
 
 
 sealed trait PGhostifiable extends PNode
@@ -315,7 +316,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -523,14 +524,14 @@ case class PLabelUse(name: String) extends PUseLikeLabel
 
 
 sealed trait PPackegeNode extends PNode {
-  def name: String
+  def name: PPkg
 }
 
 trait PDefLikePkg extends PPackegeNode
 trait PUseLikePkg extends PPackegeNode
 
-case class PPkgDef(name: String) extends PDefLikePkg
-case class PPkgUse(name: String) extends PUseLikePkg
+case class PPkgDef(name: PPkg) extends PDefLikePkg
+case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
 case class PWildcard() extends PDefLikeId with PUseLikeId {

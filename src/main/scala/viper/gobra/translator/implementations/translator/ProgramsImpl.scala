@@ -35,6 +35,10 @@ class ProgramsImpl extends Programs {
         case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx)
       })
 
+      _ = program.members collect {
+        case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx)
+      }
+
       col = {
         val c = new CollectorImpl()
         ctx.finalize(c)

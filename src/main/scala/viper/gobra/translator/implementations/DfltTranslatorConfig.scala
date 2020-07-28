@@ -9,6 +9,7 @@ import viper.gobra.translator.interfaces.translator._
 class DfltTranslatorConfig(
   val seqToSet : SeqToSet = new SeqToSetImpl(),
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl(),
+  val fixpoint: Fixpoint = new FixpointImpl(),
   val tuple : Tuples = new TuplesImpl(),
   val typeProperty : TypeProperties = new TypePropertiesImpl(),
   val ass : Assertions = new AssertionsImpl(),

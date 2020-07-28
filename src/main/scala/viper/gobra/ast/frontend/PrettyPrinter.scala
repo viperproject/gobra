@@ -18,7 +18,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
     case n: PPackageClause => showPackageClause(n)
-    case n: PImportDecl => showImport(n)
+    case n: PImport => showImport(n)
     case n: PMember => showMember(n)
     case n: PStatement => showStmt(n)
     case n: PExpression => showExpr(n)
@@ -46,10 +46,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // entire package
 
-  def showPackage(p: PPackage): Doc = p match {
-    case PPackage(_, programs, _) =>
-      ssep(programs map showProgram, line) <> line
-  }
+  def showPackage(p: PPackage): Doc =
+    ssep(p.programs map showProgram, line) <> line
 
   // program
 
@@ -67,7 +65,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // imports
 
-  def showImport(decl: PImportDecl): Doc = decl match {
+  def showImport(decl: PImport): Doc = decl match {
     case PQualifiedImport(Some(PWildcard()), pkg) => "import" <+> "_" <+> pkg
     case PQualifiedImport(Some(qualifier), pkg) => "import" <+> showId(qualifier) <+> pkg
     case PQualifiedImport(None, pkg) => "import" <+> pkg

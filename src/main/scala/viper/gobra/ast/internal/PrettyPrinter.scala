@@ -176,6 +176,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Var(v) => showVar(v)
     case Assignee.Pointer(e) => showExpr(e)
     case Assignee.Field(f) => showExpr(f)
+    case Assignee.Index(e) => showExpr(e)
   }
 
   def showCompositeObject(co: CompositeObject): Doc = showLit(co.op)

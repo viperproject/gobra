@@ -951,7 +951,20 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should be able to correctly show a very simple 'acc' predicae applied on an array") {
+  test("Printer: should correctly show a simple accessible indexed expression") {
+    val expr = Accessible.Index(
+      IndexedExp(
+        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        Add(IntLit(2)(Unsourced), IntLit(3)(Unsourced))(Unsourced)
+      )(Unsourced)
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "a[2 + 3]" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show a very simple 'acc' predicate applied on an array") {
     val expr = Access(
       Accessible.Index(
         IndexedExp(
@@ -963,6 +976,19 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "acc(a[2])" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple assignee indexed expression") {
+    val expr = Assignee.Index(
+      IndexedExp(
+        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        Add(IntLit(2)(Unsourced), IntLit(3)(Unsourced))(Unsourced)
+      )(Unsourced)
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "a[2 + 3]" =>
     }
   }
 

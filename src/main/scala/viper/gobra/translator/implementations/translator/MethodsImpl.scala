@@ -16,7 +16,6 @@ class MethodsImpl extends Methods {
   override def finalize(col: Collector): Unit = ()
 
   override def method(x: in.Method)(ctx: Context): MemberWriter[Method] = {
-
     val (pos, info, errT) = x.vprMeta
 
     val (vRecv, recvWells) = ctx.loc.parameter(x.receiver)(ctx)
@@ -28,7 +27,7 @@ class MethodsImpl extends Methods {
 
     val (vResultss, resultWells) = x.results.map(ctx.loc.localDecl(_)(ctx)).unzip
     val vResults = vResultss.flatten.asInstanceOf[Vector[vpr.LocalVarDecl]]
-    val resultWell = Vector()
+    val resultWell = resultWells map cl.assertUnit
     val resultInit = cl.seqns(x.results map (ctx.loc.initialize(_)(ctx)))
 
     for {
@@ -59,7 +58,6 @@ class MethodsImpl extends Methods {
 
 
   override def function(x: in.Function)(ctx: Context): MemberWriter[Method] = {
-
     assert(x.info.origin.isDefined, s"$x has no defined source")
 
     val (pos, info, errT) = x.vprMeta
@@ -68,9 +66,9 @@ class MethodsImpl extends Methods {
     val vArgs = vArgss.flatten
     val argWell = argWells map cl.assertUnit
 
-    val (vResultss, resultWells) = x.results.map(ctx.loc.localDecl(_)(ctx)).unzip
-    val vResults = vResultss.flatten.asInstanceOf[Vector[vpr.LocalVarDecl]]
-    val resultWell = Vector()
+    val (vResultss, resultWells) = x.results.map(ctx.loc.outparameter(_)(ctx)).unzip
+    val vResults = vResultss.flatten
+    val resultWell = resultWells map cl.assertUnit
     val resultInit = cl.seqns(x.results map (ctx.loc.initialize(_)(ctx)))
 
     for {

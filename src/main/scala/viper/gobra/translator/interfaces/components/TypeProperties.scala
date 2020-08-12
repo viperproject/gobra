@@ -22,4 +22,8 @@ trait TypeProperties {
   def isPointerTyp(typ: in.Type)(ctx: Context): Boolean = pointerTyp(typ)(ctx).nonEmpty
 
   def pointerTyp(typ: in.Type)(ctx: Context): Option[in.Type]
+
+  def isArrayType(typ : in.Type)(ctx : Context) : Boolean = arrayType(typ)(ctx).nonEmpty
+
+  def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayT]
 }

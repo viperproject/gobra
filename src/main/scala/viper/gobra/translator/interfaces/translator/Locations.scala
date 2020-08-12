@@ -13,6 +13,8 @@ trait Locations extends Generator {
 
   def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
 
+  def outparameter(v: in.Parameter.Out)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
+
   def target(v: in.LocalVar.Val)(ctx: Context): CodeWriter[Vector[vpr.LocalVar]]
 
   def argument(arg: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]]

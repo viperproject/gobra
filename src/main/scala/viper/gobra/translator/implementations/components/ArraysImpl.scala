@@ -4,6 +4,9 @@ import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Arrays
 import viper.silver.{ast => vpr}
 
+/**
+  * Contains functionality for generating and using the "Array" Viper domain.
+  */
 class ArraysImpl extends Arrays {
   private val domainName : String = "Array"
 

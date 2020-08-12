@@ -142,7 +142,7 @@ object Assignee {
   case class Var(op: AssignableVar) extends Assignee
   case class Pointer(op: Deref) extends Assignee
   case class Field(op: FieldRef) extends Assignee
-  // TODO: Index
+  case class Index(op : IndexedExp) extends Assignee
 }
 
 case class Make(target: LocalVar.Val, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
@@ -641,7 +641,7 @@ case object PermissionT extends Type
   * Here `length` is assumed to be positive
   * (this is ensured by the type checker).
   */
-case class ArrayT(length : BigInt, t : Type) extends Type
+case class ArrayT(length : BigInt, typ : Type) extends Type
 
 /**
   * The type of mathematical sequences with elements of type `t`.

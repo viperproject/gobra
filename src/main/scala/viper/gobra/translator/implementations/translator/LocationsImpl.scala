@@ -46,15 +46,14 @@ class LocationsImpl extends Locations {
     * [v]w -> v
     */
   def variable(v: in.Var)(ctx: Context): CodeWriter[vpr.Exp] = {
-
     val (pos, info, errT) = v.vprMeta
 
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
 
     v match {
       case in.BoundVar(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
-      case in.Parameter.In(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
-      case in.Parameter.Out(id, t)    => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.Parameter.In(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
+      case in.Parameter.Out(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case lv: in.LocalVar.Val => variableVal(lv)(ctx)
       case in.LocalVar.Inter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
@@ -65,46 +64,66 @@ class LocationsImpl extends Locations {
   /**
     * [v]w -> v
     */
-  def variableVal(v: in.LocalVar.Val)(ctx: Context): CodeWriter[vpr.LocalVar] = {
-
+  def variableVal(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar] = {
     val (pos, info, errT) = v.vprMeta
-
     def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
-
     unit(vpr.LocalVar(v.id, goT(v.typ))(pos, info, errT))
   }
 
 
   /**
+    * Parameter[?x: [n]T] -> { x }
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
     */
-  override def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+  override def parameter(v : in.Declaration)(ctx : Context) : (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     val (pos, info, errT) = v.vprMeta
 
     v match {
-      case v: in.Var => {
-        val trans = values(v.typ)(ctx)
-        val (decls, valueUnit) = sequence(trans map { a =>
-          for {
-            decl <- a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
-              vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
-            }
+      case v : in.Var => v.typ match {
+        case typ : in.ArrayT => {
+          val lvar = vpr.LocalVar(v.id, ctx.typ.translate(typ)(ctx))(pos, info, errT)
+          val ldecl = vu.toVarDecl(lvar)
+          val (_, valueUnit) = Array.Allocation.wellDefConditions(ldecl.localVar, typ)(v)(ctx).cut
+          (Vector(ldecl), valueUnit)
+        }
 
-            // well-formedness conditions
-            _ <- a(v)._2.typ match {
-              // any array parameter should have the length that is specified in the array type
-              case t : in.ArrayT => wellDef(vpr.EqCmp(ctx.array.length(decl.localVar), vpr.IntLit(t.length)(pos, info, errT))(pos, info, errT))
-              // other types don't currently have any wf-conditions
-              case _ => write()
-            }
-
-          } yield decl
-        }).cut
-        (decls, valueUnit)
+        case _ => {
+          val trans = values(v.typ)(ctx)
+          val (decls, valueUnit) = sequence(trans map { a =>
+            for {
+              decl <- a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
+                vu.toVarDecl(x.asInstanceOf[vpr.LocalVar])
+              }
+            } yield decl
+          }).cut
+          (decls, valueUnit)
+        }
       }
     }
   }
 
+  // FIXME is this correctly implemented???
+  // TODO description
+  override def outparameter(v : in.Parameter.Out)(ctx : Context) : (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
+    val (decls, valueUnits) = localDecl(v)(ctx)
+    val (_, declUnit) = valueUnits.cut
+    val ldecls = decls.asInstanceOf[Vector[vpr.LocalVarDecl]]
+
+    v.typ match {
+      case typ : in.ArrayT => {
+        val conditions : Vector[vpr.Exp] = ldecls.flatMap(d => {
+          Array.Allocation.conditions(d.localVar, typ)(v)(ctx)
+        })
+
+        (ldecls, for {
+          _ <- declUnit
+          _ <- sequence(conditions map(c => wellDef(c)))
+        } yield ())
+      }
+
+      case _ => (ldecls, declUnit)
+    }
+  }
 
   /**
     * Arity[T] -> | Values[T] |
@@ -150,30 +169,50 @@ class LocationsImpl extends Locations {
 
 
   /**
+    * Argument[e: [n]T] -> var tmp: [n]T; alloc(tmp); copy(tmp, e); { tmp }
     * Argument[e: T] -> { a(e) | a in Values[T] }
     */
-  override def argument(e: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]] = {
-    val trans = values(e.typ)(ctx)
-    sequence(trans map (a => a(e)._1))
+  override def argument(e: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]] = e.typ match {
+    case typ : in.ArrayT => for {
+      tmp <- Array.Declaration.anonymous(typ)(e)(ctx)
+      _ <- Array.Allocation.writeConditions(tmp, typ)(e)(ctx)
+      arg <- ctx.expr.translate(e)(ctx)
+      _ <- Array.Initialisation.writeAssumeEqual(tmp, arg, typ)(e)(ctx)
+    } yield Vector(tmp)
+
+    case typ => {
+      val trans = values(typ)(ctx)
+      sequence(trans map (a => a(e)._1))
+    }
   }
 
 
   /**
+    * [decl x: [n]T] -> InitValue<x>
     * [decl x: T] -> InitValue<x>; FOREACH a in Values[T]. a(x) := Default(Type(a(x)))
     */
   override def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
     v match {
-      case v: in.Var =>
-        val valueInits = initValues(v)(ctx)
-        val (decls, valueUnit) = valueInits.cut
-        val as = values(v.typ)(ctx).map(_(v))
-        val valueAssigns = seqns(as map { case (r, t) =>
-          for {
-            ax <- r
-            dflt <- ctx.loc.defaultValue(t.typ)(v)(ctx)
-          } yield valueAssign(ax, dflt)(v)
-        })
-        (decls, valueUnit flatMap (_ => valueAssigns))
+      case v: in.Var => v.typ match {
+        case _: in.ArrayT => {
+          val valueInits = initValues(v)(ctx)
+          val (decls, valueUnit) = valueInits.cut
+          (decls, seqnUnit(valueUnit))
+        }
+
+        case _ => {
+          val valueInits = initValues(v)(ctx)
+          val (decls, valueUnit) = valueInits.cut
+          val as = values(v.typ)(ctx).map(_(v))
+          val valueAssigns = seqns(as map { case (r, t) =>
+            for {
+              ax <- r
+              dflt <- ctx.loc.defaultValue(t.typ)(v)(ctx)
+            } yield valueAssign(ax, dflt)(v)
+          })
+          (decls, valueUnit flatMap (_ => valueAssigns))
+        }
+      }
     }
   }
 
@@ -198,10 +237,10 @@ class LocationsImpl extends Locations {
   /**
     * Copy[e: T]  -> var z; FOREACH a in Values[T]. Init<a(z)>; a(z) := a(e) ~ z
     */
-  def copy(e: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+  def copy(e : in.Expr)(ctx : Context) : CodeWriter[vpr.Exp] = {
 
     ctx.typeProperty.underlyingType(e.typ)(ctx) match {
-      case _: in.StructT => // TODO: We could optimize the single var case
+      case _: in.StructT => { // TODO: We could optimize the single var case
         val trans = values(e.typ)(ctx)
         val multiVar = in.LocalVar.Inter(Names.freshName, e.typ)(e.info)
         val assigns = sequence(trans map { a =>
@@ -215,10 +254,14 @@ class LocationsImpl extends Locations {
         })
 
         assigns.flatMap(_ => variable(multiVar)(ctx))
+      }
 
-      case _ =>
+      case typ: in.ArrayT => rvalue(e)(ctx)
+
+      case _ => {
         Violation.violation(values(e.typ)(ctx).size == 1, s"expected type of size 1 but got $e")
         rvalue(e)(ctx)
+      }
     }
   }
 
@@ -265,17 +308,28 @@ class LocationsImpl extends Locations {
     */
   override def equal(lhs: in.Expr, rhs: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
     val (pos, info, errT) = src.vprMeta
-    val trans = values(lhs.typ)(ctx)
-    sequence(trans map { a =>
-      for {
-        l <- a(lhs)._1
-        r <- a(rhs)._1
-      } yield vpr.EqCmp(l ,r)(pos, info, errT)
-    }).map(vu.bigAnd(_)(pos, info, errT))
+
+    lhs.typ match {
+      case typ : in.ArrayT => for {
+        l <- ctx.expr.translate(lhs)(ctx)
+        r <- ctx.expr.translate(rhs)(ctx)
+      } yield Array.Initialisation.equal(l, r, typ)(src)(ctx)
+
+      case typ => {
+        val trans = values(typ)(ctx)
+        sequence(trans map { a =>
+          for {
+            l <- a(lhs)._1
+            r <- a(rhs)._1
+          } yield vpr.EqCmp(l ,r)(pos, info, errT)
+        }).map(vu.bigAnd(_)(pos, info, errT))
+      }
+    }
   }
 
   /**
-    * Gives a Viper field access representing "`array`[`index`]".
+    * Gives a Viper field access representing "`array`[`index`]",
+    * with `typ` the (result) type of the field access.
     */
   override def arrayIndex(typ : in.Type, base : vpr.Exp, index : vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess = {
     regField(vpr.FieldAccess(
@@ -284,11 +338,13 @@ class LocationsImpl extends Locations {
     )(pos, info, errT))
   }
 
+  def arrayIndex(typ : in.Type, base : vpr.Exp, index : BigInt)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess =
+    arrayIndex(typ, base, vpr.IntLit(index)(pos, info, errT))(ctx)(pos, info, errT)
+
   /**
     * [default(T)] -> var l; FOREACH a in Values[T]. a(l) := simpleDefault(Type(a(l)))
     */
   override def defaultValue(t: in.Type)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp] = {
-
     val (pos, info, errT) = src.vprMeta
 
     val leafVal: PartialFunction[in.Type, CodeWriter[vpr.Exp]] = {
@@ -309,72 +365,16 @@ class LocationsImpl extends Locations {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptyMultiset(elemT)(pos, info, errT))
       }
-
-      case t @ in.ArrayT(len, elem) => {
-        val tmp = in.LocalVar.Inter(Names.freshName, t)(src.info)
-        val iDecl = vpr.LocalVarDecl("i", vpr.Int)()
-
-        // gives the Viper assumption that `array`s length equals `len`
-        def assume_length(array : vpr.Exp) : vpr.Stmt = vpr.Assume(
-          vpr.EqCmp(
-            ctx.array.length(array),
-            vpr.IntLit(len)(pos, info, errT)
-          )(pos, info, errT)
-        )(pos, info, errT)
-
-        // gives the Boolean expression describing that `index` is a proper index in `array`
-        def array_bounds(array : vpr.Exp, index : vpr.Exp) : vpr.Exp = vpr.And(
-          vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), index)(pos, info, errT),
-          vpr.LtCmp(index, ctx.array.length(array))(pos, info, errT)
-        )(pos, info, errT)
-
-        // gives the Viper inhale for getting full (write) ownership of all `array`s entries
-        def inhale_ownership(array : vpr.Exp) : vpr.Stmt = vpr.Inhale(
-          vpr.Forall(
-            Seq(iDecl),
-            Seq(vpr.Trigger(Seq(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT)))(pos, info, errT)),
-            vpr.Implies(
-              array_bounds(array, iDecl.localVar),
-              vpr.FieldAccessPredicate(
-                arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT),
-                vpr.FullPerm()(pos, info, errT)
-              )(pos, info, errT)
-            )(pos, info, errT)
-          )(pos, info, errT)
-        )(pos, info, errT)
-
-        // gives the Viper assumption that all entries of `array` have the `dflt` value
-        def assume_defaultValues(array : vpr.Exp, dflt : vpr.Exp) : vpr.Stmt = vpr.Assume(
-          vpr.Forall(
-            Seq(iDecl),
-            Seq(vpr.Trigger(Seq(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT)))(pos, info, errT)),
-            vpr.Implies(
-              array_bounds(array, iDecl.localVar),
-              vpr.EqCmp(arrayIndex(elem, array, iDecl.localVar)(ctx)(pos, info, errT), dflt)(pos, info, errT)
-            )(pos, info, errT)
-          )(pos, info, errT)
-        )(pos, info, errT)
-
-        for {
-          // declare a new temporal variable representing the array's default value
-          tmpVar <- variable(tmp)(ctx)
-          _ <- local(vu.toVarDecl(tmpVar))
-          // assume that the length of `tmpVar` is equal to `len`
-          _ <- write(assume_length(tmpVar))
-          // inhale write access for every entry of the array
-          _ <- write(inhale_ownership(tmpVar))
-          // assume that every entry has a default value
-          dflt <- defaultValue(elem)(src)(ctx)
-          _ <- write(assume_defaultValues(tmpVar, dflt))
-        } yield tmpVar
-      }
     }
 
     ctx.typeProperty.underlyingType(t)(ctx) match {
+      case t: in.ArrayT => for {
+        tmp <- Array.Declaration.anonymous(t)(src)(ctx)
+        _ <- Array.Allocation.writeConditions(tmp, t)(src)(ctx)
+        _ <- Array.Initialisation.default(tmp, t)(src)(ctx)
+      } yield tmp
 
-      case ut if leafVal.isDefinedAt(ut) => leafVal(ut)
-
-      case _: in.StructT =>
+      case _: in.StructT => {
         val trans = values(t)(ctx)
         val v = in.LocalVar.Inter(Names.freshName, t)(src.info)
 
@@ -388,6 +388,9 @@ class LocationsImpl extends Locations {
             _ <- bind(xVar, dv)
           } yield ()
         }).flatMap(_ => variable(v)(ctx))
+      }
+
+      case ut if leafVal.isDefinedAt(ut) => leafVal(ut)
     }
   }
 
@@ -438,13 +441,26 @@ class LocationsImpl extends Locations {
 
 
   /**
+    * [!r: [n]T = e] -> var tmp: [n]T; alloc(tmp); copy(tmp, e); r := tmp
     * [!r: T = e] -> FOREACH a in Values[T]. a(r) := a(e)
     */
-  override def assignment(ass: in.SingleAss)(ctx: Context): CodeWriter[vpr.Stmt] = {
-    val trans = values(ass.left.op.typ)(ctx)
-    seqns(trans map { a =>
-      for{l <- a(ass.left.op)._1; r <- a(ass.right)._1} yield valueAssign(l, r)(ass)
-    })
+  override def assignment(ass : in.SingleAss)(ctx : Context) : CodeWriter[vpr.Stmt] = ass.left.op.typ match {
+    case typ : in.ArrayT => block(
+      for {
+        lhs <- ctx.expr.translate(ass.left.op)(ctx)
+        rhs <- ctx.expr.translate(ass.right)(ctx)
+        tmp <- Array.Declaration.anonymous(typ)(ass)(ctx)
+        _ <- Array.Allocation.writeConditions(tmp, typ)(ass)(ctx)
+        _ <- Array.Initialisation.writeAssumeEqual(tmp, rhs, typ)(ass)(ctx)
+      } yield valueAssign(lhs, tmp)(ass)
+    )
+
+    case _ => {
+      val trans = values(ass.left.op.typ)(ctx)
+      seqns(trans map { a =>
+        for { l <- a(ass.left.op)._1; r <- a(ass.right)._1 } yield valueAssign(l, r)(ass)
+      })
+    }
   }
 
 
@@ -587,6 +603,7 @@ class LocationsImpl extends Locations {
 
 
   /**
+    * Values[[n]T] -> { \r. R[v(r[i])] | 0 <= i < n, v in Values[T] }
     * Values[S] -> { \r. R[r.fs] | fs in ValuePaths[S] }
     * Values[T] -> { \r. R[r] }
     */
@@ -598,8 +615,14 @@ class LocationsImpl extends Locations {
     t match {
       case u if ctx.typeProperty.isStructType(u)(ctx) =>
         valuePaths(u)(ctx).map(fs => (r: in.Expr) => (rvalue(extendBase(r, fs))(ctx), SubValueRep(fs.last.typ)))
-      case _ =>
-        Vector(r => (rvalue(r)(ctx), SubValueRep(r.typ)))
+
+      case in.ArrayT(length, typ) => values(typ)(ctx).flatMap(v => {
+        Range.BigInt(0, length, 1).map(i => (r : in.Expr) => {
+          v(in.IndexedExp(r, in.IntLit(i)(r.info))(r.info))
+        })
+      })
+
+      case _ => Vector(r => (rvalue(r)(ctx), SubValueRep(r.typ)))
     }
   }
 
@@ -613,26 +636,58 @@ class LocationsImpl extends Locations {
 
     if (isAddressable(base)) {
       val vprABase = avalue(base.asInstanceOf[in.Location])(ctx)
-      ctx.typeProperty.structType(base.typ)(ctx) match {
-        case None =>
-          val vprRBase = rvalue(base.asInstanceOf[in.Location])(ctx)
-          for { ar <- vprABase; a <- init(ar)(base); br <- vprRBase; b <- init(br)(base) } yield a ++ b
-        case Some(st) =>
+
+      base.typ match {
+        case u if ctx.typeProperty.isStructType(u)(ctx) => {
+          val st = ctx.typeProperty.structType(u)(ctx).get
           val fieldInits = sequence(st.fields map { f =>
             val ext = in.FieldRef(base, f)(base.info)
             initValues(ext)(ctx)
           }).map(_.flatten)
-          for { r <- vprABase; a <- init(r)(base); b <- fieldInits } yield a ++ b
+          for {
+            r <- vprABase;
+            a <- init(r)(base);
+            b <- fieldInits
+          } yield a ++ b
+        }
+
+        case _ => {
+          val vprRBase = rvalue(base.asInstanceOf[in.Location])(ctx)
+          for {
+            ar <- vprABase;
+            a <- init(ar)(base);
+            br <- vprRBase;
+            b <- init(br)(base)
+          } yield a ++ b
+        }
       }
     } else {
       val vprBase = rvalue(base)(ctx)
-      ctx.typeProperty.structType(base.typ)(ctx) match {
-        case None => for { r <- vprBase; a <- init(r)(base) } yield a
-        case Some(st) =>
+
+      base.typ match {
+        // struct case
+        case u if ctx.typeProperty.isStructType(u)(ctx) => {
+          val st = ctx.typeProperty.structType(u)(ctx).get
           sequence(st.fields map { f =>
             val ext = in.FieldRef(base, f)(base.info)
             initValues(ext)(ctx)
           }).map(_.flatten)
+        }
+
+        // array case
+        case u if ctx.typeProperty.isArrayType(u)(ctx) => for {
+          r <- vprBase
+          a <- init(r)(base)
+          typ = ctx.typeProperty.arrayType(u)(ctx).get
+          _ <- Array.Allocation.writeConditions(r, typ)(base)(ctx)
+          _ <- Array.Initialisation.default(r, typ)(base)(ctx)
+        } yield a
+
+        // default case
+        case _ => for {
+          r <- vprBase
+          a <- init(r)(base)
+        } yield a
       }
     }
   }
@@ -786,4 +841,252 @@ class LocationsImpl extends Locations {
 
   private def inverseVar(x: vpr.LocalVar, typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =
     in.LocalVar.Val(x.name, typ)(info)
+
+
+  /**
+    * Contains translation mechanisms specific for arrays.
+    */
+  object Array {
+
+    private def boundaryConditions(decls : Vector[(in.ArrayT, vpr.LocalVarDecl)])(src : in.Node) : vpr.Exp = {
+      val (pos, info, errT) = src.vprMeta
+      decls.map {
+        case (in.ArrayT(len, _), decl) => vpr.And(
+          vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), decl.localVar)(pos, info, errT),
+          vpr.LtCmp(decl.localVar, vpr.IntLit(len)(pos, info, errT))(pos, info, errT)
+        )(pos, info, errT)
+      }.reduceOption((l, r) => vpr.And(l, r)(pos, info, errT)).getOrElse(vpr.TrueLit()(pos, info, errT))
+    }
+
+    object Declaration {
+      /**
+        * Gives a fresh local variable for an `typ`-typed array
+        */
+      def anonymousLocalVar(typ : in.ArrayT)(info : Source.Parser.Info) =
+        in.LocalVar.Inter(Names.freshName, typ)(info)
+
+      /**
+        * Declares and writes a new local variable declaration in Viper
+        * for an array of type `arrayType`.
+        */
+      def anonymous(arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : CodeWriter[vpr.LocalVar] = for {
+        tmpVar <- variableVal(anonymousLocalVar(arrayType)(src.info))(ctx)
+        _ <- local(vu.toVarDecl(tmpVar))
+      } yield tmpVar
+    }
+
+    object Allocation {
+      /**
+        * Writes Viper assume/inhale statements that model the memory allocation
+        * for the entries of `array`, which is expected to be of type `arrayType`.
+        */
+      def writeConditions(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : CodeWriter[Unit] = {
+        val (pos, info, errT) = src.vprMeta
+
+        val lengths = lengthConditions(array, arrayType)(src)(ctx)
+        val ownerships = ownershipConditions(array, arrayType)(src)(ctx)
+
+        val conditions : Vector[vpr.Stmt] = (lengths zip ownerships map {
+          case (length, ownership) => (
+            vpr.Assume(length)(pos, info, errT),
+            vpr.Inhale(ownership)(pos, info, errT)
+          )
+        }).flatMap { case (l, r) => Vector(l, r) }
+
+        for { _ <- sequence(conditions map { c => write(c) }) } yield ()
+      }
+
+      /**
+        * Writes Viper well-definedness conditions that model the memory allocation
+        * for the entries of `array`, which is expected to be of type `arrayType`.
+        */
+      // TODO rename?
+      def wellDefConditions(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : CodeWriter[Unit] = for {
+        _ <- sequence(conditions(array, arrayType)(src)(ctx) map { c => wellDef(c) })
+      } yield ()
+
+      // TODO description
+      def conditions(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] = {
+        val lengths = lengthConditions(array, arrayType)(src)(ctx)
+        val ownerships = ownershipConditions(array, arrayType)(src)(ctx)
+        lengths zip ownerships flatMap { case (l, r) => Vector(l, r) }
+      }
+
+      // TODO description
+      def condition(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
+        val (pos, info, errT) = src.vprMeta
+        val base = vpr.TrueLit()(pos, info, errT)
+
+        conditions(array, arrayType)(src)(ctx).foldLeft[vpr.Exp](base) {
+          case (a, b) => vpr.And(a, b)(pos, info, errT)
+        }
+      }
+
+      private def lengthCondition(array : vpr.Exp, dimensions : Vector[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Exp = {
+        require(0 < dimensions.length, s"no idea on how to handle a zero-dimensional array")
+
+        val (pos, info, errT) = src.vprMeta
+
+        dimensions.dropRight(1) match {
+          // `array` has only one dimension, so no need to generate quantifiers
+          case Vector() => vpr.EqCmp(
+            ctx.array.length(array),
+            vpr.IntLit(dimensions.last.length)(pos, info, errT)
+          )(pos, info, errT)
+
+          // `array` has at least two dimensions, so quantifiers need to be generated
+          case tail => {
+            // generate the variables that will be bound by the quantifiers
+            val decls = tail.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
+            val tailDecls = tail.zip(decls)
+
+            // generate the bound conditions (to be used in the left-hand side of the generated implications)
+            val conditions : vpr.Exp = boundaryConditions(tailDecls)(src)
+
+            // generate the index expression (chain) `base[i0][i1]...`, according to `dimensions`
+            def convert(base : vpr.Exp, baseInfo : (in.ArrayT, vpr.LocalVarDecl)) : vpr.FieldAccess =
+              arrayIndex(baseInfo._1.typ, base, baseInfo._2.localVar)(ctx)(pos, info, errT)
+            val indexExp : vpr.Exp = tailDecls.foldLeft(array)(convert)
+            val lengthExp : vpr.Exp = ctx.array.length(indexExp)
+
+            vpr.Forall(
+              decls,
+              Seq(vpr.Trigger(Seq(lengthExp))(pos, info, errT)),
+              vpr.Implies(
+                conditions,
+                vpr.EqCmp(
+                  lengthExp,
+                  vpr.IntLit(dimensions.last.length)(pos, info, errT)
+                )(pos, info, errT)
+              )(pos, info, errT)
+            )(pos, info, errT)
+          }
+        }
+      }
+
+      private def lengthConditions(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] =
+        explode(arrayType).map(lengthCondition(array, _)(src)(ctx))
+
+      private def ownershipCondition(array : vpr.Exp, dimensions : Vector[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Forall = {
+        require(0 < dimensions.length, s"no idea on how to handle a zero-dimensional array")
+
+        val (pos, info, errT) = src.vprMeta
+
+        // generate the variables that will be bound by the quantifiers
+        val decls = dimensions.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
+        val dimDecls = dimensions.zip(decls)
+
+        // generate the bound conditions (to be used in the left-hand side of the generated implications)
+        val conditions : vpr.Exp = boundaryConditions(dimDecls)(src)
+
+        // generate the index expression (chain) `base[i0][i1]...`, according to `dimensions`
+        def convert(base : vpr.Exp, baseInfo : (in.ArrayT, vpr.LocalVarDecl)) : vpr.FieldAccess =
+          arrayIndex(baseInfo._1.typ, base, baseInfo._2.localVar)(ctx)(pos, info, errT)
+        val indexExp : vpr.FieldAccess = dimDecls.tail.foldLeft(convert(array, dimDecls.head))(convert)
+
+        vpr.Forall(
+          decls,
+          Seq(vpr.Trigger(Seq(indexExp))(pos, info, errT)),
+          vpr.Implies(
+            conditions,
+            vpr.FieldAccessPredicate(
+              indexExp, vpr.FullPerm()(pos, info, errT)
+            )(pos, info, errT)
+          )(pos, info, errT)
+        )(pos, info, errT)
+      }
+
+      private def ownershipConditions(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Forall] =
+        explode(arrayType).map(ownershipCondition(array, _)(src)(ctx))
+
+      private def explode(typ : in.Type) : Vector[Vector[in.ArrayT]] = typ match {
+        case typ @ in.ArrayT(_, t) => Vector(typ) +: explode(t).map(typ +: _)
+        case _ => Vector()
+      }
+    }
+
+    object Initialisation {
+      /**
+        * Writes Viper statements to initialise `array` according to `arrayType`.
+        */
+      def default(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : CodeWriter[Unit] = {
+        val (pos, info, errT) = src.vprMeta
+
+        val dimensions = explode(arrayType)
+        require(0 < dimensions.length, s"no idea on how to handle a zero-dimensional array")
+
+        // generate the variables that will be bound by the quantifiers
+        val decls = dimensions.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
+        val dimDecls = dimensions.zip(decls)
+
+        // generate the bound conditions (to be used in the left-hand side of the generated implications)
+        val conditions : vpr.Exp = boundaryConditions(dimDecls)(src)
+
+        // generate the index expression (chain) `base[i0][i1]...`, according to `dimensions`
+        def convert(base : vpr.Exp, baseInfo : (in.ArrayT, vpr.LocalVarDecl)) : vpr.FieldAccess =
+          arrayIndex(baseInfo._1.typ, base, baseInfo._2.localVar)(ctx)(pos, info, errT)
+        val indexExp : vpr.FieldAccess = dimDecls.tail.foldLeft(convert(array, dimDecls.head))(convert)
+
+        for {
+          dflt <- defaultValue(dimensions.last.typ)(src)(ctx)
+          _ <- write(vpr.Assume(
+            vpr.Forall(
+              decls,
+              Seq(vpr.Trigger(Seq(indexExp))(pos, info, errT)),
+              vpr.Implies(
+                conditions,
+                vpr.EqCmp(indexExp, dflt)(pos, info, errT)
+              )(pos, info, errT)
+            )(pos, info, errT)
+          )(pos, info, errT))
+        } yield ()
+      }
+
+      /**
+        * Writes Viper statements to initialise `dst` to be a copy of `src`,
+        * both of which are expected to be of `arrayType`.
+        */
+      def writeAssumeEqual(dst : vpr.Exp, source : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : CodeWriter[Unit] = {
+        val (pos, info, errT) = src.vprMeta
+        write(vpr.Assume(equal(dst, source, arrayType)(src)(ctx))(pos, info, errT))
+      }
+
+      /**
+        * Yields a Viper assertion expressing that `source` and `dst` are equal.
+        */
+      def equal(dst : vpr.Exp, source : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
+        val (pos, info, errT) = src.vprMeta
+
+        val dimensions = explode(arrayType)
+        require(0 < dimensions.length, s"no idea on how to handle a zero-dimensional array")
+
+        // generate the variables that will be bound by the quantifiers
+        val decls = dimensions.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
+        val dimDecls = dimensions.zip(decls)
+
+        // generate the bound conditions (to be used in the left-hand side of the generated implications)
+        val conditions : vpr.Exp = boundaryConditions(dimDecls)(src)
+
+        // helper function for generating index expression chains `base[i0][i1]...`, according to `dimensions`
+        def convert(base : vpr.Exp, baseInfo : (in.ArrayT, vpr.LocalVarDecl)) : vpr.FieldAccess =
+          arrayIndex(baseInfo._1.typ, base, baseInfo._2.localVar)(ctx)(pos, info, errT)
+        def indexExp(base : vpr.Exp) : vpr.FieldAccess =
+          dimDecls.tail.foldLeft(convert(base, dimDecls.head))(convert)
+
+        vpr.Forall(
+          decls,
+          Seq(vpr.Trigger(Seq(indexExp(dst)))(pos, info, errT)),
+          vpr.Implies(
+            conditions,
+            vpr.EqCmp(indexExp(dst), indexExp(source))(pos, info, errT)
+          )(pos, info, errT)
+        )(pos, info, errT)
+      }
+
+      private def explode(typ : in.Type) : Vector[in.ArrayT] = typ match {
+        case typ @ in.ArrayT(_, t) => typ +: explode(t)
+        case _ => Vector()
+      }
+    }
+  }
 }

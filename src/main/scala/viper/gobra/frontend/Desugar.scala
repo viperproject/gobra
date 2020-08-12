@@ -625,10 +625,14 @@ object Desugar {
                 re  <- goE(right.head)
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get))(meta(l)))(meta(l)) }
-              unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
-
+              typOpt.get match {
+                case _: PArrayType => unit(in.Seqn(Vector())(src))
+                case _ => {
+                  val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
+                  val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get))(meta(l)))(meta(l)) }
+                  unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
+                }
+              }
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
@@ -743,7 +747,6 @@ object Desugar {
     }
 
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
-
       val src: Meta = meta(expr)
 
       info.resolve(expr) match {
@@ -753,8 +756,9 @@ object Desugar {
           derefD(ctx)(p)(src) map in.Assignee.Pointer
         case Some(p: ap.FieldSelection) =>
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
-
-        case p => Violation.violation(s"unexpected ast pattern $p ")
+        case Some(p : ap.IndexedExp) =>
+          indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
+        case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
 
@@ -1059,7 +1063,7 @@ object Desugar {
       case t: DeclaredT => registerType(registerDefinedType(t)(src))
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
-      case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem))
+      case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem)(src))
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)(src)))

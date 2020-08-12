@@ -57,7 +57,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
-    case PIndexedExp(b, _) if exprType(b).isInstanceOf[MapT] => true
+    case PIndexedExp(b, _) => exprType(b) match {
+      case _:ArrayT | _:MapT => true
+      case _ => false
+    }
     case e => goAddressable(e)
   }
 

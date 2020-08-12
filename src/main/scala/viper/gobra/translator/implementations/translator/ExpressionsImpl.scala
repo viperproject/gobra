@@ -119,7 +119,7 @@ class ExpressionsImpl extends Expressions {
         indexT <- goE(index)
       } yield base.typ match {
         case in.ArrayT(_, t) => ctx.loc.arrayIndex(t, baseT, indexT)(ctx)(pos, info, errT)
-        case in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case in.ArraySequenceT(_, _) | in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
         case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }
 

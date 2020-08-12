@@ -256,7 +256,7 @@ case class ArrayLength(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   */
 case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = base.typ match {
-    case ArrayT(_, t) => t
+    case t : ArrayType => t.typ
     case SequenceT(t) => t
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
@@ -636,12 +636,33 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
+sealed trait ArrayType extends Type {
+  def length : BigInt
+  def typ : Type
+
+  def asArrayT : ArrayT = ArrayT(length, typ match {
+    case t : ArrayType => t.asArrayT
+    case t => t
+  })
+
+  def asArraySequenceT : ArraySequenceT = ArraySequenceT(length, typ match {
+    case t : ArrayType => t.asArraySequenceT
+    case t => t
+  })
+}
+
 /**
   * The type of arrays of length `length` and type `t`.
   * Here `length` is assumed to be positive
   * (this is ensured by the type checker).
   */
-case class ArrayT(length : BigInt, typ : Type) extends Type
+case class ArrayT(length : BigInt, typ : Type) extends ArrayType
+
+/**
+  * Exact same as `ArrayT`, however this type should be translated into
+  * a "Seq[`typ`]" instead of the "Array" Viper domain.
+  */
+case class ArraySequenceT(length : BigInt, typ : Type) extends ArrayType
 
 /**
   * The type of mathematical sequences with elements of type `t`.

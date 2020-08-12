@@ -201,10 +201,6 @@ object Desugar {
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, returnSubs) = returnsWithSubs.unzip
-      val actualReturns = returnsWithSubs.map{
-        case (_, Some(x)) => x
-        case (x, None)    => x
-      }
 
       def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
@@ -238,6 +234,11 @@ object Desugar {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
         case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (PNamedParameter(id, _, _), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -681,9 +682,11 @@ object Desugar {
 
               // encode result
               val resT = typeD(fsym.context.typ(fsym.result))(src)
-              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src))(src))
+              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src) match {
+                case t : in.ArrayType => t.asArraySequenceT
+                case t => t
+              })(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
-
 
               base match {
                 case base: ap.Function =>
@@ -894,14 +897,15 @@ object Desugar {
             dop <- go(op)
           } yield dop.typ match {
             case _: in.ArrayT => in.ArrayLength(dop)(src)
-            case _: in.SequenceT => in.SequenceLength(dop)(src)
+            case _: in.ArraySequenceT | _: in.SequenceT => in.SequenceLength(dop)(src)
             case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
           }
 
           case PCapacity(op) => for {
             dop <- go(op)
           } yield dop.typ match {
-            case _: in.ArrayT => in.ArrayLength(dop)(src) // for arrays `len` and `cap` are identical
+            case _: in.ArrayT => in.ArrayLength(dop)(src)
+            case _: in.ArraySequenceT => in.SequenceLength(dop)(src)
             case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
           }
 
@@ -1173,9 +1177,13 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ, _) =>
-              val param = in.Parameter.In(idName(id), typeD(info.typ(typ))(src))(src)
-              val local = Some(localAlias(localVarContextFreeD(id)))
-              (param, local)
+              val typD = typeD(info.typ(typ))(src) match {
+                case t : in.ArrayType => t.asArraySequenceT
+                case t => t
+              }
+              val param = in.Parameter.In(idName(id), typD)(src)
+              val alias = localAlias(localVarContextFreeD(id))
+              (param, Some(alias))
 
             case PUnnamedParameter(typ) =>
               val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
@@ -1192,15 +1200,21 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
-              val param = in.Parameter.Out(idName(id), typeD(info.typ(typ))(src))(src)
-              val local = Some(localAlias(localVarContextFreeD(id)))
-              (param, local)
+            case PNamedParameter(id, typ, _) => {
+              val typD = typeD(info.typ(typ))(src) match {
+                case t : in.ArrayType => t.asArraySequenceT
+                case t => t
+              }
+              val param = in.Parameter.Out(idName(id), typD)(src)
+              val alias = localAlias(localVarContextFreeD(id))
+              (param, Some(alias))
+            }
 
-            case PUnnamedParameter(typ) =>
+            case PUnnamedParameter(typ) => {
               val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
               val local = None
               (param, local)
+            }
           }
       }
     }

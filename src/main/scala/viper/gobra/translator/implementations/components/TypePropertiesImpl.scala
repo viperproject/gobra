@@ -49,8 +49,8 @@ class TypePropertiesImpl extends TypeProperties {
     case _ => None
   }
 
-  override def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayT] = underlyingType(typ)(ctx) match {
-    case t : in.ArrayT => Some(t)
+  override def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayType] = underlyingType(typ)(ctx) match {
+    case t : in.ArrayType => Some(t)
     case _ => None
   }
 }

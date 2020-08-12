@@ -19,6 +19,7 @@ class TypesImpl extends Types {
     * [nil]    -> ref
     * [S]      -> ??? // TODO: will be the tuple type
     * [array n t] -> array
+    * [arraySeq n t] -> seq[t]
     * [seq t]  -> seq[t]
     * [set t]  -> set[t]
     * [mset t] -> mset[t]
@@ -37,6 +38,7 @@ class TypesImpl extends Types {
     }
     case in.TupleT(_) => Violation.violation("Tuple types are not supported at this point in time")
     case in.ArrayT(_, _) => ctx.array.typ()
+    case in.ArraySequenceT(_, elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SetT(elem) => vpr.SetType(translate(elem)(ctx))
     case in.MultisetT(elem) => vpr.MultisetType(translate(elem)(ctx))

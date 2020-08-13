@@ -112,7 +112,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
-        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
         case t: PType => typeType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
@@ -247,6 +246,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case expr @ PArrayLiteral(len, typ, exprs) => {
+      val lenMsg = len match {
+        case Some(n) => intConstantEval(n) match {
+          case None => message(len, s"expected constant array length, but got $n")
+          case Some(v) => message(len, s"array length should be positive, but got $v", v < 0) ++
+            message(expr,s"array length ($v) does not correspond with the number of elements in the literal (${exprs.length})", exprs.length != v)
+        }
+        case None => noMessages
+      }
+      val typT = typeType(typ)
+      lenMsg ++ exprs.flatMap(e => assignableTo.errors(exprType(e), typT)(e) ++ isExpr(e).out)
+    }
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
@@ -265,6 +277,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PFunctionLit(args, r, _) =>
       FunctionT(args map miscType, miscType(r))
+
+    case PArrayLiteral(len, typ, exprs) => ArrayT(len match {
+      case Some(n) => intConstantEval(n).get
+      case None => exprs.length
+    }, typeType(typ))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeType(p.typ)
@@ -323,7 +340,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
-    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
     case t: PType => typeType(t)
   }
 

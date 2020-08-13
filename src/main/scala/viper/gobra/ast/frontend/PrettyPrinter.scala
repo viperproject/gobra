@@ -34,7 +34,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
     case n: PKeyedElement => showKeyedElement(n)
-
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
@@ -267,6 +266,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoolLit(lit) => if(lit) "true" else "false"
       case PIntLit(lit) => lit.toString
       case PNilLit() => "nil"
+      case PArrayLiteral(len, typ, exprs) => {
+        val lenP : Doc = len.map(showExpr).getOrElse("...")
+        val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
+        brackets(lenP) <> showType(typ) <+> braces(exprsP)
+      }
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
@@ -351,7 +355,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
     case t: PType => showType(t)
-    case PImplicitSizeArrayType(elem) => "[...]" <> showType(elem)
   }
 
   def showCompositeKey(n: PCompositeKey): Doc = n match {

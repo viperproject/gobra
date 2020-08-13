@@ -47,6 +47,7 @@ object Nodes {
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
         case SepAnd(left, right) => Seq(left, right)
+        case SepForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case Access(e) => Seq(e)
@@ -75,7 +76,8 @@ object Nodes {
           case IntLit(v) => Seq()
           case BoolLit(v) => Seq()
           case NilLit() => Seq()
-          case StructLit(t, args) => args
+          case ArrayLiteral(_, exprs) => exprs
+          case StructLit(_, args) => args
         }
         case Parameter.In(id, typ) => Seq()
         case Parameter.Out(id, typ) => Seq()

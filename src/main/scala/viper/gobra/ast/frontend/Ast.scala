@@ -290,7 +290,13 @@ case class PIntLit(lit: BigInt) extends PBasicLiteral
 
 case class PNilLit() extends PBasicLiteral
 
-// TODO: add other literals
+/**
+  * An array literal of the form "[`len`]`typ` { e_0, ..., e_(n-1) }",
+  * where `exprs` constitutes the expression sequence "e_0, ..., e_(n-1)".
+  * A len of `None` represents a literal of type "[...]`typ`", i.e., the
+  * length is determined by the size of `exprs`.
+  */
+case class PArrayLiteral(len : Option[PExpression], typ : PType, exprs : Vector[PExpression]) extends PLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
@@ -434,8 +440,6 @@ case class PIntType() extends PPredeclaredType("int")
 sealed trait PTypeLit extends PActualType
 
 case class PArrayType(len: PExpression, elem: PType) extends PTypeLit with PLiteralType
-
-case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 

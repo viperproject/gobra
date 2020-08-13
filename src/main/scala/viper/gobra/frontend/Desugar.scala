@@ -934,13 +934,19 @@ object Desugar {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PNilLit() => single(in.NilLit())
+        case PArrayLiteral(_, typ, exprs) => for {
+          dexprs <- sequence(exprs map (exprD(ctx)(_)))
+          dtyp = typeD(info.typ(typ))(src)
+          dlit <- single(in.ArrayLiteral(dtyp, dexprs))
+        } yield dlit
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
     }
 
     def compositeLitToObject(lit: in.CompositeLit): in.CompositeObject = lit match {
-      case l: in.StructLit => in.CompositeObject.Struct(l)
+      case l : in.ArrayLiteral => in.CompositeObject.ArrayLit(l)
+      case l : in.StructLit => in.CompositeObject.Struct(l)
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {

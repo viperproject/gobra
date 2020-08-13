@@ -684,7 +684,13 @@ object Parser {
       idnUse ^^ PNamedOperand
 
     lazy val literal: Parser[PLiteral] =
-      basicLit | compositeLit | functionLit
+      basicLit | arrayLiteral | compositeLit | functionLit
+
+    lazy val arrayLiteral : Parser[PArrayLiteral] =
+      ("[" ~> arrayLiteralLength <~ "]") ~ typ ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PArrayLiteral
+
+    private lazy val arrayLiteralLength : Parser[Option[PExpression]] =
+      "..." ^^^ None | expression ^^ (Some(_))
 
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
@@ -821,10 +827,8 @@ object Parser {
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType | qualifiedType | declaredType
+      sliceType | arrayType | mapType | structType | qualifiedType | declaredType
 
-    lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
-      "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
 
     /**
       * Misc

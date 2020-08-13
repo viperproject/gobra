@@ -2074,6 +2074,187 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a very simple integer array literal expression") {
+    frontend.parseExpOrFail("[2]int { 12, 24 }") should matchPattern {
+      case PArrayLiteral(
+        Some(PIntLit(a)),
+        PIntType(),
+        Vector(PIntLit(b), PIntLit(c))
+      ) if a == BigInt(2) && b == BigInt(12) && c == BigInt(24) =>
+    }
+  }
+
+  test("Parser: should be able to parse an empty Boolean array literal") {
+    frontend.parseExpOrFail("[0]bool { }") should matchPattern {
+      case PArrayLiteral(Some(PIntLit(a)), PBoolType(), Vector())
+        if a == BigInt(0) =>
+    }
+  }
+
+  test("Parser: should be able to parse an empty Boolean array literal with some spaces added and/or removed") {
+    frontend.parseExpOrFail("[ 0 ] bool{}") should matchPattern {
+      case PArrayLiteral(Some(PIntLit(a)), PBoolType(), Vector())
+        if a == BigInt(0) =>
+    }
+  }
+
+  test("Parser: should be able to parse an array literal with a slightly more complex length expression") {
+    frontend.parseExpOrFail("[x + y]int { }") should matchPattern {
+      case PArrayLiteral(
+        Some(PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y")))),
+        PIntType(),
+        Vector()
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse an array literal with a slightly more complex type expression") {
+    frontend.parseExpOrFail("[x]seq[set[bool]] { }") should matchPattern {
+      case PArrayLiteral(
+        Some(PNamedOperand(PIdnUse("x"))),
+        PSequenceType(PSetType(PBoolType())),
+        Vector()
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple (singleton) array literal with a slightly more complex inner expression") {
+    frontend.parseExpOrFail("[1]int { x + len(xs) }") should matchPattern {
+      case PArrayLiteral(
+        Some(PIntLit(a)),
+        PIntType(),
+        Vector(PAdd(
+          PNamedOperand(PIdnUse("x")),
+          PLength(PNamedOperand(PIdnUse("xs")))
+        ))
+      ) if a == BigInt(1) =>
+    }
+  }
+
+  test("Parser: should not be able to parse an array literal expression with a missing length") {
+    frontend.parseExp("[ ]int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal expression with a missing opening bracket") {
+    frontend.parseExp("2]int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal expression with a missing closing bracket") {
+    frontend.parseExp("[2 int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal expression with a syntax problem in the length expression") {
+    frontend.parseExp("[2 / ] int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with a missing type expression") {
+    frontend.parseExp("[2] { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with a missing opening brace") {
+    frontend.parseExp("[2]int 1, 2 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with a missing closing brace") {
+    frontend.parseExp("[2]int { 1, 2") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with only a comma") {
+    frontend.parseExp("[2]int { , }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with an extra comma on the left") {
+    frontend.parseExp("[2]int { ,1,2 }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse array literal expressions with extra commas on the right") {
+    frontend.parseExp("[2]int { 1,2,, }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should correctly parse a simple 2-dimensional array literal") {
+    frontend.parseExpOrFail("[1][2]int { [3]int { n } }") should matchPattern {
+      case PArrayLiteral(
+        Some(PIntLit(a)),
+        PArrayType(PIntLit(b), PIntType()),
+        Vector(
+          PArrayLiteral(Some(PIntLit(c)), PIntType(), Vector(PNamedOperand(PIdnUse("n"))))
+        )
+      ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(3) =>
+    }
+  }
+
+  test("Parser: should correctly parse a simple array literal of an implicit length") {
+    frontend.parseExpOrFail("[...]bool { }") should matchPattern {
+      case PArrayLiteral(None, PBoolType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should correctly parse a simple array literal of an implicit length with some extra spaces added") {
+    frontend.parseExpOrFail("[ ... ] bool { } ") should matchPattern {
+      case PArrayLiteral(None, PBoolType(), Vector()) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal of an implicit length if there are too few dots") {
+    frontend.parseExp("[..]int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal of an implicit length if there are too many dots") {
+    frontend.parseExp("[....]int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an array literal of an implicit length if there is an erroneous space separating the three dots") {
+    frontend.parseExp("[. ..]int { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should correctly parse nested array literals, both of implicit lengths") {
+    frontend.parseExpOrFail("[...]bool { [...]bool { } }") should matchPattern {
+      case PArrayLiteral(
+        None,
+        PBoolType(),
+        Vector(PArrayLiteral(None, PBoolType(), Vector()))
+      ) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a multidimensional array literal, all with implicit lengths") {
+    frontend.parseExp("[...][...]bool { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not be able to parse a 2D array literal with the innermost literal of an implicit length") {
+    frontend.parseExp("[0][...]bool { }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

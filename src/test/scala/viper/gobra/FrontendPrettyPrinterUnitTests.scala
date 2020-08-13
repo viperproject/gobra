@@ -794,6 +794,114 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a very simple integer array literal") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(2)),
+      PIntType(),
+      Vector(PIntLit(12), PIntLit(24))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[2]int { 12, 24 }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty Boolean array literal") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(0)),
+      PBoolType(),
+      Vector()
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[0]bool { }" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show an array literal with a slightly more complex length") {
+    val expr = PArrayLiteral(
+      Some(PAdd(PNamedOperand(PIdnUse("x")), PLength(PNamedOperand(PIdnUse("xs"))))),
+      PIntType(),
+      Vector()
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[x + len(xs)]int { }" =>
+    }
+  }
+
+  test("Printer: should correctly show an array literal with a slightly more complex type") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(0)),
+      PSequenceType(PSetType(PBoolType())),
+      Vector()
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[0]seq[set[bool]] { }" =>
+    }
+  }
+
+  test("Printer: Should correctly show an array singleton literal with a slightly more complex inner expression") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PIntType(),
+      Vector(PAdd(PNamedOperand(PIdnUse("n")), PLength(PNamedOperand(PIdnUse("xs")))))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[1]int { n + len(xs) }" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show an array literal without a specified length") {
+    val expr = PArrayLiteral(
+      None,
+      PIntType(),
+      Vector(
+        PNamedOperand(PIdnUse("x")),
+        PNamedOperand(PIdnUse("y")),
+        PNamedOperand(PIdnUse("z"))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[...]int { x, y, z }" =>
+    }
+  }
+
+  test("Printer: should be able to correctly show a 2-dimensional array literal") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(1), PBoolType()),
+      Vector(
+        PArrayLiteral(
+          Some(PIntLit(1)),
+          PBoolType(),
+          Vector(PBoolLit(false))
+        )
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[1][1]bool { [1]bool { false } }" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested array literal, both of an implicit length") {
+    val expr = PArrayLiteral(
+      None,
+      PBoolType(),
+      Vector(
+        PArrayLiteral(None, PBoolType(), Vector())
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "[...]bool { [...]bool { } }" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

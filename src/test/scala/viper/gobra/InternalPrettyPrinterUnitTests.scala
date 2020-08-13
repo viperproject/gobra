@@ -1016,6 +1016,61 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple integer array literal") {
+    val expr = ArrayLiteral(IntT, Vector(
+      IntLit(12)(Unsourced),
+      IntLit(24)(Unsourced),
+      IntLit(48)(Unsourced)
+    ))(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "[3]int { 12, 24, 48 }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty Boolean array literal") {
+    val expr = ArrayLiteral(BoolT, Vector())(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "[0]bool { }" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested array literal") {
+    val expr = ArrayLiteral(
+      ArraySequenceT(2, IntT),
+      Vector(
+        ArrayLiteral(IntT, Vector(
+          IntLit(24)(Unsourced),
+          IntLit(42)(Unsourced)
+        ))(Unsourced)
+      )
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "[1][2]int { [2]int { 24, 42 } }" =>
+    }
+  }
+
+  test("Printer: should correctly show an empty 3D array literal") {
+    val expr = ArrayLiteral(ArrayT(24, ArrayT(48, BoolT)), Vector())(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "[0][24][48]bool { }" =>
+    }
+  }
+
+  test("Printer: should correctly show a sequence array literal") {
+    val expr = ArrayLiteral(
+      SequenceT(IntT),
+      Vector(SequenceLiteral(IntT, Vector())(Unsourced))
+    )(Unsourced)
+
+    frontend.show(expr) should matchPattern {
+      case "[1]seq[int] { seq[int] { } }" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

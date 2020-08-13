@@ -2066,6 +2066,273 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (!frontend.wellDefExpr(expr)(inargs).valid)
   }
 
+  test("TypeChecker: should let a simple proper Boolean array literal be well-defined") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(2)),
+      PBoolType(),
+      Vector(PBoolLit(true), PBoolLit(false)),
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple empty integer array literal be well-defined") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(0)),
+      PIntType(),
+      Vector()
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple proper multidimensional array literal be well-defined") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(1), PIntType()),
+      Vector(
+        PArrayLiteral(Some(PIntLit(1)), PIntType(), Vector(PIntLit(42)))
+      )
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple array literal with an implicit length be well-defined") {
+    val expr = PArrayLiteral(
+      None,
+      PBoolType(),
+      Vector(PBoolLit(true), PBoolLit(false), PBoolLit(true))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should let a simple multidimensional array literal with implicit lengths be well-defined") {
+    val expr = PArrayLiteral(
+      None,
+      PArrayType(PIntLit(1), PIntType()),
+      Vector(
+        PArrayLiteral(None, PIntType(), Vector(PIntLit(42)))
+      )
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if the inner elements doesn't have the expected type") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PIntType(),
+      Vector(PBoolLit(false))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if there are more inner elements than expected according to the array type") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PBoolType(),
+      Vector(PBoolLit(false), PBoolLit(true))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if there are fewer inner elements than expected according to the array type") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(3)),
+      PBoolType(),
+      Vector(PBoolLit(false), PBoolLit(true))
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if its length is negative") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(-3)),
+      PBoolType(),
+      Vector()
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if its length is not constant") {
+    val inargs = Vector(PNamedParameter(PIdnDef("n"), PIntType(), false))
+    val expr = PArrayLiteral(
+      Some(PNamedOperand(PIdnUse("n"))),
+      PIntType(),
+      Vector()
+    )
+    assert (!frontend.wellDefExpr(expr)(inargs).valid)
+  }
+
+  test("TypeChecker: should not let a nested array literal be well-defined if the types do not match") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(1), PIntType()),
+      Vector(
+        PArrayLiteral(Some(PIntLit(1)), PBoolType(), Vector(PBoolLit(false)))
+      )
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let a nested array literal be well-defined if the lengths do not match") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(1), PIntType()),
+      Vector(
+        PArrayLiteral(Some(PIntLit(2)), PIntType(), Vector(PIntLit(42), PIntLit(42)))
+      )
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if its length expression is Boolean") {
+    val expr = PArrayLiteral(
+      Some(PBoolLit(false)),
+      PIntType(),
+      Vector()
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be well-defined if there is a typing problem in the inner expression list") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PSequenceType(PBoolType()),
+      Vector(
+        PSequenceLiteral(PBoolType(), Vector(PIntLit(42)))
+      )
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let two nested array literals of implicit length be well-defined if the lengths do not correctly match") {
+    val expr = PArrayLiteral(
+      None,
+      PIntType(),
+      Vector(
+        PArrayLiteral(None, PIntType(), Vector(PIntLit(42)))
+      )
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should classify a simple array literal with a slightly more complex length expression as well-defined") {
+    val expr = PArrayLiteral(
+      Some(PAdd(PIntLit(1), PIntLit(2))),
+      PBoolType(),
+      Vector(PBoolLit(false), PBoolLit(true), PBoolLit(true))
+    )
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let an array literal be classified as pure") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(2)),
+      PBoolType(),
+      Vector(PIntLit(1), PIntLit(2))
+    )
+    assert (!frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should not let a simple array literal be classified as ghost if its inner type isn't ghost") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(2)),
+      PIntType(),
+      Vector(PIntLit(1), PIntLit(2))
+    )
+    assert (!frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a simple array literal as ghost if its inner type is ghost (1)") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PSequenceType(PBoolType()),
+      Vector(
+        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+      )
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should classify a simple array literal as ghost if its inner type is ghost (2)") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(1), PSequenceType(PBoolType())),
+      Vector(
+        PArrayLiteral(
+          Some(PIntLit(1)),
+          PSequenceType(PBoolType()),
+          Vector(
+            PSequenceLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false)))
+          )
+        )
+      )
+    )
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should assign the correct type to a simple integer array literal") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(2)),
+      PIntType(),
+      Vector(PIntLit(12), PIntLit(24))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.ArrayT(a, Type.IntT) if a == BigInt(2) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a simple Boolean array literal with an implicit length") {
+    val expr = PArrayLiteral(
+      None,
+      PBoolType(),
+      Vector(PBoolLit(false), PBoolLit(true), PBoolLit(true), PBoolLit(false), PBoolLit(true))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.ArrayT(a, Type.BooleanT) if a == BigInt(5) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a multidimensional array literal") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(2), PIntType()),
+      Vector(
+        PArrayLiteral(None, PIntType(), Vector(PIntLit(1), PIntLit(2)))
+      )
+    )
+    frontend.exprType(expr)() should matchPattern {
+      case Type.ArrayT(a, Type.ArrayT(b, Type.IntT))
+        if a == BigInt(1) && b == BigInt(2) =>
+    }
+  }
+
+  test("TypeChecker: should not type check a multidimensional array literal with wrong and implicit lengths") {
+    val expr = PArrayLiteral(
+      Some(PIntLit(1)),
+      PArrayType(PIntLit(2), PIntType()),
+      Vector(
+        PArrayLiteral(None, PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
+      )
+    )
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should assign the correct type to an array literal of sequences of sets") {
+    val expr = PArrayLiteral(
+      None,
+      PSequenceType(PSetType(PBoolType())),
+      Vector(
+        PSequenceLiteral(PSetType(PBoolType()), Vector())
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.ArrayT(a, Type.SequenceT(Type.SetT(Type.BooleanT)))
+        if a == BigInt(1) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

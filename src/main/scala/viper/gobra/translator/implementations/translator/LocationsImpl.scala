@@ -432,6 +432,7 @@ class LocationsImpl extends Locations {
       case in.IntLit(v) => unit(vpr.IntLit(v)(pos, info, errT))
       case in.BoolLit(b) => unit(vpr.BoolLit(b)(pos, info, errT))
       case in.NilLit() => unit(vpr.NullLit()(pos, info, errT))
+      case lit: in.ArrayLiteral => ctx.expr.translate(lit.asSequenceLiteral)(ctx)
       case in.StructLit(typ, args) =>
         val lhsTrans = values(typ)(ctx)
         val rhsTrans = args map (arg => (arg, values(arg.typ)(ctx)))
@@ -515,6 +516,9 @@ class LocationsImpl extends Locations {
     val src = mk.info
 
     mk.typ match {
+      case in.CompositeObject.ArrayLit(_) =>
+        Violation.violation("not yet implemented")
+
       case in.CompositeObject.Struct(slit) =>
         val deref = in.Deref(mk.target)(src)
         val fieldZip = ctx.typeProperty.structType(slit.typ)(ctx).get.fields.zip(slit.args)

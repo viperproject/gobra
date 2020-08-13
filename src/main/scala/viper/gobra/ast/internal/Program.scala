@@ -153,6 +153,7 @@ sealed trait CompositeObject extends Node {
 }
 
 object CompositeObject {
+  case class ArrayLit(op : ArrayLiteral) extends CompositeObject
   case class Struct(op: StructLit) extends CompositeObject
 }
 
@@ -261,6 +262,8 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
+
+
 
 
 /* ** Sequence expressions */
@@ -567,6 +570,11 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 }
 
 sealed trait CompositeLit extends Lit
+
+case class ArrayLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val asSequenceLiteral = SequenceLiteral(memberType, exprs)(info)
+  override def typ : Type = ArraySequenceT(exprs.length, memberType).asArraySequenceT
+}
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 

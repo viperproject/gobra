@@ -40,8 +40,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case s if enclosingGhostContext(s) => noMessages
 
     case stmt @ PForStmt(pre, cond, post, _, body) => {
-      val ghostChildFound = Seq(pre, post, Some(cond), Some(body))
-        .flatten.map(noGhostPropagationFromChildren)
+      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
+      val ghostChildFound = Seq(pre, post, Some(cond), Some(body)).flatten.map(noGhostPropagationFromChildren)
       message(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
     }
 

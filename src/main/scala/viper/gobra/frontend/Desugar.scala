@@ -895,18 +895,25 @@ object Desugar {
 
           case PLength(op) => for {
             dop <- go(op)
-          } yield dop.typ match {
-            case _: in.ArrayT => in.ArrayLength(dop)(src)
-            case _: in.ArraySequenceT | _: in.SequenceT => in.SequenceLength(dop)(src)
-            case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
+          } yield dop match {
+            case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
+            case dop : in.SequenceLiteral => in.IntLit(dop.length)(src)
+            case _ => dop.typ match {
+              case _: in.ArrayT => in.ArrayLength(dop)(src)
+              case _: in.ArraySequenceT | _: in.SequenceT => in.SequenceLength(dop)(src)
+              case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
+            }
           }
 
           case PCapacity(op) => for {
             dop <- go(op)
-          } yield dop.typ match {
-            case _: in.ArrayT => in.ArrayLength(dop)(src)
-            case _: in.ArraySequenceT => in.SequenceLength(dop)(src)
-            case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
+          } yield dop match {
+            case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
+            case _ => dop.typ match {
+              case _: in.ArrayT => in.ArrayLength(dop)(src)
+              case _: in.ArraySequenceT => in.SequenceLength(dop)(src)
+              case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
+            }
           }
 
           case g: PGhostExpression => ghostExprD(ctx)(g)

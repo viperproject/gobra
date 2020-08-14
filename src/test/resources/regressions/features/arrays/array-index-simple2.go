@@ -27,7 +27,5 @@ func test4(a [2][3]int) {
   var b [2][3]int
   assert a == b
   b[0][2] = 24
-  assert a[0][2] != b[0][2]
-  // ideally this would pass without the auxiliary assertion above:
   assert a != b
 }

@@ -1,6 +1,5 @@
 package pkg
 
-/*
 func test1() {
 	a := [2]int { 12, 24 }
   assert a[0] == 12
@@ -34,9 +33,27 @@ ensures b == [...]int { 42, 44 }
 func test6(a [2]int) (b [2]int) {
   b = a
 }
-*/
 
 requires a == [1][1][1]int { [1][1]int { [1]int { 1 } } }
 func test7(a [1][1][1]int) {
   assert a[0][0][0] == 1
+}
+
+func test8() {
+  assert [4]int { 1, 2, 3, 4 } == [2 + 2]int { 0 + 1, 1 + 1, 1 + 2, 2 + 2 }
+  assert [0]bool { } == [2 - 2]bool { }
+  assert [2][2]int { [2]int { 1, 2 }, [2]int { 3, 4 } } == [2][2]int { [2]int { 1, 1 + 1 }, [2]int { 3, 2 + 2 } }
+  assert [...]bool { true, false } == [2]bool { true, false }
+}
+
+func test9() {
+  assert len([2]int { 1, 2 }) == 2
+  assert cap([4]bool { true, false, true, false }) == 4
+  assert len([...]int { 42 }) == 1
+  assert len([2][1]int { [1]int { 8 }, [1]int { 8 } }) == 2
+}
+
+func test10() {
+  assert [4]int { 0, 1, 42, 8 }[2] == 42
+  assert forall i int :: 0 <= i && i < 4 ==> ([4]int { 0, 2, 4, 6 })[i] == i + i
 }

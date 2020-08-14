@@ -281,6 +281,7 @@ case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr
   * which should all be of type `memberType`.
   */
 case class SequenceLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+  lazy val length = exprs.length
   override def typ : Type = SequenceT(memberType)
 }
 
@@ -572,6 +573,7 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 sealed trait CompositeLit extends Lit
 
 case class ArrayLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val length = exprs.length
   lazy val asSequenceLiteral = SequenceLiteral(memberType, exprs)(info)
   override def typ : Type = ArraySequenceT(exprs.length, memberType).asArraySequenceT
 }

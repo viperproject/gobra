@@ -39,11 +39,17 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostStatement => noMessages
     case s if enclosingGhostContext(s) => noMessages
 
+    case stmt @ PForStmt(pre, cond, post, _, body) => {
+      val ghostChildFound = Seq(pre, post, Some(cond), Some(body))
+        .flatten.map(noGhostPropagationFromChildren)
+      message(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
+    }
+
     case _: PLabeledStmt
-         |  _: PEmptyStmt
-         |  _: PBlock
-         |  _: PSeq
-         |  _: PExpressionStmt
+      |  _: PEmptyStmt
+      |  _: PBlock
+      |  _: PSeq
+      |  _: PExpressionStmt
     => noMessages
 
     case n@ (
@@ -51,7 +57,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PIfStmt
       |  _: PExprSwitchStmt
       |  _: PTypeSwitchStmt
-      |  _: PForStmt
       |  _: PAssForRange
       |  _: PShortForRange
       |  _: PGoStmt

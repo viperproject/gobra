@@ -92,7 +92,7 @@ object Source {
           val newInfo = Verifier.Info(pnode, source, origin)
           val newPos  = vpr.TranslatedPosition(origin.pos)
 
-          (node.meta = (newPos, newInfo, errT)).asInstanceOf[N]
+          node.withMeta(newPos, newInfo, errT).asInstanceOf[N]
       }
     }
 

@@ -144,7 +144,7 @@ object ArrayUtil {
     val (pos, info, errT) = src.vprMeta
 
     baseType match {
-      case _ : in.ArrayT => ctx.array.length(base)
+      case _ : in.ArrayT => ctx.array.length(base)(pos, info, errT)
       case _ : in.ArraySequenceT => vpr.SeqLength(base)(pos, info, errT)
     }
   }

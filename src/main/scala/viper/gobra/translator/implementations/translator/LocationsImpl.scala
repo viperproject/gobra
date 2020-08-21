@@ -347,7 +347,7 @@ class LocationsImpl extends Locations {
     */
   override def arrayIndex(typ : in.Type, base : vpr.Exp, index : vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess = {
     regField(vpr.FieldAccess(
-      ctx.array.slot(base, index),
+      ctx.array.slot(base, index)(pos, info, errT),
       pointerField(typ)(ctx)
     )(pos, info, errT))
   }

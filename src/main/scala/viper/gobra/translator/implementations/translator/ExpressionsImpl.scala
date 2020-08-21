@@ -112,7 +112,7 @@ class ExpressionsImpl extends Expressions {
 
       case in.ArrayLength(exp) => for {
         expT <- goE(exp)
-      } yield ctx.array.length(expT)
+      } yield ctx.array.length(expT)(pos, info, errT)
 
       case in.IndexedExp(base, index) => for {
         baseT <- goE(base)

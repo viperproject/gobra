@@ -809,7 +809,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a very simple array length expression") {
-    val expr = ArrayLength(
+    val expr = Length(
       LocalVar.Ref("a", ArrayT(12, IntT))(Unsourced)
     )(Unsourced)
 
@@ -819,7 +819,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a slightly more complex array length expression") {
-    val expr = ArrayLength(
+    val expr = Length(
       Add(
         Cardinality(LocalVar.Ref("s", SetT(BoolT))(Unsourced))(Unsourced),
         IntLit(42)(Unsourced)
@@ -832,7 +832,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a nested array length expression") {
-    val expr = ArrayLength(ArrayLength(IntLit(42)(Unsourced))(Unsourced))(Unsourced)
+    val expr = Length(Length(IntLit(42)(Unsourced))(Unsourced))(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "len(len(42))" =>
@@ -841,8 +841,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to show the addition of two uses of the array length function") {
     val expr = Add(
-      ArrayLength(LocalVar.Ref("a", ArrayT(24, BoolT))(Unsourced))(Unsourced),
-      ArrayLength(LocalVar.Ref("b", ArrayT(24, BoolT))(Unsourced))(Unsourced)
+      Length(LocalVar.Ref("a", ArrayT(24, BoolT))(Unsourced))(Unsourced),
+      Length(LocalVar.Ref("b", ArrayT(24, BoolT))(Unsourced))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -851,7 +851,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should be able to show a very simple sequence length expression") {
-    val expr = SequenceLength(
+    val expr = Length(
       LocalVar.Ref("xs", SequenceT(IntT))(Unsourced)
     )(Unsourced)
 
@@ -861,7 +861,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should be able to show a slightly more complicated use of the sequence length function") {
-    val expr = SequenceLength(
+    val expr = Length(
       SequenceAppend(
         SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
         IntLit(12)(Unsourced)
@@ -874,10 +874,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a nested use of the built-in sequence length operator") {
-    val expr = SequenceLength(
-      SequenceLength(
-        SequenceLiteral(IntT, Vector())(Unsourced)
-      )(Unsourced)
+    val expr = Length(
+      Length(SequenceLiteral(IntT, Vector())(Unsourced))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -887,8 +885,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a composition of two sequence length function applications") {
     val expr = Add(
-      ArrayLength(LocalVar.Ref("xs", SequenceT(IntT))(Unsourced))(Unsourced),
-      ArrayLength(LocalVar.Ref("ys", SequenceT(IntT))(Unsourced))(Unsourced)
+      Length(LocalVar.Ref("xs", SequenceT(IntT))(Unsourced))(Unsourced),
+      Length(LocalVar.Ref("ys", SequenceT(IntT))(Unsourced))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -911,9 +909,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = IndexedExp(
       SequenceAppend(
         SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
-        SequenceLength(
-          LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced)
-        )(Unsourced)
+        Length(LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced))(Unsourced)
       )(Unsourced),
       IntLit(42)(Unsourced)
     )(Unsourced)

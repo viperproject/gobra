@@ -110,9 +110,13 @@ class ExpressionsImpl extends Expressions {
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
-      case in.ArrayLength(exp) => for {
+      case in.Length(exp) => for {
         expT <- goE(exp)
-      } yield ctx.array.length(expT)(pos, info, errT)
+      } yield exp.typ match {
+        case _: in.ArrayT => ctx.array.length(expT)(pos, info, errT)
+        case _: in.ArraySequenceT | _: in.SequenceT => vpr.SeqLength(expT)(pos, info, errT)
+        case t => Violation.violation(s"no translation is currently available for length expressions of type $t")
+      }
 
       case in.IndexedExp(base, index) => for {
         baseT <- goE(base)
@@ -122,10 +126,6 @@ class ExpressionsImpl extends Expressions {
         case in.ArraySequenceT(_, _) | in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
         case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }
-
-      case in.SequenceLength(exp) => for {
-        expT <- goE(exp)
-      } yield vpr.SeqLength(expT)(pos, info, errT)
 
       case in.SequenceLiteral(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)

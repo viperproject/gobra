@@ -245,8 +245,11 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
   override def typ : Type = IntT
 }
 
-/** Denotes the length of `exp`, which should be of type `ArrayT`. */
-case class ArrayLength(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+/**
+  * Denotes the length of `exp`, which should be
+  * of type `ArrayT` or `SequenceT`.
+  */
+case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
 }
 
@@ -267,13 +270,6 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
 
 
 /* ** Sequence expressions */
-
-/**
-  * Denotes the length of `exp`, which has to be a sequence.
-  */
-case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT
-}
 
 /**
   * A (mathematical) sequence literal "seq[`memberType`] { e_0, ..., e_n }",

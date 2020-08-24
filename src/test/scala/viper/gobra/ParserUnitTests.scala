@@ -2255,6 +2255,43 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse an integer pointer array type") {
+    frontend.parseTypeOrFail("[42]*int") should matchPattern {
+      case PArrayType(PIntLit(n), PDeref(PIntType()))
+        if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse a pointer type to an integer array") {
+    frontend.parseTypeOrFail("*[42]int") should matchPattern {
+      case PDeref(PArrayType(PIntLit(n), PIntType()))
+        if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse an empty struct type") {
+    frontend.parseTypeOrFail("struct { }") should matchPattern {
+      case PStructType(Vector()) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple struct type with a single field") {
+    frontend.parseTypeOrFail("struct { val int; }") should matchPattern {
+      case PStructType(Vector(
+        PFieldDecls(Vector(PFieldDecl(PIdnDef("val"), PIntType())))
+      )) =>
+    }
+  }
+
+  test("Parser: should be able to parse a simple struct type with two fields") {
+    frontend.parseTypeOrFail("struct { a int; b bool; }") should matchPattern {
+      case PStructType(Vector(
+        PFieldDecls(Vector(PFieldDecl(PIdnDef("a"), PIntType()))),
+        PFieldDecls(Vector(PFieldDecl(PIdnDef("b"), PBoolType())))
+      )) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

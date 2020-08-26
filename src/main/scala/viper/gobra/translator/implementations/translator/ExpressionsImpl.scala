@@ -164,7 +164,7 @@ class ExpressionsImpl extends Expressions {
       case in.SetConversion(exp) => for {
         expT <- goE(exp)
       } yield expT.typ match {
-        case vpr.SeqType(_) => ctx.seqToSet.create(expT)
+        case vpr.SeqType(_) => ctx.seqToSet.create(expT)(pos, info, errT)
         case t => Violation.violation(s"conversion of type $t to sets is not implemented")
       }
 
@@ -213,7 +213,7 @@ class ExpressionsImpl extends Expressions {
       case in.MultisetConversion(exp) => for {
         expT <- goE(exp)
       } yield expT.typ match {
-        case vpr.SeqType(_) => ctx.seqToMultiset.create(expT)
+        case vpr.SeqType(_) => ctx.seqToMultiset.create(expT)(pos, info, errT)
         case t => Violation.violation(s"conversion of type $t to multisets is not implemented")
       }
 
@@ -221,7 +221,7 @@ class ExpressionsImpl extends Expressions {
         leftT <- goE(left)
         rightT <- goE(right)
       } yield rightT.typ match {
-        case vpr.SeqType(_) => ctx.seqMultiplicity.create(leftT, rightT)
+        case vpr.SeqType(_) => ctx.seqMultiplicity.create(leftT, rightT)(pos, info, errT)
         case vpr.SetType(_) => vpr.CondExp(
           vpr.AnySetContains(leftT, rightT)(pos, info, errT),
           vpr.IntLit(1)(pos, info, errT),

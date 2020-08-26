@@ -313,16 +313,47 @@ class LocationsImpl extends Locations {
   /**
     * [b] -> b
     * [n] -> n
+    * [seq T { e1,...,en }] -> Seq [T] { [e1],...,[en] }
+    * [set T { e1,...,en }] -> Set [T] { [e1],...,[en] }
+    * [mset T { e1,...,en }] -> Multiset [T] { [e1],...,[en] }
     * [s(F: E)] -> var l; FOREACH
     */
   override def literal(lit: in.Lit)(ctx: Context): CodeWriter[vpr.Exp] = {
 
     val (pos, info, errT) = lit.vprMeta
 
+    def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
+
     lit match {
       case in.IntLit(v) => unit(vpr.IntLit(v)(pos, info, errT))
       case in.BoolLit(b) => unit(vpr.BoolLit(b)(pos, info, errT))
       case in.NilLit() => unit(vpr.NullLit()(pos, info, errT))
+
+      case in.SequenceLit(typ, exprs) => for {
+        exprsT <- sequence(exprs map goE)
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptySeq(typT)(pos, info, errT)
+        case _ => vpr.ExplicitSeq(exprsT)(pos, info, errT)
+      }
+
+      case in.SetLit(typ, exprs) => for {
+        exprsT <- sequence(exprs map goE)
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptySet(typT)(pos, info, errT)
+        case _ => vpr.ExplicitSet(exprsT)(pos, info, errT)
+      }
+
+      case in.MultisetLit(typ, exprs) => for {
+        exprsT <- sequence(exprs map goE)
+        typT = goT(typ)
+      } yield exprsT.length match {
+        case 0 => vpr.EmptyMultiset(typT)(pos, info, errT)
+        case _ => vpr.ExplicitMultiset(exprsT)(pos, info, errT)
+      }
+
       case in.StructLit(typ, args) =>
         val lhsTrans = values(typ)(ctx)
         val rhsTrans = args map (arg => (arg, values(arg.typ)(ctx)))
@@ -385,17 +416,17 @@ class LocationsImpl extends Locations {
     val src = mk.info
 
     mk.typ match {
-      case in.CompositeObject.Struct(slit) =>
+      case in.CompositeObject.Struct(slit) => {
         val deref = in.Deref(mk.target)(src)
         val fieldZip = ctx.typeProperty.structType(slit.typ)(ctx).get.fields.zip(slit.args)
-        val perField = fieldZip.flatMap{ case (f, e) =>
+        val perField = fieldZip.flatMap { case (f, e) =>
           val fieldRef = in.FieldRef(deref, f)(src)
           // val inhalePermission = in.Inhale(in.Access(in.Accessible.Field(fieldRef))(src))(src)
           val init = in.SingleAss(in.Assignee.Field(fieldRef), e)(src)
           Vector(init)
         }
 
-        seqn{
+        seqn {
           for {
             vTarget <- variableVal(mk.target)(ctx)
             _ <- write(vpr.NewStmt(vTarget, Vector.empty)(pos, info, errT))
@@ -403,6 +434,11 @@ class LocationsImpl extends Locations {
             vMake <- seqns(perField map ctx.stmt.translateF(ctx))
           } yield vMake
         }
+      }
+
+      case in.CompositeObject.Sequence(_) => Violation.violation("not yet implemented")
+      case in.CompositeObject.Set(_) => Violation.violation("not yet implemented")
+      case in.CompositeObject.Multiset(_) => Violation.violation("not yet implemented")
     }
   }
 

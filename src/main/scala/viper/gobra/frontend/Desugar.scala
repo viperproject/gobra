@@ -916,8 +916,11 @@ object Desugar {
       }
     }
 
-    def compositeLitToObject(lit: in.CompositeLit): in.CompositeObject = lit match {
+    def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
       case l: in.StructLit => in.CompositeObject.Struct(l)
+      case l: in.SequenceLit => in.CompositeObject.Sequence(l)
+      case l: in.SetLit => in.CompositeObject.Set(l)
+      case l: in.MultisetLit => in.CompositeObject.Multiset(l)
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
@@ -1316,7 +1319,7 @@ object Desugar {
         case PSequenceLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
           dtyp = typeD(info.typ(t))(src)
-        } yield in.SequenceLiteral(dtyp, dexprs)(src)
+        } yield in.SequenceLit(dtyp, dexprs)(src)
 
         case PRangeSequence(low, high) => for {
           dlow <- go(low)
@@ -1338,7 +1341,7 @@ object Desugar {
         case PSetLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
           dtype = typeD(info.typ(t))(src)
-        } yield in.SetLiteral(dtype, dexprs)(src)
+        } yield in.SetLit(dtype, dexprs)(src)
 
         case PSetConversion(op) => for {
           dop <- go(op)
@@ -1371,7 +1374,7 @@ object Desugar {
         case PMultisetLiteral(t, exprs) => for {
           dexprs <- sequence(exprs map go)
           dtype = typeD(info.typ(t))(src)
-        } yield in.MultisetLiteral(dtype, dexprs)(src)
+        } yield in.MultisetLit(dtype, dexprs)(src)
 
         case PMultisetConversion(op) => for {
           dop <- go(op)

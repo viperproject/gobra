@@ -988,30 +988,6 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should correctly show a simple integer array sequence type") {
-    val t = ArraySequenceT(42, IntT)
-
-    frontend.show(t) should matchPattern {
-      case "[42]int" =>
-    }
-  }
-
-  test("Printer: should correctly show a multidimensional Boolean array sequence type") {
-    val t = ArraySequenceT(1, ArraySequenceT(2, ArraySequenceT(3, BoolT)))
-
-    frontend.show(t) should matchPattern {
-      case "[1][2][3]bool" =>
-    }
-  }
-
-  test("Printer: should correctly show a array sequence type with an inner (ordinary) sequence type") {
-    val t = ArraySequenceT(12, SequenceT(IntT))
-
-    frontend.show(t) should matchPattern {
-      case "[12]seq[int]" =>
-    }
-  }
-
   test("Printer: should correctly show a simple integer array literal") {
     val expr = ArrayLiteral(IntT, Vector(
       IntLit(12)(Unsourced),
@@ -1034,7 +1010,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a nested array literal") {
     val expr = ArrayLiteral(
-      ArraySequenceT(2, IntT),
+      ArrayT(2, IntT),
       Vector(
         ArrayLiteral(IntT, Vector(
           IntLit(24)(Unsourced),

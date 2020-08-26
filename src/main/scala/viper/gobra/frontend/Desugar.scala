@@ -682,10 +682,7 @@ object Desugar {
 
               // encode result
               val resT = typeD(fsym.context.typ(fsym.result))(src)
-              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src) match {
-                case t : in.ArrayType => t.asArraySequenceT
-                case t => t
-              })(src))
+              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src))(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
               base match {
@@ -906,7 +903,7 @@ object Desugar {
           } yield dop match {
             case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
-              case _: in.ArrayT | _: in.ArraySequenceT => in.Length(dop)(src)
+              case _: in.ArrayT => in.Length(dop)(src)
               case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
             }
           }
@@ -1185,10 +1182,7 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ, _) =>
-              val typD = typeD(info.typ(typ))(src) match {
-                case t : in.ArrayType => t.asArraySequenceT
-                case t => t
-              }
+              val typD = typeD(info.typ(typ))(src)
               val param = in.Parameter.In(idName(id), typD)(src)
               val alias = localAlias(localVarContextFreeD(id))
               (param, Some(alias))
@@ -1209,10 +1203,7 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ, _) => {
-              val typD = typeD(info.typ(typ))(src) match {
-                case t : in.ArrayType => t.asArraySequenceT
-                case t => t
-              }
+              val typD = typeD(info.typ(typ))(src)
               val param = in.Parameter.Out(idName(id), typD)(src)
               val alias = localAlias(localVarContextFreeD(id))
               (param, Some(alias))

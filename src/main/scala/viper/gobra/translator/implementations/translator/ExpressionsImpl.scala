@@ -31,7 +31,6 @@ class ExpressionsImpl extends Expressions {
   }
 
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
-
     val (pos, info, errT) = x.vprMeta
 
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = translate(e)(ctx)
@@ -114,7 +113,7 @@ class ExpressionsImpl extends Expressions {
         expT <- goE(exp)
       } yield exp.typ match {
         case _: in.ArrayT => ctx.array.length(expT)(pos, info, errT)
-        case _: in.ArraySequenceT | _: in.SequenceT => vpr.SeqLength(expT)(pos, info, errT)
+        case _: in.SequenceT => vpr.SeqLength(expT)(pos, info, errT)
         case t => Violation.violation(s"no translation is currently available for length expressions of type $t")
       }
 
@@ -122,8 +121,11 @@ class ExpressionsImpl extends Expressions {
         baseT <- goE(base)
         indexT <- goE(index)
       } yield base.typ match {
-        case in.ArrayT(_, t) => ctx.loc.arrayIndex(t, baseT, indexT)(ctx)(pos, info, errT)
-        case in.ArraySequenceT(_, _) | in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case in.ArrayT(_, t) =>
+          if (in.Addressable.isAddressable(base))
+            ctx.loc.arrayIndexField(baseT, indexT, t)(ctx)(pos, info, errT)
+          else vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
         case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }
 

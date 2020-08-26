@@ -56,7 +56,10 @@ class LocationsImpl extends Locations {
       case in.Parameter.Out(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
       case lv: in.LocalVar.Val => variableVal(lv)(ctx)
       case in.LocalVar.Inter(id, t) => unit(vpr.LocalVar(id, goT(t))(pos, info, errT))
-      case in.LocalVar.Ref(id, _) => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
+      case in.LocalVar.Ref(id, t) => t match {
+        case _: in.ArrayT => unit(vpr.LocalVar(id, ctx.array.typ())(pos, info, errT))
+        case _ => unit(vpr.LocalVar(id, vpr.Ref)(pos, info, errT))
+      }
       case gc: in.GlobalConst => unit(ctx.fixpoint.get(gc)(ctx))
     }
   }
@@ -79,9 +82,10 @@ class LocationsImpl extends Locations {
     val (pos, info, errT) = v.vprMeta
 
     v match {
-      case v : in.Var => v.typ match {
+      case v: in.Var => v.typ match {
 
-        case typ : in.ArrayType => {
+        // array case
+        case typ: in.ArrayT => {
           val lvar = vpr.LocalVar(v.id, ctx.typ.translate(typ)(ctx))(pos, info, errT)
           val ldecl = vu.toVarDecl(lvar)
           val conditions = ArrayUtil.footprintConditions(ldecl.localVar, typ)(v)(ctx)
@@ -91,8 +95,9 @@ class LocationsImpl extends Locations {
           } yield ())
         }
 
-        case _ => {
-          val trans = values(v.typ)(ctx)
+        // default case
+        case typ => {
+          val trans = values(typ)(ctx)
           val (decls, valueUnit) = sequence(trans map { a =>
             for {
               decl <- a(v)._1.map { x => // top declarations are not addressable, hence x is a variable
@@ -106,15 +111,18 @@ class LocationsImpl extends Locations {
     }
   }
 
-  // FIXME is this correctly implemented???
-  // TODO description
+  /**
+    * OutParameter[?x : [n]T] -> { x }; ensure footprint(x)
+    * OutParameter[?x : T] -> { x }
+    */
   override def outparameter(v : in.Parameter.Out)(ctx : Context) : (Vector[vpr.LocalVarDecl], CodeWriter[Unit]) = {
     val (decls, valueUnits) = localDecl(v)(ctx)
     val (_, declUnit) = valueUnits.cut
     val ldecls = decls.asInstanceOf[Vector[vpr.LocalVarDecl]]
 
     v.typ match {
-      case typ : in.ArrayType => {
+      // array case (generates extra conditions)
+      case typ: in.ArrayT => {
         val conditions = ldecls.flatMap(d => {
           ArrayUtil.footprintConditions(d.localVar, typ)(v)(ctx)
         })
@@ -125,6 +133,7 @@ class LocationsImpl extends Locations {
         } yield ())
       }
 
+      // default case
       case _ => (ldecls, declUnit)
     }
   }
@@ -173,27 +182,31 @@ class LocationsImpl extends Locations {
 
 
   /**
-    * Argument[e: [n]T] -> var tmp: [n]T; alloc(tmp); copy(tmp, e); { tmp }
+    * Argument[?e: [n]T] -> { e }
+    * Argument[!e: [n]T] -> var tmp: [n]T; footprint(tmp); copy(tmp, e); { tmp }
     * Argument[e: T] -> { a(e) | a in Values[T] }
     */
   override def argument(e : in.Expr)(ctx : Context) : CodeWriter[Vector[vpr.Exp]] = e.typ match {
-    case typ : in.ArrayType => {
-      val typSeq = typ.asArraySequenceT
-      val tmpVar = ArrayUtil.anonymousLocalVar(typSeq)(e.info)
-      for {
-        // declare a new 'tmp' variable
-        tmp <- variableVal(tmpVar)(ctx)
-        _ <- local(vu.toVarDecl(tmp))
-        // assume/inhale the footprint of 'tmp'
-        footprint = ArrayUtil.footprintAssumptions(tmp, typSeq)(e)(ctx)
-        _ <- sequence(footprint map (a => write(a)))
-        // assume that every entry of `tmp` equals the one of `e`
-        arg <- ctx.expr.translate(e)(ctx)
-        comparison = ArrayUtil.equalsAssumption((tmp, typSeq), (arg, typ))(e)(ctx)
-        _ <- write(comparison)
-      } yield Vector(tmp)
-    }
+    // exclusive (non-addressable) array case
+    case _: in.ArrayT if !isAddressable(e) => for {
+      arg <- ctx.expr.translate(e)(ctx)
+    } yield Vector(arg)
 
+    // shared (addressable) array case
+    case typ: in.ArrayT if isAddressable(e) => for {
+      // declare a new 'tmp' variable
+      tmp <- variableVal(ArrayUtil.anonymousLocalVar(typ)(e.info))(ctx)
+      _ <- local(vu.toVarDecl(tmp))
+      // inhale the footprint of 'tmp'
+      footprint = ArrayUtil.footprintAssumptions(tmp, typ)(e)(ctx)
+      _ <- sequence(footprint map (a => write(a)))
+      // assume that every entry of `tmp` equals the one of `e`
+      arg <- ctx.expr.translate(e)(ctx)
+      comparison = ArrayUtil.equalsAssumption(tmp, typ, arg, typ)(e)(ctx)
+      _ <- write(comparison)
+    } yield Vector(tmp)
+
+    // default case
     case typ => {
       val trans = values(typ)(ctx)
       sequence(trans map (a => a(e)._1))
@@ -208,7 +221,7 @@ class LocationsImpl extends Locations {
   override def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
     v match {
       case v: in.Var => v.typ match {
-        case _: in.ArrayType => {
+        case _: in.ArrayT => {
           val valueInits = initValues(v)(ctx)
           val (decls, valueUnit) = valueInits.cut
           (decls, seqnUnit(valueUnit))
@@ -270,7 +283,7 @@ class LocationsImpl extends Locations {
         assigns.flatMap(_ => variable(multiVar)(ctx))
       }
 
-      case _: in.ArrayType => rvalue(e)(ctx)
+      case _: in.ArrayT => rvalue(e)(ctx)
 
       case _ => {
         Violation.violation(values(e.typ)(ctx).size == 1, s"expected type of size 1 but got $e")
@@ -324,10 +337,11 @@ class LocationsImpl extends Locations {
     val (pos, info, errT) = src.vprMeta
 
     lhs.typ match {
-      case typ : in.ArrayType => for {
+      case ltyp: in.ArrayT => for {
         l <- ctx.expr.translate(lhs)(ctx)
         r <- ctx.expr.translate(rhs)(ctx)
-      } yield ArrayUtil.equalsCondition((l, typ), (r, rhs.typ.asInstanceOf[in.ArrayType]))(src)(ctx)
+        rtyp = rhs.typ.asInstanceOf[in.ArrayT] // ensured to be valid by type checker
+      } yield ArrayUtil.equalsCondition(l, ltyp, r, rtyp)(src)(ctx)
 
       case typ => {
         val trans = values(typ)(ctx)
@@ -344,16 +358,22 @@ class LocationsImpl extends Locations {
   /**
     * Gives a Viper field access representing "`array`[`index`]",
     * with `typ` the (result) type of the field access.
+    * Expects `base` to be the translation of an addressable expression.
     */
-  override def arrayIndex(typ : in.Type, base : vpr.Exp, index : vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess = {
+  override def arrayIndexField(base : vpr.Exp, index : vpr.Exp, fieldType : in.Type)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess = {
+    val field = fieldType match {
+      case _: in.ArrayT => _pointerField(ctx.array.typ())
+      case _ => pointerField(fieldType)(ctx)
+    }
+
     regField(vpr.FieldAccess(
       ctx.array.slot(base, index)(pos, info, errT),
-      pointerField(typ)(ctx)
+      field
     )(pos, info, errT))
   }
 
-  def arrayIndex(typ : in.Type, base : vpr.Exp, index : BigInt)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess =
-    arrayIndex(typ, base, vpr.IntLit(index)(pos, info, errT))(ctx)(pos, info, errT)
+  def arrayIndexField(base : vpr.Exp, index : BigInt, fieldType : in.Type)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo) : vpr.FieldAccess =
+    arrayIndexField(base, vpr.IntLit(index)(pos, info, errT), fieldType)(ctx)(pos, info, errT)
 
   /**
     * [default(T)] -> var l; FOREACH a in Values[T]. a(l) := simpleDefault(Type(a(l)))
@@ -382,22 +402,20 @@ class LocationsImpl extends Locations {
     }
 
     ctx.typeProperty.underlyingType(t)(ctx) match {
-      case typ : in.ArrayType => {
-        val typSeq = typ.asArraySequenceT
-        val tmpVar = ArrayUtil.anonymousLocalVar(typSeq)(src.info)
-        for {
-          // declare a new 'tmp' variable
-          tmp <- variableVal(tmpVar)(ctx)
-          _ <- local(vu.toVarDecl(tmp))
-          // assume/inhale the (memory) footprint of 'tmp'
-          footprint = ArrayUtil.footprintAssumptions(tmp, typSeq)(src)(ctx)
-          _ <- sequence(footprint map (a => write(a)))
-          // assume that all entries of 'tmp' have the expected default value
-          defaultvalues = ArrayUtil.defaulValueAssumption(tmp, typSeq)(src)(ctx)
-          _ <- write(defaultvalues)
-        } yield tmp
-      }
+      // array case
+      case typ: in.ArrayT => for {
+        // declare a new 'tmp' variable
+        tmp <- variableVal(ArrayUtil.anonymousLocalVar(typ)(src.info))(ctx)
+        _ <- local(vu.toVarDecl(tmp))
+        // assume/inhale the (memory) footprint of 'tmp'
+        footprint = ArrayUtil.footprintAssumptions(tmp, typ)(src)(ctx)
+        _ <- sequence(footprint map (a => write(a)))
+        // assume that all entries of 'tmp' have the expected default value
+        defaultvalues = ArrayUtil.defaultValueAssumption(tmp, typ)(src)(ctx)
+        _ <- write(defaultvalues)
+      } yield tmp
 
+      // struct case
       case _: in.StructT => {
         val trans = values(t)(ctx)
         val v = in.LocalVar.Inter(Names.freshName, t)(src.info)
@@ -414,6 +432,7 @@ class LocationsImpl extends Locations {
         }).flatMap(_ => variable(v)(ctx))
       }
 
+      // default case
       case ut if leafVal.isDefinedAt(ut) => leafVal(ut)
     }
   }
@@ -466,33 +485,56 @@ class LocationsImpl extends Locations {
 
 
   /**
-    * [!r: [n]T = e] -> var tmp: [n]T; alloc(tmp); copy(tmp, e); r := tmp
+    * [!r: [n]T = e] -> var tmp: Array; footprint(tmp); copy(tmp, e); r := tmp
+    * [?r: [n]T = e] -> var tmp: Seq[T]; footprint(tmp); copy(tmp, e); r := tmp
     * [!r: T = e] -> FOREACH a in Values[T]. a(r) := a(e)
     */
-  override def assignment(ass : in.SingleAss)(ctx : Context) : CodeWriter[vpr.Stmt] = ass.left.op.typ match {
-    case typ : in.ArrayType => block(
-      for {
-        lhs <- ctx.expr.translate(ass.left.op)(ctx)
-        rhs <- ctx.expr.translate(ass.right)(ctx)
-        // declare a new 'tmp' variable
-        tmpVar = ArrayUtil.anonymousLocalVar(typ)(ass.info)
-        tmp <- variableVal(tmpVar)(ctx)
-        _ <- local(vu.toVarDecl(tmp))
-        // assume/inhale ownership of every entry of 'tmp'
-        footprint = ArrayUtil.footprintAssumptions(tmp, typ)(ass)(ctx)
-        _ <- sequence(footprint map (a => write(a)))
-        // assume that all entries of `tmp` are equal to the ones of `rhs`
-        comparison = ArrayUtil.equalsAssumption((tmp, typ), (rhs, ass.right.typ.asInstanceOf[in.ArrayType]))(ass)(ctx)
-        _ <- write(comparison)
-      } yield valueAssign(lhs, tmp)(ass)
-    )
+  override def assignment(ass : in.SingleAss)(ctx : Context) : CodeWriter[vpr.Stmt] = {
+    val (pos, info, errT) = ass.vprMeta
 
-    case _ => {
-      val trans = values(ass.left.op.typ)(ctx)
-      seqns(trans map { a => for {
-        l <- a(ass.left.op)._1
-        r <- a(ass.right)._1
-      } yield valueAssign(l, r)(ass) })
+    ass.left.op match {
+      case left: in.IndexedExp if !isAddressable(left.base) => for {
+        baseT <- ctx.expr.translate(left.base)(ctx)
+        indexT <- ctx.expr.translate(left.index)(ctx)
+        rightT <- ctx.expr.translate(ass.right)(ctx)
+      } yield valueAssign(baseT, vpr.SeqUpdate(baseT, indexT, rightT)(pos, info, errT))(ass)
+
+      case left => left.typ match {
+
+        case _: in.ArrayT if !isAddressable(ass.left.op) && !isAddressable(ass.right) => for {
+          lhs <- ctx.expr.translate(ass.left.op)(ctx)
+          rhs <- ctx.expr.translate(ass.right)(ctx)
+        } yield valueAssign(lhs, rhs)(ass)
+
+        case typ: in.ArrayT => {
+          val tmpVar = ArrayUtil.anonymousLocalVar(typ)(ass.info)
+          val tmpTyp = if (isAddressable(ass.left.op)) ctx.array.typ() else ctx.typ.translate(typ)(ctx)
+          val tmp = vpr.LocalVar(tmpVar.id, tmpTyp)(pos, info, errT)
+
+          block(
+            for {
+              lhs <- ctx.expr.translate(ass.left.op)(ctx)
+              rhs <- ctx.expr.translate(ass.right)(ctx)
+              // declare a new 'tmp' variable
+              _ <- local(vu.toVarDecl(tmp))
+              // inhale the footprint of 'tmp'
+              footprint = ArrayUtil.footprintAssumptions(tmp, typ)(ass)(ctx)
+              _ <- sequence(footprint map (a => write(a)))
+              // assume that all entries of `tmp` are equal to the ones of `rhs`
+              comparison = ArrayUtil.equalsAssumption(tmp, typ, rhs, ass.right.typ.asInstanceOf[in.ArrayT])(ass)(ctx)
+              _ <- write(comparison)
+            } yield valueAssign(lhs, tmp)(ass)
+          )
+        }
+
+        case typ => {
+          val trans = values(typ)(ctx)
+          seqns(trans map { a => for {
+            l <- a(left)._1
+            r <- a(ass.right)._1
+          } yield valueAssign(l, r)(ass) })
+        }
+      }
     }
   }
 
@@ -603,7 +645,7 @@ class LocationsImpl extends Locations {
       case in.Accessible.Index(op) => for {
         baseT <- ctx.expr.translate(op.base)(ctx)
         indexT <- ctx.expr.translate(op.index)(ctx)
-        lhs = arrayIndex(op.typ, baseT, indexT)(ctx)(pos, info, errT)
+        lhs = arrayIndexField(baseT, indexT, op.typ)(ctx)(pos, info, errT)
       } yield vpr.FieldAccessPredicate(lhs, perm)(pos, info, errT)
     }
   }
@@ -652,8 +694,8 @@ class LocationsImpl extends Locations {
       case u if ctx.typeProperty.isStructType(u)(ctx) =>
         valuePaths(u)(ctx).map(fs => (r: in.Expr) => (rvalue(extendBase(r, fs))(ctx), SubValueRep(fs.last.typ)))
 
-      case t : in.ArrayType => values(t.typ)(ctx).flatMap(v => {
-        Range.BigInt(0, t.length, 1).map(i => (r : in.Expr) => {
+      case in.ArrayT(len, typ) => values(typ)(ctx).flatMap(v => {
+        Range.BigInt(0, len, 1).map(i => (r : in.Expr) => {
           v(in.IndexedExp(r, in.IntLit(i)(r.info))(r.info))
         })
       })
@@ -674,6 +716,7 @@ class LocationsImpl extends Locations {
       val vprABase = avalue(base.asInstanceOf[in.Location])(ctx)
 
       base.typ match {
+        // struct case
         case u if ctx.typeProperty.isStructType(u)(ctx) => {
           val st = ctx.typeProperty.structType(u)(ctx).get
           val fieldInits = sequence(st.fields map { f =>
@@ -687,6 +730,17 @@ class LocationsImpl extends Locations {
           } yield a ++ b
         }
 
+        // array case
+        case u if ctx.typeProperty.isArrayType(u)(ctx) => for {
+          r <- vprABase
+          a <- init(r)(base)
+          typ = ctx.typeProperty.arrayType(u)(ctx).get
+          footprint = ArrayUtil.footprintAssumptions(r, typ)(base)(ctx)
+          _ <- sequence(footprint map (a => write(a)))
+          _ <- write(ArrayUtil.defaultValueAssumption(r, typ)(base)(ctx))
+        } yield a
+
+        // default case
         case _ => {
           val vprRBase = rvalue(base.asInstanceOf[in.Location])(ctx)
           for {
@@ -715,9 +769,9 @@ class LocationsImpl extends Locations {
           r <- vprBase
           a <- init(r)(base)
           typ = ctx.typeProperty.arrayType(u)(ctx).get
-          assumptions = ArrayUtil.footprintAssumptions(r, typ)(base)(ctx)
-          _ <- sequence(assumptions map (a => write(a)))
-          _ <- write(ArrayUtil.defaulValueAssumption(r, typ)(base)(ctx))
+          footprint = ArrayUtil.footprintAssumptions(r, typ)(base)(ctx)
+          _ <- sequence(footprint map (a => write(a)))
+          _ <- write(ArrayUtil.defaultValueAssumption(r, typ)(base)(ctx))
         } yield a
 
         // default case
@@ -797,28 +851,32 @@ class LocationsImpl extends Locations {
     val (pos, info, errT) = l.vprMeta
 
     l match {
-      case l: in.Location =>
-        if (isAddressable(l)) {
-          if (ctx.typeProperty.isStructType(l.typ)(ctx)) avalue(l)(ctx)
-          else for { a <- avalue(l)(ctx) } yield valAccess(a, l.typ)(l)(ctx)
-        } else {
-          l match {
-            case x: in.Var => variable(x)(ctx)
-
-            case ref: in.Ref =>
-              for {
-                address <- avalue(ref.ref.op)(ctx)
-                // assert address != null
-                _ <- wellDef(vpr.NeCmp(address, vpr.NullLit()(pos, info, errT))(pos, info, errT))
-              } yield address
-
-            case in.FieldRef(recv, field) =>
-              if (isAddressable(recv)) for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = false)(l)(ctx)
-              else for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = false)(l)(ctx)
-
-            case _ => Violation.violation(s"unexpected location: $l")
-          }
+      case l: in.Location => if (isAddressable(l)) {
+        l.typ match {
+          case typ if ctx.typeProperty.isStructType(typ)(ctx) => avalue(l)(ctx)
+          case typ if ctx.typeProperty.isArrayType(typ)(ctx) => avalue(l)(ctx)
+          case typ => for {
+            a <- avalue(l)(ctx)
+          } yield valAccess(a, l.typ)(l)(ctx)
         }
+      } else {
+        l match {
+          case x: in.Var => variable(x)(ctx)
+
+          case ref: in.Ref =>
+            for {
+              address <- avalue(ref.ref.op)(ctx)
+              // assert address != null
+              _ <- wellDef(vpr.NeCmp(address, vpr.NullLit()(pos, info, errT))(pos, info, errT))
+            } yield address
+
+          case in.FieldRef(recv, field) =>
+            if (isAddressable(recv)) for { r <- rvalue(recv)(ctx) } yield fieldAccess(r, field, addressableField = false)(l)(ctx)
+            else for { r <- rvalue(recv)(ctx) } yield fieldExtension(r, field, addressableField = false)(l)(ctx)
+
+          case _ => Violation.violation(s"unexpected location: $l")
+        }
+      }
 
       case _ => ctx.expr.translate(l)(ctx)
     }

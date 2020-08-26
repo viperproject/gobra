@@ -47,7 +47,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(_: ap.FieldSelection) => noMessages
       case Some(_: ap.PredicateCall) => noMessages
       case Some(n: ap.IndexedExp) => exprType(n.base) match {
-        case ArrayT(_, _) => noMessages
+        case _: ArrayT => message(n.base, s"expected a shared array, but found an exclusive array ${n.base}", !addressable(n.base))
         case t => message(n, s"expected an array type, but got $t")
       }
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")

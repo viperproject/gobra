@@ -260,7 +260,7 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   */
 case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = base.typ match {
-    case t : ArrayType => t.typ
+    case ArrayT(_, t) => t
     case SequenceT(t) => t
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
@@ -502,6 +502,7 @@ object Addressable {
       case _: LocalVar.Ref => true
       case _: Deref => true
       case f: FieldRef => isAddressable(f.field) && !isNonAddressable(f)
+      case e: IndexedExp => isAddressable(e.base) && !isNonAddressable(e)
       case _ => false
     }
   }
@@ -571,7 +572,7 @@ sealed trait CompositeLit extends Lit
 case class ArrayLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   lazy val length = exprs.length
   lazy val asSequenceLiteral = SequenceLiteral(memberType, exprs)(info)
-  override def typ : Type = ArraySequenceT(exprs.length, memberType).asArraySequenceT
+  override def typ : Type = ArrayT(exprs.length, memberType)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
@@ -642,33 +643,12 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
-sealed trait ArrayType extends Type {
-  def length : BigInt
-  def typ : Type
-
-  def asArrayT : ArrayT = ArrayT(length, typ match {
-    case t : ArrayType => t.asArrayT
-    case t => t
-  })
-
-  def asArraySequenceT : ArraySequenceT = ArraySequenceT(length, typ match {
-    case t : ArrayType => t.asArraySequenceT
-    case t => t
-  })
-}
-
 /**
   * The type of arrays of length `length` and type `t`.
   * Here `length` is assumed to be positive
   * (this is ensured by the type checker).
   */
-case class ArrayT(length : BigInt, typ : Type) extends ArrayType
-
-/**
-  * Exact same as `ArrayT`, however this type should be translated into
-  * a "Seq[`typ`]" instead of the "Array" Viper domain.
-  */
-case class ArraySequenceT(length : BigInt, typ : Type) extends ArrayType
+case class ArrayT(length : BigInt, typ : Type) extends Type
 
 /**
   * The type of mathematical sequences with elements of type `t`.

@@ -9,63 +9,65 @@ import viper.silver.{ast => vpr}
 
 object ArrayUtil {
 
-  def access(base : (vpr.Exp, in.ArrayType), index : vpr.Exp)(src : in.Node)(ctx : Context) : vpr.Exp = {
-    val (pos, info, errT) = src.vprMeta
-    val (expr, typ) = base
+  /* ** Functionality */
 
-    typ match {
-      case in.ArrayT(_, t) => ctx.loc.arrayIndex(t, expr, index)(ctx)(pos, info, errT)
-      case _ : in.ArraySequenceT => vpr.SeqIndex(expr, index)(pos, info, errT)
+  def access(base : vpr.Exp, baseType : in.ArrayT, index : vpr.Exp)(src : in.Node)(ctx : Context) : vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+
+    base.typ match {
+      case _: vpr.SeqType => vpr.SeqIndex(base, index)(pos, info, errT)
+      case _ => ctx.loc.arrayIndexField(base, index, baseType.typ)(ctx)(pos, info, errT)
     }
   }
 
-  def access(base : (vpr.Exp, in.ArrayType), indices : IndexedSeq[vpr.Exp])(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def access(base : vpr.Exp, baseType : in.ArrayT, indices : IndexedSeq[vpr.Exp])(src : in.Node)(ctx : Context) : vpr.Exp = {
     indices match {
-      case Vector() => base._1
+      case Vector() => base
       case index +: tail => {
-        val elem = access(base, index)(src)(ctx)
-        base._2.typ match {
-          case typ : in.ArrayType => access((elem, typ), tail)(src)(ctx)
+        val elem = access(base, baseType, index)(src)(ctx)
+        baseType.typ match {
+          case t: in.ArrayT => access(elem, t, tail)(src)(ctx)
           case _ => elem
         }
       }
     }
   }
 
-  /** Gives a fresh local variable for an `typ`-typed array. */
-  def anonymousLocalVar(typ : in.ArrayType)(info : Source.Parser.Info) =
+  /**
+    * Gives a fresh local variable for an `typ`-typed array.
+    */
+  def anonymousLocalVar(typ : in.ArrayT)(info : Source.Parser.Info) =
     in.LocalVar.Inter(Names.freshName, typ)(info)
 
-  def boundaryCondition(base : (vpr.Exp, in.ArrayType))(src : in.Node) : vpr.Exp = {
+  def boundaryCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    val (exp, typ) = base
 
     vpr.And(
-      vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), exp)(pos, info, errT),
-      vpr.LtCmp(exp, vpr.IntLit(typ.length)(pos, info, errT))(pos, info, errT)
+      vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), base)(pos, info, errT),
+      vpr.LtCmp(base, vpr.IntLit(baseType.length)(pos, info, errT))(pos, info, errT)
     )(pos, info, errT)
   }
 
-  def boundaryCondition(base : IndexedSeq[(vpr.Exp, in.ArrayType)])(src : in.Node) : vpr.Exp = {
+  def boundaryCondition(base : IndexedSeq[(vpr.Exp, in.ArrayT)])(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val init = vpr.TrueLit()(pos, info, errT)
 
-    base.map(boundaryCondition(_)(src)).foldLeft[vpr.Exp](init) {
+    base.map(e => boundaryCondition(e._1, e._2)(src)).foldLeft[vpr.Exp](init) {
       case (l, r) => vpr.And(l, r)(pos, info, errT)
     }
   }
 
-  def defaulValueAssumption(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Stmt =
-    inhale(defaulValueCondition(base, baseType)(src)(ctx))(src)
+  def defaultValueAssumption(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Stmt =
+    inhale(defaultValueCondition(base, baseType)(src)(ctx))(src)
 
-  def defaulValueCondition(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def defaultValueCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val dims = dimensions(baseType).last
     val decls = dims.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
     val declVars = decls.map(d => d.localVar)
     val tailVars = declVars.zip(dims)
     val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
-    val accessExp = access((base, dims.head), declVars)(src)(ctx)
+    val accessExp = access(base, dims.head, declVars)(src)(ctx)
     val dflt = ctx.loc.defaultValue(dims.last.typ)(src)(ctx).res
 
     vpr.Forall(
@@ -78,48 +80,45 @@ object ArrayUtil {
     )(pos, info, errT)
   }
 
-  def equalsAssumption(left : (vpr.Exp, in.ArrayType), right : (vpr.Exp, in.ArrayType))(src : in.Node)(ctx : Context) : vpr.Stmt =
-    inhale(equalsCondition(left, right)(src)(ctx))(src)
+  def equalsAssumption(left : vpr.Exp, leftType : in.ArrayT, right : vpr.Exp, rightType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Stmt =
+    inhale(equalsCondition(left, leftType, right, rightType)(src)(ctx))(src)
 
-  def equalsCondition(left : (vpr.Exp, in.ArrayType), right : (vpr.Exp, in.ArrayType))(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def equalsCondition(left : vpr.Exp, leftType : in.ArrayT, right : vpr.Exp, rightType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
-    (left, right) match {
-      case ((leftExp, _: in.ArraySequenceT), (rightExp, _: in.ArraySequenceT)) =>
-        vpr.EqCmp(leftExp, rightExp)(pos, info, errT)
+    if (left.typ.isInstanceOf[vpr.SeqType] && right.typ.isInstanceOf[vpr.SeqType]) {
+      vpr.EqCmp(left, right)(pos, info, errT)
+    } else {
+      val leftDims = dimensions(leftType).last
+      val rightDims = dimensions(rightType).last
 
-      case ((_, leftTyp), (_, rightTyp)) => {
-        val leftDims = dimensions(leftTyp).last
-        val rightDims = dimensions(rightTyp).last
+      require(leftDims.length == rightDims.length, s"cannot create an equality condition for two arrays of different dimensions")
 
-        require(leftDims.length == rightDims.length, s"cannot create an equality condition for two arrays of different dimensions")
+      val decls = leftDims.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
+      val declVars = decls.map(d => d.localVar)
+      val tailVars = declVars.zip(leftDims)
+      val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
+      val accessLeft = access(left, leftType, declVars)(src)(ctx)
+      val accessRight = access(right, rightType, declVars)(src)(ctx)
 
-        val decls = leftDims.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
-        val declVars = decls.map(d => d.localVar)
-        val tailVars = declVars.zip(leftDims)
-        val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
-        val accessLeft = access(left, declVars)(src)(ctx)
-        val accessRight = access(right, declVars)(src)(ctx)
-
-        vpr.Forall(
-          decls,
-          Seq(
-            vpr.Trigger(Seq(accessLeft))(pos, info, errT),
-            vpr.Trigger(Seq(accessRight))(pos, info, errT)
-          ),
-          vpr.Implies(
-            conditions,
-            vpr.EqCmp(accessLeft, accessRight)(pos, info, errT)
-          )(pos, info, errT)
+      vpr.Forall(
+        decls,
+        Seq(
+          vpr.Trigger(Seq(accessLeft))(pos, info, errT),
+          vpr.Trigger(Seq(accessRight))(pos, info, errT)
+        ),
+        vpr.Implies(
+          conditions,
+          vpr.EqCmp(accessLeft, accessRight)(pos, info, errT)
         )(pos, info, errT)
-      }
+      )(pos, info, errT)
     }
   }
 
-  def footprintAssumptions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Stmt] =
+  def footprintAssumptions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Stmt] =
     footprintConditions(base, baseType)(src)(ctx).map(inhale(_)(src))
 
-  def footprintCondition(array : vpr.Exp, arrayType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def footprintCondition(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val base = vpr.TrueLit()(pos, info, errT)
 
@@ -128,28 +127,28 @@ object ArrayUtil {
     }
   }
 
-  def footprintConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] = {
+  def footprintConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] = {
     val lengths = lengthConditions(base, baseType)(src)(ctx)
 
-    baseType match {
-      case _: in.ArraySequenceT => lengths
-      case baseType: in.ArrayT => {
+    base.typ match {
+      case _: vpr.SeqType => lengths
+      case _ => {
         val ownerships = ownershipConditions(base, baseType)(src)(ctx)
         lengths zip ownerships flatMap { case (l, r) => Vector(l, r) }
       }
     }
   }
 
-  def length(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def length(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
-    baseType match {
-      case _ : in.ArrayT => ctx.array.length(base)(pos, info, errT)
-      case _ : in.ArraySequenceT => vpr.SeqLength(base)(pos, info, errT)
+    base.typ match {
+      case _: vpr.SeqType => vpr.SeqLength(base)(pos, info, errT)
+      case _ => ctx.array.length(base)(pos, info, errT)
     }
   }
 
-  def lengthCondition(base : vpr.Exp, dims : IndexedSeq[in.ArrayType])(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def lengthCondition(base : vpr.Exp, dims : IndexedSeq[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Exp = {
     require(0 < dims.length, s"no idea on how to handle a zero-dimensional array")
 
     val (pos, info, errT) = src.vprMeta
@@ -170,7 +169,7 @@ object ArrayUtil {
         val declVars = decls.map(d => d.localVar)
         val tailVars = declVars.zip(tail)
         val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
-        val accessExp = access((base, tail.head), declVars)(src)(ctx)
+        val accessExp = access(base, tail.head, declVars)(src)(ctx)
         val lengthExp = length(accessExp, dims.last)(src)(ctx)
 
         vpr.Forall(
@@ -188,10 +187,27 @@ object ArrayUtil {
     }
   }
 
-  def lengthConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] =
+  def lengthConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] =
     dimensions(baseType).map(lengthCondition(base, _)(src)(ctx))
 
-  def ownershipCondition(base : vpr.Exp, dims : Vector[in.ArrayType])(src : in.Node)(ctx : Context) : vpr.Forall = {
+
+  /* ** Utilities */
+
+  private def dimensions(typ : in.Type) : Vector[Vector[in.ArrayT]] = typ match {
+    case typ : in.ArrayT => Vector(typ) +: dimensions(typ.typ).map(typ +: _)
+    case _ => Vector()
+  }
+
+  private def inhale(expr : vpr.Exp)(src : in.Node) : vpr.Stmt = {
+    val (pos, info, errT) = src.vprMeta
+
+    expr.isPure match {
+      case true => vpr.Assume(expr)(pos, info, errT)
+      case false => vpr.Inhale(expr)(pos, info, errT)
+    }
+  }
+
+  def ownershipCondition(base : vpr.Exp, dims : Vector[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Forall = {
     require(0 < dims.length, s"no idea on how to handle a zero-dimensional array")
 
     val (pos, info, errT) = src.vprMeta
@@ -199,7 +215,7 @@ object ArrayUtil {
     val declVars = decls.map(d => d.localVar)
     val tailVars = declVars.zip(dims)
     val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
-    val accessExp = access((base, dims.head), declVars)(src)(ctx).asInstanceOf[vpr.FieldAccess]
+    val accessExp = access(base, dims.head, declVars)(src)(ctx).asInstanceOf[vpr.FieldAccess]
 
     vpr.Forall(
       decls,
@@ -213,20 +229,6 @@ object ArrayUtil {
     )(pos, info, errT)
   }
 
-  def ownershipConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Forall] =
+  def ownershipConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Forall] =
     dimensions(baseType).map(ownershipCondition(base, _)(src)(ctx))
-
-  private def dimensions(typ : in.Type) : Vector[Vector[in.ArrayType]] = typ match {
-    case typ : in.ArrayType => Vector(typ) +: dimensions(typ.typ).map(typ +: _)
-    case _ => Vector()
-  }
-
-  private def inhale(expr : vpr.Exp)(src : in.Node) : vpr.Stmt = {
-    val (pos, info, errT) = src.vprMeta
-
-    expr.isPure match {
-      case true => vpr.Assume(expr)(pos, info, errT)
-      case false => vpr.Inhale(expr)(pos, info, errT)
-    }
-  }
 }

@@ -27,6 +27,9 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
     case _: PBoolType | _: PIntType => noMessages
 
+    case typ @ PArrayType(_, PNamedOperand(_)) =>
+      message(typ, s"arrays of custom declared types are currently not supported")
+
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
         case None => message(n, s"expected constant array length, but got $len")

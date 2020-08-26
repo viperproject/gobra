@@ -27,7 +27,7 @@ class TypesImpl extends Types {
     */
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
     case in.BoolT => vpr.Bool
-    case in.IntT  => vpr.Int
+    case in.IntT => vpr.Int
     case in.PermissionT => vpr.Perm
     case t: in.DefinedT => translate(ctx.typeProperty.underlyingType(t)(ctx))(ctx)
     case in.PointerT(_) => vpr.Ref
@@ -37,8 +37,7 @@ class TypesImpl extends Types {
       case _ => ctx.tuple.typ(fields.map(f => translate(f.typ)(ctx)))
     }
     case in.TupleT(_) => Violation.violation("Tuple types are not supported at this point in time")
-    case in.ArrayT(_, _) => ctx.array.typ()
-    case in.ArraySequenceT(_, elem) => vpr.SeqType(translate(elem)(ctx))
+    case in.ArrayT(_, elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SetT(elem) => vpr.SetType(translate(elem)(ctx))
     case in.MultisetT(elem) => vpr.MultisetType(translate(elem)(ctx))

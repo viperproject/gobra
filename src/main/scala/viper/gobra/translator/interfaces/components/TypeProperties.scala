@@ -25,5 +25,5 @@ trait TypeProperties {
 
   def isArrayType(typ : in.Type)(ctx : Context) : Boolean = arrayType(typ)(ctx).nonEmpty
 
-  def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayType]
+  def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayT]
 }

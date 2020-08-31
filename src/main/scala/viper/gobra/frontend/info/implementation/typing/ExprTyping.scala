@@ -110,11 +110,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
 
-    case n@PCompositeLit(t, lit) =>
+    case n@PCompositeLit(t, lit) => {
       val simplifiedT = t match {
         case t: PType => typeType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
+    }
 
     case _: PFunctionLit => noMessages
 

@@ -520,10 +520,14 @@ object Parser {
 
     lazy val forStmt: Parser[PForStmt] =
       loopSpec ~ pos("for") ~ block ^^ { case spec ~ pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, spec, b) } |
-      loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
-        case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
-        case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
-      }
+        loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
+          case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
+          case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
+        } |
+        loopSpec ~ ("for" ~> expression) ~ block ^^ {
+          case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
+        }
+
 
     lazy val loopSpec: Parser[PLoopSpec] =
       ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
@@ -744,7 +748,7 @@ object Parser {
       pointerType | sliceType | arrayType | mapType |
         channelType | functionType | structType | interfaceType
 
-    lazy val ghostTypeLit : Parser[PGhostTypeLit] =
+    lazy val ghostTypeLit : Parser[PGhostLiteralType] =
       sequenceType | setType | multisetType
 
     lazy val pointerType: Parser[PDeref] =
@@ -827,7 +831,7 @@ object Parser {
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | mapType | structType | qualifiedType | declaredType
+      sliceType | arrayType | mapType | structType | qualifiedType | ghostTypeLit | declaredType
 
 
     /**
@@ -960,26 +964,25 @@ object Parser {
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
-      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
-        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists |
-        "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess |
-        sequenceLiteral |
-        setLiteral |
-        multisetLiteral |
+      forall |
+        exists |
+        old |
+        access |
         rangeSequence |
         rangeSet |
         rangeMultiset
 
-    lazy val sequenceLiteral : Parser[PSequenceLiteral] =
-      ghostCollectionLiteral("seq") ^^ PSequenceLiteral
-    lazy val setLiteral : Parser[PSetLiteral] =
-      ghostCollectionLiteral("set") ^^ PSetLiteral
-    lazy val multisetLiteral : Parser[PMultisetLiteral] =
-      ghostCollectionLiteral("mset") ^^ PMultisetLiteral
+    lazy val forall : Parser[PForall] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
 
-    def ghostCollectionLiteral(front : String) : Parser[PType ~ Vector[PExpression]] =
-      front ~> ("[" ~> typ <~ "]") ~ ("{" ~> repsep(expression, ",") <~ "}")
+    lazy val exists : Parser[PExists] =
+      ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
+
+    lazy val old : Parser[POld] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld
+
+    lazy val access : Parser[PAccess] =
+      "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
 
     private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
       "[" ~> expression ~ (".." ~> expression <~ "]")

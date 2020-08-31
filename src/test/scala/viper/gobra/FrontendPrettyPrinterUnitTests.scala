@@ -60,7 +60,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show a non-empty sequence literal expression as expected") {
-    val expr = PSequenceLiteral(
+    val expr = PLiteral.sequence(
       PIntType(),
       Vector(
         PNamedOperand(PIdnUse("i")),
@@ -74,7 +74,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should show an empty sequence literal expression as expected") {
-    val expr = PSequenceLiteral(PBoolType(), Vector())
+    val expr = PLiteral.sequence(PBoolType(), Vector())
     frontend.show(expr) should matchPattern {
       case "seq[bool] { }" =>
     }
@@ -193,28 +193,28 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty integer set literal") {
-    val expr = PSetLiteral(PIntType(), Vector())
+    val expr = PLiteral.set(PIntType(), Vector())
     frontend.show(expr) should matchPattern {
       case "set[int] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty set literal with nested type") {
-    val expr = PSetLiteral(PSetType(PBoolType()), Vector())
+    val expr = PLiteral.set(PSetType(PBoolType()), Vector())
     frontend.show(expr) should matchPattern {
       case "set[set[bool]] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer set literal") {
-    val expr = PSetLiteral(PIntType(), Vector(PIntLit(BigInt(42))))
+    val expr = PLiteral.set(PIntType(), Vector(PIntLit(BigInt(42))))
     frontend.show(expr) should matchPattern {
       case "set[int] { 42 }" =>
     }
   }
 
   test("Printer: should correctly show a non-empty Boolean set literal") {
-    val expr = PSetLiteral(PBoolType(), Vector(
+    val expr = PLiteral.set(PBoolType(), Vector(
       PBoolLit(true), PBoolLit(false), PBoolLit(false)
     ))
     frontend.show(expr) should matchPattern {
@@ -261,8 +261,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set union in combination with literals") {
     val expr = PUnion(
-      PSetLiteral(PBoolType(), Vector()),
-      PSetLiteral(PIntType(), Vector(PIntLit(1), PIntLit(7)))
+      PLiteral.set(PBoolType(), Vector()),
+      PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(7)))
     )
 
     frontend.show(expr) should matchPattern {
@@ -311,8 +311,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set intersection in combination with literals") {
     val expr = PIntersection(
-      PSetLiteral(PIntType(), Vector()),
-      PSetLiteral(PBoolType(), Vector(PBoolLit(true)))
+      PLiteral.set(PIntType(), Vector()),
+      PLiteral.set(PBoolType(), Vector(PBoolLit(true)))
     )
 
     frontend.show(expr) should matchPattern {
@@ -361,8 +361,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set difference in combination with literals") {
     val expr = PSetMinus(
-      PSetLiteral(PIntType(), Vector(PBoolLit(true))),
-      PSetLiteral(PBoolType(), Vector())
+      PLiteral.set(PIntType(), Vector(PBoolLit(true))),
+      PLiteral.set(PBoolType(), Vector())
     )
 
     frontend.show(expr) should matchPattern {
@@ -411,8 +411,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a subset relation in combination with literals") {
     val expr = PSubset(
-      PSetLiteral(PIntType(), Vector(PBoolLit(true))),
-      PSetLiteral(PBoolType(), Vector())
+      PLiteral.set(PIntType(), Vector(PBoolLit(true))),
+      PLiteral.set(PBoolType(), Vector())
     )
 
     frontend.show(expr) should matchPattern {
@@ -479,43 +479,46 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty Boolean multiset literal") {
-    val expr = PMultisetLiteral(PBoolType(), Vector())
+    val expr = PLiteral.multiset(PBoolType(), Vector())
     frontend.show(expr) should matchPattern {
       case "mset[bool] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty nested multiset literal") {
-    val expr = PMultisetLiteral(PMultisetType(PMultisetType(PIntType())), Vector())
+    val expr = PLiteral.multiset(PMultisetType(PMultisetType(PIntType())), Vector())
     frontend.show(expr) should matchPattern {
       case "mset[mset[mset[int]]] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer multiset literal") {
-    val expr = PMultisetLiteral(PIntType(), Vector(
+    val expr = PLiteral.multiset(PIntType(), Vector(
       PIntLit(42)
     ))
+
     frontend.show(expr) should matchPattern {
       case "mset[int] { 42 }" =>
     }
   }
 
   test("Printer: should correctly show a non-empty Boolean multiset literal") {
-    val expr = PMultisetLiteral(PBoolType(), Vector(
+    val expr = PLiteral.multiset(PBoolType(), Vector(
       PBoolLit(false), PBoolLit(true), PBoolLit(true)
     ))
+
     frontend.show(expr) should matchPattern {
       case "mset[bool] { false, true, true }" =>
     }
   }
 
   test("Printer: should correctly show a nesting of multiset literals") {
-    val expr = PMultisetLiteral(PMultisetType(PIntType()), Vector(
-      PMultisetLiteral(PIntType(), Vector(
+    val expr = PLiteral.multiset(PMultisetType(PIntType()), Vector(
+      PLiteral.multiset(PIntType(), Vector(
         PIntLit(42)
       ))
     ))
+
     frontend.show(expr) should matchPattern {
       case "mset[mset[int]] { mset[int] { 42 } }" =>
     }
@@ -523,9 +526,10 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a multiset union") {
     val expr = PUnion(
-      PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
-      PMultisetLiteral(PIntType(), Vector(PIntLit(42)))
+      PLiteral.multiset(PBoolType(), Vector(PBoolLit(true))),
+      PLiteral.multiset(PIntType(), Vector(PIntLit(42)))
     )
+
     frontend.show(expr) should matchPattern {
       case "mset[bool] { true } union mset[int] { 42 }" =>
     }
@@ -533,9 +537,10 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a subset relation applied to two multiset literals") {
     val expr = PSubset(
-      PMultisetLiteral(PBoolType(), Vector(PBoolLit(false))),
-      PMultisetLiteral(PIntType(), Vector(PIntLit(42), PIntLit(12)))
+      PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))),
+      PLiteral.multiset(PIntType(), Vector(PIntLit(42), PIntLit(12)))
     )
+
     frontend.show(expr) should matchPattern {
       case "mset[bool] { false } subset mset[int] { 42, 12 }" =>
     }
@@ -543,9 +548,9 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
     val expr = PCardinality(
-      PMultisetLiteral(PMultisetType(PIntType()), Vector(
-        PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
-        PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+      PLiteral.multiset(PMultisetType(PIntType()), Vector(
+        PLiteral.multiset(PIntType(), Vector(PIntLit(1))),
+        PLiteral.multiset(PIntType(), Vector(PIntLit(2), PIntLit(3)))
       ))
     )
 
@@ -557,7 +562,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a multiset inclusion expression (1)") {
     val expr = PIn(
       PIntLit(42),
-      PMultisetLiteral(PIntType(), Vector(PIntLit(12), PIntLit(42)))
+      PLiteral.multiset(PIntType(), Vector(PIntLit(12), PIntLit(42)))
     )
 
     frontend.show(expr) should matchPattern {
@@ -567,8 +572,8 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a multiset inclusion expression (2)") {
     val expr = PIn(
-      PMultisetLiteral(PIntType(), Vector(PIntLit(1))),
-      PMultisetLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3)))
+      PLiteral.multiset(PIntType(), Vector(PIntLit(1))),
+      PLiteral.multiset(PIntType(), Vector(PIntLit(2), PIntLit(3)))
     )
 
     frontend.show(expr) should matchPattern {
@@ -586,7 +591,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should be able to show a set conversion with a composite body") {
     val expr = PSetConversion(
       PSequenceAppend(
-        PSequenceLiteral(PIntType(), Vector(PIntLit(1), PIntLit(2))),
+        PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2))),
         PNamedOperand(PIdnUse("ys"))
       )
     )
@@ -626,7 +631,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should be able to show a slightly more complex multiplicity expression") {
     val expr = PMultiplicity(
       PAdd(PIntLit(2), PIntLit(3)),
-      PSequenceLiteral(PIntType(), Vector(
+      PLiteral.sequence(PIntType(), Vector(
         PMultiplicity(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y")))
       ))
     )
@@ -663,7 +668,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should show a multiset conversion expression with a slightly more complex inner expression") {
     val expr = PMultisetConversion(
       PSequenceAppend(
-        PSequenceLiteral(PIntType(), Vector(PIntLit(2), PIntLit(3))),
+        PLiteral.sequence(PIntType(), Vector(PIntLit(2), PIntLit(3))),
         PNamedOperand(PIdnUse("xs"))
       )
     )
@@ -706,7 +711,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = PLength(
       PSequenceAppend(
         PRangeSequence(PIntLit(1), PIntLit(12)),
-        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+        PLiteral.sequence(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
       )
     )
 
@@ -718,7 +723,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should be able to show the addition of two uses of the 'len' function") {
     val expr = PAdd(
       PLength(PRangeSequence(PIntLit(1), PIntLit(12))),
-      PLength(PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true))))
+      PLength(PLiteral.sequence(PBoolType(), Vector(PBoolLit(false), PBoolLit(true))))
     )
 
     frontend.show(expr) should matchPattern {
@@ -768,7 +773,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a slightly more complex application of the built-in 'cap' function") {
-    val expr = PCapacity(PSequenceLiteral(PIntType(), Vector(PIntLit(42))))
+    val expr = PCapacity(PLiteral.sequence(PIntType(), Vector(PIntLit(42))))
 
     frontend.show(expr) should matchPattern {
       case "cap(seq[int] { 42 })" =>

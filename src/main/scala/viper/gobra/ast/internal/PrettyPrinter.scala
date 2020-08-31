@@ -231,17 +231,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case Length(exp) => "len" <> parens(showExpr(exp))
-    case SequenceLiteral(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
-    case SetLiteral(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
-    case MultisetLiteral(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
@@ -255,13 +252,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case v: Var => showVar(v)
   }
 
-  def showGhostCollectionLiteral(front : String, typ : Type, exprs : Vector[Expr]) : Doc =
-    front <> brackets(showType(typ)) <+>
-      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
-
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 
   // literals
+
+  private def showGhostCollectionLiteral(front : String, typ : Type, exprs : Vector[Expr]) : Doc =
+    front <> brackets(showType(typ)) <+>
+      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
@@ -276,6 +273,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
 
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
+    case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
+    case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
+    case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
   }
 
   // variables

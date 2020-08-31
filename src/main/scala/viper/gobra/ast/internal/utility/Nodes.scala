@@ -73,11 +73,14 @@ object Nodes {
         case Old(op) => Seq(op)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case l: Lit => l match {
-          case IntLit(v) => Seq()
-          case BoolLit(v) => Seq()
+          case IntLit(_) => Seq()
+          case BoolLit(_) => Seq()
           case NilLit() => Seq()
           case ArrayLiteral(_, exprs) => exprs
           case StructLit(_, args) => args
+          case SequenceLit(_, args) => args
+          case SetLit(_, args) => args
+          case MultisetLit(_, args) => args
         }
         case Parameter.In(id, typ) => Seq()
         case Parameter.Out(id, typ) => Seq()

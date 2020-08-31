@@ -168,7 +168,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
 
   test("Typing: should not let an integer array be well-defined if its length is not a constant expression (1)") {
     val t = PArrayType(
-      PMultiplicity(PIntLit(1), PSetLiteral(PIntType(), Vector())),
+      PMultiplicity(PIntLit(1), PLiteral.set(PIntType(), Vector())),
       PIntType()
     )
 

@@ -31,7 +31,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty integer sequence") {
-    val expr = SequenceLiteral(IntT, Vector())(Unsourced)
+    val expr = SequenceLit(IntT, Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "seq[int] { }" =>
@@ -39,7 +39,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty (nested) Boolean sequence") {
-    val expr = SequenceLiteral(SequenceT(SequenceT(BoolT)), Vector())(Unsourced)
+    val expr = SequenceLit(SequenceT(SequenceT(BoolT)), Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "seq[seq[seq[bool]]] { }" =>
@@ -58,7 +58,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a non-empty simple integer sequence literal") {
-    val expr = SequenceLiteral(
+    val expr = SequenceLit(
       IntT,
       Vector(
         IntLit(BigInt(2))(Unsourced),
@@ -73,7 +73,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a singleton integer sequence literal") {
-    val expr = SequenceLiteral(
+    val expr = SequenceLit(
       IntT,
       Vector(IntLit(BigInt(42))(Unsourced))
     )(Unsourced)
@@ -84,7 +84,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty sequence literal") {
-    val expr = SequenceLiteral(BoolT, Vector())(Unsourced)
+    val expr = SequenceLit(BoolT, Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "seq[bool] { }" =>
@@ -156,28 +156,28 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty integer set") {
-    val expr = SetLiteral(IntT, Vector())(Unsourced)
+    val expr = SetLit(IntT, Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "set[int] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty nested set") {
-    val expr = SetLiteral(SetT(BoolT), Vector())(Unsourced)
+    val expr = SetLit(SetT(BoolT), Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "set[set[bool]] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer set literal") {
-    val expr = SetLiteral(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced)
+    val expr = SetLit(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced)
     frontend.show(expr) should matchPattern {
       case "set[int] { 42 }" =>
     }
   }
 
   test("Printer: should correctly show a non-empty Boolean set literal") {
-    val expr = SetLiteral(BoolT, Vector(
+    val expr = SetLit(BoolT, Vector(
       BoolLit(false)(Unsourced),
       BoolLit(true)(Unsourced),
       BoolLit(true)(Unsourced)
@@ -229,10 +229,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set union in combination with literals") {
     val expr = Union(
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
@@ -284,10 +284,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set intersection in combination with literals") {
     val expr = Intersection(
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
@@ -339,10 +339,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set differences in combination with literals") {
     val expr = SetMinus(
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("s", SequenceT(BoolT))(Unsourced),
       ))(Unsourced),
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         LocalVar.Ref("t", SequenceT(BoolT))(Unsourced),
         LocalVar.Ref("u", SequenceT(BoolT))(Unsourced)
       ))(Unsourced),
@@ -380,8 +380,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should properly print a subset relation in combination with literals") {
     val expr = Subset(
-      SetLiteral(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced),
-      SetLiteral(BoolT, Vector())(Unsourced)
+      SetLit(IntT, Vector(IntLit(42)(Unsourced)))(Unsourced),
+      SetLit(BoolT, Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -441,11 +441,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show set membership in the context of literals") {
     val expr = Contains(
-      SetLiteral(BoolT, Vector(
+      SetLit(BoolT, Vector(
         BoolLit(true)(Unsourced),
         BoolLit(false)(Unsourced))
       )(Unsourced),
-      SetLiteral(SetT(SetT(IntT)), Vector())(Unsourced)
+      SetLit(SetT(SetT(IntT)), Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -478,7 +478,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size of a set literal") {
     val expr = Cardinality(
-      SetLiteral(IntT, Vector(
+      SetLit(IntT, Vector(
         IntLit(1)(Unsourced),
         IntLit(42)(Unsourced)
       ))(Unsourced)
@@ -491,7 +491,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size of an empty set") {
     val expr = Cardinality(
-      SetLiteral(SequenceT(IntT), Vector())(Unsourced)
+      SetLit(SequenceT(IntT), Vector())(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -514,21 +514,21 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty multiset integer literal") {
-    val expr = MultisetLiteral(IntT, Vector())(Unsourced)
+    val expr = MultisetLit(IntT, Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "mset[int] { }" =>
     }
   }
 
   test("Printer: should correctly show an empty multiset literal of a nested type") {
-    val expr = MultisetLiteral(MultisetT(MultisetT(BoolT)), Vector())(Unsourced)
+    val expr = MultisetLit(MultisetT(MultisetT(BoolT)), Vector())(Unsourced)
     frontend.show(expr) should matchPattern {
       case "mset[mset[mset[bool]]] { }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer multiset literal") {
-    val expr = MultisetLiteral(IntT, Vector(
+    val expr = MultisetLit(IntT, Vector(
       IntLit(42)(Unsourced)
     ))(Unsourced)
 
@@ -538,8 +538,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a singleton nested multiset literal") {
-    val expr = MultisetLiteral(MultisetT(BoolT), Vector(
-      MultisetLiteral(BoolT, Vector(
+    val expr = MultisetLit(MultisetT(BoolT), Vector(
+      MultisetLit(BoolT, Vector(
         BoolLit(false)(Unsourced)
       ))(Unsourced)
     ))(Unsourced)
@@ -550,7 +550,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a non-empty integer multiset literal") {
-    val expr = MultisetLiteral(IntT, Vector(
+    val expr = MultisetLit(IntT, Vector(
       IntLit(1)(Unsourced),
       IntLit(2)(Unsourced),
       IntLit(3)(Unsourced)
@@ -563,8 +563,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the union of two multiset integer literals") {
     val expr = Union(
-      MultisetLiteral(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
-      MultisetLiteral(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
+      MultisetLit(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
+      MultisetLit(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -574,8 +574,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the intersection of two multiset integer literals") {
     val expr = Intersection(
-      MultisetLiteral(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
-      MultisetLiteral(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
+      MultisetLit(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
+      MultisetLit(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -585,8 +585,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a subset relation applied to two multiset literals") {
     val expr = Subset(
-      MultisetLiteral(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
-      MultisetLiteral(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
+      MultisetLit(IntT, Vector(IntLit(1)(Unsourced), IntLit(2)(Unsourced)))(Unsourced),
+      MultisetLit(IntT, Vector(IntLit(3)(Unsourced)))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -596,11 +596,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
     val expr = Cardinality(
-      MultisetLiteral(MultisetT(IntT), Vector(
-        MultisetLiteral(IntT, Vector(
+      MultisetLit(MultisetT(IntT), Vector(
+        MultisetLit(IntT, Vector(
           IntLit(1)(Unsourced)
         ))(Unsourced),
-        MultisetLiteral(IntT, Vector(
+        MultisetLit(IntT, Vector(
           IntLit(2)(Unsourced),
           IntLit(3)(Unsourced),
         ))(Unsourced)
@@ -615,7 +615,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a multiset inclusion expression (1)") {
     val expr = Contains(
       IntLit(2)(Unsourced),
-      MultisetLiteral(IntT, Vector(
+      MultisetLit(IntT, Vector(
         IntLit(1)(Unsourced),
         IntLit(2)(Unsourced),
         IntLit(3)(Unsourced),
@@ -629,10 +629,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a multiset inclusion expression (2)") {
     val expr = Contains(
-      MultisetLiteral(IntT, Vector(
+      MultisetLit(IntT, Vector(
         IntLit(1)(Unsourced)
       ))(Unsourced),
-      MultisetLiteral(IntT, Vector(
+      MultisetLit(IntT, Vector(
         IntLit(2)(Unsourced),
         IntLit(3)(Unsourced),
       ))(Unsourced)
@@ -704,7 +704,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a slightly more complex (sequence) multiplicity operator") {
     val expr = Multiplicity(
       Add(IntLit(40)(Unsourced), IntLit(2)(Unsourced))(Unsourced),
-      SequenceLiteral(IntT, Vector(
+      SequenceLit(IntT, Vector(
         IntLit(1)(Unsourced),
         IntLit(2)(Unsourced),
         IntLit(3)(Unsourced)
@@ -863,7 +863,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should be able to show a slightly more complicated use of the sequence length function") {
     val expr = Length(
       SequenceAppend(
-        SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
+        SequenceLit(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
         IntLit(12)(Unsourced)
       )(Unsourced)
     )(Unsourced)
@@ -875,7 +875,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a nested use of the built-in sequence length operator") {
     val expr = Length(
-      Length(SequenceLiteral(IntT, Vector())(Unsourced))(Unsourced)
+      Length(SequenceLit(IntT, Vector())(Unsourced))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -908,7 +908,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show an array indexing expression with a slightly more complex base") {
     val expr = IndexedExp(
       SequenceAppend(
-        SequenceLiteral(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
+        SequenceLit(BoolT, Vector(BoolLit(false)(Unsourced)))(Unsourced),
         Length(LocalVar.Ref("xs", SequenceT(BoolT))(Unsourced))(Unsourced)
       )(Unsourced),
       IntLit(42)(Unsourced)
@@ -1035,7 +1035,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a sequence array literal") {
     val expr = ArrayLiteral(
       SequenceT(IntT),
-      Vector(SequenceLiteral(IntT, Vector())(Unsourced))
+      Vector(SequenceLit(IntT, Vector())(Unsourced))
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {

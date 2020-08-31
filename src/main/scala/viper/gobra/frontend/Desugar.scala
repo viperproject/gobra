@@ -894,7 +894,7 @@ object Desugar {
             dop <- go(op)
           } yield dop match {
             case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
-            case dop : in.SequenceLiteral => in.IntLit(dop.length)(src)
+            case dop : in.SequenceLit => in.IntLit(dop.length)(src)
             case dop => in.Length(dop)(src)
           }
 
@@ -943,15 +943,19 @@ object Desugar {
       }
     }
 
-    def compositeLitToObject(lit: in.CompositeLit): in.CompositeObject = lit match {
+    def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
       case l : in.ArrayLiteral => in.CompositeObject.ArrayLit(l)
-      case l : in.StructLit => in.CompositeObject.Struct(l)
+      case l: in.StructLit => in.CompositeObject.Struct(l)
+      case l: in.SequenceLit => in.CompositeObject.Sequence(l)
+      case l: in.SetLit => in.CompositeObject.Set(l)
+      case l: in.MultisetLit => in.CompositeObject.Multiset(l)
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
-      case t: PType =>
+      case t: PType => {
         val it = typeD(info.typ(t))(meta(lit))
         literalValD(ctx)(lit.lit, it)
+      }
 
       case _ => ???
     }
@@ -965,11 +969,17 @@ object Desugar {
 
     object CompositeKind {
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
+      case class Sequence(t : in.SequenceT) extends CompositeKind
+      case class Set(t : in.SetT) extends CompositeKind
+      case class Multiset(t : in.MultisetT) extends CompositeKind
     }
 
     def compositeTypeD(t: in.Type): CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
-      case _ => Violation.violation(s"expected composite type but got $t")
+      case t: in.SequenceT => CompositeKind.Sequence(t)
+      case t: in.SetT => CompositeKind.Set(t)
+      case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t => Violation.violation(s"expected composite type but got $t")
     }
 
     def underlyingType(typ: in.Type): in.Type = {
@@ -986,20 +996,24 @@ object Desugar {
       case _ => None
     }
 
-
+    def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      expr match {
+        case PExpCompositeVal(e) => exprD(ctx)(e)
+        case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
+      }
+    }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
       val src = meta(lit)
 
       compositeTypeD(t) match {
 
-        case CompositeKind.Struct(it, ist) =>
-
+        case CompositeKind.Struct(it, ist) => {
           val fields = ist.fields
 
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map{ case (f, PKeyedElement(_, exp)) => exp match {
+            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
             }}
@@ -1012,7 +1026,7 @@ object Desugar {
             // maps field names to fields
             val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
             // maps fields to given value (if one is given)
-            val vMap = lit.elems.map{
+            val vMap = lit.elems.map {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
                 exp match {
@@ -1023,7 +1037,7 @@ object Desugar {
               case _ => Violation.violation("expected identifier as a key")
             }.toMap
             // list of value per field
-            val wArgs = fields.map{
+            val wArgs = fields.map {
               case f if vMap.isDefinedAt(f) => vMap(f)
               case f => unit(in.DfltVal(f.typ)(src))
             }
@@ -1032,6 +1046,22 @@ object Desugar {
               args <- sequence(wArgs)
             } yield in.StructLit(it, args)(src)
           }
+        }
+
+        case CompositeKind.Sequence(in.SequenceT(typ)) => {
+          val indices = info.keyElementIndices(lit.elems)
+          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
+          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
+            yield in.SequenceLit(typ, elemsD)(src)
+        }
+
+        case CompositeKind.Set(in.SetT(typ)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+        } yield in.SetLit(typ, elemsD)(src)
+
+        case CompositeKind.Multiset(in.MultisetT(typ)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+        } yield in.MultisetLit(typ, elemsD)(src)
       }
     }
 
@@ -1345,11 +1375,6 @@ object Desugar {
           dright <- go(right)
         } yield in.Multiplicity(dleft, dright)(src)
 
-        case PSequenceLiteral(t, exprs) => for {
-          dexprs <- sequence(exprs map go)
-          dtyp = typeD(info.typ(t))(src)
-        } yield in.SequenceLiteral(dtyp, dexprs)(src)
-
         case PRangeSequence(low, high) => for {
           dlow <- go(low)
           dhigh <- go(high)
@@ -1366,11 +1391,6 @@ object Desugar {
             dright <- go(clause.right)
           } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
         }
-
-        case PSetLiteral(t, exprs) => for {
-          dexprs <- sequence(exprs map go)
-          dtype = typeD(info.typ(t))(src)
-        } yield in.SetLiteral(dtype, dexprs)(src)
 
         case PSetConversion(op) => for {
           dop <- go(op)
@@ -1399,11 +1419,6 @@ object Desugar {
           dleft <- go(left)
           dright <- go(right)
         } yield in.Subset(dleft, dright)(src)
-
-        case PMultisetLiteral(t, exprs) => for {
-          dexprs <- sequence(exprs map go)
-          dtype = typeD(info.typ(t))(src)
-        } yield in.MultisetLiteral(dtype, dexprs)(src)
 
         case PMultisetConversion(op) => for {
           dop <- go(op)

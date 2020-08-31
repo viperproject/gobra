@@ -1,7 +1,7 @@
 package pkg
 
 func foo() {
-  // ghost error
+  // error: negative keys
   //:: ExpectedOutput(type_error)
-  xs := seq[int] { }
+  ghost s := seq[int] { -10:42 }
 }

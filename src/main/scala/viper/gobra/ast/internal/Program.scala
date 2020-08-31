@@ -154,7 +154,10 @@ sealed trait CompositeObject extends Node {
 
 object CompositeObject {
   case class ArrayLit(op : ArrayLiteral) extends CompositeObject
-  case class Struct(op: StructLit) extends CompositeObject
+  case class Struct(op : StructLit) extends CompositeObject
+  case class Sequence(op : SequenceLit) extends CompositeObject
+  case class Set(op : SetLit) extends CompositeObject
+  case class Multiset(op : MultisetLit) extends CompositeObject
 }
 
 case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
@@ -276,7 +279,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
   * which should all be of type `memberType`.
   */
-case class SequenceLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   lazy val length = exprs.length
   override def typ : Type = SequenceT(memberType)
 }
@@ -393,7 +396,7 @@ case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) ext
   * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
   * which should all be of type `memberType`.
   */
-case class SetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+case class SetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   override def typ : Type = SetT(memberType)
 }
 
@@ -416,7 +419,7 @@ case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr
   * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
   * which should all be of type `memberType`.
   */
-case class MultisetLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends Expr {
+case class MultisetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   override def typ : Type = MultisetT(memberType)
 }
 
@@ -571,7 +574,7 @@ sealed trait CompositeLit extends Lit
 
 case class ArrayLiteral(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   lazy val length = exprs.length
-  lazy val asSequenceLiteral = SequenceLiteral(memberType, exprs)(info)
+  lazy val asSeqLit = SequenceLit(memberType, exprs)(info)
   override def typ : Type = ArrayT(exprs.length, memberType)
 }
 

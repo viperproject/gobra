@@ -106,20 +106,17 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {
     case _: PGhostType => noMessages
+    case n: PStructType => n.fields.flatMap(f => {
+      message(f, s"ghost error: expected an actual type but found ${f.typ}",
+        isTypeGhost(f.typ) && !enclosingGhostContext(f))
+    })
     case n: PType => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
   }
 
-  private def miscGhostSeparation(misc : PMisc) : Messages = {
-    // helper definition
-    def check(n : PNode, t : PType) : Messages =
-      message(n, s"ghost error: expected an actual type but found $t",
-        isTypeGhost(t) && !enclosingGhostContext(n))
-
-    misc match {
-      case _: PGhostMisc => noMessages
-      case p: PActualParameter => check(p, p.typ)
-      case f: PFieldDecl => check(f, f.typ)
-      case _ => noMessages
-    }
+  private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
+    case _: PGhostMisc => noMessages
+    case p: PActualParameter => message(p, s"ghost error: expected an actual type but found ${p.typ}",
+      isTypeGhost(p.typ) && !enclosingGhostContext(p))
+    case _ => noMessages
   }
 }

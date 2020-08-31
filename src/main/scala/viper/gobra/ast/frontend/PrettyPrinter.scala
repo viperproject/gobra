@@ -27,6 +27,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
     case n: PPackegeNode => showPackageId(n)
+    case n : PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
@@ -435,7 +436,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case f : PFieldDecl => showFieldDecl(f)
     case misc: PGhostMisc => misc match {
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"

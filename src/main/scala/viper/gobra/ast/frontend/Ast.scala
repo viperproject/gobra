@@ -488,7 +488,7 @@ sealed trait PActualStructClause extends PStructClause
 // TODO: maybe change to misc
 case class PFieldDecls(fields: Vector[PFieldDecl]) extends PActualStructClause
 
-case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode with PActualMisc
+case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
 
 case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause {
   require(id.name == typ.name)

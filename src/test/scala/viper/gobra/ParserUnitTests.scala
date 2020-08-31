@@ -190,22 +190,35 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("Parser: empty integer sequence literal") {
-    frontend.parseExp("seq[int] { }") should matchPattern {
-      case Right(PSequenceLiteral(PIntType(), Vector())) =>
+    frontend.parseExpOrFail("seq[int] { }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
   test("Parser: singleton integer sequence literal") {
-    frontend.parseExp("seq[int] { 42 }") should matchPattern {
-      case Right(PSequenceLiteral(PIntType(), Vector(PIntLit(n))))
-        if n == BigInt(42) =>
+    frontend.parseExpOrFail("seq[int] { 42 }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+        ))
+      ) if n == BigInt(42) =>
     }
   }
 
   test("Parser: integer sequence literal with multiple elements") {
-    frontend.parseExp("seq[int] { 3, 17, 142 }") should matchPattern {
-      case Right(PSequenceLiteral(PIntType(), xs))
-        if xs == Vector(PIntLit(BigInt(3)), PIntLit(BigInt(17)), PIntLit(BigInt(142))) =>
+    frontend.parseExpOrFail("seq[int] { 3, 17, 142 }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PIntLit(a))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(b))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(c)))
+        ))
+      ) if a == BigInt(3) && b == BigInt(17) && c == BigInt(142) =>
     }
   }
 
@@ -227,9 +240,14 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: incorrect singleton sequence literal") {
-    frontend.parseExp("seq[bool] { true, }") should matchPattern {
-      case Left(_) =>
+  test("Parser: Boolean singleton sequence literal") {
+    frontend.parseExpOrFail("seq[bool] { true, }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+        ))
+      ) =>
     }
   }
 
@@ -310,8 +328,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: appending two sequence literals") {
     frontend.parseExpOrFail("seq[bool] { true } ++ seq[bool] { false, true }") should matchPattern {
       case PSequenceAppend(
-        PSequenceLiteral(PBoolType(), Vector(PBoolLit(true))),
-        PSequenceLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+        PCompositeLit(
+          PSequenceType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        ),
+        PCompositeLit(
+          PSequenceType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        )
       ) =>
     }
   }
@@ -408,9 +437,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: updating sequence literals") {
     frontend.parseExp("seq[bool] { true, false, false }[1 = true]") should matchPattern {
       case Right(PSequenceUpdate(
-        PSequenceLiteral(
-          PBoolType(),
-          Vector(PBoolLit(true), PBoolLit(false), PBoolLit(false))
+        PCompositeLit(
+          PSequenceType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true))),
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+          ))
         ),
         Vector(PSequenceUpdateClause(PIntLit(i), PBoolLit(true)))
       )) if i == BigInt(1) =>
@@ -494,9 +527,11 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
           PNamedOperand(PIdnUse("y"))
         ),
         PCardinality(
-          PSequenceLiteral(
-            PBoolType(),
-            Vector(PBoolLit(true))
+          PCompositeLit(
+            PSequenceType(PBoolType()),
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+            ))
           )
         )
       ) =>
@@ -684,7 +719,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should parse an indexed expression together with a sequence literal") {
     frontend.parseExpOrFail("seq[bool] { true, false }[1]") should matchPattern {
       case PIndexedExp(
-        PSequenceLiteral(PBoolType(), Vector(PBoolLit(true), PBoolLit(false))),
+        PCompositeLit(
+          PSequenceType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true))),
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+          ))
+        ),
         PIntLit(n)
       ) if n == BigInt(1) =>
     }
@@ -819,13 +860,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should parse a simple empty integer set literal") {
     frontend.parseExpOrFail("set[int] {  }") should matchPattern {
-      case PSetLiteral(PIntType(), Vector()) =>
+      case PCompositeLit(
+        PSetType(PIntType()),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
   test("Parser: should parse a simple empty integer set literal with some spaces added") {
     frontend.parseExpOrFail("set [ int ] {}") should matchPattern {
-      case PSetLiteral(PIntType(), Vector()) =>
+      case PCompositeLit(
+        PSetType(PIntType()),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
@@ -861,8 +908,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a singleton integer set literal") {
     frontend.parseExpOrFail("set[int] { 42 }") should matchPattern {
-      case PSetLiteral(PIntType(), Vector(PIntLit(n)))
-        if n == BigInt(42) =>
+      case PCompositeLit(
+        PSetType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+        ))
+      ) if n == BigInt(42) =>
     }
   }
 
@@ -872,38 +923,59 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not be able to parse a singleton integer set literal with a wrongly placed extra comma (2)") {
-    frontend.parseExp("set[int] { 42, }") should matchPattern {
+  test("Parser: should be able to parse a singleton integer set literal even if there is an extra comma on the right") {
+    frontend.parseExpOrFail("set[int] { 42, }") should matchPattern {
+      case PCompositeLit(
+        PSetType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+        ))
+      ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should not parse a singleton integer set literal if there are too many extra commas on the right") {
+    frontend.parseExp("set[int] { 42,, }") should matchPattern {
       case Left(_) =>
     }
   }
 
   test("Parser: should be able to parse a Boolean set literal with multiple elements") {
     frontend.parseExpOrFail("set[bool] { true, false, true }") should matchPattern {
-      case PSetLiteral(PBoolType(), Vector(
-        PBoolLit(true),
-        PBoolLit(false),
-        PBoolLit(true)
-      )) =>
+      case PCompositeLit(
+        PSetType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+        ))
+      ) =>
     }
   }
 
   test("Parser: should be able to parse a set literal with a nested type") {
     frontend.parseExpOrFail("set[set[set[bool]]] { }") should matchPattern {
-      case PSetLiteral(
-        PSetType(PSetType(PBoolType())),
-        Vector()
+      case PCompositeLit(
+        PSetType(PSetType(PSetType(PBoolType()))),
+        PLiteralValue(Vector())
       ) =>
     }
   }
 
   test("Parser: should be able to parse nested set literals") {
     frontend.parseExpOrFail("set[bool] { set[int] { 42 } }") should matchPattern {
-      case PSetLiteral(
-        PBoolType(),
-        Vector(
-          PSetLiteral(PIntType(), Vector(PIntLit(n)))
-        )
+      case PCompositeLit(
+        PSetType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(
+            PCompositeLit(
+              PSetType(PIntType()),
+              PLiteralValue(Vector(
+                PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+              ))
+            )
+          ))
+        ))
       ) if n == BigInt(42) =>
     }
   }
@@ -1029,8 +1101,16 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should correctly parse set intersection with literals") {
     frontend.parseExpOrFail("set[bool] { true } intersection set[int] { }") should matchPattern {
       case PIntersection(
-        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
-        PSetLiteral(PIntType(), Vector())
+        PCompositeLit(
+          PSetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        ),
+        PCompositeLit(
+          PSetType(PIntType()),
+          PLiteralValue(Vector())
+        )
       ) =>
     }
   }
@@ -1101,8 +1181,16 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should correctly parse set difference with literals") {
     frontend.parseExpOrFail("set[bool] { true } setminus set[int] { }") should matchPattern {
       case PSetMinus(
-        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
-        PSetLiteral(PIntType(), Vector())
+        PCompositeLit(
+          PSetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        ),
+        PCompositeLit(
+          PSetType(PIntType()),
+          PLiteralValue(Vector())
+        )
       ) =>
     }
   }
@@ -1173,8 +1261,18 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse a subset relation in combination with set literals") {
     frontend.parseExpOrFail("set[bool] { true } subset set[int] { 42 }") should matchPattern {
       case PSubset(
-        PSetLiteral(PBoolType(), Vector(PBoolLit(true))),
-        PSetLiteral(PIntType(), Vector(PIntLit(n)))
+        PCompositeLit(
+          PSetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        ),
+        PCompositeLit(
+          PSetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          ))
+        )
       ) if n == BigInt(42) =>
     }
   }
@@ -1211,19 +1309,28 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to correctly parse an empty Boolean multiset literal") {
     frontend.parseExpOrFail("mset[bool] { }") should matchPattern {
-      case PMultisetLiteral(PBoolType(), Vector()) =>
+      case PCompositeLit(
+        PMultisetType(PBoolType()),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
   test("Parser: should be able to correctly parse an empty integer multiset literal") {
     frontend.parseExpOrFail("mset [ int ]{}") should matchPattern {
-      case PMultisetLiteral(PIntType(), Vector()) =>
+      case PCompositeLit(
+        PMultisetType(PIntType()),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
   test("Parser: should be able to correctly parse an empty multiset literal with a nested type") {
     frontend.parseExpOrFail("mset[mset[mset[bool]]] { }") should matchPattern {
-      case PMultisetLiteral(PMultisetType(PMultisetType(PBoolType())), Vector()) =>
+      case PCompositeLit(
+        PMultisetType(PMultisetType(PMultisetType(PBoolType()))),
+        PLiteralValue(Vector())
+      ) =>
     }
   }
 
@@ -1253,9 +1360,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a singleton Boolean multiset literal") {
     frontend.parseExpOrFail("mset[bool] { false }") should matchPattern {
-      case PMultisetLiteral(PBoolType(), Vector(
-        PBoolLit(false)
-      )) =>
+      case PCompositeLit(
+        PMultisetType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+        ))
+      ) =>
     }
   }
 
@@ -1279,11 +1389,14 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a Boolean multiset literal with multiple elements") {
     frontend.parseExpOrFail("mset[bool] { true, false, false }") should matchPattern {
-      case PMultisetLiteral(PBoolType(), Vector(
-        PBoolLit(true),
-        PBoolLit(false),
-        PBoolLit(false)
-      )) =>
+      case PCompositeLit(
+        PMultisetType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+        ))
+      ) =>
     }
   }
 
@@ -1299,9 +1412,15 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not parse an integer multiset literal with an extra comma on the right") {
-    frontend.parseExp("mset[int] { 1, 2, }") should matchPattern {
-      case Left(_) =>
+  test("Parser: should be able to parse integer multiset literal even if there is an extra comma on the very right") {
+    frontend.parseExpOrFail("mset[int] { 1, 2, }") should matchPattern {
+      case PCompositeLit(
+        PMultisetType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PIntLit(a))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(b)))
+        ))
+      ) if a == BigInt(1) && b == BigInt(2) =>
     }
   }
 
@@ -1314,8 +1433,18 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse a union of two multiset literals") {
     frontend.parseExpOrFail("mset[bool] { true } union mset[int] { 2 }") should matchPattern {
       case PUnion(
-        PMultisetLiteral(PBoolType(), Vector(PBoolLit(true))),
-        PMultisetLiteral(PIntType(), Vector(PIntLit(n)))
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        ),
+        PCompositeLit(
+          PMultisetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          ))
+        )
       ) if n == BigInt(2) =>
     }
   }
@@ -1323,8 +1452,18 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse an intersection of two multiset literals") {
     frontend.parseExpOrFail("mset[int] { 42 } intersection mset[bool] { false }") should matchPattern {
       case PIntersection(
-        PMultisetLiteral(PIntType(), Vector(PIntLit(n))),
-        PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+        PCompositeLit(
+          PMultisetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          ))
+        ),
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+          ))
+        )
       ) if n == BigInt(42) =>
     }
   }
@@ -1332,8 +1471,18 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse the set difference of two multiset literals") {
     frontend.parseExpOrFail("mset[int] { 42 } setminus mset[bool] { true }") should matchPattern {
       case PSetMinus(
-        PMultisetLiteral(PIntType(), Vector(PIntLit(n))),
-        PMultisetLiteral(PBoolType(), Vector(PBoolLit(true)))
+        PCompositeLit(
+          PMultisetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          ))
+        ),
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        )
       ) if n == BigInt(42) =>
     }
   }
@@ -1341,15 +1490,31 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should be able to parse a subset relation applied to two multiset literals") {
     frontend.parseExpOrFail("mset[int] { 12, 24 } subset mset[bool] { false }") should matchPattern {
       case PSubset(
-        PMultisetLiteral(PIntType(), Vector(PIntLit(n1), PIntLit(n2))),
-        PMultisetLiteral(PBoolType(), Vector(PBoolLit(false)))
+        PCompositeLit(
+          PMultisetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n1))),
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n2)))
+          ))
+        ),
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+          ))
+        )
       ) if n1 == BigInt(12) && n2 == BigInt(24) =>
     }
   }
 
   test("Parser: should be able to correctly parse multiset cardinality") {
     frontend.parseExpOrFail("|mset[bool] { }|") should matchPattern {
-      case PCardinality(PMultisetLiteral(PBoolType(), Vector())) =>
+      case PCardinality(
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector())
+        )
+      ) =>
     }
   }
 
@@ -1357,7 +1522,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("true in mset[bool] { false, true }") should matchPattern {
       case PIn(
         PBoolLit(true),
-        PMultisetLiteral(PBoolType(), Vector(PBoolLit(false), PBoolLit(true)))
+        PCompositeLit(
+          PMultisetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+            PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+          ))
+        )
       ) =>
     }
   }
@@ -1365,8 +1536,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should correctly parse multiset inclusion (2)") {
     frontend.parseExpOrFail("mset[int] { } in mset[bool] { }") should matchPattern {
       case PIn(
-        PMultisetLiteral(PIntType(), Vector()),
-        PMultisetLiteral(PBoolType(), Vector())
+        PCompositeLit(PMultisetType(PIntType()), PLiteralValue(Vector())),
+        PCompositeLit(PMultisetType(PBoolType()), PLiteralValue(Vector()))
       ) =>
     }
   }
@@ -1519,7 +1690,10 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("set(seq[int] { 1 } ++ seq[2..3])") should matchPattern {
       case PSetConversion(
         PSequenceAppend(
-          PSequenceLiteral(PIntType(), Vector(PIntLit(a))),
+          PCompositeLit(
+            PSequenceType(PIntType()),
+            PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(a)))))
+          ),
           PRangeSequence(PIntLit(b), PIntLit(c))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(3) =>
@@ -1663,7 +1837,12 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("x + 2 # seq[int] { n }") should matchPattern {
       case PMultiplicity(
         PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
-        PSequenceLiteral(PIntType(), Vector(PNamedOperand(PIdnUse("n"))))
+        PCompositeLit(
+          PSequenceType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("n"))))
+          ))
+        )
       ) if a == BigInt(2) =>
     }
   }
@@ -1738,11 +1917,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("mset(seq[int] { x } ++ set[bool] { y, z })") should matchPattern {
       case PMultisetConversion(
         PSequenceAppend(
-          PSequenceLiteral(PIntType(), Vector(PNamedOperand(PIdnUse("x")))),
-          PSetLiteral(PBoolType(), Vector(
-            PNamedOperand(PIdnUse("y")),
-            PNamedOperand(PIdnUse("z"))
-          ))
+          PCompositeLit(
+            PSequenceType(PIntType()),
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x"))))
+            ))
+          ),
+          PCompositeLit(
+            PSetType(PBoolType()),
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("y")))),
+              PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("z"))))
+            ))
+          )
         )
       ) =>
     }
@@ -1888,11 +2075,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     frontend.parseExpOrFail("len(seq[x .. y] ++ seq[bool] { false })") should matchPattern {
       case PLength(
         PSequenceAppend(
-          PRangeSequence(
-            PNamedOperand(PIdnUse("x")),
-            PNamedOperand(PIdnUse("y"))
-          ),
-          PSequenceLiteral(PBoolType(), Vector(PBoolLit(false)))
+          PRangeSequence(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
+          PCompositeLit(
+            PSequenceType(PBoolType()),
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+            ))
+          )
         )
       ) =>
     }
@@ -1925,6 +2114,114 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: should not be able to parse a use of the built-in 'len' function if there is a parsing problem in the operand") {
     frontend.parseExp("len(n ++ |xs)") should matchPattern {
       case Left(_) =>
+    }
+  }
+
+  test("Parser: empty integer sequence literal as a composite literal") {
+    frontend.parseExpOrFail("seq[int] { }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector())
+      ) =>
+    }
+  }
+
+  test("Parser: should not parse an integer sequence singleton literal with too many commas on the very right") {
+    frontend.parseExp("seq[int] { 12,, }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse an integer set singleton literal with too many commas on the very right") {
+    frontend.parseExp("set[int] { 12,, }") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: is able to parse a nested sequence literal written in 'compact' notation") {
+    frontend.parseExpOrFail("seq[int] { { 42 } }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PLitCompositeVal(
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            ))
+          ))
+        ))
+      ) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: is able to parse a nested set literal written in 'compact' notation") {
+    frontend.parseExpOrFail("set[bool] { { false } }") should matchPattern {
+      case PCompositeLit(
+        PSetType(PBoolType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PLitCompositeVal(
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
+            ))
+          ))
+        ))
+      ) =>
+    }
+  }
+
+  test("Parser: is able to parse a nested multiset literal written in 'compact' notation") {
+    frontend.parseExpOrFail("mset[int] { { 12 } }") should matchPattern {
+      case PCompositeLit(
+        PMultisetType(PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PLitCompositeVal(
+            PLiteralValue(Vector(
+              PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            ))
+          ))
+        ))
+      ) if n == BigInt(12) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (singleton) sequence integer literal with a specified key component") {
+    frontend.parseExpOrFail("seq[int] { 0 : 42 }") should matchPattern {
+      case PCompositeLit(
+        PSequenceType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(
+            Some(PExpCompositeVal(PIntLit(a))),
+            PExpCompositeVal(PIntLit(b))
+          )
+        ))
+      ) if a == BigInt(0) && b == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (singleton) set integer literal with a specified key component") {
+    frontend.parseExpOrFail("set[bool] { 12 : true }") should matchPattern {
+      case PCompositeLit(
+        PSetType(PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(
+            Some(PExpCompositeVal(PIntLit(a))),
+            PExpCompositeVal(PBoolLit(true))
+          )
+        ))
+      ) if a == BigInt(12) =>
+    }
+  }
+
+  test("Parser: should be able to parse a (singleton) multiset integer literal with a specified key component") {
+    frontend.parseExpOrFail("mset[int] { 10 : 12 }") should matchPattern {
+      case PCompositeLit(
+        PMultisetType(PIntType()),
+        PLiteralValue(Vector(
+          PKeyedElement(
+            Some(PExpCompositeVal(PIntLit(a))),
+            PExpCompositeVal(PIntLit(b))
+          )
+        ))
+      ) if a == BigInt(10) && b == BigInt(12) =>
     }
   }
 

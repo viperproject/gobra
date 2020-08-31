@@ -88,11 +88,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PBinaryExp
        | _: PUnfolding
        | _: PLength
+       | _: PLiteral
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
-      _: PLiteral
-      |  _: PReceive
+      _: PReceive
       |  _: PReference
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 

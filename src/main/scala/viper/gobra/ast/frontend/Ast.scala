@@ -282,6 +282,32 @@ case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType
 
 sealed trait PLiteral extends PActualExpression
 
+object PLiteral {
+  /**
+    * Gives a simple sequence literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def sequence(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PSequenceType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
+    * Gives a simple set literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def set(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PSetType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
+    * Gives a simple multiset literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def multiset(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PMultisetType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+}
+
 sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
@@ -742,12 +768,6 @@ sealed trait PGhostCollectionLiteral {
 sealed trait PSequenceExp extends PGhostCollectionExp
 
 /**
-  * A mathematical sequence literal "seq[typ] { e_0, ..., e_n }",
-  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions in the literal.
-  */
-case class PSequenceLiteral(typ : PType, exprs : Vector[PExpression]) extends PSequenceExp with PGhostCollectionLiteral
-
-/**
   * The appending of two sequences represented by `left` and `right`.
   */
 case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExp with PBinaryGhostExp
@@ -820,13 +840,6 @@ case class PSubset(left : PExpression, right : PExpression) extends PUnorderedGh
 sealed trait PSetExp extends PUnorderedGhostCollectionExp
 
 /**
-  * A mathematical set literal "set[`typ`] { e_0, ..., e_n }",
-  * where `exprs` constitute the vector "e_0, ..., e_n" of (sub)expressions
-  * in the literal, which should all be of type `typ`.
-  */
-case class PSetLiteral(typ : PType, exprs : Vector[PExpression]) extends PSetExp with PGhostCollectionLiteral
-
-/**
   * Represents the explicit conversion of `exp` to a set
   * (of a matching, appropriate type), written "set(`exp`)" in
   * Gobra's specification language.
@@ -842,13 +855,6 @@ case class PSetConversion(exp : PExpression) extends PSetExp
 sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
 
 /**
-  * Represents a multiset literal "mset[`typ`] { e_0, ..., e_n }",
-  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
-  * which should all be of type `typ`.
-  */
-case class PMultisetLiteral(typ : PType, exprs : Vector[PExpression]) extends PMultisetExp with PGhostCollectionLiteral
-
-/**
   * Represents the explicit conversion of `exp` to a multiset
   * (of a matching, appropriate type), written "mset(`exp`)" in
   * Gobra's specification language.
@@ -856,32 +862,32 @@ case class PMultisetLiteral(typ : PType, exprs : Vector[PExpression]) extends PM
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
 
-/**
-  * Types
-  */
+/* ** Types */
 
+/**
+  * Conceals the type of ghost types.
+  */
 sealed trait PGhostType extends PType with PGhostNode
 
 /**
-  * Conceals the type of ghost literal.
+  * Conceals the type of ghost literal types.
   */
-sealed trait PGhostTypeLit extends PGhostType
+sealed trait PGhostLiteralType extends PGhostType with PLiteralType
 
 /**
-  * The type of mathematical sequences with elements of type `elem`.
-  * @param elem The types of the sequence's elements.
+  * The type of (mathematical) sequences with elements of type `elem`.
   */
-case class PSequenceType(elem : PType) extends PGhostTypeLit
+case class PSequenceType(elem : PType) extends PGhostLiteralType
 
 /**
-  * The type of mathematical sets with elements of type `elem`.
+  * The type of (mathematical) sets with elements of type `elem`.
   */
-case class PSetType(elem : PType) extends PGhostTypeLit
+case class PSetType(elem : PType) extends PGhostLiteralType
 
 /**
-  * The type of mathematical multisets with elements of type `elem`.
+  * The type of (mathematical) multisets with elements of type `elem`.
   */
-case class PMultisetType(elem : PType) extends PGhostTypeLit
+case class PMultisetType(elem : PType) extends PGhostLiteralType
 
 
 

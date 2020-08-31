@@ -75,7 +75,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
       case expr : PSequenceExp => expr match {
-        case expr : PSequenceLiteral => wellDefGhostCollectionLiteral(expr)
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
           val highT = exprType(high)
@@ -103,27 +102,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
-        case expr : PSetExp => expr match {
-          case expr : PSetLiteral => wellDefGhostCollectionLiteral(expr)
-          case PSetConversion(op) => exprType(op) match {
-            case SequenceT(_) | SetT(_) => isExpr(op).out
-            case t => message(op, s"expected a sequence or a set, but got $t")
-          }
+        case PSetConversion(op) => exprType(op) match {
+          case SequenceT(_) | SetT(_) => isExpr(op).out
+          case t => message(op, s"expected a sequence or a set, but got $t")
         }
-        case expr : PMultisetExp => expr match {
-          case expr : PMultisetLiteral => wellDefGhostCollectionLiteral(expr)
-          case PMultisetConversion(op) => exprType(op) match {
-            case SequenceT(_) | MultisetT(_) => isExpr(op).out
-            case t => message(op, s"expected a sequence or a multiset, but got $t")
-          }
+        case PMultisetConversion(op) => exprType(op) match {
+          case SequenceT(_) | MultisetT(_) => isExpr(op).out
+          case t => message(op, s"expected a sequence or a multiset, but got $t")
         }
       }
     }
-  }
-
-  private[typing] def wellDefGhostCollectionLiteral(lit : PGhostCollectionLiteral) : Messages = {
-    val typ = typeType(lit.typ)
-    lit.exprs.flatMap(e => assignableTo.errors(exprType(e), typ)(e) ++ isExpr(e).out)
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
@@ -151,7 +139,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PMultiplicity(_, _) => IntT
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
-        case PSequenceLiteral(typ, _) => SequenceT(typeType(typ))
         case PRangeSequence(_, _) => SequenceT(IntT)
         case PSequenceAppend(left, _) => exprType(left)
         case PSequenceUpdate(seq, _) => exprType(seq)
@@ -161,19 +148,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case PSubset(_, _) => BooleanT
           case _ => exprType(expr.left)
         }
-        case expr : PSetExp => expr match {
-          case PSetLiteral(typ, _) => SetT(typeType(typ))
-          case PSetConversion(op) => exprType(op) match {
-            case t : GhostCollectionType => SetT(t.elem)
-            case t => violation(s"expected a ghost collection type, but got $t")
-          }
+        case PSetConversion(op) => exprType(op) match {
+          case t : GhostCollectionType => SetT(t.elem)
+          case t => violation(s"expected a ghost collection type, but got $t")
         }
-        case expr : PMultisetExp => expr match {
-          case PMultisetLiteral(typ, _) => MultisetT(typeType(typ))
-          case PMultisetConversion(op) => exprType(op) match {
-            case t : GhostCollectionType => MultisetT(t.elem)
-            case t => violation(s"expected a ghost collection type, but got $t")
-          }
+        case PMultisetConversion(op) => exprType(op) match {
+          case t : GhostCollectionType => MultisetT(t.elem)
+          case t => violation(s"expected a ghost collection type, but got $t")
         }
       }
     }

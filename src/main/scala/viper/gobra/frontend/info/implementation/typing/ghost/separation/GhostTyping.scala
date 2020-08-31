@@ -2,6 +2,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
@@ -37,7 +38,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
     createGhostTyping[PExpression]{
       case _: PGhostExpression => isGhost
-      case e if exprType(e).isInstanceOf[GhostType] => isGhost
+      case e if exprType(e).isInstanceOf[Type.GhostType] => isGhost
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 

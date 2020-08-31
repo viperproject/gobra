@@ -30,11 +30,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
-    case n: PLiteralValue => showLiteralValue(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
-    case n: PKeyedElement => showKeyedElement(n)
-
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
@@ -315,7 +312,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PIn(left, right) => showExpr(left) <+> "in" <+> showExpr(right)
         case PMultiplicity(left, right) => showExpr(left) <+> "#" <+> showExpr(right)
         case expr : PSequenceExp => expr match {
-          case PSequenceLiteral(typ, exprs) => showCollectionLiteral("seq", typ, exprs)
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
           case PSequenceAppend(left, right) => showExpr(left) <+> "++" <+> showExpr(right)
           case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
@@ -326,23 +322,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PIntersection(left, right) => showExpr(left) <+> "intersection" <+> showExpr(right)
           case PSetMinus(left, right) => showExpr(left) <+> "setminus" <+> showExpr(right)
           case PSubset(left, right) => showExpr(left) <+> "subset" <+> showExpr(right)
-          case expr : PSetExp => expr match {
-            case PSetLiteral(typ, exprs) => showCollectionLiteral("set", typ, exprs)
-            case PSetConversion(exp) => "set" <> parens(showExpr(exp))
-          }
-          case expr : PMultisetExp => expr match {
-            case PMultisetLiteral(typ, exprs) => showCollectionLiteral("mset", typ, exprs)
-            case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-          }
+          case PSetConversion(exp) => "set" <> parens(showExpr(exp))
+          case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
         }
       }
     }
-  }
-
-  def showCollectionLiteral(front : String, typ : PType, exprs : Vector[PExpression]) : Doc = {
-    val typP = brackets(showType(typ))
-    val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
-    front <> typP <+> braces(exprsP)
   }
 
   def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
@@ -363,7 +347,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PLitCompositeVal(l) => showLiteralValue(l)
   }
 
-  def showLiteralValue(lit: PLiteralValue): Doc = braces(ssep(lit.elems map showKeyedElement, comma))
+  def showLiteralValue(lit: PLiteralValue): Doc =
+    braces(ssep(lit.elems map showKeyedElement, comma) <> space)
 
   def showKeyedElement(n: PKeyedElement): Doc = n match {
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)

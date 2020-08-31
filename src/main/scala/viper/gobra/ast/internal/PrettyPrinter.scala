@@ -265,7 +265,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit() => "nil"
 
-    case ArrayLiteral(typ, exprs) => {
+    case ArrayLit(typ, exprs) => {
       val lenP = brackets(exprs.length.toString)
       val typP = showType(typ)
       val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))

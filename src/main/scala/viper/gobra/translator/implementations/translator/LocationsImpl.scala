@@ -458,7 +458,7 @@ class LocationsImpl extends Locations {
       case in.BoolLit(b) => unit(vpr.BoolLit(b)(pos, info, errT))
       case in.NilLit() => unit(vpr.NullLit()(pos, info, errT))
 
-      case lit: in.ArrayLiteral => ctx.expr.translate(lit.asSeqLit)(ctx)
+      case lit: in.ArrayLit => ctx.expr.translate(lit.asSeqLit)(ctx)
 
       case in.SequenceLit(typ, exprs) => for {
         exprsT <- sequence(exprs map goE)
@@ -590,7 +590,7 @@ class LocationsImpl extends Locations {
     val src = mk.info
 
     mk.typ match {
-      case in.CompositeObject.ArrayLit(_) => Violation.violation("not yet implemented")
+      case in.CompositeObject.Array(_) => Violation.violation("not yet implemented")
 
       case in.CompositeObject.Struct(slit) => {
         val deref = in.Deref(mk.target)(src)

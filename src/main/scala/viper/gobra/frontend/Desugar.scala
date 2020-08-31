@@ -893,7 +893,7 @@ object Desugar {
           case PLength(op) => for {
             dop <- go(op)
           } yield dop match {
-            case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
+            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case dop : in.SequenceLit => in.IntLit(dop.length)(src)
             case dop => in.Length(dop)(src)
           }
@@ -901,7 +901,7 @@ object Desugar {
           case PCapacity(op) => for {
             dop <- go(op)
           } yield dop match {
-            case dop : in.ArrayLiteral => in.IntLit(dop.length)(src)
+            case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
               case _: in.ArrayT => in.Length(dop)(src)
               case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
@@ -936,7 +936,7 @@ object Desugar {
         case PArrayLiteral(_, typ, exprs) => for {
           dexprs <- sequence(exprs map (exprD(ctx)(_)))
           dtyp = typeD(info.typ(typ))(src)
-          dlit <- single(in.ArrayLiteral(dtyp, dexprs))
+          dlit <- single(in.ArrayLit(dtyp, dexprs))
         } yield dlit
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
@@ -944,7 +944,7 @@ object Desugar {
     }
 
     def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
-      case l : in.ArrayLiteral => in.CompositeObject.ArrayLit(l)
+      case l : in.ArrayLit => in.CompositeObject.Array(l)
       case l: in.StructLit => in.CompositeObject.Struct(l)
       case l: in.SequenceLit => in.CompositeObject.Sequence(l)
       case l: in.SetLit => in.CompositeObject.Set(l)

@@ -989,7 +989,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple integer array literal") {
-    val expr = ArrayLiteral(IntT, Vector(
+    val expr = ArrayLit(IntT, Vector(
       IntLit(12)(Unsourced),
       IntLit(24)(Unsourced),
       IntLit(48)(Unsourced)
@@ -1001,7 +1001,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty Boolean array literal") {
-    val expr = ArrayLiteral(BoolT, Vector())(Unsourced)
+    val expr = ArrayLit(BoolT, Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "[0]bool { }" =>
@@ -1009,10 +1009,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a nested array literal") {
-    val expr = ArrayLiteral(
+    val expr = ArrayLit(
       ArrayT(2, IntT),
       Vector(
-        ArrayLiteral(IntT, Vector(
+        ArrayLit(IntT, Vector(
           IntLit(24)(Unsourced),
           IntLit(42)(Unsourced)
         ))(Unsourced)
@@ -1025,7 +1025,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty 3D array literal") {
-    val expr = ArrayLiteral(ArrayT(24, ArrayT(48, BoolT)), Vector())(Unsourced)
+    val expr = ArrayLit(ArrayT(24, ArrayT(48, BoolT)), Vector())(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "[0][24][48]bool { }" =>
@@ -1033,7 +1033,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a sequence array literal") {
-    val expr = ArrayLiteral(
+    val expr = ArrayLit(
       SequenceT(IntT),
       Vector(SequenceLit(IntT, Vector())(Unsourced))
     )(Unsourced)

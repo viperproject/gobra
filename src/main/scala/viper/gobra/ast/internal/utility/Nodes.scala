@@ -76,7 +76,7 @@ object Nodes {
           case IntLit(_) => Seq()
           case BoolLit(_) => Seq()
           case NilLit() => Seq()
-          case ArrayLiteral(_, exprs) => exprs
+          case ArrayLit(_, exprs) => exprs
           case StructLit(_, args) => args
           case SequenceLit(_, args) => args
           case SetLit(_, args) => args

@@ -65,6 +65,9 @@ object Info {
     val info = new TypeInfoImpl(tree, context)(config: Config)
 
     // get errors and remove duplicates as errors related to imported packages might occur multiple times
+    // consider this: each error in an imported package is converted to an error at the import node with
+    // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
+    // should be reported at the import node instead of two.
     val errors = info.errors.distinct
     config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))
     if (errors.isEmpty) {

@@ -1,5 +1,6 @@
 package viper.gobra.translator.util
 
+import viper.gobra.util.Violation
 import viper.silver.ast._
 
 object ViperUtil {
@@ -19,4 +20,12 @@ object ViperUtil {
   def seqn(ss: Vector[Stmt])(pos: Position, info: Info, errT: ErrorTrafo): Seqn = Seqn(ss, Vector.empty)(pos, info, errT)
 
   def nop(pos: Position, info: Info, errT: ErrorTrafo): Seqn = Seqn(Vector.empty, Vector.empty)(pos, info, errT)
+
+  def valueAssign(left: Exp, right: Exp)(pos: Position = NoPosition, info: Info = NoInfo, errT: ErrorTrafo = NoTrafos): AbstractAssign = {
+    left match {
+      case l: LocalVar => LocalVarAssign(l, right)(pos, info, errT)
+      case l: FieldAccess => FieldAssign(l, right)(pos, info, errT)
+      case _ => Violation.violation(s"expected vpr variable or field access, but got $left")
+    }
+  }
 }

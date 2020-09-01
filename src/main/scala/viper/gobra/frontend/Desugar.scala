@@ -241,7 +241,12 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions before extending the context
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(specCtx)
       val posts = decl.spec.posts map postconditionD(specCtx)
 
@@ -297,7 +302,20 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // translate pre- and postconditions before extending the context
+      // extent context
+      (decl.args zip argsWithSubs).foreach {
+        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {
@@ -359,15 +377,26 @@ object Desugar {
       // create context for spec translation
       val specCtx = new FunctionContext(assignReturns)
 
+
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
-      // translate pre- and postconditions before extending the context
+      (decl.receiver, recvWithSubs) match {
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(specCtx)
       val posts = decl.spec.posts map postconditionD(specCtx)
 
@@ -438,7 +467,25 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // translate pre- and postconditions before extending the context
+      // extent context
+      (decl.args zip argsWithSubs).foreach{
+        // substitution has to be added since otherwise the parameter is translated as an addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.receiver, recvWithSubs) match {
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {

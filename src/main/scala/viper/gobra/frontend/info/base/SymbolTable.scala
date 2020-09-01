@@ -1,10 +1,16 @@
 package viper.gobra.frontend.info.base
 
-import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
+import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
+import org.bitbucket.inkytonik.kiama.util.{Entity, Environments, ErrorEntity}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
 
 object SymbolTable extends Environments {
+
+  /**
+    * Special entity that provides an error message
+    */
+  case class ErrorMsgEntity(msg: Messages) extends ErrorEntity
 
   sealed trait Regular extends Entity with Product {
     def rep: PNode

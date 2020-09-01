@@ -512,10 +512,14 @@ object Parser {
 
     lazy val forStmt: Parser[PForStmt] =
       loopSpec ~ pos("for") ~ block ^^ { case spec ~ pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, spec, b) } |
-      loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
-        case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
-        case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
-      }
+        loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
+          case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
+          case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
+        } |
+        loopSpec ~ ("for" ~> expression) ~ block ^^ {
+          case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
+        }
+
 
     lazy val loopSpec: Parser[PLoopSpec] =
       ("invariant" ~> expression <~ eos).* ^^ PLoopSpec

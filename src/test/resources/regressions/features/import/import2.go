@@ -1,11 +1,10 @@
 package main
 
-import math "lib/math"
+//:: ExpectedOutput(type_error)
+import math "lib/mathm" // wrong package name used on purpose such that this test case does not potentially depend on the configured Go path
 
 type cell struct{
-    //:: ExpectedOutput(type_error)
     f math.foo;
 };
 
-//:: ExpectedOutput(type_error)
 func test(f math.foo, pf *math.foo)

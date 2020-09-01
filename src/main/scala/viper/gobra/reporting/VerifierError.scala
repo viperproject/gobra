@@ -21,6 +21,11 @@ sealed trait VerifierError {
   override def toString: String = formattedMessage
 }
 
+case class NotFoundError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "not_found_error"
+}
+
 case class ParserError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "parser_error"
 }
@@ -29,6 +34,10 @@ case class TypeError(message: String, position: Option[SourcePosition]) extends 
   val id = "type_error"
 }
 
+case class CyclicImportError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "cyclic_import_error"
+}
 
 
 sealed trait VerificationError extends VerifierError {

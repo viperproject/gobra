@@ -12,13 +12,13 @@ import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.util.{DesugarWriter, Violation}
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object Desugar {
 
   implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
-  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): Future[in.Program] = Future {
+  def desugar(pkg: PPackage, info: viper.gobra.frontend.info.TypeInfo)(config: Config): in.Program = {
     // independently desugar each imported package. Only used members (i.e. members for which `isUsed` returns true will be desugared:
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo

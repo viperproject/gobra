@@ -9,12 +9,11 @@ import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLe
 import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 import scala.collection.immutable.ListMap
-
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object Info {
 
-  implicit val executionContext = ExecutionContext.global
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   type GoTree = Tree[PNode, PPackage]
 
@@ -62,37 +61,34 @@ object Info {
     def getExternalErrors: Vector[VerifierError] = contextMap.values.collect { case Left(errs) => errs }.flatten.toVector
   }
 
-  def check(pkg: PPackage, context: Context = new Context)(config: Config): Future[Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo]] = {
-    Future {
-      val tree = new GoTree(pkg)
-      //    println(program.declarations.head)
-      //    println("-------------------")
-      //    println(tree)
-      val info = new TypeInfoImpl(tree, context)(config: Config)
+  def check(pkg: PPackage, context: Context = new Context)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
+    val tree = new GoTree(pkg)
+    //    println(program.declarations.head)
+    //    println("-------------------")
+    //    println(tree)
+    val info = new TypeInfoImpl(tree, context)(config: Config)
 
-      // get errors and remove duplicates as errors related to imported packages might occur multiple times
+    // get errors and remove duplicates as errors related to imported packages might occur multiple times
     // consider this: each error in an imported package is converted to an error at the import node with
     // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
     // should be reported at the import node instead of two.
     val errors = info.errors.distinct
-      config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))
-      if (errors.isEmpty) {
-        config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(program, info))
-        Right(info)
-      } else {
-        val typeErrors = pkg.positions.translate(errors, TypeError)
-        config.reporter report TypeCheckFailureMessage(config.inputFiles.head, pkg.packageClause.id.name, () => pkg, typeErrors)
-        Left(typeErrors)
-      }
+    config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))
+    if (errors.isEmpty) {
+      config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
+      Right(info)
+    } else {
+      val typeErrors = pkg.positions.translate(errors, TypeError)
+      config.reporter report TypeCheckFailureMessage(config.inputFiles.head, pkg.packageClause.id.name, () => pkg, typeErrors)
+      Left(typeErrors)
     }
-
   }
 
   private def getErasedGhostCode(pkg: PPackage, info: TypeInfoImpl): String = {
     new GhostLessPrinter(info).format(pkg)
   }
 
-  private def getGoifiedGhostCode(program: PProgram, info: TypeInfoImpl): String = {
+  private def getGoifiedGhostCode(program: PPackage, info: TypeInfoImpl): String = {
     new GoifyingPrinter(info).format(program)
   }
 

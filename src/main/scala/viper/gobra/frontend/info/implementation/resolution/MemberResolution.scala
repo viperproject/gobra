@@ -172,7 +172,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$pkgName' found")))
           else Right(pkgFiles)
-        parsedProgram <- Parser.parse(nonEmptyPkgFiles, specOnly = true)(config)
+        parsedProgram <- Parser.parse(Left(nonEmptyPkgFiles), specOnly = true)(config)
         // TODO maybe don't check whole file but only members that are actually used/imported
         // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
         // Info.check would probably need some restructuring to type check only certain members

@@ -6,14 +6,13 @@
 
 package viper.gobra.backend
 
+import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon, SiliconBackend => Silicon}
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
 import viper.silver
-import viper.silver.{ast => vpr}
 import viper.silver.verifier.VerificationResult
-import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon, SiliconBackend => Silicon, ViperServerBackend => ViperServer}
-import java.nio.file.{Files, Paths}
+import viper.silver.{ast => vpr}
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 

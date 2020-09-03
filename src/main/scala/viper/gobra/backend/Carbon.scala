@@ -1,19 +1,16 @@
 package viper.gobra.backend
 
 import viper.carbon
-import viper.silver
-import viper.silver.reporter._
-
-
-import viper.silver.ast.Program
-import viper.silver.verifier.{ VerificationResult, Success, Failure }
 import viper.server.ViperBackendConfig
+import viper.silver.ast.Program
+import viper.silver.reporter._
+import viper.silver.verifier.{Failure, Success, VerificationResult}
 
-import scala.concurrent.{ExecutionContextExecutor, Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
-  implicit val executionContext = ExecutionContext.global
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   def verify(programID: String, config: ViperBackendConfig, reporter:Reporter, program: Program): Future[VerificationResult] = {
     Future {

@@ -3,11 +3,10 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-
-import scala.collection.mutable.{ListBuffer, Map}
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 trait PrettyPrinter {
   def format(node: Node): String
@@ -68,7 +67,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
             })
       )
     case None =>
-      println("no origin")
       emptyDoc
   }
 

@@ -14,22 +14,19 @@ import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 import viper.gobra.reporting.GeneratedViperMessage
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object Translator {
 
-  implicit val executionContext = ExecutionContext.global
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
-  def translate(program: Program)(config: Config): Future[BackendVerifier.Task] = {
-    Future {
-      val translationConfig = new DfltTranslatorConfig()
-      val programTranslator = new ProgramsImpl()
-      val task = programTranslator.translate(program)(translationConfig)
+  def translate(program: Program)(config: Config): BackendVerifier.Task = {
+    val translationConfig = new DfltTranslatorConfig()
+    val programTranslator = new ProgramsImpl()
+    val task = programTranslator.translate(program)(translationConfig)
 
-      config.reporter report GeneratedViperMessage(config.inputFile, () => task.program, () => task.backtrack)
-      task
-    }
-
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => task.program, () => task.backtrack)
+    task
   }
 
 }

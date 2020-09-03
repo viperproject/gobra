@@ -15,7 +15,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object Parser {
 
@@ -37,20 +37,17 @@ object Parser {
     *
     */
 
-  def parse(input: Either[Vector[File], String], specOnly: Boolean = false)(config: Config): Future[Either[Vector[VerifierError], PPackage]] = {
-    Future {
-      val preprocessedSources = input match {
-        case Left(files) =>
-          files
-            .map{ file => FileSource(file.getPath) }
-            .map{ file => SemicolonPreprocessor.preprocess(Left(file))(config) }
+  def parse(input: Either[Vector[File], String], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = input match {
+      case Left(files) =>
+        files
+          .map{ file => FileSource(file.getPath) }
+          .map{ file => SemicolonPreprocessor.preprocess(Left(file))(config) }
 
-        case Right(txt) =>
-
-      }
-      parseSources(preprocessedSources, specOnly)(config)
+      case Right(txt) =>
+        Vector(SemicolonPreprocessor.preprocess(Right(txt))(config))
     }
-
+    parseSources(preprocessedSources, specOnly)(config)
   }
 
   private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {

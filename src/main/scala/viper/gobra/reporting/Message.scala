@@ -91,7 +91,7 @@ sealed trait TypeCheckMessage extends GobraMessage {
     s"file=${input.toPath})"
 }
 
-case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +

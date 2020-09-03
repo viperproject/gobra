@@ -2,7 +2,8 @@ package viper.gobra.reporting
 
 import java.io.File
 
-import viper.gobra.ast.frontend.PProgram
+import viper.gobra.ast.frontend.PNode.PPkg
+import viper.gobra.ast.frontend.{PPackage, PProgram}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
@@ -84,28 +85,29 @@ case class ParserErrorMessage(input: File, result: Vector[ParserError]) extends 
 sealed trait TypeCheckMessage extends GobraMessage {
   override val name: String = s"type_check_message"
   val input: File
-  val ast: () => PProgram
+  val ast: () => PPackage
 
   override def toString: String = s"type_check_message(" +
     s"file=${input.toPath})"
 }
 
-case class TypeCheckSuccessMessage(input: File, ast: () => PProgram, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
     s"file=${input.toPath})"
 }
 
-case class TypeCheckFailureMessage(input: File, ast: () => PProgram, result: Vector[TypeError]) extends TypeCheckMessage {
+case class TypeCheckFailureMessage(input: File, packageName: PPkg, ast: () => PPackage, result: Vector[VerifierError]) extends TypeCheckMessage {
   override val name: String = s"type_check_failure_message"
 
   override def toString: String = s"type_check_failure_message(" +
-    s"file=${input.toPath}), " +
+    s"file=${input.toPath}, " +
+    s"package=$packageName, " +
     s"failures=${result.map(_.toString).mkString(",")})"
 }
 
-case class TypeCheckDebugMessage(input: File, ast: () => PProgram, debugTypeInfo: () => String) extends TypeCheckMessage {
+case class TypeCheckDebugMessage(input: File, ast: () => PPackage, debugTypeInfo: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_debug_message"
 
   override def toString: String = s"type_check_debug_message(" +

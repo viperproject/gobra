@@ -9,33 +9,44 @@ package viper.gobra.reporting
 import viper.silver.ast.SourcePosition
 
 sealed trait VerifierError {
-  def position: SourcePosition
+  def position: Option[SourcePosition]
   def message: String
   def id: String
 
-  def formattedMessage: String =
-    s"<${position.line}:${position.column}> $message"
+  def formattedMessage: String = position match {
+    case Some(pos) => s"<${pos.line}:${pos.column}> $message"
+    case _ => message
+  }
 
   override def toString: String = formattedMessage
 
   var cached: Boolean = false
 }
 
-case class ParserError(message: String, position: SourcePosition) extends VerifierError {
+case class NotFoundError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "not_found_error"
+}
+
+case class ParserError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "parser_error"
 }
 
-case class TypeError(message: String, position: SourcePosition) extends VerifierError {
+case class TypeError(message: String, position: Option[SourcePosition]) extends VerifierError {
   val id = "type_error"
 }
 
+case class CyclicImportError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "cyclic_import_error"
+}
 
 
 sealed trait VerificationError extends VerifierError {
 
   def info: Source.Verifier.Info
 
-  override def position: SourcePosition = info.origin.pos
+  override def position: Option[SourcePosition] = Some(info.origin.pos)
 
   def localId: String
   def localMessage: String

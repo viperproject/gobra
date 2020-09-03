@@ -24,7 +24,7 @@ sealed trait PNode extends Product {
 
   lazy val formatted: String = pretty()
 
-  override def toString: PPkg = formatted
+  override def toString: String = formatted
 }
 
 object PNode {
@@ -35,24 +35,33 @@ object PNode {
 sealed trait PScope extends PNode
 sealed trait PUnorderedScope extends PScope
 
+case class PPackage(
+                     packageClause: PPackageClause,
+                     programs: Vector[PProgram],
+                     positions: PositionManager
+                   ) extends PNode with PUnorderedScope {
+  // TODO: remove duplicate package imports:
+  lazy val imports: Vector[PImport] = programs.flatMap(_.imports)
+  lazy val declarations: Vector[PMember] = programs.flatMap(_.declarations)
+}
+
 case class PProgram(
                      packageClause: PPackageClause,
-                     imports: Vector[PImportDecl],
-                     declarations: Vector[PMember],
-                     positions: PositionManager
-                   ) extends PNode with PUnorderedScope
+                     imports: Vector[PImport],
+                     declarations: Vector[PMember]
+                   ) extends PNode
 
 
 class PositionManager extends PositionStore with Messaging {
 
   def translate[E <: VerifierError](
                                      messages: Messages,
-                                     errorFactory: (String, SourcePosition) => E
+                                     errorFactory: (String, Option[SourcePosition]) => E
                                    ): Vector[E] = {
     messages.sorted map { m =>
       errorFactory(
         formatMessage(m),
-        translate(positions.getStart(m.value).get, positions.getFinish(m.value).get)
+        Some(translate(positions.getStart(m.value).get, positions.getFinish(m.value).get))
       )
     }
   }
@@ -74,13 +83,13 @@ class PositionManager extends PositionStore with Messaging {
 case class PPackageClause(id: PPkgDef) extends PNode
 
 
-sealed trait PImportDecl extends PNode {
+sealed trait PImport extends PNode {
   def pkg: PPkg
 }
 
-case class PQualifiedImport(qualifier: PIdnDef, pkg: PPkg) extends PImportDecl
+case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImport
 
-case class PUnqualifiedImport(pkg: PPkg) extends PImportDecl
+case class PUnqualifiedImport(pkg: PPkg) extends PImport
 
 
 sealed trait PGhostifiable extends PNode
@@ -307,7 +316,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -490,14 +499,14 @@ case class PLabelUse(name: String) extends PUseLikeLabel
 
 
 sealed trait PPackegeNode extends PNode {
-  def name: String
+  def name: PPkg
 }
 
 trait PDefLikePkg extends PPackegeNode
 trait PUseLikePkg extends PPackegeNode
 
-case class PPkgDef(name: String) extends PDefLikePkg
-case class PPkgUse(name: String) extends PUseLikePkg
+case class PPkgDef(name: PPkg) extends PDefLikePkg
+case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
 case class PWildcard() extends PDefLikeId with PUseLikeId {
@@ -640,11 +649,15 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-/** expression has to be deref, field seclection, or predicate call */
+/** expression has to be deref, field selection, or predicate call */
 case class PAccess(exp: PExpression) extends PGhostExpression
 
-/** speczialized version of PAccess that only handles predicae accesses. E.g, used for foldings.  */
+/** specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
+
+case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 
 /**
@@ -658,6 +671,10 @@ sealed trait PGhostType extends PType with PGhostNode
   */
 
 sealed trait PGhostMisc extends PMisc with PGhostNode
+
+case class PBoundVariable(id: PIdnDef, typ: PType) extends PGhostMisc
+
+case class PTrigger(exps: Vector[PExpression]) extends PGhostMisc
 
 case class PExplicitGhostParameter(actual: PActualParameter) extends PParameter with PGhostMisc with PGhostifier[PActualParameter] {
   override def typ: PType = actual.typ

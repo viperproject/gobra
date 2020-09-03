@@ -13,11 +13,12 @@ object AstPattern {
 
   sealed trait Type extends Pattern
 
-  case class NamedType(id: PIdnUse, symb: st.NamedType) extends Type with Symbolic
+  case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
 
   sealed trait Expr extends Pattern
 
+  case class Constant(id: PIdnUse, symb: st.Constant) extends Expr with Symbolic
   case class LocalVariable(id: PIdnUse, symb: st.Variable) extends Expr with Symbolic // In the future: with FunctionKind
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic

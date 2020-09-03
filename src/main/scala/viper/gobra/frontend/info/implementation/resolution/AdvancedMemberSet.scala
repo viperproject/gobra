@@ -75,12 +75,12 @@ object AdvancedMemberSet {
     val nmp: Vector[(String, M)] = s.map { tm =>
 
       def extractMemberName(tm: TypeMember): String = tm match {
-        case MethodImpl(m, _) => m.id.name
-        case MethodSpec(m, _) => m.id.name
-        case MPredicateImpl(p) => p.id.name
-        case MPredicateSpec(p) => p.id.name
-        case Field(m, _)      => m.id.name
-        case Embbed(m, _)     => m.id.name
+        case MethodImpl(m, _, _) => m.id.name
+        case MethodSpec(m, _, _) => m.id.name
+        case MPredicateImpl(p, _) => p.id.name
+        case MPredicateSpec(p, _) => p.id.name
+        case Field(m, _, _)      => m.id.name
+        case Embbed(m, _, _)     => m.id.name
       }
 
       extractMemberName(tm) -> tm

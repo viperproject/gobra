@@ -4,8 +4,10 @@ import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 
-import scala.collection.mutable.{ ListBuffer, Map }
-import viper.silver.ast.{ Position => GobraPosition }
+import scala.collection.mutable.{ListBuffer, Map}
+import viper.silver.ast.{Position => GobraPosition}
+
+import scala.collection.mutable
 
 trait PrettyPrinter {
   def format(node: Node): String
@@ -46,7 +48,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     * Used for mapping positions in a Gobra Program to Positions of the internal Program.
     */
   type ViperPosition = (PPosition, Int)
-  val positionStore = Map[GobraPosition, ListBuffer[ViperPosition]]()
+  val positionStore: mutable.Map[GobraPosition, ListBuffer[(PPosition, PPosition)]] = mutable.Map[GobraPosition, ListBuffer[ViperPosition]]()
 
   def addPosition(gobraPos: GobraPosition, viperPos: ViperPosition) {
     positionStore.get(gobraPos) match {
@@ -69,7 +71,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       println("no origin")
       emptyDoc
   }
-  
+
 
   def show(n: Node): Doc = n match {
     case n: Program => showProgram(n)
@@ -80,6 +82,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: CompositeObject => showCompositeObject(n)
     case n: Assertion => showAss(n)
     case n: Accessible => showAcc(n)
+    case n: PredicateAccess => showPredicateAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
     case n: Proxy => showProxy(n)
@@ -108,6 +111,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
+    case n: GlobalConstDecl => showGlobalConstDecl(n)
   })
 
   def showFunction(f: Function): Doc = f match {
@@ -142,6 +146,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showMPredicate(predicate: MPredicate): Doc = predicate match {
     case MPredicate(recv, name, args, body) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args)) <> opt(body)(b => block(showAss(b)))
+  }
+
+  def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
+    "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
@@ -199,6 +207,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   })
 
   def showBottomDecl(x: BottomDeclaration): Doc = x match {
+    case bvar: BoundVar => showVar(bvar)
     case localVar: LocalVar => showVar(localVar)
     case outParam: Parameter.Out => showVar(outParam)
   }
@@ -236,6 +245,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e) => "acc" <> parens(showAcc(e))
+    case SepForall(vars, triggers, body) =>
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
@@ -250,6 +261,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
+  def showTrigger(trigger: Trigger) : Doc = showExprList(trigger.exprs)
+  def showTriggers(triggers: Vector[Trigger]) : Doc = "{" <+> showList(triggers)(showTrigger) <+> "}"
+
   // expressions
 
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
@@ -258,6 +272,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Old(op) => "old(" <> showExpr(op) <> ")"
 
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
+
+    case PureForall(vars, triggers, body) =>
+      "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
+
+    case Exists(vars, triggers, body) =>
+      "exists" <+>  showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
@@ -290,19 +310,23 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // variables
 
   def showVar(v: Var): Doc = v match {
+    case BoundVar(id, _) => id
     case Parameter.In(id, _)    => id
     case Parameter.Out(id, _)    => id
     case LocalVar.Ref(id, _) => id
     case LocalVar.Val(id, _) => id
     case LocalVar.Inter(id, _) => id
+    case GlobalConst.Val(id, _) => id
   }
 
   def showVarDecl(v: Var): Doc = v match {
+    case BoundVar(id, t) => id <> ":" <+> showType(t)
     case Parameter.In(id, t)    => id <> ":" <+> showType(t)
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
     case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
     case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
     case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)
+    case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
   }
 
   // types
@@ -397,5 +421,4 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
   }
-
 }

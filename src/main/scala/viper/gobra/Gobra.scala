@@ -9,7 +9,7 @@ package viper.gobra
 import java.io.File
 
 import com.typesafe.scalalogging.StrictLogging
-import viper.gobra.ast.frontend.PProgram
+import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.silver.{ast => vpr}
 import viper.gobra.backend.BackendVerifier
@@ -23,6 +23,7 @@ import akka.actor.ActorSystem
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.io.Source
 
 
 case class FutureEither[E, T](x: Future[Either[E, T]]) {
@@ -64,35 +65,40 @@ trait GoVerifier {
   }
 
   def verify(config: Config): Future[VerifierResult] = {
-    verify(Left(config.inputFile), config)
+    verify(Left(config.inputFiles), config)
   }
 
   def verify(content: String, config: Config): Future[VerifierResult] = {
     verify(Right(content), config)
   }
 
-  protected[this] def verify(input: Either[File, String], config: Config): Future[VerifierResult]
+  protected[this] def verify(input: Either[Vector[File], String], config: Config): Future[VerifierResult]
   protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier {
 
   implicit val executionContext = ExecutionContext.global
-  
 
-  override def verify(input: Either[File, String], config: Config): Future[VerifierResult] = {
+
+  override def verify(input: Either[Vector[File], String], config: Config): Future[VerifierResult] = {
+
+    val finalConfig = input match {
+      case Left(_) => getAndMergeInFileConfig(config)
+      case Right(_) => config
+    }
 
     config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
-    val futureResult = for {
-      parsedProgram <- performParsing(input, config)
-      typeInfo <- performTypeChecking(parsedProgram, config)
-      program <- performDesugaring(parsedProgram, typeInfo, config)
-      viperTask <- performViperEncoding(program, config)
-      verifierResult <- performVerification(viperTask, config)
-    } yield BackTranslator.backTranslate(verifierResult)(config)
+    val result = for {
+      parsedPackage <- performParsing(input, finalConfig)
+      typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+      program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
+      viperTask <- performViperEncoding(program, finalConfig)
+      verifierResult <- performVerification(viperTask, finalConfig)
+    } yield BackTranslator.backTranslate(verifierResult)(finalConfig)
 
-    futureResult.x.map{ result =>
+    result.x.map{ result =>
       result.fold({
         case Vector() => VerifierResult.Success
         case errs => VerifierResult.Failure(errs)
@@ -103,11 +109,11 @@ class Gobra extends GoVerifier {
   override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult] = {
     val viperTask = BackendVerifier.Task(ast, backtrack)
 
-    val futureResult = for {
+    val result = for {
       verifierResult <- performVerification(viperTask, config)
     } yield BackTranslator.backTranslate(verifierResult)(config)
 
-    futureResult.x.map{ result =>
+    result.x.map{ result =>
       result.fold({
         case Vector() => VerifierResult.Success
         case errs => VerifierResult.Failure(errs)
@@ -115,7 +121,34 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performParsing(input: Either[File, String], config: Config): FutureEither[Vector[VerifierError], PProgram] = {
+  private val inFileConfigRegex = """(?:.|\r\n|\r|\n)*\/\/ ##\((.*)\)(?:.|\r\n|\r|\n)*""".r
+
+  /**
+    * Parses all inputFiles given in the current config for in-file command line options (wrapped with "## (...)")
+    * These in-file command options get combined for all files and passed to ScallopGobraConfig.
+    * The current config merged with the newly created config is then returned
+    */
+  private def getAndMergeInFileConfig(config: Config): Config = {
+    val inFileConfigStrings = config.inputFiles.map(file => {
+        val bufferedSource = Source.fromFile(file)
+        val content = bufferedSource.mkString
+        val config = content match {
+          case inFileConfigRegex(configString) => Some(configString)
+          case _ => None
+        }
+        bufferedSource.close()
+        config
+      }).collect { case Some(configString) => configString }
+
+    // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
+    val args = inFileConfigStrings.flatMap(configString => configString.split(" "))
+    // input files are mandatory, therefore we take the inputFiles from the old config:
+    val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
+    val inFileConfig = new ScallopGobraConfig(fullArgs).config
+    config.merge(inFileConfig)
+  }
+
+  private def performParsing(input: Either[Vector[File], String], config: Config): FutureEither[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
       FutureEither(Parser.parse(input)(config))
     } else {
@@ -123,17 +156,17 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performTypeChecking(parsedProgram: PProgram, config: Config): FutureEither[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedPackage: PPackage, config: Config): FutureEither[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      FutureEither(Info.check(parsedProgram)(config))
+      FutureEither(Info.check(parsedPackage)(config))
     } else {
       FutureEither(Future(Left(Vector())))
     }
   }
 
-  private def performDesugaring(parsedProgram: PProgram, typeInfo: TypeInfo, config: Config): FutureEither[Vector[VerifierError], Program] = {
+  private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): FutureEither[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
-      val programFuture = Desugar.desugar(parsedProgram, typeInfo)(config)
+      val programFuture = Desugar.desugar(parsedPackage, typeInfo)(config)
       FutureEither(programFuture.map(program => Right(program)))
     } else {
       FutureEither(Future(Left(Vector())))
@@ -172,7 +205,6 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
     val scallopGobraconfig = new ScallopGobraConfig(args)
     val config = scallopGobraconfig.config
-
     val verifier = createVerifier(config)
     val resultFuture = verifier.verify(config)
     val result = Await.result(resultFuture, Duration.Inf)
@@ -186,6 +218,5 @@ object GobraRunner extends GobraFrontend with StrictLogging {
         errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
         sys.exit(1)
     }
-
   }
 }

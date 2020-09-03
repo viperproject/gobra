@@ -33,6 +33,7 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
     libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
+    libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.9", // for SystemUtils
 
     scalacOptions ++= Seq(
       "-Ypartial-unification",

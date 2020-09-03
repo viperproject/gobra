@@ -2,8 +2,10 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+
+import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -44,7 +46,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
+      structMemberSet(structType(t)).errors(t) ++ addressableMethodSet(structType(t)).errors(t)
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
 
@@ -76,7 +78,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PRecvChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Recv)
 
-    case t: PStructType => StructT(t)
+    case t: PStructType => structType(t)
 
     case PMethodReceiveName(t) => typeType(t)
 
@@ -92,5 +94,21 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   def litTypeType(typ: PLiteralType): Type = typ match {
     case PImplicitSizeArrayType(t) => typeType(t)
     case t: PType => typeType(t)
+  }
+
+  private def structType(t: PStructType): Type = {
+    def makeFields(x: PFieldDecls): ListMap[String, (Boolean, Type)] = {
+      x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeType(f.typ))) }
+    }
+    def makeEmbedded(x: PEmbeddedDecl): ListMap[String, (Boolean, Type)] =
+      ListMap[String, (Boolean, Type)](x.id.name -> (false, miscType(x.typ)))
+
+    val clauses = t.clauses.foldLeft(ListMap[String, (Boolean, Type)]()) {
+      case (prev, x: PFieldDecls) => prev ++ makeFields(x)
+      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x)
+      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x)
+      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x)
+    }
+    StructT(clauses, t, this)
   }
 }

@@ -15,9 +15,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override def format(node: PNode): String = pretty(show(node)).layout
 
   def show(node: PNode): Doc = node match {
+    case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
-    case n: PPackageClause => showPackage(n)
-    case n: PImportDecl => showImport(n)
+    case n: PPackageClause => showPackageClause(n)
+    case n: PImport => showImport(n)
     case n: PMember => showMember(n)
     case n: PStatement => showStmt(n)
     case n: PExpression => showExpr(n)
@@ -46,24 +47,31 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PPos(_) => emptyDoc
   }
 
+  // entire package
+
+  def showPackage(p: PPackage): Doc =
+    ssep(p.programs map showProgram, line) <> line
+
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packages, imports, declarations, _) =>
-      showPackage(packages) <> line <> line <>
+    case PProgram(packageClause, imports, declarations) =>
+      showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // package
 
-  def showPackage(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
+  def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
   def showPackageId(id: PPackegeNode): Doc = id.name
 
   // imports
 
-  def showImport(decl: PImportDecl): Doc = decl match {
-    case PQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+  def showImport(decl: PImport): Doc = decl match {
+    case PQualifiedImport(Some(PWildcard()), pkg) => "import" <+> "_" <+> pkg
+    case PQualifiedImport(Some(qualifier), pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PQualifiedImport(None, pkg) => "import" <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 
@@ -77,7 +85,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PFunctionDecl(id, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> showStmt(b))
       case PMethodDecl(id, rec, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> 
+        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
         opt(body)(b => space <> showStmt(b))
     }
     case member: PGhostMember => member match {
@@ -354,6 +362,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case expr: PGhostExpression => expr match {
       case POld(op) => "old(" <> showExpr(op) <> ")"
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
+      case PForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PExists(vars, triggers, body) =>
+        "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
       case PAccess(exp) => "acc" <> parens(showExpr(exp))
       case PPredicateAccess(exp) => exp match {
@@ -457,6 +469,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case misc: PGhostMisc => ???
+    case misc: PGhostMisc => misc match {
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+    }
   }
 }

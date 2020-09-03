@@ -3,6 +3,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -34,9 +35,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.ReceivedPredicate) => noMessages
         case Some(p: ap.MethodExpr) => noMessages
         case Some(p: ap.PredicateExpr) => noMessages
-
-        // TODO: supporting packages results in further options: named type, global variable, function, predicate
-        case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, or predicate expression, but got $n")
+        // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
+        case Some(p: ap.Constant) => noMessages
+        case Some(p: ap.Function) => noMessages
+        case Some(p: ap.NamedType) => noMessages
+        case Some(p: ap.Predicate) => noMessages
+        // TODO: supporting packages results in further options: global variable
+        case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
       }
   }
 
@@ -70,7 +75,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
 
-        // TODO: supporting packages results in further options: named type, global variable, function, predicate
+        // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
+        case Some(p: ap.Constant) => p.symb match {
+          case sc: SingleConstant => sc.context.typ(sc.idDef)
+          case _ => ???
+        }
+        case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
+
+        // TODO: supporting packages results in further options: global variable
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
       }
 
@@ -292,5 +306,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
     case t: PType => typeType(t)
+  }
+
+  private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
+    case BooleanT => message(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
+    case IntT => message(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
+    case _ => message(expr, s"expected a constant expression")
   }
 }

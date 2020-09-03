@@ -7,20 +7,19 @@
 package viper.gobra.backend
 
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.silver
 import viper.silver.{ast => vpr}
 import viper.silver.verifier.VerificationResult
-import viper.gobra.backend.ViperBackends.{SiliconBackend => Silicon, CarbonBackend => Carbon, ViperServerBackend => ViperServer}
+import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon, SiliconBackend => Silicon, ViperServerBackend => ViperServer}
+import java.nio.file.{Files, Paths}
 
-import java.nio.file.{ Files, Paths }
-
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 
 object BackendVerifier {
 
-  implicit val executionContext = ExecutionContext.global
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   case class Task(
                    program: vpr.Program,
@@ -49,10 +48,11 @@ object BackendVerifier {
 
     val verifier = config.backend.create(exePaths)
 
-    val programID = "_programID_" + config.inputFile.getName()
+    // TODO: does this make sense?
+    val programID = "_programID_" + config.inputFiles.head.getName
 
     val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)
-    
+
 
     verificationResult.map(
       result => {

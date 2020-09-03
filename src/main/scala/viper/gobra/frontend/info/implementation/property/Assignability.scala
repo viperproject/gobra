@@ -81,14 +81,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)] {
     case (PLiteralValue(elems), Single(typ)) =>
       underlyingType(typ) match {
-        case StructT(decl) =>
+        case s: StructT =>
           if (elems.isEmpty) {
             successProp
           } else if (elems.exists(_.key.nonEmpty)) {
-            val tmap = (
-              decl.embedded.map(e => (e.typ.name, miscType(e.typ))) ++
-                decl.fields.map(f => (f.id.name, typeType(f.typ)))
-              ).toMap
+            val tmap = s.embedded ++ s.fields
 
             failedProp("for struct literals either all or none elements must be keyed"
               , !elems.forall(_.key.nonEmpty)) and
@@ -100,19 +97,20 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
                   case v => failedProp(s"got $v but expected field name")
                 }.getOrElse(successProp)
               })
-          } else if (elems.size == decl.embedded.size + decl.fields.size) {
+          } else if (elems.size == s.embedded.size + s.fields.size) {
             propForall(
+              elems.map(_.exp).zip((s.embedded ++ s.fields).values),/*
               elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
                 def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
-                  case PEmbeddedDecl(embeddedType, _) => Vector(miscType(embeddedType))
-                  case PFieldDecls(fields) => fields map (f => typeType(f.typ))
+                  case PEmbeddedDecl(embeddedType, _) => Vector(context.typ(embeddedType))
+                  case PFieldDecls(fields) => fields map (f => context.typ(f.typ))
                 }
 
                 cl match {
                   case PExplicitGhostStructClause(c) => clauseInducedTypes(c)
                   case c: PActualStructClause => clauseInducedTypes(c)
                 }
-              }),
+              }),*/
               compositeValAssignableTo
             )
           } else {

@@ -12,7 +12,22 @@ class ExpressionsImpl extends Expressions {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   override def finalize(col: Collector): Unit = {
+  }
 
+  override def trigger(trigger: in.Trigger)(ctx: Context) : CodeWriter[vpr.Trigger] = {
+    val (pos, info, errT) = trigger.vprMeta
+    for { expr <- sequence(trigger.exprs map (translate(_)(ctx))) }
+      yield vpr.Trigger(expr)(pos, info, errT)
+  }
+
+  def quantifier(vars: Vector[in.BoundVar], triggers: Vector[in.Trigger], body: in.Expr)(ctx: Context) : CodeWriter[(Seq[vpr.LocalVarDecl], Seq[vpr.Trigger], vpr.Exp)] = {
+    val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
+    val newVars = decls.flatten
+
+    for {
+      newTriggers <- sequence(triggers map (trigger(_)(ctx)))
+      newBody <- translate(body)(ctx)
+    } yield (newVars, newTriggers, newBody)
   }
 
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
@@ -34,7 +49,7 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(func.name, vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
@@ -45,8 +60,8 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vRecvs <- ctx.loc.argument(recv)(ctx)
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vRecvs <- sequence(ctx.loc.values(recv)(ctx))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(meth.uniqueName, vRecvs ++ vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
@@ -77,17 +92,26 @@ class ExpressionsImpl extends Expressions {
       case in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Mod(vl, vr)(pos, info, errT)
       case in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Div(vl, vr)(pos, info, errT)
       case in.Old(op) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
-      case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)
-                                                  } yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
+      case in.Conditional(cond, thn, els, _) => for {vcond <- goE(cond); vthn <- goE(thn); vels <- goE(els)} yield vpr.CondExp(vcond, vthn, vels)(pos, info, errT)
+
+      case in.PureForall(vars, triggers, body) => for {
+        (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
+        newForall = vpr.Forall(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+      } yield newForall.check match {
+        case Seq() => newForall
+        case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
+      }
+
+      case in.Exists(vars, triggers, body) => for {
+        (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
+        newExists =  vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger
+      } yield newExists.check match {
+        case Seq() => newExists
+        case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
+      }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }
   }
-
-
-
-
-
-
 }

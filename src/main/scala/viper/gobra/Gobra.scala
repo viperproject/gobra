@@ -116,37 +116,37 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     config.merge(inFileConfig)
   }
 
-    private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
-      if (config.shouldParse) {
-        Parser.parse(input)(config)
-      } else {
-        Left(Vector())
-      }
+  private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
+    if (config.shouldParse) {
+      Parser.parse(input)(config)
+    } else {
+      Left(Vector())
     }
+  }
 
-    private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
-      if (config.shouldTypeCheck) {
-        Info.check(parsedPackage)(config)
-      } else {
-        Left(Vector())
-      }
+  private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+    if (config.shouldTypeCheck) {
+      Info.check(parsedPackage)(config)
+    } else {
+      Left(Vector())
     }
+  }
 
-    private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
-      if (config.shouldDesugar) {
-        Right(Desugar.desugar(parsedPackage, typeInfo)(config))
-      } else {
-        Left(Vector())
-      }
+  private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
+    if (config.shouldDesugar) {
+      Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+    } else {
+      Left(Vector())
     }
+  }
 
-    private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
-      if (config.shouldViperEncode) {
-        Right(Translator.translate(program)(config))
-      } else {
-        Left(Vector())
-      }
+  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+    if (config.shouldViperEncode) {
+      Right(Translator.translate(program)(config))
+    } else {
+      Left(Vector())
     }
+  }
 
   private def performVerification(viperTask: BackendVerifier.Task, config: Config): Future[BackendVerifier.Result] = {
     if (config.shouldVerify) {

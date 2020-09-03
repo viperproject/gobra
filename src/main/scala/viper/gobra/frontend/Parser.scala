@@ -15,11 +15,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-
 object Parser {
-
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   /**
     * Parses files and returns either the parsed program if the file was parsed successfully,

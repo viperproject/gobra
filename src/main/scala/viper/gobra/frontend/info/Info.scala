@@ -9,11 +9,8 @@ import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLe
 import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 import scala.collection.immutable.ListMap
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object Info {
-
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   type GoTree = Tree[PNode, PPackage]
 

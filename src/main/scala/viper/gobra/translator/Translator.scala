@@ -14,11 +14,7 @@ import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 import viper.gobra.reporting.GeneratedViperMessage
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-
 object Translator {
-
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   def translate(program: Program)(config: Config): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()

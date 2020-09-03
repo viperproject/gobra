@@ -47,14 +47,10 @@ trait GoVerifier {
   }
 
   def verify(config: Config): Future[VerifierResult] = {
-    verify(Left(config.inputFiles), config)
+    verify(config.inputFiles, config)
   }
 
-  def verify(content: String, config: Config): Future[VerifierResult] = {
-    verify(Right(content), config)
-  }
-
-  protected[this] def verify(input: Either[Vector[File], String], config: Config): Future[VerifierResult]
+  protected[this] def verify(input: Vector[File], config: Config): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
@@ -65,13 +61,10 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
-  override def verify(input: Either[Vector[File], String], config: Config): Future[VerifierResult] = {
+  override def verify(input: Vector[File], config: Config): Future[VerifierResult] = {
 
     val task = Future {
-      val finalConfig = input match {
-        case Left(_) => getAndMergeInFileConfig(config)
-        case Right(_) => config
-      }
+      val finalConfig = getAndMergeInFileConfig(config)
 
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
 
@@ -123,7 +116,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     config.merge(inFileConfig)
   }
 
-    private def performParsing(input: Either[Vector[File], String], config: Config): Either[Vector[VerifierError], PPackage] = {
+    private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
       if (config.shouldParse) {
         Parser.parse(input)(config)
       } else {

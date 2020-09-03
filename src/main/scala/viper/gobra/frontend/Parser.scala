@@ -37,16 +37,10 @@ object Parser {
     *
     */
 
-  def parse(input: Either[Vector[File], String], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val preprocessedSources = input match {
-      case Left(files) =>
-        files
-          .map{ file => FileSource(file.getPath) }
-          .map{ file => SemicolonPreprocessor.preprocess(Left(file))(config) }
-
-      case Right(txt) =>
-        Vector(SemicolonPreprocessor.preprocess(Right(txt))(config))
-    }
+  def parse(input: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = input
+      .map{ file => FileSource(file.getPath) }
+      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
     parseSources(preprocessedSources, specOnly)(config)
   }
 
@@ -153,21 +147,13 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(input: Either[FileSource, String], encoding : String = "UTF-8")(config: Config): Source = {
-
-      val (content, file, path) = input match {
-        case Left(source) =>
-          val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
-          val content = bufferedSource.mkString
-          bufferedSource.close()
-          (content, new File(source.filename), source.filename)
-        case Right(str) =>
-          (str, config.inputFiles.head, config.inputFiles.head.getPath)
-      }
-
+    def preprocess(source: FileSource)(config: Config): Source = {
+      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
+      val content = bufferedSource.mkString
+      bufferedSource.close()
       val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(file, () => translatedContent)
-      FromFileSource(path, translatedContent)
+      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
+      FromFileSource(source.filename, translatedContent)
     }
 
     def preprocess(content: String): Source = {

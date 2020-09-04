@@ -220,10 +220,10 @@ object Parser {
     def isReservedWord(word: String): Boolean = reservedWords contains word
 
     /**
-      * Consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise applies the parser `p`
+      * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
       */
     def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
-      if (specOnly) nestedCurlyBracketsConsumer
+      if (specOnly) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
       else p.?
 
     /**

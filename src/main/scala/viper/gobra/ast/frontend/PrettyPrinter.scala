@@ -265,11 +265,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoolLit(lit) => if(lit) "true" else "false"
       case PIntLit(lit) => lit.toString
       case PNilLit() => "nil"
-      case PArrayLiteral(len, typ, exprs) => {
-        val lenP : Doc = len.map(showExpr).getOrElse("...")
-        val exprsP = space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc)
-        brackets(lenP) <> showType(typ) <+> braces(exprsP)
-      }
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))

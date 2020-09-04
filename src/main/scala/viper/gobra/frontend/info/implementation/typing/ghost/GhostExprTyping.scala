@@ -203,8 +203,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
-      case _: PArrayLiteral => !strong
-
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(p: ap.Conversion)) => false // Might change at some point
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
@@ -245,9 +243,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PLength(op) => go(op)
       case PCapacity(op) => go(op)
 
-      case expr : PGhostCollectionExp => expr match {
-        case n : PBinaryGhostExp => go(n.left) && go(n.right)
-        case n : PGhostCollectionLiteral => n.exprs.forall(go)
+      case expr: PGhostCollectionExp => expr match {
+        case n: PBinaryGhostExp => go(n.left) && go(n.right)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
         case PCardinality(op) => go(op)
@@ -257,7 +254,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PAccess | _: PPredicateAccess => !strong
 
-      case PCompositeLit(_, _) => true
+      case PCompositeLit(typ, _) => typ match {
+        case _: PArrayType | _: PImplicitSizeArrayType => !strong
+        case _ => true
+      }
 
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)

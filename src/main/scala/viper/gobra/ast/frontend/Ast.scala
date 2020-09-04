@@ -284,6 +284,15 @@ sealed trait PLiteral extends PActualExpression
 
 object PLiteral {
   /**
+    * Gives a simple array literal of length `exprs.length`
+    * and type `typ`, with unkeyed elements `exprs`.
+    */
+  def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PArrayType(PIntLit(exprs.length), typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
     * Gives a simple sequence literal of type `typ` with unkeyed elements `exprs`.
     */
   def sequence(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
@@ -315,15 +324,6 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 case class PIntLit(lit: BigInt) extends PBasicLiteral
 
 case class PNilLit() extends PBasicLiteral
-
-/**
-  * An array literal of the form "[`len`]`typ` { e_0, ..., e_(n-1) }",
-  * where `exprs` constitutes the expression sequence "e_0, ..., e_(n-1)".
-  * A len of `None` represents a literal of type "[...]`typ`", i.e., the
-  * length is determined by the size of `exprs`.
-  */
-@Deprecated
-case class PArrayLiteral(len : Option[PExpression], typ : PType, exprs : Vector[PExpression]) extends PLiteral
 
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 

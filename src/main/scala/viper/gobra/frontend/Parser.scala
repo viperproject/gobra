@@ -690,12 +690,6 @@ object Parser {
     lazy val literal: Parser[PLiteral] =
       basicLit | compositeLit | functionLit
 
-    lazy val arrayLiteral : Parser[PArrayLiteral] =
-      ("[" ~> arrayLiteralLength <~ "]") ~ typ ~ ("{" ~> repsep(expression, ",") <~ "}") ^^ PArrayLiteral
-
-    private lazy val arrayLiteralLength : Parser[Option[PExpression]] =
-      "..." ^^^ None | expression ^^ (Some(_))
-
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |

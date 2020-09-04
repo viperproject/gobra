@@ -800,8 +800,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a very simple integer array literal") {
-    val expr = PArrayLiteral(
-      Some(PIntLit(2)),
+    val expr = PLiteral.array(
       PIntType(),
       Vector(PIntLit(12), PIntLit(24))
     )
@@ -812,8 +811,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty Boolean array literal") {
-    val expr = PArrayLiteral(
-      Some(PIntLit(0)),
+    val expr = PLiteral.array(
       PBoolType(),
       Vector()
     )
@@ -824,10 +822,9 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should be able to correctly show an array literal with a slightly more complex length") {
-    val expr = PArrayLiteral(
-      Some(PAdd(PNamedOperand(PIdnUse("x")), PLength(PNamedOperand(PIdnUse("xs"))))),
-      PIntType(),
-      Vector()
+    val expr = PCompositeLit(
+      PArrayType(PAdd(PNamedOperand(PIdnUse("x")), PLength(PNamedOperand(PIdnUse("xs")))), PIntType()),
+      PLiteralValue(Vector())
     )
 
     frontend.show(expr) should matchPattern {
@@ -836,8 +833,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an array literal with a slightly more complex type") {
-    val expr = PArrayLiteral(
-      Some(PIntLit(0)),
+    val expr = PLiteral.array(
       PSequenceType(PSetType(PBoolType())),
       Vector()
     )
@@ -848,8 +844,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: Should correctly show an array singleton literal with a slightly more complex inner expression") {
-    val expr = PArrayLiteral(
-      Some(PIntLit(1)),
+    val expr = PLiteral.array(
       PIntType(),
       Vector(PAdd(PNamedOperand(PIdnUse("n")), PLength(PNamedOperand(PIdnUse("xs")))))
     )
@@ -859,15 +854,14 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should be able to correctly show an array literal without a specified length") {
-    val expr = PArrayLiteral(
-      None,
-      PIntType(),
-      Vector(
-        PNamedOperand(PIdnUse("x")),
-        PNamedOperand(PIdnUse("y")),
-        PNamedOperand(PIdnUse("z"))
-      )
+  test("Printer: should be able to correctly show an array literal with an implicit length") {
+    val expr = PCompositeLit(
+      PImplicitSizeArrayType(PIntType()),
+      PLiteralValue(Vector(
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x")))),
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("y")))),
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("z"))))
+      ))
     )
 
     frontend.show(expr) should matchPattern {
@@ -876,16 +870,9 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should be able to correctly show a 2-dimensional array literal") {
-    val expr = PArrayLiteral(
-      Some(PIntLit(1)),
+    val expr = PLiteral.array(
       PArrayType(PIntLit(1), PBoolType()),
-      Vector(
-        PArrayLiteral(
-          Some(PIntLit(1)),
-          PBoolType(),
-          Vector(PBoolLit(false))
-        )
-      )
+      Vector(PLiteral.array(PBoolType(), Vector(PBoolLit(false))))
     )
 
     frontend.show(expr) should matchPattern {
@@ -894,16 +881,17 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a nested array literal, both of an implicit length") {
-    val expr = PArrayLiteral(
-      None,
-      PBoolType(),
-      Vector(
-        PArrayLiteral(None, PBoolType(), Vector())
-      )
+    val expr = PCompositeLit(
+      PImplicitSizeArrayType(PBoolType()),
+      PLiteralValue(Vector(
+        PKeyedElement(None, PLitCompositeVal(
+          PLiteralValue(Vector())
+        ))
+      ))
     )
 
     frontend.show(expr) should matchPattern {
-      case "[...]bool { [...]bool { } }" =>
+      case "[...]bool { { } }" =>
     }
   }
 

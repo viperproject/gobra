@@ -931,11 +931,6 @@ object Desugar {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PNilLit() => single(in.NilLit())
-        case PArrayLiteral(_, typ, exprs) => for {
-          dexprs <- sequence(exprs map (exprD(ctx)(_)))
-          dtyp = typeD(info.typ(typ))(src)
-          dlit <- single(in.ArrayLit(dtyp, dexprs))
-        } yield dlit
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }

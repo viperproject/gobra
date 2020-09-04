@@ -763,8 +763,6 @@ object Desugar {
     }
 
     def addressableD(ctx: FunctionContext)(expr: PExpression): Writer[in.Addressable] = {
-
-
       val src: Meta = meta(expr)
 
       info.resolve(expr) match {
@@ -903,7 +901,7 @@ object Desugar {
           } yield dop match {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
-              case _: in.ArrayT => in.Length(dop)(src)
+              case _: in.ArrayType => in.Length(dop)(src)
               case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
             }
           }
@@ -952,6 +950,13 @@ object Desugar {
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
+
+      case t: PImplicitSizeArrayType => {
+        val arrayLen : BigInt = lit.lit.elems.length
+        val arrayTyp = typeD(info.typ(t.elem))(meta(lit))
+        literalValD(ctx)(lit.lit, in.ExclusiveArrayT(arrayLen, arrayTyp))
+      }
+
       case t: PType => {
         val it = typeD(info.typ(t))(meta(lit))
         literalValD(ctx)(lit.lit, it)
@@ -968,14 +973,18 @@ object Desugar {
     sealed trait CompositeKind
 
     object CompositeKind {
-      case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
+      case class ExclusiveArray(t : in.ExclusiveArrayT) extends CompositeKind
+      case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
-      case class Multiset(t : in.MultisetT) extends CompositeKind
+      case class SharedArray(t : in.SharedArrayT) extends CompositeKind
+      case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
-    def compositeTypeD(t: in.Type): CompositeKind = t match {
+    def compositeTypeD(t : in.Type) : CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
+      case t: in.ExclusiveArrayT => CompositeKind.ExclusiveArray(t)
+      case t: in.SharedArrayT => CompositeKind.SharedArray(t)
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
@@ -1048,6 +1057,16 @@ object Desugar {
           }
         }
 
+        case CompositeKind.ExclusiveArray(in.ExclusiveArrayT(_, typ)) => {
+          val indices = info.keyElementIndices(lit.elems)
+          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
+          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
+            yield in.ArrayLit(typ, elemsD)(src)
+        }
+
+        case CompositeKind.SharedArray(_) =>
+          Violation.violation(s"shared array literals are impossible")
+
         case CompositeKind.Sequence(in.SequenceT(typ)) => {
           val indices = info.keyElementIndices(lit.elems)
           val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
@@ -1102,7 +1121,7 @@ object Desugar {
       case t: DeclaredT => registerType(registerDefinedType(t)(src))
       case Type.BooleanT => in.BoolT
       case Type.IntT => in.IntT
-      case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem)(src))
+      case Type.ArrayT(length, elem) => in.ExclusiveArrayT(length, typeD(elem)(src))
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)(src)))
@@ -1187,12 +1206,14 @@ object Desugar {
     def localVarContextFreeD(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
-      val src: Meta = meta(id)
-
+      val src : Meta = meta(id)
       val typ = typeD(info.typ(id))(meta(id))
 
       if (info.addressableVar(id)) {
-        in.LocalVar.Ref(idName(id), typ)(src)
+        typ match {
+          case typ : in.ArrayType => in.LocalVar.Val(idName(id), typ.shared)(src)
+          case _ => in.LocalVar.Ref(idName(id), typ)(src)
+        }
       } else {
         in.LocalVar.Val(idName(id), typ)(src)
       }

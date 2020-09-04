@@ -26,5 +26,6 @@ func test4() {
   assert a[0] == 0
   assert b[0] == 0
   a[1] = 12
+  assert a[1] != b[1]
   assert a != b
 }

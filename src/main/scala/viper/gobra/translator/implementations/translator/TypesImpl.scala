@@ -37,7 +37,8 @@ class TypesImpl extends Types {
       case _ => ctx.tuple.typ(fields.map(f => translate(f.typ)(ctx)))
     }
     case in.TupleT(_) => Violation.violation("Tuple types are not supported at this point in time")
-    case in.ArrayT(_, elem) => vpr.SeqType(translate(elem)(ctx))
+    case in.ExclusiveArrayT(_, elem) => vpr.SeqType(translate(elem)(ctx))
+    case in.SharedArrayT(_, _) => ctx.array.typ()
     case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
     case in.SetT(elem) => vpr.SetType(translate(elem)(ctx))
     case in.MultisetT(elem) => vpr.MultisetType(translate(elem)(ctx))

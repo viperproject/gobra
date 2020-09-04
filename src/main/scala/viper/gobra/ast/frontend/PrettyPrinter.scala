@@ -341,6 +341,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
     case t: PType => showType(t)
+    case PImplicitSizeArrayType(elem) => "[...]" <> showType(elem)
   }
 
   def showCompositeKey(n: PCompositeKey): Doc = n match {

@@ -776,41 +776,41 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should correctly show a simple integer array type") {
-    val t = ArrayT(42, IntT)
+  test("Printer: should correctly show a simple exclusive integer array type") {
+    val t = ExclusiveArrayT(42, IntT)
 
     frontend.show(t) should matchPattern {
       case "[42]int" =>
     }
   }
 
-  test("Printer: should correctly show a multidimensional Boolean array type") {
-    val t = ArrayT(1, ArrayT(2, ArrayT(3, BoolT)))
+  test("Printer: should correctly show an exclusive multidimensional Boolean array type") {
+    val t = ExclusiveArrayT(1, ExclusiveArrayT(2, ExclusiveArrayT(3, BoolT)))
 
     frontend.show(t) should matchPattern {
       case "[1][2][3]bool" =>
     }
   }
 
-  test("Printer: should correctly show a sequence array type") {
-    val t = ArrayT(12, SequenceT(IntT))
+  test("Printer: should correctly show an exclusive sequence array type") {
+    val t = ExclusiveArrayT(12, SequenceT(IntT))
 
     frontend.show(t) should matchPattern {
       case "[12]seq[int]" =>
     }
   }
 
-  test("Printer: should correctly show a sequence type of Boolean arrays") {
-    val t = SequenceT(ArrayT(42, BoolT))
+  test("Printer: should correctly show a sequence type of exclusive Boolean arrays") {
+    val t = SequenceT(ExclusiveArrayT(42, BoolT))
 
     frontend.show(t) should matchPattern {
       case "seq[[42]bool]" =>
     }
   }
 
-  test("Printer: should correctly show a very simple array length expression") {
+  test("Printer: should correctly show a very simple exclusive array length expression") {
     val expr = Length(
-      LocalVar.Ref("a", ArrayT(12, IntT))(Unsourced)
+      LocalVar.Ref("a", ExclusiveArrayT(12, IntT))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -841,8 +841,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to show the addition of two uses of the array length function") {
     val expr = Add(
-      Length(LocalVar.Ref("a", ArrayT(24, BoolT))(Unsourced))(Unsourced),
-      Length(LocalVar.Ref("b", ArrayT(24, BoolT))(Unsourced))(Unsourced)
+      Length(LocalVar.Ref("a", ExclusiveArrayT(24, BoolT))(Unsourced))(Unsourced),
+      Length(LocalVar.Ref("b", ExclusiveArrayT(24, BoolT))(Unsourced))(Unsourced)
     )(Unsourced)
 
     frontend.show(expr) should matchPattern {
@@ -896,7 +896,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a simple array indexing expression") {
     val expr = IndexedExp(
-      LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
+      LocalVar.Ref("a", ExclusiveArrayT(124, IntT))(Unsourced),
       IntLit(42)(Unsourced)
     )(Unsourced)
 
@@ -921,7 +921,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
     val expr = IndexedExp(
-      LocalVar.Ref("a", ArrayT(124, IntT))(Unsourced),
+      LocalVar.Ref("a", ExclusiveArrayT(124, IntT))(Unsourced),
       Add(
         LocalVar.Ref("x", IntT)(Unsourced),
         IntLit(2)(Unsourced)
@@ -936,7 +936,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a small chain of array indexing operations") {
     val expr = IndexedExp(
       IndexedExp(
-        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        LocalVar.Ref("a", ExclusiveArrayT(12, ExclusiveArrayT(24, BoolT)))(Unsourced),
         IntLit(2)(Unsourced)
       )(Unsourced),
       IntLit(4)(Unsourced)
@@ -950,7 +950,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a simple accessible indexed expression") {
     val expr = Accessible.Index(
       IndexedExp(
-        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        LocalVar.Ref("a", ExclusiveArrayT(12, ExclusiveArrayT(24, BoolT)))(Unsourced),
         Add(IntLit(2)(Unsourced), IntLit(3)(Unsourced))(Unsourced)
       )(Unsourced)
     )
@@ -964,7 +964,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = Access(
       Accessible.Index(
         IndexedExp(
-          LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+          LocalVar.Ref("a", ExclusiveArrayT(12, ExclusiveArrayT(24, BoolT)))(Unsourced),
           IntLit(2)(Unsourced)
         )(Unsourced)
       )
@@ -978,7 +978,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a simple assignee indexed expression") {
     val expr = Assignee.Index(
       IndexedExp(
-        LocalVar.Ref("a", ArrayT(12, ArrayT(24, BoolT)))(Unsourced),
+        LocalVar.Ref("a", ExclusiveArrayT(12, ExclusiveArrayT(24, BoolT)))(Unsourced),
         Add(IntLit(2)(Unsourced), IntLit(3)(Unsourced))(Unsourced)
       )(Unsourced)
     )
@@ -1010,7 +1010,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a nested array literal") {
     val expr = ArrayLit(
-      ArrayT(2, IntT),
+      ExclusiveArrayT(2, IntT),
       Vector(
         ArrayLit(IntT, Vector(
           IntLit(24)(Unsourced),
@@ -1025,7 +1025,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show an empty 3D array literal") {
-    val expr = ArrayLit(ArrayT(24, ArrayT(48, BoolT)), Vector())(Unsourced)
+    val expr = ArrayLit(
+      ExclusiveArrayT(24, ExclusiveArrayT(48, BoolT)), Vector()
+    )(Unsourced)
 
     frontend.show(expr) should matchPattern {
       case "[0][24][48]bool { }" =>
@@ -1040,6 +1042,30 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "[1]seq[int] { seq[int] { } }" =>
+    }
+  }
+
+  test("Printer: should correctly show a shared (integer) array type") {
+    val typ = SharedArrayT(12, IntT)
+
+    frontend.show(typ) should matchPattern {
+      case "[12]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested shared (Boolean) array type") {
+    val typ = SharedArrayT(12, SharedArrayT(24, BoolT))
+
+    frontend.show(typ) should matchPattern {
+      case "[12][24]bool" =>
+    }
+  }
+
+  test("Printer: should correctly show a nesting of a combination of shared and exclusive array types") {
+    val typ = ExclusiveArrayT(4, SharedArrayT(7, ExclusiveArrayT(9, IntT)))
+
+    frontend.show(typ) should matchPattern {
+      case "[4][7][9]int" =>
     }
   }
 

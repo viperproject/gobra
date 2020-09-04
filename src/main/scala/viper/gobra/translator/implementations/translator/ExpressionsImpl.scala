@@ -112,7 +112,8 @@ class ExpressionsImpl extends Expressions {
       case in.Length(exp) => for {
         expT <- goE(exp)
       } yield exp.typ match {
-        case _: in.ArrayT => ctx.array.length(expT)(pos, info, errT)
+        case _: in.ExclusiveArrayT => vpr.SeqLength(expT)(pos, info, errT)
+        case _: in.SharedArrayT => ctx.array.length(expT)(pos, info, errT)
         case _: in.SequenceT => vpr.SeqLength(expT)(pos, info, errT)
         case t => Violation.violation(s"no translation is currently available for length expressions of type $t")
       }
@@ -121,10 +122,8 @@ class ExpressionsImpl extends Expressions {
         baseT <- goE(base)
         indexT <- goE(index)
       } yield base.typ match {
-        case in.ArrayT(_, t) =>
-          if (in.Addressable.isAddressable(base))
-            ctx.loc.arrayIndexField(baseT, indexT, t)(ctx)(pos, info, errT)
-          else vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case _: in.ExclusiveArrayT => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case in.SharedArrayT(_, t) => ctx.loc.arrayIndexField(baseT, indexT, t)(ctx)(pos, info, errT)
         case in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
         case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }

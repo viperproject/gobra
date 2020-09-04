@@ -312,7 +312,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case ArrayT(len, t) => brackets(len.toString) <> showType(t)
+    case array : ArrayType => brackets(array.length.toString) <> showType(array.typ)
     case SequenceT(elem) => "seq" <> brackets(showType(elem))
     case SetT(elem) => "set" <> brackets(showType(elem))
     case MultisetT(elem) => "mset" <> brackets(showType(elem))

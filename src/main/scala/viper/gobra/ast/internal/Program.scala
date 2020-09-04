@@ -249,8 +249,8 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
 }
 
 /**
-  * Denotes the length of `exp`, which should be
-  * of type `ArrayT` or `SequenceT`.
+  * Denotes the length of `exp`, which is expected to be either
+  * of an array type or a sequence type.
   */
 case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT
@@ -263,7 +263,7 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   */
 case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = base.typ match {
-    case ArrayT(_, t) => t
+    case t : ArrayType => t.typ
     case SequenceT(t) => t
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
@@ -575,7 +575,7 @@ sealed trait CompositeLit extends Lit
 case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
   lazy val length = exprs.length
   lazy val asSeqLit = SequenceLit(memberType, exprs)(info)
-  override def typ : Type = ArrayT(exprs.length, memberType)
+  override def typ : Type = ExclusiveArrayT(exprs.length, memberType).exclusive
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
@@ -647,15 +647,39 @@ case object NilT extends Type
 case object PermissionT extends Type
 
 /**
-  * The type of arrays of length `length` and type `t`.
-  * Here `length` is assumed to be positive
-  * (this is ensured by the type checker).
+  * The type of (exclusive or shared) `length`-sized arrays
+  * of elements of type `typ`.
   */
-case class ArrayT(length : BigInt, typ : Type) extends Type
+sealed trait ArrayType extends Type {
+  require(0 <= length, s"arrays are expected to be of non-negative length")
+
+  def length : BigInt
+  def typ : Type
+
+  lazy val exclusive : Type = ExclusiveArrayT(length, typ match {
+    case t: ArrayType => t.exclusive
+    case t => t
+  })
+
+  lazy val shared : Type = SharedArrayT(length, typ match {
+    case t: ArrayType => t.shared
+    case t => t
+  })
+}
+
+/**
+  * The type of exclusive (non-shared) arrays of
+  * (non-negative) length `length` and type `typ`.
+  */
+case class ExclusiveArrayT(length : BigInt, typ : Type) extends ArrayType
+
+/**
+  * The type of shared arrays of (non-negative) length `length` and type `typ`.
+  */
+case class SharedArrayT(length : BigInt, typ : Type) extends ArrayType
 
 /**
   * The type of mathematical sequences with elements of type `t`.
-  * @param t The type of elements
   */
 case class SequenceT(t : Type) extends Type
 

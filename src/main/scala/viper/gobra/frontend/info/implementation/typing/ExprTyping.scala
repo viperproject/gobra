@@ -112,6 +112,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PCompositeLit(t, lit) => {
       val simplifiedT = t match {
+        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
         case t: PType => typeType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
@@ -341,6 +342,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
+    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
     case t: PType => typeType(t)
   }
 

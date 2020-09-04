@@ -19,13 +19,27 @@ func test3() {
   b := a
   assert a == b
   b[1] = 42
+  assert a[1] != b[1] // can we also do without this assertion?
   assert a != b
 }
 
 requires forall i int, j int :: 0 <= i && i < 2 && 0 <= j && j < 3 ==> a[i][j] == 0
 func test4(a [2][3]int) {
+  assert a[0] == [...]int { 0, 0, 0 }
+  assert a[1] == [...]int { 0, 0, 0 }
+  assert a == [2][3]int { a[0], a[1] }
+  
   var b [2][3]int
+  
+  assert b[0] == [...]int { 0, 0, 0 }
+  assert b[1] == [...]int { 0, 0, 0 }
+  assert b == [2][3]int { b[0], b[1] }
+  
   assert a == b
+  
   b[0][2] = 24
+  
+  assert a[0][2] != b[0][2]
+  
   assert a != b
 }

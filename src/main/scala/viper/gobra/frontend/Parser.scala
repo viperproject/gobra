@@ -66,8 +66,12 @@ object Parser {
           pom.positions.setFinish(ns, pos)
           val messages = message(ns, label)
           val errors = pom.translate(messages, ParserError)
-          // TODO: change parser error message to take multiple files
-          config.reporter report ParserErrorMessage(config.inputFiles.head, errors)
+          
+          val groupedErrors = errors.groupBy{ _.position.get.file.toFile }
+          groupedErrors.foreach{ case (p, pErrors) =>
+            config.reporter report ParserErrorMessage(p, pErrors)
+          }
+
           Left(errors)
       }
     }

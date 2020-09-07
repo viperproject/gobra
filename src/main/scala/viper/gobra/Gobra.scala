@@ -64,6 +64,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   override def verify(input: Vector[File], config: Config): Future[VerifierResult] = {
 
     val task = Future {
+
       val finalConfig = getAndMergeInFileConfig(config)
 
       config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")

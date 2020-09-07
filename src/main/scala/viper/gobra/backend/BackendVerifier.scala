@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon, SiliconBackend => Silicon}
+import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
@@ -36,18 +36,20 @@ object BackendVerifier {
 
     var exePaths: Vector[String] = Vector.empty
 
-    (config.backend, config.z3Exe, config.boogieExe) match {
-      case (Silicon, Some(z3Exe), _) =>
+    config.z3Exe match {
+      case Some(z3Exe) =>
         exePaths ++= Vector("--z3Exe", z3Exe)
-      case (Carbon, Some(z3Exe), Some(boogieExe)) =>
-        exePaths ++= Vector("--z3Exe", z3Exe)
+      case _ =>
+    }
+
+    (config.backend, config.boogieExe) match {
+      case (Carbon, Some(boogieExe)) =>
         exePaths ++= Vector("--boogieExe", boogieExe)
-      case _ => // ignore
+      case _ =>
     }
 
     val verifier = config.backend.create(exePaths)
 
-    // TODO: does this make sense?
     val programID = "_programID_" + config.inputFiles.head.getName
 
     val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)

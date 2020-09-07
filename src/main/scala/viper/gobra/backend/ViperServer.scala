@@ -1,12 +1,9 @@
 package viper.gobra.backend
 
 import viper.silver.ast.Program
-//import viper.silver.verifier.VerificationResult
-//import viper.silver.reporter.Reporter
 import viper.silver.reporter.{Message, OverallFailureMessage, OverallSuccessMessage, Reporter}
 import viper.silver.verifier.{Success, VerificationResult}
 
-//import scala.concurrent.Future
 import akka.actor.{Actor, ActorSystem, Props}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
 import akka.pattern.ask
@@ -18,7 +15,6 @@ import viper.server.ViperCoreServer
 import viper.server.ViperBackendConfig
 
 
- /* FIXME: Code for the master branch of viperserver */
 object ViperServer {
   implicit val actor_system: ActorSystem = ActorSystem("Gobra_Actor_System")
   implicit private val executionContext: ExecutionContextExecutor = ExecutionContext.global
@@ -59,7 +55,7 @@ class ViperServer(server: ViperCoreServer) extends ViperVerifier {
     server.streamMessages(handle.id, clientActor)
 
     implicit val askTimeout: Timeout = Timeout(server.config.actorCommunicationTimeout() milliseconds)
-    val query = (clientActor ? Result).mapTo[Promise[VerificationResult]] // .asInstanceOf[Future[Promise[VerificationResult]]]
+    val query = (clientActor ? Result).mapTo[Promise[VerificationResult]]
     query.flatMap(_.future)
   }
 

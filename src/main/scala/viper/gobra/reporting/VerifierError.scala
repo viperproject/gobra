@@ -19,6 +19,8 @@ sealed trait VerifierError {
   }
 
   override def toString: String = formattedMessage
+
+  var cached: Boolean = false
 }
 
 case class NotFoundError(message: String) extends VerifierError {

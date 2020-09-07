@@ -5,12 +5,13 @@ import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostLessPrinter
+import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
 
 import scala.collection.immutable.ListMap
 
 object Info {
+
   type GoTree = Tree[PNode, PPackage]
 
   class Context {
@@ -71,7 +72,7 @@ object Info {
     val errors = info.errors.distinct
     config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => pkg, () => getErasedGhostCode(pkg, info))
+      config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
       Right(info)
     } else {
       val typeErrors = pkg.positions.translate(errors, TypeError)
@@ -82,6 +83,10 @@ object Info {
 
   private def getErasedGhostCode(pkg: PPackage, info: TypeInfoImpl): String = {
     new GhostLessPrinter(info).format(pkg)
+  }
+
+  private def getGoifiedGhostCode(program: PPackage, info: TypeInfoImpl): String = {
+    new GoifyingPrinter(info).format(program)
   }
 
   private def getDebugInfo(pkg: PPackage, info: TypeInfoImpl): String = {

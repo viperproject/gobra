@@ -1,14 +1,13 @@
 package viper.gobra.backend
 
+import viper.server.ViperBackendConfig
 import viper.silver
-import viper.silver.reporter.{Reporter, StdIOReporter}
+import viper.silver.reporter.Reporter
 
-trait ViperVerifier extends Backend[silver.ast.Program, silver.verifier.VerificationResult] {
+import scala.concurrent.Future
 
-  def start(reporter: Reporter): Unit
+trait ViperVerifier extends Backend[String, ViperBackendConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
 
-  override def start(): Unit = start(StdIOReporter())
+  def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: silver.ast.Program): Future[silver.verifier.VerificationResult]
 
-  /** Alias for [[handle]] */
-  def verify(program: silver.ast.Program): silver.verifier.VerificationResult = handle(program)
 }

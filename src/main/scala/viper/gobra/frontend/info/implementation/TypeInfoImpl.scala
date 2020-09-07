@@ -116,7 +116,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     ids.groupBy(enclosingIdScope)
   }
 
-  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
+  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty).sortWith(_.name < _.name)
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }

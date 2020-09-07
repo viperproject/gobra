@@ -9,7 +9,6 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
 
-
 object ViperWriter {
 
   sealed trait DataKind
@@ -258,13 +257,14 @@ object ViperWriter {
     def pure(w: Writer[vpr.Exp], assume: Boolean = false): MemberLevel.Writer[vpr.Exp] = {
       val (codeSum, remainder, r) = w.execute
       require(codeSum.code.forall(_.isPure))
+
       val newR = codeSum.code.foldRight(r){
         case (WellDef(c), e) =>
-          if (assume) vpr.Implies(c, e)(e.pos, e.info, e.errT) // c => e
-          else vpr.And(c, e)(e.pos, e.info, e.errT) // c && e
+          if (assume) vpr.Implies(c, e)(vprPosition(Vector(e, c)), vprInfo(Vector(e, c)), vprErrorTrafo(Vector(e, c))) // c => e
+          else vpr.And(c, e)(vprPosition(Vector(e, c)), vprInfo(Vector(e, c)), vprErrorTrafo(Vector(e, c)))// c && e
 
         case (Binding(lhs, rhs), e) =>
-          vpr.Let(ViperUtil.toVarDecl(lhs), rhs, e)(e.pos, e.info, e.errT) // let lhs = rhs in e
+          vpr.Let(ViperUtil.toVarDecl(lhs), rhs, e)(vprPosition(Vector(e, lhs, rhs)), vprInfo(Vector(e, lhs, rhs)), vprErrorTrafo(Vector(e, lhs, rhs))) // let lhs = rhs in e
 
         case _ => Violation.violation(s"pure expected but impure output found (writer = ($codeSum, $remainder, $r))")
       }
@@ -335,4 +335,45 @@ object ViperWriter {
 
   type CodeWriter[R] = CodeLevel.Writer[R]
 
+
+  /* ** Utilities */
+
+  /**
+    * Yields the first `vpr.Position` in `xs` that is
+    * not equal to `vpr.NoPosition`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprPosition(xs : Vector[vpr.Exp]) : vpr.Position = xs match {
+    case Vector() => vpr.NoPosition
+    case e +: es => e.pos match {
+      case vpr.NoPosition => vprPosition(es)
+      case pos => pos
+    }
+  }
+
+  /**
+    * Yields the first `vpr.Info` in `xs` that is
+    * not equal to `vpr.NoInfo`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprInfo(xs : Vector[vpr.Exp]) : vpr.Info = xs match {
+    case Vector() => vpr.NoInfo
+    case e +: es => e.info match {
+      case vpr.NoInfo => vprInfo(es)
+      case info => info
+    }
+  }
+
+  /**
+    * Yields the first `vpr.ErrorTrafo` in `xs` that is
+    * not equal to `vpr.NoTrafos`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprErrorTrafo(xs : Vector[vpr.Exp]) : vpr.ErrorTrafo = xs match {
+    case Vector() => vpr.NoTrafos
+    case e +: es => e.errT match {
+      case vpr.NoTrafos => vprErrorTrafo(es)
+      case trafo => trafo
+    }
+  }
 }

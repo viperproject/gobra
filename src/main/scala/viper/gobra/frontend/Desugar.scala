@@ -682,7 +682,10 @@ object Desugar {
 
               // encode result
               val resT = typeD(fsym.context.typ(fsym.result))(src)
-              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src))(src))
+              val targets = fsym.result.outs map {
+                case p: PNamedParameter => freshVar(typeD(fsym.context.typ(p.typ), p.addressable)(src))(src)
+                case p => freshVar(typeD(fsym.context.typ(p.typ))(src))(src)
+              }
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
               base match {
@@ -1139,6 +1142,13 @@ object Desugar {
       case _ => Violation.violation(s"got unexpected type $t")
     }
 
+    def typeD(t : Type, isAddressable : Boolean)(src : Source.Parser.Info) : in.Type = {
+      typeD(t)(src) match {
+        case typ : in.ArrayType => if (isAddressable) typ.shared else typ.exclusive
+        case typ => typ
+      }
+    }
+
 
     // Identifier
 
@@ -1227,11 +1237,12 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
-              val typD = typeD(info.typ(typ))(src)
+            case PNamedParameter(id, typ, isAddr) => {
+              val typD = typeD(info.typ(typ), isAddr)(src)
               val param = in.Parameter.In(idName(id), typD)(src)
               val alias = localAlias(localVarContextFreeD(id))
               (param, Some(alias))
+            }
 
             case PUnnamedParameter(typ) =>
               val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
@@ -1248,8 +1259,8 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) => {
-              val typD = typeD(info.typ(typ))(src)
+            case PNamedParameter(id, typ, isAddr) => {
+              val typD = typeD(info.typ(typ), isAddr)(src)
               val param = in.Parameter.Out(idName(id), typD)(src)
               val alias = localAlias(localVarContextFreeD(id))
               (param, Some(alias))

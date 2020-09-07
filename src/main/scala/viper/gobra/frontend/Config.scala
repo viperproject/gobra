@@ -225,7 +225,7 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   private object InputConverter {
 
-    private val goFileRgx = s"""(.*\\.${PackageResolver.extension})$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
+    private val goFileRgx = s"""(.*\\.${PackageResolver.sourceExtension})$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
 
     def validate(input: List[String]): Messages = {
       val files = input map isGoFilePath
@@ -246,7 +246,7 @@ class ScallopGobraConfig(arguments: Seq[String])
         i <- identifyInput(input).toRight("invalid input")
         files <- i match {
           case Right(files) => Right(files)
-          case Left(_) => PackageResolver.resolve("", includeDirs) // look for files in the current directory
+          case Left(_) => PackageResolver.resolve("", includeDirs).right.map(_.map(_.file)) // look for files in the current directory
         }
       } yield files
       assert(res.isRight, s"validate function did not catch this problem: '${res.left.get}'")

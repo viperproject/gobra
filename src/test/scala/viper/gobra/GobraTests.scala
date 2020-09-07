@@ -4,7 +4,7 @@ import java.nio.file.Path
 
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, AnnotationBasedTestSuite, ProjectInfo, SystemUnderTest}
@@ -13,7 +13,7 @@ import viper.silver.utility.TimingUtils
 class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
   val testDirectories: Seq[String] = Vector("regressions")
-  override val defaultTestPattern: String = ".*\\.go"
+  override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
 
   var gobraInstance: Gobra = _
 

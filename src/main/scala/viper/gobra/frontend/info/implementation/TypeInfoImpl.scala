@@ -6,7 +6,6 @@ import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, lookup}
-import viper.gobra.frontend.info.base.Type.{StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
@@ -92,13 +91,13 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     }
   }
 
-  override def tryAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  override def tryAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
     val res = addressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res
   }
 
-  override def tryNonAddressableMethodLikeLookup(typ: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  override def tryNonAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
     val res = nonAddressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res
@@ -117,7 +116,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     ids.groupBy(enclosingIdScope)
   }
 
-  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty)
+  override def variables(s: PScope): Vector[PIdnNode] = variablesMap.getOrElse(s, Vector.empty).sortWith(_.name < _.name)
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
@@ -135,15 +134,15 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     case _ => None
   }
 
-  lazy val struct: PNode => Option[StructT] =
+  lazy val struct: PNode => Option[Type.StructT] =
     // lookup PStructType based on PFieldDecl and get then StructT
-    attr[PNode, Option[StructT]] {
+    attr[PNode, Option[Type.StructT]] {
 
       case tree.parent.pair(decl: PFieldDecl, decls: PFieldDecls) =>
         struct(decls)
 
       case tree.parent.pair(decls: PFieldDecls, structDecl: PStructType) =>
-        Some(typ(structDecl).asInstanceOf[StructT])
+        Some(typ(structDecl).asInstanceOf[Type.StructT])
 
       case _ => None
     }

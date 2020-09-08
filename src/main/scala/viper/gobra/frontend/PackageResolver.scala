@@ -11,7 +11,7 @@ import scala.util.Properties
 
 object PackageResolver {
 
-  val extension = """go"""
+  val extension = """gobra"""
 
   /**
     * Resolves a package name (i.e. import path) to specific input files

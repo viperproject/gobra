@@ -74,6 +74,14 @@ case class ParsedInputMessage(input: File, ast: () => PProgram) extends GobraMes
     s"ast=${ast().formatted})"
 }
 
+case class ParserErrorMessage(input: File, result: Vector[ParserError]) extends GobraMessage {
+  override val name: String = s"parser_error_message"
+
+  override def toString: String = s"parser_error_message(" +
+    s"file=${input.toPath}), " +
+    s"errors=${result.map(_.toString).mkString(",")})"
+}
+
 sealed trait TypeCheckMessage extends GobraMessage {
   override val name: String = s"type_check_message"
   val input: File
@@ -83,7 +91,7 @@ sealed trait TypeCheckMessage extends GobraMessage {
     s"file=${input.toPath})"
 }
 
-case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
@@ -115,7 +123,7 @@ case class DesugaredMessage(input: File, internal: () => in.Program) extends Gob
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program) extends GobraMessage {
+case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +

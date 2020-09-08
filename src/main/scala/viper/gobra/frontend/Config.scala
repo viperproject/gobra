@@ -87,7 +87,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     */
   val input: ScallopOption[List[String]] = opt[List[String]](
     name = "input",
-    descr = "List of Go programs or a single package name to verify"
+    descr = "List of Gobra programs or a single package name to verify"
   )
 
   val include: ScallopOption[List[File]] = opt[List[File]](
@@ -200,7 +200,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     }
 
     def atLeastOneFile(files: Vector[File]): Either[String, Unit] = {
-      if (files.nonEmpty) Right(()) else Left(s"Package resolution has not found any files for verification")
+      if (files.nonEmpty) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
     }
 
     def filesExist(files: Vector[File]): Either[String, Unit] = {

@@ -6,14 +6,19 @@
 
 package viper.gobra.backend
 
+import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, GeneratedViperMessage}
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
 import viper.silver
-import viper.silver.{ast => vpr}
 import viper.silver.verifier.VerificationResult
+import viper.silver.{ast => vpr}
+
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
 
 object BackendVerifier {
+
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   case class Task(
                    program: vpr.Program,
@@ -27,16 +32,34 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config): Result = {
+  def verify(task: Task)(config: Config): Future[Result] = {
 
-    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => task.program)
+    var exePaths: Vector[String] = Vector.empty
 
-    val verifier = config.backend.create
-    verifier.start(BacktranslatingReporter(config.reporter, task.backtrack, config))
-    val verificationResult = verifier.handle(task.program)
-    verifier.stop()
+    config.z3Exe match {
+      case Some(z3Exe) =>
+        exePaths ++= Vector("--z3Exe", z3Exe)
+      case _ =>
+    }
 
-    convertVerificationResult(verificationResult, task.backtrack)
+    (config.backend, config.boogieExe) match {
+      case (Carbon, Some(boogieExe)) =>
+        exePaths ++= Vector("--boogieExe", boogieExe)
+      case _ =>
+    }
+
+    val verifier = config.backend.create(exePaths)
+
+    val programID = "_programID_" + config.inputFiles.head.getName
+
+    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)
+
+
+    verificationResult.map(
+      result => {
+        convertVerificationResult(result, task.backtrack)
+      })
+
   }
 
   /**

@@ -12,8 +12,8 @@ import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, S
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
-import viper.gobra.ast.frontend.{_}
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, PreprocessedInputMessage, VerifierError}
+import viper.gobra.ast.frontend._
+import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 
 object Parser {
 
@@ -21,7 +21,7 @@ object Parser {
     * Parses files and returns either the parsed program if the file was parsed successfully,
     * otherwise returns list of error messages.
     *
-    * @param files
+    * @param input
     * @param specOnly specifies whether only declarations and specifications should be parsed and implementation should be ignored
     * @return
     *
@@ -33,8 +33,8 @@ object Parser {
     *
     */
 
-  def parse(files: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val preprocessedSources = files
+  def parse(input: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = input
       .map{ file => FileSource(file.getPath) }
       .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
     parseSources(preprocessedSources, specOnly)(config)
@@ -65,7 +65,14 @@ object Parser {
           pom.positions.setStart(ns, pos)
           pom.positions.setFinish(ns, pos)
           val messages = message(ns, label)
-          Left(pom.translate(messages, ParserError))
+          val errors = pom.translate(messages, ParserError)
+          
+          val groupedErrors = errors.groupBy{ _.position.get.file.toFile }
+          groupedErrors.foreach{ case (p, pErrors) =>
+            config.reporter report ParserErrorMessage(p, pErrors)
+          }
+
+          Left(errors)
       }
     }
 

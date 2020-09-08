@@ -12,13 +12,17 @@ import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
+import viper.gobra.reporting.GeneratedViperMessage
 
 object Translator {
 
   def translate(program: Program)(config: Config): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
-    programTranslator.translate(program)(translationConfig)
+    val task = programTranslator.translate(program)(translationConfig)
+
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => task.program, () => task.backtrack)
+    task
   }
 
 }

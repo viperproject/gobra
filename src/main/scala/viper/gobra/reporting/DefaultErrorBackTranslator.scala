@@ -10,7 +10,7 @@ object DefaultErrorBackTranslator {
                                 viperError: viper.silver.verifier.VerificationError,
                                 transformer: BackTranslator.ErrorTransformer
                               ): VerificationError = {
-    transformer.lift.apply(viperError).getOrElse{
+    val gobraError = transformer.lift.apply(viperError).getOrElse{
       val message: String =
         s"""
            |Failed to back-translate a Viper error
@@ -25,6 +25,8 @@ object DefaultErrorBackTranslator {
 
       throw new java.lang.IllegalStateException(message)
     }
+    if (viperError.cached) gobraError.cached = true
+    gobraError
   }
 
   def translateWithTransformer(

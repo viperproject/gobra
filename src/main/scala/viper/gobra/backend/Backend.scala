@@ -1,7 +1,7 @@
 package viper.gobra.backend
 
-trait Backend[I, O] {
-  def start(): Unit
-  def handle(input: I): O
-  def stop(): Unit
+import scala.concurrent.Future
+
+trait Backend[I, C, R, P, O] {
+  def verify(id: I, config: C, reporter: R, program: P): Future[O]
 }

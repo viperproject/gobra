@@ -10,6 +10,9 @@ import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
 class GobraPackageTests extends GobraTests {
   override val testDirectories: Seq[String] = Vector("same_package")
 
@@ -20,7 +23,7 @@ class GobraPackageTests extends GobraTests {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
         // extract package clause of input:
-        val result = for {
+        val resultOpt = for {
           pkgName <- getPackageClause(input.file.toFile)
           currentDir = input.file.getParent
           config <- createConfig(Array(
@@ -32,10 +35,14 @@ class GobraPackageTests extends GobraTests {
           _ = info(s"Time required: $elapsedMilis ms")
         } yield result
 
-        result match {
-          case Some(Success) => Vector.empty
-          case Some(Failure(errors)) => errors map GobraTestOuput
-          case _ => Vector(GobraTestOuput(ParserError("package clause extraction or config creation failed", None)))
+        resultOpt match {
+          case None => Vector(GobraTestOuput(ParserError("package clause extraction or config creation failed", None)))
+          case Some(f) =>
+            val result = Await.result(f, Duration.Inf)
+            result match {
+              case Success => Vector.empty
+              case Failure(errors) => errors map GobraTestOuput
+            }
         }
       }
 

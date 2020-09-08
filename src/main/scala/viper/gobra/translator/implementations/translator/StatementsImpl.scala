@@ -71,16 +71,34 @@ class StatementsImpl extends Statements {
 
       case in.FunctionCall(targets, func, args) =>
         for {
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
-          vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
-        } yield vpr.MethodCall(func.name, vArgss.flatten, vTargetss.flatten)(pos, info, errT)
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
+          vTargetss <- sequence(targets map (t => sequence(ctx.loc.values(t)(ctx))))
+          vTargets = vTargetss.flatten
+          // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
+          // Therefore, we introduce auxiliary variables and
+          // add an assignment from the auxiliary variables to the actual targets
+          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
+          (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
+          _ <- local(auxTargetDecls: _*)
+          _ <- write(vpr.MethodCall(func.name, vArgss.flatten, vUsedTargets)(pos, info, errT))
+          assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
+        } yield assignToTargets
 
       case in.MethodCall(targets, recv, meth, args) =>
         for {
-          vRecvs <- ctx.loc.argument(recv)(ctx)
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
-          vTargetss <- sequence(targets map (ctx.loc.target(_)(ctx)))
-        } yield vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vTargetss.flatten)(pos, info, errT)
+          vRecvs <- sequence(ctx.loc.values(recv)(ctx))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
+          vTargetss <- sequence(targets map (t => sequence(ctx.loc.values(t)(ctx))))
+          vTargets = vTargetss.flatten
+          // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
+          // Therefore, we introduce auxiliary variables and
+          // add an assignment from the auxiliary variables to the actual targets
+          (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
+          (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
+          _ <- local(auxTargetDecls: _*)
+          _ <- write(vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vUsedTargets)(pos, info, errT))
+          assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
+        } yield assignToTargets
 
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
@@ -96,6 +114,16 @@ class StatementsImpl extends Statements {
     }
 
     vprStmt map (s => stmtComment(x, s))
+  }
+
+  private def viperTarget(x: vpr.Exp): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
+    x match {
+      case x: vpr.LocalVar => (x, None)
+      case _ =>
+        val decl = vpr.LocalVarDecl(Names.freshName, x.typ)(x.pos, x.info, x.errT)
+        val ass  = vu.valueAssign(x, decl.localVar)(x.pos, x.info, x.errT)
+        (decl.localVar, Some((decl, ass)))
+    }
   }
 
   def stmtComment(x: in.Stmt, res: vpr.Stmt): vpr.Stmt = {

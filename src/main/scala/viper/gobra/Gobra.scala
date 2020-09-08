@@ -16,8 +16,12 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.silver.{ast => vpr}
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.Source
+
 
 object GoVerifier {
 
@@ -42,32 +46,48 @@ trait GoVerifier {
     this.getClass.getSimpleName
   }
 
-  def verify(config: Config): VerifierResult = {
+  def verify(config: Config): Future[VerifierResult] = {
     verify(config.inputFiles, config)
   }
 
-  protected[this] def verify(files: Vector[File], config: Config): VerifierResult
+  protected[this] def verify(input: Vector[File], config: Config): Future[VerifierResult]
 }
 
-class Gobra extends GoVerifier {
+trait GoIdeVerifier {
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult]
+}
 
-  override def verify(files: Vector[File], c: Config): VerifierResult = {
-    val config = getAndMergeInFileConfig(c)
+class Gobra extends GoVerifier with GoIdeVerifier {
 
-    config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
-    val result = for {
-      parsedPackage <- performParsing(files, config)
-      typeInfo <- performTypeChecking(parsedPackage, config)
-      program <- performDesugaring(parsedPackage, typeInfo, config)
-      viperTask <- performViperEncoding(program, config)
-      verifierResult <- performVerification(viperTask, config)
-    } yield BackTranslator.backTranslate(verifierResult)(config)
+  override def verify(input: Vector[File], config: Config): Future[VerifierResult] = {
 
-    result.fold({
-      case Vector() => VerifierResult.Success
-      case errs => VerifierResult.Failure(errs)
-    }, identity)
+    val task = Future {
+
+      val finalConfig = getAndMergeInFileConfig(config)
+
+      config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+
+      for {
+        parsedPackage <- performParsing(input, finalConfig)
+        typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+        program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
+        viperTask <- performViperEncoding(program, finalConfig)
+      } yield (viperTask, finalConfig)
+    }
+
+    task.flatMap{
+      case Left(Vector()) => Future(VerifierResult.Success)
+      case Left(errors)   => Future(VerifierResult.Failure(errors))
+      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)
+    }
+  }
+
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult] = {
+    val viperTask = BackendVerifier.Task(ast, backtrack)
+    performVerification(viperTask, config)
+      .map(BackTranslator.backTranslate(_)(config))
   }
 
   private val inFileConfigRegex = """(?:.|\r\n|\r|\n)*\/\/ ##\((.*)\)(?:.|\r\n|\r|\n)*""".r
@@ -97,9 +117,9 @@ class Gobra extends GoVerifier {
     config.merge(inFileConfig)
   }
 
-  private def performParsing(files: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(files)(config)
+      Parser.parse(input)(config)
     } else {
       Left(Vector())
     }
@@ -129,14 +149,16 @@ class Gobra extends GoVerifier {
     }
   }
 
-  private def performVerification(viperTask: BackendVerifier.Task, config: Config): Either[Vector[VerifierError], BackendVerifier.Result] = {
+  private def performVerification(viperTask: BackendVerifier.Task, config: Config): Future[BackendVerifier.Result] = {
     if (config.shouldVerify) {
-      Right(BackendVerifier.verify(viperTask)(config))
+      BackendVerifier.verify(viperTask)(config)
     } else {
-      Left(Vector())
+      Future(BackendVerifier.Success)
     }
   }
 }
+
+
 
 class GobraFrontend {
 
@@ -147,10 +169,13 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
+    implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
+
     val scallopGobraconfig = new ScallopGobraConfig(args)
     val config = scallopGobraconfig.config
     val verifier = createVerifier(config)
-    val result = verifier.verify(config)
+    val resultFuture = verifier.verify(config)
+    val result = Await.result(resultFuture, Duration.Inf)
 
     result match {
       case VerifierResult.Success =>

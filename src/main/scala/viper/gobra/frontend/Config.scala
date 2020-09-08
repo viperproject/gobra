@@ -18,6 +18,10 @@ import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
+
+import viper.server.{ViperBackendConfig, ViperBackendConfigs}
+
+
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
@@ -26,6 +30,10 @@ case class Config(
                  includeDirs: Vector[File] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
+                 // backendConfig is used for the ViperServer
+                 backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
+                 z3Exe: Option[String] = None,
+                 boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
@@ -121,6 +129,13 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = true
   )
 
+  val goify: ScallopOption[Boolean] = toggle(
+    name = "goify",
+    descrYes = "Print the input program with the ghost code commented out",
+    default = Some(false),
+    noshort = true
+  )
+
   val unparse: ScallopOption[Boolean] = toggle(
     name = "unparse",
     descrYes = "Print the parsed program",
@@ -148,6 +163,21 @@ class ScallopGobraConfig(arguments: Seq[String])
     default = Some(false),
     noshort = true
   )
+
+  val z3Exe: ScallopOption[String] = opt[String](
+    name = "z3Exe",
+    descr = "The Z3 executable",
+    default = None,
+    noshort = true
+  )
+
+  val boogieExe: ScallopOption[String] = opt[String](
+    name = "boogieExe",
+    descr = "The Boogie executable",
+    default = None,
+    noshort = true
+  )
+
 
   /**
     * Exception handling
@@ -290,10 +320,13 @@ class ScallopGobraConfig(arguments: Seq[String])
     reporter = FileWriterReporter(
       unparse = unparse(),
       eraseGhost = eraseGhost(),
+      goify = goify(),
       debug = debug(),
       printInternal = printInternal(),
       printVpr = printVpr()),
     backend = backend(),
+    z3Exe = z3Exe.toOption,
+    boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,

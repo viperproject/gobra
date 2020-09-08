@@ -149,6 +149,15 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: abstract function") {
+    val modes: Set[Boolean] = Set(false, true)
+    modes.foreach(specOnly => {
+      frontend.parseMember("func bar()", specOnly) should matchPattern {
+        case Vector(PFunctionDecl(PIdnDef("bar"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), false), None)) =>
+      }
+    })
+  }
+
   class TestFrontend {
     private def parseOrFail[T: ClassTag](source: String, parser: Source => Either[Messages, T]): T = {
       parser(StringSource(source)) match {

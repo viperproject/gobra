@@ -232,17 +232,20 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  def tryUnqualifiedPackageLookup(id: PIdnUse): Entity = {
-    val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
-    val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
-    if (results.isEmpty) {
-      UnknownEntity()
-    } else if (results.length > 1) {
-      MultipleEntity()
-    } else {
-      results.head._1
+  lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
+    attr[PIdnUse, Entity] {
+      id => {
+        val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
+        val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
+        if (results.isEmpty) {
+          UnknownEntity()
+        } else if (results.length > 1) {
+          MultipleEntity()
+        } else {
+          results.head._1
+        }
+      }
     }
-  }
 
 
 

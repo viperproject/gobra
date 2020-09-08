@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info.implementation.resolution
 
-import org.bitbucket.inkytonik.kiama.util.Entity
+import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{PackageResolver, Parser}
@@ -164,9 +164,9 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
-  def tryPackageLookup(importedPkg: ImportT, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
-    def parseAndTypeCheck(importedPkg: ImportT): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgName = importedPkg.decl.pkg
+  def tryPackageLookup(importedPkg: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
+    def parseAndTypeCheck(importedPkg: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val pkgName = importedPkg.pkg
       val pkgFiles = PackageResolver.resolve(pkgName, config.includeDirs)
       val res = for {
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
@@ -185,22 +185,22 @@ trait MemberResolution { this: TypeInfoImpl =>
       res
     }
 
-    def getTypeChecker(importedPkg: ImportT): Either[Messages, ExternalTypeInfo] = {
+    def getTypeChecker(importedPkg: PImport): Either[Messages, ExternalTypeInfo] = {
       def createImportError(errs: Vector[VerifierError]): Messages = {
         // create an error message located at the import statement to indicate errors in the imported package
         // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
         val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
         // alternativeErr is a function to compute the message only when needed
-        val alternativeErr = () => context.getImportCycle(importedPkg.decl.pkg) match {
-          case Some(cycle) => message(importedPkg.decl, s"Package '${importedPkg.decl.pkg}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(importedPkg.decl, s"Package '${importedPkg.decl.pkg}' contains errors")
+        val alternativeErr = () => context.getImportCycle(importedPkg.pkg) match {
+          case Some(cycle) => message(importedPkg, s"Package '${importedPkg.pkg}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+          case _ => message(importedPkg, s"Package '${importedPkg.pkg}' contains errors")
         }
-        notFoundErr.map(e => message(importedPkg.decl, e.message))
+        notFoundErr.map(e => message(importedPkg, e.message))
           .getOrElse(alternativeErr())
       }
 
       // check if package was already parsed, otherwise do parsing and type checking:
-      val cachedInfo = context.getTypeInfo(importedPkg.decl.pkg)
+      val cachedInfo = context.getTypeInfo(importedPkg.pkg)
       cachedInfo.getOrElse(parseAndTypeCheck(importedPkg)).left.map(createImportError)
     }
 
@@ -226,13 +226,26 @@ trait MemberResolution { this: TypeInfoImpl =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
         else typeType(typ) match {
-          case pkg: ImportT => tryPackageLookup(pkg, id)
+          case pkg: ImportT => tryPackageLookup(pkg.decl, id)
           case _ => None
         }
     }
   }
 
-
+  lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
+    attr[PIdnUse, Entity] {
+      id => {
+        val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
+        val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
+        if (results.isEmpty) {
+          UnknownEntity()
+        } else if (results.length > 1) {
+          MultipleEntity()
+        } else {
+          results.head._1
+        }
+      }
+    }
 
 
 

@@ -74,6 +74,18 @@ object Type {
 
   case object AssertionT extends GhostType
 
+  sealed trait GhostCollectionType extends GhostType {
+    def elem : Type
+  }
+
+  case class SequenceT(elem : Type) extends GhostCollectionType
+
+  sealed trait GhostUnorderedCollectionType extends GhostCollectionType
+
+  case class SetT(elem : Type) extends GhostUnorderedCollectionType
+
+  case class MultisetT(elem : Type) extends GhostUnorderedCollectionType
+
 
   /**
     * Type Contexts

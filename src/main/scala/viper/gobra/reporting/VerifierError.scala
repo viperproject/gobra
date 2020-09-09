@@ -144,6 +144,16 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
   override def localMessage: String = "Method contract is not well-formed"
 }
 
+case class IfError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "conditional_error"
+  override def localMessage: String = "Conditional statement might fail"
+}
+
+case class ForLoopError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "for_loop_error"
+  override def localMessage: String = "For loop statement might fail"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -158,6 +168,16 @@ case class InsufficientPermissionError(info: Source.Verifier.Info) extends Verif
 case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
   override def message: String = s"Assertion ${info.origin.tag} might not hold"
+}
+
+case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "seq_index_exceeds_length_error"
+  override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might exceed sequence length"
+}
+
+case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "seq_index_negative_error"
+  override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
 }
 
 sealed trait VerificationErrorClarification {

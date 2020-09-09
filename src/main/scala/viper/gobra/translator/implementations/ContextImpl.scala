@@ -7,6 +7,9 @@ import viper.gobra.translator.interfaces.components._
 import viper.silver.ast.LocalVarDecl
 
 case class ContextImpl(
+                        seqToSet : SeqToSet,
+                        seqToMultiset : SeqToMultiset,
+                        seqMultiplicity : SeqMultiplicity,
                         fixpoint: Fixpoint,
                         tuple: Tuples,
                         typeProperty: TypeProperties,
@@ -23,6 +26,9 @@ case class ContextImpl(
 
   def this(conf: TranslatorConfig, table: LookupTable) {
     this(
+      conf.seqToSet,
+      conf.seqToMultiset,
+      conf.seqMultiplicity,
       conf.fixpoint,
       conf.tuple,
       conf.typeProperty,
@@ -40,6 +46,9 @@ case class ContextImpl(
 
   /** copy constructor */
   override def :=(
+                   seqToSetN : SeqToSet = seqToSet,
+                   seqToMultisetN : SeqToMultiset = seqToMultiset,
+                   seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
                    fixpointN: Fixpoint = fixpoint,
                    tupleN: Tuples = tuple,
                    typePropertyN: TypeProperties = typeProperty,
@@ -52,6 +61,9 @@ case class ContextImpl(
                    typN: Types = typ,
                    locN: Locations = loc,
                  ): Context = copy(
+    seqToSet,
+    seqToMultiset,
+    seqMultiplicity,
     fixpoint,
     tuple,
     typeProperty,

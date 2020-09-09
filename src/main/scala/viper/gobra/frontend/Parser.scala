@@ -133,6 +133,12 @@ object Parser {
     translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
   }
 
+  def parseType(source : Source) : Either[Messages, PType] = {
+    val pom = new PositionManager
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
+  }
+
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
     r match {
       case Success(ast, _) => Right(ast)
@@ -269,7 +275,8 @@ object Parser {
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old"
+      "predicate", "old", "seq", "set", "in", "union",
+      "intersection", "setminus", "subset", "mset", "len"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -612,16 +619,29 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence5) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence5) ^^ PUnequals |
-        precedence4 ~ ("<" ~> precedence5) ^^ PLess |
-        precedence4 ~ ("<=" ~> precedence5) ^^ PAtMost |
-        precedence4 ~ (">" ~> precedence5) ^^ PGreater |
-        precedence4 ~ (">=" ~> precedence5) ^^ PAtLeast |
+      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
+        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+        precedence4 ~ ("<" ~> precedence4P1) ^^ PLess |
+        precedence4 ~ ("<=" ~> precedence4P1) ^^ PAtMost |
+        precedence4 ~ (">" ~> precedence4P1) ^^ PGreater |
+        precedence4 ~ (">=" ~> precedence4P1) ^^ PAtLeast |
+        precedence4P1
+
+    lazy val precedence4P1 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P1 ~ ("in" ~> precedence4P2) ^^ PIn |
+        precedence4P1 ~ ("#" ~> precedence4P2) ^^ PMultiplicity |
+        precedence4P1 ~ ("subset" ~> precedence4P2) ^^ PSubset |
+        precedence4P2
+
+    lazy val precedence4P2 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P2 ~ ("union" ~> precedence5) ^^ PUnion |
+        precedence4P2 ~ ("intersection" ~> precedence5) ^^ PIntersection |
+        precedence4P2 ~ ("setminus" ~> precedence5) ^^ PSetMinus |
         precedence5
 
-    lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
+    lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
+      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+        precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6
 
@@ -634,7 +654,6 @@ object Parser {
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
 
-
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
@@ -643,7 +662,12 @@ object Parser {
         dereference |
         receiveExp |
         unfolding |
+        len |
+        ghostUnaryExp |
         primaryExp
+
+    lazy val len : Parser[PLength] =
+      "len" ~> ("(" ~> expression <~ ")") ^^ PLength
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -657,14 +681,18 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+    lazy val ghostUnaryExp : Parser[PGhostExpression] =
+      "|" ~> expression <~ "|" ^^ PCardinality |
+        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion |
+        "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
-      ghostPrimaryExpression |
-        conversion |
+      conversion |
         call |
         selection |
         indexedExp |
         sliceExp |
+        seqUpdExp |
         typeAssertion |
         ghostPrimaryExp |
         operand
@@ -693,7 +721,13 @@ object Parser {
       primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
 
     lazy val sliceExp: PackratParser[PSliceExp] =
-      primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
+      primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
+
+    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+
+    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
@@ -745,19 +779,22 @@ object Parser {
 
 
 
-
-
-
     /**
       * Types
       */
 
-    lazy val typ: Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType
+    lazy val typ : Parser[PType] =
+      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
+
+    lazy val ghostTyp : Parser[PGhostType] =
+      "(" ~> ghostTyp <~ ")" | ghostTypeLit
 
     lazy val typeLit: Parser[PTypeLit] =
-      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
+      pointerType | sliceType | arrayType | mapType |
+        channelType | functionType | structType | interfaceType
 
+    lazy val ghostTypeLit : Parser[PGhostLiteralType] =
+      sequenceType | setType | multisetType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -778,6 +815,15 @@ object Parser {
 
     lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
+
+    lazy val sequenceType : Parser[PSequenceType] =
+      "seq" ~> ("[" ~> typ <~ "]") ^^ PSequenceType
+
+    lazy val setType : Parser[PSetType] =
+      "set" ~> ("[" ~> typ <~ "]") ^^ PSetType
+
+    lazy val multisetType : Parser[PMultisetType] =
+      "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
@@ -830,7 +876,14 @@ object Parser {
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType | qualifiedType | declaredType
+      sliceType |
+        arrayType |
+        implicitSizeArrayType |
+        mapType |
+        structType |
+        qualifiedType |
+        ghostTypeLit |
+        declaredType
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
@@ -959,15 +1012,54 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold
 
-
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
         ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostPrimaryExp: Parser[PGhostExpression] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+    lazy val ghostPrimaryExp : Parser[PGhostExpression] =
+      forall |
+        exists |
+        old |
+        access |
+        rangeSequence |
+        rangeSet |
+        rangeMultiset
+
+    lazy val forall : Parser[PForall] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
+
+    lazy val exists : Parser[PExists] =
+      ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
+
+    lazy val old : Parser[POld] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld
+
+    lazy val access : Parser[PAccess] =
+      "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+
+    private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
+      "[" ~> expression ~ (".." ~> expression <~ "]")
+
+    lazy val rangeSequence : Parser[PRangeSequence] = "seq" ~> rangeExprBody ^^ PRangeSequence
+
+    /**
+      * Expressions of the form "set[`left` .. `right`]" are directly
+      * transformed into "set(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeSet : Parser[PGhostExpression] = "set" ~> rangeExprBody ^^ {
+      case left ~ right => PSetConversion(PRangeSequence(left, right).range(left, right))
+    }
+
+    /**
+      * Expressions of the form "mset[`left` .. `right`]" are directly
+      * transformed into "mset(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeMultiset : Parser[PGhostExpression] = "mset" ~> rangeExprBody ^^ {
+      case left ~ right => PMultisetConversion(PRangeSequence(left, right).range(left, right))
+    }
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
@@ -989,9 +1081,6 @@ object Parser {
     lazy val trigger: Parser[PTrigger] =
       "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
 
-    lazy val ghostPrimaryExpression: Parser[PGhostExpression] =
-      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall |
-        ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     /**
       * EOS

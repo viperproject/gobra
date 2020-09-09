@@ -9,7 +9,8 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 trait PrettyPrinter {
-  def format(node: Node): String
+  def format(node : Node): String
+  def format(typ : Type): String
 }
 
 class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter with PrettyPrinterCombinators {
@@ -17,9 +18,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override val defaultIndent = 2
   override val defaultWidth  = 80
 
-  override def format(node: Node): String = {
+  override def format(node : Node) : String = {
     positionStore.clear()
     pretty(show(node)).layout
+  }
+
+  override def format(typ : Type) : String = {
+    positionStore.clear()
+    pretty(showType(typ)).layout
   }
 
   /**
@@ -283,6 +289,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
+    case SequenceLength(op) => "|" <> showExpr(op) <> "|"
+    case RangeSequence(low, high) =>
+      "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+    case SequenceUpdate(seq, left, right) =>
+      showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
+    case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
+    case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
+    case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
+    case SetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
+    case Cardinality(op) => "|" <> showExpr(op) <> "|"
+    case MultisetConversion(exp) => "mset" <> "(" <> showExpr(exp) <> ")"
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
@@ -291,18 +309,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
-    case v: Var   => showVar(v)
+    case v: Var => showVar(v)
   })
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 
   // literals
 
+  private def showGhostCollectionLiteral(front : String, typ : Type, exprs : Vector[Expr]) : Doc =
+    front <> brackets(showType(typ)) <+>
+      braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit() => "nil"
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
+    case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
+    case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
+    case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
   }
 
   // variables
@@ -329,7 +354,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   // types
 
-  def showType(typ: Type): Doc = typ match {
+  def showType(typ : Type) : Doc = typ match {
     case BoolT => "bool"
     case IntT => "int"
     case VoidT => "void"
@@ -339,6 +364,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t) => "*" <> showType(t)
     case TupleT(ts) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
+    case SequenceT(elem) => "seq" <> brackets(showType(elem))
+    case SetT(elem) => "set" <> brackets(showType(elem))
+    case MultisetT(elem) => "mset" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

@@ -9,7 +9,7 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
-    case PExplicitGhostMember(actual) => noMessages
+    case PExplicitGhostMember(_) => noMessages
 
     case n@ PFPredicateDecl(id, args, body) =>
       body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n))
@@ -21,9 +21,9 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
 
-  if (member.spec.isPure) {
+    if (member.spec.isPure) {
       message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
-    message(member, "For now, pure methods must have exactly one result argument", member.result.outs.size != 1) ++
+      message(member, "For now, pure methods must have exactly one result argument", member.result.outs.size != 1) ++
         (member.body match {
           case Some(b: PBlock) => isPureBlock(b)
           case None => noMessages

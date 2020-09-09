@@ -16,8 +16,10 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR
 
       case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
-
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
+      case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
+      case (SetT(l), SetT(r)) => identicalTypes(l, r)
+      case (MultisetT(l), MultisetT(r)) => identicalTypes(l, r)
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {

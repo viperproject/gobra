@@ -1,6 +1,6 @@
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodLike, MethodSpec, Regular}
 import viper.gobra.frontend.info.base.Type.Type
@@ -59,6 +59,8 @@ trait ExternalTypeInfo {
   def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 
   def intConstantEvaluation(expr: PExpression): Option[BigInt]
+
+  def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt]
 
   def getTypeInfo: TypeInfo
 }

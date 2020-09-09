@@ -899,6 +899,40 @@ object Desugar {
             val dOp = pureExprD(ctx)(op)
             unit(in.Unfolding(dAcc, dOp)(src))
 
+          case PIndexedExp(left, right) => for {
+            dleft <- go(left)
+            dright <- go(right)
+          } yield dleft.typ match {
+            case in.SequenceT(_) => in.SequenceIndex(dleft, dright)(src)
+            case t => Violation.violation(s"desugaring of indexed expressions is currently only supported for sequences, yet found $t")
+          }
+
+          case PSliceExp(base, low, high, cap) => for {
+            dbase <- go(base)
+            dlow <- option(low map go)
+            dhigh <- option(high map go)
+            dcap <- option(cap map go)
+          } yield dbase.typ match {
+            case in.SequenceT(_) => (dlow, dhigh) match {
+              case (None, None) => dbase
+              case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
+              case (None, Some(hi)) => in.SequenceTake(dbase, hi)(src)
+              case (Some(lo), Some(hi)) => {
+                val sub = in.Sub(hi, lo)(src)
+                val drop = in.SequenceDrop(dbase, lo)(src)
+                in.SequenceTake(drop, sub)(src)
+              }
+            }
+            case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
+          }
+
+          case PLength(op) => for {
+            dop <- go(op)
+          } yield dop.typ match {
+            case _: in.SequenceT => in.SequenceLength(dop)(src)
+            case t => violation(s"desugaring of 'len' expressions with arguments typed $t is currently not supported")
+          }
+
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -929,14 +963,18 @@ object Desugar {
       }
     }
 
-    def compositeLitToObject(lit: in.CompositeLit): in.CompositeObject = lit match {
+    def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
       case l: in.StructLit => in.CompositeObject.Struct(l)
+      case l: in.SequenceLit => in.CompositeObject.Sequence(l)
+      case l: in.SetLit => in.CompositeObject.Set(l)
+      case l: in.MultisetLit => in.CompositeObject.Multiset(l)
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
-      case t: PType =>
+      case t: PType => {
         val it = typeD(info.typ(t))(meta(lit))
         literalValD(ctx)(lit.lit, it)
+      }
 
       case _ => ???
     }
@@ -950,11 +988,17 @@ object Desugar {
 
     object CompositeKind {
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
+      case class Sequence(t : in.SequenceT) extends CompositeKind
+      case class Set(t : in.SetT) extends CompositeKind
+      case class Multiset(t : in.MultisetT) extends CompositeKind
     }
 
     def compositeTypeD(t: in.Type): CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
-      case _ => Violation.violation(s"expected composite type but got $t")
+      case t: in.SequenceT => CompositeKind.Sequence(t)
+      case t: in.SetT => CompositeKind.Set(t)
+      case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t => Violation.violation(s"expected composite type but got $t")
     }
 
     def underlyingType(typ: in.Type): in.Type = {
@@ -971,23 +1015,28 @@ object Desugar {
       case _ => None
     }
 
-
+    def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
+      expr match {
+        case PExpCompositeVal(e) => exprD(ctx)(e)
+        case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
+      }
+    }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {
       val src = meta(lit)
 
       compositeTypeD(t) match {
 
-        case CompositeKind.Struct(it, ist) =>
-
+        case CompositeKind.Struct(it, ist) => {
           val fields = ist.fields
 
           if (lit.elems.exists(_.key.isEmpty)) {
             // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map{ case (f, PKeyedElement(_, exp)) => exp match {
+            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }}
+            }
+            }
 
             for {
               args <- sequence(wArgs)
@@ -997,7 +1046,7 @@ object Desugar {
             // maps field names to fields
             val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
             // maps fields to given value (if one is given)
-            val vMap = lit.elems.map{
+            val vMap = lit.elems.map {
               case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
                 val f = fMap(key.name)
                 exp match {
@@ -1008,7 +1057,7 @@ object Desugar {
               case _ => Violation.violation("expected identifier as a key")
             }.toMap
             // list of value per field
-            val wArgs = fields.map{
+            val wArgs = fields.map {
               case f if vMap.isDefinedAt(f) => vMap(f)
               case f => unit(in.DfltVal(f.typ)(src))
             }
@@ -1017,6 +1066,22 @@ object Desugar {
               args <- sequence(wArgs)
             } yield in.StructLit(it, args)(src)
           }
+        }
+
+        case CompositeKind.Sequence(in.SequenceT(typ)) => {
+          val indices = info.keyElementIndices(lit.elems)
+          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
+          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
+            yield in.SequenceLit(typ, elemsD)(src)
+        }
+
+        case CompositeKind.Set(in.SetT(typ)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+        } yield in.SetLit(typ, elemsD)(src)
+
+        case CompositeKind.Multiset(in.MultisetT(typ)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+        } yield in.MultisetLit(typ, elemsD)(src)
       }
     }
 
@@ -1062,6 +1127,9 @@ object Desugar {
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem)(src)))
       case Type.ChannelT(elem, mod) => ???
+      case Type.SequenceT(elem) => in.SequenceT(typeD(elem)(src))
+      case Type.SetT(elem) => in.SetT(typeD(elem)(src))
+      case Type.MultisetT(elem) => in.MultisetT(typeD(elem)(src))
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t)(src)
@@ -1282,12 +1350,11 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
-        case PConditional(cond, thn, els) =>
-          for {
-            wcond <- go(cond)
-            wthn <- go(thn)
-            wels <- go(els)
-          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        case PConditional(cond, thn, els) =>  for {
+          wcond <- go(cond)
+          wthn <- go(thn)
+          wels <- go(els)
+        } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
@@ -1297,12 +1364,85 @@ object Desugar {
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(exprD) }
             yield in.Exists(newVars, newTriggers, newBody)(src)
 
-        case PImplication(left, right) =>
-          for {
-            wcond <- go(left)
-            wthn <- go(right)
-            wels = in.BoolLit(b = true)(src)
-          } yield in.Conditional(wcond, wthn, wels, typ)(src)
+        case PImplication(left, right) => for {
+          wcond <- go(left)
+          wthn <- go(right)
+          wels = in.BoolLit(b = true)(src)
+        } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PCardinality(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case _: in.SetT | _: in.MultisetT => in.Cardinality(dop)(src)
+          case t => violation(s"expected a sequence or (multi)set type, but got $t")
+        }
+
+        case PIn(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield dright.typ match {
+          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
+          case in.MultisetT(_) => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
+          case t => violation(s"expected a sequence or (multi)set type, but got $t")
+        }
+
+        case PMultiplicity(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.Multiplicity(dleft, dright)(src)
+
+        case PRangeSequence(low, high) => for {
+          dlow <- go(low)
+          dhigh <- go(high)
+        } yield in.RangeSequence(dlow, dhigh)(src)
+
+        case PSequenceAppend(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.SequenceAppend(dleft, dright)(src)
+
+        case PSequenceUpdate(seq, clauses) => clauses.foldLeft(go(seq)) {
+          case (dseq, clause) => for {
+            dleft <- go(clause.left)
+            dright <- go(clause.right)
+          } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
+        }
+
+        case PSetConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case in.SetT(_) => dop
+          case in.SequenceT(_) => in.SetConversion(dop)(src)
+          case t => violation(s"expected a set or sequence type, but found $t")
+        }
+
+        case PUnion(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.Union(dleft, dright)(src)
+
+        case PIntersection(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.Intersection(dleft, dright)(src)
+
+        case PSetMinus(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.SetMinus(dleft, dright)(src)
+
+        case PSubset(left, right) => for {
+          dleft <- go(left)
+          dright <- go(right)
+        } yield in.Subset(dleft, dright)(src)
+
+        case PMultisetConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case in.MultisetT(_) => dop
+          case in.SequenceT(_) => in.MultisetConversion(dop)(src)
+          case t => violation(s"expected a sequence or multiset type, but found $t")
+        }
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

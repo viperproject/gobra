@@ -1,7 +1,7 @@
 package viper.gobra.translator.interfaces
 
 import viper.gobra.ast.internal.LookupTable
-import viper.gobra.translator.interfaces.components.{Fixpoint, Tuples, TypeProperties}
+import viper.gobra.translator.interfaces.components._
 import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
@@ -9,6 +9,9 @@ import viper.gobra.ast.{internal => in}
 trait Context {
 
   // components
+  def seqToSet : SeqToSet
+  def seqToMultiset : SeqToMultiset
+  def seqMultiplicity : SeqMultiplicity
   def fixpoint: Fixpoint
   def tuple: Tuples
   def typeProperty: TypeProperties
@@ -35,6 +38,9 @@ trait Context {
 
   /** copy constructor */
   def :=(
+          seqToSetN : SeqToSet = seqToSet,
+          seqToMultisetN : SeqToMultiset = seqToMultiset,
+          seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
           fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
           typeN: TypeProperties = typeProperty,
@@ -49,10 +55,15 @@ trait Context {
          ): Context
 
 
-  def finalize(col: Collector): Unit = {
+  def finalize(col : Collector): Unit = {
+    // components
+    seqToSet.finalize(col)
+    seqToMultiset.finalize(col)
+    seqMultiplicity.finalize(col)
     fixpoint.finalize(col)
     tuple.finalize(col)
 
+    // translators
     ass.finalize(col)
     expr.finalize(col)
     method.finalize(col)

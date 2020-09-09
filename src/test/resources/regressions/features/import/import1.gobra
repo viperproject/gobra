@@ -3,19 +3,19 @@
 
 package main
 
-import "fmt"
-import "a";
-import ("b")
-import ("c");
+import fmt "fmt"
+import a "a";
+import (b "b")
+import (c "c");
 import (
-    "d"
-    "e")
+    d "d"
+    e "e")
 import (
-    "f"
-    "g"
+    f "f"
+    g "g"
 )
 
-import "lib/math"
+import math "lib/math"
 //:: ExpectedOutput(type_error)
 import m "lib/mathm" // wrong package name used on purpose such that this test case does not potentially depend on the configured Go path
 import . "lib/mathn"

@@ -168,8 +168,7 @@ trait NameResolution { this: TypeInfoImpl =>
           case p: PFPredicateDecl => Vector(p.id)
         }
       }) ++ (n.imports flatMap {
-        case PQualifiedImport(Some(id: PIdnDef), _) => Vector(id)
-          // TODO: add support for PQualifiedImport(None, _)
+        case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
         case _ => Vector.empty
       })
 
@@ -234,8 +233,10 @@ trait NameResolution { this: TypeInfoImpl =>
         } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
 
       case n =>
-        lookup(sequentialDefenv(n), serialize(n), UnknownEntity())
-        // TODO: if UnknownEntity is returned perform lookup in unqualified imported packages
+        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
+          // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
+          case (n: PIdnUse, UnknownEntity()) => tryUnqualifiedPackageLookup(n)
+          case (_, e: Entity) => e
+        }
     }
-
 }

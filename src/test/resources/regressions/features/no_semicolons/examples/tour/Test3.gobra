@@ -5,7 +5,7 @@ package trivial
 
 requires acc(*p)
 ensures acc(*p) && *p == v
-func set(p *int, v int) {
+func assign(p *int, v int) {
   *p = v
 }
 
@@ -18,7 +18,7 @@ func pointer1() {
 
 func pointer2() {
   i! := 5
-  set(&i, 7)
+  assign(&i, 7)
   assert i == 7
 }
 

@@ -153,7 +153,10 @@ sealed trait CompositeObject extends Node {
 }
 
 object CompositeObject {
-  case class Struct(op: StructLit) extends CompositeObject
+  case class Struct(op : StructLit) extends CompositeObject
+  case class Sequence(op : SequenceLit) extends CompositeObject
+  case class Set(op : SetLit) extends CompositeObject
+  case class Multiset(op : MultisetLit) extends CompositeObject
 }
 
 case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
@@ -223,14 +226,206 @@ case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: So
 case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ: Type = BoolT
+override def typ: Type = BoolT
 }
 
 case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ: Type = BoolT
+override def typ: Type = BoolT
 }
+
+
+/* ** Collection expressions */
+
+/**
+  * Denotes the multiplicity operator "`left` # `right`", with `right`
+  * a sequence or (multi)set and `left` an expression of a matching type.
+  */
+case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("#") {
+  override def typ : Type = IntT
+}
+
+
+/* ** Sequence expressions */
+
+/**
+  * Denotes the length of `exp`, which has to be a sequence.
+  */
+case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
+/**
+  * A (mathematical) sequence literal "seq[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
+  */
+case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override def typ : Type = SequenceT(memberType)
+}
+
+/**
+  * Denotes the range of integers from `low` to `high`
+  * (both of which should be integers), not including `high` but including `low`.
+  */
+case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = SequenceT(IntT)
+}
+
+/**
+  * The appending of two sequences represented by `left` and `right`
+  * (which should be of identical types as result of type checking).
+  */
+case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("++") {
+  /** Should be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
+  * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
+  */
+case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `base`. */
+  override def typ : Type = base.typ
+}
+
+/**
+  * Denotes an indexing expression "`left`[`right`]" where `left` should be
+  * of a sequence type and `right` should be the integer-typed index.
+  */
+case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = left.typ match {
+    case SequenceT(t) => t
+    case t => Violation.violation(s"expected a sequence type but got $t")
+  }
+}
+
+/**
+  * Represents a _sequence drop expression_ roughly of
+  * the form "`left`[`right`:]".
+  * Here `left` is the base sequence and `right` an integer
+  * denoting the number of elements to drop from `left`.
+  */
+case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `left`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a _sequence take operation_ roughly of
+  * the form "`left`[:`right`]", where `left` is the base sequence
+  * and `right` an integer denoting the number of elements to
+  * take from `left`.
+  */
+case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `left`. */
+  override def typ : Type = left.typ
+}
+
+
+/* ** Unordered collection expressions */
+
+/**
+  * Represents a (multi)set union "`left` union `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("union") {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a (multi)set intersection "`left` intersection `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("intersection") {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a (multi)set difference "`left` setminus `right`",
+  * where `left` and `right` should be (multi)sets of identical types.
+  */
+case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("setminus") {
+  /** `left.typ` is expected to be identical to `right.typ`. */
+  override def typ : Type = left.typ
+}
+
+/**
+  * Represents a subset relation "`left` subset `right`", where
+  * `left` and `right` are assumed to be sets of comparable types.
+  */
+case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("subset") {
+  override def typ : Type = BoolT
+}
+
+/**
+  * Represents the cardinality of `exp`, which is assumed
+  * to be either a set or a multiset.
+  */
+case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT
+}
+
+/**
+  * Represents a membership expression "`left` in `right`".
+  * Here `right` should be a ghost collection (that is,
+  * a sequence, set, or multiset) of a type that is compatible
+  * with the one of `left`.
+  */
+case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
+  override def typ : Type = BoolT
+}
+
+
+/* ** Set expressions */
+
+/**
+  * Represents a (mathematical) set literal "set[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
+  */
+case class SetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override def typ : Type = SetT(memberType)
+}
+
+/**
+  * Represents the conversion of a collection of type 't', represented by `exp`,
+  * to a (mathematical) set of type 't'.
+  */
+case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case SequenceT(t) => SetT(t)
+    case t => Violation.violation(s"expected a sequence type but got $t")
+  }
+}
+
+
+/* ** Multiset expressions */
+
+/**
+  * Represents a multiset literal "mset[`memberType`] { e_0, ..., e_n }",
+  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `memberType`.
+  */
+case class MultisetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override def typ : Type = MultisetT(memberType)
+}
+
+/**
+  * Represents the conversion of `exp` to a (mathematical) multiset of
+  * a matching type, where `exp` should be a collection, i.e., a sequence or (multi)set.
+  */
+case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case SequenceT(t) => MultisetT(t)
+    case t => Violation.violation(s"expected a sequence type but got $t")
+  }
+}
+
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -436,6 +631,22 @@ case object NilT extends Type
 
 case object PermissionT extends Type
 
+/**
+  * The type of mathematical sequences with elements of type `t`.
+  * @param t The type of elements
+  */
+case class SequenceT(t : Type) extends Type
+
+/**
+  * The type of mathematical sets with elements of type `t`.
+  */
+case class SetT(t : Type) extends Type
+
+/**
+  * The type of mathematical multisets with elements of type `t`.
+  */
+case class MultisetT(t : Type) extends Type
+
 case class DefinedT(name: String) extends Type with TopType
 
 case class PointerT(t: Type) extends Type with TopType
@@ -443,7 +654,6 @@ case class PointerT(t: Type) extends Type with TopType
 case class TupleT(ts: Vector[Type]) extends Type with TopType
 
 case class StructT(name: String, fields: Vector[Field]) extends Type with TopType
-
 
 
 

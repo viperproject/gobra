@@ -116,6 +116,103 @@ class ExpressionsImpl extends Expressions {
         case errors => Violation.violation(s"Invalid trigger pattern (${errors.head.readableMessage})")
       }
 
+      case in.SequenceLength(op) => for {
+        opT <- goE(op)
+      } yield vpr.SeqLength(opT)(pos, info, errT)
+
+      case in.RangeSequence(low, high) => for {
+        lowT <- goE(low)
+        highT <- goE(high)
+      } yield vpr.RangeSeq(lowT, highT)(pos, info, errT)
+
+      case in.SequenceAppend(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqAppend(leftT, rightT)(pos, info, errT)
+
+      case in.SequenceUpdate(seq, left, right) => for {
+        seqT <- goE(seq)
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqUpdate(seqT, leftT, rightT)(pos, info, errT)
+
+      case in.SequenceIndex(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqIndex(leftT, rightT)(pos, info, errT)
+
+      case in.SequenceDrop(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqDrop(leftT, rightT)(pos, info, errT)
+
+      case in.SequenceTake(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
+
+      case in.SetConversion(exp) => for {
+        expT <- goE(exp)
+      } yield expT.typ match {
+        case vpr.SeqType(_) => ctx.seqToSet.create(expT)(pos, info, errT)
+        case t => Violation.violation(s"conversion of type $t to sets is not implemented")
+      }
+
+      case in.Union(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetUnion(leftT, rightT)(pos, info, errT)
+
+      case in.Intersection(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetIntersection(leftT, rightT)(pos, info, errT)
+
+      case in.SetMinus(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetMinus(leftT, rightT)(pos, info, errT)
+
+      case in.Subset(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield vpr.AnySetSubset(leftT, rightT)(pos, info, errT)
+
+      case in.Contains(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield rightT.typ match {
+        case _ : vpr.SeqType => vpr.SeqContains(leftT, rightT)(pos, info, errT)
+        case _ : vpr.SetType | _ : vpr.MultisetType =>
+          vpr.AnySetContains(leftT, rightT)(pos, info, errT)
+        case t => Violation.violation(s"expected a sequence or (multi)set, but got $t")
+      }
+
+      case in.Cardinality(exp) => for {
+        expT <- goE(exp)
+      } yield vpr.AnySetCardinality(expT)(pos, info, errT)
+
+      case in.MultisetConversion(exp) => for {
+        expT <- goE(exp)
+      } yield expT.typ match {
+        case vpr.SeqType(_) => ctx.seqToMultiset.create(expT)(pos, info, errT)
+        case t => Violation.violation(s"conversion of type $t to multisets is not implemented")
+      }
+
+      case in.Multiplicity(left, right) => for {
+        leftT <- goE(left)
+        rightT <- goE(right)
+      } yield rightT.typ match {
+        case vpr.SeqType(_) => ctx.seqMultiplicity.create(leftT, rightT)(pos, info, errT)
+        case vpr.SetType(_) => vpr.CondExp(
+          vpr.AnySetContains(leftT, rightT)(pos, info, errT),
+          vpr.IntLit(1)(pos, info, errT),
+          vpr.IntLit(0)(pos, info, errT)
+        )(pos, info, errT)
+        case vpr.MultisetType(_) => vpr.AnySetContains(leftT, rightT)(pos, info, errT)
+        case t => Violation.violation(s"translation for multiplicity with type $t is not implemented")
+      }
+
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)
     }

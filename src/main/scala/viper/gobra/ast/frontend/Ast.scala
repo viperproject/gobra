@@ -8,12 +8,15 @@ package viper.gobra.ast.frontend
 
 import java.nio.file.Paths
 
+import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
+
+import scala.collection.immutable
 
 // TODO: comment describing identifier positions (resolution)
 
@@ -84,12 +87,27 @@ case class PPackageClause(id: PPkgDef) extends PNode
 
 
 sealed trait PImport extends PNode {
-  def pkg: PPkg
+  def importPath: String
 }
 
-case class PQualifiedImport(qualifier: Option[PDefLikeId], pkg: PPkg) extends PImport
+sealed trait PQualifiedImport extends PImport
 
-case class PUnqualifiedImport(pkg: PPkg) extends PImport
+case class PExplicitQualifiedImport(qualifier: PDefLikeId, importPath: String) extends PQualifiedImport
+
+/** will be converted to an PExplicitQualifiedImport in the parse postprocessing step */
+case class PImplicitQualifiedImport(importPath: String) extends PQualifiedImport with Rewritable {
+  override def arity: Int = 1
+
+  override def deconstruct: immutable.Seq[Any] = immutable.Seq(importPath)
+
+  override def reconstruct(components: immutable.Seq[Any]): Any =
+    components match {
+      case immutable.Seq(path: String) => PImplicitQualifiedImport(path)
+      case _ => new IllegalArgumentException
+    }
+}
+
+case class PUnqualifiedImport(importPath: String) extends PImport
 
 
 sealed trait PGhostifiable extends PNode
@@ -276,11 +294,37 @@ sealed trait PUnaryExp extends PActualExpression {
 }
 
 case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
-  override val name: String = id.name
+  override val name : String = id.name
 }
 
 
 sealed trait PLiteral extends PActualExpression
+
+object PLiteral {
+  /**
+    * Gives a simple sequence literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def sequence(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PSequenceType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
+    * Gives a simple set literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def set(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PSetType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
+    * Gives a simple multiset literal of type `typ` with unkeyed elements `exprs`.
+    */
+  def multiset(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PMultisetType(typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+}
 
 sealed trait PBasicLiteral extends PLiteral
 
@@ -320,7 +364,32 @@ case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression 
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
-case class PSliceExp(base: PExpression, low: PExpression, high: PExpression, cap: Option[PExpression] = None) extends PActualExpression
+/**
+  * Represents Go's built-in "len(`exp`)" function that returns the
+  * length of `exp`, according to its type. The documentation
+  * (https://golang.org/pkg/builtin/#len) gives the following
+  * possible cases:
+  *
+  * - Array: the number of elements in `exp`.
+  * - Pointer to array: the number of elements in `*exp`.
+  * - Slice, or map: the number of elements in `expr`;
+  *   if `exp` is nil, "len(`exp`)" is zero.
+  * - String: the number of bytes in `exp`.
+  * - Channel: the number of elements queued (unread) in the
+  *   channel buffer. If `exp` is nil, then "len(`exp`)" is zero.
+  *
+  * Gobra extends this with:
+  *
+  * - Sequence: the number of elements in `exp`.
+  */
+case class PLength(exp : PExpression) extends PActualExpression
+
+/**
+  * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",
+  * where one or more of the indices `low`, `high` and `cap` are optional
+  * depending on the type of `base`.
+  */
+case class PSliceExp(base: PExpression, low: Option[PExpression] = None, high: Option[PExpression] = None, cap: Option[PExpression] = None) extends PActualExpression
 
 case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpression
 
@@ -632,10 +701,19 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 /**
-  * Ghost Expression and Assertions
+  * Ghost Expressions and Assertions
   */
 
 sealed trait PGhostExpression extends PExpression with PGhostNode
+
+/**
+  * Conceals all binary ghost expressions, like sequence concatenation,
+  * set union, et cetera.
+  */
+sealed trait PBinaryGhostExp extends PGhostExpression {
+  def left : PExpression
+  def right : PExpression
+}
 
 //sealed trait PPermission extends PGhostExpression
 //
@@ -649,10 +727,10 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
-/** expression has to be deref, field selection, or predicate call */
+/** Expression has to be deref, field selection, or predicate call */
 case class PAccess(exp: PExpression) extends PGhostExpression
 
-/** specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
+/** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
@@ -660,11 +738,176 @@ case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], bod
 case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 
-/**
-  * Types
-  */
+/* ** Ghost collections */
 
+/**
+  * Conceals the type of ordered and unordered ghost collections,
+  * e.g., sequences, sets, and multisets.
+  */
+sealed trait PGhostCollectionExp extends PGhostExpression
+
+/**
+  * Represents expressions of the form "`left` in `right`",
+  * that is, membership of a ghost collection.
+  */
+case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Denotes the cardinality of `exp`, which is expected
+  * to be either a set or a multiset.
+  */
+case class PCardinality(exp : PExpression) extends PGhostCollectionExp
+
+/**
+  * Represents a multiplicity expression of the form "`left` # `right`"
+  * in Gobra's specification language, where `right` should be a ghost
+  * collection of some type 't', and `left` an expression of type 't'.
+  * This expression evaluates to the number of times `left` occurs
+  * in the collection `right`, i.e., its multiplicity.
+  */
+case class PMultiplicity(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Represents a ghost collection literal, e.g., a sequence
+  * (or set or multiset) literal "seq[`typ`] { `exprs` }".
+  */
+sealed trait PGhostCollectionLiteral {
+  def typ : PType
+  def exprs : Vector[PExpression]
+}
+
+
+/* ** Sequence expressions */
+
+/**
+  * Conceals all sequence ghost expressions
+  * (for example sequence literals, sequence concatenation, etc.).
+  */
+sealed trait PSequenceExp extends PGhostCollectionExp
+
+/**
+  * The appending of two sequences represented by `left` and `right`.
+  */
+case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExp with PBinaryGhostExp
+
+/**
+  * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
+  * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
+  * The `clauses` vector should contain at least one element.
+  */
+case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExp {
+  /** Constructs a sequence update with only a single clause built from `left` and `right`. */
+  def this(seq : PExpression, left : PExpression, right : PExpression) =
+    this(seq, Vector(PSequenceUpdateClause(left, right)))
+}
+
+/**
+  * Represents a single update clause "`left` = `right`"
+  * in a sequence update expression "`seq`[`left` = `right`]".
+  */
+case class PSequenceUpdateClause(left : PExpression, right : PExpression) extends PNode
+
+/**
+  * Denotes the range of integers from `low` to `high`
+  * (which should both be integers), not including `high` but including `low`,
+  * written "seq[`low` .. `high`]" in Gobra's specification language.
+  */
+case class PRangeSequence(low : PExpression, high : PExpression) extends PSequenceExp
+
+
+/* ** Unordered ghost collections */
+
+/**
+  * Conceals all unsorted ghost collections, like sets and multisets.
+  */
+sealed trait PUnorderedGhostCollectionExp extends PGhostCollectionExp
+
+/**
+  * Represents a union "`left` union `right`" of two unordered ghost collections,
+  * `left` and `right`, which should be of comparable types.
+  */
+case class PUnion(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Represents the intersection "`left` intersection `right`" of
+  * `left` and `right`, which should be unordered ghost collections
+  * of a comparable type.
+  */
+case class PIntersection(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Represents the (multi)set difference "`left` setminus `right`" of
+  * `left` and `right`, which should be unordered ghost collections
+  * of a comparable type.
+  */
+case class PSetMinus(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+/**
+  * Denotes the subset relation "`left` subset `right`",
+  * where `left` and `right` should be unordered ghost collections
+  * of comparable types.
+  */
+case class PSubset(left : PExpression, right : PExpression) extends PUnorderedGhostCollectionExp with PBinaryGhostExp
+
+
+/* ** Set expressions */
+
+/**
+  * Conceals all set expressions, e.g., set literals.
+  */
+sealed trait PSetExp extends PUnorderedGhostCollectionExp
+
+/**
+  * Represents the explicit conversion of `exp` to a set
+  * (of a matching, appropriate type), written "set(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PSetConversion(exp : PExpression) extends PSetExp
+
+
+/* ** Multiset expressions */
+
+/**
+  * Conceals all multiset expressions, like multiset literals.
+  */
+sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
+
+/**
+  * Represents the explicit conversion of `exp` to a multiset
+  * (of a matching, appropriate type), written "mset(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PMultisetConversion(exp : PExpression) extends PMultisetExp
+
+
+/* ** Types */
+
+/**
+  * Conceals the type of ghost types.
+  */
 sealed trait PGhostType extends PType with PGhostNode
+
+/**
+  * Conceals the type of ghost literal types.
+  */
+sealed trait PGhostLiteralType extends PGhostType with PLiteralType
+
+/**
+  * The type of (mathematical) sequences with elements of type `elem`.
+  */
+case class PSequenceType(elem : PType) extends PGhostLiteralType
+
+/**
+  * The type of (mathematical) sets with elements of type `elem`.
+  */
+case class PSetType(elem : PType) extends PGhostLiteralType
+
+/**
+  * The type of (mathematical) multisets with elements of type `elem`.
+  */
+case class PMultisetType(elem : PType) extends PGhostLiteralType
+
+
 
 /**
   * Miscellaneous

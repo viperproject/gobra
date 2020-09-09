@@ -106,47 +106,47 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualEntityType(entity: ActualRegular, id: PIdnNode): Type = entity match {
 
-    case SingleConstant(_, _, exp, opt, _, _) => opt.map(typeType)
-      .getOrElse(exprType(exp) match {
+    case SingleConstant(_, _, exp, opt, _, context) => opt.map(context.typ)
+      .getOrElse(context.typ(exp) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case SingleLocalVariable(exp, opt, _, _, _) => opt.map(typeType)
-      .getOrElse(exprType(exp.get) match {
+    case SingleLocalVariable(exp, opt, _, _, context) => opt.map(context.typ)
+      .getOrElse(context.typ(exp.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case MultiLocalVariable(idx, exp, _, _, _) => exprType(exp) match {
+    case MultiLocalVariable(idx, exp, _, _, context) => context.typ(exp) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case Function(PFunctionDecl(_, args, r, _, _), _, _) =>
-      FunctionT(args map miscType, miscType(r))
+    case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
+      FunctionT(args map context.typ, context.typ(r))
 
-    case NamedType(decl, _, _) => DeclaredT(decl, this)
-    case TypeAlias(PTypeAlias(right, _), _, _) => typeType(right)
+    case NamedType(decl, _, context) => DeclaredT(decl, context)
+    case TypeAlias(PTypeAlias(right, _), _, context) => context.typ(right)
 
-    case InParameter(p, _, _, _) => typeType(p.typ)
+    case InParameter(p, _, _, context) => context.typ(p.typ)
 
-    case ReceiverParameter(p, _, _, _) => typeType(p.typ)
+    case ReceiverParameter(p, _, _, context) => context.typ(p.typ)
 
-    case OutParameter(p, _, _, _) => typeType(p.typ)
+    case OutParameter(p, _, _, context) => context.typ(p.typ)
 
-    case TypeSwitchVariable(decl, _, _, _) =>
+    case TypeSwitchVariable(decl, _, _, context) =>
       val constraints = typeSwitchConstraints(id)
-      if (constraints.size == 1) typeType(constraints.head) else exprType(decl.exp)
+      if (constraints.size == 1) context.typ(constraints.head) else context.typ(decl.exp)
 
-    case RangeVariable(idx, range, _, _, _) => miscType(range) match {
+    case RangeVariable(idx, range, _, _, context) => context.typ(range) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case Field(PFieldDecl(_, typ), _, _) => typeType(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
 
-    case Embbed(PEmbeddedDecl(_, fieldId), _, _) => idType(fieldId)
+    case Embbed(PEmbeddedDecl(_, fieldId), _, context) => context.typ(fieldId)
 
     case Import(decl, _) => ImportT(decl)
 

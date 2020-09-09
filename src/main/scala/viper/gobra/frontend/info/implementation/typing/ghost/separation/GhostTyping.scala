@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
@@ -43,7 +44,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
     createGhostTyping[PExpression]{
       case _: PGhostExpression => isGhost
-      case e if exprType(e).isInstanceOf[GhostType] => isGhost
+      case e if exprType(e).isInstanceOf[Type.GhostType] => isGhost
 
       case PNamedOperand(id) => ghost(ghostIdClassification(id))
 
@@ -54,7 +55,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
 
-        // ghostness of proof annotations is decided by the argument
+      // ghostness of proof annotations is decided by the argument
       case ann: PActualExprProofAnnotation => ghost(!noGhostPropagationFromChildren(ann.op))
 
       // catches ghost field reads, method calls, function calls since their id is ghost

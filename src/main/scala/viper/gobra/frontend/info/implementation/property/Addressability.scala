@@ -24,7 +24,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     case e => goAddressable(e)
   }
 
-  // depends on: entity, tipe
+  // depends on: entity, type
   lazy val addressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => addressableVar(id)
     case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])

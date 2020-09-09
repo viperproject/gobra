@@ -7,11 +7,10 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-
-import scala.collection.immutable.ListMap
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 

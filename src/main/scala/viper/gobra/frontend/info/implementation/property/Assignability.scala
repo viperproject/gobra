@@ -12,8 +12,6 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
-  import viper.gobra.util.Violation._
-
   lazy val declarableTo: Property[(Vector[Type], Option[Type], Vector[Type])] =
     createProperty[(Vector[Type], Option[Type], Vector[Type])] {
       case (right, None, left) => multiAssignableTo.result(right, left)
@@ -123,50 +121,79 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             failedProp("number of arguments does not match structure")
           }
 
-        case ArrayT(len, elem) =>
-          failedProp("expected integer as keys for array literal"
-            , elems.exists(_.key.exists {
-              case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
-              case _ => true
-            })) and
-            propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
-            failedProp("found overlapping or out-of-bound index arguments"
-              , {
-                val idxs = constantIndexes(elems)
-                idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0 && i < len)
-              })
+        case ArrayT(len, t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllKeysWithinBounds(elems, len) and
+            areAllElementsAssignable(elems, t)
 
-        case SliceT(elem) =>
-          failedProp("expected integer as keys for slice literal"
-            , elems.exists(_.key.exists {
-              case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
-              case _ => true
-            })) and
-            propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem))) and
-            failedProp("found overlapping or out-of-bound index arguments"
-              , {
-                val idxs = constantIndexes(elems)
-                idxs.distinct.size == idxs.size && idxs.forall(i => i >= 0)
-              })
+        case SliceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllElementsAssignable(elems, t)
 
-        case MapT(key, elem) =>
-          failedProp("for map literals all elements must be keyed"
-            , elems.exists(_.key.isEmpty)) and
-            propForall(elems.flatMap(_.key), compositeKeyAssignableTo.before((c: PCompositeKey) => (c, key))) and
-            propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, elem)))
+        case MapT(key, t) =>
+          areAllElementsKeyed(elems) and
+            areAllKeysAssignable(elems, key) and
+            areAllElementsAssignable(elems, t)
+
+        case SequenceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllKeysWithinBounds(elems, elems.length) and
+            areAllElementsAssignable(elems, t)
+
+        case SetT(t) =>
+          areNoElementsKeyed(elems) and
+            areAllElementsAssignable(elems, t)
+
+        case MultisetT(t) =>
+          areNoElementsKeyed(elems) and
+            areAllElementsAssignable(elems, t)
 
         case t => failedProp(s"cannot assign literal to $t")
       }
     case (l, t) => failedProp(s"cannot assign literal $l to $t")
   }
 
-  private def constantIndexes(vs: Vector[PKeyedElement]): List[BigInt] =
-    vs.foldLeft(List(-1: BigInt)) {
-      case (last :: rest, PKeyedElement(Some(PExpCompositeVal(exp)), _)) =>
-        intConstantEval(exp).getOrElse(last + 1) :: last :: rest
+  private def areAllKeysConstant(elems : Vector[PKeyedElement]) : PropertyResult = {
+    val condition = elems.flatMap(_.key).exists {
+      case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
+      case _ => true
+    }
+    failedProp("expected integers as keys in the literal", condition)
+  }
 
-      case (last :: rest, _) => last + 1 :: last :: rest
+  private def areNoElementsKeyed(elems : Vector[PKeyedElement]) : PropertyResult =
+    failedProp("no elements in the literal must be keyed", elems.exists(_.key.isDefined))
 
-      case _ => violation("left argument must be non-nil element")
-    }.tail
+  private def areAllElementsKeyed(elems : Vector[PKeyedElement]) : PropertyResult =
+    failedProp("all elements in the literal must be keyed", elems.exists(_.key.isEmpty))
+
+  private def areAllKeysDisjoint(elems : Vector[PKeyedElement]) : PropertyResult = {
+    val indices = keyElementIndices(elems)
+    failedProp("found overlapping keys", indices.distinct.size != indices.size)
+  }
+
+  private def areAllKeysNonNegative(elems : Vector[PKeyedElement]) : PropertyResult =
+    failedProp("found negative keys", keyElementIndices(elems).exists(_ < 0))
+
+  private def areAllKeysWithinBounds(elems : Vector[PKeyedElement], length : BigInt) : PropertyResult =
+    failedProp("found out-of-bound keys", keyElementIndices(elems).exists(length <= _))
+
+  private def areAllKeysAssignable(elems : Vector[PKeyedElement], typ : Type) =
+    propForall(elems.flatMap(_.key), compositeKeyAssignableTo.before((c: PCompositeKey) => (c, typ)))
+
+  private def areAllElementsAssignable(elems : Vector[PKeyedElement], typ : Type) =
+    propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, typ)))
+
+  def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt] = {
+    elems.map(_.key).zipWithIndex.map {
+      case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
+      case (_, i) => BigInt(i)
+    }
+  }
 }

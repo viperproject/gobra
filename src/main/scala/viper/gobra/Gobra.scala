@@ -90,7 +90,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       .map(BackTranslator.backTranslate(_)(config))
   }
 
-  private val inFileConfigRegex = """(?:.|\r\n|\r|\n)*\/\/ ##\((.*)\)(?:.|\r\n|\r|\n)*""".r
+  private val inFileConfigRegex = """##\((.*)\)""".r
 
   /**
     * Parses all inputFiles given in the current config for in-file command line options (wrapped with "## (...)")
@@ -98,16 +98,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   private def getAndMergeInFileConfig(config: Config): Config = {
-    val inFileConfigStrings = config.inputFiles.map(file => {
-        val bufferedSource = Source.fromFile(file)
-        val content = bufferedSource.mkString
-        val config = content match {
-          case inFileConfigRegex(configString) => Some(configString)
-          case _ => None
-        }
-        bufferedSource.close()
-        config
-      }).collect { case Some(configString) => configString }
+    val inFileConfigStrings = config.inputFiles.flatMap(file => {
+      val bufferedSource = Source.fromFile(file)
+      val content = bufferedSource.mkString
+      val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
+      bufferedSource.close()
+      configs
+    })
 
     // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
     val args = inFileConfigStrings.flatMap(configString => configString.split(" "))

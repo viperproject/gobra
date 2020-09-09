@@ -27,7 +27,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PRange(exp) => isExpr(exp).out ++ (exprType(exp) match {
       case _: ArrayT | PointerT(_: ArrayT) | _: SliceT |
            _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
-      case t => message(n, s"type error: got $t but expected rangable type")
+      case t => message(n, s"type error: got $t but expected rangeable type")
     })
 
     case n: PParameter => isType(n.typ).out
@@ -36,6 +36,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out
+
+    case f: PFieldDecl => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)
 
     case n: PExpCompositeVal => isExpr(n.exp).out
     case _: PLiteralValue | _: PKeyedElement | _: PCompositeVal => noMessages // these are checked at the level of the composite literal
@@ -64,6 +66,8 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PEmbeddedName(t) => typeType(t)
     case PEmbeddedPointer(t) => PointerT(typeType(t))
+
+    case f: PFieldDecl => typeType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)

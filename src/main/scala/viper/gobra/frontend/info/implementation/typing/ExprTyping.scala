@@ -19,7 +19,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
 
-    case n: PNamedOperand => noMessages // no checks to avoid cycles
+    case _: PNamedOperand => noMessages // no checks to avoid cycles
 
     case n: PDeref =>
       resolve(n) match {
@@ -116,12 +116,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
 
-    case n@PCompositeLit(t, lit) =>
+    case n@PCompositeLit(t, lit) => {
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
         case t: PType => typeType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
+    }
 
     case _: PFunctionLit => noMessages
 
@@ -169,32 +170,44 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val idxOpt = intConstantEval(index)
             message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (SliceT(elem), IntT) => noMessages
+          case (SequenceT(_), IntT) => noMessages
+
+          case (SliceT(_), IntT) => noMessages
+
           case (MapT(key, elem), indexT) =>
             message(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (bt, it) => message(n, s"$it index is not a proper index of $bt")
         })
 
-    case n@PSliceExp(base, low, high, cap) =>
-      isExpr(base).out ++ isExpr(low).out ++ isExpr(high).out ++ cap.fold(noMessages)(isExpr(_).out) ++
-        ((exprType(base), exprType(low), exprType(high), cap map exprType) match {
-          case (ArrayT(l, elem), IntT, IntT, None | Some(IntT)) =>
-            val (lowOpt, highOpt, capOpt) = (intConstantEval(low), intConstantEval(high), cap map intConstantEval)
-            message(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
-              message(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
-              message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l))) ++
-              message(n, s"array $base is not addressable", !addressable(base))
 
-          case (PointerT(ArrayT(l, elem)), IntT, IntT, None | Some(IntT)) =>
-            val (lowOpt, highOpt, capOpt) = (intConstantEval(low), intConstantEval(high), cap map intConstantEval)
-            message(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && i < l)) ++
-              message(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && i < l)) ++
-              message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+    case n@PSliceExp(base, low, high, cap) => isExpr(base).out ++
+      low.fold(noMessages)(isExpr(_).out) ++
+      high.fold(noMessages)(isExpr(_).out) ++
+      cap.fold(noMessages)(isExpr(_).out) ++
+      ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
+        case (ArrayT(l, _), None | Some(IntT), None | Some(IntT), None | Some(IntT)) =>
+          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
+          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l))) ++
+            message(n, s"array $base is not addressable", !addressable(base))
 
-          case (SliceT(elem), IntT, IntT, None | Some(IntT)) => noMessages
-          case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
-        })
+        case (SequenceT(_), lowT, highT, capT) => {
+          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", t != IntT)) ++
+            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", t != IntT)) ++
+            message(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
+        }
+
+        case (PointerT(ArrayT(l, _)), None | Some(IntT), None | Some(IntT), None | Some(IntT)) =>
+          val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
+          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+
+        case (SliceT(_), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => noMessages
+        case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
+      })
 
     case n@PTypeAssertion(base, typ) =>
       isExpr(base).out ++ isType(typ).out ++
@@ -227,17 +240,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
+    case PLength(op) => isExpr(op).out ++ isPureExpr(op) ++ {
+      val typ = exprType(op)
+      // currently only sequences are supported
+      message(op, s"expected a sequence type, but got $typ", !typ.isInstanceOf[SequenceT])
+    }
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
-
-
-
-
-
-
-
-
-
 
   lazy val exprType: Typing[PExpression] = createTyping {
     case expr: PActualExpression => actualExprType(expr)
@@ -268,16 +278,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
       case (ArrayT(_, elem), IntT) => elem
       case (PointerT(ArrayT(_, elem)), IntT) => elem
+      case (SequenceT(elem), IntT) => elem
       case (SliceT(elem), IntT) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
-    case PSliceExp(base, low, high, cap) => (exprType(base), exprType(low), exprType(high), cap map exprType) match {
-      case (ArrayT(_, elem), IntT, IntT, None | Some(IntT)) if addressable(base) => SliceT(elem)
-      case (PointerT(ArrayT(_, elem)), IntT, IntT, None | Some(IntT)) => SliceT(elem)
-      case (SliceT(elem), IntT, IntT, None | Some(IntT)) => SliceT(elem)
+    case PSliceExp(base, low, high, cap) => (exprType(base), low map exprType, high map exprType, cap map exprType) match {
+      case (ArrayT(_, elem), None | Some(IntT), None | Some(IntT), None | Some(IntT)) if addressable(base) => SliceT(elem)
+      case (PointerT(ArrayT(_, elem)), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => SliceT(elem)
+      case (SequenceT(elem), None | Some(IntT), None | Some(IntT), None) => SequenceT(elem)
+      case (SliceT(elem), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => SliceT(elem)
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
@@ -300,7 +312,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv => IntT
+    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength => IntT
 
     case n: PUnfolding => exprType(n.op)
 

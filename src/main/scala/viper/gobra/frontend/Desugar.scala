@@ -1478,6 +1478,13 @@ object Desugar {
           } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
         }
 
+        case PSequenceConversion(op) => for {
+          dop <- go(op)
+        } yield dop.typ match {
+          case _: in.SequenceT => dop
+          case t => violation(s"expected a sequence type, but got $t")
+        }
+
         case PSetConversion(op) => for {
           dop <- go(op)
         } yield dop.typ match {

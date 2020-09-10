@@ -1,0 +1,6 @@
+package pkg
+
+func foo() {
+  //:: ExpectedOutput(type_error)
+  xs := seq(seq[int] { 42 })
+}

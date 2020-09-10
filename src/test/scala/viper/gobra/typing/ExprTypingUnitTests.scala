@@ -1,4 +1,4 @@
-package viper.gobra
+package viper.gobra.typing
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
@@ -2949,6 +2949,62 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     frontend.exprType(expr)() should matchPattern {
       case Type.ArrayT(a, Type.SequenceT(Type.SetT(Type.BooleanT)))
         if a == BigInt(1) =>
+    }
+  }
+
+  test("TypeChecker: should let a simple sequence-to-sequence conversion be well-defined") {
+    val expr = PSequenceConversion(
+      PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should not let a simple sequence-to-sequence conversion be well-defined if there is a typing problem in the inner expression") {
+    val expr = PSequenceConversion(
+      PLiteral.sequence(PIntType(), Vector(PIntLit(1), PBoolLit(true), PIntLit(3)))
+    )
+
+    assert (!frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should mark a simple sequence-to-sequence conversion as a pure expression") {
+    val expr = PSequenceConversion(
+      PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    )
+
+    assert (frontend.isPureExpr(expr)())
+  }
+
+  test("TypeChecker: should mark a simple seq-to-seq conversion as ghost") {
+    val expr = PSequenceConversion(
+      PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    )
+
+    assert (frontend.isGhostExpr(expr)())
+  }
+
+  test("TypeChecker: should assign the correct type to a simple seq-to-seq conversion expression (1)") {
+    val expr = PSequenceConversion(
+      PLiteral.sequence(PIntType(), Vector(PIntLit(1), PIntLit(2)))
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a slightly more complex seq-to-seq conversion expression") {
+    val expr = PSequenceConversion(
+      PSequenceConversion(
+        PLiteral.sequence(PSetType(PBoolType()), Vector(
+          PLiteral.set(PBoolType(), Vector(PBoolLit(false)))
+        ))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.SetT(Type.BooleanT)) =>
     }
   }
 

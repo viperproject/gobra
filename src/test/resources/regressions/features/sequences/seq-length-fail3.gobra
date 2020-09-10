@@ -1,6 +1,7 @@
 package pkg
 
 func foo(ghost xs seq[int]) {
+  // fails: sequences do not have capacities
   //:: ExpectedOutput(type_error)
-  ghost n := xs[true]
+  ghost n := cap(xs)
 }

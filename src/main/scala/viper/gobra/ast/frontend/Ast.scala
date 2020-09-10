@@ -791,6 +791,13 @@ sealed trait PSequenceExp extends PGhostCollectionExp
 case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExp with PBinaryGhostExp
 
 /**
+  * Represents the explicit conversion of `exp` to a sequence
+  * (of a matching, appropriate type), written "seq(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PSequenceConversion(exp : PExpression) extends PSequenceExp
+
+/**
   * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
   * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.

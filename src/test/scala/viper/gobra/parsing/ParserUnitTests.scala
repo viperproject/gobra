@@ -1,12 +1,13 @@
-package viper.gobra
+package viper.gobra.parsing
 
-import org.scalatest.{FunSuite, Inside, Matchers}
-import org.scalatest.exceptions.TestFailedException
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
-import scala.reflect.ClassTag
+import org.scalatest.exceptions.TestFailedException
+import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
+
+import scala.reflect.ClassTag
 
 class ParserUnitTests extends FunSuite with Matchers with Inside {
   private val frontend = new TestFrontend()
@@ -2231,6 +2232,66 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
         )
       ))
       ) if a == BigInt(10) && b == BigInt(12) =>
+    }
+  }
+
+  test("Parser: should parse a simple sequence conversion expression") {
+    frontend.parseExpOrFail("seq(a)") should matchPattern {
+      case PSequenceConversion(PNamedOperand(PIdnUse("a"))) =>
+    }
+  }
+
+  test("Parser: should parse a simple sequence conversion expression with some extra spaces added") {
+    frontend.parseExpOrFail(" seq ( a ) ") should matchPattern {
+      case PSequenceConversion(PNamedOperand(PIdnUse("a"))) =>
+    }
+  }
+
+  test("Parser: should parse a slightly more complex sequence conversion expression") {
+    frontend.parseExpOrFail("seq([1]int { 2 + 3 })") should matchPattern {
+      case PSequenceConversion(
+        PCompositeLit(
+          PArrayType(PIntLit(a), PIntType()),
+          PLiteralValue(Vector(
+            PKeyedElement(None, PExpCompositeVal(
+              PAdd(PIntLit(b), PIntLit(c))
+            ))
+          ))
+        )
+      ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(3) =>
+    }
+  }
+
+  test("Parser: should parse an append expression of two sequence conversions") {
+    frontend.parseExpOrFail("seq(a1) ++ seq(a2)") should matchPattern {
+      case PSequenceAppend(
+        PSequenceConversion(PNamedOperand(PIdnUse("a1"))),
+        PSequenceConversion(PNamedOperand(PIdnUse("a2")))
+      ) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence conversion operation withing an opening parenthesis") {
+    frontend.parseExp("seq a ) ") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence conversion operation withing an closing parenthesis") {
+    frontend.parseExp("seq ( a ") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a sequence conversion operation with a parsing problem in the inner expression") {
+    frontend.parseExp("seq(seq)") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: let a sequence conversion operation only take one argument") {
+    frontend.parseExp("seq(a,b)") should matchPattern {
+      case Left(_) =>
     }
   }
 

@@ -96,6 +96,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
           case t => message(seq, s"expected a sequence, but got $t")
         })
+        case PSequenceConversion(op) => exprType(op) match {
+          case _: SequenceT => isExpr(op).out
+          case t => message(op, s"expected a sequence type, but got $t")
+        }
       }
 
       case expr : PUnorderedGhostCollectionExp => expr match {
@@ -146,6 +150,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PRangeSequence(_, _) => SequenceT(IntT)
         case PSequenceAppend(left, _) => exprType(left)
         case PSequenceUpdate(seq, _) => exprType(seq)
+        case PSequenceConversion(op) => exprType(op) match {
+          case t: SequenceT => t
+          case t => violation(s"expected a sequence type, but got $t")
+        }
       }
       case expr : PUnorderedGhostCollectionExp => expr match {
         case expr : PBinaryGhostExp => expr match {
@@ -245,6 +253,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case expr: PGhostCollectionExp => expr match {
         case n: PBinaryGhostExp => go(n.left) && go(n.right)
+        case PSequenceConversion(op) => go(op)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
         case PCardinality(op) => go(op)

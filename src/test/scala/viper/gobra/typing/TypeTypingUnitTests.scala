@@ -1,4 +1,4 @@
-package viper.gobra
+package viper.gobra.typing
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._

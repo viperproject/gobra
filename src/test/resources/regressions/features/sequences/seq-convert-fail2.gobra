@@ -1,0 +1,6 @@
+package pkg
+
+func foo() {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert seq[bool] { true, false } == seq(seq[bool] { false, true })
+}

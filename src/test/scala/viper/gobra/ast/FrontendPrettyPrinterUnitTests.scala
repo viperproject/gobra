@@ -1,4 +1,4 @@
-package viper.gobra
+package viper.gobra.ast
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
@@ -892,6 +892,50 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
     frontend.show(expr) should matchPattern {
       case "[...]bool { { } }" =>
+    }
+  }
+
+  test("Printer: should correctly show a very simple sequence conversion") {
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("e")))
+
+    frontend.show(expr) should matchPattern {
+      case "seq(e)" =>
+    }
+  }
+
+  test("Printer: should be able to show a slightly more complex sequence conversion expression") {
+    val expr = PSequenceConversion(
+      PSequenceAppend(
+        PNamedOperand(PIdnUse("xs")),
+        PLiteral.array(PIntType(), Vector(
+          PIntLit(42)
+        ))
+      )
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "seq(xs ++ [1]int { 42 })" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested sequence conversion") {
+    val expr = PSequenceConversion(
+      PSequenceConversion(PNamedOperand(PIdnUse("a")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "seq(seq(a))" =>
+    }
+  }
+
+  test("Printer: should correctly show the append of two sequence conversions") {
+    val expr = PSequenceAppend(
+      PSequenceConversion(PNamedOperand(PIdnUse("a"))),
+      PSequenceConversion(PNamedOperand(PIdnUse("b")))
+    )
+
+    frontend.show(expr) should matchPattern {
+      case "seq(a) ++ seq(b)" =>
     }
   }
 

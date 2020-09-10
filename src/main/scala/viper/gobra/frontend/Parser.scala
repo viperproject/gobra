@@ -639,8 +639,18 @@ object Parser {
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
       "|" ~> expression <~ "|" ^^ PCardinality |
-        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion |
-        "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
+        sequenceConversion |
+        setConversion |
+        multisetConversion
+
+    lazy val sequenceConversion : Parser[PSequenceConversion] =
+      "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
+
+    lazy val setConversion : Parser[PSetConversion] =
+      "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
+
+    lazy val multisetConversion : Parser[PMultisetConversion] =
+      "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
       conversion |
@@ -652,7 +662,6 @@ object Parser {
         typeAssertion |
         ghostPrimaryExp |
         operand
-
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {

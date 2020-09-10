@@ -1,4 +1,4 @@
-package viper.gobra
+package viper.gobra.ast
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.internal._

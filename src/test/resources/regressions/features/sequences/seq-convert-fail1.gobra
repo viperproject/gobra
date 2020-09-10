@@ -1,0 +1,6 @@
+package pkg
+
+func foo() {
+  //:: ExpectedOutput(type_error)
+  ghost xs := seq(seq[int] { true })
+}

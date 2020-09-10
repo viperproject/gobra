@@ -26,7 +26,7 @@ class TypePropertiesImpl extends TypeProperties {
       case _ => None
     }
     def beforeAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-      case in.PointerT(et) => afterAtMostOneRef(et)
+      case in.PointerT(et, _) => afterAtMostOneRef(et)
       case _ => afterAtMostOneRef(typ)
     }
     beforeAtMostOneRef(typ)
@@ -38,14 +38,14 @@ class TypePropertiesImpl extends TypeProperties {
       case _ => None
     }
     def beforeAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-      case in.PointerT(et) => afterAtMostOneRef(et)
+      case in.PointerT(et, _) => afterAtMostOneRef(et)
       case _ => None
     }
     beforeAtMostOneRef(typ)
   }
 
   override def pointerTyp(typ: in.Type)(ctx: Context): Option[in.Type] = underlyingType(typ)(ctx) match {
-    case in.PointerT(t) => Some(t)
+    case in.PointerT(t, _) => Some(t)
     case _ => None
   }
 

@@ -11,8 +11,7 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 
 
-import viper.server.ViperCoreServer
-import viper.server.ViperBackendConfig
+import viper.server.core.{ViperBackendConfig, ViperCoreServer}
 
 
 object ViperServer {

@@ -1069,6 +1069,28 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show an (internal) copy expression to a shared array") {
+    val expr = ArrayCopy(
+      LocalVar.Ref("a", ExclusiveArrayT(24, BoolT))(Internal),
+      ArrayKind.Shared()
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "copy(a)" =>
+    }
+  }
+
+  test("Printer: should correctly show an (internal) copy expression to an exclusive array") {
+    val expr = ArrayCopy(
+      LocalVar.Ref("arr", SharedArrayT(24, BoolT))(Internal),
+      ArrayKind.Exclusive()
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "copy(arr)" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

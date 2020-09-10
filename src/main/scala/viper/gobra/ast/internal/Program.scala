@@ -269,6 +269,10 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   }
 }
 
+/**
+  * Represents a copy of the array `expr`, which should either be shared or
+  * exclusive as indicated by `dstKind`. This AST node is only used internally.
+  */
 case class ArrayCopy(expr : Expr, dstKind : ArrayKind)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = expr.typ match {
     case t: ArrayType => t.convert(dstKind)

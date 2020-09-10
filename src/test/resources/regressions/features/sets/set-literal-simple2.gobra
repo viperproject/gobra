@@ -1,6 +1,13 @@
 package pkg
 
+const FORTYTWO = 42
+
 func test1() {
   ghost s := set[seq[int]] { { 1 : 12, 0 : 24 }, {  } }
   assert s == set[seq[int]] { {  }, { 24, 12 } }
+}
+
+func test2() {
+	ghost s := set[int] { FORTYTWO, FORTYTWO }
+  assert s == set[int] { 42 }
 }

@@ -1,0 +1,8 @@
+package pkg
+
+const ONE = 1
+
+func foo() {
+	//:: ExpectedOutput(type_error)
+	a := [ONE]int{12, 24}
+}

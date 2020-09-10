@@ -161,6 +161,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   private def areAllKeysConstant(elems : Vector[PKeyedElement]) : PropertyResult = {
     val condition = elems.flatMap(_.key).exists {
       case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
+      case PIdentifierKey(id) => intConstantEval(PNamedOperand(id)).isEmpty
       case _ => true
     }
     failedProp("expected integers as keys in the literal", condition)
@@ -195,6 +196,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt] = {
     elems.map(_.key).zipWithIndex.map {
       case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
+      case (Some(PIdentifierKey(id)), i) => intConstantEval(PNamedOperand(id)).getOrElse(BigInt(i))
       case (_, i) => BigInt(i)
     }
   }

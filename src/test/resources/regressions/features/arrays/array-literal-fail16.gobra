@@ -1,0 +1,8 @@
+package pkg
+
+const TWO = 2
+
+func foo() {
+	//:: ExpectedOutput(type_error)
+	a := [TWO]int{2}
+}

@@ -164,13 +164,13 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
 
-  def tryPackageLookup(importedPkg: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
-    def parseAndTypeCheck(importedPkg: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgName = importedPkg.pkg
-      val pkgFiles = PackageResolver.resolve(pkgName, config.includeDirs)
+  def tryPackageLookup(pkgImport: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
+    def parseAndTypeCheck(pkgImport: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val importPath = pkgImport.importPath
+      val pkgFiles = PackageResolver.resolve(importPath, config.includeDirs).right.getOrElse(Vector())
       val res = for {
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
-          Left(Vector(NotFoundError(s"No source files for package '$pkgName' found")))
+          Left(Vector(NotFoundError(s"No source files for package '$importPath' found")))
           else Right(pkgFiles)
         parsedProgram <- Parser.parse(nonEmptyPkgFiles, specOnly = true)(config)
         // TODO maybe don't check whole file but only members that are actually used/imported
@@ -179,33 +179,33 @@ trait MemberResolution { this: TypeInfoImpl =>
         info <- Info.check(parsedProgram, context)(config)
       } yield info
       res.fold(
-        errs => context.addErrenousPackage(pkgName, errs),
-        info => context.addPackage(info)
+        errs => context.addErrenousPackage(importPath, errs),
+        info => context.addPackage(importPath, info)
       )
       res
     }
 
-    def getTypeChecker(importedPkg: PImport): Either[Messages, ExternalTypeInfo] = {
+    def getTypeChecker(pkgImport: PImport): Either[Messages, ExternalTypeInfo] = {
       def createImportError(errs: Vector[VerifierError]): Messages = {
         // create an error message located at the import statement to indicate errors in the imported package
         // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
         val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
         // alternativeErr is a function to compute the message only when needed
-        val alternativeErr = () => context.getImportCycle(importedPkg.pkg) match {
-          case Some(cycle) => message(importedPkg, s"Package '${importedPkg.pkg}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(importedPkg, s"Package '${importedPkg.pkg}' contains errors")
+        val alternativeErr = () => context.getImportCycle(pkgImport.importPath) match {
+          case Some(cycle) => message(pkgImport, s"Package '${pkgImport.importPath}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+          case _ => message(pkgImport, s"Package '${pkgImport.importPath}' contains errors")
         }
-        notFoundErr.map(e => message(importedPkg, e.message))
+        notFoundErr.map(e => message(pkgImport, e.message))
           .getOrElse(alternativeErr())
       }
 
       // check if package was already parsed, otherwise do parsing and type checking:
-      val cachedInfo = context.getTypeInfo(importedPkg.pkg)
-      cachedInfo.getOrElse(parseAndTypeCheck(importedPkg)).left.map(createImportError)
+      val cachedInfo = context.getTypeInfo(pkgImport.importPath)
+      cachedInfo.getOrElse(parseAndTypeCheck(pkgImport)).left.map(createImportError)
     }
 
     val foreignPkgResult = for {
-      typeChecker <- getTypeChecker(importedPkg)
+      typeChecker <- getTypeChecker(pkgImport)
       entity = typeChecker.externalRegular(id)
     } yield entity
     foreignPkgResult.fold(

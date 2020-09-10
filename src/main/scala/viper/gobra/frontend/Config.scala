@@ -273,14 +273,14 @@ class ScallopGobraConfig(arguments: Seq[String])
 
     def convert(input: List[String], includeDirs: Vector[File]): Vector[File] = {
       val res = for {
-        i <- identifyInput(input)
-        files = i match {
-          case Right(files) => files
-          case Left(pkgName) => PackageResolver.resolve(pkgName, includeDirs)
+        i <- identifyInput(input).toRight("invalid input")
+        files <- i match {
+          case Right(files) => Right(files)
+          case Left(_) => PackageResolver.resolve("", includeDirs) // look for files in the current directory
         }
       } yield files
-      assert(res.isDefined, "validate function did not catch this problem")
-      res.get
+      assert(res.isRight, s"validate function did not catch this problem: '${res.left.get}'")
+      res.right.get
     }
 
     /**

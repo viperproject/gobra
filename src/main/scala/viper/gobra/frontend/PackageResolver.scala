@@ -1,10 +1,11 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
+import viper.gobra.ast.frontend.PImplicitQualifiedImport
 
 import scala.util.Properties
 
@@ -13,41 +14,106 @@ object PackageResolver {
   val extension = """gobra"""
 
   /**
-    * Resolves a package name to specific input files
-    * @param pkgName package name that should be resolved
+    * Resolves a package name (i.e. import path) to specific input files
+    * @param importPath relative import path that should be resolved
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @return list of files belonging to the package or the input files in case pkgOrFiles is Right
+    * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
+    *         or the directory contains input files having different package clauses
     */
-  def resolve(pkgName: String, includeDirs: Vector[File]): Vector[File] = {
+  def resolve(importPath: String, includeDirs: Vector[File]): Either[String, Vector[File]] = {
+    for {
+      // pkgDir stores the path to the directory that should contain source files belonging to the desired package
+      pkgDir <- getLookupPath(importPath, includeDirs)
+      sourceFiles = getSourceFiles(pkgDir.toFile)
+      // check whether all found source files belong to the same package (the name used in the package clause can
+      // be absolutely independent of the import path)
+      _ <- checkPackageClauses(sourceFiles, importPath)
+    } yield sourceFiles
+  }
+
+  /**
+    * Similar to `resolve` but returns the package name of the files instead of the files themselves.
+    * The returned package name can be used as qualifier for the implicitly qualified import.
+    *
+    * @param n implicitely qualified import for which a qualifier should be resolved
+    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
+    *         if no directory could be found or the directory contains input files having different package clauses
+    */
+  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
+    for {
+      // pkgDir stores the path to the directory that should contain source files belonging to the desired package
+      pkgDir <- getLookupPath(n.importPath, includeDirs)
+      sourceFiles = getSourceFiles(pkgDir.toFile)
+      // check whether all found source files belong to the same package (the name used in the package clause can
+      // be absolutely independent of the import path)
+      pkgName <- checkPackageClauses(sourceFiles, n.importPath)
+    } yield pkgName
+  }
+
+  /**
+    * Resolves importPath using includeDirs to a directory which exists and from which source files should be retrieved
+    */
+  private def getLookupPath(importPath: String, includeDirs: Vector[File]): Either[String, Path] = {
     // run `go help gopath` to get a detailed explanation of package resolution in go
     val path = Properties.envOrElse("GOPATH", "")
     val paths = (if (SystemUtils.IS_OS_WINDOWS) path.split(";") else path.split(":")).filter(_.nonEmpty)
+    // take the parent of importPath and add it to includeDirs if it exists
     val includePaths = includeDirs.map(_.toPath)
+      .map(_.resolve(importPath))
     // prepend includePaths before paths that have been derived based on $GOPATH:
     val packagePaths = includePaths ++ paths.map(p => Paths.get(p))
       // for now, we restrict our search to the "src" subdirectory:
       .map(_.resolve("src"))
       // the desired package should now be located in a subdirectory named after the package name:
-      .map(_.resolve(pkgName))
+      .map(_.resolve(importPath))
     val pkgDirOpt = packagePaths.collectFirst { case p if Files.exists(p) => p }
-    // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-    pkgDirOpt.map(pkgDir => getSourceFiles(pkgDir.toFile, pkgName)).getOrElse(Vector())
+    pkgDirOpt.toRight(s"No existing directory found for import path '$importPath'")
   }
 
   /**
-    * Returns all source files with file extension 'extension' in a specific directory `dir` with package name `pkg`
+    * Returns all source files with file extension 'extension' in a specific directory `dir`
     */
-  private def getSourceFiles(dir: File, pkg: String): Vector[File] = {
+  private def getSourceFiles(dir: File): Vector[File] = {
     dir
       .listFiles
       .filter(_.isFile)
       // only consider file extensions "go"
       .filter(f => FilenameUtils.getExtension(f.getName) == extension)
-      // get package name for each file:
-      .map(f => (f, getPackageClause(f)))
-      // ignore all files that have a different package name:
-      .collect { case (f, Some(pkgName)) if pkgName == pkg => f }
       .toVector
+  }
+
+  /**
+    * Looks up the package clauses for all files and checks whether they match.
+    * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
+    */
+  def checkPackageClauses(files: Vector[File], importPath: String): Either[String, String] = {
+    // importPath is only used to create an error message that is similar to the error message of the official Go compiler
+    def getPackageClauses(files: Vector[File]): Either[String, Vector[(File, String)]] = {
+      val pkgClauses = files.map(f => {
+        getPackageClause(f) match {
+          case Some(pkgClause) => Right(f -> pkgClause)
+          case _ => Left(f)
+        }
+      })
+      val (failedFiles, validFiles) = pkgClauses.partition(_.isLeft)
+      if (failedFiles.nonEmpty) Left(s"Parsing package clause for these files has failed: ${failedFiles.map(_.left.get.getPath).mkString(", ")}")
+      else Right(validFiles.map(_.right.get))
+    }
+
+    def isEqual(pkgClauses: Vector[(File, String)]): Either[String, String] = {
+      val differingClauses = pkgClauses.filter(_._2 != pkgClauses.head._2)
+      if (differingClauses.isEmpty) Right(pkgClauses.head._2)
+      else {
+        val foundPackages = differingClauses.collect { case (f, clause) => s"$clause (${f.getPath})" }.mkString(", ")
+        Left(s"Found packages $foundPackages in $importPath")
+      }
+    }
+
+    for {
+      pkgClauses <- getPackageClauses(files)
+      pkgName <- isEqual(pkgClauses)
+    } yield pkgName
   }
 
   private lazy val pkgClauseRegex = """(?:\/\/.*|\/\*(?:.|\n)*\*\/|package(?:\s|\n)+([a-zA-Z_][a-zA-Z0-9_]*))""".r

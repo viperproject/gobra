@@ -64,9 +64,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // imports
 
   def showImport(decl: PImport): Doc = decl match {
-    case PQualifiedImport(Some(PWildcard()), pkg) => "import" <+> "_" <+> pkg
-    case PQualifiedImport(Some(qualifier), pkg) => "import" <+> showId(qualifier) <+> pkg
-    case PQualifiedImport(None, pkg) => "import" <+> pkg
+    case PExplicitQualifiedImport(PWildcard(), pkg) => "import" <+> "_" <+> pkg
+    case PExplicitQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PImplicitQualifiedImport(pkg) => "import" <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 

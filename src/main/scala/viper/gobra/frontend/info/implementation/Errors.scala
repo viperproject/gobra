@@ -9,6 +9,7 @@ trait Errors { this: TypeInfoImpl =>
     collectMessages(tree) { case m: PNode =>
 
       val wellDef = m match {
+        case n: PImport => wellDefImport(n).out
         case n: PMember   => wellDefMember(n).out
         case n: PStatement  => wellDefStmt(n).out
         case n: PExpressionAndType => wellDefExprAndType(n).out

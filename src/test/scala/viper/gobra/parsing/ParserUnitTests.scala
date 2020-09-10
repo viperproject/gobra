@@ -6,6 +6,7 @@ import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
+import scala.reflect.ClassTag
 
 import scala.reflect.ClassTag
 
@@ -86,7 +87,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: multi import") {
     frontend.parseImportDecl("import (\"f\";\"g\")") should matchPattern {
-      case Vector(PQualifiedImport(None, "f"), PQualifiedImport(None, "g")) =>
+      case Vector(PImplicitQualifiedImport("f"), PImplicitQualifiedImport("g")) =>
     }
   }
 
@@ -98,19 +99,19 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
 
   test("Parser: underscore import") {
     frontend.parseImportDecl("import _ \"lib/math\"") should matchPattern {
-      case Vector(PQualifiedImport(Some(PWildcard()), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PWildcard(), "lib/math")) =>
     }
   }
 
   test("Parser: default import") {
     frontend.parseImportDecl("import \"lib/math\"") should matchPattern {
-      case Vector(PQualifiedImport(None, "lib/math")) =>
+      case Vector(PImplicitQualifiedImport("lib/math")) =>
     }
   }
 
   test("Parser: qualified import") {
     frontend.parseImportDecl("import m \"lib/math\"") should matchPattern {
-      case Vector(PQualifiedImport(Some(PIdnDef("m")), "lib/math")) =>
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "lib/math")) =>
     }
   }
 

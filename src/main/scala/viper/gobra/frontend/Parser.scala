@@ -208,29 +208,25 @@ object Parser {
       * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
       */
     def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
-      def createErrors(pom: PositionManager, failedNodes: Vector[PImplicitQualifiedImport]): Vector[VerifierError] = {
-        assert(failedNodes.nonEmpty)
-        val errors = failedNodes.flatMap(n => message(n, s"Explicit qualifier could not be derived"))
-        pom.translate(errors, ParserError)
-      }
+      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] =
+        pkg.positions.translate(message(n,
+          s"Explicit qualifier could not be derived (reason: '$errorMsg')"), ParserError)
 
       // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
-      // hence, we keep ourselves track of to which nodes applying the strategy failed
-      var failedNodes: Vector[PImplicitQualifiedImport] = Vector()
+      // hence, we keep ourselves track of errors
+      var failedNodes: Vector[VerifierError] = Vector()
 
       def replace(n: PImplicitQualifiedImport): Option[PExplicitQualifiedImport] = {
-        val qualifierName = PackageResolver.getQualifier(n, config.includeDirs)
-        val qualifier = qualifierName.map(q => {
+        val qualifier = for {
+          qualifierName <- PackageResolver.getQualifier(n, config.includeDirs)
           // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
           // the same happens for the newly created PExplicitQualifiedImport)
-          val idnDef = PIdnDef(q)
-          pkg.positions.positions.dupPos(n, idnDef)
-          PExplicitQualifiedImport(idnDef, n.importPath)
-        })
-        if (qualifier.isEmpty) {
-          failedNodes = failedNodes :+ n // keep track of the failed node
-        }
-        qualifier
+          idnDef = PIdnDef(qualifierName)
+          _ = pkg.positions.positions.dupPos(n, idnDef)
+        } yield PExplicitQualifiedImport(idnDef, n.importPath)
+        // record errors:
+        qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
+        qualifier.toOption
       }
 
       // note that the next term after PPackageClause to which the strategy will be applied is a Vector of PProgram
@@ -240,11 +236,21 @@ object Parser {
           case n => Some(n)
         })
 
-      // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
-      // failed strategy application
-      val res = rewrite(topdown(attempt(resolveImports)))(pkg) // apply the resolveImports to all nodes in the ParseAST and continue even if a strategy returns None
-      if (failedNodes.isEmpty) Right(res)
-      else Left(createErrors(pkg.positions, failedNodes))
+      // apply strategy only to import nodes in each program
+      val updatedProgs = pkg.programs.map(prog => {
+        // apply the resolveImports to all import nodes and children and continue even if a strategy returns None
+        // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
+        // failed strategy application
+        val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
+        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
+        pkg.positions.positions.dupPos(prog, updatedProg)
+      })
+      // create a new package node with the updated programs
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions)
+      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      // check whether an error has occurred
+      if (failedNodes.isEmpty) Right(updatedPkg)
+      else Left(failedNodes)
     }
   }
 

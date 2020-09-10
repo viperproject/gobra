@@ -1,7 +1,4 @@
-image:
-  name: gobraverifier/gobra-base:v2
-  username: gobraverifier
-  password: $DOCKER_HUB_PASSWORD
+image: gobraverifier/gobra-base:v2
 
 pipelines:
   default:
@@ -12,8 +9,9 @@ pipelines:
           - sbt
           - ivy2
         script:
-          # save current directory such that one can return to it after setting symbolic links
+          # save current directory such that one can return to it after setting symbolic links:
           - cwd=$(pwd)
+          # clone Viper dependencies:
           - git clone https://github.com/viperproject/silver.git ../silver
           - git clone https://github.com/viperproject/silicon.git ../silicon
           - git clone https://github.com/viperproject/carbon.git ../carbon
@@ -25,7 +23,7 @@ pipelines:
           - echo "Silicon commit:" $(git -C ../silicon rev-parse HEAD)
           - echo "Carbon commit:" $(git -C ../carbon rev-parse HEAD)
           - echo "ViperServer commit:" $(git -C ../viperserver rev-parse HEAD)
-          # create symlinks:
+          # create symlinks between and to Viper dependencies:
           - cd ../silicon; ln --symbolic ../silver; cd $cwd
           - cd ../carbon; ln --symbolic ../silver; cd $cwd
           - cd ../viperserver; ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; cd $cwd

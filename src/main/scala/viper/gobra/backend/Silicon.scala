@@ -1,6 +1,6 @@
 package viper.gobra.backend
 
-import viper.server.ViperBackendConfig
+import viper.server.core.ViperBackendConfig
 import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._

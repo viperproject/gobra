@@ -1,7 +1,7 @@
 package viper.gobra.backend
 
 import scala.concurrent.ExecutionContext
-import viper.server.ViperCoreServer
+import viper.server.core.ViperCoreServer
 
 trait ViperBackend {
   def create(exePaths: Vector[String]): ViperVerifier

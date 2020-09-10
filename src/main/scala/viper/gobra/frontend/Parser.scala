@@ -638,10 +638,7 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality |
-        sequenceConversion |
-        setConversion |
-        multisetConversion
+      "|" ~> expression <~ "|" ^^ PCardinality
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
       "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
@@ -990,7 +987,10 @@ object Parser {
         access |
         rangeSequence |
         rangeSet |
-        rangeMultiset
+        rangeMultiset |
+        sequenceConversion |
+        setConversion |
+        multisetConversion
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall

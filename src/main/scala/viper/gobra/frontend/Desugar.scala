@@ -1482,7 +1482,8 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case _: in.SequenceT => dop
-          case t => violation(s"expected a sequence type, but got $t")
+          case _: in.ExclusiveArrayT => in.SequenceConversion(dop)(src)
+          case t => violation(s"expected a sequence or exclusive array type, but got $t")
         }
 
         case PSetConversion(op) => for {

@@ -1091,6 +1091,44 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple sequence conversion expression") {
+    val expr = SequenceConversion(
+      SequenceLit(IntT, Vector(
+        IntLit(1)(Internal),
+        IntLit(2)(Internal),
+        IntLit(4)(Internal)
+      ))(Internal)
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "seq(seq[int] { 1, 2, 4 })" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple conversion expression from an array literal to a sequence") {
+    val expr = SequenceConversion(
+      ArrayLit(BoolT, Vector(
+        BoolLit(false)(Internal),
+        BoolLit(true)(Internal)
+      ))(Internal)
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "seq([2]bool { false, true })" =>
+    }
+  }
+
+  test("Printer: should correctly show the append of two sequence conversion operations") {
+    val expr = SequenceAppend(
+      SequenceConversion(LocalVar.Ref("xs", SequenceT(IntT))(Internal))(Internal),
+      SequenceConversion(LocalVar.Ref("a", ExclusiveArrayT(6, IntT))(Internal))(Internal)
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "seq(xs) ++ seq(a)" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

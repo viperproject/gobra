@@ -1,0 +1,8 @@
+package pkg
+
+func foo() {
+  var a [6]int
+  a[2] = 42
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert seq(a)[2] == 0
+}

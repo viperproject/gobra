@@ -1,0 +1,8 @@
+package pkg
+
+func foo() {
+  var a [12]int
+  // fails: sequences don't have capacities
+  //:: ExpectedOutput(type_error)
+  assert cap(a) == cap(seq(a))
+}

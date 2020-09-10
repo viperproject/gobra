@@ -2295,6 +2295,15 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse an indexing expression with a sequence conversion as its base expression") {
+    frontend.parseExpOrFail("seq(a)[2]") should matchPattern {
+      case PIndexedExp(
+        PSequenceConversion(PNamedOperand(PIdnUse("a"))),
+        PIntLit(i)
+      ) if i == BigInt(2) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

@@ -1,0 +1,7 @@
+package pkg
+
+requires len(a) == len(seq(a))
+func foo(a [32]int) {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}

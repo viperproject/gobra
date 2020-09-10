@@ -155,6 +155,13 @@ class ExpressionsImpl extends Expressions {
         rightT <- goE(right)
       } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
 
+      case in.SequenceConversion(exp) => for {
+        expT <- goE(exp)
+      } yield expT.typ match {
+        case _: vpr.SeqType => expT
+        case t => Violation.violation(s"expected a sequence type, but got $t")
+      }
+
       case in.SetConversion(exp) => for {
         expT <- goE(exp)
       } yield expT.typ match {

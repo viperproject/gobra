@@ -3008,6 +3008,87 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should mark a simple 'exclusive array to sequence' conversion expression as well-defined") {
+    val args = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not mark a 'shared array to sequence' conversion expression as well-defined") {
+    val args = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), true))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    assert (!frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should let the conversion of an array literal to a sequence be well-defined") {
+    val expr = PSequenceConversion(
+      PCompositeLit(
+        PArrayType(PIntLit(2), PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+        ))
+      )
+    )
+
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should mark a simple (exclusive) array to sequence conversion as pure") {
+    val args = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    assert (frontend.isPureExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark a simple (exclusive) array to sequence conversion as ghost") {
+    val args = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    assert (frontend.isGhostExpr(expr)(args))
+  }
+
+  test("TypeChecker: should assign the correct type to a simple conversion expression fron an (exclusive) array to a sequence") {
+    val args = Vector(PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), false))
+    val expr = PSequenceConversion(PNamedOperand(PIdnUse("a")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.SequenceT(Type.IntT) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to a slightly more complex conversion expression fron an (exclusive) array to a sequence") {
+    val expr = PSequenceConversion(
+      PCompositeLit(
+        PArrayType(PIntLit(2), PBoolType()),
+        PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
+          PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
+        ))
+      )
+    )
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should let the append of two sequence conversions be well-defined if the inner expressions are of different (but compatible after conversion) types") {
+    val args = Vector(
+      PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(4), PIntType()), false),
+      PNamedParameter(PIdnDef("xs"), PSequenceType(PIntType()), false)
+    )
+
+    val expr = PSequenceAppend(
+      PSequenceConversion(PNamedOperand(PIdnUse("a"))),
+      PSequenceConversion(PNamedOperand(PIdnUse("xs")))
+    )
+
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

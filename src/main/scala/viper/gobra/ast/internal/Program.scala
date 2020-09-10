@@ -341,6 +341,19 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   override def typ : Type = left.typ
 }
 
+/**
+  * Represents the conversion of a collection of type 't',
+  * represented by `expr`, to a (mathematical) sequence of type 't'.
+  * Here `expr` is assumed to be either a sequence or an exclusive array.
+  */
+case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case t: SequenceT => t
+    case t: ExclusiveArrayT => t.sequence
+    case t => Violation.violation(s"expected a sequence or exclusive array type. but got $t")
+  }
+}
+
 
 /* ** Unordered collection expressions */
 
@@ -660,23 +673,32 @@ case object PermissionT extends Type
   * of elements of type `typ`.
   */
 sealed trait ArrayType extends Type {
-  require(0 <= length, s"arrays are expected to be of non-negative length")
+  require(0 <= length, s"arrays are required to be of non-negative length")
 
   def length : BigInt
   def typ : Type
 
+  /** (Deeply) convers the current type as indicated by `kind`. */
   def convert(kind : ArrayKind) : ArrayType = kind match {
     case ArrayKind.Exclusive() => exclusive
     case ArrayKind.Shared() => shared
   }
 
+  /** (Deeply) converts the current type to an `ExclusiveArrayT`. */
   lazy val exclusive : ExclusiveArrayT = ExclusiveArrayT(length, typ match {
     case t: ArrayType => t.exclusive
     case t => t
   })
 
+  /** (Deeply) converts the current type to a `SharedArrayT`. */
   lazy val shared : SharedArrayT = SharedArrayT(length, typ match {
     case t: ArrayType => t.shared
+    case t => t
+  })
+
+  /** (Deeply) converts the current type to a `SequenceT`. */
+  lazy val sequence : SequenceT = SequenceT(typ match {
+    case t: ArrayType => t.sequence
     case t => t
   })
 }

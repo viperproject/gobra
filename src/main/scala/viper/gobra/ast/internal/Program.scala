@@ -269,7 +269,12 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   }
 }
 
-
+case class ArrayCopy(expr : Expr, dstKind : ArrayKind)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = expr.typ match {
+    case t: ArrayType => t.convert(dstKind)
+    case t => Violation.violation(s"expected an array type, but got $t")
+  }
+}
 
 
 /* ** Sequence expressions */
@@ -656,12 +661,17 @@ sealed trait ArrayType extends Type {
   def length : BigInt
   def typ : Type
 
-  lazy val exclusive : Type = ExclusiveArrayT(length, typ match {
+  def convert(kind : ArrayKind) : ArrayType = kind match {
+    case ArrayKind.Exclusive() => exclusive
+    case ArrayKind.Shared() => shared
+  }
+
+  lazy val exclusive : ExclusiveArrayT = ExclusiveArrayT(length, typ match {
     case t: ArrayType => t.exclusive
     case t => t
   })
 
-  lazy val shared : Type = SharedArrayT(length, typ match {
+  lazy val shared : SharedArrayT = SharedArrayT(length, typ match {
     case t: ArrayType => t.shared
     case t => t
   })
@@ -677,6 +687,19 @@ case class ExclusiveArrayT(length : BigInt, typ : Type) extends ArrayType
   * The type of shared arrays of (non-negative) length `length` and type `typ`.
   */
 case class SharedArrayT(length : BigInt, typ : Type) extends ArrayType
+
+/**
+  * Encapsulates the kinds of arrays available in Gobra
+  * (either exclusive or shared).
+  */
+sealed trait ArrayKind
+
+object ArrayKind {
+  /** The kind of exclusive (Gobra) arrays. */
+  case class Exclusive() extends ArrayKind
+  /** The kind of shared (Gobra) arrays. */
+  case class Shared() extends ArrayKind
+}
 
 /**
   * The type of mathematical sequences with elements of type `t`.

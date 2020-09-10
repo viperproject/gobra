@@ -37,7 +37,7 @@ class PureMethodsImpl extends PureMethods {
         cl.assumeExp(
           for {
             _ <- resultWells
-            results <- ctx.loc.argument(b)(ctx)
+            results <- cl.sequence(ctx.loc.values(b)(ctx))
             res = if (results.size == 1) results.head else ctx.tuple.create(results)
           } yield res
         )
@@ -75,7 +75,7 @@ class PureMethodsImpl extends PureMethods {
         cl.assumeExp(
           for {
             _ <- resultWells
-            results <- ctx.loc.argument(b)(ctx)
+            results <- cl.sequence(ctx.loc.values(b)(ctx))
             res = if (results.size == 1) results.head else ctx.tuple.create(results)
           } yield res
         )

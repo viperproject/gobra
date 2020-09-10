@@ -238,11 +238,11 @@ object Desugar {
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (PNamedParameter(id, _, _), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
-      // translate pre- and postconditions before extending the context
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(specCtx)
       val posts = decl.spec.posts map postconditionD(specCtx)
 
@@ -298,7 +298,20 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // translate pre- and postconditions before extending the context
+      // extent context
+      (decl.args zip argsWithSubs).foreach {
+        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {
@@ -360,15 +373,26 @@ object Desugar {
       // create context for spec translation
       val specCtx = new FunctionContext(assignReturns)
 
+
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        // substitution has to be added since otherwise the parameter is translated as a addressable variable
+        // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, Some(q))) => specCtx.addSubst(id, parameterAsLocalValVar(p))
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
-      // translate pre- and postconditions before extending the context
+      (decl.receiver, recvWithSubs) match {
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(specCtx)
       val posts = decl.spec.posts map postconditionD(specCtx)
 
@@ -439,7 +463,25 @@ object Desugar {
       // create context for body translation
       val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(fsrc)) // dummy assign
 
-      // translate pre- and postconditions before extending the context
+      // extent context
+      (decl.args zip argsWithSubs).foreach{
+        // substitution has to be added since otherwise the parameter is translated as an addressable variable
+        // TODO: another, maybe more consistent, option is to always add a context entry
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.receiver, recvWithSubs) match {
+        case (NoGhost(PNamedReceiver(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      (decl.result.outs zip returnsWithSubs).foreach {
+        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case _ =>
+      }
+
+      // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
 
       val bodyOpt = decl.body.map {
@@ -667,12 +709,25 @@ object Desugar {
       } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
     }
 
+    private def argumentD(param : PParameter, arg : in.Expr) : in.Expr = param match {
+      case PNamedParameter(_, _: PArrayType, addressable) =>
+        if (addressable) in.ArrayCopy(arg, in.ArrayKind.Shared())(arg.info)
+        else in.ArrayCopy(arg, in.ArrayKind.Exclusive())(arg.info)
+      case _ => arg
+    }
+
+    private def argumentsD(params : Vector[PParameter], args : Vector[in.Expr]) : Vector[in.Expr] = {
+      require(params.length == args.length, "parameters and arguments do not match")
+      params.zip(args) map {
+        case (p, a) => argumentD(p, a)
+      }
+    }
+
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       p.callee match {
         case base: ap.Symbolic =>
           base.symb match {
             case fsym: st.WithArguments with st.WithResult => // all patterns that have a callable symbol: function, received method, method expression
-
               // encode arguments
               val dArgs = sequence(p.args map exprD(ctx)).map {
                 // go function chaining feature
@@ -695,12 +750,14 @@ object Desugar {
                   if (base.symb.isPure) {
                     for {
                       args <- dArgs
-                    } yield in.PureFunctionCall(fproxy, args, resT)(src)
+                      argss = argumentsD(fsym.args, args)
+                    } yield in.PureFunctionCall(fproxy, argss, resT)(src)
                   } else {
                     for {
                       args <- dArgs
+                      argss = argumentsD(fsym.args, args)
                       _ <- declare(targets: _*)
-                      _ <- write(in.FunctionCall(targets, fproxy, args)(src))
+                      _ <- write(in.FunctionCall(targets, fproxy, argss)(src))
                     } yield res
                   }
 
@@ -715,13 +772,15 @@ object Desugar {
                     for {
                       recv <- dRecv
                       args <- dArgs
-                    } yield in.PureMethodCall(recv, fproxy, args, resT)(src)
+                      argss = argumentsD(fsym.args, args)
+                    } yield in.PureMethodCall(recv, fproxy, argss, resT)(src)
                   } else {
                     for {
                       recv <- dRecv
                       args <- dArgs
+                      argss = argumentsD(fsym.args, args)
                       _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, args)(src))
+                      _ <- write(in.MethodCall(targets, recv, fproxy, argss)(src))
                     } yield res
                   }
 
@@ -940,7 +999,7 @@ object Desugar {
     }
 
     def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
-      case l : in.ArrayLit => in.CompositeObject.Array(l)
+      case l: in.ArrayLit => in.CompositeObject.Array(l)
       case l: in.StructLit => in.CompositeObject.Struct(l)
       case l: in.SequenceLit => in.CompositeObject.Sequence(l)
       case l: in.SetLit => in.CompositeObject.Set(l)

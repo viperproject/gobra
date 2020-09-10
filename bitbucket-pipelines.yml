@@ -17,15 +17,18 @@ pipelines:
           - git clone https://github.com/viperproject/silver.git ../silver
           - git clone https://github.com/viperproject/silicon.git ../silicon
           - git clone https://github.com/viperproject/carbon.git ../carbon
+          - git clone https://github.com/viperproject/viperserver.git ../viperserver
           # print some version numbers:
           - java --version
           - z3 -version
           - echo "Silver commit:" $(git -C ../silver rev-parse HEAD)
           - echo "Silicon commit:" $(git -C ../silicon rev-parse HEAD)
           - echo "Carbon commit:" $(git -C ../carbon rev-parse HEAD)
+          - echo "ViperServer commit:" $(git -C ../viperserver rev-parse HEAD)
           # create symlinks:
           - cd ../silicon; ln --symbolic ../silver; cd $cwd
           - cd ../carbon; ln --symbolic ../silver; cd $cwd
-          - ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
+          - cd ../viperserver; ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; cd $cwd
+          - ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; ln --symbolic ../viperserver
           # execute all tests:
           - sbt test

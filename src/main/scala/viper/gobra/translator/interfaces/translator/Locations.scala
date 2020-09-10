@@ -11,13 +11,15 @@ trait Locations extends Generator {
 
   def values(t: in.Type)(ctx: Context): Vector[in.Expr => (CodeWriter[vpr.Exp], Locations.SubValueRep)]
 
+  def values(e: in.Expr)(ctx: Context): Vector[CodeWriter[vpr.Exp]]
+
+  def argument(e : in.Expr)(ctx : Context) : CodeWriter[Vector[vpr.Exp]]
+
+  def arguments(exprs : Vector[in.Expr])(ctx : Context) : CodeWriter[Vector[vpr.Exp]]
+
   def parameter(v: in.Declaration)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
 
   def outparameter(v: in.Parameter.Out)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
-
-  def target(v: in.LocalVar.Val)(ctx: Context): CodeWriter[Vector[vpr.LocalVar]]
-
-  def argument(arg: in.Expr)(ctx: Context): CodeWriter[Vector[vpr.Exp]]
 
   def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt])
 
@@ -26,6 +28,8 @@ trait Locations extends Generator {
   def evalue(l: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
 
   def defaultValue(t: in.Type)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def variableVal(v: in.Var)(ctx: Context): CodeWriter[vpr.LocalVar]
 
   def literal(lit: in.Lit)(ctx: Context): CodeWriter[vpr.Exp]
 

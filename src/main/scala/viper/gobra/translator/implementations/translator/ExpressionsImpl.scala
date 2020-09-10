@@ -3,6 +3,7 @@ package viper.gobra.translator.implementations.translator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
+import viper.gobra.translator.util.{ArrayUtil, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
@@ -48,7 +49,7 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(func.name, vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
@@ -59,8 +60,8 @@ class ExpressionsImpl extends Expressions {
         val arity = ctx.loc.arity(typ)(ctx)
         val resultType = ctx.loc.ttype(typ)(ctx)
         for {
-          vRecvs <- ctx.loc.argument(recv)(ctx)
-          vArgss <- sequence(args map (ctx.loc.argument(_)(ctx)))
+          vRecvs <- sequence(ctx.loc.values(recv)(ctx))
+          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
           app = vpr.FuncApp(meth.uniqueName, vRecvs ++ vArgss.flatten)(pos, info, resultType, errT)
           res <- if (arity == 1) unit(app) else {
             copyResult(app) flatMap (z => ctx.loc.copyFromTuple(z, typ)(ctx))
@@ -214,6 +215,23 @@ class ExpressionsImpl extends Expressions {
         )(pos, info, errT)
         case vpr.MultisetType(_) => vpr.AnySetContains(leftT, rightT)(pos, info, errT)
         case t => Violation.violation(s"translation for multiplicity with type $t is not implemented")
+      }
+
+      case in.ArrayCopy(expr, kind) => expr.typ match {
+        case _: in.ExclusiveArrayT if kind.isInstanceOf[in.ArrayKind.Exclusive] => translate(expr)(ctx)
+        case srcTyp : in.ArrayType => {
+          val dstTyp = srcTyp.convert(kind)
+          for {
+            tmp <- ctx.loc.variableVal(ArrayUtil.anonymousLocalVar(dstTyp)(expr.info))(ctx)
+            _ <- local(vu.toVarDecl(tmp))
+            footprint = ArrayUtil.footprintAssumptions(tmp, dstTyp)(expr)(ctx)
+            _ <- sequence(footprint map (a => write(a)))
+            exprT <- translate(expr)(ctx)
+            comparison = ArrayUtil.equalsAssumption(tmp, dstTyp, exprT, srcTyp)(expr)(ctx)
+            _ <- write(comparison)
+          } yield tmp
+        }
+        case typ => Violation.violation(s"expected an array type, but got $typ")
       }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)

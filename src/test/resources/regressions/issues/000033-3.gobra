@@ -1,0 +1,20 @@
+package main
+
+func foo() {
+  r := Rectangle{Width: 2, Height: 5}
+  x := Rectangle{Width: 0, Height: 0}
+  assert x.OtherArea(r) == 10
+}
+
+type Rectangle struct {
+    Width, Height int
+}
+
+ensures res == r.Width * r.Height
+func (x Rectangle) OtherArea(r Rectangle) (res int) {
+    return r.Width * r.Height
+}
+
+pure func (x Rectangle) OtherArea2(r Rectangle) (res int) {
+    return r.Width * r.Height
+}

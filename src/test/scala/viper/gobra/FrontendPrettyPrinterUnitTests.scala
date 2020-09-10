@@ -637,7 +637,7 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     )
 
     frontend.show(expr) should matchPattern {
-      case "2 + 3 # seq[int] { x # y }" =>
+      case "(2 + 3) # seq[int] { x # y }" =>
     }
   }
 

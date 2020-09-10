@@ -1,0 +1,11 @@
+package main
+
+// check whether Gobra accepts unique qualifiers for the same package
+// ##(-I src/test/resources/regressions/features/import/unique_qualifiers)
+import "bar"
+import b "bar"
+
+func test() {
+    assert bar.Answer == b.Answer
+    assert bar.Answer == 42
+}

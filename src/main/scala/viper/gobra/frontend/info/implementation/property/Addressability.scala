@@ -42,7 +42,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   private lazy val addressableVarAttr: PIdnNode => Boolean =
-    attr[PIdnNode, Boolean] { n => regular(n) match {
+    attr[PIdnNode, Boolean] { n => entity(n) match {
       case v: Variable => v.addressable
       case _ => false
     }}

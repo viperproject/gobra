@@ -218,8 +218,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
 
-      case tree.parent.pair(id: PIdnDef, _: PImport) => defEntity(id)
-
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)
         if (underlyingType(litType).isInstanceOf[StructT]) { // if the enclosing literal is a struct then id is a field

@@ -10,6 +10,7 @@ import viper.gobra.ast.internal.Lit
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
+import viper.gobra.theory.Addressability
 import viper.gobra.util.{DesugarWriter, Violation}
 
 object Desugar {
@@ -159,7 +160,7 @@ object Desugar {
       }
 
       consideredDecls.foreach{
-        case NoGhost(x: PTypeDef) => typeDefD(x)
+        case NoGhost(x: PTypeDef) => desugarAllTypeDefVariants(x)
         case _ =>
       }
 
@@ -171,24 +172,29 @@ object Desugar {
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
-      case sc@ st.SingleConstant(_, id, expr, _, _, context) => {
+      case sc@ st.SingleConstant(_, id, expr, _, _, context) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val intLit: Lit = gVar.typ match {
-          case in.BoolT =>
+          case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
-          case in.IntT =>
+          case in.IntT(Addressability.Exclusive) =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
           case _ => ???
         }
         in.GlobalConstDecl(gVar, intLit)(src)
-      }
       case _ => ???
     })
 
-    def typeDefD(decl: PTypeDef): in.Type = typeD(DeclaredT(decl, info))(meta(decl))
+    // Note: Alternatively, we could return the set of type definitions directly.
+    //       However, currently, this would require to have versions of [[typeD]].
+    /** desugars a defined type for each addressability modifier to register them with [[definedTypes]] */
+    def desugarAllTypeDefVariants(decl: PTypeDef): Unit = {
+      typeD(DeclaredT(decl, info), Addressability.Shared)(meta(decl))
+      typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl))
+    }
 
     def functionD(decl: PFunctionDecl): in.Member =
       if (decl.spec.isPure) pureFunctionD(decl) else {
@@ -345,12 +351,8 @@ object Desugar {
 
       val returnsWithSubs = decl.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
       val (returns, returnSubs) = returnsWithSubs.unzip
-      val actualReturns = returnsWithSubs.map{
-        case (_, Some(x)) => x
-        case (x, None)    => x
-      }
 
-      def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
+        def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
         if (rets.isEmpty) {
           in.Seqn(
             returnsWithSubs.flatMap{
@@ -492,7 +494,7 @@ object Desugar {
         b: PBlock =>
           b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
-            case b => Violation.violation(s"unexpected pure function body: $b")
+            case s => Violation.violation(s"unexpected pure function body: $s")
           }
       }
 
@@ -611,7 +613,7 @@ object Desugar {
                 for{le <- goL(left.head); re <- goE(right.head)} yield in.SingleAss(le, re)(src)
               } else {
                 // copy results to temporary variables and then to assigned variables
-                val temps = left map (l => freshVar(typeD(info.typ(l))(src))(src))
+                val temps = left map (l => freshExclusiveVar(typeD(info.typ(l), Addressability.exclusiveVariable)(src))(src))
                 val resToTemps = (temps zip right).map{ case (l, r) =>
                   for{re <- goE(r)} yield in.SingleAss(in.Assignee.Var(l), re)(src)
                 }
@@ -673,7 +675,7 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get))(meta(l)))(meta(l)) }
+              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
 
             } else { violation("invalid declaration") }
@@ -703,9 +705,9 @@ object Desugar {
     }
 
     def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
-      val f = structMemberD(p.symb)(src)
       for {
         r <- exprD(ctx)(p.base)
+        f = structMemberD(p.symb, Addressability.fieldLookup(r.typ.addressability))(src)
       } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
     }
 
@@ -723,8 +725,8 @@ object Desugar {
               }
 
               // encode result
-              val resT = typeD(fsym.context.typ(fsym.result))(src)
-              val targets = fsym.result.outs map (o => freshVar(typeD(fsym.context.typ(o.typ))(src))(src))
+              val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
+              val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.typ(o.typ), Addressability.exclusiveVariable)(src))(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
 
@@ -831,7 +833,7 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      val typ: in.Type = typeD(info.typ(expr))(src)
+      val typ: in.Type = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
@@ -846,17 +848,17 @@ object Desugar {
           }
 
           case PReference(exp) => exp match {
-              // go feature
+              // The reference of a literal is desugared to a make call
             case c: PCompositeLit =>
               for {
                 c <- compositeLitD(ctx)(c)
                 co = compositeLitToObject(c)
-                v = freshVar(in.PointerT(c.typ))(src)
+                v = freshExclusiveVar(in.PointerT(c.typ, Addressability.reference))(src)
                 _ <- declare(v)
                 _ <- write(in.Make(v, co)(src))
               } yield v
 
-            case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ))(src))
+            case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
           }
 
           case n: PDot => info.resolve(n) match {
@@ -903,7 +905,7 @@ object Desugar {
             dleft <- go(left)
             dright <- go(right)
           } yield dleft.typ match {
-            case in.SequenceT(_) => in.SequenceIndex(dleft, dright)(src)
+            case _: in.SequenceT => in.SequenceIndex(dleft, dright)(src)
             case t => Violation.violation(s"desugaring of indexed expressions is currently only supported for sequences, yet found $t")
           }
 
@@ -913,15 +915,14 @@ object Desugar {
             dhigh <- option(high map go)
             dcap <- option(cap map go)
           } yield dbase.typ match {
-            case in.SequenceT(_) => (dlow, dhigh) match {
+            case _: in.SequenceT => (dlow, dhigh) match {
               case (None, None) => dbase
               case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
               case (None, Some(hi)) => in.SequenceTake(dbase, hi)(src)
-              case (Some(lo), Some(hi)) => {
+              case (Some(lo), Some(hi)) =>
                 val sub = in.Sub(hi, lo)(src)
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
-              }
             }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
@@ -945,7 +946,8 @@ object Desugar {
         case MemberPath.Underlying => e
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
-        case MemberPath.Next(g) => in.FieldRef(e, embeddedDeclD(g.decl, info)(pinfo))(pinfo)
+        case MemberPath.Next(g) =>
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(base.typ.addressability), info)(pinfo))(pinfo)
       }}
     }
 
@@ -971,10 +973,9 @@ object Desugar {
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
-      case t: PType => {
-        val it = typeD(info.typ(t))(meta(lit))
+      case t: PType =>
+        val it = typeD(info.typ(t), Addressability.literal)(meta(lit))
         literalValD(ctx)(lit.lit, it)
-      }
 
       case _ => ???
     }
@@ -998,12 +999,12 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
-      case t => Violation.violation(s"expected composite type but got $t")
+      case _ => Violation.violation(s"expected composite type but got $t")
     }
 
     def underlyingType(typ: in.Type): in.Type = {
       typ match {
-        case t: in.DefinedT => underlyingType(definedTypes(t.name)) // it is contained in the map, since 'typ' was translated
+        case t: in.DefinedT => underlyingType(definedTypes(t.name, t.addressability)) // it is contained in the map, since 'typ' was translated
         case _ => typ
       }
     }
@@ -1068,18 +1069,17 @@ object Desugar {
           }
         }
 
-        case CompositeKind.Sequence(in.SequenceT(typ)) => {
+        case CompositeKind.Sequence(in.SequenceT(typ, _)) =>
           val indices = info.keyElementIndices(lit.elems)
           val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
           for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
             yield in.SequenceLit(typ, elemsD)(src)
-        }
 
-        case CompositeKind.Set(in.SetT(typ)) => for {
+        case CompositeKind.Set(in.SetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.SetLit(typ, elemsD)(src)
 
-        case CompositeKind.Multiset(in.MultisetT(typ)) => for {
+        case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
       }
@@ -1095,52 +1095,53 @@ object Desugar {
       t
     }
 
-    var definedTypes: Map[String, in.Type] = Map.empty
-    var definedTypesSet: Set[String] = Set.empty
+    var definedTypes: Map[(String, Addressability), in.Type] = Map.empty
+    var definedTypesSet: Set[(String, Addressability)] = Set.empty
 
-    def registerDefinedType(t: Type.DeclaredT)(src: Meta): in.DefinedT = {
+    def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
       val name = nm.typ(t.decl.left.name, t.context)
 
-      if (!definedTypesSet.contains(name)) {
-        definedTypesSet += name
-        val newEntry = typeD(t.context.typ(t.decl.right))(src)
-        definedTypes += (name -> newEntry)
+      if (!definedTypesSet.contains(name, addrMod)) {
+        definedTypesSet += ((name, addrMod))
+        val newEntry = typeD(t.context.typ(t.decl.right), Addressability.underlying(addrMod))(src)
+        definedTypes += (name, addrMod) -> newEntry
       }
 
-      in.DefinedT(name)
+      in.DefinedT(name, addrMod)
     }
 
-    def embeddedTypeD(t: PEmbeddedType)(src: Meta): in.Type = t match {
-      case PEmbeddedName(typ) => typeD(info.typ(typ))(src)
-      case PEmbeddedPointer(typ) => registerType(in.PointerT(typeD(info.typ(typ))(src)))
+    def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
+      case PEmbeddedName(typ) => typeD(info.typ(typ), addrMod)(src)
+      case PEmbeddedPointer(typ) =>
+        registerType(in.PointerT(typeD(info.typ(typ), Addressability.pointerBase)(src), addrMod))
     }
 
-    def typeD(t: Type)(src: Source.Parser.Info): in.Type = t match {
+    def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
       case Type.NilType => in.NilT
-      case t: DeclaredT => registerType(registerDefinedType(t)(src))
-      case Type.BooleanT => in.BoolT
-      case Type.IntT => in.IntT
+      case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
+      case Type.BooleanT => in.BoolT(addrMod)
+      case Type.IntT => in.IntT(addrMod)
       case Type.ArrayT(length, elem) => ???
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
-      case PointerT(elem) => registerType(in.PointerT(typeD(elem)(src)))
+      case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, mod) => ???
-      case Type.SequenceT(elem) => in.SequenceT(typeD(elem)(src))
-      case Type.SetT(elem) => in.SetT(typeD(elem)(src))
-      case Type.MultisetT(elem) => in.MultisetT(typeD(elem)(src))
+      case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
 
       case t: Type.StructT =>
-        val inFields: Vector[in.Field] = structD(t)(src)
+        val inFields: Vector[in.Field] = structD(t, addrMod)(src)
 
         val structName = nm.struct(t)
-        registerType(in.StructT(structName, inFields))
+        registerType(in.StructT(structName, inFields, addrMod))
 
       case Type.FunctionT(args, result) => ???
       case Type.InterfaceT(decl) => ???
 
-      case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t)(src)))
+      case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }
@@ -1163,10 +1164,9 @@ object Desugar {
 
     def globalConstD(c: st.Constant)(src: Meta): in.GlobalConst = {
       c match {
-        case sc: st.SingleConstant => {
-          val typ = typeD(c.context.typ(sc.idDef))(src)
+        case sc: st.SingleConstant =>
+          val typ = typeD(c.context.typ(sc.idDef), Addressability.constant)(src)
           in.GlobalConst.Val(idName(sc.idDef, c.context.getTypeInfo), typ)(src)
-        }
         case _ => ???
       }
     }
@@ -1191,8 +1191,11 @@ object Desugar {
       }
     }
 
-    def freshVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val =
+    def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val = {
+      require(typ.addressability == Addressability.exclusiveVariable)
       in.LocalVar.Val(nm.fresh, typ)(info)
+    }
+
 
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
       require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
@@ -1209,9 +1212,9 @@ object Desugar {
 
       val src: Meta = meta(id)
 
-      val typ = typeD(info.typ(id))(meta(id))
+      val typ = typeD(info.typ(id), info.addressableVar(id))(meta(id))
 
-      if (info.addressableVar(id)) {
+      if (info.addressableVar(id) == Addressability.sharedVariable) {
         in.LocalVar.Ref(idName(id), typ)(src)
       } else {
         in.LocalVar.Val(idName(id), typ)(src)
@@ -1232,12 +1235,12 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ, _) =>
-              val param = in.Parameter.In(idName(id), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -1252,12 +1255,12 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ, _) =>
-              val param = in.Parameter.Out(idName(id), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.Out(idName(id), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
+              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -1268,12 +1271,12 @@ object Desugar {
       val src: Meta = meta(p)
       p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter.In(idName(id), typeD(info.typ(typ))(src))(src)
+          val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.receiver)(src))(src)
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.typ(typ))(src))(src)
+          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.typ(typ), Addressability.receiver)(src))(src)
           val local = None
           (param, local)
       }
@@ -1285,36 +1288,36 @@ object Desugar {
       case in.LocalVar.Inter(id, typ) => assert(false); ???
     }
 
-    def structD(struct: StructT)(src: Meta): Vector[in.Field] =
+    def structD(struct: StructT, addrMod: Addressability)(src: Meta): Vector[in.Field] =
       struct.clauses.map {
-        case (name, (true, typ)) => fieldDeclD((name, typ), struct)(src)
-        case (name, (false, typ)) => embeddedDeclD((name, typ), struct)(src)
+        case (name, (true, typ)) => fieldDeclD((name, typ), Addressability.field(addrMod), struct)(src)
+        case (name, (false, typ)) => embeddedDeclD((name, typ), Addressability.field(addrMod), struct)(src)
       }.toVector
 
-    def structMemberD(m: st.StructMember)(src: Meta): in.Field = m match {
-      case st.Field(decl, _, context) => fieldDeclD(decl, context)(src)
-      case st.Embbed(decl, _, context) => embeddedDeclD(decl, context)(src)
+    def structMemberD(m: st.StructMember, addrMod: Addressability)(src: Meta): in.Field = m match {
+      case st.Field(decl, _, context) => fieldDeclD(decl, addrMod, context)(src)
+      case st.Embbed(decl, _, context) => embeddedDeclD(decl, addrMod, context)(src)
     }
 
-    def embeddedDeclD(embedded: (String, Type), struct: StructT)(src: Source.Parser.Info): in.Field = {
+    def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
-      val td = embeddedTypeD(???)(src) // TODO fix me or embeddedTypeD
-      in.Field.Ref(idname, td)(src)
-  }
-
-    def embeddedDeclD(decl: PEmbeddedDecl, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field.Ref(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ)(src))(src)
-
-    def fieldDeclD(field: (String, Type), struct: StructT)(src: Source.Parser.Info): in.Field = {
-      val idname = nm.field(field._1, struct)
-      val td = typeD(field._2)(src)
+      val td = embeddedTypeD(???, fieldAddrMod)(src) // TODO fix me or embeddedTypeD
       in.Field.Ref(idname, td)(src)
     }
 
-    def fieldDeclD(decl: PFieldDecl, context: ExternalTypeInfo)(src: Meta): in.Field = {
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field =
+      in.Field.Ref(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src))(src)
+
+    def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
+      val idname = nm.field(field._1, struct)
+      val td = typeD(field._2, fieldAddrMod)(src)
+      in.Field.Ref(idname, td)(src)
+    }
+
+    def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
       val field: (String, Type) = (decl.id.name, context.typ(decl.typ))
-      fieldDeclD(field, struct.get)(src)
+      fieldDeclD(field, addrMod, struct.get)(src)
     }
 
 
@@ -1346,10 +1349,10 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      val typ = typeD(info.typ(expr))(src)
+      val typ = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
-        case POld(op) => for {o <- go(op)} yield in.Old(o)(src)
+        case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
           wthn <- go(thn)
@@ -1382,7 +1385,7 @@ object Desugar {
           dright <- go(right)
         } yield dright.typ match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
-          case in.MultisetT(_) => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
+          case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
@@ -1411,8 +1414,8 @@ object Desugar {
         case PSetConversion(op) => for {
           dop <- go(op)
         } yield dop.typ match {
-          case in.SetT(_) => dop
-          case in.SequenceT(_) => in.SetConversion(dop)(src)
+          case _: in.SetT => dop
+          case _: in.SequenceT => in.SetConversion(dop)(src)
           case t => violation(s"expected a set or sequence type, but found $t")
         }
 
@@ -1439,8 +1442,8 @@ object Desugar {
         case PMultisetConversion(op) => for {
           dop <- go(op)
         } yield dop.typ match {
-          case in.MultisetT(_) => dop
-          case in.SequenceT(_) => in.MultisetConversion(dop)(src)
+          case _: in.MultisetT => dop
+          case _: in.SequenceT => in.MultisetConversion(dop)(src)
           case t => violation(s"expected a sequence or multiset type, but found $t")
         }
 
@@ -1476,7 +1479,7 @@ object Desugar {
     }
 
     def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
-      in.BoundVar(idName(x.id), typeD(info.typ(x.typ))(meta(x)))(meta(x))
+      in.BoundVar(idName(x.id), typeD(info.typ(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
 
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx)(expr)

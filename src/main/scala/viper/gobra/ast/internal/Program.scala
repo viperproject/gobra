@@ -17,6 +17,7 @@ package viper.gobra.ast.internal
 
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
+import viper.gobra.theory.Addressability
 import viper.gobra.util.Violation
 
 case class Program(
@@ -26,9 +27,9 @@ case class Program(
 }
 
 class LookupTable(
-                 definedTypes: Map[String, Type]
+                 definedTypes: Map[(String, Addressability), Type]
                   ) {
-  def lookup(t: DefinedT): Type = definedTypes(t.name)
+  def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
 }
 
 sealed trait Member extends Node
@@ -44,7 +45,7 @@ sealed trait Field extends Node {
   def name: String
   def typ: Type
 }
-
+// TODO: remove field distinction
 object Field {
   def unapply(arg: Field): Option[(String, Type)] = Some((arg.name, arg.typ))
 
@@ -215,24 +216,23 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
   override def typ: Type = in.typ
+  require(typ.addressability == Addressability.unfolding(in.typ.addressability))
 }
 
-case class Old(operand: Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ: Type = operand.typ
-}
+case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT
+override def typ: Type = BoolT(Addressability.rValue)
 }
 
 case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT
+override def typ: Type = BoolT(Addressability.rValue)
 }
 
 
@@ -243,7 +243,7 @@ override def typ: Type = BoolT
   * a sequence or (multi)set and `left` an expression of a matching type.
   */
 case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("#") {
-  override def typ : Type = IntT
+  override def typ : Type = IntT(Addressability.rValue)
 }
 
 
@@ -253,7 +253,7 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * Denotes the length of `exp`, which has to be a sequence.
   */
 case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT
+  override def typ : Type = IntT(Addressability.rValue)
 }
 
 /**
@@ -262,7 +262,7 @@ case class SequenceLength(exp : Expr)(val info: Source.Parser.Info) extends Expr
   * which should all be of type `memberType`.
   */
 case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  override def typ : Type = SequenceT(memberType)
+  override val typ : Type = SequenceT(memberType, Addressability.literal)
 }
 
 /**
@@ -270,7 +270,7 @@ case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Sourc
   * (both of which should be integers), not including `high` but including `low`.
   */
 case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = SequenceT(IntT)
+  override val typ : Type = SequenceT(IntT(Addressability.mathDataStructureLookup), Addressability.rValue)
 }
 
 /**
@@ -279,7 +279,8 @@ case class RangeSequence(low : Expr, high : Expr)(val info : Source.Parser.Info)
   */
 case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("++") {
   /** Should be identical to `right.typ`. */
-  override def typ : Type = left.typ
+  require(left.typ.isInstanceOf[SequenceT] && right.typ.isInstanceOf[SequenceT], s"expected two sequences, but got ${left.typ} and ${right.typ} (${info.origin})")
+  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
 }
 
 /**
@@ -288,7 +289,8 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   */
 case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `base`. */
-  override def typ : Type = base.typ
+  require(base.typ.isInstanceOf[SequenceT], s"expected sequence, but got ${base.typ} (${info.origin})")
+  override val typ : Type = SequenceT(base.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
 }
 
 /**
@@ -296,10 +298,11 @@ case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Sour
   * of a sequence type and `right` should be the integer-typed index.
   */
 case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = left.typ match {
-    case SequenceT(t) => t
+  override val typ : Type = left.typ match {
+    case SequenceT(t, _) => t
     case t => Violation.violation(s"expected a sequence type but got $t")
   }
+  require(typ.addressability == Addressability.mathDataStructureLookup)
 }
 
 /**
@@ -310,7 +313,8 @@ case class SequenceIndex(left : Expr, right : Expr)(val info: Source.Parser.Info
   */
 case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  override def typ : Type = left.typ
+  require(left.typ.isInstanceOf[SequenceT])
+  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
 }
 
 /**
@@ -321,7 +325,8 @@ case class SequenceDrop(left : Expr, right : Expr)(val info: Source.Parser.Info)
   */
 case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `left`. */
-  override def typ : Type = left.typ
+  require(left.typ.isInstanceOf[SequenceT])
+  override val typ : Type = SequenceT(left.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
 }
 
 
@@ -333,7 +338,16 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   */
 case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("union") {
   /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
+  require(
+    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
+      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
+    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
+  )
+  override val typ : Type = left.typ match {
+    case t: SetT => SetT(t.t, Addressability.rValue)
+    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
+    case _ => Violation.violation("expected set or type")
+  }
 }
 
 /**
@@ -342,7 +356,16 @@ case class Union(left : Expr, right : Expr)(val info : Source.Parser.Info) exten
   */
 case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("intersection") {
   /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
+  require(
+    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
+      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
+    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
+  )
+  override val typ : Type = left.typ match {
+    case t: SetT => SetT(t.t, Addressability.rValue)
+    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
+    case _ => Violation.violation("expected set or type")
+  }
 }
 
 /**
@@ -351,7 +374,16 @@ case class Intersection(left : Expr, right : Expr)(val info : Source.Parser.Info
   */
 case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("setminus") {
   /** `left.typ` is expected to be identical to `right.typ`. */
-  override def typ : Type = left.typ
+  require(
+    (left.typ.isInstanceOf[SetT] && right.typ.isInstanceOf[SetT])
+      || (left.typ.isInstanceOf[MultisetT] && right.typ.isInstanceOf[MultisetT]),
+    s"expected set or multiset, but got ${left.typ} and ${right.typ} (${info.origin})"
+  )
+  override val typ : Type = left.typ match {
+    case t: SetT => SetT(t.t, Addressability.rValue)
+    case t: MultisetT => MultisetT(t.t, Addressability.rValue)
+    case _ => Violation.violation("expected set or type")
+  }
 }
 
 /**
@@ -359,7 +391,7 @@ case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) ex
   * `left` and `right` are assumed to be sets of comparable types.
   */
 case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("subset") {
-  override def typ : Type = BoolT
+  override def typ : Type = BoolT(Addressability.rValue)
 }
 
 /**
@@ -367,7 +399,7 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
   * to be either a set or a multiset.
   */
 case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = IntT
+  override def typ : Type = IntT(Addressability.rValue)
 }
 
 /**
@@ -377,7 +409,7 @@ case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   * with the one of `left`.
   */
 case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) extends BinaryExpr("in") {
-  override def typ : Type = BoolT
+  override def typ : Type = BoolT(Addressability.rValue)
 }
 
 
@@ -389,7 +421,7 @@ case class Contains(left : Expr, right : Expr)(val info: Source.Parser.Info) ext
   * which should all be of type `memberType`.
   */
 case class SetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  override def typ : Type = SetT(memberType)
+  override val typ : Type = SetT(memberType, Addressability.literal)
 }
 
 /**
@@ -397,8 +429,9 @@ case class SetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Par
   * to a (mathematical) set of type 't'.
   */
 case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = expr.typ match {
-    case SequenceT(t) => SetT(t)
+  override val typ : Type = expr.typ match {
+    case SequenceT(t, _) => SetT(t, Addressability.conversionResult)
+    case SetT(t, _) => SetT(t, Addressability.conversionResult)
     case t => Violation.violation(s"expected a sequence type but got $t")
   }
 }
@@ -412,7 +445,7 @@ case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr
   * which should all be of type `memberType`.
   */
 case class MultisetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  override def typ : Type = MultisetT(memberType)
+  override val typ : Type = MultisetT(memberType, Addressability.literal)
 }
 
 /**
@@ -420,8 +453,9 @@ case class MultisetLit(memberType : Type, exprs : Vector[Expr])(val info : Sourc
   * a matching type, where `exp` should be a collection, i.e., a sequence or (multi)set.
   */
 case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = expr.typ match {
-    case SequenceT(t) => MultisetT(t)
+  override val typ : Type = expr.typ match {
+    case SequenceT(t, _) => MultisetT(t, Addressability.conversionResult)
+    case MultisetT(t, _) => MultisetT(t, Addressability.conversionResult)
     case t => Violation.violation(s"expected a sequence type but got $t")
   }
 }
@@ -448,7 +482,7 @@ object Ref {
   def apply(ref: Expr)(info: Source.Parser.Info): Ref = {
     require(Addressable.isAddressable(ref))
 
-    val pointerT = PointerT(ref.typ)
+    val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
       case x: LocalVar.Ref => Ref(Addressable.Var(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
@@ -502,15 +536,15 @@ object Addressable {
   }
 }
 
-sealed trait BoolExpr extends Expr {
-  override val typ: Type = BoolT
+sealed trait BoolOperation extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
 }
 
-sealed trait IntExpr extends Expr {
-  override val typ: Type = IntT
+sealed trait IntOperation extends Expr {
+  override val typ: Type = IntT(Addressability.rValue)
 }
 
-case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolExpr
+case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
   def left: Expr
@@ -522,22 +556,22 @@ object BinaryExpr {
     Some((arg.left, arg.operator, arg.right, arg.typ))
 }
 
-case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)      extends BinaryExpr("==") with BoolExpr
-case class UneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("!=") with BoolExpr
-case class LessCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("<" ) with BoolExpr
-case class AtMostCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)  extends BinaryExpr("<=") with BoolExpr
-case class GreaterCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">" ) with BoolExpr
-case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">=") with BoolExpr
+case class EqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)      extends BinaryExpr("==") with BoolOperation
+case class UneqCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("!=") with BoolOperation
+case class LessCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)    extends BinaryExpr("<" ) with BoolOperation
+case class AtMostCmp(left: Expr, right: Expr)(val info: Source.Parser.Info)  extends BinaryExpr("<=") with BoolOperation
+case class GreaterCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">" ) with BoolOperation
+case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">=") with BoolOperation
 
-case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolExpr
-case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolExpr
+case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolOperation
+case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
 
-case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntExpr
-case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntExpr
-case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntExpr
-case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntExpr
-case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntExpr
+case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntOperation
+case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntOperation
+case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntOperation
+case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntOperation
+case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntOperation
 
 
 
@@ -546,11 +580,11 @@ sealed trait Lit extends Expr
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
-  override def typ: Type = IntT
+  override def typ: Type = IntT(Addressability.literal)
 }
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
-  override def typ: Type = BoolT
+  override def typ: Type = BoolT(Addressability.literal)
 }
 
 case class NilLit()(val info: Source.Parser.Info) extends Lit {
@@ -558,7 +592,7 @@ case class NilLit()(val info: Source.Parser.Info) extends Lit {
 }
 
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
-  lazy val typ = TupleT(args map (_.typ)) // TODO: remove redundant typ information of other nodes
+  lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }
 
 sealed trait CompositeLit extends Lit
@@ -580,11 +614,17 @@ sealed trait Parameter extends Var with TopDeclaration {
 }
 
 object Parameter {
-  case class In(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter
-  case class Out(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter with AssignableVar
+  case class In(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter {
+    require(typ.addressability == Addressability.inParameter)
+  }
+  case class Out(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter with AssignableVar {
+    require(typ.addressability == Addressability.outParameter)
+  }
 }
 
-case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with BottomDeclaration
+case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with BottomDeclaration {
+  require(typ.addressability == Addressability.boundVariable)
+}
 
 sealed trait BodyVar extends Var
 
@@ -594,9 +634,16 @@ sealed trait LocalVar extends BodyVar with AssignableVar {
 }
 
 object LocalVar {
-  case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
-  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar with TopDeclaration
-  case class Inter(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar
+  // TODO: remove unnecessary variables
+  case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar {
+    require(typ.addressability == Addressability.sharedVariable)
+  }
+  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar with TopDeclaration {
+    require(typ.addressability == Addressability.exclusiveVariable)
+  }
+  case class Inter(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar {
+    require(typ.addressability == Addressability.exclusiveVariable)
+  }
 
 }
 
@@ -606,8 +653,11 @@ sealed trait GlobalConst extends Var {
 }
 
 object GlobalConst {
-  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends GlobalConst
+  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends GlobalConst {
+    require(typ.addressability == Addressability.constant)
+  }
 }
+
 
 
 
@@ -619,41 +669,46 @@ sealed trait Typed {
 
 sealed trait TopType
 
-sealed trait Type
+sealed trait Type {
+  def addressability: Addressability
+}
 
-case object BoolT extends Type
+case class BoolT(addressability: Addressability) extends Type
 
-case object IntT extends Type
+case class IntT(addressability: Addressability) extends Type
 
-case object VoidT extends Type
+case object VoidT extends Type {
+  override val addressability: Addressability = Addressability.unit
+}
 
-case object NilT extends Type
+case object NilT extends Type {
+  override val addressability: Addressability = Addressability.nil
+}
 
-case object PermissionT extends Type
+case class PermissionT(addressability: Addressability) extends Type
 
 /**
   * The type of mathematical sequences with elements of type `t`.
   * @param t The type of elements
   */
-case class SequenceT(t : Type) extends Type
+case class SequenceT(t : Type, addressability: Addressability) extends Type
 
 /**
   * The type of mathematical sets with elements of type `t`.
   */
-case class SetT(t : Type) extends Type
-
+case class SetT(t : Type, addressability: Addressability) extends Type
 /**
   * The type of mathematical multisets with elements of type `t`.
   */
-case class MultisetT(t : Type) extends Type
+case class MultisetT(t : Type, addressability: Addressability) extends Type
 
-case class DefinedT(name: String) extends Type with TopType
+case class DefinedT(name: String, addressability: Addressability) extends Type with TopType
 
-case class PointerT(t: Type) extends Type with TopType
+case class PointerT(t: Type, addressability: Addressability) extends Type with TopType
 
-case class TupleT(ts: Vector[Type]) extends Type with TopType
+case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type with TopType
 
-case class StructT(name: String, fields: Vector[Field]) extends Type with TopType
+case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType
 
 
 

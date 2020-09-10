@@ -273,7 +273,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Old(op) => "old(" <> showExpr(op) <> ")"
+    case Old(op, _) => "old(" <> showExpr(op) <> ")"
 
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
@@ -355,18 +355,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showType(typ : Type) : Doc = typ match {
-    case BoolT => "bool"
-    case IntT => "int"
+    case BoolT(_) => "bool"
+    case IntT(_) => "int"
     case VoidT => "void"
     case NilT => "nil"
-    case PermissionT => "perm"
-    case DefinedT(name) => name
-    case PointerT(t) => "*" <> showType(t)
-    case TupleT(ts) => parens(showTypeList(ts))
+    case PermissionT(_) => "perm"
+    case DefinedT(name, _) => name
+    case PointerT(t, _) => "*" <> showType(t)
+    case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case SequenceT(elem) => "seq" <> brackets(showType(elem))
-    case SetT(elem) => "set" <> brackets(showType(elem))
-    case MultisetT(elem) => "mset" <> brackets(showType(elem))
+    case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
+    case SetT(elem, _) => "set" <> brackets(showType(elem))
+    case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

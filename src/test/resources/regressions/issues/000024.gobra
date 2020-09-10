@@ -6,17 +6,19 @@ type Cell struct {
 };
 
 func test1(c Cell) () {
-    x := c.a;
-    p := &(c.a);
+    q! := c
+    x := q.a;
+    p := &(q.a);
     *p = x+1;
-    y := c.a;
+    y := q.a;
     assert x != y;
 };
 
 func test2() (c Cell) {
-    x := c.a;
-    p := &(c.a);
+    q! := c
+    x := q.a;
+    p := &(q.a);
     *p = x+1;
-    y := c.a;
+    y := q.a;
     assert x != y;
 };

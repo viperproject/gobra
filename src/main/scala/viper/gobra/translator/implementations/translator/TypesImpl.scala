@@ -24,20 +24,20 @@ class TypesImpl extends Types {
     * [void] undef
     */
   override def translate(x: in.Type)(ctx: Context): vpr.Type = x match {
-    case in.BoolT => vpr.Bool
-    case in.IntT  => vpr.Int
-    case in.PermissionT => vpr.Perm
+    case in.BoolT(_) => vpr.Bool
+    case in.IntT(_)  => vpr.Int
+    case in.PermissionT(_) => vpr.Perm
     case t: in.DefinedT => translate(ctx.typeProperty.underlyingType(t)(ctx))(ctx)
-    case in.PointerT(_) => vpr.Ref
+    case in.PointerT(_, _) => vpr.Ref
     case in.NilT => vpr.Ref
-    case in.StructT(_, fields) => fields.length match {
+    case in.StructT(_, fields, _) => fields.length match {
       case 1 => translate(fields.head.typ)(ctx)
       case _ => ctx.tuple.typ(fields.map(f => translate(f.typ)(ctx)))
     }
-    case in.TupleT(_) => Violation.violation("Tuple types are not supported at this point in time")
-    case in.SequenceT(elem) => vpr.SeqType(translate(elem)(ctx))
-    case in.SetT(elem) => vpr.SetType(translate(elem)(ctx))
-    case in.MultisetT(elem) => vpr.MultisetType(translate(elem)(ctx))
+    case in.TupleT(_, _) => Violation.violation("Tuple types are not supported at this point in time")
+    case in.SequenceT(elem, _) => vpr.SeqType(translate(elem)(ctx))
+    case in.SetT(elem, _) => vpr.SetType(translate(elem)(ctx))
+    case in.MultisetT(elem, _) => vpr.MultisetType(translate(elem)(ctx))
     case in.VoidT => Violation.violation("void is not a translatable type")
   }
 }

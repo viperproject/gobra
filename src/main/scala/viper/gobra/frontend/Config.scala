@@ -19,7 +19,7 @@ import viper.gobra.GoVerifier
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 
 
-import viper.server.{ViperBackendConfig, ViperBackendConfigs}
+import viper.server.core.{ViperBackendConfig, ViperBackendConfigs}
 
 
 object LoggerDefaults {

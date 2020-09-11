@@ -340,20 +340,20 @@ class LocationsImpl extends Locations {
     val (pos, info, errT) = src.vprMeta
 
     val leafVal: PartialFunction[in.Type, CodeWriter[vpr.Exp]] = {
-      case in.BoolT => unit(vpr.FalseLit()(pos, info, errT))
-      case in.IntT => unit(vpr.IntLit(0)(pos, info, errT))
-      case in.PermissionT => unit(vpr.NoPerm()(pos, info, errT))
-      case in.PointerT(_) => unit(vpr.NullLit()(pos, info, errT))
+      case in.BoolT(_) => unit(vpr.FalseLit()(pos, info, errT))
+      case in.IntT(_) => unit(vpr.IntLit(0)(pos, info, errT))
+      case in.PermissionT(_) => unit(vpr.NoPerm()(pos, info, errT))
+      case in.PointerT(_, _) => unit(vpr.NullLit()(pos, info, errT))
       case in.NilT => unit(vpr.NullLit()(pos, info, errT))
-      case in.SequenceT(elem) => {
+      case in.SequenceT(elem, _) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptySeq(elemT)(pos, info, errT))
       }
-      case in.SetT(elem) => {
+      case in.SetT(elem, _) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptySet(elemT)(pos, info, errT))
       }
-      case in.MultisetT(elem) => {
+      case in.MultisetT(elem, _) => {
         val elemT = ctx.typ.translate(elem)(ctx)
         unit(vpr.EmptyMultiset(elemT)(pos, info, errT))
       }

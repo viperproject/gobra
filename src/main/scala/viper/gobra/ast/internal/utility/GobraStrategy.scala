@@ -78,7 +78,7 @@ object GobraStrategy {
       case (e: Mul, Seq(l: Expr, r: Expr)) => Mul(l, r)(meta)
       case (e: Mod, Seq(l: Expr, r: Expr)) => Mod(l, r)(meta)
       case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
-      case (e: Old, Seq(op: Expr)) => Old(op)(meta)
+      case (e: Old, Seq(op: Expr)) => Old(op, e.typ)(meta)
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)

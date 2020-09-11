@@ -1,0 +1,8 @@
+package main
+
+// no import of package bar
+
+func test2() {
+    //:: ExpectedOutput(type_error)
+    assert Answer == 42
+}

@@ -1,5 +1,6 @@
 package viper.gobra.frontend.info.implementation.resolution
 
+import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
@@ -9,6 +10,9 @@ import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
+
+import scala.annotation.tailrec
+import scala.collection.immutable.Queue
 
 
 trait MemberResolution { this: TypeInfoImpl =>
@@ -235,18 +239,65 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
     attr[PIdnUse, Entity] {
       id => {
-        val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
-        val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
-        if (results.isEmpty) {
-          UnknownEntity()
-        } else if (results.length > 1) {
-          MultipleEntity()
-        } else {
-          results.head._1
+        val transitiveParent = transitiveClosure(id, tree.parent(_))
+        val entities = for {
+          // get enclosing PProgram for this PIdnUse node
+          program <- transitiveParent(id).collectFirst { case p: PProgram => p }
+          // consider all unqualified imports for this program (not package)
+          unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
+          // perform a package lookup in each unqualifiedly imported package
+          results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
+        } yield results
+        entities match {
+          case Some(Vector(elem)) => elem._1
+          case Some(v) if v.length > 1 => MultipleEntity()
+          case _ => UnknownEntity()
         }
       }
     }
 
+  def transitiveClosure[T](t : T, onestep : T => Vector[T]): Relation[T, T] = {
+
+    def alternativeTransitiveClosure(t : T, onestep : T => Vector[T]): Relation[T, T] = {
+      val relation = new Relation[T, T]
+
+      @tailrec
+      def loop(pending : Queue[T]) : Relation[T, T] =
+        if (pending.isEmpty)
+          relation
+        else {
+          val l = pending.front
+          val next = onestep(l)
+          if (next.nonEmpty)
+            relation.putAll(t, next)
+          loop(pending.tail.enqueue(next))
+        }
+
+      loop(Queue(t))
+    }
+
+    def relationEquality(relation1: Relation[T, T], relation2: Relation[T, T]): Boolean = {
+      (relation1.pairs.forall(pair =>
+        relation2.containsInDomain(pair._1) &&
+          relation2(pair._1).contains(pair._2))
+      && relation2.pairs.forall(pair =>
+        relation1.containsInDomain(pair._1) &&
+          relation1(pair._1).contains(pair._2)))
+    }
+
+    // fromOneStep creates a new relation in which all links from t to the root are contained in
+    val links = Relation.fromOneStep(t, onestep)
+    // create a new relation that consists of the image of links but only has t as its domain:
+    val relation = new Relation[T, T]
+    for (pair <- links.pairs) {
+      relation.put(t, pair._2)
+    }
+
+    // this should be equivalent to the following:
+    assert(relationEquality(relation, alternativeTransitiveClosure(t, onestep)))
+
+    relation
+  }
 
 
   def findField(t: Type, id: PIdnUse): Option[StructMember] =

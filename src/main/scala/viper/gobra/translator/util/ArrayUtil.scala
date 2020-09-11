@@ -1,8 +1,11 @@
 package viper.gobra.translator.util
 
+import viper.gobra.ast.internal.LocalVar
+
 import scala.collection.immutable.IndexedSeq
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
@@ -11,35 +14,34 @@ object ArrayUtil {
 
   /* ** Functionality */
 
-  def access(base : vpr.Exp, baseType : in.ArrayType, index : vpr.Exp)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def access(base : vpr.Exp, baseType : in.ArrayT, index : vpr.Exp)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     baseType match {
-      case in.ExclusiveArrayT(_, _) => vpr.SeqIndex(base, index)(pos, info, errT)
-      case in.SharedArrayT(_, t) => ctx.loc.arrayIndexField(base, index, t)(ctx)(pos, info, errT)
+      case in.ArrayT(_, _, Addressability.Exclusive) => vpr.SeqIndex(base, index)(pos, info, errT)
+      case in.ArrayT(_, t, Addressability.Shared) => ctx.loc.arrayIndexField(base, index, t)(ctx)(pos, info, errT)
     }
   }
 
-  def access(base : vpr.Exp, baseType : in.ArrayType, indices : IndexedSeq[vpr.Exp])(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def access(base : vpr.Exp, baseType : in.ArrayT, indices : IndexedSeq[vpr.Exp])(src : in.Node)(ctx : Context) : vpr.Exp = {
     indices match {
       case Vector() => base
-      case index +: tail => {
+      case index +: tail =>
         val elem = access(base, baseType, index)(src)(ctx)
-        baseType.typ match {
-          case t: in.ArrayType => access(elem, t, tail)(src)(ctx)
+        baseType.elems match {
+          case t: in.ArrayT => access(elem, t, tail)(src)(ctx)
           case _ => elem
         }
-      }
     }
   }
 
   /**
     * Gives a fresh local variable for an `typ`-typed array.
     */
-  def anonymousLocalVar(typ : in.ArrayType)(info : Source.Parser.Info) =
+  def anonymousLocalVar(typ : in.ArrayT)(info : Source.Parser.Info): LocalVar.Inter =
     in.LocalVar.Inter(Names.freshName, typ)(info)
 
-  def boundaryCondition(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node) : vpr.Exp = {
+  def boundaryCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     vpr.And(
@@ -48,7 +50,7 @@ object ArrayUtil {
     )(pos, info, errT)
   }
 
-  def boundaryCondition(base : IndexedSeq[(vpr.Exp, in.ArrayType)])(src : in.Node) : vpr.Exp = {
+  def boundaryCondition(base : IndexedSeq[(vpr.Exp, in.ArrayT)])(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val init = vpr.TrueLit()(pos, info, errT)
 
@@ -57,10 +59,10 @@ object ArrayUtil {
     }
   }
 
-  def defaultValueAssumption(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Stmt =
+  def defaultValueAssumption(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Stmt =
     inhale(defaultValueCondition(base, baseType)(src)(ctx))(src)
 
-  def defaultValueCondition(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def defaultValueCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val dims = dimensions(baseType).last
     val decls = dims.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
@@ -68,7 +70,7 @@ object ArrayUtil {
     val tailVars = declVars.zip(dims)
     val conditions : vpr.Exp = boundaryCondition(tailVars)(src)
     val accessExp = access(base, dims.head, declVars)(src)(ctx)
-    val dflt = ctx.loc.defaultValue(dims.last.typ)(src)(ctx).res
+    val dflt = ctx.loc.defaultValue(dims.last.elems)(src)(ctx).res
 
     vpr.Forall(
       decls,
@@ -80,10 +82,10 @@ object ArrayUtil {
     )(pos, info, errT)
   }
 
-  def equalsAssumption(left : vpr.Exp, leftType : in.ArrayType, right : vpr.Exp, rightType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Stmt =
+  def equalsAssumption(left : vpr.Exp, leftType : in.ArrayT, right : vpr.Exp, rightType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Stmt =
     inhale(equalsCondition(left, leftType, right, rightType)(src)(ctx))(src)
 
-  def equalsCondition(left : vpr.Exp, leftType : in.ArrayType, right : vpr.Exp, rightType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def equalsCondition(left : vpr.Exp, leftType : in.ArrayT, right : vpr.Exp, rightType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     if (left.typ.isInstanceOf[vpr.SeqType] && right.typ.isInstanceOf[vpr.SeqType]) {
@@ -115,10 +117,10 @@ object ArrayUtil {
     }
   }
 
-  def footprintAssumptions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Stmt] =
+  def footprintAssumptions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Stmt] =
     footprintConditions(base, baseType)(src)(ctx).map(inhale(_)(src))
 
-  def footprintCondition(array : vpr.Exp, arrayType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def footprintCondition(array : vpr.Exp, arrayType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val base = vpr.TrueLit()(pos, info, errT)
 
@@ -127,44 +129,42 @@ object ArrayUtil {
     }
   }
 
-  def footprintConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] = {
+  def footprintConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] = {
     val lengths = lengthConditions(base, baseType)(src)(ctx)
 
     baseType match {
-      case _: in.ExclusiveArrayT => lengths
-      case baseType: in.SharedArrayT => {
+      case a: in.ArrayT if a.addressability.isExclusive => lengths
+      case baseType: in.ArrayT if baseType.addressability.isShared =>
         val ownerships = ownershipConditions(base, baseType)(src)(ctx)
         lengths zip ownerships flatMap { case (l, r) => Vector(l, r) }
-      }
     }
   }
 
-  def length(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def length(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
 
     baseType match {
-      case _: in.ExclusiveArrayT => vpr.SeqLength(base)(pos, info, errT)
-      case _: in.SharedArrayT => ctx.array.length(base)(pos, info, errT)
+      case a: in.ArrayT if a.addressability.isExclusive => vpr.SeqLength(base)(pos, info, errT)
+      case a: in.ArrayT if a.addressability.isShared => ctx.array.length(base)(pos, info, errT)
     }
   }
 
-  def lengthCondition(base : vpr.Exp, dims : IndexedSeq[in.ArrayType])(src : in.Node)(ctx : Context) : vpr.Exp = {
+  def lengthCondition(base : vpr.Exp, dims : IndexedSeq[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Exp = {
     require(0 < dims.length, s"no idea on how to handle a zero-dimensional array")
 
     val (pos, info, errT) = src.vprMeta
 
     dims.dropRight(1) match {
       // case 1. `array` has only one dimension, so no need to generate any quantifiers
-      case Vector() => {
+      case Vector() =>
         val typ = dims.last
         vpr.EqCmp(
           length(base, typ)(src)(ctx),
           vpr.IntLit(typ.length)(pos, info, errT)
         )(pos, info, errT)
-      }
 
       // case 2. `array` has at least two dimensions, so quantifiers need to be generated
-      case tail => {
+      case tail =>
         val decls = tail.indices.map(i => vpr.LocalVarDecl(s"i$i", vpr.Int)(pos, info, errT))
         val declVars = decls.map(d => d.localVar)
         val tailVars = declVars.zip(tail)
@@ -183,31 +183,31 @@ object ArrayUtil {
             )(pos, info, errT)
           )(pos, info, errT)
         )(pos, info, errT)
-      }
     }
   }
 
-  def lengthConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] =
+  def lengthConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Exp] =
     dimensions(baseType).map(lengthCondition(base, _)(src)(ctx))
 
 
   /* ** Utilities */
 
-  private def dimensions(typ : in.Type) : Vector[Vector[in.ArrayType]] = typ match {
-    case typ : in.ArrayType => Vector(typ) +: dimensions(typ.typ).map(typ +: _)
+  private def dimensions(typ : in.Type) : Vector[Vector[in.ArrayT]] = typ match {
+    case typ : in.ArrayT => Vector(typ) +: dimensions(typ.elems).map(typ +: _)
     case _ => Vector()
   }
 
   private def inhale(expr : vpr.Exp)(src : in.Node) : vpr.Stmt = {
     val (pos, info, errT) = src.vprMeta
 
-    expr.isPure match {
-      case true => vpr.Assume(expr)(pos, info, errT)
-      case false => vpr.Inhale(expr)(pos, info, errT)
+    if (expr.isPure) {
+      vpr.Assume(expr)(pos, info, errT)
+    } else {
+      vpr.Inhale(expr)(pos, info, errT)
     }
   }
 
-  def ownershipCondition(base : vpr.Exp, dims : Vector[in.ArrayType])(src : in.Node)(ctx : Context) : vpr.Forall = {
+  def ownershipCondition(base : vpr.Exp, dims : Vector[in.ArrayT])(src : in.Node)(ctx : Context) : vpr.Forall = {
     require(0 < dims.length, s"no idea on how to handle a zero-dimensional array")
 
     val (pos, info, errT) = src.vprMeta
@@ -229,6 +229,6 @@ object ArrayUtil {
     )(pos, info, errT)
   }
 
-  def ownershipConditions(base : vpr.Exp, baseType : in.ArrayType)(src : in.Node)(ctx : Context) : Vector[vpr.Forall] =
+  def ownershipConditions(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : Vector[vpr.Forall] =
     dimensions(baseType).map(ownershipCondition(base, _)(src)(ctx))
 }

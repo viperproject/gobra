@@ -1,9 +1,9 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Expressions
-import viper.gobra.translator.util.{ArrayUtil, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
@@ -113,8 +113,8 @@ class ExpressionsImpl extends Expressions {
       case in.Length(exp) => for {
         expT <- goE(exp)
       } yield exp.typ match {
-        case _: in.ExclusiveArrayT => vpr.SeqLength(expT)(pos, info, errT)
-        case _: in.SharedArrayT => ctx.array.length(expT)(pos, info, errT)
+        case a: in.ArrayT if a.addressability == Addressability.Exclusive => vpr.SeqLength(expT)(pos, info, errT)
+        case a: in.ArrayT if a.addressability == Addressability.Shared => ctx.array.length(expT)(pos, info, errT)
         case _: in.SequenceT => vpr.SeqLength(expT)(pos, info, errT)
         case t => Violation.violation(s"no translation is currently available for length expressions of type $t")
       }
@@ -123,9 +123,9 @@ class ExpressionsImpl extends Expressions {
         baseT <- goE(base)
         indexT <- goE(index)
       } yield base.typ match {
-        case _: in.ExclusiveArrayT => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
-        case in.SharedArrayT(_, t) => ctx.loc.arrayIndexField(baseT, indexT, t)(ctx)(pos, info, errT)
-        case in.SequenceT(_) => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case a: in.ArrayT if a.addressability == Addressability.Exclusive => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
+        case in.ArrayT(_, t, Addressability.Shared) => ctx.loc.arrayIndexField(baseT, indexT, t)(ctx)(pos, info, errT)
+        case _: in.SequenceT => vpr.SeqIndex(baseT, indexT)(pos, info, errT)
         case t => Violation.violation(s"expected an array or sequence type, but got $t")
       }
 
@@ -224,22 +224,22 @@ class ExpressionsImpl extends Expressions {
         case t => Violation.violation(s"translation for multiplicity with type $t is not implemented")
       }
 
-      case in.ArrayCopy(expr, kind) => expr.typ match {
-        case _: in.ExclusiveArrayT if kind.isInstanceOf[in.ArrayKind.Exclusive] => translate(expr)(ctx)
-        case srcTyp : in.ArrayType => {
-          val dstTyp = srcTyp.convert(kind)
-          for {
-            tmp <- ctx.loc.variableVal(ArrayUtil.anonymousLocalVar(dstTyp)(expr.info))(ctx)
-            _ <- local(vu.toVarDecl(tmp))
-            footprint = ArrayUtil.footprintAssumptions(tmp, dstTyp)(expr)(ctx)
-            _ <- sequence(footprint map (a => write(a)))
-            exprT <- translate(expr)(ctx)
-            comparison = ArrayUtil.equalsAssumption(tmp, dstTyp, exprT, srcTyp)(expr)(ctx)
-            _ <- write(comparison)
-          } yield tmp
-        }
-        case typ => Violation.violation(s"expected an array type, but got $typ")
-      }
+//      case in.ArrayCopy(expr, kind) => expr.typ match {
+//        case _: in.ExclusiveArrayT if kind.isInstanceOf[in.ArrayKind.Exclusive] => translate(expr)(ctx)
+//        case srcTyp : in.ArrayType => {
+//          val dstTyp = srcTyp.convert(kind)
+//          for {
+//            tmp <- ctx.loc.variableVal(ArrayUtil.anonymousLocalVar(dstTyp)(expr.info))(ctx)
+//            _ <- local(vu.toVarDecl(tmp))
+//            footprint = ArrayUtil.footprintAssumptions(tmp, dstTyp)(expr)(ctx)
+//            _ <- sequence(footprint map (a => write(a)))
+//            exprT <- translate(expr)(ctx)
+//            comparison = ArrayUtil.equalsAssumption(tmp, dstTyp, exprT, srcTyp)(expr)(ctx)
+//            _ <- write(comparison)
+//          } yield tmp
+//        }
+//        case typ => Violation.violation(s"expected an array type, but got $typ")
+//      }
 
       case l: in.Lit => ctx.loc.literal(l)(ctx)
       case v: in.Var => ctx.loc.evalue(v)(ctx)

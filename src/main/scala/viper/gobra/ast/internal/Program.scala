@@ -262,21 +262,10 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   * and `index` of an integer type.
   */
 case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = base.typ match {
-    case t : ArrayType => t.typ
-    case SequenceT(t) => t
+  override val typ : Type = base.typ match {
+    case t: ArrayT => t.elems
+    case t: SequenceT => t.t
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
-  }
-}
-
-/**
-  * Represents a copy of the array `expr`, which should either be shared or
-  * exclusive as indicated by `dstKind`. This AST node is only used internally.
-  */
-case class ArrayCopy(expr : Expr, dstKind : ArrayKind)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = expr.typ match {
-    case t: ArrayType => t.convert(dstKind)
-    case t => Violation.violation(s"expected an array type, but got $t")
   }
 }
 
@@ -289,7 +278,7 @@ case class ArrayCopy(expr : Expr, dstKind : ArrayKind)(val info : Source.Parser.
   * which should all be of type `memberType`.
   */
 case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length = exprs.length
+  lazy val length: BigInt = exprs.length
   override val typ : Type = SequenceT(memberType, Addressability.literal)
 }
 
@@ -351,9 +340,9 @@ case class SequenceTake(left : Expr, right : Expr)(val info: Source.Parser.Info)
   * Here `expr` is assumed to be either a sequence or an exclusive array.
   */
 case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
-  override def typ : Type = expr.typ match {
+  override val typ : Type = expr.typ match {
     case t: SequenceT => t
-    case t: ExclusiveArrayT => t.sequence
+    case t: ArrayT => t.sequence
     case t => Violation.violation(s"expected a sequence or exclusive array type. but got $t")
   }
 }
@@ -628,9 +617,8 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 sealed trait CompositeLit extends Lit
 
 case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length = exprs.length
-  lazy val asSeqLit = SequenceLit(memberType, exprs)(info)
-  override def typ : Type = ExclusiveArrayT(exprs.length, memberType).exclusive
+  lazy val length: BigInt = exprs.length
+  override val typ : Type = ArrayT(exprs.length, memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
@@ -707,102 +695,136 @@ sealed trait TopType
 
 sealed trait Type {
   def addressability: Addressability
+  def equalsWithoutMod(t: Type): Boolean
+  def withAddressability(newAddressability: Addressability): Type
 }
 
-case class BoolT(addressability: Addressability) extends Type
+case class BoolT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[BoolT]
+  override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
+}
 
-case class IntT(addressability: Addressability) extends Type
+case class IntT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT]
+  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability)
+}
 
 case object VoidT extends Type {
   override val addressability: Addressability = Addressability.unit
+  override def equalsWithoutMod(t: Type): Boolean = t == VoidT
+  override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
 }
 
 case object NilT extends Type {
   override val addressability: Addressability = Addressability.nil
+  override def equalsWithoutMod(t: Type): Boolean = t == NilT
+  override def withAddressability(newAddressability: Addressability): NilT.type = NilT
 }
 
-case class PermissionT(addressability: Addressability) extends Type
+case class PermissionT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[PermissionT]
+  override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
+}
 
 /**
-  * The type of (exclusive or shared) `length`-sized arrays
+  * The type of `length`-sized arrays
   * of elements of type `typ`.
   */
-sealed trait ArrayType extends Type {
-  require(0 <= length, s"arrays are required to be of non-negative length")
+case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends Type {
+  /** (Deeply) converts the current type to a `SequenceT`. */
+  lazy val sequence : SequenceT = SequenceT(elems match {
+    case t: ArrayT => t.sequence
+    case t => t
+  }, addressability)
 
-  def length : BigInt
-  def typ : Type
-
-  /** (Deeply) convers the current type as indicated by `kind`. */
-  def convert(kind : ArrayKind) : ArrayType = kind match {
-    case ArrayKind.Exclusive() => exclusive
-    case ArrayKind.Shared() => shared
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case ArrayT(otherLength, otherElems, _) => length == otherLength && elems.equalsWithoutMod(otherElems)
+    case _ => false
   }
 
-  /** (Deeply) converts the current type to an `ExclusiveArrayT`. */
-  lazy val exclusive : ExclusiveArrayT = ExclusiveArrayT(length, typ match {
-    case t: ArrayType => t.exclusive
-    case t => t
-  })
-
-  /** (Deeply) converts the current type to a `SharedArrayT`. */
-  lazy val shared : SharedArrayT = SharedArrayT(length, typ match {
-    case t: ArrayType => t.shared
-    case t => t
-  })
-
-  /** (Deeply) converts the current type to a `SequenceT`. */
-  lazy val sequence : SequenceT = SequenceT(typ match {
-    case t: ArrayType => t.sequence
-    case t => t
-  })
-}
-
-/**
-  * The type of exclusive (non-shared) arrays of
-  * (non-negative) length `length` and type `typ`.
-  */
-case class ExclusiveArrayT(length : BigInt, typ : Type) extends ArrayType
-
-/**
-  * The type of shared arrays of (non-negative) length `length` and type `typ`.
-  */
-case class SharedArrayT(length : BigInt, typ : Type) extends ArrayType
-
-/**
-  * Encapsulates the kinds of arrays available in Gobra
-  * (either exclusive or shared).
-  */
-sealed trait ArrayKind
-
-object ArrayKind {
-  /** The kind of exclusive (Gobra) arrays. */
-  case class Exclusive() extends ArrayKind
-  /** The kind of shared (Gobra) arrays. */
-  case class Shared() extends ArrayKind
+  override def withAddressability(newAddressability: Addressability): ArrayT =
+    ArrayT(length, elems.withAddressability(Addressability.arrayElement(newAddressability)), newAddressability)
 }
 
 /**
   * The type of mathematical sequences with elements of type `t`.
   */
-case class SequenceT(t : Type, addressability: Addressability) extends Type
+case class SequenceT(t : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case SequenceT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): SequenceT =
+    SequenceT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
 
 /**
   * The type of mathematical sets with elements of type `t`.
   */
-case class SetT(t : Type, addressability: Addressability) extends Type
+case class SetT(t : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case SetT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): SetT =
+    SetT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
 /**
   * The type of mathematical multisets with elements of type `t`.
   */
-case class MultisetT(t : Type, addressability: Addressability) extends Type
+case class MultisetT(t : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case MultisetT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
 
-case class DefinedT(name: String, addressability: Addressability) extends Type with TopType
+  override def withAddressability(newAddressability: Addressability): MultisetT =
+    MultisetT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
 
-case class PointerT(t: Type, addressability: Addressability) extends Type with TopType
+case class DefinedT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case DefinedT(otherName, _) => name == otherName
+    case _ => false
+  }
 
-case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type with TopType
+  override def withAddressability(newAddressability: Addressability): DefinedT =
+    DefinedT(name, newAddressability)
+}
 
-case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType
+case class PointerT(t: Type, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case PointerT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): PointerT =
+    PointerT(t.withAddressability(Addressability.pointerBase), newAddressability)
+}
+
+case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case TupleT(otherTs, _) => ts.zip(otherTs).forall{ case (l,r) => l.equalsWithoutMod(r) }
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): TupleT =
+    TupleT(ts.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
+}
+
+
+// TODO: Maybe remove name
+case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case StructT(_, otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): StructT =
+    StructT(name, fields.map(f => Field.Ref(f.name, f.typ.withAddressability(Addressability.field(newAddressability)))(f.info)), newAddressability)
+}
 
 
 

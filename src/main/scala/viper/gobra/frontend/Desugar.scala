@@ -706,21 +706,6 @@ object Desugar {
       } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
     }
 
-    // TODO: remove
-    private def argumentD(param : PParameter, arg : in.Expr) : in.Expr = param match {
-      case PNamedParameter(_, _: PArrayType, addressable) =>
-        if (addressable) in.ArrayCopy(arg, in.ArrayKind.Shared())(arg.info)
-        else in.ArrayCopy(arg, in.ArrayKind.Exclusive())(arg.info)
-      case _ => arg
-    }
-
-    private def argumentsD(params : Vector[PParameter], args : Vector[in.Expr]) : Vector[in.Expr] = {
-      require(params.length == args.length, "parameters and arguments do not match")
-      params.zip(args) map {
-        case (p, a) => argumentD(p, a)
-      }
-    }
-
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       p.callee match {
         case base: ap.Symbolic =>
@@ -945,7 +930,7 @@ object Desugar {
           } yield dop match {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case dop : in.SequenceLit => in.IntLit(dop.length)(src)
-            case dop => in.Length(dop)(src)
+            case _ => in.Length(dop)(src)
           }
 
           case PCapacity(op) => for {
@@ -953,7 +938,7 @@ object Desugar {
           } yield dop match {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
-              case _: in.ArrayType => in.Length(dop)(src)
+              case _: in.ArrayT => in.Length(dop)(src)
               case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
             }
           }
@@ -1019,18 +1004,16 @@ object Desugar {
     sealed trait CompositeKind
 
     object CompositeKind {
-      case class ExclusiveArray(t : in.ExclusiveArrayT) extends CompositeKind
+      case class Array(t : in.ArrayT) extends CompositeKind
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
-      case class SharedArray(t : in.SharedArrayT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
     def compositeTypeD(t : in.Type) : CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
-      case t: in.ExclusiveArrayT => CompositeKind.ExclusiveArray(t)
-      case t: in.SharedArrayT => CompositeKind.SharedArray(t)
+      case t: in.ArrayT => CompositeKind.Array(t)
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
@@ -1103,14 +1086,12 @@ object Desugar {
           }
         }
 
-        case CompositeKind.ExclusiveArray(in.ExclusiveArrayT(_, typ)) =>
+        case CompositeKind.Array(in.ArrayT(_, typ, addressability)) =>
+          Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
           val indices = info.keyElementIndices(lit.elems)
           val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
           for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
             yield in.ArrayLit(typ, elemsD)(src)
-
-        case CompositeKind.SharedArray(_) =>
-          Violation.violation(s"shared array literals are impossible")
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) =>
           val indices = info.keyElementIndices(lit.elems)
@@ -1166,7 +1147,7 @@ object Desugar {
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.IntT => in.IntT(addrMod)
-      case Type.ArrayT(length, elem) => in.ExclusiveArrayT(length, typeD(elem)(src))
+      case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
@@ -1457,7 +1438,7 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case _: in.SequenceT => dop
-          case _: in.ExclusiveArrayT => in.SequenceConversion(dop)(src)
+          case _: in.ArrayT => in.SequenceConversion(dop)(src)
           case t => violation(s"expected a sequence or exclusive array type, but got $t")
         }
 

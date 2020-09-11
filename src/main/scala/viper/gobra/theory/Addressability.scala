@@ -1,11 +1,18 @@
 package viper.gobra.theory
 
-sealed trait Addressability
+sealed trait Addressability {
+  def isShared: Boolean
+  def isExclusive: Boolean = !isShared
+}
 
 object Addressability {
 
-  case object Shared extends Addressability
-  case object Exclusive extends Addressability
+  case object Shared extends Addressability {
+    override val isShared: Boolean = true
+  }
+  case object Exclusive extends Addressability {
+    override val isShared: Boolean = false
+  }
 
 
 

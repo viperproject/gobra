@@ -1,6 +1,7 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.translator.interfaces.translator.Types
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.util.Violation
@@ -37,6 +38,8 @@ class TypesImpl extends Types {
       case _ => ctx.tuple.typ(fields.map(f => translate(f.typ)(ctx)))
     }
     case in.TupleT(_, _) => Violation.violation("Tuple types are not supported at this point in time")
+    case in.ArrayT(_, elem, Addressability.Exclusive) => vpr.SeqType(translate(elem)(ctx))
+    case in.ArrayT(_, _, Addressability.Shared) => ctx.array.typ()
     case in.SequenceT(elem, _) => vpr.SeqType(translate(elem)(ctx))
     case in.SetT(elem, _) => vpr.SetType(translate(elem)(ctx))
     case in.MultisetT(elem, _) => vpr.MultisetType(translate(elem)(ctx))

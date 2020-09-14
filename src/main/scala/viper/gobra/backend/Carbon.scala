@@ -7,7 +7,7 @@
 package viper.gobra.backend
 
 import viper.carbon
-import viper.server.ViperBackendConfig
+import viper.server.core.ViperBackendConfig
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}

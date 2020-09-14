@@ -23,7 +23,8 @@ object PackageResolver {
     * Resolves a package name (i.e. import path) to specific input files
     * @param importPath relative import path that should be resolved
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @return list of files belonging to the package (right) or an error message (left)
+    * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
+    *         or the directory contains input files having different package clauses
     */
   def resolve(importPath: String, includeDirs: Vector[File]): Either[String, Vector[File]] = {
     for {
@@ -37,17 +38,23 @@ object PackageResolver {
   }
 
   /**
-    * Returns the qualifier with which members of the imported package can be accessed
+    * Similar to `resolve` but returns the package name of the files instead of the files themselves.
+    * The returned package name can be used as qualifier for the implicitly qualified import.
+    *
+    * @param n implicitely qualified import for which a qualifier should be resolved
+    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
+    *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Option[String] = {
-    (for {
+  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
+    for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(n.importPath, includeDirs)
       sourceFiles = getSourceFiles(pkgDir.toFile)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
       pkgName <- checkPackageClauses(sourceFiles, n.importPath)
-    } yield pkgName).toOption
+    } yield pkgName
   }
 
   /**
@@ -84,7 +91,7 @@ object PackageResolver {
 
   /**
     * Looks up the package clauses for all files and checks whether they match.
-    * Returns right with the package name used in the package clause if they do otherwise returns left with an error message
+    * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
     */
   def checkPackageClauses(files: Vector[File], importPath: String): Either[String, String] = {
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
@@ -95,9 +102,9 @@ object PackageResolver {
           case _ => Left(f)
         }
       })
-      val failedFiles = pkgClauses.collect { case Left(f) => f }
-      if (failedFiles.nonEmpty) Left(s"Parsing package clause for these files has failed: ${failedFiles.map(_.getPath).mkString(", ")}")
-      else Right(pkgClauses.collect { case Right(pkgClause) => pkgClause })
+      val (failedFiles, validFiles) = pkgClauses.partition(_.isLeft)
+      if (failedFiles.nonEmpty) Left(s"Parsing package clause for these files has failed: ${failedFiles.map(_.left.get.getPath).mkString(", ")}")
+      else Right(validFiles.map(_.right.get))
     }
 
     def isEqual(pkgClauses: Vector[(File, String)]): Either[String, String] = {

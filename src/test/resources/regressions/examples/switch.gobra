@@ -52,3 +52,47 @@ func isOdd(i int)(ret bool) {
     }
     return
 }
+
+func emptySwitch(){
+    // tests that gobra can handle empty statements
+    switch {}
+}
+
+func onlyDefault(i int)(ret int){
+    switch i {
+    default: ret = 1
+    }
+    return ret
+}
+
+ensures i == 0 ==> ret == 0
+ensures i == 1 ==> ret == 2
+ensures i != 0 && i != 1 ==> ret == 1
+func testDefaultNotLast(i int)(ret int) {
+    // tests support for default case not being the last one
+    switch i {
+    case 0:
+        ret = 0
+    default:
+        ret = 1
+    case 1:
+        ret = 2
+    }
+    return
+}
+
+ensures i == 0 ==> ret == 0
+func testMultipleMatch(i int)(ret int) {
+    switch i {
+    case 0:
+        ret = 0
+    case 0:
+        ret = 1
+    case 0:
+        ret = 2
+    case 0:
+        ret = 3
+    default:
+        ret = 4
+    }
+}

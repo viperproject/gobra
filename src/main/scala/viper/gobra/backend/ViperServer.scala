@@ -57,7 +57,7 @@ class ViperServer(server: ViperCoreServer) extends ViperVerifier {
 
     val handle = server.verify(programID, config, program)
     val clientActor = actor_system.actorOf(Props(new GlueActor(reporter)))
-    server.streamMessages(handle.id, clientActor)
+    server.streamMessages(handle, clientActor)
 
     implicit val askTimeout: Timeout = Timeout(server.config.actorCommunicationTimeout() milliseconds)
     val query = (clientActor ? Result).mapTo[Promise[VerificationResult]]

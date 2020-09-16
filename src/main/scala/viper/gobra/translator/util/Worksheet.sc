@@ -1,6 +1,20 @@
-import viper.silver.{ast => vpr}
+import TypePatterns.::
+import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.interfaces.Context
 
-val src = vpr.Seqn(Vector.empty, Vector.empty)()
-val label = vpr.Label("test", Vector.empty)()
+object TypePatterns {
 
-label.duplicateMeta(src.pos, src.info, src.errT)
+
+  object :: {
+    def unapply(arg: in.Expr): Option[(in.Expr, in.Type)] = Some(arg, arg.typ)
+  }
+
+
+}
+
+def foo(x: in.Expr): Unit  = {
+  x match {
+    case ::(a,b) => ???
+    case a :: b =>
+  }
+}

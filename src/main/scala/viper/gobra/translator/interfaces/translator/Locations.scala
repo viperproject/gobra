@@ -2,10 +2,33 @@ package viper.gobra.translator.interfaces.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.reporting.Source.Parser.Info
 import viper.silver.{ast => vpr}
 
 trait Locations extends Generator {
+
+  def inParameter2(p: in.Parameter.In)(ctx: Context)
+                 : (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]])
+
+  def outParameter2(p: in.Parameter.Out)(ctx: Context)
+                  : (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]], CodeWriter[Unit])
+
+  def localDecl2(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[Unit])
+
+  def assignment2(lhs: in.Assignee, rhs: in.Expr)(info: Info)(ctx: Context): CodeWriter[vpr.Stmt]
+
+  def equal2(lhs: in.Expr, rhs: in.Expr)(info: Info)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def asRValue2(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def asLValue2(x: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def access2(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp]
+
+
+  // --------------------------------------------------------
+
 
   def arity(typ: in.Type)(ctx: Context): Int
 

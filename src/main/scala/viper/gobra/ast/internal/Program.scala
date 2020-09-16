@@ -693,6 +693,8 @@ sealed trait Typed {
 
 sealed trait TopType
 
+/** When a type is added, then also add a pattern to [[viper.gobra.translator.util.TypePatterns]] */
+
 sealed trait Type {
   def addressability: Addressability
   def equalsWithoutMod(t: Type): Boolean

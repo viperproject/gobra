@@ -1,12 +1,18 @@
 package viper.gobra.translator.interfaces
 
+import akka.actor.Address
 import viper.gobra.ast.internal.LookupTable
 import viper.gobra.translator.interfaces.components._
 import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
+import viper.gobra.translator.encodings.TypeEncoding
 
 trait Context {
+
+  // combined encodings
+  def typeEncoding: TypeEncoding
 
   // components
   def array : Arrays
@@ -15,6 +21,8 @@ trait Context {
   def seqMultiplicity : SeqMultiplicity
   def fixpoint: Fixpoint
   def tuple: Tuples
+  def equality: Equality
+  def condition: Conditions
   def typeProperty: TypeProperties
 
   // translator

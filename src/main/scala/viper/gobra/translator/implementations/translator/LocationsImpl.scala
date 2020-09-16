@@ -4,6 +4,7 @@ import viper.gobra.ast.{internal => in}
 import in.Addressable.isAddressable
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
+import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.translator.interfaces.translator.Locations
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ArrayUtil, PrimitiveGenerator, Registrator, ViperUtil => vu}
@@ -16,6 +17,8 @@ import viper.gobra.util.Violation
 class LocationsImpl extends Locations {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
+
+  val encodings: Vector[TypeEncoding] = ???
 
   override def finalize(col: Collector): Unit = {
     fieldReg.finalize(col)
@@ -74,6 +77,8 @@ class LocationsImpl extends Locations {
   }
 
 
+
+
   /**
     * Parameter[?x: [n]T] -> { x }
     * Parameter[?x: T] -> { a(x) | a in Values[T] }
@@ -91,7 +96,7 @@ class LocationsImpl extends Locations {
           val conditions = ArrayUtil.footprintConditions(ldecl.localVar, typ)(v)(ctx)
 
           (Vector(ldecl), for {
-            _ <- sequence(conditions map { c => wellDef(c) })
+            _ <- sequence(conditions map { c => assert(c) })
           } yield ())
         }
 
@@ -123,7 +128,7 @@ class LocationsImpl extends Locations {
 
         (ldecls, for {
           _ <- declUnit
-          _ <- sequence(conditions map(c => wellDef(c)))
+          _ <- sequence(conditions map(c => assert(c)))
         } yield ())
       }
 
@@ -504,6 +509,7 @@ class LocationsImpl extends Locations {
     * [!r: T = e] -> FOREACH a in Values[T]. a(r) := a(e)
     */
   override def assignment(ass : in.SingleAss)(ctx : Context) : CodeWriter[vpr.Stmt] = {
+
     val (pos, info, errT) = ass.vprMeta
     val right = ass.right
 
@@ -891,7 +897,7 @@ class LocationsImpl extends Locations {
             for {
               address <- avalue(ref.ref.op)(ctx)
               // assert address != null
-              _ <- wellDef(vpr.NeCmp(address, vpr.NullLit()(pos, info, errT))(pos, info, errT))
+              _ <- assert(vpr.NeCmp(address, vpr.NullLit()(pos, info, errT))(pos, info, errT))
             } yield address
 
           case in.FieldRef(recv, field) =>

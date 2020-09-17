@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.backend
 
 import viper.silver.ast.Program
@@ -51,7 +57,7 @@ class ViperServer(server: ViperCoreServer) extends ViperVerifier {
 
     val handle = server.verify(programID, config, program)
     val clientActor = actor_system.actorOf(Props(new GlueActor(reporter)))
-    server.streamMessages(handle.id, clientActor)
+    server.streamMessages(handle, clientActor)
 
     implicit val askTimeout: Timeout = Timeout(server.config.actorCommunicationTimeout() milliseconds)
     val query = (clientActor ? Result).mapTo[Promise[VerificationResult]]

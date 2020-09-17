@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend
 
 import viper.gobra.ast.frontend._
@@ -6,7 +12,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.ast.internal.Lit
+import viper.gobra.ast.internal.{Lit, LocalVar}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -680,10 +686,47 @@ object Desugar {
 
           case g: PGhostStatement => ghostStmtD(ctx)(g)
 
+          case PExprSwitchStmt(pre, exp, cases, dflt) =>
+            for {
+              dPre <- maybeStmtD(ctx)(pre)(src)
+              dExp <- exprD(ctx)(exp)
+              exprVar = freshVar(dExp.typ)(dExp.info)
+              _ <- declare(exprVar)
+              exprAss = in.SingleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
+              _ <- write(exprAss)
+              clauses <- sequence(cases.map(c => switchCaseD(c, exprVar)(ctx)))
+
+              dfltStmt <- if (dflt.size > 1) {
+                violation("switch statement has more than one default clause")
+              } else if (dflt.size == 1) {
+                stmtD(ctx)(dflt(0))
+              } else {
+                unit(in.Seqn(Vector.empty)(src))
+              }
+
+              clauseBody = clauses.foldRight(dfltStmt){
+                (clauseD, tail) =>
+                  clauseD match {
+                    case (exprCond, body) => in.If(exprCond, body, tail)(body.info)
+                  }
+              }
+            } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
           case _ => ???
         }
       }
     }
+
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: LocalVar.Val)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
+      switchCase match {
+        case PExprSwitchCase(left, body) => for {
+          acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
+          acceptCond = acceptExprs.foldRight(in.BoolLit(false)(meta(left.head)) : in.Expr){
+            (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
+          }
+          stmt <- stmtD(ctx)(body)
+        } yield (acceptCond, stmt)
+      }
 
     def multiassD(lefts: Vector[in.Assignee], right: in.Expr)(src: Source.Parser.Info): in.Stmt = right match {
       case in.Tuple(args) if args.size == lefts.size =>

@@ -1,0 +1,58 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2011-2020 ETH Zurich.
+
+name: test
+
+on: [push]
+
+jobs:
+  setup-and-test:
+    runs-on: gobraverifier/gobra-base:v2
+    steps:
+      - name: Checkout Gobra
+        uses: actions/checkout@v2
+
+      # clone Viper dependencies
+      # the Viper dependencies get nested into gobra, hence sym linking is not necessary
+      - name: Checkout Silver
+        uses: actions/checkout@v2
+        with:
+          repository: viperproject/silver
+          path: silver
+      - name: Checkout Silicon
+          uses: actions/checkout@v2
+          with:
+            repository: viperproject/silicon
+            path: silicon
+      - name: Checkout Carbon
+          uses: actions/checkout@v2
+          with:
+            repository: viperproject/carbon
+            path: carbon
+      - name: Checkout ViperServer
+          uses: actions/checkout@v2
+          with:
+            repository: viperproject/viperserver
+            path: viperserver
+
+      - name: Versions
+        run: java --version
+        run: z3 -version
+        run: echo "Silver commit:" $(git -C silver rev-parse HEAD)
+        run: echo "Silicon commit:" $(git -C silicon rev-parse HEAD)
+        run: echo "Carbon commit:" $(git -C carbon rev-parse HEAD)
+        run: echo "ViperServer commit:" $(git -C viperserver rev-parse HEAD)
+
+      - name: Cache SBT
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+
+      - name: Execute all tests
+        run: sbt test

@@ -52,6 +52,17 @@ jobs:
       - name: ViperServer Commit
         run: echo "ViperServer commit:" $(git -C viperserver rev-parse HEAD)
 
+      - run: pwd
+      - run: ls
+      - run: ls
+        working-directory: silver
+      - run: ls
+        working-directory: silicon
+      - run: ls
+        working-directory: carbon
+      - run: ls
+        working-directory: viperserver
+
       - name: Cache SBT
         uses: actions/cache@v2
         with:

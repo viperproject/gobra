@@ -67,17 +67,6 @@ jobs:
         run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; ln --symbolic ../viperserver
         working-directory: gobra
 
-      - run: pwd
-      - run: ls
-      - run: ls
-        working-directory: silver
-      - run: ls
-        working-directory: silicon
-      - run: ls
-        working-directory: carbon
-      - run: ls
-        working-directory: viperserver
-
       - name: Cache SBT
         uses: actions/cache@v2
         with:

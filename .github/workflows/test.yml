@@ -10,7 +10,8 @@ on: [push]
 
 jobs:
   setup-and-test:
-    runs-on: gobraverifier/gobra-base:v2
+    runs-on: ubuntu-latest
+    container: gobraverifier/gobra-base:v2
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2

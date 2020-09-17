@@ -11,48 +11,70 @@ import viper.silver.{ast => vpr}
 trait TypeEncoding extends Generator {
 
   /**
-    * Translates an in-parameter.
-    * Returns:
-    * 1) The encoded Viper parameters
-    * 2) An optional extension to the precondition
+    * Translates variables. Returns the encoded Viper variables.
     */
-  def inParameter(ctx: Context): in.Parameter.In ==> (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]]) = PartialFunction.empty
+  def variable(ctx: Context): in.Var ==> Vector[vpr.LocalVarDecl] = PartialFunction.empty
 
   /**
-    * Translates an out-parameter.
-    * Returns:
-    * 1) The encoded Viper parameters
-    * 2) An optional extension to the postcondition
-    * 3) Initialization code for the out-parameter.
-    *    The initialization has to guarantee that the out-parameter receives its default value.
+    * Returns extensions to the precondition for an in-parameter.
     */
-  def outParameter(ctx: Context): in.Parameter.Out ==> (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]], CodeWriter[Unit]) = PartialFunction.empty
+  def precondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = PartialFunction.empty
 
   /**
-    * Translates an declaration
-    * Returns:
-    * 1) The encoded Viper declaration
-    * 2) Initialization code for the declaration.
-    *    The initialization has to guarantee that a declared variable receives its default value.
+    * Returns extensions to the postcondition for an out-parameter
     */
-  def localDecl(ctx: Context): in.BottomDeclaration ==> (Vector[vpr.Declaration], CodeWriter[Unit]) = PartialFunction.empty
+  def postcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = PartialFunction.empty
 
-  // def variable: (, Context) ==> (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
+  /**
+    * Returns initialization code for a declaration.
+    * The initialization code has to guarantee that:
+    * 1) the declared variable has its default value afterwards
+    * 2) all permissions for the declared variables are owned afterwards
+    */
+  def initialization(ctx: Context): in.BottomDeclaration ==> CodeWriter[vpr.Stmt] = PartialFunction.empty
 
-  // def typ: (in.Type, Context) ==> vpr.Type
+  /**
+    * Translates a type into Viper types.
+    */
+  def typ(ctx: Context): in.Type ==> Vector[vpr.Type] = PartialFunction.empty
 
+  /**
+    * Encodes an assignment.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    */
   def assignment(ctx: Context): (in.Assignee, in.Expr, Info) ==> CodeWriter[vpr.Stmt] = PartialFunction.empty
 
+  /**
+    * Encodes the comparison of two expressions.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    */
   def equal(ctx: Context): (in.Expr, in.Expr, Info) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
-  // literal, defaultValue, make
-  def asRValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  /**
+    * Encodes expressions as r-values, i.e. a value that does not occupy some identifiable location in memory.
+    * This includes literals and default values.
+    */
+  def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
-  def asLValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  /**
+    * Encodes expressions as r-values, i.e. a value that does not occupy some identifiable location in memory.
+    * This includes literals and default values.
+    */
+  def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
-  // TODO: maybe remove
-  // def reference: (in.Location, Context) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  /**
+    * Encodes the reference of an expression.
+    */
+  def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
+  /**
+    * Encodes access permissions.
+    */
   def access(ctx: Context): in.Access ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /**
+    * Encodes make statements.
+    */
+  def make(ctx: Context): in.Make ==> CodeWriter[vpr.Stmt] = PartialFunction.empty
 }
 

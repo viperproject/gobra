@@ -646,7 +646,7 @@ object Parameter {
   }
 }
 
-case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var with BottomDeclaration {
+case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var {
   require(typ.addressability == Addressability.boundVariable)
 }
 

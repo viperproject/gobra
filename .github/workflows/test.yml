@@ -38,12 +38,17 @@ jobs:
           repository: viperproject/viperserver
           path: viperserver
 
-      - name: Versions
+      - name: Java Version
         run: java --version
+      - name: Z3 Version
         run: z3 -version
+      - name: Silver Commit
         run: echo "Silver commit:" $(git -C silver rev-parse HEAD)
+      - name: Silicon Commit
         run: echo "Silicon commit:" $(git -C silicon rev-parse HEAD)
+      - name: Carbon Commit
         run: echo "Carbon commit:" $(git -C carbon rev-parse HEAD)
+      - name: ViperServer Commit
         run: echo "ViperServer commit:" $(git -C viperserver rev-parse HEAD)
 
       - name: Cache SBT

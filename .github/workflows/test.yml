@@ -23,20 +23,20 @@ jobs:
           repository: viperproject/silver
           path: silver
       - name: Checkout Silicon
-          uses: actions/checkout@v2
-          with:
-            repository: viperproject/silicon
-            path: silicon
+        uses: actions/checkout@v2
+        with:
+          repository: viperproject/silicon
+          path: silicon
       - name: Checkout Carbon
-          uses: actions/checkout@v2
-          with:
-            repository: viperproject/carbon
-            path: carbon
+        uses: actions/checkout@v2
+        with:
+          repository: viperproject/carbon
+          path: carbon
       - name: Checkout ViperServer
-          uses: actions/checkout@v2
-          with:
-            repository: viperproject/viperserver
-            path: viperserver
+        uses: actions/checkout@v2
+        with:
+          repository: viperproject/viperserver
+          path: viperserver
 
       - name: Versions
         run: java --version

@@ -39,14 +39,16 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silicon -> ..\silicon
         - carbon -> ..\carbon
         - viperserver -> ..\viperserver
-4. Install Z3 and Boogie
-    - Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
+4. Install Z3 and Boogie. 
+    Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend.
+    1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
       We tested version 4.8.6 64-Bit.
-    - Set an environmental variable `Z3_EXE` to your Z3 executable.
-    - Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie). 
+    2. Set an environmental variable `Z3_EXE` to your Z3 executable.
+    3. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
+        [Mono](https://www.mono-project.com/download/stable/) is required on Linux and macOS to run Boogie.
         Alternatively, extract a compiled version from the Viper release tools
         ([Windows](http://viper.ethz.ch/downloads/ViperToolsReleaseWin.zip), [Linux](http://viper.ethz.ch/downloads/ViperToolsReleaseLinux.zip), [macOS](http://viper.ethz.ch/downloads/ViperToolsReleaseMac.zip)).
-    - Set an environmental variable `BOOGIE_EXE` to your Boogie executable.
+    4. Set an environmental variable `BOOGIE_EXE` to your Boogie executable.
 
 ### Compilation
 1. Change directory to `gobraHome/gobra-one`

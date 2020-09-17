@@ -15,9 +15,10 @@ jobs:
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
+        with:
+          path: gobra
 
       # clone Viper dependencies
-      # the Viper dependencies get nested into gobra, hence sym linking is not necessary
       - name: Checkout Silver
         uses: actions/checkout@v2
         with:
@@ -52,6 +53,20 @@ jobs:
       - name: ViperServer Commit
         run: echo "ViperServer commit:" $(git -C viperserver rev-parse HEAD)
 
+      # create symlinks between and to Viper dependencies:
+      - name: Create Silicon's sym links
+        run: ln --symbolic ../silver
+        working-directory: silicon
+      - name: Create Carbon's sym links
+        run: ln --symbolic ../silver
+        working-directory: carbon
+      - name: Create ViperServers's sym links
+        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
+        working-directory: viperserver
+      - name: Create Gobra's sym links
+        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; ln --symbolic ../viperserver
+        working-directory: gobra
+
       - run: pwd
       - run: ls
       - run: ls
@@ -73,3 +88,4 @@ jobs:
 
       - name: Execute all tests
         run: sbt test
+        working-directory: gobra

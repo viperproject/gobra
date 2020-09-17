@@ -6,24 +6,32 @@ import viper.gobra.translator.interfaces.Context
 
 import scala.annotation.tailrec
 
+/**
+  * Patterns for pattern matching to facilitate checks on types of internal representation.
+  */
 object TypePatterns {
 
+  /** Matches every expression and splits it into the expression and its type. */
   object :: {
     def unapply(arg: in.Expr): Option[(in.Expr, in.Type)] = Some(arg, arg.typ)
   }
 
+  /** Matches every type and splits it into the type and its addressability modifier. */
   object / {
     def unapply(arg: in.Type): Option[(in.Type, Addressability)] = Some(arg, arg.addressability)
   }
 
+  /** Matches every shared type. */
   object Sh {
     def unapply(arg: in.Type): Boolean = arg.addressability.isShared
   }
 
+  /** Matches every exclusive type. */
   object Ex {
     def unapply(arg: in.Type): Boolean = arg.addressability.isExclusive
   }
 
+  /** One pattern for every type. The patterns disregard the addressability modifier. */
   implicit class ContextTypePattern(ctx: Context) {
 
     object Bool {
@@ -79,14 +87,15 @@ object TypePatterns {
       }
     }
 
-    object * {
+    object Pointer {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.PointerT => Some(t.t)
         case _ => None
       }
     }
 
-    object Pointer {
+    /** An alias pattern for pointer types. */
+    object * {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.PointerT => Some(t.t)
         case _ => None
@@ -112,50 +121,29 @@ object TypePatterns {
 
 
   @tailrec
+  /** Returns the underlying type of argument type. */
   def underlyingType(typ: in.Type)(ctx: Context): in.Type = typ match {
     case t: in.DefinedT => underlyingType(ctx.lookup(t))(ctx)
     case _ => typ
   }
 
+  /** Returns the underlying struct type of the argument. Returns None, if the argument is not a struct type. */
   def structType(typ: in.Type)(ctx: Context): Option[in.StructT] = underlyingType(typ)(ctx) match {
     case st: in.StructT => Some(st)
     case _ => None
   }
 
+  /** Returns the underlying pointer type of the argument. Returns None, if the argument is not a pointer type. */
   def pointerTyp(typ: in.Type)(ctx: Context): Option[in.Type] = underlyingType(typ)(ctx) match {
     case in.PointerT(t, _) => Some(t)
     case _ => None
   }
 
+  /** Returns the underlying array type of the argument. Returns None, if the argument is not an array type. */
   def arrayType(typ : in.Type)(ctx : Context) : Option[in.ArrayT] = underlyingType(typ)(ctx) match {
     case t : in.ArrayT => Some(t)
     case _ => None
   }
-
-//  def classType(typ: in.Type)(ctx: Context): Option[in.StructT] = {
-//
-//    def afterAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-//      case st: in.StructT => Some(st)
-//      case _ => None
-//    }
-//    def beforeAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-//      case in.PointerT(et, _) => afterAtMostOneRef(et)
-//      case _ => afterAtMostOneRef(typ)
-//    }
-//    beforeAtMostOneRef(typ)
-//  }
-//
-//  def structPointerType(typ: in.Type)(ctx: Context): Option[in.StructT] = {
-//    def afterAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-//      case st: in.StructT => Some(st)
-//      case _ => None
-//    }
-//    def beforeAtMostOneRef(typ: in.Type): Option[in.StructT] = underlyingType(typ)(ctx) match {
-//      case in.PointerT(et, _) => afterAtMostOneRef(et)
-//      case _ => None
-//    }
-//    beforeAtMostOneRef(typ)
-//  }
 
 
 }

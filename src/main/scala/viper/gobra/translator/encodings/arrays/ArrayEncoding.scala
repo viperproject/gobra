@@ -1,0 +1,319 @@
+package viper.gobra.translator.encodings.arrays
+
+import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.Names
+import viper.gobra.translator.encodings.TypeEncoding
+import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.util.FunctionGenerator
+import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
+import viper.silver.{ast => vpr}
+
+private[arrays] object ArrayEncoding {
+  /** Parameter of array components. */
+  type ComponentParameter = (BigInt, vpr.Type)
+
+  /** Computes the component parameter. */
+  def cptParam(len: BigInt, t: in.Type)(ctx: Context): ComponentParameter = {
+    (len, ctx.typeEncoding.typ(ctx)(t))
+  }
+}
+
+class ArrayEncoding extends TypeEncoding {
+
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.gobra.translator.util.TypePatterns._
+  import ArrayEncoding.cptParam
+
+  private val ex: ExclusiveArrayComponent = new ExclusiveArrayComponentImpl
+  private val sh: SharedArrayComponent = new SharedArrayComponentImpl
+
+  override def finalize(col: Collector): Unit = {
+    ex.finalize(col)
+    sh.finalize(col)
+    conversionFunc.finalize(col)
+    dfltFunc.finalize(col)
+  }
+
+  /**
+    * Translates a type into a Viper type.
+    */
+  override def typ(ctx: Context): in.Type ==> vpr.Type = {
+    case ctx.Array(len, t) / m =>
+      val vti = cptParam(len, t)(ctx)
+      m match {
+        case Exclusive => ex.typ(vti)(ctx)
+        case Shared    => sh.typ(vti)(ctx)
+      }
+  }
+
+  /**
+    * Encodes an assignment.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    *
+    * To avoid conflicts with other encodings, an encoding for type T
+    * should be defined at the following left-hand sides:
+    * (1) exclusive variables of type T
+    * (2) exclusive operations on type T (e.g. a field access for structs)
+    * (3) shared expressions of type T
+    * In particular, being defined at shared operations on type T causes conflicts with (3)
+    *
+    * Super implements:
+    * [v: T° = rhs] -> VAR[v] = [rhs]
+    * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
+    *
+    * [e[idx]: [n]T° = rhs] -> [ e = e[idx -> rhs] ]
+    */
+  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
+    case (in.Assignee((ai: in.IndexedExp) :: _ / Exclusive), rhs, src) =>
+      ctx.typeEncoding.assignment(ctx)(in.Assignee(ai.base), in.ArrayUpdate(ai.base, ai.index, rhs)(src.info), src)
+  }
+
+  /**
+    * Encodes the comparison of two expressions.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    *
+    * Super implements: [lhs: T == rhs] -> [lhs] == [rhs]
+    *
+    * [lhs: [n]T == rhs] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
+    * *   where trigger = array_get(x, idx, n), array_get(y, idx, n)
+    */
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.Array(len, _), rhs, src) =>
+      for {
+        (x, xTrigger) <- copyArray(lhs)(ctx)
+        (y, yTrigger) <- copyArray(rhs)(ctx)
+        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx)(src.info), in.IndexedExp(y, idx)(src.info), src)
+        res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
+      } yield res
+  }
+
+  /**
+    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    *
+    * To avoid conflicts with other encodings, an encoding for type T should be defined at:
+    * (1) exclusive operations on T, which includes literals and default values
+    * (2) shared expression of type T
+    * Super implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
+    *
+    * R[ (e: [n]T)[idx] ] -> ex_array_get([e], [idx], n)
+    * R[ (base: [n]T)[idx = e] ] -> ex_array_upd([base], [idx], [e])
+    * R[ dflt([n]T) ] -> arrayDefault()
+    * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
+    * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
+    */
+  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
+    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Exclusive =>
+      for {
+        vBase <- ctx.expr.translate(base.asInstanceOf[in.Location])(ctx)
+        vIdx <- ctx.expr.translate(idx)(ctx)
+      } yield ex.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+
+    case (upd: in.ArrayUpdate) :: ctx.Array(len, t) =>
+      for {
+        vBase <- ctx.expr.translate(upd.base)(ctx)
+        vIdx <- ctx.expr.translate(upd.left)(ctx)
+        vVal <- ctx.expr.translate(upd.right)(ctx)
+      } yield ex.update(vBase, vIdx, vVal, cptParam(len, t)(ctx))(upd)(ctx)
+
+    case (e: in.DfltVal) :: ctx.Array(len, t) =>
+      val (pos, info, errT) = e.vprMeta
+      unit(dfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
+
+    case (lit: in.ArrayLit) :: ctx.Array(len, t) =>
+      for {
+        vExprs <- sequence(lit.exprs.map(e => ctx.expr.translate(e)(ctx)))
+      } yield ex.create(vExprs, cptParam(len, t)(ctx))(lit)(ctx)
+
+    case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
+      val (pos, info, errT) = loc.vprMeta
+      for {
+        arg <- ctx.typeEncoding.lValue(ctx)(loc)
+      } yield conversionFunc(Vector(arg), (len, t)(ctx))(pos, info, errT)(ctx)
+  }
+
+  /**
+    * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
+    * This includes literals and default values.
+    *
+    * To avoid conflicts with other encodings, an encoding for type T should be defined at:
+    * (1) shared variables of type T
+    * (2) shared operations on T
+    *
+    * L[ v: [n]T@ ] -> Var[v]
+    * L[ (e: [n]T)[idx] ] -> sh_array_get(L[e], [idx], n)
+    */
+  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
+    case (v: in.BodyVar) :: ctx.Array(_, _) / Shared =>
+      unit(variable(ctx)(v).localVar)
+
+    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Shared =>
+      for {
+        vBase <- ctx.typeEncoding.lValue(ctx)(base.asInstanceOf[in.Location])
+        vIdx <- ctx.expr.translate(idx)(ctx)
+      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+  }
+
+  /**
+    * Encodes the reference of an expression.
+    *
+    * To avoid conflicts with other encodings, an encoding for type T should be defined at shared operations on type T.
+    * Super implements shared variables with [[variable]].
+    *
+    * Ref[ (e: [n]T)[idx] ] -> sh_array_get(Ref[e], [idx], n)
+    */
+  override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
+    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Shared =>
+      for {
+        vBase <- ctx.typeEncoding.reference(ctx)(base.asInstanceOf[in.Location])
+        vIdx <- ctx.expr.translate(idx)(ctx)
+      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
+  }
+
+  /**
+    * Encodes the permissions for all addresses of a shared type,
+    * i.e. all permissions involved in converting the shared location to an exclusive r-value.
+    * An encoding for type T should be defined at all shared locations of type T.
+    *
+    * Footprint[loc: [n]T] -> let x = L[loc] in Forall idx :: {trigger} 0 <= idx < n ==> Footprint[ x[idx] ]
+    *   where trigger = sh_array_get(x, idx, n)
+    */
+  override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
+    case loc :: ctx.Array(len, _) / Shared =>
+      for {
+        (x, trigger) <- copyArray(loc)(ctx)
+        body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(x, idx)(loc.info))
+        res <- boundedQuant(len, trigger, body)(loc)(ctx)
+      } yield res
+  }
+
+  /**
+    * Generates:
+    * function arrayConversion(x: [([n]T)@]): ([n]T)°
+    *   requires Footprint[x]
+    *   ensures  [x == result]
+    * */
+  private val conversionFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
+    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
+      val argType = in.ArrayT(t._1, t._2, Shared)
+      val x = in.LocalVar("x", argType)(Source.Parser.Internal)
+      val resultType = argType.withAddressability(Exclusive)
+      val vResultType = typ(ctx)(resultType)
+      val resultVar = in.LocalVar(Names.freshName, resultType)(Source.Parser.Internal)
+      val post = pure(equal(ctx)(x, resultVar, x))(ctx).res
+        // replace resultVar with vpr.Result
+        .replace(variable(ctx)(resultVar).localVar, vpr.Result(vResultType)())
+
+      vpr.Function(
+        name = s"arrayConversion_${Names.freshName}",
+        formalArgs = Vector(variable(ctx)(x)),
+        typ = vResultType,
+        pres = Vector(pure(addressFootprint(ctx)(x))(ctx).res),
+        posts = Vector(post),
+        body = None
+      )()
+    }
+  }
+
+
+  /**
+    * Generates:
+    * function arrayDefault(): ([n]T)°
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == [dflt(T)]
+    * */
+  private val dfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
+    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
+      val resType = in.ArrayT(t._1, t._2, Exclusive)
+      val dflt = in.DfltVal(resType)(Source.Parser.Internal)
+      val vResType = typ(ctx)(resType)
+      val idx = vpr.LocalVarDecl("idx", vpr.Int)()
+      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(dflt)(ctx)
+      val rhs = pure(for {
+        vDflt <- ctx.expr.translate(dflt)(ctx)
+        eq = vpr.EqCmp(acc, vDflt)()
+      } yield eq )(ctx).res
+      val post = vpr.Forall(
+        variables = Seq(idx),
+        triggers = Seq(vpr.Trigger(Seq(acc))()),
+        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(dflt), rhs)()
+      )()
+
+      vpr.Function(
+        name = s"arrayDefault_${Names.freshName}",
+        formalArgs = Seq.empty,
+        typ = vResType,
+        pres = Seq.empty,
+        posts = Vector(post),
+        body = None
+      )()
+    }
+  }
+
+
+  /** Returns: 0 <= 'base' && 'base' < 'length'. */
+  private def boundaryCondition(base: vpr.Exp, length: BigInt)(src : in.Node) : vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+
+    vpr.And(
+      vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), base)(pos, info, errT),
+      vpr.LtCmp(base, vpr.IntLit(length)(pos, info, errT))(pos, info, errT)
+    )(pos, info, errT)
+  }
+
+  /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
+  private def boundedQuant(length: BigInt, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
+                                  (src: in.Node)(ctx: Context)
+                                  : CodeWriter[vpr.Exp] = {
+
+    val (pos, info, errT) = src.vprMeta
+
+    val idx = in.BoundVar(Names.freshName, in.IntT(Exclusive))(src.info)
+    val vIdx = variable(ctx)(idx)
+
+    for {
+      vBody <- pure(body(idx))(ctx)
+      forall = vpr.Forall(
+        variables = Vector(vIdx),
+        triggers = trigger(vIdx.localVar),
+        exp = vpr.Implies(boundaryCondition(vIdx.localVar, length)(src), vBody)(pos, info, errT)
+      )(pos, info, errT)
+    } yield forall
+  }
+
+  /**
+    * For e: ([n]T)° returns: x = [e]; (x, idx => ex_array_get(x, idx, n)
+    * For e: ([n]T)@ returns: x = L[e]; (x, idx => sh_array_get(x, idx, n)
+    * */
+  private def copyArray(e: in.Expr)(ctx: Context): CodeWriter[(in.LocalVar, vpr.LocalVar => Seq[vpr.Trigger])] = {
+    e match {
+      case _ :: ctx.Array(len, t) / Exclusive =>
+        val (pos, info, errT) = e.vprMeta
+        for {
+          vS <- ctx.expr.translate(e)(ctx)
+          x = in.LocalVar(Names.freshName, e.typ)(e.info)
+          vX = variable(ctx)(x)
+          _ <- local(vX)
+          _ <- bind(vX.localVar, vS)
+          trigger = (vIdx: vpr.LocalVar) => Seq(vpr.Trigger(Seq(ex.get(vX.localVar, vIdx, cptParam(len, t)(ctx))(e)(ctx)))(pos, info, errT))
+        } yield (x, trigger)
+
+      case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
+        val (pos, info, errT) = e.vprMeta
+        for {
+          vS <- ctx.typeEncoding.lValue(ctx)(loc)
+          x = in.LocalVar(Names.freshName, e.typ)(e.info)
+          vX = variable(ctx)(x)
+          _ <- local(vX)
+          _ <- bind(vX.localVar, vS)
+          trigger = (vIdx: vpr.LocalVar) => Seq(vpr.Trigger(Seq(sh.get(vX.localVar, vIdx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+        } yield (x, trigger)
+
+      case t => Violation.violation(s"Expected array, but got $t.")
+    }
+  }
+
+
+}

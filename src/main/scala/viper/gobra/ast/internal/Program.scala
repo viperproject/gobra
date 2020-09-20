@@ -41,7 +41,7 @@ sealed trait GlobalVarDecl extends Member
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
-case class Field(name: String, typ: Type)(val info: Source.Parser.Info)
+case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info)
 
 
 
@@ -257,12 +257,22 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   * where `base` is expected to be of an array or sequence type
   * and `index` of an integer type.
   */
-case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr {
+case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = base.typ match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
+}
+
+/**
+  * Denotes an array update "`base`[`left` = `right`]", which results in an
+  * array equal to `base` but 'updated' to have `right` at the `left` position.
+  */
+case class ArrayUpdate(base: Expr, left: Expr, right: Expr)(val info: Source.Parser.Info) extends Expr {
+  /** Is equal to the type of `base`. */
+  require(base.typ.addressability == Addressability.Exclusive)
+  override val typ : Type = base.typ
 }
 
 
@@ -525,6 +535,7 @@ case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) exte
 
 /** Updates struct 'base' at field 'field' with value 'newVal', i.e. base[field -> newVal]. */
 case class StructUpd(base: Expr, field: Field, newVal: Expr)(val info: Source.Parser.Info) extends Expr {
+  require(base.typ.addressability == Addressability.Exclusive)
   override val typ: Type = base.typ
 }
 

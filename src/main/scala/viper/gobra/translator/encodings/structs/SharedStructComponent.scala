@@ -10,14 +10,15 @@ import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.TypePatterns._
 import viper.gobra.translator.util.{ViperUtil => VU}
 import viper.gobra.util.Violation
+import StructEncoding.{ComponentParameter, cptParam}
 
 trait SharedStructComponent extends Generator {
 
   /** Returns type of shared-struct domain. */
-  def typ(args: Vector[vpr.Type])(ctx: Context): vpr.Type
+  def typ(t: ComponentParameter)(ctx: Context): vpr.Type
 
   /** Getter of shared-struct domain. */
-  def get(base: vpr.Exp, idx: Int, arity: Int)(src: in.Node)(ctx: Context): vpr.Exp
+  def get(base: vpr.Exp, idx: Int, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
   /**
     * Encodes the conversion from a shared l-value to an exclusive r-value.
@@ -29,8 +30,9 @@ trait SharedStructComponent extends Generator {
   def convertToExclusive(loc: in.Location)(ctx: Context, ex: ExclusiveStructComponent): CodeWriter[vpr.Exp] = {
     loc match {
       case _ :: ctx.Struct(fs) / Shared =>
+        val vti = cptParam(fs)(ctx)
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.loc.rValue2(fa)(ctx))).map(ex.create(_)(loc)(ctx))
+        sequence(locFAs.map(fa => ctx.expr.translate(fa)(ctx))).map(ex.create(_, vti)(loc)(ctx))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }
@@ -49,7 +51,7 @@ trait SharedStructComponent extends Generator {
       case _ :: ctx.Struct(fs) / Shared =>
         val (pos, info, errT) = loc.vprMeta
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.loc.addressFootprint2(fa)(ctx))).map(VU.bigAnd(_)(pos, info, errT))
+        sequence(locFAs.map(fa => ctx.typeEncoding.addressFootprint(ctx)(fa))).map(VU.bigAnd(_)(pos, info, errT))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }

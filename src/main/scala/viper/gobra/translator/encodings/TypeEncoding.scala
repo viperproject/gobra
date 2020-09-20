@@ -82,7 +82,9 @@ trait TypeEncoding extends Generator {
     * (3) shared expressions of type T
     * In particular, being defined at shared operations on type T causes conflicts with (3)
     *
-    * The default implements: [v: T° = rhs] -> VAR[v] := [rhs]
+    * The default implements:
+    * [v: T° = rhs] -> VAR[v] = [rhs]
+    * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
     */
   def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = {
     case (in.Assignee((v: in.BodyVar) :: t / Exclusive), rhs, src) if typ(ctx).isDefinedAt(t) =>
@@ -91,6 +93,15 @@ trait TypeEncoding extends Generator {
         vRhs <- ctx.expr.translate(rhs)(ctx)
         vLhs = variable(ctx)(v).localVar
       } yield vpr.LocalVarAssign(vLhs, vRhs)(pos, info, errT)
+
+    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = src.vprMeta
+      for {
+        footprint <- addressFootprint(ctx)(loc)
+        eq <- equal(ctx)(loc, rhs, src)
+        _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+        inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
+      } yield inhale
   }
 
   /**
@@ -169,5 +180,12 @@ trait TypeEncoding extends Generator {
         ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
       } yield ass
   }
+
+  /**
+    * Alternative version of `orElse` to simplify delegations to super implementations.
+    * @param dflt default partial function, applied if 'f' is not defined at argument
+    * @return
+    */
+  protected def default[X, Y](dflt: X ==> Y)(f: X ==> Y): X ==> Y = f orElse dflt
 }
 

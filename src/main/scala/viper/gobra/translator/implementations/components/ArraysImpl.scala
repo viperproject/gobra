@@ -2,6 +2,7 @@ package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Arrays
+import viper.silver.ast.DomainFuncApp
 import viper.silver.{ast => vpr}
 
 /**
@@ -94,7 +95,7 @@ class ArraysImpl extends Arrays {
     * Yields a function application of the "alen" domain function,
     * with argument `exp` (which should be of an array type).
     */
-  override def length(exp : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) = vpr.DomainFuncApp(
+  override def length(exp : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo): DomainFuncApp = vpr.DomainFuncApp(
     func = alen_func,
     args = Vector(exp),
     typVarMap = Map()
@@ -106,7 +107,7 @@ class ArraysImpl extends Arrays {
     * respectively. Here `base` should be of an array type and
     * `index` of an integer type.
     */
-  override def slot(base : vpr.Exp, index : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) = vpr.DomainFuncApp(
+  override def slot(base : vpr.Exp, index : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo): DomainFuncApp = vpr.DomainFuncApp(
     func = aslot_func,
     args = Vector(base, index),
     typVarMap = Map()

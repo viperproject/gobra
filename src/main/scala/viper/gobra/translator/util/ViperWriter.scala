@@ -260,6 +260,14 @@ object ViperWriter {
 
   case object MemberLevel extends LeveledViperWriter[MemberKind, MemberSum](MemberKindCompanion) {
 
+    def pure(w: CodeLevel.Writer[vpr.Exp])(ctx: Context): MemberLevel.Writer[vpr.Exp] = {
+      val (codeSum, remainder, r) = w.execute
+      require(codeSum.code.forall(_.isPure))
+
+      val newR = codeSum.asExpr(r, ctx)._1
+      MemberLevel.create(remainder, newR)
+    }
+
     def split[R](w: CodeLevel.Writer[R]): Writer[(R, CodeLevel.Writer[Unit])] = {
       val (codeData, remainder) = w.sum.split
       create(remainder, (w.res, w.copy(codeData, ())))
@@ -285,12 +293,13 @@ object ViperWriter {
 
   case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
-    def pure(w: Writer[vpr.Exp])(ctx: Context): MemberLevel.Writer[vpr.Exp] = {
-      val (codeSum, remainder, r) = w.execute
-      require(codeSum.code.forall(_.isPure))
-
-      val newR = codeSum.asExpr(r, ctx)._1
-      MemberLevel.create(remainder, newR)
+    def pure(w: Writer[vpr.Exp])(ctx: Context): Writer[vpr.Exp] = {
+      move(w){ s => r =>
+        require(s.code.forall(_.isPure))
+        val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
+        val newR = s.asExpr(r, ctx)._1
+        (newSum, newR)
+      }
     }
 
     def seqns(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =

@@ -60,8 +60,8 @@ object TypePatterns {
     }
 
     object Array {
-      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
-        case t : in.ArrayT => Some(t.elems)
+      def unapply(arg: in.Type): Option[(BigInt, in.Type)] = underlyingType(arg)(ctx) match {
+        case t : in.ArrayT => Some(t.length, t.elems)
         case _ => None
       }
     }

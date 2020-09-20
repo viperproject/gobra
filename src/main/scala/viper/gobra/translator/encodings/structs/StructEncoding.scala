@@ -4,26 +4,36 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.TypeEncoding
-import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
-class StructEncoding extends TypeEncoding with Generator {
+private[structs] object StructEncoding {
+  /** Parameter of struct components. */
+  type ComponentParameter = Vector[(vpr.Type, Boolean)]
+
+  /** Computes the component parameter. */
+  def cptParam(fields: Vector[in.Field])(ctx: Context): ComponentParameter = {
+    fields.map(f => (ctx.typeEncoding.typ(ctx)(f.typ), f.ghost))
+  }
+}
+
+class StructEncoding extends TypeEncoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.{ViperUtil => VU}
+  import StructEncoding.{ComponentParameter, cptParam}
 
   private val ex: ExclusiveStructComponent = new ExclusiveStructComponent{ // For now, we use a simple tuple domain.
-    override def typ(args: Vector[vpr.Type])(ctx: Context): vpr.Type = ctx.tuple.typ(args)
-    override def get(base: vpr.Exp, idx: Int, arity: Int)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, arity)
-    override def create(args: Vector[vpr.Exp])(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
+    override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
+    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
+    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
   }
 
   private val sh: SharedStructComponent = new SharedStructComponent { // For now, we use a simple tuple domain.
-    override def typ(args: Vector[vpr.Type])(ctx: Context): vpr.Type = ctx.tuple.typ(args)
-    override def get(base: vpr.Exp, idx: Int, arity: Int)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, arity)
+    override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
+    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
   }
 
   override def finalize(col: Collector): Unit = {
@@ -36,10 +46,10 @@ class StructEncoding extends TypeEncoding with Generator {
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Struct(fs) / m =>
-      val fieldTypes = fs.map(f => ctx.typ.translate(f.typ)(ctx))
+      val vti = cptParam(fs)(ctx)
       m match {
-        case Exclusive => ex.typ(fieldTypes)(ctx)
-        case Shared    => sh.typ(fieldTypes)(ctx)
+        case Exclusive => ex.typ(vti)(ctx)
+        case Shared    => sh.typ(vti)(ctx)
       }
   }
 
@@ -71,12 +81,14 @@ class StructEncoding extends TypeEncoding with Generator {
     * (3) shared expressions of type T
     * In particular, being defined at shared operations on type T causes conflicts with (3)
     *
-    * Super implements: [v: T° = rhs] -> VAR[v] := R[rhs]
+    * Super implements:
+    * [v: T° = rhs] -> VAR[v] = [rhs]
+    * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
     *
     * [e.f: Struct{F}° = rhs] -> [ e = e[f -> rhs] ]
     * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
     */
-  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = super.assignment(ctx) orElse {
+  override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
       ctx.typeEncoding.assignment(ctx)(in.Assignee(fa.recv), in.StructUpd(fa.recv, fa.field, rhs)(src.info), src)
 
@@ -112,32 +124,32 @@ class StructEncoding extends TypeEncoding with Generator {
     * Super implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
     *
     * R[ (e: Struct{F}°).f ] -> ex_struct_get([e], f, F)
-    * R[ (base: Struct{F})[f -> e] ] -> ex_struct_upd([base], f, [e], F)
+    * R[ (base: Struct{F})[f = e] ] -> ex_struct_upd([base], f, [e], F)
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
     * R[ loc: Struct{F}@ ] -> convert_to_exclusive( L[loc] )
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = super.rValue(ctx) orElse {
+  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expr.translate(recv)(ctx)
         idx = fs.indexOf(field)
-      } yield ex.get(vBase, idx, fs.size)(loc)(ctx)
+      } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
     case (upd: in.StructUpd) :: ctx.Struct(fs) =>
       for {
         vBase <- ctx.expr.translate(upd.base)(ctx)
         idx = fs.indexOf(upd.field)
         vVal <- ctx.expr.translate(upd.newVal)(ctx)
-      } yield ex.update(vBase, idx, vVal, fs.size)(upd)(ctx)
+      } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
     case (e: in.DfltVal) :: ctx.Struct(fs) =>
       val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
-      sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_)(e)(ctx))
+      sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
-    case lit: in.StructLit =>
+    case (lit: in.StructLit) :: ctx.Struct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expr.translate(arg)(ctx))
-      sequence(fieldExprs).map(ex.create(_)(lit)(ctx))
+      sequence(fieldExprs).map(ex.create(_, cptParam(fs)(ctx))(lit)(ctx))
 
     case (loc: in.Location) :: ctx.Struct(_) / Shared =>
       sh.convertToExclusive(loc)(ctx, ex)
@@ -152,7 +164,7 @@ class StructEncoding extends TypeEncoding with Generator {
     * (2) shared operations on T
     *
     * L[ v: Struct{F}@ ] -> Var[v]
-    * L[ (e: Struct{F}@).f ] -> sh_struct_get(L[e], f, F)
+    * L[ (e: Struct{F}).f ] -> sh_struct_get(L[e], f, F)
     */
   override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: ctx.Struct(_) / Shared =>
@@ -162,7 +174,7 @@ class StructEncoding extends TypeEncoding with Generator {
       for {
         vBase <- ctx.typeEncoding.lValue(ctx)(recv.asInstanceOf[in.Location])
         idx = fs.indexOf(field)
-      } yield sh.get(vBase, idx, fs.size)(loc)(ctx)
+      } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
 
   /**
@@ -173,12 +185,12 @@ class StructEncoding extends TypeEncoding with Generator {
     *
     * Ref[ (e: Struct{F}@).f ] -> sh_struct_get(Ref[e], f, F)
     */
-  override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = super.reference(ctx) orElse {
+  override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
       for {
         vBase <- ctx.typeEncoding.reference(ctx)(recv.asInstanceOf[in.Location])
         idx = fs.indexOf(field)
-      } yield sh.get(vBase, idx, fs.size)(loc)(ctx)
+      } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
 
   /**
@@ -210,6 +222,7 @@ class StructEncoding extends TypeEncoding with Generator {
 //      } yield VU.seqn(init +: assignments)(pos, info, errT)
 //  }
 
+  /** Returns 'base'.f for every f in 'fields'. */
   private def fieldAccesses(base: in.Expr, fields: Vector[in.Field]): Vector[in.FieldRef] = {
     fields.map(f => in.FieldRef(base, f)(base.info))
   }

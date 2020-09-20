@@ -62,6 +62,7 @@ object ArrayUtil {
   def defaultValueAssumption(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Stmt =
     inhale(defaultValueCondition(base, baseType)(src)(ctx))(src)
 
+  /** Returns Forall  */
   def defaultValueCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node)(ctx : Context) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     val dims = dimensions(baseType).last

@@ -216,7 +216,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MPredicateProxy(name, _) => name
   })
 
-  def showBottomDecl(x: BottomDeclaration): Doc = x match {
+  def showBottomDecl(x: BlockDeclaration): Doc = x match {
     case bvar: BoundVar => showVar(bvar)
     case localVar: LocalVar => showVar(localVar)
     case outParam: Parameter.Out => showVar(outParam)
@@ -231,7 +231,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
 
-  protected def showBottomDeclList[T <: BottomDeclaration](list: Vector[T]): Doc =
+  protected def showBottomDeclList[T <: BlockDeclaration](list: Vector[T]): Doc =
     showList(list)(showBottomDecl)
 
   protected def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =

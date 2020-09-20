@@ -38,8 +38,8 @@ object ArrayUtil {
   /**
     * Gives a fresh local variable for an `typ`-typed array.
     */
-  def anonymousLocalVar(typ : in.ArrayT)(info : Source.Parser.Info): LocalVar.Inter =
-    in.LocalVar.Inter(Names.freshName, typ)(info)
+  def anonymousLocalVar(typ : in.ArrayT)(info : Source.Parser.Info): LocalVar =
+    in.LocalVar(Names.freshName, typ)(info)
 
   def boundaryCondition(base : vpr.Exp, baseType : in.ArrayT)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta

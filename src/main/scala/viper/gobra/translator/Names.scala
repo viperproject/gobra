@@ -13,6 +13,8 @@ object Names {
   def returnLabel: String = "returnLabel"
   def fieldExtension(base: String, ext: String): String = s"${base}_$ext"
 
+  def inlinedVar(base: String, idx: Int): String = s"${base}_$idx"
+
   def addressableField(base: String): String = s"${base}R"
   def nonAddressableField(base: String): String = s"${base}V"
 

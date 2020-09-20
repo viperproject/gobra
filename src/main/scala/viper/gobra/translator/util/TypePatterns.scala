@@ -13,12 +13,12 @@ object TypePatterns {
 
   /** Matches every expression and splits it into the expression and its type. */
   object :: {
-    def unapply(arg: in.Expr): Option[(in.Expr, in.Type)] = Some(arg, arg.typ)
+    def unapply[T <: in.Expr](arg: T): Option[(T, in.Type)] = Some(arg, arg.typ)
   }
 
   /** Matches every type and splits it into the type and its addressability modifier. */
   object / {
-    def unapply(arg: in.Type): Option[(in.Type, Addressability)] = Some(arg, arg.addressability)
+    def unapply[T <: in.Type](arg: T): Option[(T, Addressability)] = Some(arg, arg.addressability)
   }
 
   /** Matches every shared type. */
@@ -103,14 +103,14 @@ object TypePatterns {
     }
 
     object Struct {
-      def unapply(arg: in.Type): Option[Seq[in.Field]] = underlyingType(arg)(ctx) match {
+      def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
         case t : in.StructT => Some(t.fields)
         case _ => None
       }
     }
 
     object Tuple {
-      def unapply(arg: in.Type): Option[Seq[in.Type]] = underlyingType(arg)(ctx) match {
+      def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.TupleT => Some(t.ts)
         case _ => None
       }

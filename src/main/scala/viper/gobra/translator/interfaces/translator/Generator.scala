@@ -12,9 +12,8 @@ trait Generator {
 
   /**
     * Finalizes translation. May add to collector.
-    * @param col
     */
-  def finalize(col: Collector): Unit
+  def finalize(col: Collector): Unit = {}
 
   def chain[R](fs: Vector[Context => (R, Context)])(ctx: Context): (Vector[R], Context) = {
     fs.foldLeft((Vector.empty[R], ctx)){ case ((rs, c), rf) =>

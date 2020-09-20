@@ -32,7 +32,7 @@ object GobraStrategy {
       case (f: Field.Ref, Seq()) => Field.Ref(f.name, f.typ)(meta)
       case (f: Field.Val, Seq()) => Field.Val(f.name, f.typ)(meta)
         // Statements
-      case (b: Block, Seq(v: Vector[BottomDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
+      case (b: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (s: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (i: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (w: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)

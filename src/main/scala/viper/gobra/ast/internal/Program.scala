@@ -41,17 +41,7 @@ sealed trait GlobalVarDecl extends Member
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
-sealed trait Field extends Node {
-  def name: String
-  def typ: Type
-}
-// TODO: remove field distinction
-object Field {
-  def unapply(arg: Field): Option[(String, Type)] = Some((arg.name, arg.typ))
-
-  case class Ref(name: String, typ: Type)(val info: Source.Parser.Info) extends Field
-  case class Val(name: String, typ: Type)(val info: Source.Parser.Info) extends Field
-}
+case class Field(name: String, typ: Type)(val info: Source.Parser.Info)
 
 
 
@@ -113,14 +103,8 @@ case class MPredicate(
 
 sealed trait Stmt extends Node
 
-sealed trait Declaration extends Node
-
-sealed trait TopDeclaration extends Declaration
-
-sealed trait BottomDeclaration extends Declaration
-
 case class Block(
-                  decls: Vector[BottomDeclaration],
+                  decls: Vector[BlockDeclaration],
                   stmts: Vector[Stmt]
                 )(val info: Source.Parser.Info) extends Stmt
 
@@ -140,13 +124,22 @@ sealed trait Assignee extends Node {
 }
 
 object Assignee {
+  def unapply(x: Assignee): Option[Expr] = Some(x.op)
+  def apply(op: Expr): Assignee = op match {
+    case op: AssignableVar => Var(op)
+    case op: Deref => Pointer(op)
+    case op: FieldRef => Field(op)
+    case op: IndexedExp => Index(op)
+    case _ => Violation.violation(s"expected variables, dereference, field access, or index expression, but got $op")
+  }
+
   case class Var(op: AssignableVar) extends Assignee
   case class Pointer(op: Deref) extends Assignee
   case class Field(op: FieldRef) extends Assignee
   case class Index(op : IndexedExp) extends Assignee
 }
 
-case class Make(target: LocalVar.Val, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
+case class Make(target: LocalVar, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {
   def op: CompositeLit
@@ -154,6 +147,8 @@ sealed trait CompositeObject extends Node {
 }
 
 object CompositeObject {
+  def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
+
   case class Array(op : ArrayLit) extends CompositeObject
   case class Struct(op : StructLit) extends CompositeObject
   case class Sequence(op : SequenceLit) extends CompositeObject
@@ -161,8 +156,8 @@ object CompositeObject {
   case class Multiset(op : MultisetLit) extends CompositeObject
 }
 
-case class FunctionCall(targets: Vector[LocalVar.Val], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class MethodCall(targets: Vector[LocalVar.Val], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 
@@ -202,6 +197,7 @@ object Accessible {
   case class Field(op: FieldRef) extends Accessible
   case class Predicate(op: PredicateAccess) extends Accessible
   case class Index(op : IndexedExp) extends Accessible
+  case class Address(op: Location) extends Accessible
 }
 
 sealed trait PredicateAccess extends Node
@@ -502,16 +498,12 @@ object Ref {
 
     val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
-      case x: LocalVar.Ref => Ref(Addressable.Var(x), pointerT)(info)
+      case x: LocalVar     => Ref(Addressable.Var(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
       case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
       case _ => Violation.violation(s"encountered unexpected addressable expression $ref")
     }
   }
-}
-
-case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) extends Expr with Location {
-  override lazy val typ: Type = field.typ
 }
 
 
@@ -521,38 +513,19 @@ sealed trait Addressable extends Node {
 }
 
 object Addressable {
-  case class Var(op: LocalVar.Ref) extends Addressable
+
+  case class Var(op: LocalVar) extends Addressable
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
-  // TODO: Global
+}
 
-  import viper.gobra.ast.internal.{Field => Field2}
+case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) extends Expr with Location {
+  override val typ: Type = field.typ
+}
 
-  def isAddressable(x: Field2): Boolean = x match {
-    case _: Field2.Ref => true
-    case _: Field2.Val => false
-  }
-
-  def isNonAddressable(x: Expr): Boolean = {
-    x match {
-      case _: BoundVar => true
-      case _: LocalVar.Inter => true
-      case _: Parameter => true
-      case _: Lit | _: DfltVal => true
-      case f: FieldRef => isNonAddressable(f.recv)
-      case _ => false
-    }
-  }
-
-  def isAddressable(x: Expr): Boolean = {
-    x match {
-      case _: LocalVar.Ref => true
-      case _: Deref => true
-      case f: FieldRef => isAddressable(f.field) && !isNonAddressable(f)
-      case e: IndexedExp => isAddressable(e.base) && !isNonAddressable(e)
-      case _ => false
-    }
-  }
+/** Updates struct 'base' at field 'field' with value 'newVal', i.e. base[field -> newVal]. */
+case class StructUpd(base: Expr, field: Field, newVal: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = base.typ
 }
 
 sealed trait BoolOperation extends Expr {
@@ -596,7 +569,9 @@ case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 
 sealed trait Lit extends Expr
 
-case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
+case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr {
+  require(typ.addressability == Addressability.defaultValue)
+}
 
 case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT(Addressability.literal)
@@ -623,6 +598,14 @@ case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.P
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
+
+
+sealed trait Declaration extends Node
+
+/** Everything that is defined with the scope of a code block. */
+sealed trait BlockDeclaration extends Declaration
+
+/** Any Gobra variable. */
 sealed trait Var extends Expr with Location {
   def id: String
 
@@ -630,13 +613,27 @@ sealed trait Var extends Expr with Location {
     Some((arg.id, arg.typ))
 }
 
-sealed trait AssignableVar extends Var with BottomDeclaration
+/**
+  * Any variable that has a global scope.
+  * */
+sealed trait GlobalVar extends Var
 
-sealed trait Parameter extends Var with TopDeclaration {
+/**
+  * Any variable whose scope is the body of a method, function, or predicate.
+  * Effectively, every variable that does not have a global scope.
+  * */
+sealed trait BodyVar extends Var
+
+/** Any variable that is assignable in the intermediate representation. */
+sealed trait AssignableVar extends Var
+
+
+sealed trait Parameter extends BodyVar {
   def unapply(arg: Parameter): Option[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
+/** In- and out-parameters. */
 object Parameter {
   case class In(id: String, typ: Type)(val info: Source.Parser.Info) extends Parameter {
     require(typ.addressability == Addressability.inParameter)
@@ -646,32 +643,15 @@ object Parameter {
   }
 }
 
-case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends Var {
+/** Variables that are bound by a quantifier. */
+case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar {
   require(typ.addressability == Addressability.boundVariable)
 }
 
-sealed trait BodyVar extends Var
+/** Variables that can be defined in the body of a method or function. */
+case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
-sealed trait LocalVar extends BodyVar with AssignableVar {
-  def unapply(arg: LocalVar): Option[(String, Type)] =
-    Some((arg.id, arg.typ))
-}
-
-object LocalVar {
-  // TODO: remove unnecessary variables
-  case class Ref(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar {
-    require(typ.addressability == Addressability.sharedVariable)
-  }
-  case class Val(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar with TopDeclaration {
-    require(typ.addressability == Addressability.exclusiveVariable)
-  }
-  case class Inter(id: String, typ: Type)(val info: Source.Parser.Info) extends LocalVar {
-    require(typ.addressability == Addressability.exclusiveVariable)
-  }
-
-}
-
-sealed trait GlobalConst extends Var {
+sealed trait GlobalConst extends GlobalVar {
   def unapply(arg: GlobalConst): Option[(String, Type)] =
     Some((arg.id, arg.typ))
 }
@@ -825,7 +805,7 @@ case class StructT(name: String, fields: Vector[Field], addressability: Addressa
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(name, fields.map(f => Field.Ref(f.name, f.typ.withAddressability(Addressability.field(newAddressability)))(f.info)), newAddressability)
+    StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)))(f.info)), newAddressability)
 }
 
 

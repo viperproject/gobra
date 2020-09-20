@@ -14,23 +14,27 @@ import viper.silver.{ast => vpr}
 
 trait Locations extends Generator {
 
-  def inParameter2(p: in.Parameter.In)(ctx: Context)
-                 : (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]])
+  def variable2(v: in.BodyVar)(ctx: Context): vpr.LocalVarDecl
 
-  def outParameter2(p: in.Parameter.Out)(ctx: Context)
-                  : (Vector[vpr.LocalVarDecl], Option[MemberWriter[vpr.Exp]], CodeWriter[Unit])
+  def precondition2(v: in.Parameter.In)(ctx: Context): MemberWriter[vpr.Exp]
 
-  def localDecl2(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[Unit])
+  def postcondition2(v: in.Parameter.Out)(ctx: Context): MemberWriter[vpr.Exp]
 
-  def assignment2(lhs: in.Assignee, rhs: in.Expr)(info: Info)(ctx: Context): CodeWriter[vpr.Stmt]
+  def initialization2(v: in.Location)(ctx: Context): CodeWriter[vpr.Stmt]
 
-  def equal2(lhs: in.Expr, rhs: in.Expr)(info: Info)(ctx: Context): CodeWriter[vpr.Exp]
+  def typ2(t: in.Type)(ctx: Context): vpr.Type
 
-  def asRValue2(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp]
+  def assignment2(lhs: in.Assignee, rhs: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.Stmt]
 
-  def asLValue2(x: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
+  def equal2(lhs: in.Expr, rhs: in.Expr)(src: in.Node)(ctx: Context): CodeWriter[vpr.Exp]
 
-  def access2(acc: in.Access)(ctx: Context): CodeWriter[vpr.Exp]
+  def rValue2(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def lValue2(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def reference2(x: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
+
+  def addressFootprint2(acc: in.Location)(ctx: Context): CodeWriter[vpr.Exp]
 
 
   // --------------------------------------------------------
@@ -50,7 +54,7 @@ trait Locations extends Generator {
 
   def outparameter(v: in.Parameter.Out)(ctx: Context): (Vector[vpr.LocalVarDecl], CodeWriter[Unit])
 
-  def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt])
+  def localDecl(v: in.BlockDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt])
 
   def initialize(v: in.TopDeclaration)(ctx: Context): CodeWriter[vpr.Stmt]
 

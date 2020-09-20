@@ -21,6 +21,7 @@ trait Context {
   def typeEncoding: TypeEncoding
 
   // components
+  def fields: Fields
   def array : Arrays
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset

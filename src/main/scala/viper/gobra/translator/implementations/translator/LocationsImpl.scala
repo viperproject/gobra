@@ -7,7 +7,6 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import in.Addressable.isAddressable
 import viper.gobra.reporting.Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.TypeEncoding
@@ -41,7 +40,7 @@ class LocationsImpl extends Locations {
   private lazy val _pointerField: PrimitiveGenerator.PrimitiveGenerator[vpr.Type, vpr.Field] =
     PrimitiveGenerator.simpleGenerator(
       (t: vpr.Type) => {
-        // No ref can hold permission to two val fields at once.
+        // No ref can hold permission to two val fields at once.hj
         // Therefore, field names based on the viper type are sufficient
         val f = vpr.Field(name = Names.pointerFields(t), typ = t)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
         (f, Vector(f))
@@ -184,7 +183,7 @@ class LocationsImpl extends Locations {
     * [decl x: [n]T] -> InitValue<x>
     * [decl x: T] -> InitValue<x>; FOREACH a in Values[T]. a(x) := Default(Type(a(x)))
     */
-  override def localDecl(v: in.BottomDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
+  override def localDecl(v: in.BlockDeclaration)(ctx: Context): (Vector[vpr.Declaration], CodeWriter[vpr.Stmt]) = {
     v match {
       case v: in.Var => v.typ match {
         case _: in.ArrayT => {
@@ -214,7 +213,7 @@ class LocationsImpl extends Locations {
   override def initialize(v: in.TopDeclaration)(ctx: Context): CodeWriter[vpr.Stmt] = {
     val (pos, info, errT) = v.vprMeta
     v match {
-      case v: in.BottomDeclaration => localDecl(v)(ctx)._2
+      case v: in.BlockDeclaration => localDecl(v)(ctx)._2
       case v: in.Parameter => unit(vu.nop(pos, info, errT)) // parameters are not initialized
     }
   }

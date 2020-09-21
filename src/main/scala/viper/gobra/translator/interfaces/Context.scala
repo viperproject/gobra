@@ -6,22 +6,17 @@
 
 package viper.gobra.translator.interfaces
 
-import akka.actor.Address
 import viper.gobra.ast.internal.LookupTable
 import viper.gobra.translator.interfaces.components._
 import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
 import viper.gobra.translator.encodings.TypeEncoding
 
 trait Context {
 
-  // combined encodings
-  def typeEncoding: TypeEncoding
-
   // components
-  def fields: Fields
+  def field: Fields
   def array : Arrays
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
@@ -30,21 +25,17 @@ trait Context {
   def tuple: Tuples
   def equality: Equality
   def condition: Conditions
-  def typeProperty: TypeProperties
 
   // translator
+  def typeEncoding: TypeEncoding
   def ass: Assertions
   def expr: Expressions
   def method: Methods
   def pureMethod: PureMethods
   def predicate: Predicates
   def stmt: Statements
-  def typ: Types
-
-  def loc: Locations
 
   // lookup
-
   def table: LookupTable
   def lookup(t: in.DefinedT): in.Type = table.lookup(t)
 
@@ -54,21 +45,22 @@ trait Context {
 
   /** copy constructor */
   def :=(
+          fieldN: Fields = field,
           arrayN : Arrays = array,
           seqToSetN : SeqToSet = seqToSet,
           seqToMultisetN : SeqToMultiset = seqToMultiset,
           seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
           fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
-          typeN: TypeProperties = typeProperty,
+          equalityN: Equality = equality,
+          conditionN: Conditions = condition,
+          typeEncodingN: TypeEncoding = typeEncoding,
           assN: Assertions = ass,
           exprN: Expressions = expr,
           methodN: Methods = method,
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
-          stmtN: Statements = stmt,
-          typN: Types = typ,
-          locN: Locations = loc
+          stmtN: Statements = stmt
          ): Context
 
 
@@ -80,15 +72,16 @@ trait Context {
     seqMultiplicity.finalize(col)
     fixpoint.finalize(col)
     tuple.finalize(col)
+    equality.finalize(col)
+    condition.finalize(col)
 
     // translators
+    typeEncoding.finalize(col)
     ass.finalize(col)
     expr.finalize(col)
     method.finalize(col)
     pureMethod.finalize(col)
     predicate.finalize(col)
     stmt.finalize(col)
-    typ.finalize(col)
-    loc.finalize(col)
   }
 }

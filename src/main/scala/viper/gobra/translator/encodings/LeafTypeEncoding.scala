@@ -78,7 +78,7 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (v: in.BodyVar) :: t / Shared =>
       val (pos, info, errT) = v.vprMeta
       val vV = variable(ctx)(v).localVar
-      unit(vpr.FieldAccess(vV, ctx.fields.field(t)(ctx))(pos, info, errT))
+      unit(vpr.FieldAccess(vV, ctx.field.field(t)(ctx))(pos, info, errT))
   }
 
   /**

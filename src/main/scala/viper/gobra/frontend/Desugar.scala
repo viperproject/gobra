@@ -690,7 +690,7 @@ object Desugar {
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
               dExp <- exprD(ctx)(exp)
-              exprVar = freshVar(dExp.typ)(dExp.info)
+              exprVar = freshExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable))(dExp.info)
               _ <- declare(exprVar)
               exprAss = in.SingleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
@@ -717,7 +717,7 @@ object Desugar {
       }
     }
 
-    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: LocalVar.Val)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
       switchCase match {
         case PExprSwitchCase(left, body) => for {
           acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
@@ -849,7 +849,7 @@ object Desugar {
       info.resolve(expr) match {
         case Some(p: ap.LocalVariable) =>
           varD(ctx)(p.id) match {
-            case r: in.LocalVar.Ref => unit(in.Addressable.Var(r))
+            case r: in.LocalVar => unit(in.Addressable.Var(r))
             case r => Violation.violation(s"expected variable reference but got $r")
           }
         case Some(p: ap.Deref) =>
@@ -1258,9 +1258,9 @@ object Desugar {
       }
     }
 
-    def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar.Val = {
+    def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
       require(typ.addressability == Addressability.exclusiveVariable)
-      in.LocalVar.Val(nm.fresh, typ)(info)
+      in.LocalVar(nm.fresh, typ)(info)
     }
 
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {
@@ -1279,16 +1279,11 @@ object Desugar {
       val src: Meta = meta(id)
 
       val typ = typeD(info.typ(id), info.addressableVar(id))(meta(id))
-
-      if (info.addressableVar(id) == Addressability.sharedVariable) {
-        in.LocalVar.Ref(idName(id), typ)(src)
-      } else {
-        in.LocalVar.Val(idName(id), typ)(src)
-      }
+      in.LocalVar(idName(id), typ)(src)
     }
 
-    def parameterAsLocalValVar(p: in.Parameter): in.LocalVar.Val = {
-      in.LocalVar.Val(p.id, p.typ)(p.info)
+    def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {
+      in.LocalVar(p.id, p.typ)(p.info)
     }
 
     // Miscellaneous
@@ -1349,9 +1344,7 @@ object Desugar {
     }
 
     def localAlias(internal: in.LocalVar): in.LocalVar = internal match {
-      case in.LocalVar.Ref(id, typ) => in.LocalVar.Ref(nm.alias(id), typ)(internal.info)
-      case in.LocalVar.Val(id, typ) => in.LocalVar.Val(nm.alias(id), typ)(internal.info)
-      case in.LocalVar.Inter(id, typ) => assert(false); ???
+      case in.LocalVar(id, typ) => in.LocalVar(nm.alias(id), typ)(internal.info)
     }
 
     def structD(struct: StructT, addrMod: Addressability)(src: Meta): Vector[in.Field] =
@@ -1368,16 +1361,16 @@ object Desugar {
     def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
       val td = embeddedTypeD(???, fieldAddrMod)(src) // TODO fix me or embeddedTypeD
-      in.Field.Ref(idname, td)(src)
+      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
     def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field.Ref(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src))(src)
+      in.Field(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src), ghost = false)(src) // TODO: fix ghost attribute
 
     def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
       val td = typeD(field._2, fieldAddrMod)(src)
-      in.Field.Ref(idname, td)(src)
+      in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
     def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
@@ -1657,13 +1650,13 @@ object Desugar {
 
       info.resolve(acc) match {
         case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Accessible.Pointer
+          derefD(ctx)(p)(src) map in.Accessible.Address
         case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Accessible.Field
+          fieldSelectionD(ctx)(p)(src) map in.Accessible.Address
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
         case Some(p : ap.IndexedExp) =>
-          indexedExprD(p)(ctx)(src) map in.Accessible.Index
+          indexedExprD(p)(ctx)(src) map in.Accessible.Address
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }

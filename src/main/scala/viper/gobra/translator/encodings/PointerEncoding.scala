@@ -65,7 +65,7 @@ class PointerEncoding extends LeafTypeEncoding {
           val (pos, info, errT) = loc.vprMeta
           for {
             recv <- ctx.typeEncoding.lValue(ctx)(loc.exp.asInstanceOf[in.Location])
-            f = ctx.fields.field(t)(ctx)
+            f = ctx.field.field(t)(ctx)
           } yield vpr.FieldAccess(recv, f)(pos, info, errT)
       }
   }

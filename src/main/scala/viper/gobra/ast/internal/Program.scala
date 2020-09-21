@@ -501,7 +501,7 @@ case class Ref(ref: Addressable, typ: PointerT)(val info: Source.Parser.Info) ex
 
 object Ref {
   def apply(ref: Expr)(info: Source.Parser.Info): Ref = {
-    require(Addressable.isAddressable(ref))
+    require(ref.typ.addressability == Addressability.Shared)
 
     val pointerT = PointerT(ref.typ, Addressability.reference)
     ref match {
@@ -813,7 +813,7 @@ case class StructT(name: String, fields: Vector[Field], addressability: Addressa
   }
 
   override def withAddressability(newAddressability: Addressability): StructT =
-    StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)))(f.info)), newAddressability)
+    StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
 
 

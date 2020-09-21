@@ -50,7 +50,7 @@ class FixpointImpl extends Fixpoint {
       vpr.DomainFunc(
         name = s"constant_${v.id}",
         formalArgs = Seq(),
-        typ = ctx.typ.translate(v.typ)(ctx)
+        typ = ctx.typeEncoding.typ(ctx)(v.typ)
       )(domainName = constantDomainName(v))
     case _ => ???
   }

@@ -92,7 +92,7 @@ case class FPredicate(
                      )(val info: Source.Parser.Info) extends Member
 
 case class MPredicate(
-                     receiver: Parameter,
+                     receiver: Parameter.In,
                      name: MPredicateProxy,
                      args: Vector[Parameter.In],
                      body: Option[Assertion]
@@ -193,10 +193,7 @@ sealed trait Accessible extends Node {
 }
 
 object Accessible {
-  case class Pointer(op: Deref) extends Accessible
-  case class Field(op: FieldRef) extends Accessible
   case class Predicate(op: PredicateAccess) extends Accessible
-  case class Index(op : IndexedExp) extends Accessible
   case class Address(op: Location) extends Accessible
 }
 

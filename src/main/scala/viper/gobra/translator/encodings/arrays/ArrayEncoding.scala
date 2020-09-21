@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.encodings.arrays
 
 import org.bitbucket.inkytonik.kiama.==>
@@ -246,7 +252,7 @@ class ArrayEncoding extends TypeEncoding {
         .replace(variable(ctx)(resultVar).localVar, vpr.Result(vResultType)())
 
       vpr.Function(
-        name = s"arrayConversion_${Names.freshName}",
+        name = s"${Names.arrayConversionFunc}_${Names.freshName}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
         pres = Vector(pure(addressFootprint(ctx)(x))(ctx).res),
@@ -280,7 +286,7 @@ class ArrayEncoding extends TypeEncoding {
       )()
 
       vpr.Function(
-        name = s"arrayDefault_${Names.freshName}",
+        name = s"${Names.arrayDefaultFunc}_${Names.freshName}",
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,

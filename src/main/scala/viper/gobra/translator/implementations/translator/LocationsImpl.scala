@@ -42,7 +42,7 @@ class LocationsImpl extends Locations {
       (t: vpr.Type) => {
         // No ref can hold permission to two val fields at once.hj
         // Therefore, field names based on the viper type are sufficient
-        val f = vpr.Field(name = Names.pointerFields(t), typ = t)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        val f = vpr.Field(name = Names.pointerField(t), typ = t)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
         (f, Vector(f))
       }
     )
@@ -661,33 +661,7 @@ class LocationsImpl extends Locations {
   }
 
 
-  /**
-    * [acc(  p(as)] -> p(Argument[as])
-    * [acc(e.p(as)] -> p(Argument[e], Argument[as])
-    */
-  override def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
 
-    val (pos, info, errT) = acc.vprMeta
-    val perm = vpr.FullPerm()(pos, info, errT)
-
-    acc match {
-      case in.FPredicateAccess(pred, args) =>
-        for {
-          vArgss <- sequence(args map (a => sequence(values(a)(ctx))))
-          pacc = vpr.PredicateAccess(vArgss.flatten, pred.name)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
-
-      case in.MPredicateAccess(recv, pred, args) =>
-        for {
-          vRecvs <- sequence(values(recv)(ctx))
-          vArgss <- sequence(args map (a => sequence(values(a)(ctx))))
-          pacc = vpr.PredicateAccess(vRecvs ++ vArgss.flatten, pred.uniqueName)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
-
-      case in.MemoryPredicateAccess(_) =>
-        Violation.violation("memory predicate accesses are not supported")
-    }
-  }
 
   /**
     * Argument[?e: [n]T] -> { e }

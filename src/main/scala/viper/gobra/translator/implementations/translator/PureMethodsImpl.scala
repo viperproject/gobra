@@ -26,35 +26,35 @@ class PureMethodsImpl extends PureMethods {
 
     val (pos, info, errT) = meth.vprMeta
 
-    val (vRecv, recvWells) = ctx.loc.parameter(meth.receiver)(ctx)
-    val recvWell = cl.assertUnit(recvWells)
+    val vRecv = ctx.typeEncoding.variable(ctx)(meth.receiver)
+    val vRecvPres = ctx.typeEncoding.precondition(ctx).lift(meth.receiver).toVector
 
-    val (vArgss, argWells) = meth.args.map(ctx.loc.parameter(_)(ctx)).unzip
-    val vArgs = vArgss.flatten
-    val argWell = argWells map cl.assertUnit
+    val vArgs = meth.args.map(ctx.typeEncoding.variable(ctx))
+    val vArgPres = meth.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
 
-    val (vResult, resultWells) = ctx.loc.parameter(meth.results.head)(ctx)
-    val resultType = if (vResult.size == 1) vResult.head.typ else ctx.tuple.typ(vResult map (_.typ))
+    val vResults = meth.results.map(ctx.typeEncoding.variable(ctx))
+    val vResultPosts = meth.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    assert(vResults.size == 1)
+    val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
     for {
-      pres <- sequence((recvWell +: argWell) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
+      pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
+      posts <- sequence(vResultPosts)
 
       body <- option(meth.body map {b =>
-        cl.assumeExp(
+        pure(
           for {
-            _ <- resultWells
-            results <- cl.sequence(ctx.loc.values(b)(ctx))
-            res = if (results.size == 1) results.head else ctx.tuple.create(results)
-          } yield res
-        )
+            results <- ctx.expr.translate(b)(ctx)
+          } yield results
+        )(ctx)
       })
 
       function = vpr.Function(
         name = meth.name.uniqueName,
-        formalArgs = vRecv ++ vArgs,
+        formalArgs = vRecv +: vArgs,
         typ = resultType,
         pres = pres,
-        posts = Vector.empty,
+        posts = posts,
         body = body
       )(pos, info, errT)
 
@@ -67,24 +67,24 @@ class PureMethodsImpl extends PureMethods {
 
     val (pos, info, errT) = func.vprMeta
 
-    val (vArgss, argWells) = func.args.map(ctx.loc.parameter(_)(ctx)).unzip
-    val vArgs = vArgss.flatten
-    val argWell = argWells map cl.assertUnit
+    val vArgs = func.args.map(ctx.typeEncoding.variable(ctx))
+    val vArgPres = func.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
 
-    val (vResult, resultWells) = ctx.loc.parameter(func.results.head)(ctx)
-    val resultType = if (vResult.size == 1) vResult.head.typ else ctx.tuple.typ(vResult map (_.typ))
+    val vResults = func.results.map(ctx.typeEncoding.variable(ctx))
+    val vResultPosts = func.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    assert(vResults.size == 1)
+    val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
     for {
-      pres <- sequence(argWell ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
+      pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
+      posts <- sequence(vResultPosts)
 
       body <- option(func.body map {b =>
-        cl.assumeExp(
+        pure(
           for {
-            _ <- resultWells
-            results <- cl.sequence(ctx.loc.values(b)(ctx))
-            res = if (results.size == 1) results.head else ctx.tuple.create(results)
-          } yield res
-        )
+            results <- ctx.expr.translate(b)(ctx)
+          } yield results
+        )(ctx)
       })
 
       function = vpr.Function(
@@ -92,7 +92,7 @@ class PureMethodsImpl extends PureMethods {
         formalArgs = vArgs,
         typ = resultType,
         pres = pres,
-        posts = Vector.empty,
+        posts = posts,
         body = body
       )(pos, info, errT)
 

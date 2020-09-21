@@ -9,14 +9,7 @@ package viper.gobra.translator
 import viper.silver.{ast => vpr}
 
 object Names {
-  def pointerFields(t: vpr.Type) : String = s"val$$_$t"
   def returnLabel: String = "returnLabel"
-  def fieldExtension(base: String, ext: String): String = s"${base}_$ext"
-
-  def inlinedVar(base: String, idx: Int): String = s"${base}_$idx"
-
-  def addressableField(base: String): String = s"${base}R"
-  def nonAddressableField(base: String): String = s"${base}V"
 
   private var freshCounter = 0
   def freshName: String = {
@@ -24,4 +17,31 @@ object Names {
     freshCounter += 1
     str
   }
+
+
+  // assert
+  def assertFunc: String = "assertArg"
+
+  // equality
+  def equalityDomain: String = "Equality"
+  def equalityFunc: String = "eq"
+
+  // embedding domain
+  def embeddingDomain: String = "emb"
+  def embeddingBoxFunc: String = "box"
+  def embeddingUnboxFunc: String = "unbox"
+
+  // pointer
+  def pointerField(t: vpr.Type) : String = s"val$$_$t"
+
+  // array
+  def arrayConversionFunc: String = "arrayConversion"
+  def arrayDefaultFunc: String = "arrayDefault"
+
+
+
+  def fieldExtension(base: String, ext: String): String = s"${base}_$ext" // remove
+  def inlinedVar(base: String, idx: Int): String = s"${base}_$idx" // remove
+  def addressableField(base: String): String = s"${base}R" // remove
+  def nonAddressableField(base: String): String = s"${base}V" // remove
 }

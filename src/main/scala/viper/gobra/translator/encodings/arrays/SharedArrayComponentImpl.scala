@@ -20,12 +20,18 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
   )
 
   /** Returns type of exclusive-array domain. */
-  def typ(t: ComponentParameter)(ctx: Context): vpr.Type = emb.typ(t)(ctx)
+  override def typ(t: ComponentParameter)(ctx: Context): vpr.Type = emb.typ(t)(ctx)
 
   /** Getter of shared-array domain. */
-  def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+  override def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     ctx.array.slot(emb.unbox(base, t)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
+  }
+
+  /** Length of shared-array domain. */
+  override def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+    ctx.array.length(emb.unbox(arg, t)(ctx))(pos, info, errT) // len(unbox(arg))
   }
 
 }

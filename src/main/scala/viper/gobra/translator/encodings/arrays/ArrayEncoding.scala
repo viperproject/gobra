@@ -65,11 +65,11 @@ class ArrayEncoding extends TypeEncoding {
     * [v: T° = rhs] -> VAR[v] = [rhs]
     * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
     *
-    * [e[idx]: [n]T° = rhs] -> [ e = e[idx -> rhs] ]
+    * [(e: [n]T°)[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee((ai: in.IndexedExp) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(ai.base), in.ArrayUpdate(ai.base, ai.index, rhs)(src.info), src)
+    case (in.Assignee(in.IndexedExp(base :: ctx.Array(_, _), idx) :: _ / Exclusive), rhs, src) =>
+      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.ArrayUpdate(base, idx, rhs)(src.info), src)
   }
 
   /**
@@ -103,6 +103,13 @@ class ArrayEncoding extends TypeEncoding {
     * R[ (base: [n]T)[idx = e] ] -> ex_array_upd([base], [idx], [e])
     * R[ dflt([n]T) ] -> arrayDefault()
     * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
+    * R[ len(e: [n]T@°) ] -> ex_array_length([e])
+    * R[ len(e: [n]T@) ] -> sh_array_length(L[e])
+    * R[ seq(e: [n]T) ] -> ex_array_toSeq([e])
+    * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
+    * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
+    * R[ x in (e: [n]T) ] -> [x] in ex_array_toSeq([e])
+    * R[ x # (e: [n]T) ] -> [x] # ex_array_toSeq([e])
     * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
     */
   override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
@@ -127,6 +134,37 @@ class ArrayEncoding extends TypeEncoding {
       for {
         vExprs <- sequence(lit.exprs.map(e => ctx.expr.translate(e)(ctx)))
       } yield ex.create(vExprs, cptParam(len, t)(ctx))(lit)(ctx)
+
+    case n@ in.Length(e :: ctx.Array(len, t) / m) =>
+      m match {
+        case Exclusive => ctx.expr.translate(e)(ctx).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.typeEncoding.lValue(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+      }
+
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+      ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
+
+    case n@ in.SetConversion(e :: ctx.Array(len, t)) =>
+      val (pos, info, errT) = n.vprMeta
+      ctx.expr.translate(e)(ctx).map(vE => ctx.seqToSet.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
+
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+      val (pos, info, errT) = n.vprMeta
+      ctx.expr.translate(e)(ctx).map(vE => ctx.seqToMultiset.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
+
+    case n@ in.Contains(x, e :: ctx.Array(len, t)) =>
+      val (pos, info, errT) = n.vprMeta
+      for {
+        vX <- ctx.expr.translate(x)(ctx)
+        vE <- ctx.expr.translate(e)(ctx)
+      } yield vpr.SeqContains(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
+
+    case n@ in.Multiplicity(x, e :: ctx.Array(len, t)) =>
+      val (pos, info, errT) = n.vprMeta
+      for {
+        vX <- ctx.expr.translate(x)(ctx)
+        vE <- ctx.expr.translate(e)(ctx)
+      } yield ctx.seqMultiplicity.create(vX, ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT)
 
     case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
       val (pos, info, errT) = loc.vprMeta

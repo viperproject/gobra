@@ -85,7 +85,7 @@ class StructEncoding extends TypeEncoding {
     * [v: T° = rhs] -> VAR[v] = [rhs]
     * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
     *
-    * [e.f: Struct{F}° = rhs] -> [ e = e[f -> rhs] ]
+    * [e.f: Struct{F}° = rhs] -> [ e = e[f := rhs] ]
     * [lhs: Struct{F}@ = rhs] -> FOREACH f in F: [lhs.f = rhs.f]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){

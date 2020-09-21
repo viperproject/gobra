@@ -4,6 +4,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -26,6 +27,17 @@ class PointerEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    *
+    * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
+    * (1) exclusive operations on T, which includes literals and default values
+    */
+  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
+    case (dflt: in.DfltVal) :: ctx.*(_) => unit(vpr.NullLit().tupled(dflt.vprMeta))
+    case lit: in.NilLit => unit(vpr.NullLit().tupled(lit.vprMeta))
+  }
+
+  /**
     * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
     * This includes literals and default values.
     *
@@ -37,7 +49,7 @@ class PointerEncoding extends LeafTypeEncoding {
     * L[*(e: T°)] -> L[e]
     * L[*(e: T@)] -> L[e].val
     */
-  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = super.lValue(ctx) orElse {
+  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.lValue(ctx)){
     case (loc: in.Deref) :: t / Shared =>
       loc.exp.typ.addressability match {
         case Exclusive =>
@@ -60,7 +72,7 @@ class PointerEncoding extends LeafTypeEncoding {
     *
     * Ref[*e] -> L[e]
     */
-  override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = super.reference(ctx) orElse {
+  override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
       ctx.typeEncoding.lValue(ctx)(loc.exp.asInstanceOf[in.Location])
   }

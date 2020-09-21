@@ -20,4 +20,9 @@ trait ExclusiveArrayComponent extends Generator {
   /** Update function of shared-array domain. */
   def update(base: vpr.Exp, idx: vpr.Exp, newVal: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
+  /** Length of exclusive-array domain. */
+  def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+
+  /** Returns argument as sequence. */
+  def toSeq(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 }

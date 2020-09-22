@@ -13,7 +13,7 @@ import viper.silver.{ast => vpr}
 
 class PureMethodsImpl extends PureMethods {
 
-  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
+  import viper.gobra.translator.util.ViperWriter._
   import MemberLevel._
 
   /**

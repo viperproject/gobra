@@ -176,7 +176,7 @@ class ArrayEncoding extends TypeEncoding {
       val (pos, info, errT) = loc.vprMeta
       for {
         arg <- ctx.typeEncoding.lValue(ctx)(loc)
-      } yield conversionFunc(Vector(arg), (len, t)(ctx))(pos, info, errT)(ctx)
+      } yield conversionFunc(Vector(arg), (len, t))(pos, info, errT)(ctx)
   }
 
   /**

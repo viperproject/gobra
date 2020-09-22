@@ -193,5 +193,11 @@ trait TypeEncoding extends Generator {
     * @return
     */
   protected def default[X, Y](dflt: X ==> Y)(f: X ==> Y): X ==> Y = f orElse dflt
+
+  /** Adds source information to a node without source information. */
+  protected def withSrc[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T, src: in.Node): T = {
+    val (pos, info, errT) = src.vprMeta
+    node(pos, info, errT)
+  }
 }
 

@@ -32,7 +32,7 @@ object Nodes {
       case PureFunction(name, args, results, pres, body) => Seq(name) ++ args ++ results ++ pres ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
-      case Field(name, typ) => Seq()
+      case Field(name, typ, ghost) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -73,6 +73,17 @@ object Nodes {
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
+        case StructUpd(base, field, newVal) => Seq(base, field, newVal)
+        case IndexedExp(base, idx) => Seq(base, idx)
+        case ArrayUpdate(base, left, right) => Seq(base, left, right)
+        case RangeSequence(low, high) => Seq(low, high)
+        case SequenceUpdate(base, left, right) => Seq(base, left, right)
+        case SequenceDrop(left, right) => Seq(left, right)
+        case SequenceTake(left, right) => Seq(left, right)
+        case SequenceConversion(expr) => Seq(expr)
+        case Cardinality(exp) => Seq(exp)
+        case SetConversion(expr) => Seq(expr)
+        case MultisetConversion(expr) => Seq(expr)
         case Negation(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case EqCmp(l, r) => Seq(l, r)
@@ -90,9 +101,7 @@ object Nodes {
         }
         case Parameter.In(id, typ) => Seq()
         case Parameter.Out(id, typ) => Seq()
-        case LocalVar.Ref(id, typ) => Seq()
-        case LocalVar.Val(id, typ) => Seq()
-        case LocalVar.Inter(id, typ) => Seq()
+        case LocalVar(id, typ) => Seq()
       }
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {

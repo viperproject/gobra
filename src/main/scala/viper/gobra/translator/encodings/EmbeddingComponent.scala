@@ -10,7 +10,7 @@ import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{DomainGenerator, FunctionGenerator}
-import viper.silver.{ast, ast => vpr}
+import viper.silver.{ast => vpr}
 
 /**
   * Creates an embedded type E that is made up of all elements of 't' that satisfy 'p',
@@ -19,13 +19,13 @@ import viper.silver.{ast, ast => vpr}
 abstract class EmbeddingComponent[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends Generator {
 
   /** Returns the embedded type E. */
-  abstract def typ(id: P)(ctx: Context): vpr.Type
+  def typ(id: P)(ctx: Context): vpr.Type
 
   /** Takes 'x' (element of 't'('id')), checks that 'x' satisfies 'p'('x', 'id'), and embeds 'x' into E */
-  abstract def box(x: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
+  def box(x: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
 
   /** Extracts 'y' (element of E) back into 't'('id'). The result satisfies 'p'(_, 'id'). */
-  abstract def unbox(y: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
+  def unbox(y: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
 }
 
 
@@ -73,7 +73,7 @@ object EmbeddingComponent {
       *   ensures  unbox(result) == x
       */
     private val boxFunc: FunctionGenerator[P] = new FunctionGenerator[P]{
-      override def genFunction(id: P)(ctx: Context): ast.Function = {
+      override def genFunction(id: P)(ctx: Context): vpr.Function = {
         val x = vpr.LocalVarDecl("x", t(id)(ctx))()
         val N = domainType(Vector.empty, id)(ctx)
 
@@ -95,7 +95,7 @@ object EmbeddingComponent {
       *   ensures p(result)
       */
     private val unboxFunc: FunctionGenerator[P] = new FunctionGenerator[P]{
-      override def genFunction(id: P)(ctx: Context): ast.Function = {
+      override def genFunction(id: P)(ctx: Context): vpr.Function = {
         val N = domainType(Vector.empty, id)(ctx)
         val y = vpr.LocalVarDecl("y", t(id)(ctx))()
 

@@ -40,8 +40,8 @@ class BoolEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.rValue(ctx)){
-      case (e: in.DfltVal) :: ctx.Bool() => unit(vpr.BoolLit(b = false).tupled(e.vprMeta))
-      case lit: in.BoolLit => unit(vpr.BoolLit(lit.b).tupled(lit.vprMeta))
+      case (e: in.DfltVal) :: ctx.Bool() => unit(withSrc(vpr.BoolLit(b = false), e))
+      case lit: in.BoolLit => unit(withSrc(vpr.BoolLit(lit.b), lit))
     }
   }
 }

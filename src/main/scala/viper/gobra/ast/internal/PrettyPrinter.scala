@@ -163,7 +163,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
-    case Field(name, typ) => "field" <> name <> ":" <+> showType(typ)
+    case Field(name, typ, ghost) => "field" <> name <> ":" <+> showType(typ)
   })
 
   def showTypeDecl(t: DefinedT): Doc =
@@ -261,10 +261,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
-    case Accessible.Pointer(der) => showExpr(der)
-    case Accessible.Field(op) => showExpr(op)
+    case Accessible.Address(der) => showExpr(der)
     case Accessible.Predicate(op) => showPredicateAcc(op)
-    case Accessible.Index(op) => showExpr(op)
   })
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
@@ -298,6 +296,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+    case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
@@ -315,6 +314,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
+    case StructUpd(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
@@ -353,9 +353,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoundVar(id, _) => id
     case Parameter.In(id, _)    => id
     case Parameter.Out(id, _)    => id
-    case LocalVar.Ref(id, _) => id
-    case LocalVar.Val(id, _) => id
-    case LocalVar.Inter(id, _) => id
+    case LocalVar(id, _) => id
     case GlobalConst.Val(id, _) => id
   }
 
@@ -363,9 +361,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoundVar(id, t) => id <> ":" <+> showType(t)
     case Parameter.In(id, t)    => id <> ":" <+> showType(t)
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
-    case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
-    case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
-    case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)
+    case LocalVar(id, t) => id <> ":" <+> showType(t)
     case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
   }
 

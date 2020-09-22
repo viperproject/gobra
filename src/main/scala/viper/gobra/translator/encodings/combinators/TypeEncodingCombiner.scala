@@ -11,7 +11,6 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.gobra.reporting.Source.Parser.Info
 import viper.silver.{ast => vpr}
 
 /**
@@ -24,7 +23,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
     * @param get function selecting a partial function of the type encoding.
     * @return combined partial function.
     */
-  protected[combinators] abstract def combiner[X, Y](get: TypeEncoding => (X ==> Y)): X ==> Y
+  protected[combinators] def combiner[X, Y](get: TypeEncoding => (X ==> Y)): X ==> Y
 
 
   override def finalize(col: Collector): Unit = encodings.foreach(_.finalize(col))

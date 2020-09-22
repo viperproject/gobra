@@ -39,8 +39,8 @@ class PointerEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     */
   override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
-    case (dflt: in.DfltVal) :: ctx.*(_) => unit(vpr.NullLit().tupled(dflt.vprMeta))
-    case lit: in.NilLit => unit(vpr.NullLit().tupled(lit.vprMeta))
+    case (dflt: in.DfltVal) :: ctx.*(_) => unit(withSrc(vpr.NullLit(), dflt))
+    case lit: in.NilLit => unit(withSrc(vpr.NullLit(), lit))
   }
 
   /**

@@ -52,8 +52,8 @@ class SetEncoding extends LeafTypeEncoding {
 
     default(super.rValue(ctx)){
 
-      case (e: in.DfltVal) :: ctx.Set(t) => unit(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t)).tupled(e.vprMeta))
-      case (e: in.DfltVal) :: ctx.Multiset(t) => unit(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t)).tupled(e.vprMeta))
+      case (e: in.DfltVal) :: ctx.Set(t) => unit(withSrc(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t)), e))
+      case (e: in.DfltVal) :: ctx.Multiset(t) => unit(withSrc(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t)), e))
 
       case (lit: in.SetLit) :: ctx.Set(t) =>
         val (pos, info, errT) = lit.vprMeta

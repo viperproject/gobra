@@ -85,7 +85,7 @@ class SequenceEncoding extends LeafTypeEncoding {
           vRight <- goE(right)
         } yield vpr.SeqUpdate(vBase, vLeft, vRight)(pos, info, errT)
 
-      case (e: in.DfltVal) :: ctx.Seq(t) => unit(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t)).tupled(e.vprMeta))
+      case (e: in.DfltVal) :: ctx.Seq(t) => unit(withSrc(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t)), e))
 
       case (lit: in.SequenceLit) :: ctx.Seq(t) =>
         val (pos, info, errT) = lit.vprMeta

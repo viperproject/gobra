@@ -41,7 +41,7 @@ sealed trait GlobalVarDecl extends Member
 
 case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parser.Info) extends Member
 
-case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info)
+case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info) extends Node
 
 
 
@@ -508,6 +508,7 @@ object Ref {
       case x: LocalVar     => Ref(Addressable.Var(x), pointerT)(info)
       case x: Deref        => Ref(Addressable.Pointer(x), pointerT)(info)
       case x: FieldRef     => Ref(Addressable.Field(x), pointerT)(info)
+      case x: IndexedExp   => Ref(Addressable.Index(x), pointerT)(info)
       case _ => Violation.violation(s"encountered unexpected addressable expression $ref")
     }
   }
@@ -524,6 +525,7 @@ object Addressable {
   case class Var(op: LocalVar) extends Addressable
   case class Pointer(op: Deref) extends Addressable
   case class Field(op: FieldRef) extends Addressable
+  case class Index(op: IndexedExp) extends Addressable
 }
 
 case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) extends Expr with Location {

@@ -581,9 +581,7 @@ case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 
 sealed trait Lit extends Expr
 
-case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr {
-  require(typ.addressability == Addressability.defaultValue)
-}
+case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT(Addressability.literal)

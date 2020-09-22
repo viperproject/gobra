@@ -21,7 +21,7 @@ class ExpressionsImpl extends Expressions {
 
   override def translate(x: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
 
-    val typEncodingOptRes = ctx.typeEncoding.rValue(ctx).lift(x)
+    val typEncodingOptRes = ctx.typeEncoding.expr(ctx).lift(x)
     if (typEncodingOptRes.isDefined) return typEncodingOptRes.get
 
 

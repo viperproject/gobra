@@ -40,6 +40,7 @@ class StructEncoding extends TypeEncoding {
   private val sh: SharedStructComponent = new SharedStructComponent { // For now, we use a simple tuple domain.
     override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
     override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
+    override def dflt(vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(vti.map(_ => vpr.NullLit()()))
   }
 
   override def finalize(col: Collector): Unit = {
@@ -122,7 +123,7 @@ class StructEncoding extends TypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
@@ -133,9 +134,9 @@ class StructEncoding extends TypeEncoding {
     * R[ (base: Struct{F})[f = e] ] -> ex_struct_upd([base], f, [e], F)
     * R[ dflt(Struct{F}) ] -> create_ex_struct( [T] | (f: T) in F )
     * R[ structLit(E) ] -> create_ex_struct( [e] | e in E )
-    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( L[loc] )
+    * R[ loc: Struct{F}@ ] -> convert_to_exclusive( Ref[loc] )
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expr.translate(recv)(ctx)
@@ -149,9 +150,12 @@ class StructEncoding extends TypeEncoding {
         vVal <- ctx.expr.translate(upd.newVal)(ctx)
       } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
-    case (e: in.DfltVal) :: ctx.Struct(fs) =>
+    case (e: in.DfltVal) :: ctx.Struct(fs) / Exclusive =>
       val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
       sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
+
+    case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
+      unit(sh.dflt(cptParam(fs)(ctx))(e)(ctx))
 
     case (lit: in.StructLit) :: ctx.Struct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expr.translate(arg)(ctx))
@@ -159,28 +163,6 @@ class StructEncoding extends TypeEncoding {
 
     case (loc: in.Location) :: ctx.Struct(_) / Shared =>
       sh.convertToExclusive(loc)(ctx, ex)
-  }
-
-  /**
-    * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
-    * This includes literals and default values.
-    *
-    * To avoid conflicts with other encodings, an encoding for type T should be defined at:
-    * (1) shared variables of type T
-    * (2) shared operations on T
-    *
-    * L[ v: Struct{F}@ ] -> Var[v]
-    * L[ (e: Struct{F}).f ] -> sh_struct_get(L[e], f, F)
-    */
-  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case (v: in.BodyVar) :: ctx.Struct(_) / Shared =>
-      unit(variable(ctx)(v).localVar)
-
-    case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
-      for {
-        vBase <- ctx.typeEncoding.lValue(ctx)(recv.asInstanceOf[in.Location])
-        idx = fs.indexOf(field)
-      } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
 
   /**

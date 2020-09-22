@@ -43,7 +43,7 @@ class SequenceEncoding extends LeafTypeEncoding {
     *
     * Super implements:
     * [v: T° = rhs] -> VAR[v] = [rhs]
-    * [loc: T@ = rhs] -> exhale Footprint[loc]; inhale Footprint[loc] && [loc == rhs]
+    * [loc: T@ = rhs] -> [loc] = [rhs]
     *
     * [(e: seq[T])[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
@@ -53,7 +53,7 @@ class SequenceEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
@@ -64,11 +64,11 @@ class SequenceEncoding extends LeafTypeEncoding {
     * R[ mset(e: [n]T) ] -> seqToMultiset([e])
     * R[ x # (e: [n]T) ] -> [x] # [e]
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
-    default(super.rValue(ctx)){
+    default(super.expr(ctx)){
 
       case n@ in.IndexedExp(e :: ctx.Seq(_), idx) =>
         val (pos, info, errT) = n.vprMeta
@@ -85,7 +85,7 @@ class SequenceEncoding extends LeafTypeEncoding {
           vRight <- goE(right)
         } yield vpr.SeqUpdate(vBase, vLeft, vRight)(pos, info, errT)
 
-      case (e: in.DfltVal) :: ctx.Seq(t) => unit(withSrc(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t)), e))
+      case (e: in.DfltVal) :: ctx.Seq(t) / Exclusive => unit(withSrc(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t)), e))
 
       case (lit: in.SequenceLit) :: ctx.Seq(t) =>
         val (pos, info, errT) = lit.vprMeta

@@ -66,6 +66,7 @@ trait Context {
 
   def finalize(col : Collector): Unit = {
     // components
+    field.finalize(col)
     array.finalize(col)
     seqToSet.finalize(col)
     seqToMultiset.finalize(col)

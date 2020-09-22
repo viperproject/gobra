@@ -33,41 +33,16 @@ class PointerEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
-    case (dflt: in.DfltVal) :: ctx.*(_) => unit(withSrc(vpr.NullLit(), dflt))
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
+    case (dflt: in.DfltVal) :: ctx.*(t) / Exclusive =>
+      ctx.expr.translate(in.DfltVal(t)(dflt.info))(ctx)
+
     case lit: in.NilLit => unit(withSrc(vpr.NullLit(), lit))
-  }
-
-  /**
-    * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
-    * This includes literals and default values.
-    *
-    * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
-    * (1) shared operations on T
-    *
-    * Super implements: L[v: T@] -> Var[v].val
-    *
-    * L[*(e: T°)] -> [e]
-    * L[*(e: T@)] -> L[e].val
-    */
-  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.lValue(ctx)){
-    case (loc: in.Deref) :: t / Shared =>
-      loc.exp.typ.addressability match {
-        case Exclusive =>
-          ctx.expr.translate(loc.exp)(ctx)
-
-        case Shared =>
-          val (pos, info, errT) = loc.vprMeta
-          for {
-            recv <- ctx.typeEncoding.lValue(ctx)(loc.exp.asInstanceOf[in.Location])
-            f = ctx.field.field(t)(ctx)
-          } yield vpr.FieldAccess(recv, f)(pos, info, errT)
-      }
   }
 
   /**
@@ -76,10 +51,10 @@ class PointerEncoding extends LeafTypeEncoding {
     * To avoid conflicts with other encodings, an encoding for type T should be defined at shared operations on type T.
     * Super implements shared variables with [[variable]].
     *
-    * Ref[*e] -> L[e]
+    * Ref[*e] -> [e]
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
     case (loc: in.Deref) :: _ / Shared =>
-      ctx.typeEncoding.lValue(ctx)(loc.exp.asInstanceOf[in.Location])
+      ctx.expr.translate(loc.exp)(ctx)
   }
 }

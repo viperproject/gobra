@@ -30,17 +30,17 @@ class BoolEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
-    default(super.rValue(ctx)){
-      case (e: in.DfltVal) :: ctx.Bool() => unit(withSrc(vpr.BoolLit(b = false), e))
+    default(super.expr(ctx)){
+      case (e: in.DfltVal) :: ctx.Bool() / Exclusive => unit(withSrc(vpr.BoolLit(b = false), e))
       case lit: in.BoolLit => unit(withSrc(vpr.BoolLit(lit.b), lit))
     }
   }

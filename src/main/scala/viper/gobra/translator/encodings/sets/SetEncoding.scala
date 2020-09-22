@@ -37,7 +37,7 @@ class SetEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
@@ -46,14 +46,14 @@ class SetEncoding extends LeafTypeEncoding {
     * R[ x in (e: mset[T]) ] -> ([x] in [e]) > 0
     * R[ x # (e: set[T]) ] -> [x] in [e] ? 1 : 0
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
-    default(super.rValue(ctx)){
+    default(super.expr(ctx)){
 
-      case (e: in.DfltVal) :: ctx.Set(t) => unit(withSrc(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t)), e))
-      case (e: in.DfltVal) :: ctx.Multiset(t) => unit(withSrc(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t)), e))
+      case (e: in.DfltVal) :: ctx.Set(t) / Exclusive => unit(withSrc(vpr.EmptySet(ctx.typeEncoding.typ(ctx)(t)), e))
+      case (e: in.DfltVal) :: ctx.Multiset(t) / Exclusive => unit(withSrc(vpr.EmptyMultiset(ctx.typeEncoding.typ(ctx)(t)), e))
 
       case (lit: in.SetLit) :: ctx.Set(t) =>
         val (pos, info, errT) = lit.vprMeta

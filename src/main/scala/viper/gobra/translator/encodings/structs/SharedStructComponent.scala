@@ -26,8 +26,11 @@ trait SharedStructComponent extends Generator {
   /** Getter of shared-struct domain. */
   def get(base: vpr.Exp, idx: Int, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
+  /** Default of shared-struct domain. */
+  def dflt(t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+
   /**
-    * Encodes the conversion from a shared l-value to an exclusive r-value.
+    * Encodes the conversion from a shared value to an exclusive value.
     * All permissions involved in the conversion should be returned by [[addressFootprint]].
     *
     * The default implementation is:
@@ -46,7 +49,7 @@ trait SharedStructComponent extends Generator {
 
   /**
     * Encodes the permissions for all addresses of a shared type,
-    * i.e. all permissions involved in converting the shared location to an exclusive r-value ([[convertToExclusive]]).
+    * i.e. all permissions involved in converting the shared location to an exclusive value ([[convertToExclusive]]).
     * An encoding for type T should be defined at all shared locations of type T.
     *
     * The default implementation is:

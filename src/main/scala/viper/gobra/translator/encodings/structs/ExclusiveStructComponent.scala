@@ -14,17 +14,17 @@ import StructEncoding.ComponentParameter
 
 trait ExclusiveStructComponent extends Generator {
 
-  /** Returns type of shared-struct domain. */
+  /** Returns type of exclusive-struct domain. */
   def typ(t: ComponentParameter)(ctx: Context): vpr.Type
 
-  /** Constructor of shared-struct domain. */
+  /** Constructor of exclusive-struct domain. */
   def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
-  /** Getter of shared-struct domain. */
+  /** Getter of exclusive-struct domain. */
   def get(base: vpr.Exp, idx: Int, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
   /**
-    * Update function of shared-struct domain.
+    * Update function of exclusive-struct domain.
     *
     * The default implementation is:
     * update(e, i, v, n) -> create( get(e, 0, n), ..., get(e, i-1, n), v, get(e, i+1, n), ..., get(e, n-1, n) )

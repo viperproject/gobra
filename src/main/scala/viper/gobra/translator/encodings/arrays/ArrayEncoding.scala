@@ -41,7 +41,8 @@ class ArrayEncoding extends TypeEncoding {
     ex.finalize(col)
     sh.finalize(col)
     conversionFunc.finalize(col)
-    dfltFunc.finalize(col)
+    exDfltFunc.finalize(col)
+    shDfltFunc.finalize(col)
   }
 
   /**
@@ -98,7 +99,7 @@ class ArrayEncoding extends TypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
@@ -110,7 +111,7 @@ class ArrayEncoding extends TypeEncoding {
     * R[ dflt([n]T) ] -> arrayDefault()
     * R[ arrayLit(E) ] -> create_ex_array( [e] | e in E )
     * R[ len(e: [n]T@°) ] -> ex_array_length([e])
-    * R[ len(e: [n]T@) ] -> sh_array_length(L[e])
+    * R[ len(e: [n]T@) ] -> sh_array_length(Ref[e])
     * R[ seq(e: [n]T) ] -> ex_array_toSeq([e])
     * R[ set(e: [n]T) ] -> seqToSet(ex_array_toSeq([e]))
     * R[ mset(e: [n]T) ] -> seqToMultiset(ex_array_toSeq([e]))
@@ -118,7 +119,7 @@ class ArrayEncoding extends TypeEncoding {
     * R[ x # (e: [n]T) ] -> [x] # ex_array_toSeq([e])
     * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.rValue(ctx)){
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expr.translate(base.asInstanceOf[in.Location])(ctx)
@@ -132,9 +133,13 @@ class ArrayEncoding extends TypeEncoding {
         vVal <- ctx.expr.translate(upd.right)(ctx)
       } yield ex.update(vBase, vIdx, vVal, cptParam(len, t)(ctx))(upd)(ctx)
 
-    case (e: in.DfltVal) :: ctx.Array(len, t) =>
+    case (e: in.DfltVal) :: ctx.Array(len, t) / Exclusive =>
       val (pos, info, errT) = e.vprMeta
-      unit(dfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
+      unit(exDfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
+
+    case (e: in.DfltVal) :: ctx.Array(len, t) / Shared =>
+      val (pos, info, errT) = e.vprMeta
+      unit(shDfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
 
     case (lit: in.ArrayLit) :: ctx.Array(len, t) =>
       for {
@@ -144,7 +149,7 @@ class ArrayEncoding extends TypeEncoding {
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {
         case Exclusive => ctx.expr.translate(e)(ctx).map(ex.length(_, cptParam(len, t)(ctx))(n)(ctx))
-        case Shared => ctx.typeEncoding.lValue(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
+        case Shared => ctx.typeEncoding.reference(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
     case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
@@ -175,30 +180,8 @@ class ArrayEncoding extends TypeEncoding {
     case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        arg <- ctx.typeEncoding.lValue(ctx)(loc)
+        arg <- ctx.typeEncoding.reference(ctx)(loc)
       } yield conversionFunc(Vector(arg), (len, t))(pos, info, errT)(ctx)
-  }
-
-  /**
-    * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
-    * This includes literals and default values.
-    *
-    * To avoid conflicts with other encodings, an encoding for type T should be defined at:
-    * (1) shared variables of type T
-    * (2) shared operations on T
-    *
-    * L[ v: [n]T@ ] -> Var[v]
-    * L[ (e: [n]T)[idx] ] -> sh_array_get(L[e], [idx], n)
-    */
-  override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case (v: in.BodyVar) :: ctx.Array(_, _) / Shared =>
-      unit(variable(ctx)(v).localVar)
-
-    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Shared =>
-      for {
-        vBase <- ctx.typeEncoding.lValue(ctx)(base.asInstanceOf[in.Location])
-        vIdx <- ctx.expr.translate(idx)(ctx)
-      } yield sh.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
   }
 
   /**
@@ -268,7 +251,7 @@ class ArrayEncoding extends TypeEncoding {
     * function arrayDefault(): ([n]T)°
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == [dflt(T)]
     * */
-  private val dfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
+  private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
       val resType = in.ArrayT(t._1, t._2, Exclusive)
       val dflt = in.DfltVal(resType)(Source.Parser.Internal)
@@ -279,6 +262,36 @@ class ArrayEncoding extends TypeEncoding {
         vDflt <- ctx.expr.translate(dflt)(ctx)
         eq = vpr.EqCmp(acc, vDflt)()
       } yield eq )(ctx).res
+      val post = vpr.Forall(
+        variables = Seq(idx),
+        triggers = Seq(vpr.Trigger(Seq(acc))()),
+        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(dflt), rhs)()
+      )()
+
+      vpr.Function(
+        name = s"${Names.arrayDefaultFunc}_${Names.freshName}",
+        formalArgs = Seq.empty,
+        typ = vResType,
+        pres = Seq.empty,
+        posts = Vector(post),
+        body = None
+      )()
+    }
+  }
+
+  /**
+    * Generates:
+    * function arrayDefault(): ([n]T)°
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == null
+    * */
+  private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
+    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
+      val resType = in.ArrayT(t._1, t._2, Exclusive)
+      val dflt = in.DfltVal(resType)(Source.Parser.Internal)
+      val vResType = typ(ctx)(resType)
+      val idx = vpr.LocalVarDecl("idx", vpr.Int)()
+      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(dflt)(ctx)
+      val rhs = vpr.EqCmp(acc, vpr.NullLit()())()
       val post = vpr.Forall(
         variables = Seq(idx),
         triggers = Seq(vpr.Trigger(Seq(acc))()),
@@ -329,7 +342,7 @@ class ArrayEncoding extends TypeEncoding {
 
   /**
     * For e: ([n]T)° returns: x = [e]; (x, idx => ex_array_get(x, idx, n)
-    * For e: ([n]T)@ returns: x = L[e]; (x, idx => sh_array_get(x, idx, n)
+    * For e: ([n]T)@ returns: x = Ref[e]; (x, idx => sh_array_get(x, idx, n)
     * */
   private def copyArray(e: in.Expr)(ctx: Context): CodeWriter[(in.LocalVar, vpr.LocalVar => Seq[vpr.Trigger])] = {
     e match {
@@ -347,7 +360,7 @@ class ArrayEncoding extends TypeEncoding {
       case (loc: in.Location) :: ctx.Array(len, t) / Shared =>
         val (pos, info, errT) = e.vprMeta
         for {
-          vS <- ctx.typeEncoding.lValue(ctx)(loc)
+          vS <- ctx.typeEncoding.reference(ctx)(loc)
           x = in.LocalVar(Names.freshName, e.typ)(e.info)
           vX = variable(ctx)(x)
           _ <- local(vX)

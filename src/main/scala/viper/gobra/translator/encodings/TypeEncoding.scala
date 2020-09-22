@@ -73,7 +73,7 @@ trait TypeEncoding extends Generator {
           case Exclusive => unit(vpr.TrueLit()(pos, info, errT))
           case Shared => addressFootprint(ctx)(loc)
         }
-        eq <- equal(ctx)(loc, in.DfltVal(t)(loc.info), loc)
+        eq <- equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
       } yield vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
   }
 
@@ -126,27 +126,17 @@ trait TypeEncoding extends Generator {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, an encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     * (2) shared expression of type T
     * The default implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
     */
-  def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     case (v: in.BodyVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
     case (v: in.GlobalVar) :: t / Exclusive if typ(ctx).isDefinedAt(t) => globalVar(ctx)(v)
   }
-
-  /**
-    * Encodes expressions as l-values, i.e. values that do occupy some identifiable location in memory.
-    * This includes literals and default values.
-    *
-    * To avoid conflicts with other encodings, an encoding for type T should be defined at:
-    * (1) shared variables of type T
-    * (2) shared operations on T
-    */
-  def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes the reference of an expression.

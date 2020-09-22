@@ -30,17 +30,17 @@ class IntEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes expressions as r-values, i.e. values that do not occupy some identifiable location in memory.
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
     */
-  override def rValue(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
+  override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
-    default(super.rValue(ctx)){
-      case (e: in.DfltVal) :: ctx.Int() => unit(withSrc(vpr.IntLit(0), e))
+    default(super.expr(ctx)){
+      case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
       case lit: in.IntLit => unit(withSrc(vpr.IntLit(lit.v), lit))
 
       case e@ in.Add(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)

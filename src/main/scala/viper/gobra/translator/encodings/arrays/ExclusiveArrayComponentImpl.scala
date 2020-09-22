@@ -49,7 +49,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   /** Length of exclusive-array domain. */
   override def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    ctx.array.length(emb.unbox(arg, t)(ctx))(pos, info, errT) // len(unbox(arg))
+    vpr.SeqLength(emb.unbox(arg, t)(ctx))(pos, info, errT) // len(unbox(arg))
   }
 
   /** Returns argument as sequence. */

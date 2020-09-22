@@ -92,7 +92,7 @@ object Nodes {
         case l: Lit => l match {
           case IntLit(_) => Seq()
           case BoolLit(_) => Seq()
-          case NilLit() => Seq()
+          case NilLit(_) => Seq()
           case ArrayLit(_, exprs) => exprs
           case StructLit(_, args) => args
           case SequenceLit(_, args) => args

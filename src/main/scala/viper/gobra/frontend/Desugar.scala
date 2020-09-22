@@ -881,7 +881,7 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      val typ: in.Type = typeD(info.typ(expr), info.addressability(expr))(src)
+      lazy val typ: in.Type = typeD(info.typ(expr), info.addressability(expr))(src)
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
@@ -901,7 +901,7 @@ object Desugar {
               for {
                 c <- compositeLitD(ctx)(c)
                 co = compositeLitToObject(c)
-                v = freshExclusiveVar(in.PointerT(c.typ, Addressability.reference))(src)
+                v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- declare(v)
                 _ <- write(in.Make(v, co)(src))
               } yield v
@@ -1012,7 +1012,7 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
-        case PNilLit() => single(in.NilLit())
+        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
       }
@@ -1187,7 +1187,6 @@ object Desugar {
 
     def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {
       case Type.VoidType => in.VoidT
-      case Type.NilType => in.NilT
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.IntT => in.IntT(addrMod)

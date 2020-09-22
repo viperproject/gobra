@@ -591,9 +591,7 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
 
-case class NilLit()(val info: Source.Parser.Info) extends Lit {
-  override def typ: Type = NilT
-}
+case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
   lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
@@ -707,12 +705,6 @@ case object VoidT extends Type {
   override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
 }
 
-case object NilT extends Type {
-  override val addressability: Addressability = Addressability.nil
-  override def equalsWithoutMod(t: Type): Boolean = t == NilT
-  override def withAddressability(newAddressability: Addressability): NilT.type = NilT
-}
-
 case class PermissionT(addressability: Addressability) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[PermissionT]
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
@@ -787,6 +779,8 @@ case class DefinedT(name: String, addressability: Addressability) extends Type w
 }
 
 case class PointerT(t: Type, addressability: Addressability) extends Type with TopType {
+  require(t.addressability.isShared)
+
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case PointerT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false

@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -37,12 +36,16 @@ class PointerEncoding extends LeafTypeEncoding {
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
     * (1) exclusive operations on T, which includes literals and default values
+    *
+    * [dflt(*T°)] -> [dflt(T@)]
+    * [nil: *T°] -> [dflt(T@)]
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
     case (dflt: in.DfltVal) :: ctx.*(t) / Exclusive =>
       ctx.expr.translate(in.DfltVal(t)(dflt.info))(ctx)
 
-    case lit: in.NilLit => unit(withSrc(vpr.NullLit(), lit))
+    case (lit: in.NilLit) :: ctx.*(t) =>
+      ctx.expr.translate(in.DfltVal(t)(lit.info))(ctx)
   }
 
   /**

@@ -254,10 +254,11 @@ class ArrayEncoding extends TypeEncoding {
   private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
       val resType = in.ArrayT(t._1, t._2, Exclusive)
-      val dflt = in.DfltVal(resType)(Source.Parser.Internal)
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
+      val dflt = in.DfltVal(t._2)(Source.Parser.Internal)
       val vResType = typ(ctx)(resType)
       val idx = vpr.LocalVarDecl("idx", vpr.Int)()
-      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(dflt)(ctx)
+      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
       val rhs = pure(for {
         vDflt <- ctx.expr.translate(dflt)(ctx)
         eq = vpr.EqCmp(acc, vDflt)()
@@ -265,7 +266,7 @@ class ArrayEncoding extends TypeEncoding {
       val post = vpr.Forall(
         variables = Seq(idx),
         triggers = Seq(vpr.Trigger(Seq(acc))()),
-        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(dflt), rhs)()
+        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(src), rhs)()
       )()
 
       vpr.Function(
@@ -287,15 +288,15 @@ class ArrayEncoding extends TypeEncoding {
   private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
       val resType = in.ArrayT(t._1, t._2, Exclusive)
-      val dflt = in.DfltVal(resType)(Source.Parser.Internal)
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
       val vResType = typ(ctx)(resType)
       val idx = vpr.LocalVarDecl("idx", vpr.Int)()
-      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(dflt)(ctx)
+      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
       val rhs = vpr.EqCmp(acc, vpr.NullLit()())()
       val post = vpr.Forall(
         variables = Seq(idx),
         triggers = Seq(vpr.Trigger(Seq(acc))()),
-        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(dflt), rhs)()
+        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(src), rhs)()
       )()
 
       vpr.Function(
@@ -328,7 +329,7 @@ class ArrayEncoding extends TypeEncoding {
     val (pos, info, errT) = src.vprMeta
 
     val idx = in.BoundVar(Names.freshName, in.IntT(Exclusive))(src.info)
-    val vIdx = variable(ctx)(idx)
+    val vIdx = ctx.typeEncoding.variable(ctx)(idx)
 
     for {
       vBody <- pure(body(idx))(ctx)

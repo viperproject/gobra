@@ -8,7 +8,11 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.Type.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.util.Violation
 
 trait Enclosing { this: TypeInfoImpl =>
 
@@ -55,4 +59,71 @@ trait Enclosing { this: TypeInfoImpl =>
       case tree.parent(p) => contained(p)(r)
       case _ => false
     }}
+
+
+  def nilType(nil: PNilLit): Option[Type] = {
+
+    def aux(n: PNode): Option[Type] = {
+      n match {
+        case tree.parent(p) => p match {
+          case PConstDecl(t, _, _) => t.map(typ)
+          case PVarDecl(t, _, _, _) => t.map(typ)
+          case _: PExpressionStmt => None
+          case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
+          case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))
+          case PShortVarDecl(right, left, _) => Some(typ(left(right.indexOf(n))))
+            // no if statement
+          case _: PExprSwitchStmt => None
+            // no for stmt
+            // no go stmt
+          case p: PReturn => Some(typ(enclosingCodeRootWithResult(p).result.outs(p.exps.indexOf(n))))
+            // no defer stmt
+          case p: PExpCompositeVal => Some(expectedMiscType(p))
+          case i: PInvoke => (exprOrType(i.base), resolve(i)) match {
+            case (Right(target), Some(_: ap.Conversion)) => Some(typ(target))
+            case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
+            case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
+          }
+            // no not
+          case PIndexedExp(base, `n`) => Some(typ(base).asInstanceOf[Type.MapT].key)
+            // no length
+            // no capacity
+            // no slice exp
+            // no type assertion
+            // no receive
+            // no reference
+            // no deref
+            // no negation
+          case PEquals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
+          case PEquals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
+          case PUnequals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
+          case PUnequals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
+            // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
+          case p: PUnfolding => aux(p)
+            // no array type
+            // no range
+            // no function spec, no invariants, no predicate body
+            // no assert, assume, exhale, inhale
+          case p: POld => aux(p)
+          case p: PConditional => val t = typ(p); if (t == Type.NilType) None else Some(t)
+            // no implication, access
+            // no forall or exists body
+          case PIn(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
+          case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
+            // no cardinality
+            // no sequence append, sequence conversion
+          case PSequenceUpdateClause(left, `n`) => p match {
+            case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
+          }
+            // no range sequence
+            // no union, intersection, set minus, subset, set conversion, multiset conversion
+            // no trigger
+
+          case _ => Violation.violation(s"Encountered unexpected parent of nil: $p")
+        }
+      }
+    }
+
+    aux(nil)
+  }
 }

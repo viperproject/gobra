@@ -106,7 +106,7 @@ object GobraStrategy {
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
-      case (n: NilLit, Seq()) => NilLit()(meta)
+      case (n: NilLit, Seq()) => NilLit(n.typ)(meta)
       case (s: StructLit, Seq(args: Vector[Expr@unchecked])) => StructLit(s.typ, args)(meta)
       case (n: ArrayLit, Seq(t: Type, args: Vector[Expr@unchecked])) => ArrayLit(t, args)(meta)
       case (n: SequenceLit, Seq(t: Type, args: Vector[Expr@unchecked])) => SequenceLit(t, args)(meta)

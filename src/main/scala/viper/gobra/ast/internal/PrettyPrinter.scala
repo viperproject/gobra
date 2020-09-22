@@ -9,6 +9,7 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.theory.Addressability
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
@@ -217,9 +218,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   })
 
   def showBottomDecl(x: BlockDeclaration): Doc = x match {
-    case bvar: BoundVar => showVar(bvar)
-    case localVar: LocalVar => showVar(localVar)
-    case outParam: Parameter.Out => showVar(outParam)
+    case bvar: BoundVar => showVar(bvar) <> ":" <+> showType(bvar.typ) <> showAddressability(bvar.typ.addressability)
+    case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
+    case outParam: Parameter.Out => showVar(outParam) <> ":" <+> showType(outParam.typ) <> showAddressability(outParam.typ.addressability)
+  }
+
+  def showAddressability(x: Addressability): Doc = x match {
+    case Addressability.Shared => "@"
+    case Addressability.Exclusive => "°"
   }
 
   protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =
@@ -332,7 +338,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
-    case NilLit() => "nil"
+    case NilLit(t) => "nil"
 
     case ArrayLit(typ, exprs) => {
       val lenP = brackets(exprs.length.toString)
@@ -371,7 +377,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolT(_) => "bool"
     case IntT(_) => "int"
     case VoidT => "void"
-    case NilT => "nil"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)

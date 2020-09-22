@@ -55,11 +55,6 @@ object TypePatterns {
         underlyingType(arg)(ctx) == in.VoidT
     }
 
-    object Nil {
-      def unapply(arg: in.Type): Boolean =
-        underlyingType(arg)(ctx) == in.NilT
-    }
-
     object Perm {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.PermissionT]

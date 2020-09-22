@@ -97,14 +97,15 @@ object EmbeddingComponent {
     private val unboxFunc: FunctionGenerator[P] = new FunctionGenerator[P]{
       override def genFunction(id: P)(ctx: Context): vpr.Function = {
         val N = domainType(Vector.empty, id)(ctx)
-        val y = vpr.LocalVarDecl("y", t(id)(ctx))()
+        val y = vpr.LocalVarDecl("y", N)()
+        val resT = t(id)(ctx)
 
         vpr.Function(
           name = s"${Names.embeddingUnboxFunc}_${N.domainName}",
           formalArgs = Seq(y),
-          typ = N,
+          typ = resT,
           pres = Seq.empty,
-          posts = Seq(p(y.localVar, id)(ctx)),
+          posts = Seq(p(vpr.Result(resT)(), id)(ctx)),
           body = None
         )()
       }

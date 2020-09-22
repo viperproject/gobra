@@ -159,7 +159,7 @@ class ArrayEncoding extends TypeEncoding {
       val (pos, info, errT) = n.vprMeta
       ctx.expr.translate(e)(ctx).map(vE => ctx.seqToSet.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.MultisetConversion(e :: ctx.Array(len, t)) =>
       val (pos, info, errT) = n.vprMeta
       ctx.expr.translate(e)(ctx).map(vE => ctx.seqToMultiset.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 
@@ -282,17 +282,21 @@ class ArrayEncoding extends TypeEncoding {
 
   /**
     * Generates:
-    * function arrayDefault(): ([n]T)°
-    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == null
+    * function arrayDefault(): ([n]T)@
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == [dflt(T)]
     * */
   private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
       val resType = in.ArrayT(t._1, t._2, Exclusive)
       val src = in.DfltVal(resType)(Source.Parser.Internal)
+      val dflt = in.DfltVal(t._2)(Source.Parser.Internal)
       val vResType = typ(ctx)(resType)
       val idx = vpr.LocalVarDecl("idx", vpr.Int)()
-      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val rhs = vpr.EqCmp(acc, vpr.NullLit()())()
+      val acc = sh.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
+      val rhs = pure(for {
+        vDflt <- ctx.expr.translate(dflt)(ctx)
+        eq = vpr.EqCmp(acc, vDflt)()
+      } yield eq )(ctx).res
       val post = vpr.Forall(
         variables = Seq(idx),
         triggers = Seq(vpr.Trigger(Seq(acc))()),

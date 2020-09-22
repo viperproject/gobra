@@ -83,8 +83,7 @@ class SetEncoding extends LeafTypeEncoding {
         for {
           vX <- goE(x)
           vE <- goE(e)
-          contains = vpr.GtCmp(vpr.AnySetContains(vX, vE)(pos, info, errT), vpr.IntLit(0)(pos, info, errT))(pos, info, errT)
-        } yield contains
+        } yield vpr.AnySetContains(vX, vE)(pos, info, errT)
 
       case n@ in.Multiplicity(x, e :: ctx.Set(_)) =>
         val (pos, info, errT) = n.vprMeta

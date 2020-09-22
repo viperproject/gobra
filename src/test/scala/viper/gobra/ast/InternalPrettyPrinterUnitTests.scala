@@ -920,20 +920,6 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should correctly show an array indexing expression with a slightly more complex base") {
-    val expr = IndexedExp(
-      SequenceAppend(
-        SequenceLit(boolT, Vector(BoolLit(false)(Internal)))(Internal),
-        Length(LocalVar("xs", sequenceT(boolT))(Internal))(Internal)
-      )(Internal),
-      IntLit(42)(Internal)
-    )(Internal)
-
-    frontend.show(expr) should matchPattern {
-      case "seq[bool] { false } ++ len(xs)[42]" =>
-    }
-  }
-
   test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
     val expr = IndexedExp(
       LocalVar("a", exclusiveArrayT(124, intT))(Internal),
@@ -979,7 +965,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = Access(
       Accessible.Address(
         IndexedExp(
-          LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+          LocalVar("a", sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared))))(Internal),
           IntLit(2)(Internal)
         )(Internal)
       )
@@ -993,7 +979,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a simple assignee indexed expression") {
     val expr = Assignee.Index(
       IndexedExp(
-        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+        LocalVar("a", sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared))))(Internal),
         Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal)
       )(Internal)
     )

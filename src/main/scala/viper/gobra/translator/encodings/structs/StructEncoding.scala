@@ -40,7 +40,7 @@ class StructEncoding extends TypeEncoding {
   private val sh: SharedStructComponent = new SharedStructComponent { // For now, we use a simple tuple domain.
     override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
     override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
-    override def dflt(vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(vti.map(_ => vpr.NullLit()()))
+    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
   }
 
   override def finalize(col: Collector): Unit = {
@@ -155,7 +155,8 @@ class StructEncoding extends TypeEncoding {
       sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
-      unit(sh.dflt(cptParam(fs)(ctx))(e)(ctx))
+      val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
+      sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(sh.create(_, cptParam(fs)(ctx))(e)(ctx))
 
     case (lit: in.StructLit) :: ctx.Struct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expr.translate(arg)(ctx))

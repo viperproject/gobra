@@ -52,14 +52,14 @@ class PointerEncoding extends LeafTypeEncoding {
     *
     * Super implements: L[v: T@] -> Var[v].val
     *
-    * L[*(e: T°)] -> L[e]
+    * L[*(e: T°)] -> [e]
     * L[*(e: T@)] -> L[e].val
     */
   override def lValue(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.lValue(ctx)){
     case (loc: in.Deref) :: t / Shared =>
       loc.exp.typ.addressability match {
         case Exclusive =>
-          ctx.typeEncoding.lValue(ctx)(loc.exp.asInstanceOf[in.Location])
+          ctx.expr.translate(loc.exp)(ctx)
 
         case Shared =>
           val (pos, info, errT) = loc.vprMeta

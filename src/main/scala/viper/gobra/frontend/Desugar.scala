@@ -745,8 +745,9 @@ object Desugar {
     def fieldSelectionD(ctx: FunctionContext)(p: ap.FieldSelection)(src: Meta): Writer[in.FieldRef] = {
       for {
         r <- exprD(ctx)(p.base)
-        f = structMemberD(p.symb, Addressability.fieldLookup(r.typ.addressability))(src)
-      } yield in.FieldRef(applyMemberPathD(r, p.path)(src), f)(src)
+        base = applyMemberPathD(r, p.path)(src)
+        f = structMemberD(p.symb, Addressability.fieldLookup(base.typ.addressability))(src)
+      } yield in.FieldRef(base, f)(src)
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {

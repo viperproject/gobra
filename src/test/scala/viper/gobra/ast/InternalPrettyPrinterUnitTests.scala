@@ -24,7 +24,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a standard sequence index expression") {
     val expr = IndexedExp(
-      LocalVar.Ref("xs", sequenceT(intT))(Internal),
+      LocalVar("xs", sequenceT(intT))(Internal),
       IntLit(BigInt(42))(Internal)
     )(Internal)
 
@@ -35,7 +35,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a sequence update expression") {
     val expr = SequenceUpdate(
-      LocalVar.Val("xs", sequenceT(boolT))(Internal),
+      LocalVar("xs", sequenceT(boolT))(Internal),
       IntLit(BigInt(4))(Internal),
       BoolLit(false)(Internal)
     )(Internal)
@@ -108,7 +108,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show an ordinary sequence drop operation") {
     val expr = SequenceDrop(
-      LocalVar.Val("xs", sequenceT(intT))(Internal),
+      LocalVar("xs", sequenceT(intT))(Internal),
       IntLit(BigInt(42))(Internal)
     )(Internal)
 
@@ -119,7 +119,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show an ordinary sequence take operation") {
     val expr = SequenceTake(
-      LocalVar.Val("xs", sequenceT(intT))(Internal),
+      LocalVar("xs", sequenceT(intT))(Internal),
       IntLit(BigInt(4))(Internal)
     )(Internal)
 
@@ -130,7 +130,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a sequence drop followed by a take") {
     val expr1 = SequenceDrop(
-      LocalVar.Val("xs", sequenceT(intT))(Internal),
+      LocalVar("xs", sequenceT(intT))(Internal),
       IntLit(BigInt(2))(Internal)
     )(Internal)
     val expr2 = SequenceTake(
@@ -205,8 +205,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a set union as expected") {
     val expr = Union(
-      LocalVar.Val("s", setT(boolT))(Internal),
-      LocalVar.Val("t", setT(boolT))(Internal)
+      LocalVar("s", setT(boolT))(Internal),
+      LocalVar("t", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -217,10 +217,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should show a chain of set unions as expected (1)") {
     val expr = Union(
       Union(
-        LocalVar.Val("s", setT(boolT))(Internal),
-        LocalVar.Val("t", setT(boolT))(Internal)
+        LocalVar("s", setT(boolT))(Internal),
+        LocalVar("t", setT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("u", setT(boolT))(Internal)
+      LocalVar("u", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -230,10 +230,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a chain of set unions as expected (2)") {
     val expr = Union(
-      LocalVar.Val("s", setT(boolT))(Internal),
+      LocalVar("s", setT(boolT))(Internal),
       Union(
-        LocalVar.Val("t", setT(boolT))(Internal),
-        LocalVar.Val("u", setT(boolT))(Internal)
+        LocalVar("t", setT(boolT))(Internal),
+        LocalVar("u", setT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -245,11 +245,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show set union in combination with literals") {
     val expr = Union(
       SetLit(boolT, Vector(
-        LocalVar.Val("s", sequenceT(boolT))(Internal),
+        LocalVar("s", sequenceT(boolT))(Internal),
       ))(Internal),
       SetLit(boolT, Vector(
-        LocalVar.Val("t", sequenceT(boolT))(Internal),
-        LocalVar.Val("u", sequenceT(boolT))(Internal)
+        LocalVar("t", sequenceT(boolT))(Internal),
+        LocalVar("u", sequenceT(boolT))(Internal)
       ))(Internal),
     )(Internal)
 
@@ -260,8 +260,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a set intersection as expected") {
     val expr = Intersection(
-      LocalVar.Val("s", setT(boolT))(Internal),
-      LocalVar.Val("t", setT(boolT))(Internal)
+      LocalVar("s", setT(boolT))(Internal),
+      LocalVar("t", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -272,10 +272,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should show a chain of set intersections as expected (1)") {
     val expr = Intersection(
       Intersection(
-        LocalVar.Val("s", setT(boolT))(Internal),
-        LocalVar.Val("t", setT(boolT))(Internal)
+        LocalVar("s", setT(boolT))(Internal),
+        LocalVar("t", setT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("u", setT(boolT))(Internal)
+      LocalVar("u", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -285,10 +285,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a chain of set intersections as expected (2)") {
     val expr = Intersection(
-      LocalVar.Val("s", setT(boolT))(Internal),
+      LocalVar("s", setT(boolT))(Internal),
       Intersection(
-        LocalVar.Val("t", setT(boolT))(Internal),
-        LocalVar.Val("u", setT(boolT))(Internal)
+        LocalVar("t", setT(boolT))(Internal),
+        LocalVar("u", setT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -300,11 +300,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show set intersection in combination with literals") {
     val expr = Intersection(
       SetLit(boolT, Vector(
-        LocalVar.Val("s", setT(boolT))(Internal),
+        LocalVar("s", setT(boolT))(Internal),
       ))(Internal),
       SetLit(boolT, Vector(
-        LocalVar.Val("t", boolT)(Internal),
-        LocalVar.Val("u", boolT)(Internal)
+        LocalVar("t", boolT)(Internal),
+        LocalVar("u", boolT)(Internal)
       ))(Internal),
     )(Internal)
 
@@ -315,8 +315,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a set difference as expected") {
     val expr = SetMinus(
-      LocalVar.Val("s", setT(boolT))(Internal),
-      LocalVar.Val("t", setT(boolT))(Internal)
+      LocalVar("s", setT(boolT))(Internal),
+      LocalVar("t", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -327,10 +327,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should show a chain of set differences as expected (1)") {
     val expr = SetMinus(
       SetMinus(
-        LocalVar.Val("s", setT(boolT))(Internal),
-        LocalVar.Val("t", setT(boolT))(Internal)
+        LocalVar("s", setT(boolT))(Internal),
+        LocalVar("t", setT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("u", setT(boolT))(Internal)
+      LocalVar("u", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -340,10 +340,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should show a chain of set differences as expected (2)") {
     val expr = SetMinus(
-      LocalVar.Val("s", setT(boolT))(Internal),
+      LocalVar("s", setT(boolT))(Internal),
       SetMinus(
-        LocalVar.Val("t", setT(boolT))(Internal),
-        LocalVar.Val("u", setT(boolT))(Internal)
+        LocalVar("t", setT(boolT))(Internal),
+        LocalVar("u", setT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -355,11 +355,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show set differences in combination with literals") {
     val expr = SetMinus(
       SetLit(boolT, Vector(
-        LocalVar.Val("s", setT(boolT))(Internal),
+        LocalVar("s", setT(boolT))(Internal),
       ))(Internal),
       SetLit(boolT, Vector(
-        LocalVar.Val("t", setT(boolT))(Internal),
-        LocalVar.Val("u", setT(boolT))(Internal)
+        LocalVar("t", setT(boolT))(Internal),
+        LocalVar("u", setT(boolT))(Internal)
       ))(Internal),
     )(Internal)
 
@@ -370,8 +370,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should print a subset relation as expected") {
     val expr = Subset(
-      LocalVar.Val("s", sequenceT(boolT))(Internal),
-      LocalVar.Val("t", sequenceT(boolT))(Internal)
+      LocalVar("s", sequenceT(boolT))(Internal),
+      LocalVar("t", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -382,10 +382,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should print a chain of subset relations as expected") {
     val expr = Subset(
       Subset(
-        LocalVar.Val("s", setT(boolT))(Internal),
-        LocalVar.Val("t", setT(boolT))(Internal)
+        LocalVar("s", setT(boolT))(Internal),
+        LocalVar("t", setT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("u", setT(boolT))(Internal)
+      LocalVar("u", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -406,8 +406,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a standard sequence inclusion") {
     val expr = Contains(
-      LocalVar.Val("x", sequenceT(boolT))(Internal),
-      LocalVar.Val("xs", sequenceT(boolT))(Internal)
+      LocalVar("x", sequenceT(boolT))(Internal),
+      LocalVar("xs", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -418,10 +418,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a 'chain' of sequence inclusions") {
     val expr = Contains(
       Contains(
-        LocalVar.Val("x", sequenceT(boolT))(Internal),
-        LocalVar.Val("xs", sequenceT(boolT))(Internal)
+        LocalVar("x", sequenceT(boolT))(Internal),
+        LocalVar("xs", sequenceT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("ys", sequenceT(boolT))(Internal)
+      LocalVar("ys", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -431,8 +431,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a simple set membership expression") {
     val expr = Contains(
-      LocalVar.Val("x", sequenceT(boolT))(Internal),
-      LocalVar.Val("s", sequenceT(boolT))(Internal)
+      LocalVar("x", sequenceT(boolT))(Internal),
+      LocalVar("s", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -443,10 +443,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a small 'chain' of set membership expressions") {
     val expr = Contains(
       Contains(
-        LocalVar.Val("x", boolT)(Internal),
-        LocalVar.Val("s", setT(boolT))(Internal)
+        LocalVar("x", boolT)(Internal),
+        LocalVar("s", setT(boolT))(Internal)
       )(Internal),
-      LocalVar.Val("t", setT(boolT))(Internal),
+      LocalVar("t", setT(boolT))(Internal),
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -470,7 +470,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the size of a simple set") {
     val expr = Cardinality(
-      LocalVar.Val("s", setT(boolT))(Internal)
+      LocalVar("s", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -481,8 +481,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show the size of a set in combination with a set intersection") {
     val expr = Cardinality(
       Intersection(
-        LocalVar.Val("s", setT(boolT))(Internal),
-        LocalVar.Val("t", setT(boolT))(Internal)
+        LocalVar("s", setT(boolT))(Internal),
+        LocalVar("t", setT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -660,7 +660,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a set conversion of an identifier") {
     val expr = SetConversion(
-      LocalVar.Val("xs", sequenceT(boolT))(Internal)
+      LocalVar("xs", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -684,8 +684,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a set conversion with a sequence append") {
     val expr = SetConversion(
       SequenceAppend(
-        LocalVar.Val("xs", sequenceT(boolT))(Internal),
-        LocalVar.Val("ys", sequenceT(boolT))(Internal)
+        LocalVar("xs", sequenceT(boolT))(Internal),
+        LocalVar("ys", sequenceT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -696,8 +696,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the union of two set conversions") {
     val expr = Union(
-      SetConversion(LocalVar.Val("xs", sequenceT(boolT))(Internal))(Internal),
-      SetConversion(LocalVar.Val("ys", sequenceT(boolT))(Internal))(Internal)
+      SetConversion(LocalVar("xs", sequenceT(boolT))(Internal))(Internal),
+      SetConversion(LocalVar("ys", sequenceT(boolT))(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -707,8 +707,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to show a very simple (sequence) multiplicity operator") {
     val expr = Multiplicity(
-      LocalVar.Val("x", boolT)(Internal),
-      LocalVar.Val("xs", sequenceT(boolT))(Internal),
+      LocalVar("x", boolT)(Internal),
+      LocalVar("xs", sequenceT(boolT))(Internal),
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -734,10 +734,10 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should be able to show a nested (sequence) multiplicity") {
     val expr = Multiplicity(
       Multiplicity(
-        LocalVar.Val("x", boolT)(Internal),
-        LocalVar.Val("xs", sequenceT(boolT))(Internal),
+        LocalVar("x", boolT)(Internal),
+        LocalVar("xs", sequenceT(boolT))(Internal),
       )(Internal),
-      LocalVar.Val("ys", sequenceT(intT))(Internal)
+      LocalVar("ys", sequenceT(intT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -747,7 +747,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a very simple multiset conversion") {
     val expr = MultisetConversion(
-      LocalVar.Val("xs", sequenceT(boolT))(Internal)
+      LocalVar("xs", sequenceT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -758,8 +758,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a multiset conversion with a sequence concatenation in the inner expression") {
     val expr = MultisetConversion(
       SequenceAppend(
-        LocalVar.Val("xs", sequenceT(boolT))(Internal),
-        LocalVar.Val("ys", sequenceT(boolT))(Internal)
+        LocalVar("xs", sequenceT(boolT))(Internal),
+        LocalVar("ys", sequenceT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -770,8 +770,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the union of two multiset conversions") {
     val expr = Union(
-      MultisetConversion(LocalVar.Val("xs", sequenceT(boolT))(Internal))(Internal),
-      MultisetConversion(LocalVar.Val("ys", sequenceT(boolT))(Internal))(Internal)
+      MultisetConversion(LocalVar("xs", sequenceT(boolT))(Internal))(Internal),
+      MultisetConversion(LocalVar("ys", sequenceT(boolT))(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -782,7 +782,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a nested multiset conversion") {
     val expr = MultisetConversion(
       MultisetConversion(
-        LocalVar.Val("xs", sequenceT(boolT))(Internal)
+        LocalVar("xs", sequenceT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -825,7 +825,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a very simple exclusive array length expression") {
     val expr = Length(
-      LocalVar.Val("a", exclusiveArrayT(12, intT))(Internal)
+      LocalVar("a", exclusiveArrayT(12, intT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -836,7 +836,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a slightly more complex array length expression") {
     val expr = Length(
       Add(
-        Cardinality(LocalVar.Val("s", setT(boolT))(Internal))(Internal),
+        Cardinality(LocalVar("s", setT(boolT))(Internal))(Internal),
         IntLit(42)(Internal)
       )(Internal)
     )(Internal)
@@ -856,8 +856,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to show the addition of two uses of the array length function") {
     val expr = Add(
-      Length(LocalVar.Val("a", exclusiveArrayT(24, boolT))(Internal))(Internal),
-      Length(LocalVar.Val("b", exclusiveArrayT(24, boolT))(Internal))(Internal)
+      Length(LocalVar("a", exclusiveArrayT(24, boolT))(Internal))(Internal),
+      Length(LocalVar("b", exclusiveArrayT(24, boolT))(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -867,7 +867,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to show a very simple sequence length expression") {
     val expr = Length(
-      LocalVar.Val("xs", sequenceT(intT))(Internal)
+      LocalVar("xs", sequenceT(intT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -879,7 +879,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = Length(
       SequenceAppend(
         SequenceLit(boolT, Vector(BoolLit(false)(Internal)))(Internal),
-        LocalVar.Val("xs", sequenceT(boolT))(Internal)
+        LocalVar("xs", sequenceT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
@@ -900,8 +900,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a composition of two sequence length function applications") {
     val expr = Add(
-      Length(LocalVar.Val("xs", sequenceT(intT))(Internal))(Internal),
-      Length(LocalVar.Val("ys", sequenceT(intT))(Internal))(Internal)
+      Length(LocalVar("xs", sequenceT(intT))(Internal))(Internal),
+      Length(LocalVar("ys", sequenceT(intT))(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -911,7 +911,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show a simple array indexing expression") {
     val expr = IndexedExp(
-      LocalVar.Val("a", exclusiveArrayT(124, intT))(Internal),
+      LocalVar("a", exclusiveArrayT(124, intT))(Internal),
       IntLit(42)(Internal)
     )(Internal)
 
@@ -924,7 +924,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     val expr = IndexedExp(
       SequenceAppend(
         SequenceLit(boolT, Vector(BoolLit(false)(Internal)))(Internal),
-        Length(LocalVar.Val("xs", sequenceT(boolT))(Internal))(Internal)
+        Length(LocalVar("xs", sequenceT(boolT))(Internal))(Internal)
       )(Internal),
       IntLit(42)(Internal)
     )(Internal)
@@ -936,9 +936,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
     val expr = IndexedExp(
-      LocalVar.Val("a", exclusiveArrayT(124, intT))(Internal),
+      LocalVar("a", exclusiveArrayT(124, intT))(Internal),
       Add(
-        LocalVar.Ref("x", intT)(Internal),
+        LocalVar("x", intT)(Internal),
         IntLit(2)(Internal)
       )(Internal)
     )(Internal)
@@ -951,7 +951,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a small chain of array indexing operations") {
     val expr = IndexedExp(
       IndexedExp(
-        LocalVar.Val("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
         IntLit(2)(Internal)
       )(Internal),
       IntLit(4)(Internal)
@@ -963,9 +963,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a simple accessible indexed expression") {
-    val expr = Accessible.Index(
+    val expr = Accessible.Address(
       IndexedExp(
-        LocalVar.Val("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
         Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal)
       )(Internal)
     )
@@ -977,9 +977,9 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should be able to correctly show a very simple 'acc' predicate applied on an array") {
     val expr = Access(
-      Accessible.Index(
+      Accessible.Address(
         IndexedExp(
-          LocalVar.Val("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+          LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
           IntLit(2)(Internal)
         )(Internal)
       )
@@ -993,7 +993,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   test("Printer: should correctly show a simple assignee indexed expression") {
     val expr = Assignee.Index(
       IndexedExp(
-        LocalVar.Val("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
+        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
         Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal)
       )(Internal)
     )
@@ -1105,8 +1105,8 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
 
   test("Printer: should correctly show the append of two sequence conversion operations") {
     val expr = SequenceAppend(
-      SequenceConversion(LocalVar.Val("xs", sequenceT(intT))(Internal))(Internal),
-      SequenceConversion(LocalVar.Val("a", exclusiveArrayT(6, intT))(Internal))(Internal)
+      SequenceConversion(LocalVar("xs", sequenceT(intT))(Internal))(Internal),
+      SequenceConversion(LocalVar("a", exclusiveArrayT(6, intT))(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {

@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations
 
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.{BoolEncoding, IntEncoding, PointerEncoding, TypeEncoding}
-import viper.gobra.translator.encodings.combinators.SafeTypeEncodingCombiner
+import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeTypeEncodingCombiner}
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
 import viper.gobra.translator.encodings.sets.SetEncoding
 import viper.gobra.translator.encodings.structs.StructEncoding
@@ -27,11 +27,13 @@ class DfltTranslatorConfig(
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
-  val typeEncoding: TypeEncoding = new SafeTypeEncodingCombiner(Vector(
-    new BoolEncoding, new IntEncoding,
-    new PointerEncoding, new StructEncoding, new ArrayEncoding,
-    new SequenceEncoding, new SetEncoding
-  )),
+  val typeEncoding: TypeEncoding = new FinalTypeEncoding(
+    new SafeTypeEncodingCombiner(Vector(
+      new BoolEncoding, new IntEncoding,
+      new PointerEncoding, new StructEncoding, new ArrayEncoding,
+      new SequenceEncoding, new SetEncoding
+    ))
+  ),
   val ass : Assertions = new AssertionsImpl,
   val expr : Expressions = new ExpressionsImpl,
   val method : Methods = new MethodsImpl,

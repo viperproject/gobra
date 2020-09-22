@@ -22,7 +22,7 @@ class BoolEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.Int() / m =>
+    case ctx.Bool() / m =>
       m match {
         case Exclusive => vpr.Bool
         case Shared    => vpr.Ref

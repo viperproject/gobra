@@ -194,7 +194,9 @@ sealed trait Accessible extends Node {
 
 object Accessible {
   case class Predicate(op: PredicateAccess) extends Accessible
-  case class Address(op: Location) extends Accessible
+  case class Address(op: Location) extends Accessible {
+    require(op.typ.addressability == Addressability.Shared)
+  }
 }
 
 sealed trait PredicateAccess extends Node

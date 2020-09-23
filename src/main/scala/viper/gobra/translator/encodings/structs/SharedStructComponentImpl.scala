@@ -13,8 +13,7 @@ import StructEncoding.ComponentParameter
 import viper.gobra.translator.Names
 
 /**
-  * Right now, this is just a tuples domain instantiated for Refs and
-  * with an additional injectivity axiom to enable quantified permissions.
+  * Right now, this is just a tuples domain with an additional injectivity axiom to enable quantified permissions.
   * */
 class SharedStructComponentImpl extends SharedStructComponent {
 
@@ -22,18 +21,20 @@ class SharedStructComponentImpl extends SharedStructComponent {
 
   private var genDomains: List[vpr.Domain] = List.empty
   private var genArities: Set[Int] = Set.empty
-  private var types: Map[Int, vpr.DomainType] = Map.empty
+  private var domains: Map[Int, vpr.Domain] = Map.empty
   private var creates: Map[Int, vpr.DomainFunc] = Map.empty
   private var gets: Map[(Int, Int), vpr.DomainFunc] = Map.empty
 
   /**
     * Generates:
-    * domain SharedStruct {
-    *   function createN(v1: Ref, ..., vN: Ref): SharedStruct
-    *   function get1ofN(x: SharedStruct): Ref
+    * domain SharedStruct[T1, ..., TN] {
+    *   function createN(v1: T1, ..., vN: TN): SharedStruct
+    *   function get1ofN(x: SharedStruct): T1
     *   ...
-    *   function getNofN(x: SharedStruct): Ref
-    *   function revN(r: Ref): SharedStruct
+    *   function getNofN(x: SharedStruct): T2
+    *   function rev1ofN(v1: T1): SharedStruct
+    *   ...
+    *   function revNofN(vN: TN): SharedStruct
     *
     * axiom {
     *   forall v1, ..., vN :: {createN(v1, ..., vN)} get1ofN(createN(v1, ..., vN)) == v1 && ... && getNofN(createN(v1, ..., vN)) = vN
@@ -44,33 +45,39 @@ class SharedStructComponentImpl extends SharedStructComponent {
     * }
     *
     * axiom {
-    *   ( forall x: SharedStruct :: {get1ofN(x)} revN(get1ofN(x)) == x ) &&
-    *   ...
-    *   ( forall x: SharedStruct :: {getNofN(x)} revN(getNofN(x)) == x )
+    *   forall x: SharedStruct :: {get1ofN(x)} rev1ofN(get1ofN(x)) == x
+    * }
+    *
+    * ...
+    *
+    * axiom {
+    *   forall x: SharedStruct :: {getNofN(x)} revNofN(getNofN(x)) == x
     * }
     */
   private def genDomain(arity: Int): Unit = {
     val domainName: String = s"${Names.sharedStructDomain}$arity"
-    val domainType = vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(Seq.empty)
+    val typeVars = (0 until arity) map (i => vpr.TypeVar(s"Q$i"))
+    val typeVarMap = (typeVars zip typeVars).toMap
+    val domainType = vpr.DomainType(domainName = domainName, partialTypVarsMap = typeVarMap)(typeVars)
     val xDecl = Vector(vpr.LocalVarDecl("x", domainType)())
     val x = xDecl.head.localVar
-    val vsDecl = (0 until arity) map (i => vpr.LocalVarDecl(s"v$i", vpr.Ref)())
+    val vsDecl = (0 until arity) map (i => vpr.LocalVarDecl(s"v$i", typeVars(i))())
     val vs = vsDecl map (_.localVar)
 
     val createFunc = vpr.DomainFunc(s"${Names.sharedStructCreateFunc}$arity", vsDecl, domainType)(domainName = domainName)
-    val createApp = vpr.DomainFuncApp(func = createFunc, vs, Map.empty)()
+    val createApp = vpr.DomainFuncApp(func = createFunc, vs, typeVarMap)()
     val createAppTriggers = Seq(vpr.Trigger(Seq(createApp))())
 
-    val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructGetFunc}${i}of$arity", xDecl, vpr.Ref)(domainName = domainName))
-    val getApps = getFuncs map (f => vpr.DomainFuncApp(func = f, Seq(x), Map.empty)())
+    val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructGetFunc}${i}of$arity", xDecl, typeVars(i))(domainName = domainName))
+    val getApps = getFuncs map (f => vpr.DomainFuncApp(func = f, Seq(x), typeVarMap)())
     val getAppTriggers = getApps map (g => vpr.Trigger(Seq(g))())
 
-    val revFunc = vpr.DomainFunc(s"${Names.sharedStructRevFunc}$arity", Vector(vpr.LocalVarDecl("r", vpr.Ref)()), domainType)(domainName = domainName)
+    val revFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructRevFunc}${i}of$arity", Seq(vsDecl(i)), domainType)(domainName = domainName))
 
     val getOverCreateAxiom = {
       val eqs = (0 until arity) map {ix =>
         vpr.EqCmp(
-          vpr.DomainFuncApp(func = getFuncs(ix), Seq(createApp), Map.empty)(),
+          vpr.DomainFuncApp(func = getFuncs(ix), Seq(createApp), typeVarMap)(),
           vs(ix)
         )()
       }
@@ -86,7 +93,7 @@ class SharedStructComponentImpl extends SharedStructComponent {
           xDecl,
           getAppTriggers,
           vpr.EqCmp(
-            vpr.DomainFuncApp(func = createFunc, getApps, Map.empty)(),
+            vpr.DomainFuncApp(func = createFunc, getApps, typeVarMap)(),
             x
           )()
         )()
@@ -94,30 +101,30 @@ class SharedStructComponentImpl extends SharedStructComponent {
     }
 
     val injective = {
-      val conjuncts = (0 until arity) map { i =>
-        vpr.Forall(
-          xDecl,
-          Seq(getAppTriggers(i)),
-          vpr.EqCmp(
-            vpr.DomainFuncApp(func = revFunc, Seq(getApps(i)), Map.empty)(),
-            x
+      (0 until arity) map { i =>
+        vpr.AnonymousDomainAxiom(
+          vpr.Forall(
+            xDecl,
+            Seq(getAppTriggers(i)),
+            vpr.EqCmp(
+              vpr.DomainFuncApp(func = revFuncs(i), Seq(getApps(i)), typeVarMap)(),
+              x
+            )()
           )()
-        )()
+        )(domainName = domainName)
       }
-
-      vpr.AnonymousDomainAxiom(
-        viper.silicon.utils.ast.BigAnd(conjuncts)
-      )(domainName = domainName)
     }
 
-    genDomains ::= vpr.Domain(
+    val domain = vpr.Domain(
       name = domainName,
-      functions = Vector(revFunc, createFunc) ++ getFuncs,
-      typVars = Seq.empty,
-      axioms = Vector(getOverCreateAxiom, createOverGetAxiom, injective)
+      functions = Vector(createFunc) ++ revFuncs ++ getFuncs,
+      typVars = typeVars,
+      axioms = Vector(getOverCreateAxiom, createOverGetAxiom) ++ injective
     )()
 
-    types += (arity -> domainType)
+    genDomains ::= domain
+
+    domains += (arity -> domain)
     creates += (arity -> createFunc)
     getFuncs.zipWithIndex foreach { case(f, i) =>  gets += ((i, arity) -> f) }
     genArities += arity
@@ -127,15 +134,23 @@ class SharedStructComponentImpl extends SharedStructComponent {
   override def typ(t: ComponentParameter)(ctx: Context): vpr.Type = {
     val arity = t.size
     if (!(genArities contains arity)) genDomain(arity)
-    types(arity)
+
+    val typeVarMap = (domains(arity).typVars zip (t map (_._1))).toMap
+
+    vpr.DomainType(
+      domain = domains(arity),
+      typVarsMap = typeVarMap
+    )
   }
 
   /** Constructor of shared-struct domain. */
   override def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+    require(args.size == t.size)
     val arity = t.size
     if (!(genArities contains arity)) genDomain(arity)
     val (pos, info, errT) = src.vprMeta
-    vpr.DomainFuncApp(func = creates(arity), args, Map.empty)(pos, info, errT)
+    val typeVarMap = (domains(arity).typVars zip (args map (_.typ))).toMap
+    vpr.DomainFuncApp(func = creates(arity), args, typeVarMap)(pos, info, errT)
   }
 
   /** Getter of shared-struct domain. */
@@ -143,7 +158,7 @@ class SharedStructComponentImpl extends SharedStructComponent {
     val arity = t.size
     if (!(genArities contains arity)) genDomain(arity)
     val (pos, info, errT) = src.vprMeta
-    vpr.DomainFuncApp(func = gets(idx, arity), Seq(base), Map.empty)(pos, info, errT)
+    vpr.DomainFuncApp(func = gets(idx, arity), Seq(base), base.typ.asInstanceOf[vpr.DomainType].typVarsMap)(pos, info, errT)
   }
 
 

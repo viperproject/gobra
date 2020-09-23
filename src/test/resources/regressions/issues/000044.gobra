@@ -1,0 +1,4 @@
+package pkg
+
+//:: ExpectedOutput(type_error)
+const CYCLE = CYCLE // this is a cyclic constant declaration

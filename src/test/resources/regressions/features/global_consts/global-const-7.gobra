@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// these are cyclic constant declarations:
+//:: ExpectedOutput(type_error)
+const CYCLE1 = CYCLE2
+//:: ExpectedOutput(type_error)
+const CYCLE2 = CYCLE3
+//:: ExpectedOutput(type_error)
+const CYCLE3 = CYCLE1

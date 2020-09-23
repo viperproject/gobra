@@ -7,8 +7,9 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
-import org.bitbucket.inkytonik.kiama.util.{MultipleEntity, UnknownEntity}
-import viper.gobra.ast.frontend._
+import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
+import viper.gobra.ast.frontend.{PIdnNode, _}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -28,12 +29,26 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private[typing] def wellDefActualRegular(entity: ActualRegular, id: PIdnNode): ValidityMessages = entity match {
+  /**
+    * Returns true if n or any of its children (in the current package) have an entity that corresponds to one in the set e
+    */
+  private def isNotCyclic(n: PNode, e: Set[Entity]): ValidityMessages = LocalMessages(message(n, s"got cyclic structure starting at $n", n match {
+    case n: PIdnNode => entity(n) match {
+      case r if e.contains(r) => true
+      case SingleConstant(_, _, _, _, _, ctx) if this != ctx => false // we do not follow the evaluation into different packages
+      case r@SingleConstant(_, _, exp, _, _, _) => !isNotCyclic(exp, e + r).valid
+      case _ => false
+    }
+    case _ => children(n).exists(!isNotCyclic(_, e).valid)
+  }))
 
+  private[typing] def wellDefActualRegular(r: ActualRegular, id: PIdnNode): ValidityMessages = r match {
 
-    case SingleConstant(_, _, exp, opt, _, _) => unsafeMessage(! {
-      opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
-    })
+    case SingleConstant(_, _, exp, opt, _, _) =>
+      val cyclicMsg = isNotCyclic(exp, Set(r))
+      if (cyclicMsg.valid) unsafeMessage(! {
+        opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
+      }) else cyclicMsg
 
     case SingleLocalVariable(exp, opt, _, _, _) => unsafeMessage(! {
       opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)

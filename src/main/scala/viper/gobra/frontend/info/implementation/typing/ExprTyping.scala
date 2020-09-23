@@ -112,6 +112,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr: PGhostExpression  => wellDefGhostExpr(expr)
   }
 
+  lazy val isIntegerType: Type => Boolean = {
+    case IntT(_) => true
+    case _ => false
+  }
+
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
@@ -162,17 +167,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
         ((exprType(base), exprType(index)) match {
-          case (ArrayT(l, elem), IntT) =>
+          case (ArrayT(l, elem), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (PointerT(ArrayT(l, elem)), IntT) =>
+          case (PointerT(ArrayT(l, elem)), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (SequenceT(_), IntT) => noMessages
+          case (SequenceT(_), IntT(_)) =>
+            // TODO: revisit this part of the doc, add representability
+            // val idxOpt = intConstantEval(index)
+            // TODO: change to default implementation size instead of 32 bit
+            // message(n, s"constant $index overflows int", !idxOpt.forall(i => representableInteger(i, IntT(Some(32)))))
+            noMessages
 
-          case (SliceT(_), IntT) => noMessages
+          case (SliceT(_), IntT(_)) =>
+            // val idxOpt = intConstantEval(index)
+            // TODO: change to default implementation size instead of 32 bit
+            // message(n, s"constant $index overflows int", !idxOpt.forall(i => representableInteger(i, IntT(Some(32)))))
+            noMessages
 
           case (MapT(key, elem), indexT) =>
             message(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
@@ -186,7 +200,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       high.fold(noMessages)(isExpr(_).out) ++
       cap.fold(noMessages)(isExpr(_).out) ++
       ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
-        case (ArrayT(l, _), None | Some(IntT), None | Some(IntT), None | Some(IntT)) =>
+        case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
           message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
@@ -194,18 +208,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(n, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
-          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", t != IntT)) ++
-            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", t != IntT)) ++
+          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", !isIntegerType(t))) ++
+            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", !isIntegerType(t))) ++
             message(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
-        case (PointerT(ArrayT(l, _)), None | Some(IntT), None | Some(IntT), None | Some(IntT)) =>
+        case (PointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
           message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
 
-        case (SliceT(_), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => noMessages
+        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => noMessages
         case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
@@ -234,7 +248,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
-          , l, r) => assignableTo.errors(l, IntT)(n) ++ assignableTo.errors(r, IntT)(n)
+          , l, r) => {
+            noMessages
+            // TODO: check what to put here
+            // assignableTo.errors(l, IntT(???))(n) ++ assignableTo.errors(r, IntT(???))(n)
+          }
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
         })
 
@@ -257,7 +275,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def actualExprType(expr: PActualExpression): Type = expr match {
 
     case _: PBoolLit => BooleanT
-    case _: PIntLit => IntT
+
     case _: PNilLit => NilType
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
@@ -276,20 +294,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
-      case (ArrayT(_, elem), IntT) => elem
-      case (PointerT(ArrayT(_, elem)), IntT) => elem
-      case (SequenceT(elem), IntT) => elem
-      case (SliceT(elem), IntT) => elem
+      case (ArrayT(_, elem), IntT(_)) => elem
+      case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
+      case (SequenceT(elem), IntT(_)) => elem
+      case (SliceT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
     case PSliceExp(base, low, high, cap) => (exprType(base), low map exprType, high map exprType, cap map exprType) match {
-      case (ArrayT(_, elem), None | Some(IntT), None | Some(IntT), None | Some(IntT)) if addressable(base) => SliceT(elem)
-      case (PointerT(ArrayT(_, elem)), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => SliceT(elem)
-      case (SequenceT(elem), None | Some(IntT), None | Some(IntT), None) => SequenceT(elem)
-      case (SliceT(elem), None | Some(IntT), None | Some(IntT), None | Some(IntT)) => SliceT(elem)
+      case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
+      case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+      case (SequenceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None) => SequenceT(elem)
+      case (SliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
@@ -312,13 +330,55 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength => IntT
+    case _: PIntLit | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
+      getEnclosingType(expr).getOrElse(intExprType(expr).get) //TODO: simplify
+
+    case _: PLength => IntT(Int)
 
     case n: PUnfolding => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
     case e => violation(s"unexpected expression $e")
+  }
+
+  private def getEnclosingType(expr: PActualExpression): Option[Type] = {
+    var prevNode: PExpression = null
+    var currentNode: PNode = expr
+
+    while (!tree.isRoot(currentNode) && currentNode.isInstanceOf[PExpression]) {
+      prevNode = currentNode.asInstanceOf[PExpression];
+      val parents = tree.parent(currentNode)
+      if (parents.length != 1) {
+        violation("ill-formed tree, a non-root node has not one and only one parent.")
+      }
+      currentNode = parents(0)
+    }
+
+    currentNode match {
+      case PShortVarDecl(_, _, _) =>
+        if (prevNode != null && intExprType(prevNode).contains(IntT(UntypedConst)))
+          Some(IntT(Int))
+        else
+          intExprType(prevNode)
+
+      // TODO: add another statements that default to a type when a constant is used
+      case _ => None
+    }
+  }
+
+  private def intExprType(expr: PExpression): Option[Type] = expr match {
+    case _: PIntLit => Some(IntT(UntypedConst))
+
+    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
+      val typeLeft = exprType(expr.asInstanceOf[PBinaryExp].left)
+      val typeRight = exprType(expr.asInstanceOf[PBinaryExp].right)
+      if (typeLeft == IntT(UntypedConst)) Some(typeRight) else
+        if (typeRight == IntT(UntypedConst)) Some(typeLeft) else
+          if (identicalTypes.apply((typeLeft, typeRight))) Some(typeLeft)
+          else violation(s"invalid operation $expr (mismatched types $typeLeft and $typeRight)")
+
+    case _ => None
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
@@ -328,7 +388,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
     case BooleanT => message(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
-    case IntT => message(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
+    case IntT(_) => message(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
     case _ => message(expr, s"expected a constant expression")
   }
 }

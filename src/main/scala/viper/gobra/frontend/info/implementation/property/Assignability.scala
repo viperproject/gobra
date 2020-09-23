@@ -43,6 +43,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
         // for go's types according to go's specification (mostly)
+      case (IntT(UntypedConst), IntT(_)) => true
+      case (IntT(_), IntT(UntypedConst)) => true
       case (l, r) if identicalTypes(l, r) => true
       case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
@@ -68,7 +70,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
-    case (Single(IntT), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp()) => true
+    case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp()) => true
     case _ => false
   }
 

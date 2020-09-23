@@ -29,7 +29,21 @@ object Type {
 
   case object BooleanT extends Type
 
-  case object IntT extends Type
+  case class IntT(kind: IntegerKind) extends Type
+
+  sealed trait IntegerKind
+  case object Int extends IntegerKind
+  case object Int8 extends IntegerKind
+  case object Int16 extends IntegerKind
+  case object Int32 extends IntegerKind
+  case object Int64 extends IntegerKind
+  case object UInt extends IntegerKind
+  case object UInt8 extends IntegerKind
+  case object UInt16 extends IntegerKind
+  case object UInt32 extends IntegerKind
+  case object UInt64 extends IntegerKind
+  case object UIntPtr extends IntegerKind
+  case object UntypedConst extends IntegerKind
 
   case class ArrayT(length: BigInt, elem: Type) extends Type {
     require(length >= 0, "The length of an array must be non-negative")

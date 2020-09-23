@@ -16,7 +16,8 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
-      case (IntT, IntT) | (BooleanT, BooleanT) => true
+      case (IntT(x), IntT(y)) => x == y
+      case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
 
       case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR

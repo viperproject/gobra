@@ -19,7 +19,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type an integer sequence type") {
     val t = PSequenceType(PIntType())
     frontend.typType(t) should matchPattern {
-      case Type.SequenceT(Type.IntT) =>
+      case Type.SequenceT(Type.IntT(Type.Int)) =>
     }
   }
 
@@ -36,7 +36,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type an integer set type") {
     val t = PSetType(PIntType())
     frontend.typType(t) should matchPattern {
-      case Type.SetT(Type.IntT) =>
+      case Type.SetT(Type.IntT(Type.Int)) =>
     }
   }
 
@@ -70,7 +70,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type a nested multiset type") {
     val t = PMultisetType(PMultisetType(PIntType()))
     frontend.typType(t) should matchPattern {
-      case Type.MultisetT(Type.MultisetT(Type.IntT)) =>
+      case Type.MultisetT(Type.MultisetT(Type.IntT(Type.Int))) =>
     }
   }
 

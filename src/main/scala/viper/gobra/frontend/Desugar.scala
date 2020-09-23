@@ -1164,7 +1164,7 @@ object Desugar {
       case Type.NilType => in.NilT
       case t: DeclaredT => registerType(registerDefinedType(t)(src))
       case Type.BooleanT => in.BoolT
-      case Type.IntT => in.IntT
+      case Type.IntT(_) => in.IntT
       case Type.ArrayT(length, elem) => ???
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???

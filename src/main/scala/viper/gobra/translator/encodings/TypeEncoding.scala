@@ -66,14 +66,17 @@ trait TypeEncoding extends Generator {
     * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T)]
     */
   def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
-    case loc :: t / m if typ(ctx).isDefinedAt(t) =>
+    case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        footprint <- m match {
-          case Exclusive => unit(vpr.TrueLit()(pos, info, errT))
-          case Shared => addressFootprint(ctx)(loc)
-        }
-        eq <- equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
+        eq <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
+      } yield vpr.Inhale(eq)(pos, info, errT)
+
+    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = loc.vprMeta
+      for {
+        footprint <- addressFootprint(ctx)(loc)
+        eq <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
       } yield vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
   }
 
@@ -102,22 +105,35 @@ trait TypeEncoding extends Generator {
 
     case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
-      for {
-        footprint <- addressFootprint(ctx)(loc)
-        eq <- equal(ctx)(loc, rhs, src)
-        _ <- write(vpr.Exhale(footprint)(pos, info, errT))
-        inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
-      } yield inhale
+      seqn(
+        for {
+          footprint <- addressFootprint(ctx)(loc)
+          eq <- ctx.typeEncoding.equal(ctx)(loc, rhs, src)
+          _ <- write(vpr.Exhale(footprint)(pos, info, errT))
+          inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
+        } yield inhale
+      )
   }
 
   /**
     * Encodes the comparison of two expressions.
     * The first and second argument is the left-hand side and right-hand side, respectively.
+    * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
+    * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
-    * The default implements: [lhs: T == rhs] -> [lhs] == [rhs]
+    * The default implements:
+    * [lhs: T == rhs] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: t, rhs, src) if typ(ctx).isDefinedAt(t) =>
+      val (pos, info, errT) = src.vprMeta
+      for {
+        vLhs <- ctx.expr.translate(lhs)(ctx)
+        vRhs <- ctx.expr.translate(rhs)(ctx)
+      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+
+    case (lhs :: ctx.*(t) / Exclusive, rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
@@ -168,13 +184,15 @@ trait TypeEncoding extends Generator {
       val (pos, info, errT) = make.vprMeta
       val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(make.info)
       val zDeref = in.Deref(z)(make.info)
-      for {
-        _ <- local(ctx.typeEncoding.variable(ctx)(z))
-        footprint <- addressFootprint(ctx)(zDeref)
-        eq <- equal(ctx)(zDeref, lit, make)
-        _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-        ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
-      } yield ass
+      seqn(
+        for {
+          _ <- local(ctx.typeEncoding.variable(ctx)(z))
+          footprint <- addressFootprint(ctx)(zDeref)
+          eq <- ctx.typeEncoding.equal(ctx)(zDeref, lit, make)
+          _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
+          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
+        } yield ass
+      )
   }
 
   /**

@@ -34,10 +34,19 @@ object Names {
   // pointer
   def pointerField(t: vpr.Type) : String = s"val$$_$t"
 
+  // struct
+  def sharedStructDomain: String = "shStructDomain"
+  def sharedStructGetFunc: String = "shStructGet"
+  def sharedStructCreateFunc: String = "shStructCreate"
+  def sharedStructRevFunc: String = "shStructRev"
+
   // array
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
 
+  // unknown values
+  def unknownValuesDomain: String = "unknownValueDomain"
+  def unknownValueFunc: String = "unknownValue"
 
 
   def fieldExtension(base: String, ext: String): String = s"${base}_$ext" // remove

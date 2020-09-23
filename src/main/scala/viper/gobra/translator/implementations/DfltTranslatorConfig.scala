@@ -27,6 +27,7 @@ class DfltTranslatorConfig(
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
+  val unknownValue: UnknownValues = new UnknownValuesImpl,
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding,

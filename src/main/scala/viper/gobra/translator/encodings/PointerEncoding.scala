@@ -32,6 +32,21 @@ class PointerEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * Encodes the comparison of two expressions.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
+    * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
+    *
+    * The default implements:
+    * [lhs: T == rhs] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    */
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.*(_) / Shared, rhs, src) => super.equal(ctx)(lhs, rhs, src)
+    case (lhs :: ctx.*(ctx.*(_)) / Exclusive, rhs, src) => super.equal(ctx)(lhs, rhs, src)
+  }
+
+  /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:

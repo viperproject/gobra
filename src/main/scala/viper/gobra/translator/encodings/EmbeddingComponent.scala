@@ -89,6 +89,8 @@ object EmbeddingComponent {
       }
     }
 
+
+    // TODO: postcondition: p(result) && boxN(result) == y
     /**
       * Generates:
       * function unboxN(y: N): T

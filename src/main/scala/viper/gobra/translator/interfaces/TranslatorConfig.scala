@@ -21,6 +21,7 @@ trait TranslatorConfig {
   def tuple: Tuples
   def equality: Equality
   def condition: Conditions
+  def unknownValue: UnknownValues
 
   // translators
   def typeEncoding: TypeEncoding

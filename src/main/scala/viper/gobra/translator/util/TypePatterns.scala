@@ -8,6 +8,7 @@ package viper.gobra.translator.util
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
+import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
 
 import scala.annotation.tailrec
@@ -39,6 +40,20 @@ object TypePatterns {
 
   /** One pattern for every type. The patterns disregard the addressability modifier. */
   implicit class ContextTypePattern(ctx: Context) {
+
+    /**
+      * Returns T for exclusive *T and shared T.
+      * Both these types have the same memory layout, used to encode the address of a type.
+      * */
+    object Ref {
+      def unapply(arg: in.Type): Option[in.Type] = {
+        arg match {
+          case ctx.*(t) / Exclusive => Some(t)
+          case t / Shared => Some(t)
+          case _ => None
+        }
+      }
+    }
 
     object Bool {
       def unapply(arg: in.Type): Boolean =

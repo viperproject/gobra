@@ -82,11 +82,21 @@ class ArrayEncoding extends TypeEncoding {
   /**
     * Encodes the comparison of two expressions.
     * The first and second argument is the left-hand side and right-hand side, respectively.
+    * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
+    * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
-    * Super implements: [lhs: T == rhs] -> [lhs] == [rhs]
+    * The default implements:
+    * [lhs: T == rhs] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs] -> [lhs] == [rhs]
     *
     * [lhs: [n]T == rhs] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
-    * *   where trigger = array_get(x, idx, n), array_get(y, idx, n)
+    *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
+    *
+    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
+    * [x: *[0]T° == x] -> true
+    * [lhs: *[0]T° == rhs] -> unknown()
+    *
+    * [lhs: *[n]T° == rhs] -> [ &(*lhs[0]) == &(*rhs[0]) ]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Array(len, _), rhs, src) =>
@@ -96,6 +106,15 @@ class ArrayEncoding extends TypeEncoding {
         body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx)(src.info), in.IndexedExp(y, idx)(src.info), src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
+
+    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs, src) =>
+      if (len == 0) {
+        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+      } else {
+        val lhsIdx = in.Ref(in.IndexedExp(in.Deref(lhs)(src.info), in.IntLit(0)(src.info))(src.info))(src.info) // &(*lhs[0])
+        val rhsIdx = in.Ref(in.IndexedExp(in.Deref(rhs)(src.info), in.IntLit(0)(src.info))(src.info))(src.info) // &(*rhs[0])
+        ctx.typeEncoding.equal(ctx)(lhsIdx, rhsIdx, src)
+      }
   }
 
   /**

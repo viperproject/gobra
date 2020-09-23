@@ -25,6 +25,7 @@ trait Context {
   def tuple: Tuples
   def equality: Equality
   def condition: Conditions
+  def unknownValue: UnknownValues
 
   // translator
   def typeEncoding: TypeEncoding
@@ -54,6 +55,7 @@ trait Context {
           tupleN: Tuples = tuple,
           equalityN: Equality = equality,
           conditionN: Conditions = condition,
+          unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
           assN: Assertions = ass,
           exprN: Expressions = expr,
@@ -75,6 +77,7 @@ trait Context {
     tuple.finalize(col)
     equality.finalize(col)
     condition.finalize(col)
+    unknownValue.finalize(col)
 
     // translators
     typeEncoding.finalize(col)

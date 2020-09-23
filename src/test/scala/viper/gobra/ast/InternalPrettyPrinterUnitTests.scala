@@ -948,19 +948,6 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should correctly show a simple accessible indexed expression") {
-    val expr = Accessible.Address(
-      IndexedExp(
-        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
-        Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal)
-      )(Internal)
-    )
-
-    frontend.show(expr) should matchPattern {
-      case "a[2 + 3]" =>
-    }
-  }
-
   test("Printer: should be able to correctly show a very simple 'acc' predicate applied on an array") {
     val expr = Access(
       Accessible.Address(

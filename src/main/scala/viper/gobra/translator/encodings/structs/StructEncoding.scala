@@ -37,11 +37,7 @@ class StructEncoding extends TypeEncoding {
     override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
   }
 
-  private val sh: SharedStructComponent = new SharedStructComponent { // For now, we use a simple tuple domain.
-    override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
-    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
-    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
-  }
+  private val sh: SharedStructComponent = new SharedStructComponentImpl
 
   override def finalize(col: Collector): Unit = {
     ex.finalize(col)
@@ -108,10 +104,18 @@ class StructEncoding extends TypeEncoding {
   /**
     * Encodes the comparison of two expressions.
     * The first and second argument is the left-hand side and right-hand side, respectively.
+    * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
+    * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
-    * Super implements: [lhs: T == rhs] -> [lhs] == [rhs]
+    * The default implements:
+    * [lhs: T == rhs] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs] -> [lhs] == [rhs]
     *
-    * R[(lhs: Struct{F}) == rhs] -> AND f in F: lhs.f == rhs.f
+    * [(lhs: Struct{F}) == rhs] -> AND f in F: [lhs.f == rhs.f]
+    * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
+    * [(x: *Struct{}°) == x] -> true
+    * [(lhs: *Struct{}°) == rhs] -> unknown()
+    * [(lhs: *Struct{F}°) == rhs] -> [&(*lhs.f0) == &(*rhs.f0)]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
@@ -120,6 +124,15 @@ class StructEncoding extends TypeEncoding {
       val equalFields = sequence((lhsFAccs zip rhsFAccs).map{ case (lhsFA, rhsFA) => ctx.typeEncoding.equal(ctx)(lhsFA, rhsFA, src) })
       val (pos, info, errT) = src.vprMeta
       equalFields.map(VU.bigAnd(_)(pos, info, errT))
+
+    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(rhsFs)), src) =>
+      if (lhsFs.isEmpty) {
+        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+      } else {
+        val lhsFAcc = in.Ref(in.FieldRef(in.Deref(lhs)(src.info), lhsFs.head)(src.info))(src.info) // &(*lhs.f0)
+        val rhsFAcc = in.Ref(in.FieldRef(in.Deref(rhs)(src.info), rhsFs.head)(src.info))(src.info) // &(*rhs.f0)
+        ctx.typeEncoding.equal(ctx)(lhsFAcc, rhsFAcc, src)
+      }
   }
 
   /**

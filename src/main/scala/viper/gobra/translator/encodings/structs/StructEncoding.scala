@@ -8,9 +8,12 @@ package viper.gobra.translator.encodings.structs
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
 
@@ -42,6 +45,7 @@ class StructEncoding extends TypeEncoding {
   override def finalize(col: Collector): Unit = {
     ex.finalize(col)
     sh.finalize(col)
+    shDfltFunc.finalize(col)
   }
 
   /**
@@ -168,8 +172,8 @@ class StructEncoding extends TypeEncoding {
       sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(ex.create(_, cptParam(fs)(ctx))(e)(ctx))
 
     case (e: in.DfltVal) :: ctx.Struct(fs) / Shared =>
-      val fieldDefaults = fs.map(f => in.DfltVal(f.typ)(e.info))
-      sequence(fieldDefaults.map(ctx.expr.translate(_)(ctx))).map(sh.create(_, cptParam(fs)(ctx))(e)(ctx))
+      val (pos, info, errT) = e.vprMeta
+      unit(shDfltFunc(Vector.empty, fs)(pos, info, errT)(ctx))
 
     case (lit: in.StructLit) :: ctx.Struct(fs) =>
       val fieldExprs = lit.args.map(arg => ctx.expr.translate(arg)(ctx))
@@ -204,28 +208,35 @@ class StructEncoding extends TypeEncoding {
     case loc :: ctx.Struct(_) / Shared => sh.addressFootprint(loc)(ctx)
   }
 
-//  /** // TODO: remove if everything works
-//    * Encodes statements.
-//    * This includes make-statements.
-//    *
-//    * Super implements:
-//    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
-//    *
-//    * [v = make(struct(E))] -> Initialize[*v]; FOREACH (f, e) in E: [*v.f = e]
-//    */
-//  override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-//    case make@ in.Make(target, in.CompositeObject.Struct(lit :: ctx.Struct(fs))) =>
-//      val (pos, info, errT) = make.vprMeta
-//      val deref = in.Deref(target)(make.info)
-//      val lhsFAs = fieldAccesses(deref, fs).map(in.Assignee.Field)
-//      for {
-//        init <- ctx.typeEncoding.initialization(ctx)(deref)
-//        assignments <- sequence((lhsFAs zip lit.args).map{ case (lhs, rhs) => ctx.typeEncoding.assignment(ctx)(lhs, rhs, make) })
-//      } yield VU.seqn(init +: assignments)(pos, info, errT)
-//  }
-
   /** Returns 'base'.f for every f in 'fields'. */
   private def fieldAccesses(base: in.Expr, fields: Vector[in.Field]): Vector[in.FieldRef] = {
     fields.map(f => in.FieldRef(base, f)(base.info))
+  }
+
+  /**
+    * Generates:
+    * function shStructDefault(): [Struct{F}@]
+    *   ensures AND (f: T) in F. [&result.f == dflt(T)]
+    */
+  private val shDfltFunc: FunctionGenerator[Vector[in.Field]] = new FunctionGenerator[Vector[in.Field]] {
+    override def genFunction(fs: Vector[in.Field])(ctx: Context): vpr.Function = {
+      val resType = in.StructT("the name does not matter", fs, Shared)
+      val vResType = typ(ctx)(resType)
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
+      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      val resFAccs = fs.map(f => in.Ref(in.FieldRef(resDummy, f)(src.info))(src.info))
+      val fieldEq = resFAccs map (f => ctx.typeEncoding.equal(ctx)(f, in.DfltVal(f.typ)(src.info), src))
+      val post = pure(sequence(fieldEq).map(VU.bigAnd(_)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)))(ctx).res
+          .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
+
+      vpr.Function(
+        name = s"${Names.sharedStructDfltFunc}_${Names.freshName}",
+        formalArgs = Seq.empty,
+        typ = vResType,
+        pres = Seq.empty,
+        posts = Seq(post),
+        body = None
+      )()
+    }
   }
 }

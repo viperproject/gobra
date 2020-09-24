@@ -37,7 +37,7 @@ object Names {
   // struct
   def sharedStructDomain: String = "shStructDomain"
   def sharedStructGetFunc: String = "shStructGet"
-  def sharedStructCreateFunc: String = "shStructCreate"
+  def sharedStructDfltFunc: String = "shStructDefault"
   def sharedStructRevFunc: String = "shStructRev"
 
   // array

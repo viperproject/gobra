@@ -26,9 +26,6 @@ trait SharedStructComponent extends Generator {
   /** Getter of shared-struct domain. */
   def get(base: vpr.Exp, idx: Int, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
-  /** Constructor of shared-struct domain. */
-  def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
-
   /**
     * Encodes the conversion from a shared value to an exclusive value.
     * All permissions involved in the conversion should be returned by [[addressFootprint]].

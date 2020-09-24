@@ -27,7 +27,7 @@ object Names {
   def equalityFunc: String = "eq"
 
   // embedding domain
-  def embeddingDomain: String = "emb"
+  def embeddingDomain: String = "Emb"
   def embeddingBoxFunc: String = "box"
   def embeddingUnboxFunc: String = "unbox"
 
@@ -35,22 +35,16 @@ object Names {
   def pointerField(t: vpr.Type) : String = s"val$$_$t"
 
   // struct
-  def sharedStructDomain: String = "shStructDomain"
-  def sharedStructGetFunc: String = "shStructGet"
+  def sharedStructDomain: String = "ShStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
-  def sharedStructRevFunc: String = "shStructRev"
 
   // array
+  def sharedArrayDomain: String = "ShArray"
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
 
   // unknown values
-  def unknownValuesDomain: String = "unknownValueDomain"
+  def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"
 
-
-  def fieldExtension(base: String, ext: String): String = s"${base}_$ext" // remove
-  def inlinedVar(base: String, idx: Int): String = s"${base}_$idx" // remove
-  def addressableField(base: String): String = s"${base}R" // remove
-  def nonAddressableField(base: String): String = s"${base}V" // remove
 }

@@ -22,10 +22,10 @@ abstract class EmbeddingComponent[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P
   def typ(id: P)(ctx: Context): vpr.Type
 
   /** Takes 'x' (element of 't'('id')), checks that 'x' satisfies 'p'('x', 'id'), and embeds 'x' into E */
-  def box(x: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
+  def box(x: vpr.Exp, id: P)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp
 
   /** Extracts 'y' (element of E) back into 't'('id'). The result satisfies 'p'(_, 'id'). */
-  def unbox(y: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp
+  def unbox(y: vpr.Exp, id: P)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp
 }
 
 
@@ -45,13 +45,13 @@ object EmbeddingComponent {
     }
 
     /** Takes 'x' (element of 't'('id')), checks that 'x' satisfies 'p'('x', 'id'), and embeds 'x' into E */
-    override def box(x: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp = {
-      boxFunc(Vector(x), id)()(ctx)
+    override def box(x: vpr.Exp, id: P)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp = {
+      boxFunc(Vector(x), id)(pos, info, errT)(ctx)
     }
 
     /** Extracts 'y' (element of E) back into 't'('id'). The result satisfies 'p'(_, 'id'). */
-    override def unbox(y: vpr.Exp, id: P)(ctx: Context): vpr.FuncApp = {
-      unboxFunc(Vector(y), id)()(ctx)
+    override def unbox(y: vpr.Exp, id: P)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp = {
+      unboxFunc(Vector(y), id)(pos, info, errT)(ctx)
     }
 
     /** Generates: domain N{} */

@@ -102,8 +102,4 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case c: Constant => AddrMod.constant
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
-
-
-
-
 }

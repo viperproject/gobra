@@ -31,29 +31,34 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   /** Constructor of shared-array domain. */
   override def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    emb.box(vpr.ExplicitSeq(args)(pos, info, errT), t)(ctx) // box(Seq(args))
+    if (args.isEmpty) {
+      emb.box(vpr.EmptySeq(t._2)(pos, info, errT), t)(pos, info, errT)(ctx) // box(Seq(args))
+    } else {
+      emb.box(vpr.ExplicitSeq(args)(pos, info, errT), t)(pos, info, errT)(ctx) // box(Seq(args))
+    }
   }
 
   /** Getter of exclusive-array domain. */
   override def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    vpr.SeqIndex(emb.unbox(base, t)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
+    vpr.SeqIndex(emb.unbox(base, t)(pos, info, errT)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
   }
 
   /** Update function of shared-array domain. */
   override def update(base: vpr.Exp, idx: vpr.Exp, newVal: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    emb.box(vpr.SeqUpdate(emb.unbox(base, t)(ctx), idx, newVal)(pos, info, errT), t)(ctx) // box(unbox(base)[idx := newVal])
+    emb.box(vpr.SeqUpdate(emb.unbox(base, t)(pos, info, errT)(ctx), idx, newVal)(pos, info, errT), t)(pos, info, errT)(ctx) // box(unbox(base)[idx := newVal])
   }
 
   /** Length of exclusive-array domain. */
   override def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    vpr.SeqLength(emb.unbox(arg, t)(ctx))(pos, info, errT) // len(unbox(arg))
+    vpr.SeqLength(emb.unbox(arg, t)(pos, info, errT)(ctx))(pos, info, errT) // len(unbox(arg))
   }
 
   /** Returns argument as sequence. */
   def toSeq(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
-    emb.unbox(arg, t)(ctx) // unbox(arg)
+    val (pos, info, errT) = src.vprMeta
+    emb.unbox(arg, t)(pos, info, errT)(ctx) // unbox(arg)
   }
 }

@@ -32,6 +32,7 @@ class ArrayEncoding extends TypeEncoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.{ViperUtil => VU}
   import ArrayEncoding.cptParam
 
   private val ex: ExclusiveArrayComponent = new ExclusiveArrayComponentImpl
@@ -141,7 +142,7 @@ class ArrayEncoding extends TypeEncoding {
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
     case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Exclusive =>
       for {
-        vBase <- ctx.expr.translate(base.asInstanceOf[in.Location])(ctx)
+        vBase <- ctx.expr.translate(base)(ctx)
         vIdx <- ctx.expr.translate(idx)(ctx)
       } yield ex.get(vBase, vIdx, cptParam(len, t)(ctx))(loc)(ctx)
 
@@ -224,16 +225,21 @@ class ArrayEncoding extends TypeEncoding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: [n]T] -> let x = L[loc] in Forall idx :: {trigger} 0 <= idx < n ==> Footprint[ x[idx] ]
-    *   where trigger = sh_array_get(x, idx, n)
+    * Footprint[loc: [n]T] -> Forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
+    *   where trigger = sh_array_get(Ref[loc], idx, n)
+    *
+    * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
   override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case loc :: ctx.Array(len, _) / Shared =>
-      for {
-        (x, trigger) <- copyArray(loc)(ctx)
-        body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(x, idx)(loc.info))
-        res <- boundedQuant(len, trigger, body)(loc)(ctx)
-      } yield res
+    case loc :: ctx.Array(len, t) / Shared =>
+      val (pos, info, errT) = loc.vprMeta
+      val trigger = (idx: vpr.LocalVar) =>
+        Seq(vpr.Trigger(Seq(sh.get(ctx.typeEncoding.reference(ctx)(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info))
+      boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
+        // to eliminate nested quantified permissions, which are not supported by the silver ast.
+        VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
+      )
   }
 
   /**
@@ -251,7 +257,7 @@ class ArrayEncoding extends TypeEncoding {
       val resultVar = in.LocalVar(Names.freshName, resultType)(Source.Parser.Internal)
       val post = pure(equal(ctx)(x, resultVar, x))(ctx).res
         // replace resultVar with vpr.Result
-        .replace(variable(ctx)(resultVar).localVar, vpr.Result(vResultType)())
+        .transform{ case v: vpr.LocalVar if v.name == resultVar.id => vpr.Result(vResultType)() }
 
       vpr.Function(
         name = s"${Names.arrayConversionFunc}_${Names.freshName}",
@@ -268,24 +274,24 @@ class ArrayEncoding extends TypeEncoding {
   /**
     * Generates:
     * function arrayDefault(): ([n]T)°
-    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == [dflt(T)]
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
     * */
   private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
       val resType = in.ArrayT(t._1, t._2, Exclusive)
-      val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val dflt = in.DfltVal(t._2)(Source.Parser.Internal)
       val vResType = typ(ctx)(resType)
-      val idx = vpr.LocalVarDecl("idx", vpr.Int)()
-      val acc = ex.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val rhs = pure(for {
-        vDflt <- ctx.expr.translate(dflt)(ctx)
-        eq = vpr.EqCmp(acc, vDflt)()
-      } yield eq )(ctx).res
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
+      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
+      val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+      val resAccess = in.IndexedExp(resDummy, idx)(src.info)
+      val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
+        .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
+      val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
       val post = vpr.Forall(
-        variables = Seq(idx),
-        triggers = Seq(vpr.Trigger(Seq(acc))()),
-        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(src), rhs)()
+        Seq(vIdx),
+        Seq(vpr.Trigger(Seq(trigger))()),
+        vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
       )()
 
       vpr.Function(
@@ -302,24 +308,24 @@ class ArrayEncoding extends TypeEncoding {
   /**
     * Generates:
     * function arrayDefault(): ([n]T)@
-    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> result[idx] == [dflt(T)]
+    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [&result[idx] == dflt(T)]
     * */
   private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
-      val resType = in.ArrayT(t._1, t._2, Exclusive)
-      val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val dflt = in.DfltVal(t._2)(Source.Parser.Internal)
+      val resType = in.ArrayT(t._1, t._2, Shared)
       val vResType = typ(ctx)(resType)
-      val idx = vpr.LocalVarDecl("idx", vpr.Int)()
-      val acc = sh.get(vpr.Result(vResType)(), idx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val rhs = pure(for {
-        vDflt <- ctx.expr.translate(dflt)(ctx)
-        eq = vpr.EqCmp(acc, vDflt)()
-      } yield eq )(ctx).res
+      val src = in.DfltVal(resType)(Source.Parser.Internal)
+      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
+      val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
+      val vIdx = ctx.typeEncoding.variable(ctx)(idx)
+      val resAccess = in.Ref(in.IndexedExp(resDummy, idx)(src.info))(src.info)
+      val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
+        .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
+      val trigger = sh.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
       val post = vpr.Forall(
-        variables = Seq(idx),
-        triggers = Seq(vpr.Trigger(Seq(acc))()),
-        exp = vpr.Implies(boundaryCondition(idx.localVar, t._1)(src), rhs)()
+        Seq(vIdx),
+        Seq(vpr.Trigger(Seq(trigger))()),
+        vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
       )()
 
       vpr.Function(
@@ -347,7 +353,7 @@ class ArrayEncoding extends TypeEncoding {
   /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
   private def boundedQuant(length: BigInt, trigger: vpr.LocalVar => Seq[vpr.Trigger], body: in.BoundVar => CodeWriter[vpr.Exp])
                                   (src: in.Node)(ctx: Context)
-                                  : CodeWriter[vpr.Exp] = {
+                                  : CodeWriter[vpr.Forall] = {
 
     val (pos, info, errT) = src.vprMeta
 

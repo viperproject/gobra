@@ -9,14 +9,12 @@ func test2(a! [4]int) {
   assert acc(a[1])
 }
 
+
 func test3(a! [4]int) {
   assert acc(a[2])
 }
 
-requires acc(a[1])
-func test4(a! [4]int) {
-  assert acc(a[1])
-}
+
 
 func test5() (a! [4]int) {
   assert acc(a[2])

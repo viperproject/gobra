@@ -61,11 +61,11 @@ class SharedStructComponentImpl extends SharedStructComponent {
     val vsDecl = (0 until arity) map (i => vpr.LocalVarDecl(s"v$i", typeVars(i))())
     val vs = vsDecl map (_.localVar)
 
-    val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructGetFunc}${i}of$arity", Seq(xDecl), typeVars(i))(domainName = domainName))
+    val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructDomain}get${i}of$arity", Seq(xDecl), typeVars(i))(domainName = domainName))
     val getApps = getFuncs map (f => vpr.DomainFuncApp(func = f, Seq(x), typeVarMap)())
     val getAppTriggers = getApps map (g => vpr.Trigger(Seq(g))())
 
-    val revFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructRevFunc}${i}of$arity", Seq(vsDecl(i)), domainType)(domainName = domainName))
+    val revFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructDomain}rev${i}of$arity", Seq(vsDecl(i)), domainType)(domainName = domainName))
 
     val eqApp = ctx.equality.eq(x, y)()
     val eqAppTrigger = vpr.Trigger(Seq(eqApp))()
@@ -105,8 +105,8 @@ class SharedStructComponentImpl extends SharedStructComponent {
 
     val domain = vpr.Domain(
       name = domainName,
-      functions = revFuncs ++ getFuncs,
       typVars = typeVars,
+      functions = revFuncs ++ getFuncs,
       axioms = equalityAxiom +: injective
     )()
 

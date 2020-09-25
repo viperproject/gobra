@@ -119,7 +119,7 @@ class StructEncoding extends TypeEncoding {
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
     * [(x: *Struct{}°) == x] -> true
     * [(lhs: *Struct{}°) == rhs] -> unknown()
-    * [(lhs: *Struct{F}°) == rhs] -> [&(*lhs.f0) == &(*rhs.f0)]
+    * [(lhs: *Struct{F}°) == rhs] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
@@ -129,13 +129,14 @@ class StructEncoding extends TypeEncoding {
       val (pos, info, errT) = src.vprMeta
       equalFields.map(VU.bigAnd(_)(pos, info, errT))
 
-    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(rhsFs)), src) =>
+    case (lhs :: ctx.*(ctx.Struct(lhsFs)) / Exclusive, rhs :: ctx.*(ctx.Struct(_)), src) =>
       if (lhsFs.isEmpty) {
         unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
       } else {
-        val lhsFAcc = in.Ref(in.FieldRef(in.Deref(lhs)(src.info), lhsFs.head)(src.info))(src.info) // &(*lhs.f0)
-        val rhsFAcc = in.Ref(in.FieldRef(in.Deref(rhs)(src.info), rhsFs.head)(src.info))(src.info) // &(*rhs.f0)
-        ctx.typeEncoding.equal(ctx)(lhsFAcc, rhsFAcc, src)
+        for {
+          vLhs <- ctx.expr.translate(lhs)(ctx)
+          vRhs <- ctx.expr.translate(rhs)(ctx)
+        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
   }
 

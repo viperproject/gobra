@@ -97,7 +97,7 @@ class ArrayEncoding extends TypeEncoding {
     * [x: *[0]T° == x] -> true
     * [lhs: *[0]T° == rhs] -> unknown()
     *
-    * [lhs: *[n]T° == rhs] -> [ &(*lhs[0]) == &(*rhs[0]) ]
+    * [lhs: *[n]T° == rhs] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Array(len, _), rhs, src) =>
@@ -112,9 +112,10 @@ class ArrayEncoding extends TypeEncoding {
       if (len == 0) {
         unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
       } else {
-        val lhsIdx = in.Ref(in.IndexedExp(in.Deref(lhs)(src.info), in.IntLit(0)(src.info))(src.info))(src.info) // &(*lhs[0])
-        val rhsIdx = in.Ref(in.IndexedExp(in.Deref(rhs)(src.info), in.IntLit(0)(src.info))(src.info))(src.info) // &(*rhs[0])
-        ctx.typeEncoding.equal(ctx)(lhsIdx, rhsIdx, src)
+        for {
+          vLhs <- ctx.expr.translate(lhs)(ctx)
+          vRhs <- ctx.expr.translate(rhs)(ctx)
+        } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
       }
   }
 
@@ -308,7 +309,7 @@ class ArrayEncoding extends TypeEncoding {
   /**
     * Generates:
     * function arrayDefault(): ([n]T)@
-    *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [&result[idx] == dflt(T)]
+    *   ensures Forall idx :: {sh_array_get(result, idx)} [&result[idx] == dflt(T)]
     * */
   private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
     def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
@@ -325,7 +326,7 @@ class ArrayEncoding extends TypeEncoding {
       val post = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
-        vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
+        idxEq
       )()
 
       vpr.Function(

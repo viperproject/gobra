@@ -18,7 +18,10 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
 
   test("TypeChecker: should classify an integer literal as integer") {
     frontend.exprType(PIntLit(42))() should matchPattern {
-      case Type.IntT =>
+      // the type should be Type.Int instead of Type.UntypedConst due to the implementation of
+      // front.end(exprType) which in practice evaluates the type of the literal in a
+      // short var assignment: n := PIntLit(42)
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -39,7 +42,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   test("TypeChecker: should classify a named operand by its type") {
     val inArgs = Vector(PNamedParameter(PIdnDef("x"), PIntType(), false))
     frontend.exprType(PNamedOperand(PIdnUse("x")))(inArgs) should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -87,7 +90,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     val expr = PIndexedExp(base, PIntLit(0))
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -121,7 +124,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
       PIntLit(4)
     )
     frontend.exprType(expr)(inArgs) should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -730,7 +733,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -761,7 +764,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1216,7 +1219,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     val expr = PCardinality(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1228,7 +1231,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1511,7 +1514,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1522,7 +1525,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1776,7 +1779,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1787,7 +1790,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1905,7 +1908,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1916,7 +1919,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.UntypedConst) =>
     }
   }
 
@@ -1975,7 +1978,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     val expr = PLength(PLiteral.sequence(PBoolType(), Vector()))
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 
@@ -1988,7 +1991,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT =>
+      case Type.IntT(Type.Int) =>
     }
   }
 

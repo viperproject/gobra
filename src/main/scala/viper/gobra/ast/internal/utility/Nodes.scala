@@ -73,7 +73,7 @@ object Nodes {
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
-        case StructUpd(base, field, newVal) => Seq(base, field, newVal)
+        case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case RangeSequence(low, high) => Seq(low, high)

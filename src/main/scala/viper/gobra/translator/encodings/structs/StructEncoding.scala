@@ -97,7 +97,7 @@ class StructEncoding extends TypeEncoding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee((fa: in.FieldRef) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(fa.recv), in.StructUpd(fa.recv, fa.field, rhs)(src.info), src)
+      ctx.typeEncoding.assignment(ctx)(in.Assignee(fa.recv), in.StructUpdate(fa.recv, fa.field, rhs)(src.info), src)
 
     case (in.Assignee(lhs :: ctx.Struct(lhsFs) / Shared), rhs :: ctx.Struct(rhsFs), src) =>
       val lhsFAs = fieldAccesses(lhs, lhsFs).map(in.Assignee.Field)
@@ -161,7 +161,7 @@ class StructEncoding extends TypeEncoding {
         idx = fs.indexOf(field)
       } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
-    case (upd: in.StructUpd) :: ctx.Struct(fs) =>
+    case (upd: in.StructUpdate) :: ctx.Struct(fs) =>
       for {
         vBase <- ctx.expr.translate(upd.base)(ctx)
         idx = fs.indexOf(upd.field)

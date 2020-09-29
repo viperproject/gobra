@@ -182,7 +182,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
-    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls) <> line <> showStmtList(stmts)
+    case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
@@ -217,10 +217,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MPredicateProxy(name, _) => name
   })
 
-  def showBottomDecl(x: BlockDeclaration): Doc = x match {
-    case bvar: BoundVar => showVar(bvar) <> ":" <+> showType(bvar.typ) <> showAddressability(bvar.typ.addressability)
+  def showBlockDecl(x: BlockDeclaration): Doc = x match {
     case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
-    case outParam: Parameter.Out => showVar(outParam) <> ":" <+> showType(outParam.typ) <> showAddressability(outParam.typ.addressability)
   }
 
   def showAddressability(x: Addressability): Doc = x match {
@@ -237,8 +235,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
 
-  protected def showBottomDeclList[T <: BlockDeclaration](list: Vector[T]): Doc =
-    showList(list)(showBottomDecl)
+  protected def showBlockDeclList[T <: BlockDeclaration](list: Vector[T]): Doc =
+    showList(list)(showBlockDecl)
 
   protected def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
     showList(list)(showAssignee)
@@ -320,7 +318,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
-    case StructUpd(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
+    case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
@@ -338,7 +336,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
-    case NilLit(t) => "nil"
+    case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
     case ArrayLit(typ, exprs) => {
       val lenP = brackets(exprs.length.toString)
@@ -441,7 +439,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
-    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls)
+    case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls)
     case Seqn(stmts) => emptyDoc
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>

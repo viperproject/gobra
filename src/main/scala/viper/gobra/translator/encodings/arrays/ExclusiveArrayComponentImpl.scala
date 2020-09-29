@@ -28,7 +28,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   /** Returns type of exclusive-array domain. */
   override def typ(t: ComponentParameter)(ctx: Context): vpr.Type = emb.typ(t)(ctx)
 
-  /** Constructor of shared-array domain. */
+  /** Constructor of exclusive-array domain. */
   override def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     if (args.isEmpty) {
@@ -44,7 +44,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
     vpr.SeqIndex(emb.unbox(base, t)(pos, info, errT)(ctx), idx)(pos, info, errT) // unbox(base)[idx]
   }
 
-  /** Update function of shared-array domain. */
+  /** Update function of exclusive-array domain. */
   override def update(base: vpr.Exp, idx: vpr.Exp, newVal: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     emb.box(vpr.SeqUpdate(emb.unbox(base, t)(pos, info, errT)(ctx), idx, newVal)(pos, info, errT), t)(pos, info, errT)(ctx) // box(unbox(base)[idx := newVal])

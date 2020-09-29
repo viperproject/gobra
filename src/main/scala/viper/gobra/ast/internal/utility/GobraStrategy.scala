@@ -71,7 +71,7 @@ object GobraStrategy {
       case (f: FieldRef, Seq(recv: Expr, field: Field)) => FieldRef(recv, field)(meta)
       case (i: IndexedExp, Seq(base: Expr, idx: Expr)) => IndexedExp(base, idx)(meta)
       case (u: ArrayUpdate, Seq(base: Expr, left: Expr, right: Expr)) => ArrayUpdate(base, left, right)(meta)
-      case (u: StructUpd, Seq(base: Expr, left: Field, right: Expr)) => StructUpd(base, left, right)(meta)
+      case (u: StructUpdate, Seq(base: Expr, left: Field, right: Expr)) => StructUpdate(base, left, right)(meta)
       case (n: Negation, Seq(op: Expr)) => Negation(op)(meta)
       case (e: EqCmp, Seq(l: Expr, r: Expr)) => EqCmp(l, r)(meta)
       case (e: UneqCmp, Seq(l: Expr, r: Expr)) => UneqCmp(l, r)(meta)

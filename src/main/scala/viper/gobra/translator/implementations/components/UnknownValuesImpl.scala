@@ -38,6 +38,7 @@ class UnknownValuesImpl extends UnknownValues {
       typ = t
     )(domainName = domainName)
     genFunctions ::= newFunc
+    counter += 1
     newFunc
   }
 

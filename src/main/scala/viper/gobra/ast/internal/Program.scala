@@ -455,7 +455,7 @@ case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr
   override val typ : Type = expr.typ match {
     case SequenceT(t, _) => SetT(t, Addressability.conversionResult)
     case SetT(t, _) => SetT(t, Addressability.conversionResult)
-    case t => Violation.violation(s"expected a sequence type but got $t")
+    case t => Violation.violation(s"expected a sequence or set type but got $t")
   }
 }
 
@@ -479,7 +479,7 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
   override val typ : Type = expr.typ match {
     case SequenceT(t, _) => MultisetT(t, Addressability.conversionResult)
     case MultisetT(t, _) => MultisetT(t, Addressability.conversionResult)
-    case t => Violation.violation(s"expected a sequence type but got $t")
+    case t => Violation.violation(s"expected a sequence or multiset type but got $t")
   }
 }
 
@@ -535,7 +535,7 @@ case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) exte
 }
 
 /** Updates struct 'base' at field 'field' with value 'newVal', i.e. base[field -> newVal]. */
-case class StructUpd(base: Expr, field: Field, newVal: Expr)(val info: Source.Parser.Info) extends Expr {
+case class StructUpdate(base: Expr, field: Field, newVal: Expr)(val info: Source.Parser.Info) extends Expr {
   require(base.typ.addressability == Addressability.Exclusive)
   override val typ: Type = base.typ
 }
@@ -685,7 +685,10 @@ sealed trait TopType
 
 sealed trait Type {
   def addressability: Addressability
+
+  /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
   def equalsWithoutMod(t: Type): Boolean
+
   def withAddressability(newAddressability: Addressability): Type
 }
 

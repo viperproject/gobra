@@ -20,6 +20,9 @@ trait SharedArrayComponent extends Generator {
   /** Getter of shared-array domain. */
   def get(base: vpr.Exp, idx: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
+  /** Nil of shared-struct domain */
+  def nil(t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+
   /** Length of shared-array domain. */
   def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 }

@@ -22,7 +22,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   /** Embeds Sequences of fixed length as specified by ComponentParameter. */
   private val emb: EmbeddingComponent[ComponentParameter] = new encodings.EmbeddingComponent.Impl[ComponentParameter](
     p = (e: vpr.Exp, id: ComponentParameter) => (_: Context) => vpr.EqCmp(vpr.SeqLength(e)(), vpr.IntLit(id._1)())(),
-    t = (id: ComponentParameter) => (_: Context) => vpr.SeqType(id._2)
+    t = (id: ComponentParameter) => (ctx: Context) => vpr.SeqType(ctx.typeEncoding.typ(ctx)(id._2))
   )
 
   /** Returns type of exclusive-array domain. */
@@ -32,7 +32,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   override def create(args: Vector[vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     if (args.isEmpty) {
-      emb.box(vpr.EmptySeq(t._2)(pos, info, errT), t)(pos, info, errT)(ctx) // box(Seq(args))
+      emb.box(vpr.EmptySeq(ctx.typeEncoding.typ(ctx)(t._2))(pos, info, errT), t)(pos, info, errT)(ctx) // box(Seq(args))
     } else {
       emb.box(vpr.ExplicitSeq(args)(pos, info, errT), t)(pos, info, errT)(ctx) // box(Seq(args))
     }

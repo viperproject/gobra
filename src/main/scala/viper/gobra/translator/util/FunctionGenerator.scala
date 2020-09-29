@@ -19,13 +19,17 @@ trait FunctionGenerator[T] extends Generator {
 
   def genFunction(x: T)(ctx: Context): vpr.Function
 
-  def apply(args: Vector[vpr.Exp], x: T)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp = {
-    val func = genMap.getOrElse(x, {
+  def getFunction(x: T)(ctx: Context): vpr.Function = {
+    genMap.getOrElse(x, {
       val newFunc = genFunction(x)(ctx)
       genMap += x -> newFunc
       generatedMember ::= newFunc
       newFunc
     })
+  }
+
+  def apply(args: Vector[vpr.Exp], x: T)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.FuncApp = {
+    val func = getFunction(x)(ctx)
     vpr.FuncApp(func, args)(pos, info, errT)
   }
 }

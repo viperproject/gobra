@@ -63,7 +63,7 @@ trait TypeEncoding extends Generator {
     *
     * The default implements:
     * Initialize[loc: T°] -> assume [loc == dflt(T)]
-    * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T)]
+    * Initialize[loc: T@] -> inhale Footprint[loc]; assume [loc == dflt(T°)] && [&loc != nil(*T)]
     */
   def initialization(ctx: Context): in.Location ==> CodeWriter[vpr.Stmt] = {
     case loc :: t / Exclusive if typ(ctx).isDefinedAt(t) =>
@@ -76,8 +76,9 @@ trait TypeEncoding extends Generator {
       val (pos, info, errT) = loc.vprMeta
       for {
         footprint <- addressFootprint(ctx)(loc)
-        eq <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
-      } yield vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
+        eq1 <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
+        eq2 <- ctx.typeEncoding.equal(ctx)(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info), loc)
+      } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
   }
 
   /**

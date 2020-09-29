@@ -20,11 +20,11 @@ import viper.silver.{ast => vpr}
 
 private[arrays] object ArrayEncoding {
   /** Parameter of array components. */
-  type ComponentParameter = (BigInt, vpr.Type)
+  type ComponentParameter = (BigInt, in.Type)
 
   /** Computes the component parameter. */
   def cptParam(len: BigInt, t: in.Type)(ctx: Context): ComponentParameter = {
-    (len, ctx.typeEncoding.typ(ctx)(t))
+    (len, t)
   }
 }
 
@@ -43,7 +43,6 @@ class ArrayEncoding extends TypeEncoding {
     sh.finalize(col)
     conversionFunc.finalize(col)
     exDfltFunc.finalize(col)
-    shDfltFunc.finalize(col)
   }
 
   /**
@@ -159,8 +158,7 @@ class ArrayEncoding extends TypeEncoding {
       unit(exDfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
 
     case (e: in.DfltVal) :: ctx.Array(len, t) / Shared =>
-      val (pos, info, errT) = e.vprMeta
-      unit(shDfltFunc(Vector.empty, (len, t))(pos, info, errT)(ctx))
+      unit(sh.nil((len, t))(e)(ctx))
 
     case (lit: in.ArrayLit) :: ctx.Array(len, t) =>
       for {
@@ -306,41 +304,6 @@ class ArrayEncoding extends TypeEncoding {
     }
   }
 
-  /**
-    * Generates:
-    * function arrayDefault(): ([n]T)@
-    *   ensures Forall idx :: {sh_array_get(result, idx)} [&result[idx] == dflt(T)]
-    * */
-  private val shDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
-    def genFunction(t: (BigInt, in.Type))(ctx: Context): vpr.Function = {
-      val resType = in.ArrayT(t._1, t._2, Shared)
-      val vResType = typ(ctx)(resType)
-      val src = in.DfltVal(resType)(Source.Parser.Internal)
-      val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
-      val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
-      val vIdx = ctx.typeEncoding.variable(ctx)(idx)
-      val resAccess = in.Ref(in.IndexedExp(resDummy, idx)(src.info))(src.info)
-      val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
-        .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
-      val trigger = sh.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val post = vpr.Forall(
-        Seq(vIdx),
-        Seq(vpr.Trigger(Seq(trigger))()),
-        idxEq
-      )()
-
-      vpr.Function(
-        name = s"${Names.arrayDefaultFunc}_${Names.freshName}",
-        formalArgs = Seq.empty,
-        typ = vResType,
-        pres = Seq.empty,
-        posts = Vector(post),
-        body = None
-      )()
-    }
-  }
-
-
   /** Returns: 0 <= 'base' && 'base' < 'length'. */
   private def boundaryCondition(base: vpr.Exp, length: BigInt)(src : in.Node) : vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
@@ -402,6 +365,4 @@ class ArrayEncoding extends TypeEncoding {
       case t => Violation.violation(s"Expected array, but got $t.")
     }
   }
-
-
 }

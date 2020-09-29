@@ -147,7 +147,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(UntypedConst))
-        case PSequenceAppend(left, _) => exprType(left)
+
+        case PSequenceAppend(left, right) =>
+          val lType = exprType(left)
+          val rType = exprType(right)
+          typeMerge(lType, rType) match {
+            case Some(seqType) => seqType
+            case _ => violation(s"cannot append sequences of $lType and $rType")
+          }
         case PSequenceUpdate(seq, _) => exprType(seq)
       }
       case expr : PUnorderedGhostCollectionExp => expr match {

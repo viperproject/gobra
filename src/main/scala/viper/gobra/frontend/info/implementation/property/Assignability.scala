@@ -43,8 +43,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
         // for go's types according to go's specification (mostly)
-      case (IntT(UntypedConst), IntT(_)) => true
-      case (IntT(_), IntT(UntypedConst)) => true
+      case (IntT(UntypedConst), r) if isIntegerType(underlyingType(r)) => true
+      case (l, IntT(UntypedConst)) if isIntegerType(underlyingType(l)) => true // not in spec
       case (l, r) if identicalTypes(l, r) => true
       case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
@@ -55,6 +55,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
         // for ghost types
       case (BooleanT, AssertionT) => true
+      case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
+      case (SetT(l), SetT(r)) => assignableTo(l,r)
+      case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
 
         // conservative choice
       case _ => false

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
+import viper.gobra.frontend.info.base.Type.BooleanT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
@@ -34,15 +34,15 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
         e match {
           case _: PEquals if typ(e.left) == BooleanT => auxBool(x => y => x == y)
-          case _: PEquals if typ(e.left) == IntT => auxInt(x => y => x == y)
+          case _: PEquals if isIntegerType(typ(e.left)) => auxInt(x => y => x == y)
           case _: PUnequals if typ(e.left) == BooleanT => auxBool(x => y => x != y)
-          case _: PUnequals if typ(e.left) == IntT => auxInt(x => y => x != y)
+          case _: PUnequals if isIntegerType(typ(e.left)) => auxInt(x => y => x != y)
           case _: PAnd if typ(e.left) == BooleanT => auxBool(x => y => x && y)
           case _: POr if typ(e.left) == BooleanT => auxBool(x => y => x || y)
-          case _: PLess if typ(e.left) == IntT => auxInt(x => y => x < y)
-          case _: PAtMost if typ(e.left) == IntT => auxInt(x => y => x <= y)
-          case _: PGreater if typ(e.left) == IntT => auxInt(x => y => x > y)
-          case _: PAtLeast if typ(e.left) == IntT => auxInt(x => y => x >= y)
+          case _: PLess if isIntegerType(typ(e.left)) => auxInt(x => y => x < y)
+          case _: PAtMost if isIntegerType(typ(e.left)) => auxInt(x => y => x <= y)
+          case _: PGreater if isIntegerType(typ(e.left)) => auxInt(x => y => x > y)
+          case _: PAtLeast if isIntegerType(typ(e.left)) => auxInt(x => y => x >= y)
           case _ => None
         }
       case PNamedOperand(id) => entity(id) match {

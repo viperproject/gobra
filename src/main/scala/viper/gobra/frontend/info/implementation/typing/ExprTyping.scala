@@ -112,11 +112,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr: PGhostExpression  => wellDefGhostExpr(expr)
   }
 
-  lazy val isIntegerType: Type => Boolean = {
-    case IntT(_) => true
-    case _ => false
-  }
-
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
     case _: PBoolLit | _: PIntLit | _: PNilLit => noMessages
@@ -177,15 +172,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
           case (SequenceT(_), IntT(_)) =>
             // TODO: revisit this part of the doc, add representability
-            // val idxOpt = intConstantEval(index)
             // TODO: change to default implementation size instead of 32 bit
+            // val idxOpt = intConstantEval(index)
             // message(n, s"constant $index overflows int", !idxOpt.forall(i => representableInteger(i, IntT(Some(32)))))
             noMessages
 
           case (SliceT(_), IntT(_)) =>
-            // val idxOpt = intConstantEval(index)
-            // TODO: change to default implementation size instead of 32 bit
-            // message(n, s"constant $index overflows int", !idxOpt.forall(i => representableInteger(i, IntT(Some(32)))))
             noMessages
 
           case (MapT(key, elem), indexT) =>
@@ -248,11 +240,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
-          , l, r) => {
-            noMessages
-            // TODO: check what to put here
-            // assignableTo.errors(l, IntT(???))(n) ++ assignableTo.errors(r, IntT(???))(n)
-          }
+          , l, r) => assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n)
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
         })
 
@@ -331,7 +319,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       BooleanT
 
     case _: PIntLit | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
-      getEnclosingType(expr).getOrElse(intExprType(expr).get) //TODO: simplify
+      getEnclosingType(expr).orElse(intExprType(expr)).get
 
     case _: PLength => IntT(Int)
 
@@ -343,26 +331,29 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def getEnclosingType(expr: PActualExpression): Option[Type] = {
-    var prevNode: PExpression = null
-    var currentNode: PNode = expr
+    val parents: Vector[PNode] = tree.parent(expr)
 
-    while (!tree.isRoot(currentNode) && currentNode.isInstanceOf[PExpression]) {
-      prevNode = currentNode.asInstanceOf[PExpression];
-      val parents = tree.parent(currentNode)
-      if (parents.length != 1) {
-        violation("ill-formed tree, a non-root node has not one and only one parent.")
-      }
-      currentNode = parents(0)
+    if (parents.isEmpty) {
+      return None
+    } else if (parents.length > 1) {
+      violation("Malformed tree, expression can only have at most one parent node.")
     }
 
-    currentNode match {
+    val parent = parents(0)
+
+    parent match {
       case PShortVarDecl(_, _, _) =>
-        if (prevNode != null && intExprType(prevNode).contains(IntT(UntypedConst)))
+        if (intExprType(expr).contains(IntT(UntypedConst)))
           Some(IntT(Int))
         else
-          intExprType(prevNode)
+          None
 
-      // TODO: add another statements that default to a type when a constant is used
+      case PConstDecl(Some(x), _, _) =>
+        if (x.isInstanceOf[PIntegerType] && intExprType(expr).contains(IntT(UntypedConst)))
+          Some(typeType(x))
+        else
+          None
+
       case _ => None
     }
   }

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{Single, Type}
+import viper.gobra.frontend.info.base.Type.{IntT, SequenceT, Single, Type, UntypedConst}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -18,7 +18,17 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
     // currently, only merging of l and r being identical types is supported
     // possible future improvement: if l is assignable to r, then return r instead of None (or vice versa)
     (l, r) match {
-      case (Single(lst), Single(rst)) => if (identicalTypes(lst, rst)) Some(lst) else None
+      case (Single(lst), Single(rst)) =>
+        if (identicalTypes(lst, rst)) Some(lst) else {
+          (lst, rst) match {
+            case (a@IntT(_), IntT(UntypedConst)) => Some(a)
+            case (IntT(UntypedConst), b@IntT(_)) => Some(b)
+            case (SequenceT(l), SequenceT(r)) => for {
+              typ <- typeMerge(l,r)
+            } yield SequenceT(typ)
+            case _ => None
+          }
+        }
       case _ => None
     }
 

@@ -111,6 +111,11 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PType => typeType(t)
   }
 
+  lazy val isIntegerType: Type => Boolean = {
+    case IntT(_) => true
+    case _ => false
+  }
+
   private def structType(t: PStructType): Type = {
     def makeFields(x: PFieldDecls): ListMap[String, (Boolean, Type)] = {
       x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeType(f.typ))) }

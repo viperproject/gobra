@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -52,6 +52,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(_: ap.Deref) => noMessages
       case Some(_: ap.FieldSelection) => noMessages
       case Some(_: ap.PredicateCall) => noMessages
+      case Some(n: ap.IndexedExp) => exprType(n.base) match {
+        case _: ArrayT => message(n.base, s"expected a shared array, but found an exclusive array ${n.base}", !addressable(n.base))
+        case t => message(n, s"expected an array type, but got $t")
+      }
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
     }
 
@@ -98,6 +102,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
           case t => message(seq, s"expected a sequence, but got $t")
         })
+        case PSequenceConversion(op) => exprType(op) match {
+          case _: SequenceT => isExpr(op).out
+          case _: ArrayT => isExpr(op).out ++ message(op, s"exclusive array expected, but shared array '$op' found", addressable(op))
+          case t => message(op, s"expected an array or sequence type, but got $t")
+        }
       }
 
       case expr : PUnorderedGhostCollectionExp => expr match {
@@ -148,6 +157,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PRangeSequence(_, _) => SequenceT(IntT)
         case PSequenceAppend(left, _) => exprType(left)
         case PSequenceUpdate(seq, _) => exprType(seq)
+        case PSequenceConversion(op) => exprType(op) match {
+          case t: SequenceT => t
+          case t: ArrayT => SequenceT(t.elem)
+          case t => violation(s"expected an array or sequence type, but got $t")
+        }
       }
       case expr : PUnorderedGhostCollectionExp => expr match {
         case expr : PBinaryGhostExp => expr match {
@@ -243,10 +257,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PImplication(left, right) => Seq(left, right).forall(go)
 
       case PLength(op) => go(op)
+      case PCapacity(op) => go(op)
 
-      case expr : PGhostCollectionExp => expr match {
-        case n : PBinaryGhostExp => go(n.left) && go(n.right)
-        case n : PGhostCollectionLiteral => n.exprs.forall(go)
+      case expr: PGhostCollectionExp => expr match {
+        case n: PBinaryGhostExp => go(n.left) && go(n.right)
+        case PSequenceConversion(op) => go(op)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
         case PCardinality(op) => go(op)
@@ -256,7 +271,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PAccess | _: PPredicateAccess => !strong
 
-      case PCompositeLit(_, _) => true
+      case PCompositeLit(typ, _) => typ match {
+        case _: PArrayType | _: PImplicitSizeArrayType => !strong
+        case _ => true
+      }
 
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)

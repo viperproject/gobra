@@ -7,10 +7,12 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Variable
-import viper.gobra.frontend.info.base.Type.{ArrayT, SliceT}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable}
+import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.theory.{Addressability => AddrMod}
+import viper.gobra.util.Violation
 
 trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -26,16 +28,10 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
 
   // depends on: entity, type
   lazy val addressable: Property[PExpression] = createBinaryProperty("addressable") {
-    case PNamedOperand(id) => addressableVar(id)
-    case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
-    case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && addressable(b))
-    case n: PDot => resolve(n) match {
-      case Some(s: ap.FieldSelection) => goAddressable(s.base)
-      case _ => false
-    }
-    case _ => false
+    n => addressability(n) == AddrMod.Shared
   }
 
+  /** checks if argument is addressable according to Go language specification */
   lazy val goAddressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
     case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
@@ -47,11 +43,63 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     case _ => false
   }
 
-  private lazy val addressableVarAttr: PIdnNode => Boolean =
-    attr[PIdnNode, Boolean] { n => regular(n) match {
-      case v: Variable => v.addressable
-      case _ => false
-    }}
+  /** returns addressability modifier of argument expression. See [[viper.gobra.theory.Addressability]] */
+  override def addressability(expr: PExpression): AddrMod = addressabilityAttr(expr)
 
-  override def addressableVar(id: PIdnNode): Boolean = addressableVarAttr(id)
+  private lazy val addressabilityAttr: PExpression => AddrMod =
+    attr[PExpression, AddrMod] {
+      case PNamedOperand(id) => addressableVar(id)
+      case _: PDeref => AddrMod.dereference
+      case PIndexedExp(base, _) =>
+        val baseType = exprType(base)
+        baseType match {
+          case _: SliceT => AddrMod.sliceLookup
+          case _: ArrayT => AddrMod.arrayLookup(addressability(base))
+          case _: SequenceT => AddrMod.mathDataStructureLookup
+          case _: MapT => AddrMod.mapLookup
+          case t => Violation.violation(s"Expected slice, array, map, or sequence, but got $t")
+        }
+      case n: PDot => resolve(n) match {
+        case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressability(s.base))
+        case Some(_: ap.Constant) => AddrMod.constant
+        case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
+        case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate) => AddrMod.rValue
+        case p => Violation.violation(s"Unexpected dot resolve, got $p")
+      }
+      case _: PLiteral => AddrMod.literal
+      case n: PInvoke => resolve(n) match {
+        case Some(_: ap.Conversion) => AddrMod.conversionResult
+        case Some(_: ap.FunctionCall) => AddrMod.callResult
+        case Some(_: ap.PredicateCall) => AddrMod.rValue
+        case p => Violation.violation(s"Unexpected invoke resolve, got $p")
+      }
+      case _: PLength | _: PCapacity => AddrMod.callResult
+      case _: PSliceExp => AddrMod.sliceExpr
+      case _: PTypeAssertion => AddrMod.typeAssertionResult
+      case _: PReceive => AddrMod.receive
+      case _: PReference => AddrMod.reference
+      case _: PNegation => AddrMod.rValue
+      case _: PBinaryExp => AddrMod.rValue
+      case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
+      case _: POld => AddrMod.old
+      case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
+      case _: PAccess | _: PPredicateAccess => AddrMod.rValue
+      case _: PIn | _: PCardinality | _: PMultiplicity | _: PSequenceAppend |
+           _: PSequenceUpdate | _: PRangeSequence | _: PUnion | _: PIntersection |
+           _: PSetMinus | _: PSubset => AddrMod.rValue
+      case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
+
+    }
+
+
+
+  /** returns addressability modifier of argument variable */
+  override def addressableVar(id: PIdnNode): AddrMod = addressableVarAttr(id)
+
+  private lazy val addressableVarAttr: PIdnNode => AddrMod =
+    attr[PIdnNode, AddrMod] { n => regular(n) match {
+      case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
+      case c: Constant => AddrMod.constant
+      case e => Violation.violation(s"Expected variable, but got $e")
+    }}
 }

@@ -10,7 +10,7 @@ import viper.gobra.ast.{internal => in}
 class DesugarWriter {
 
   def unit[R](res: R): Writer[R] = Writer(Vector.empty, Vector.empty, res)
-  def create[R](stmts: Vector[in.Stmt], decls: Vector[in.BottomDeclaration], res: R) = Writer(stmts, decls, res)
+  def create[R](stmts: Vector[in.Stmt], decls: Vector[in.BlockDeclaration], res: R) = Writer(stmts, decls, res)
 
   def sequence[R](ws: Vector[Writer[R]]): Writer[Vector[R]] = {
     val (stmts, declss, results) = ws.map(_.run).unzip3
@@ -23,7 +23,7 @@ class DesugarWriter {
   }
 
   def write(xs: in.Stmt*): Writer[Unit] = Writer(xs.toVector, Vector.empty, ())
-  def declare(xs: in.BottomDeclaration*): Writer[Unit] = Writer(Vector.empty, xs.toVector, ())
+  def declare(xs: in.BlockDeclaration*): Writer[Unit] = Writer(Vector.empty, xs.toVector, ())
 
   def seqn(w: Writer[in.Stmt]): Writer[in.Stmt] =
     create(Vector.empty, w.decls, in.Seqn(w.stmts :+ w.res)(w.res.info))
@@ -31,7 +31,7 @@ class DesugarWriter {
   def prelude[R](w: Writer[R]): Writer[(Vector[in.Stmt], R)] =
     create(Vector.empty, w.decls, (w.stmts, w.res))
 
-  case class Writer[+R](stmts: Vector[in.Stmt], decls: Vector[in.BottomDeclaration], res: R) {
+  case class Writer[+R](stmts: Vector[in.Stmt], decls: Vector[in.BlockDeclaration], res: R) {
 
     def map[Q](fun: R => Q): Writer[Q] = Writer(stmts, decls, fun(res))
 
@@ -48,8 +48,8 @@ class DesugarWriter {
       this
     }
 
-    def run: (Vector[in.Stmt], Vector[in.BottomDeclaration], R) = (stmts, decls, res)
+    def run: (Vector[in.Stmt], Vector[in.BlockDeclaration], R) = (stmts, decls, res)
     def written: Vector[in.Stmt] = stmts
-    def declared: Vector[in.BottomDeclaration] = decls
+    def declared: Vector[in.BlockDeclaration] = decls
   }
 }

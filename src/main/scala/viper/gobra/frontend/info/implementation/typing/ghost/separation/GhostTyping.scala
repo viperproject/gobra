@@ -66,6 +66,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   /** returns true iff type is classified as ghost */
   private[separation] lazy val ghostTypeClassification: PType => Boolean = createGhostClassification[PType]{
     case _: PGhostType => true // TODO: This check seems insufficient to me in the long run. What if a type definition is ghost?
+    case PArrayType(_, t) => isTypeGhost(t)
     case _ => false
   }
 

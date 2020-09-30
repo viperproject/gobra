@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const ZERO = 0
+const ONE = 1
+const FORTYTWO = 42
+
+func test1() {
+	ghost xs := seq[int] { FORTYTWO }
+  assert xs == seq[int] { 42 }
+}
+
+func test2() {
+  ghost xs := seq[int] { ONE : 12, ZERO : 24 }
+  assert xs == seq[int] { 24, 12 }
+}

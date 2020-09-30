@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const N = 42
+
+func foo() {
+	var a [N]int
+  assert len(a) == N
+  assert len(a) == 42
+}

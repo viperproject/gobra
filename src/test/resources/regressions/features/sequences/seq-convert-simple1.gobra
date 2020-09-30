@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1(ghost xs seq[int]) {
+  assert xs == seq(xs)
+}
+
+func test2() {
+  ghost xs := seq(seq(seq(seq[int] { 1, 2 })))
+  assert xs == seq[int] { 1:2, 0:1 }
+}
+
+ensures xs == ys;
+func test3(ghost xs seq[int]) (ghost ys seq[int]) {
+  ys = seq(xs)
+}
+
+func test4(ghost xs seq[bool]) {
+  assert len(xs) == len(seq(xs))
+}
+
+ensures len(xs ++ ys) == len(seq(xs ++ ys));
+func test5(ghost xs seq[bool], ghost ys seq[bool]) {
+  assert len(seq(xs ++ ys)) == len(seq(xs)) + len(seq(ys))
+}

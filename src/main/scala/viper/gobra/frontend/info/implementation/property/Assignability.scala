@@ -61,7 +61,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
-    case PIndexedExp(b, _) if exprType(b).isInstanceOf[MapT] => true
+    case PIndexedExp(b, _) => exprType(b) match {
+      case _: ArrayT => assignable(b)
+      case _: MapT => true
+      case _ => false
+    }
     case e => goAddressable(e)
   }
 
@@ -126,7 +130,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and
             areAllKeysWithinBounds(elems, len) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t) and
+            areTheNrOfElementsAsExpected(elems, len)
 
         case SliceT(t) =>
           areAllKeysConstant(elems) and
@@ -162,6 +167,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   private def areAllKeysConstant(elems : Vector[PKeyedElement]) : PropertyResult = {
     val condition = elems.flatMap(_.key).exists {
       case PExpCompositeVal(exp) => intConstantEval(exp).isEmpty
+      case PIdentifierKey(id) => intConstantEval(PNamedOperand(id)).isEmpty
       case _ => true
     }
     failedProp("expected integers as keys in the literal", condition)
@@ -172,6 +178,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   private def areAllElementsKeyed(elems : Vector[PKeyedElement]) : PropertyResult =
     failedProp("all elements in the literal must be keyed", elems.exists(_.key.isEmpty))
+
+  private def areTheNrOfElementsAsExpected(elems : Vector[PKeyedElement], expectedLength : BigInt) : PropertyResult =
+    failedProp(s"expected $expectedLength element(s) in the literal, yet found ${elems.length}", elems.length != expectedLength)
 
   private def areAllKeysDisjoint(elems : Vector[PKeyedElement]) : PropertyResult = {
     val indices = keyElementIndices(elems)
@@ -193,6 +202,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt] = {
     elems.map(_.key).zipWithIndex.map {
       case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
+      case (Some(PIdentifierKey(id)), i) => intConstantEval(PNamedOperand(id)).getOrElse(BigInt(i))
       case (_, i) => BigInt(i)
     }
   }

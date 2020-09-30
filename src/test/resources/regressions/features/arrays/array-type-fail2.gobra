@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo(a [12]int) {
+	var b [42]int
+	//:: ExpectedOutput(type_error)
+	b = a
+}

@@ -278,11 +278,12 @@ object Parser {
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
+      "len", "cap",
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection", "setminus", "subset", "mset", "len"
+      "intersection", "setminus", "subset", "mset"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -669,11 +670,15 @@ object Parser {
         receiveExp |
         unfolding |
         len |
+        cap |
         ghostUnaryExp |
         primaryExp
 
     lazy val len : Parser[PLength] =
       "len" ~> ("(" ~> expression <~ ")") ^^ PLength
+
+    lazy val cap : Parser[PCapacity] =
+      "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -688,9 +693,16 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality |
-        "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion |
-        "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
+      "|" ~> expression <~ "|" ^^ PCardinality
+
+    lazy val sequenceConversion : Parser[PSequenceConversion] =
+      "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
+
+    lazy val setConversion : Parser[PSetConversion] =
+      "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
+
+    lazy val multisetConversion : Parser[PMultisetConversion] =
+      "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
       conversion |
@@ -702,7 +714,6 @@ object Parser {
         typeAssertion |
         ghostPrimaryExp |
         operand
-
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
@@ -894,6 +905,7 @@ object Parser {
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
 
+
     /**
       * Misc
       */
@@ -1030,7 +1042,10 @@ object Parser {
         access |
         rangeSequence |
         rangeSet |
-        rangeMultiset
+        rangeMultiset |
+        sequenceConversion |
+        setConversion |
+        multisetConversion
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall

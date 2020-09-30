@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires 4 < i
+func foo(i int) {
+	//:: ExpectedOutput(assignment_error:seq_index_exceeds_length_error)
+	n := ([4]int{1, 2, 3, 4})[i]
+}

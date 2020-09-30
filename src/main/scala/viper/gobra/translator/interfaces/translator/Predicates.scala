@@ -9,10 +9,12 @@ package viper.gobra.translator.interfaces.translator
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
-import viper.gobra.translator.util.ViperWriter.MemberWriter
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 
 abstract class Predicates extends Generator {
 
   def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
   def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
+
+  def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]
 }

@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  var a [12]int
+  // fails: sequences don't have capacities
+  //:: ExpectedOutput(type_error)
+  assert cap(a) == cap(seq(a))
+}

@@ -52,7 +52,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PRange(exp) => exprType(exp) match {
       case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
-      case PointerT(ArrayT(len, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case MapT(key, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem

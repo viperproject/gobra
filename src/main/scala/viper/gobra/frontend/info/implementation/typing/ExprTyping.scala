@@ -319,7 +319,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       BooleanT
 
     case _: PIntLit | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
-      getEnclosingType(expr).orElse(intExprType(expr)).get
+      getEnclosingType(expr).orElse(intExprType(expr)).getOrElse(IntT(Int)) // defaults to Int if it fails to type-check
 
     case _: PLength => IntT(Int)
 
@@ -364,10 +364,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
       val typeLeft = exprType(expr.asInstanceOf[PBinaryExp].left)
       val typeRight = exprType(expr.asInstanceOf[PBinaryExp].right)
-      if (typeLeft == IntT(UntypedConst)) Some(typeRight) else
-        if (typeRight == IntT(UntypedConst)) Some(typeLeft) else
-          if (identicalTypes.apply((typeLeft, typeRight))) Some(typeLeft)
-          else violation(s"invalid operation $expr (mismatched types $typeLeft and $typeRight)")
+      typeMerge(typeLeft, typeRight)
 
     case _ => None
   }

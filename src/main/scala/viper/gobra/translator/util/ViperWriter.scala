@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.util
 
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer}
@@ -6,9 +12,9 @@ import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
+import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
-
 
 object ViperWriter {
 
@@ -97,26 +103,22 @@ object ViperWriter {
 
   // to preserve the order of stmt-like output
   sealed trait Code extends CodeKind {
-    def right: vpr.Stmt
-    def left: vpr.Stmt
     def isPure: Boolean
   }
 
-  case class Prelude(x: vpr.Stmt) extends Code {
-    override lazy val right: vpr.Stmt = x
-    override lazy val left: vpr.Stmt = x
+  case class Statement(x: vpr.Stmt) extends Code {
     override val isPure: Boolean = false
   }
 
-  case class WellDef(x: vpr.Exp) extends Code {
-    override lazy val right: vpr.Stmt = vpr.Assert(x)(x.pos, x.info, x.errT)
-    override lazy val left: vpr.Stmt = vpr.Assume(x)(x.pos, x.info, x.errT)
+  case class Assumption(x: vpr.Exp) extends Code {
+    override val isPure: Boolean = false
+  }
+
+  case class Assertion(x: vpr.Exp) extends Code {
     override val isPure: Boolean = true
   }
 
   case class Binding(v: vpr.LocalVar, e: vpr.Exp) extends Code {
-    override lazy val right: vpr.Stmt = vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
-    override lazy val left: vpr.Stmt = left
     override val isPure: Boolean = true
   }
 
@@ -124,9 +126,48 @@ object ViperWriter {
                       global: Vector[vpr.Declaration],
                       local: Vector[vpr.Declaration],
                       code: Vector[Code]
-                    ) extends DataSum {
-    lazy val left: Vector[vpr.Stmt] = code.map(_.left)
-    lazy val right: Vector[vpr.Stmt] = code.map(_.right)
+                    ) extends DataSum
+  {
+    def asStatement(body: vpr.Stmt): (vpr.Seqn, Vector[vpr.Declaration]) = {
+      val codeStmts = code map {
+        case Statement(x) => x
+        case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
+        case Assertion(x) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
+      }
+
+      val stmt = vpr.Seqn(codeStmts :+ body, local)()
+      (stmt, global)
+    }
+
+    def asStatement: (vpr.Seqn, Vector[vpr.Declaration]) = {
+      val codeStmts = code map {
+        case Statement(x) => x
+        case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
+        case Assertion(x) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
+      }
+
+      val stmt = vpr.Seqn(codeStmts, local)()
+      (stmt, global)
+    }
+
+    def asExpr(body: vpr.Exp, ctx: Context): (vpr.Exp, Vector[vpr.Declaration], Vector[vpr.Declaration]) = {
+
+      val codeExpr = code.foldRight(body){ case (x, w) =>
+        x match {
+          case _: Statement | _: Assumption => Violation.violation(s"expected pure term, but got $x")
+
+          case Binding(v, e) =>
+            vpr.Let(ViperUtil.toVarDecl(v), e, w)(w.pos, w.info, w.errT) // let lhs = rhs in e
+
+          case Assertion(a) =>
+            vpr.And(ctx.condition.assert(a), w)(w.pos, w.info, w.errT) // Maybe use inhaleExhaleExp instead
+        }
+      }
+
+      (codeExpr, local, global)
+    }
   }
 
   case object CodeKindCompanion extends DataKindCompanion[CodeKind, CodeSum] {
@@ -219,6 +260,14 @@ object ViperWriter {
 
   case object MemberLevel extends LeveledViperWriter[MemberKind, MemberSum](MemberKindCompanion) {
 
+    def pure(w: CodeLevel.Writer[vpr.Exp])(ctx: Context): MemberLevel.Writer[vpr.Exp] = {
+      val (codeSum, remainder, r) = w.execute
+      require(codeSum.code.forall(_.isPure))
+
+      val newR = codeSum.asExpr(r, ctx)._1
+      MemberLevel.create(remainder, newR)
+    }
+
     def split[R](w: CodeLevel.Writer[R]): Writer[(R, CodeLevel.Writer[Unit])] = {
       val (codeData, remainder) = w.sum.split
       create(remainder, (w.res, w.copy(codeData, ())))
@@ -226,7 +275,8 @@ object ViperWriter {
 
     def block(w: CodeLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
       val (codeSum, remainder, r) = w.execute
-      val newR = vpr.Seqn(codeSum.code.map(_.right) :+ r, codeSum.local ++ codeSum.global)(r.pos, r.info, r.errT)
+      val (codeStmt, globals) = codeSum.asStatement(r)
+      val newR = vpr.Seqn(Vector(codeStmt), globals)(r.pos, r.info, r.errT)
       create(remainder, newR)
     }
 
@@ -243,59 +293,40 @@ object ViperWriter {
 
   case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
-    def assumeUnit[R](w: Writer[R]): MemberLevel.Writer[vpr.Exp] = assumeExp(w.map(_ => vpr.TrueLit()()))
-    def assertUnit[R](w: Writer[R]): MemberLevel.Writer[vpr.Exp] = assertExp(w.map(_ => vpr.TrueLit()()))
-
-    def assumeExp(w: Writer[vpr.Exp]): MemberLevel.Writer[vpr.Exp] = pure(w, assume = true)
-    def assertExp(w: Writer[vpr.Exp]): MemberLevel.Writer[vpr.Exp] = pure(w)
-
-    def withoutWellDef[R](w: Writer[R]): Writer[R] = {
-      val newCode = w.sum.data.filter(!_.isInstanceOf[WellDef])
-      val newData = w.sum.copy(data = newCode)
-      w.copy(newData)
-    }
-
-    def pure(w: Writer[vpr.Exp], assume: Boolean = false): MemberLevel.Writer[vpr.Exp] = {
-      val (codeSum, remainder, r) = w.execute
-      require(codeSum.code.forall(_.isPure))
-      val newR = codeSum.code.foldRight(r){
-        case (WellDef(c), e) =>
-          if (assume) vpr.Implies(c, e)(e.pos, e.info, e.errT) // c => e
-          else vpr.And(c, e)(e.pos, e.info, e.errT) // c && e
-
-        case (Binding(lhs, rhs), e) =>
-          vpr.Let(ViperUtil.toVarDecl(lhs), rhs, e)(e.pos, e.info, e.errT) // let lhs = rhs in e
-
-        case _ => Violation.violation(s"pure expected but impure output found (writer = ($codeSum, $remainder, $r))")
+    def pure(w: Writer[vpr.Exp])(ctx: Context): Writer[vpr.Exp] = {
+      move(w){ s => r =>
+        require(s.code.forall(_.isPure))
+        val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
+        val newR = s.asExpr(r, ctx)._1
+        (newSum, newR)
       }
-      MemberLevel.create(remainder, newR)
     }
 
-    def seqns(ws: Vector[Writer[vpr.Stmt]], assume: Boolean = false): Writer[vpr.Seqn] =
-      sequence(ws.map(seqn(_, assume))).map(vpr.Seqn(_, Vector.empty)())
+    def seqns(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =
+      sequence(ws.map(seqn)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqn(w: Writer[vpr.Stmt], assume: Boolean = false): Writer[vpr.Seqn] =
+    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
       move(w){ s => r =>
         val newSum = s.copy(local = Vector.empty, code = Vector.empty)
-        val code = if (assume) s.left else s.right
-        (newSum, vpr.Seqn(code :+ r, s.local)(r.pos, r.info, r.errT))
+        val code = s.asStatement(r)._1
+        (newSum, code)
       }
 
     def seqnUnits(ws: Vector[Writer[Unit]], assume: Boolean = false): Writer[vpr.Seqn] =
-      sequence(ws.map(seqnUnit(_, assume))).map(vpr.Seqn(_, Vector.empty)())
+      sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqnUnit(w: Writer[Unit], assume: Boolean = false): Writer[vpr.Seqn] =
+    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] =
       move(w){ s => _ =>
         val newSum = s.copy(local = Vector.empty, code = Vector.empty)
-        val code = if (assume) s.left else s.right
-        (newSum, vpr.Seqn(code, s.local)())
+        val code = s.asStatement._1
+        (newSum, code)
       }
 
-    def block(w: Writer[vpr.Stmt], assume: Boolean = false): Writer[vpr.Seqn] =
+    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
       move(w){ s => r =>
         val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
-        val code = if (assume) s.left else s.right
-        (newSum, vpr.Seqn(code :+ r, s.local ++ s.global)(r.pos, r.info, r.errT))
+        val (code, global) = s.asStatement(r)
+        (newSum, vpr.Seqn(Vector(code), global)(r.pos, r.info, r.errT))
       }
 
     def split[R](w: Writer[R]): Writer[(Writer[Unit], R)] = {
@@ -304,13 +335,16 @@ object ViperWriter {
     }
 
     def write(stmts: vpr.Stmt*): Writer[Unit] =
-      create(stmts.toVector.map(Prelude), ())
+      create(stmts.toVector.map(Statement), ())
+
+    def assume(cond: vpr.Exp*): Writer[Unit] =
+      create(cond.toVector.map(Assumption), ())
 
     def bind(lhs: vpr.LocalVar, rhs: vpr.Exp): Writer[Unit] =
       create(Vector(Binding(lhs, rhs)), ())
 
-    def wellDef(cond: vpr.Exp*): Writer[Unit] =
-      create(cond.toVector.map(WellDef), ())
+    def assert(cond: vpr.Exp*): Writer[Unit] =
+      create(cond.toVector.map(Assertion), ())
 
     def local(locals: vpr.Declaration*): Writer[Unit] =
       create(locals.toVector.map(Local), ())
@@ -335,4 +369,45 @@ object ViperWriter {
 
   type CodeWriter[R] = CodeLevel.Writer[R]
 
+
+  /* ** Utilities */
+
+  /**
+    * Yields the first `vpr.Position` in `xs` that is
+    * not equal to `vpr.NoPosition`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprPosition(xs : Vector[vpr.Exp]) : vpr.Position = xs match {
+    case Vector() => vpr.NoPosition
+    case e +: es => e.pos match {
+      case vpr.NoPosition => vprPosition(es)
+      case pos => pos
+    }
+  }
+
+  /**
+    * Yields the first `vpr.Info` in `xs` that is
+    * not equal to `vpr.NoInfo`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprInfo(xs : Vector[vpr.Exp]) : vpr.Info = xs match {
+    case Vector() => vpr.NoInfo
+    case e +: es => e.info match {
+      case vpr.NoInfo => vprInfo(es)
+      case info => info
+    }
+  }
+
+  /**
+    * Yields the first `vpr.ErrorTrafo` in `xs` that is
+    * not equal to `vpr.NoTrafos`. If no such element exists,
+    * then `vpr.NoPosition` is returned instead.
+    */
+  private def vprErrorTrafo(xs : Vector[vpr.Exp]) : vpr.ErrorTrafo = xs match {
+    case Vector() => vpr.NoTrafos
+    case e +: es => e.errT match {
+      case vpr.NoTrafos => vprErrorTrafo(es)
+      case trafo => trafo
+    }
+  }
 }

@@ -1,3 +1,5 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
 
 package pkg
 
@@ -39,7 +41,7 @@ func indirectAddressability() {
 }
 
 func bar() {
-    x := cell{42}
+    x! := cell{42}
     p := &x.val
     *p = 17
     assert x.val == 17

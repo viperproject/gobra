@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
@@ -25,11 +31,17 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
-
     case _: PBoolType | _: PIntType => noMessages
 
-    case n@PArrayType(len, t) =>
-      message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty) ++ isType(t).out
+    case typ @ PArrayType(_, PNamedOperand(_)) =>
+      message(typ, s"arrays of custom declared types are currently not supported")
+
+    case n @ PArrayType(len, t) => isType(t).out ++ {
+      intConstantEval(len) match {
+        case None => message(n, s"expected constant array length, but got $len")
+        case Some(v) => message(len, s"array length should be positive, but got $v", v < 0)
+      }
+    }
 
     case n: PSliceType => isType(n.elem).out
     case n: PBiChannelType => isType(n.elem).out
@@ -64,7 +76,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)
-      violation(lenOpt.isDefined, s"expected constant expression but got $len")
+      violation(lenOpt.isDefined, s"expected constant expression, but got $len")
       ArrayT(lenOpt.get, typeType(elem))
 
     case PSliceType(elem) => SliceT(typeType(elem))

@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
@@ -46,7 +52,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PRange(exp) => exprType(exp) match {
       case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
-      case PointerT(ArrayT(len, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case MapT(key, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem

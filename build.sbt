@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 import scala.sys.process.Process
 import scala.util.Try
 
@@ -19,7 +25,7 @@ lazy val gobra = (project in file("."))
     name := "Gobra",
     organization := "viper",
     version := "0.1.0-SNAPSHOT",
-    homepage := Some(url("https://bitbucket.org/mschwerhoff/voila")), // TODO: update link to correct repository
+    homepage := Some(url("https://github.com/viperproject/gobra")),
     licenses := Seq("MPL-2.0 License" -> url("https://opensource.org/licenses/MPL-2.0")),
 
     // Compilation settings

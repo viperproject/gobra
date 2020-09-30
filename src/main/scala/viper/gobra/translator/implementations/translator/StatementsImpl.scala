@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
@@ -6,6 +12,7 @@ import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -20,18 +27,21 @@ class StatementsImpl extends Statements {
 
   override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
 
-    val (pos, info, errT) = x.vprMeta
+    val typEncodingOptRes = ctx.typeEncoding.statement(ctx).lift(x)
+    if (typEncodingOptRes.isDefined) return typEncodingOptRes.get map (s => stmtComment(x, s))
 
+
+    val (pos, info, errT) = x.vprMeta
 
     def goS(s: in.Stmt): CodeWriter[vpr.Stmt] = translate(s)(ctx)
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
-        val (vDeclss, inits) = decls.map(ctx.loc.localDecl(_)(ctx)).unzip
-        val vDecls = vDeclss.flatten
+        val inits = decls collect { case x: in.BodyVar => ctx.typeEncoding.initialization(ctx)(x) }
+        val vDecls = decls map (blockDecl(_)(ctx))
         block{
           for {
             _ <- global(vDecls: _*)
@@ -66,37 +76,34 @@ class StatementsImpl extends Statements {
           ))(pos, info, errT)
         } yield wh
 
-      case ass: in.SingleAss => ctx.loc.assignment(ass)(ctx)
-      case mk: in.Make => ctx.loc.make(mk)(ctx)
+      case ass: in.SingleAss => ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)
 
       case in.FunctionCall(targets, func, args) =>
         for {
-          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
-          vTargetss <- sequence(targets map (t => sequence(ctx.loc.values(t)(ctx))))
-          vTargets = vTargetss.flatten
+          vArgss <- sequence(args map goE)
+          vTargets <- sequence(targets map goE)
           // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
           // Therefore, we introduce auxiliary variables and
           // add an assignment from the auxiliary variables to the actual targets
           (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
           (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
           _ <- local(auxTargetDecls: _*)
-          _ <- write(vpr.MethodCall(func.name, vArgss.flatten, vUsedTargets)(pos, info, errT))
+          _ <- write(vpr.MethodCall(func.name, vArgss, vUsedTargets)(pos, info, errT))
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
       case in.MethodCall(targets, recv, meth, args) =>
         for {
-          vRecvs <- sequence(ctx.loc.values(recv)(ctx))
-          vArgss <- sequence(args map (a => sequence(ctx.loc.values(a)(ctx))))
-          vTargetss <- sequence(targets map (t => sequence(ctx.loc.values(t)(ctx))))
-          vTargets = vTargetss.flatten
+          vRecv <- goE(recv)
+          vArgss <- sequence(args map goE)
+          vTargets <- sequence(targets map goE)
           // vTargets can be field-accesses, but a MethodCall in Viper requires variables as targets.
           // Therefore, we introduce auxiliary variables and
           // add an assignment from the auxiliary variables to the actual targets
           (vUsedTargets, auxTargetsWithAssignment) = vTargets.map(viperTarget).unzip
           (auxTargetDecls, backAssignments) = auxTargetsWithAssignment.flatten.unzip
           _ <- local(auxTargetDecls: _*)
-          _ <- write(vpr.MethodCall(meth.uniqueName, vRecvs ++ vArgss.flatten, vUsedTargets)(pos, info, errT))
+          _ <- write(vpr.MethodCall(meth.uniqueName, vRecv +: vArgss, vUsedTargets)(pos, info, errT))
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
@@ -105,12 +112,12 @@ class StatementsImpl extends Statements {
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)
       case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)(pos, info, errT)
 
-      case fold: in.Fold => for {a <- ctx.loc.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)(pos, info, errT)
-      case unfold: in.Unfold => for { a <- ctx.loc.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
+      case fold: in.Fold => for {a <- ctx.predicate.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)(pos, info, errT)
+      case unfold: in.Unfold => for { a <- ctx.predicate.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 
-
+      case _ => Violation.violation(s"Statement $x did not match with any implemented case.")
     }
 
     vprStmt map (s => stmtComment(x, s))
@@ -130,6 +137,12 @@ class StatementsImpl extends Statements {
     x match {
       case _: in.Seqn => res
       case _ => Comments.prependComment(x.formattedShort, res)
+    }
+  }
+
+  def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {
+    x match {
+      case x: in.BodyVar => ctx.typeEncoding.variable(ctx)(x)
     }
   }
 

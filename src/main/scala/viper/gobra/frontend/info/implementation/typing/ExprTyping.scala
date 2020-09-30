@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
@@ -234,10 +240,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
-    case PLength(op) => isExpr(op).out ++ isPureExpr(op) ++ {
-      val typ = exprType(op)
-      // currently only sequences are supported
-      message(op, s"expected a sequence type, but got $typ", !typ.isInstanceOf[SequenceT])
+    case PLength(op) => isExpr(op).out ++ {
+      exprType(op) match {
+        case _: ArrayT => noMessages
+        case _: SequenceT => isPureExpr(op)
+        case typ => message(op, s"expected an array or sequence type, but got $typ")
+      }
+    }
+
+    case PCapacity(op) => isExpr(op).out ++ {
+      exprType(op) match {
+        case typ => message(op, s"expected an array type, but got $typ", !typ.isInstanceOf[ArrayT])
+      }
     }
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
@@ -306,7 +320,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength => IntT
+    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PLength | _: PCapacity => IntT
 
     case n: PUnfolding => exprType(n.op)
 

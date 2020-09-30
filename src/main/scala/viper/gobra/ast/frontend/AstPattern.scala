@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.ast.frontend
 
 import viper.gobra.frontend.info.base.{SymbolTable => st}
@@ -24,6 +30,7 @@ object AstPattern {
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
+  case class IndexedExp(base : PExpression, index : PExpression) extends Expr
 
   sealed trait FunctionKind extends Expr
 

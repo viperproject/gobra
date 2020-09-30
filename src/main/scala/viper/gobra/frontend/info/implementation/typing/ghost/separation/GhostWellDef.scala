@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
@@ -39,11 +45,17 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case _: PGhostStatement => noMessages
     case s if enclosingGhostContext(s) => noMessages
 
+    case stmt @ PForStmt(pre, cond, post, _, body) => {
+      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
+      val ghostChildFound = Seq(pre, post, Some(cond), Some(body)).flatten.map(noGhostPropagationFromChildren)
+      message(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
+    }
+
     case _: PLabeledStmt
-         |  _: PEmptyStmt
-         |  _: PBlock
-         |  _: PSeq
-         |  _: PExpressionStmt
+      |  _: PEmptyStmt
+      |  _: PBlock
+      |  _: PSeq
+      |  _: PExpressionStmt
     => noMessages
 
     case n@ (
@@ -51,7 +63,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PIfStmt
       |  _: PExprSwitchStmt
       |  _: PTypeSwitchStmt
-      |  _: PForStmt
       |  _: PAssForRange
       |  _: PShortForRange
       |  _: PGoStmt
@@ -88,6 +99,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PBinaryExp
        | _: PUnfolding
        | _: PLength
+       | _: PCapacity
        | _: PLiteral
     => noMessages
 

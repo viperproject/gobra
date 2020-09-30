@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend
 
 import java.io.File
@@ -17,7 +23,8 @@ object PackageResolver {
     * Resolves a package name (i.e. import path) to specific input files
     * @param importPath relative import path that should be resolved
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @return list of files belonging to the package (right) or an error message (left)
+    * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
+    *         or the directory contains input files having different package clauses
     */
   def resolve(importPath: String, includeDirs: Vector[File]): Either[String, Vector[File]] = {
     for {
@@ -31,7 +38,13 @@ object PackageResolver {
   }
 
   /**
-    * Returns the qualifier with which members of the imported package can be accessed (right) or an error message (left)
+    * Similar to `resolve` but returns the package name of the files instead of the files themselves.
+    * The returned package name can be used as qualifier for the implicitly qualified import.
+    *
+    * @param n implicitely qualified import for which a qualifier should be resolved
+    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
+    * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
+    *         if no directory could be found or the directory contains input files having different package clauses
     */
   def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
     for {

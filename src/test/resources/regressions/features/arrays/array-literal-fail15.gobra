@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const ONE = 1
+
+func foo() {
+	//:: ExpectedOutput(type_error)
+	a := [ONE]int{12, 24}
+}

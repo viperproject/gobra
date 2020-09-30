@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
@@ -14,6 +20,7 @@ import viper.silver.{ast => vpr}
 class AssertionsImpl extends Assertions {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.gobra.translator.util.ViperWriter.{MemberLevel => MemL}
 
   override def finalize(col: Collector): Unit = ()
 
@@ -23,17 +30,22 @@ class AssertionsImpl extends Assertions {
 
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typ.translate(t)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     val ret = ass match {
       case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)(pos, info, errT)
       case in.ExprAssertion(e) => goE(e)
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
-      case acc: in.Access => ctx.loc.access(acc)(ctx)
+      case acc: in.Access =>
+        acc.e match {
+          case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(op)(ctx)
+          case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op)
+        }
 
-      case in.SepForall(vars, triggers, body) => {
-        val (decls, _) = vars.map(ctx.loc.parameter(_)(ctx)).unzip
-        val newVars = decls.flatten
+
+
+      case in.SepForall(vars, triggers, body) =>
+        val newVars = vars map ctx.typeEncoding.variable(ctx)
 
         for {
           newTriggers <- sequence(triggers map (ctx.expr.trigger(_)(ctx)))
@@ -43,7 +55,6 @@ class AssertionsImpl extends Assertions {
           triggeredForall = desugaredForall.map(_.autoTrigger)
           reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
         } yield reducedForall
-      }
     }
 
     ret
@@ -77,7 +88,7 @@ class AssertionsImpl extends Assertions {
     } yield contract
   }
 
-  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assumeExp(contract(x)(ctx))
+  override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
 
-  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = assertExp(contract(x)(ctx))
+  override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
 }

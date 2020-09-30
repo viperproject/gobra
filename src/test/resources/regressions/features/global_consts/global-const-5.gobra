@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const PreConst = MiddleConst
+const MiddleConst = 42
+const PostConst = MiddleConst
+
+func client() {
+    assert PreConst == MiddleConst
+    assert MiddleConst == PostConst
+    assert PostConst == 42
+}

@@ -1,8 +1,15 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.ast.internal
 
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.theory.Addressability
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
@@ -157,7 +164,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
-    case Field(name, typ) => "field" <> name <> ":" <+> showType(typ)
+    case Field(name, typ, ghost) => "field" <> name <> ":" <+> showType(typ)
   })
 
   def showTypeDecl(t: DefinedT): Doc =
@@ -175,7 +182,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
-    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls) <> line <> showStmtList(stmts)
+    case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
@@ -210,10 +217,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MPredicateProxy(name, _) => name
   })
 
-  def showBottomDecl(x: BottomDeclaration): Doc = x match {
-    case bvar: BoundVar => showVar(bvar)
-    case localVar: LocalVar => showVar(localVar)
-    case outParam: Parameter.Out => showVar(outParam)
+  def showBlockDecl(x: BlockDeclaration): Doc = x match {
+    case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
+  }
+
+  def showAddressability(x: Addressability): Doc = x match {
+    case Addressability.Shared => "@"
+    case Addressability.Exclusive => "°"
   }
 
   protected def showStmtList[T <: Stmt](list: Vector[T]): Doc =
@@ -225,8 +235,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showVarDeclList[T <: Var](list: Vector[T]): Doc =
     showList(list)(showVarDecl)
 
-  protected def showBottomDeclList[T <: BottomDeclaration](list: Vector[T]): Doc =
-    showList(list)(showBottomDecl)
+  protected def showBlockDeclList[T <: BlockDeclaration](list: Vector[T]): Doc =
+    showList(list)(showBlockDecl)
 
   protected def showAssigneeList[T <: Assignee](list: Vector[T]): Doc =
     showList(list)(showAssignee)
@@ -238,6 +248,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Var(v) => showVar(v)
     case Assignee.Pointer(e) => showExpr(e)
     case Assignee.Field(f) => showExpr(f)
+    case Assignee.Index(e) => showExpr(e)
   })
 
   def showCompositeObject(co: CompositeObject): Doc = updatePositionStore(co) <> showLit(co.op)
@@ -254,8 +265,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
-    case Accessible.Pointer(der) => showExpr(der)
-    case Accessible.Field(op) => showExpr(op)
+    case Accessible.Address(der) => showExpr(der)
     case Accessible.Predicate(op) => showPredicateAcc(op)
   })
 
@@ -273,7 +283,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Old(op) => "old(" <> showExpr(op) <> ")"
+    case Old(op, _) => "old(" <> showExpr(op) <> ")"
 
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
@@ -289,23 +299,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
 
-    case SequenceLength(op) => "|" <> showExpr(op) <> "|"
+    case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+    case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
+    case Length(exp) => "len" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
-    case SequenceIndex(left, right) => showExpr(left) <> brackets(showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
-    case SetConversion(exp) => "set" <> "(" <> showExpr(exp) <> ")"
+    case SequenceConversion(exp) => "seq" <> parens(showExpr(exp))
+    case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
-    case MultisetConversion(exp) => "mset" <> "(" <> showExpr(exp) <> ")"
+    case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
     case Ref(ref, typ) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
+    case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
@@ -323,7 +336,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showLit(l: Lit): Doc = l match {
     case IntLit(v) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
-    case NilLit() => "nil"
+    case NilLit(t) => parens("nil" <> ":" <> showType(t))
+
+    case ArrayLit(typ, exprs) => {
+      val lenP = brackets(exprs.length.toString)
+      val typP = showType(typ)
+      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      lenP <> typP <+> exprsP
+    }
+
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
@@ -336,9 +357,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoundVar(id, _) => id
     case Parameter.In(id, _)    => id
     case Parameter.Out(id, _)    => id
-    case LocalVar.Ref(id, _) => id
-    case LocalVar.Val(id, _) => id
-    case LocalVar.Inter(id, _) => id
+    case LocalVar(id, _) => id
     case GlobalConst.Val(id, _) => id
   }
 
@@ -346,27 +365,25 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoundVar(id, t) => id <> ":" <+> showType(t)
     case Parameter.In(id, t)    => id <> ":" <+> showType(t)
     case Parameter.Out(id, t)    => id <> ":" <+> showType(t)
-    case LocalVar.Ref(id, t) => id <> ":" <+> "!" <> showType(t)
-    case LocalVar.Val(id, t) => id <> ":" <+> showType(t)
-    case LocalVar.Inter(id, t) => id <> ":" <+> "?" <> showType(t)
+    case LocalVar(id, t) => id <> ":" <+> showType(t)
     case GlobalConst.Val(id, t) => id <> ":" <+> showType(t)
   }
 
   // types
 
   def showType(typ : Type) : Doc = typ match {
-    case BoolT => "bool"
-    case IntT => "int"
+    case BoolT(_) => "bool"
+    case IntT(_) => "int"
     case VoidT => "void"
-    case NilT => "nil"
-    case PermissionT => "perm"
-    case DefinedT(name) => name
-    case PointerT(t) => "*" <> showType(t)
-    case TupleT(ts) => parens(showTypeList(ts))
+    case PermissionT(_) => "perm"
+    case DefinedT(name, _) => name
+    case PointerT(t, _) => "*" <> showType(t)
+    case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case SequenceT(elem) => "seq" <> brackets(showType(elem))
-    case SetT(elem) => "set" <> brackets(showType(elem))
-    case MultisetT(elem) => "mset" <> brackets(showType(elem))
+    case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
+    case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
+    case SetT(elem, _) => "set" <> brackets(showType(elem))
+    case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =
@@ -422,7 +439,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
-    case Block(decls, stmts) => "decl" <+> showBottomDeclList(decls)
+    case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls)
     case Seqn(stmts) => emptyDoc
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>

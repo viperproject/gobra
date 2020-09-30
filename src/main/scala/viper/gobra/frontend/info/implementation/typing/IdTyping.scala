@@ -30,12 +30,14 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Returns true if n or any of its children (in the current package) have an entity that corresponds to one in the set e
+    * Returns true if n or any of its children (in the current package) has an entity that is contained in the set e
     */
   private def isNotCyclic(n: PNode, e: Set[Entity]): ValidityMessages = LocalMessages(message(n, s"got cyclic structure starting at $n", n match {
     case n: PIdnNode => entity(n) match {
       case r if e.contains(r) => true
-      case SingleConstant(_, _, _, _, _, ctx) if this != ctx => false // we do not follow the evaluation into different packages
+      // we do not follow the evaluation into different packages, because the other package cannot point back to the
+      // current one as import cycles are not allowed:
+      case SingleConstant(_, _, _, _, _, ctx) if this != ctx => false
       case r@SingleConstant(_, _, exp, _, _, _) => !isNotCyclic(exp, e + r).valid
       case _ => false
     }

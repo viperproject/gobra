@@ -319,7 +319,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       BooleanT
 
     case _: PIntLit | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
-      getEnclosingType(expr).orElse(intExprType(expr)).getOrElse(IntT(Int)) // defaults to Int if it fails to type-check
+      val exprNum = expr.asInstanceOf[PNumExpression]
+      val typ = intExprType(exprNum)
+      if (typ == IntT(UntypedConst)) getDefaultType(exprNum).getOrElse(typ) else typ
 
     case _: PLength => IntT(Int)
 
@@ -330,8 +332,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"unexpected expression $e")
   }
 
-  private def getEnclosingType(expr: PActualExpression): Option[Type] = {
-    val parents: Vector[PNode] = tree.parent(expr)
+  private def getDefaultType(expr: PNumExpression): Option[Type] = {
+    val parents: Vector[PNode] = tree.parent(expr.asInstanceOf[PActualExpression])
 
     if (parents.isEmpty) {
       return None
@@ -343,30 +345,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     parent match {
       case PShortVarDecl(_, _, _) =>
-        if (intExprType(expr).contains(IntT(UntypedConst)))
           Some(IntT(Int))
-        else
-          None
-
-      case PConstDecl(Some(x), _, _) =>
-        if (x.isInstanceOf[PIntegerType] && intExprType(expr).contains(IntT(UntypedConst)))
-          Some(typeType(x))
-        else
-          None
 
       case _ => None
     }
   }
 
-  private def intExprType(expr: PExpression): Option[Type] = expr match {
-    case _: PIntLit => Some(IntT(UntypedConst))
+  private def intExprType(expr: PNumExpression): Type = expr match {
+    case _: PIntLit => IntT(UntypedConst)
 
-    case _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
-      val typeLeft = exprType(expr.asInstanceOf[PBinaryExp].left)
-      val typeRight = exprType(expr.asInstanceOf[PBinaryExp].right)
-      typeMerge(typeLeft, typeRight)
-
-    case _ => None
+    case bExpr: PBinaryExp =>
+      val typeLeft = exprType(bExpr.left)
+      val typeRight = exprType(bExpr.right)
+      typeMerge(typeLeft, typeRight).getOrElse(IntT(Int))
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

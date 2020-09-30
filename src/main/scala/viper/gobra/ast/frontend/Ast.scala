@@ -326,11 +326,13 @@ object PLiteral {
   )
 }
 
+sealed trait PNumExpression
+
 sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral
+case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -423,15 +425,15 @@ case class PGreater(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class PAtLeast(left: PExpression, right: PExpression) extends PBinaryExp
 
-case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp
+case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PSub(left: PExpression, right: PExpression) extends PBinaryExp
+case class PSub(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PMul(left: PExpression, right: PExpression) extends PBinaryExp
+case class PMul(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PMod(left: PExpression, right: PExpression) extends PBinaryExp
+case class PMod(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
+case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {

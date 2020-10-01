@@ -1,0 +1,20 @@
+package ints
+
+func shortAss1() {
+	x := 7
+
+	// If the default type of x is correctly attributed (i.e. it is int), this should fail
+	//:: ExpectedOutput(type_error)
+	sq1 := squareInt32(x)
+
+	sq2 := squareInt(x)
+	assert sq2 == 49
+}
+
+func squareInt(x int) int {
+	return x * x
+}
+
+func squareInt32(x int32) int32 {
+	return x * x
+}

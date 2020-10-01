@@ -357,7 +357,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case bExpr: PBinaryExp =>
       val typeLeft = exprType(bExpr.left)
       val typeRight = exprType(bExpr.right)
-      typeMerge(typeLeft, typeRight).getOrElse(IntT(Int))
+      typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

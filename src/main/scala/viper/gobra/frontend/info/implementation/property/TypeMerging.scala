@@ -21,8 +21,8 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
       case (Single(lst), Single(rst)) =>
         if (identicalTypes(lst, rst)) Some(lst) else {
           (lst, rst) match {
-            case (a@IntT(_), IntT(UntypedConst)) => Some(a)
-            case (IntT(UntypedConst), b@IntT(_)) => Some(b)
+            case (a, IntT(UntypedConst)) if underlyingType(a).isInstanceOf[IntT] => Some(a)
+            case (IntT(UntypedConst), b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
             case (SequenceT(l), SequenceT(r)) => for {
               typ <- typeMerge(l,r)
             } yield SequenceT(typ)

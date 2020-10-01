@@ -46,8 +46,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (IntT(UntypedConst), r) if isIntegerType(underlyingType(r)) => true
       case (l, IntT(UntypedConst)) if isIntegerType(underlyingType(l)) => true // not in spec
       case (l, r) if identicalTypes(l, r) => true
-      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
-        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+      // This rule seems to be ignored in the Go compiler
+      // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
+      //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
       case (l, r: InterfaceT) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (l, NilType) if isPointerType(l) => true // not in spec

@@ -80,7 +80,7 @@ object Info {
       // consider this: each error in an imported package is converted to an error at the import node with
       // message 'Package <pkg name> contains errors'. If the imported package contains 2 errors then only a single error
       // should be reported at the import node instead of two.
-      // however, the duplicate removal should happen after translation in order that the error position is correctly
+      // however, the duplicate removal should happen after translation so that the error position is correctly
       // taken into account for the equality check.
       val typeErrors = pkg.positions.translate(errors, TypeError).distinct
       config.reporter report TypeCheckFailureMessage(config.inputFiles.head, pkg.packageClause.id.name, () => pkg, typeErrors)

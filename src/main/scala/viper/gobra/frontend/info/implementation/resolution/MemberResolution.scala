@@ -255,7 +255,7 @@ trait MemberResolution { this: TypeInfoImpl =>
           // consider all unqualified imports for this program (not package)
           unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
           // perform a package lookup in each unqualifiedly imported package
-          results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
+          results = unqualifiedImports.flatMap(ui => tryPackageLookup(ui, id))
         } yield results
         entities match {
           case Some(Vector(elem)) => elem._1

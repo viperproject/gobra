@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Bounds
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
@@ -163,6 +164,41 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case t => failedProp(s"cannot assign literal to $t")
       }
     case (l, t) => failedProp(s"cannot assign literal $l to $t")
+  }
+
+  def assignWithinBounds: Property[(Type, PExpression)] = createFlatProperty[(Type, PExpression)] {
+    case (typ, expr) => s"constant expression $expr overflows $typ"
+  } {
+    case (typ, expr) =>
+      val constVal = intConstantEval(expr)
+      constVal.isEmpty || intValInBounds(constVal.get, typ)
+  }
+
+  private def intValInBounds(value: BigInt, typ: Type): Boolean =
+    underlyingType(typ) match {
+      case IntT(t) => t match {
+        case UntypedConst => true
+        case x =>
+          val bounds = getBoundsOfIntKind(x)
+          bounds.lower <= value && value <= bounds.upper
+      }
+
+      case _ => ???
+    }
+
+  private val getBoundsOfIntKind: IntegerKind => Bounds = {
+    case Int => Bounds.Int
+    case Int8 => Bounds.Int8
+    case Int16 => Bounds.Int16
+    case Int32 => Bounds.Int32
+    case Int64 => Bounds.Int64
+    case UInt => Bounds.UInt
+    case UInt8 => Bounds.UInt8
+    case UInt16 => Bounds.UInt16
+    case UInt32 => Bounds.UInt32
+    case UInt64 => Bounds.UInt64
+    case UIntPtr => Bounds.UIntPtr
+    case _ => ???
   }
 
   private def areAllKeysConstant(elems : Vector[PKeyedElement]) : PropertyResult = {

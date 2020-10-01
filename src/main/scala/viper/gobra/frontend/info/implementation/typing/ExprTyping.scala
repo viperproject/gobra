@@ -171,10 +171,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
           case (SequenceT(_), IntT(_)) =>
-            // TODO: revisit this part of the doc, add representability
-            // TODO: change to default implementation size instead of 32 bit
-            // val idxOpt = intConstantEval(index)
-            // message(n, s"constant $index overflows int", !idxOpt.forall(i => representableInteger(i, IntT(Some(32)))))
             noMessages
 
           case (SliceT(_), IntT(_)) =>
@@ -239,8 +235,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         ((n, exprType(n.left), exprType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv
-          , l, r) => assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n)
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
+            assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n)
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
         })
 

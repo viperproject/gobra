@@ -153,10 +153,13 @@ trait MemberResolution { this: TypeInfoImpl =>
     structMemberSet(t).lookupWithPath(id.name)
 
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
-    val typ = exprType(e)
-    val context = getMethodReceiverContext(typ)
-    if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
-    else context.tryNonAddressableMethodLikeLookup(typ, id)
+    // check whether e is well-defined:
+    if (wellDefExpr(e).valid) {
+      val typ = exprType(e)
+      val context = getMethodReceiverContext(typ)
+      if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
+      else context.tryNonAddressableMethodLikeLookup(typ, id)
+    } else None
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {

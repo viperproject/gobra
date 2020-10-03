@@ -32,18 +32,19 @@ object Type {
   case class IntT(kind: IntegerKind) extends Type
 
   sealed trait IntegerKind
-  case object Int extends IntegerKind
-  case object Int8 extends IntegerKind
-  case object Int16 extends IntegerKind
-  case object Int32 extends IntegerKind
-  case object Int64 extends IntegerKind
-  case object UInt extends IntegerKind
-  case object UInt8 extends IntegerKind
-  case object UInt16 extends IntegerKind
-  case object UInt32 extends IntegerKind
-  case object UInt64 extends IntegerKind
-  case object UIntPtr extends IntegerKind
   case object UntypedConst extends IntegerKind
+  sealed abstract class BoundedIntegerKind(val lower: BigInt, val upper: BigInt) extends IntegerKind
+  case object Int extends BoundedIntegerKind(-2147483648, 2147483647) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
+  case object Int8 extends BoundedIntegerKind(-128, 127)
+  case object Int16 extends BoundedIntegerKind(-32768, 32767)
+  case object Int32 extends BoundedIntegerKind(-2147483648, 2147483647)
+  case object Int64 extends BoundedIntegerKind(-9223372036854775808L, 9223372036854775807L)
+  case object UInt extends BoundedIntegerKind(0, 4294967295L) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
+  case object UInt8 extends BoundedIntegerKind(0, 255)
+  case object UInt16 extends BoundedIntegerKind(0, 65535)
+  case object UInt32 extends BoundedIntegerKind(0, 4294967295L)
+  case object UInt64 extends BoundedIntegerKind(0, BigInt("18446744073709551615"))
+  case object UIntPtr extends BoundedIntegerKind(0, BigInt("18446744073709551615")) //TODO: change according to spec
 
   case class ArrayT(length: BigInt, elem: Type) extends Type {
     require(length >= 0, "The length of an array must be non-negative")

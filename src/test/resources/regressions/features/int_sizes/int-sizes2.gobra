@@ -21,3 +21,20 @@ func squareInt(x int) int {
 func squareInt32(x int32) int32 {
 	return x * x
 }
+
+func aliasedTypesAss1() {
+	// All assigns in this function should pass --> uint8 and byte are aliases and
+	// consequently, one does not need casts when assigning from byte to uint8 and the other way around
+	var a byte = 1
+	var b uint8 = 2
+	a = b
+	b = a
+	// fmt.Printf("%d %d\n", a, b)
+
+	// same for int32 and rune
+	var c int32 = 1
+	var d rune = 2
+	c = d
+	d = c
+	// fmt.Printf("%d %d\n", c, d)
+}

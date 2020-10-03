@@ -472,12 +472,14 @@ case class PInt8Type() extends PPredeclaredType("int8") with PIntegerType
 case class PInt16Type() extends PPredeclaredType("int16") with PIntegerType
 case class PInt32Type() extends PPredeclaredType("int32") with PIntegerType
 case class PInt64Type() extends PPredeclaredType("int64") with PIntegerType
+case class PRune() extends PPredeclaredType("rune") with PIntegerType
 
 case class PUIntType() extends PPredeclaredType("uint") with PIntegerType
 case class PUInt8Type() extends PPredeclaredType("uint8") with PIntegerType
 case class PUInt16Type() extends PPredeclaredType("uint16") with PIntegerType
 case class PUInt32Type() extends PPredeclaredType("uint32") with PIntegerType
 case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
+case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
 // TODO: add more types

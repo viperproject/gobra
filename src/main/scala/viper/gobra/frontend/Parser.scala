@@ -874,14 +874,14 @@ object Parser {
     lazy val predeclaredType: Parser[PPredeclaredType] =
       "bool" ^^^ PBoolType() |
         // signed integer types
-        "rune" ^^^ PInt32Type() |
+        "rune" ^^^ PRune() |
         "int8" ^^^ PInt8Type() |
         "int16" ^^^ PInt16Type() |
         "int32" ^^^ PInt32Type() |
         "int64" ^^^ PInt64Type() |
         "int" ^^^ PIntType() | // 'int' must come after all 'intX' parsers, otherwise parsing will stop at 'int'
         // unsigned integer types
-        "byte" ^^^ PUInt8Type() |
+        "byte" ^^^ PByte() |
         "uint8" ^^^ PUInt8Type() |
         "uint16" ^^^ PUInt16Type() |
         "uint32" ^^^ PUInt32Type() |

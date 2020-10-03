@@ -71,11 +71,13 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInt16Type() => IntT(Int16)
     case PInt32Type() => IntT(Int32)
     case PInt64Type() => IntT(Int64)
+    case PRune() => IntT(Rune)
     case PUIntType() => IntT(UInt)
     case PUInt8Type() => IntT(UInt8)
     case PUInt16Type() => IntT(UInt16)
     case PUInt32Type() => IntT(UInt32)
     case PUInt64Type() => IntT(UInt64)
+    case PByte() => IntT(Byte)
     case PUIntPtr() => IntT(UIntPtr)
 
     case PArrayType(len, elem) =>

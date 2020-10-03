@@ -37,10 +37,14 @@ object Type {
   case object Int extends BoundedIntegerKind(-2147483648, 2147483647) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
   case object Int8 extends BoundedIntegerKind(-128, 127)
   case object Int16 extends BoundedIntegerKind(-32768, 32767)
-  case object Int32 extends BoundedIntegerKind(-2147483648, 2147483647)
+  sealed abstract class IntWith32bit extends BoundedIntegerKind(-2147483648, 2147483647)
+  case object Int32 extends IntWith32bit
+  case object Rune extends IntWith32bit
   case object Int64 extends BoundedIntegerKind(-9223372036854775808L, 9223372036854775807L)
   case object UInt extends BoundedIntegerKind(0, 4294967295L) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
-  case object UInt8 extends BoundedIntegerKind(0, 255)
+  sealed abstract class UIntWith8bit extends BoundedIntegerKind(0, 255)
+  case object UInt8 extends UIntWith8bit
+  case object Byte extends UIntWith8bit
   case object UInt16 extends BoundedIntegerKind(0, 65535)
   case object UInt32 extends BoundedIntegerKind(0, 4294967295L)
   case object UInt64 extends BoundedIntegerKind(0, BigInt("18446744073709551615"))

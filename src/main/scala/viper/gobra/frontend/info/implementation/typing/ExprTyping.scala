@@ -314,11 +314,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
+    case _: PLength => IntT(Int)
+
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
       if (typ == IntT(UntypedConst)) getDefaultType(exprNum).getOrElse(typ) else typ
-
-    case _: PLength => IntT(Int)
 
     case n: PUnfolding => exprType(n.op)
 

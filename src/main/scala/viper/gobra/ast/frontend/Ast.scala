@@ -384,7 +384,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   *
   * - Sequence: the number of elements in `exp`.
   */
-case class PLength(exp : PExpression) extends PActualExpression
+case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
 /**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",

@@ -44,10 +44,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
         // for go's types according to go's specification (mostly)
-      case (IntT(UntypedConst), r) if isIntegerType(underlyingType(r)) => true
-      case (l, IntT(UntypedConst)) if isIntegerType(underlyingType(l)) => true // not in spec
+      case (IntT(UntypedConst), r) if underlyingType(r).isInstanceOf[IntT] => true
+      // not part of Go spec, but necessary for the definition of comparability
+      case (l, IntT(UntypedConst)) if underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
-      // This rule seems to be ignored in the Go compiler
+      // this rule seems to be ignored in the Go compiler
       // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
       case (l, r: InterfaceT) if implements(l, r) => true

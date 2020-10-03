@@ -13,8 +13,6 @@ case object Bounds {
   val UInt8: Bounds = Bounds(0, 255)
   val UInt16: Bounds = Bounds(0, 65535)
   val UInt32: Bounds = Bounds(0, 4294967295L)
-  val UInt64: Bounds = Bounds(0, 4294967295L * 4294967295L) // Cannot represent the upper bound as a literal
-  val UIntPtr: Bounds = Bounds(0, 4294967295L + 4294967295L) //TODO: change according to spec
-  // val UInt64: Bounds = Bounds(0, 18446744073709551615L)
-  // val UIntPtr: Bounds = Bounds(0, 18446744073709551615L)
+  val UInt64: Bounds = Bounds(0, BigInt("18446744073709551615"))
+  val UIntPtr: Bounds = Bounds(0, BigInt("18446744073709551615")) //TODO: change according to spec
 }

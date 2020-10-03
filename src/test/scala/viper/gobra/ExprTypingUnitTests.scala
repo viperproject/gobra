@@ -19,7 +19,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   test("TypeChecker: should classify an integer literal as integer") {
     frontend.exprType(PIntLit(42))() should matchPattern {
       // the type should be Type.Int instead of Type.UntypedConst due to the implementation of
-      // front.end(exprType) which in practice evaluates the type of the literal in a
+      // frontend.exprType which in practice evaluates the type of the literal in a
       // short var assignment: n := PIntLit(42)
       case Type.IntT(Type.Int) =>
     }

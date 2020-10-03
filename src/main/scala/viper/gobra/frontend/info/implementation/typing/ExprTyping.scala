@@ -196,8 +196,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(n, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
-          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", !isIntegerType(t))) ++
-            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", !isIntegerType(t))) ++
+          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
+            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
             message(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
@@ -314,8 +314,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PIntLit | _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv =>
-      val exprNum = expr.asInstanceOf[PNumExpression]
+    case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
       if (typ == IntT(UntypedConst)) getDefaultType(exprNum).getOrElse(typ) else typ
 
@@ -328,21 +327,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"unexpected expression $e")
   }
 
-  private def getDefaultType(expr: PNumExpression): Option[Type] = {
-    val parents: Vector[PNode] = tree.parent(expr.asInstanceOf[PActualExpression])
-
-    if (parents.isEmpty) {
-      return None
-    } else if (parents.length > 1) {
-      violation("Malformed tree, expression can only have at most one parent node.")
-    }
-
-    val parent = parents(0)
-
-    parent match {
-      case PShortVarDecl(_, _, _) =>
-          Some(IntT(Int))
-
+  private def getDefaultType(expr: PNumExpression): Option[Type] = expr match {
+    case tree.parent(p) => p match {
+      case _: PShortVarDecl => Some(IntT(Int))
       case _ => None
     }
   }

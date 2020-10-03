@@ -327,6 +327,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"unexpected expression $e")
   }
 
+  /** returns a type that is implied by the context if the numeric expression is an untyped constant expression */
   private def getDefaultType(expr: PNumExpression): Option[Type] = expr match {
     case tree.parent(p) => p match {
       case _: PShortVarDecl => Some(IntT(Int))

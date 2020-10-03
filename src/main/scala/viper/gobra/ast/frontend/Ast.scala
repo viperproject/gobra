@@ -326,7 +326,13 @@ object PLiteral {
   )
 }
 
-sealed trait PNumExpression
+/**
+  * Represents expressions that yield a Numeric Value such as
+  * - Integer literals
+  * - arithmetic operations such as +, -, *, /
+  * - obtaining the length of an array
+  */
+sealed trait PNumExpression extends PExpression
 
 sealed trait PBasicLiteral extends PLiteral
 

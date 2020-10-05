@@ -153,7 +153,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val rType = exprType(right)
           typeMerge(lType, rType) match {
             case Some(seq@SequenceT(_)) => seq
-            case _ => lType
+            case _ => violation(s"types $lType and $rType cannot be merged.")
           }
         case PSequenceUpdate(seq, _) => exprType(seq)
       }

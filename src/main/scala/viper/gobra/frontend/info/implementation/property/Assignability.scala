@@ -48,7 +48,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // not part of Go spec, but necessary for the definition of comparability
       case (l, IntT(UntypedConst)) if underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
-      // this rule seems to be ignored in the Go compiler
+      // even though the go language spec states that a value x of type V is assignable to a variable of type T
+      // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
+      // seems to reject any program that relies on this, e.g. the go compiler rejects the program containing
+      // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
       // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
       case (l, r: InterfaceT) if implements(l, r) => true

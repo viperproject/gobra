@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{Single, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PointerT, SequenceT, SetT, Single, SliceT, Type, UntypedConst}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -18,7 +18,33 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
     // currently, only merging of l and r being identical types is supported
     // possible future improvement: if l is assignable to r, then return r instead of None (or vice versa)
     (l, r) match {
-      case (Single(lst), Single(rst)) => if (identicalTypes(lst, rst)) Some(lst) else None
+      case (Single(lst), Single(rst)) =>
+        if (identicalTypes(lst, rst)) Some(lst) else {
+          (lst, rst) match {
+            case (a, IntT(UntypedConst)) if underlyingType(a).isInstanceOf[IntT] => Some(a)
+            case (IntT(UntypedConst), b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
+            case (SequenceT(l), SequenceT(r)) => typeMerge(l,r) map SequenceT
+            case (SetT(l), SetT(r)) => typeMerge(l,r) map SetT
+            case (MultisetT(l), MultisetT(r)) => typeMerge(l,r) map MultisetT
+            case (ArrayT(len1, l), ArrayT(len2, r)) if len1 == len2 => typeMerge(l,r) map (ArrayT(len1, _))
+            case (SliceT(l), SliceT(r)) => typeMerge(l,r) map SliceT
+            case (MapT(k1, v1), MapT(k2, v2)) => for {
+              k <- typeMerge(k1, k2)
+              v <- typeMerge(v1, v2)
+            } yield MapT(k,v)
+            case (PointerT(l), PointerT(r)) => typeMerge(l,r) map PointerT
+            case (ChannelT(l, mod1), ChannelT(r, mod2)) if mod1 == mod2 => typeMerge(l,r) map (ChannelT(_,mod1))
+            case (InternalTupleT(v1), InternalTupleT(v2)) =>
+              val v = v1.zip(v2).map {case (l, r) => typeMerge(l, r)}
+              if (v.contains(None)) None else Some(InternalTupleT(v map (_.get)))
+            case (InternalSingleMulti(sin1, multi1), InternalSingleMulti(sin2, multi2)) => for {
+              sin <- typeMerge(sin1, sin2)
+              multi <- typeMerge(multi1, multi2)
+            } yield InternalSingleMulti(sin, multi.asInstanceOf[InternalTupleT])
+
+            case _ => None
+          }
+        }
       case _ => None
     }
 

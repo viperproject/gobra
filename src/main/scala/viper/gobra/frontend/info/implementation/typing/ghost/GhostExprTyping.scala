@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type, UntypedConst}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -88,8 +88,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
           val highT = exprType(high)
-          message(low, s"expected an integer, but got $lowT", lowT != IntT) ++
-            message(high, s"expected an integer, but got $highT", highT != IntT)
+          message(low, s"expected an integer, but got $lowT", !lowT.isInstanceOf[IntT]) ++
+            message(high, s"expected an integer, but got $highT", !highT.isInstanceOf[IntT])
         }
         case PSequenceAppend(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
           val t1 = exprType(left)
@@ -130,7 +130,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
-    case IntT => isExpr(clause.left).out ++ isExpr(clause.right).out ++
+    case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
       assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
     case t => message(clause.left, s"expected an integer type but got $t")
   }
@@ -150,12 +150,20 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PAccess | _: PPredicateAccess => AssertionT
 
     case expr : PGhostCollectionExp => expr match {
-      case PCardinality(_) => IntT
-      case PMultiplicity(_, _) => IntT
+      // The result of integer ghost expressions is unbounded (UntypedConst)
+      case PCardinality(_) => IntT(UntypedConst)
+      case PMultiplicity(_, _) => IntT(UntypedConst)
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
-        case PRangeSequence(_, _) => SequenceT(IntT)
-        case PSequenceAppend(left, _) => exprType(left)
+        case PRangeSequence(_, _) => SequenceT(IntT(UntypedConst))
+
+        case PSequenceAppend(left, right) =>
+          val lType = exprType(left)
+          val rType = exprType(right)
+          typeMerge(lType, rType) match {
+            case Some(seq@SequenceT(_)) => seq
+            case _ => violation(s"types $lType and $rType cannot be merged.")
+          }
         case PSequenceUpdate(seq, _) => exprType(seq)
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t

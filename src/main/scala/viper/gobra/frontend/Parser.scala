@@ -884,7 +884,21 @@ object Parser {
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
       "bool" ^^^ PBoolType() |
-        "int" ^^^ PIntType()
+        // signed integer types
+        "rune" ^^^ PRune() |
+        "int8" ^^^ PInt8Type() |
+        "int16" ^^^ PInt16Type() |
+        "int32" ^^^ PInt32Type() |
+        "int64" ^^^ PInt64Type() |
+        "int" ^^^ PIntType() | // 'int' must come after all 'intX' parsers, otherwise parsing will stop at 'int'
+        // unsigned integer types
+        "byte" ^^^ PByte() |
+        "uint8" ^^^ PUInt8Type() |
+        "uint16" ^^^ PUInt16Type() |
+        "uint32" ^^^ PUInt32Type() |
+        "uint64" ^^^ PUInt64Type() |
+        "uintptr" ^^^ PUIntPtr() |
+        "uint" ^^^ PUIntType()
 
     lazy val qualifiedType: Parser[PDot] =
       declaredType ~ ("." ~> idnUse) ^^ PDot

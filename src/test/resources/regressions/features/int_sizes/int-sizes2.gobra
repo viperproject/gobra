@@ -1,0 +1,40 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+func shortAss1() {
+	x := 7
+
+	// If the default type of x is correctly attributed (i.e. it is int), this should fail
+	//:: ExpectedOutput(type_error)
+	sq1 := squareInt32(x)
+
+	sq2 := squareInt(x)
+	assert sq2 == 49
+}
+
+func squareInt(x int) int {
+	return x * x
+}
+
+func squareInt32(x int32) int32 {
+	return x * x
+}
+
+func aliasedTypesAss1() {
+	// All assigns in this function should pass --> uint8 and byte are aliases and
+	// consequently, one does not need casts when assigning from byte to uint8 and the other way around
+	var a byte = 1
+	var b uint8 = 2
+	a = b
+	b = a
+	// fmt.Printf("%d %d\n", a, b)
+
+	// same for int32 and rune
+	var c int32 = 1
+	var d rune = 2
+	c = d
+	d = c
+	// fmt.Printf("%d %d\n", c, d)
+}

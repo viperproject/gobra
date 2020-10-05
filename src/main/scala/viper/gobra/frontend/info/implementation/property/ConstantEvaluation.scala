@@ -34,15 +34,15 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
         e match {
           case _: PEquals if typ(e.left) == BooleanT => auxBool(x => y => x == y)
-          case _: PEquals if typ(e.left) == IntT => auxInt(x => y => x == y)
+          case _: PEquals if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x == y)
           case _: PUnequals if typ(e.left) == BooleanT => auxBool(x => y => x != y)
-          case _: PUnequals if typ(e.left) == IntT => auxInt(x => y => x != y)
+          case _: PUnequals if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x != y)
           case _: PAnd if typ(e.left) == BooleanT => auxBool(x => y => x && y)
           case _: POr if typ(e.left) == BooleanT => auxBool(x => y => x || y)
-          case _: PLess if typ(e.left) == IntT => auxInt(x => y => x < y)
-          case _: PAtMost if typ(e.left) == IntT => auxInt(x => y => x <= y)
-          case _: PGreater if typ(e.left) == IntT => auxInt(x => y => x > y)
-          case _: PAtLeast if typ(e.left) == IntT => auxInt(x => y => x >= y)
+          case _: PLess if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x < y)
+          case _: PAtMost if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x <= y)
+          case _: PGreater if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x > y)
+          case _: PAtLeast if typ(e.left).isInstanceOf[IntT] => auxInt(x => y => x >= y)
           case _ => None
         }
       case PNamedOperand(id) => entity(id) match {

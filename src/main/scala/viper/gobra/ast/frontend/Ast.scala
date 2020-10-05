@@ -335,11 +335,19 @@ object PLiteral {
   )
 }
 
+/**
+  * Represents expressions that yield a Numeric Value such as
+  * - Integer literals
+  * - arithmetic operations such as +, -, *, /
+  * - obtaining the length of an array
+  */
+sealed trait PNumExpression extends PExpression
+
 sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral
+case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -388,7 +396,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   *
   * - Sequence: the number of elements in `exp`.
   */
-case class PLength(exp : PExpression) extends PActualExpression
+case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
 /**
   * Represents Go's built-in "cap(`exp`)" function that returns the
@@ -400,7 +408,7 @@ case class PLength(exp : PExpression) extends PActualExpression
   * - Slice: the max length `exp` can reach when resliced; or `0` if `exp` is `null`.
   * - Channel: the channel buffer capacity (in units of elements); or `0` if `exp` is `null`.
   */
-case class PCapacity(exp : PExpression) extends PActualExpression
+case class PCapacity(exp : PExpression) extends PActualExpression with PNumExpression
 
 /**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",
@@ -441,15 +449,15 @@ case class PGreater(left: PExpression, right: PExpression) extends PBinaryExp
 
 case class PAtLeast(left: PExpression, right: PExpression) extends PBinaryExp
 
-case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp
+case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PSub(left: PExpression, right: PExpression) extends PBinaryExp
+case class PSub(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PMul(left: PExpression, right: PExpression) extends PBinaryExp
+case class PMul(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PMod(left: PExpression, right: PExpression) extends PBinaryExp
+case class PMod(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
-case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp
+case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
@@ -476,7 +484,21 @@ sealed abstract class PPredeclaredType(override val name: String) extends PNamed
 
 case class PBoolType() extends PPredeclaredType("bool")
 
-case class PIntType() extends PPredeclaredType("int")
+sealed trait PIntegerType
+case class PIntType() extends PPredeclaredType("int") with PIntegerType
+case class PInt8Type() extends PPredeclaredType("int8") with PIntegerType
+case class PInt16Type() extends PPredeclaredType("int16") with PIntegerType
+case class PInt32Type() extends PPredeclaredType("int32") with PIntegerType
+case class PInt64Type() extends PPredeclaredType("int64") with PIntegerType
+case class PRune() extends PPredeclaredType("rune") with PIntegerType
+
+case class PUIntType() extends PPredeclaredType("uint") with PIntegerType
+case class PUInt8Type() extends PPredeclaredType("uint8") with PIntegerType
+case class PUInt16Type() extends PPredeclaredType("uint16") with PIntegerType
+case class PUInt32Type() extends PPredeclaredType("uint32") with PIntegerType
+case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
+case class PByte() extends PPredeclaredType("byte") with PIntegerType
+case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
 // TODO: add more types
 

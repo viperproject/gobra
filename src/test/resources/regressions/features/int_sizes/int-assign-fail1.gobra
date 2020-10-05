@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+ghost pure func int64(x int32) int64
+
+func wrongAssign1(x int32) (ret int64) {
+	//:: ExpectedOutput(type_error)
+	ret = x
+	// the correct (but still unsupported) way to do that would be to do
+	// ret = int64(x)
+}
+
+func wrongAssign2(x int, y int8) int {
+	// Arithmetic operations(+, -, *, /, %) should be performed only between elements of the same type
+	//:: ExpectedOutput(type_error)
+	x = x + y
+	return x
+}
+
+func wrongAssign3(x int, y int8) int {
+	// Arithmetic operations(+, -, *, /, %) should be performed only between elements of the same type
+	//:: ExpectedOutput(type_error)
+	x += y
+	return x
+}

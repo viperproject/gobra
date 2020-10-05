@@ -1,0 +1,113 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+type IntType int
+
+const xInt int = 1
+const xInt8 int8 = 1
+const xInt16 int16 = 1
+const xInt32 int32 = 1
+const xInt64 int64 = 1
+const uInt uint = 1
+const uInt8 uint8 = 1
+const uInt16 uint16 = 1
+const uInt32 uint32 = 1
+const uInt64 uint64 = 1
+const uIntptr uintptr = 1
+const xIntType IntType = 1
+
+ensures ret == u + 1
+func increment(u IntType) (ret IntType) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func increment8(u int8) (ret int8) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func increment16(u int16) (ret int16) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func increment32(u int32) (ret int32) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func increment64(u int64) (ret int64) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func incrementU8(u uint8) (ret uint8) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func incrementU16(u uint16) (ret uint16) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func incrementU32(u uint32) (ret uint32) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func incrementU64(u uint64) (ret uint64) {
+	ret = u + 1
+	return
+}
+
+ensures ret == u + 1
+func incrementUintptr(u uintptr) (ret uintptr) {
+	ret = u + 1
+	return
+}
+
+
+func testCalls() {
+	// Gobra should be able to typecheck calls to the various increment operations
+	increment(xIntType)
+	increment8(xInt8)
+	increment16(xInt16)
+	increment32(xInt32)
+	increment64(xInt64)
+	incrementU8(uInt8)
+	incrementU16(uInt16)
+	incrementU32(uInt32)
+	incrementU64(uInt64)
+	incrementUintptr(uIntptr)
+
+	// Calls with untyped constants should also be fine
+	increment8(1)
+	increment16(1)
+	increment32(1)
+	increment64(1)
+	incrementU8(1)
+	incrementU16(1)
+	incrementU32(1)
+	incrementU64(1)
+	incrementUintptr(1)
+
+	// Typed constants and variables should be cast to the correct type when they are passed as arguments
+	// (Go does not perform implicit casts)
+	//:: ExpectedOutput(type_error)
+	increment32(xInt8)
+
+	//:: ExpectedOutput(type_error)
+	increment(xInt)
+}

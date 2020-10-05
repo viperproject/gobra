@@ -16,7 +16,9 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
-      case (IntT, IntT) | (BooleanT, BooleanT) => true
+      // Two integer types are equal if they have the same type or they are from types which are aliased
+      case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(Int32, Rune)) || Set(x,y).subsetOf(Set(UInt8, Byte))
+      case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
 
       case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR

@@ -51,10 +51,10 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
     case PRange(exp) => exprType(exp) match {
-      case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
-      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
-      case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
-      case MapT(key, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(elem, IntT)))
+      case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
+      case PointerT(ArrayT(len, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
+      case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
+      case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
     }

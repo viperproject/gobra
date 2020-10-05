@@ -1189,7 +1189,7 @@ object Desugar {
       case Type.VoidType => in.VoidT
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
       case Type.BooleanT => in.BoolT(addrMod)
-      case Type.IntT => in.IntT(addrMod)
+      case Type.IntT(_) => in.IntT(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???

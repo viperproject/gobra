@@ -302,6 +302,15 @@ sealed trait PLiteral extends PActualExpression
 
 object PLiteral {
   /**
+    * Gives a simple array literal of length `exprs.length`
+    * and type `typ`, with unkeyed elements `exprs`.
+    */
+  def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
+    PArrayType(PIntLit(exprs.length), typ),
+    PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
+  )
+
+  /**
     * Gives a simple sequence literal of type `typ` with unkeyed elements `exprs`.
     */
   def sequence(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
@@ -342,8 +351,6 @@ case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
-// TODO: add other literals
-
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
 sealed trait PShortCircuitMisc extends PMisc
@@ -375,8 +382,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
 /**
   * Represents Go's built-in "len(`exp`)" function that returns the
   * length of `exp`, according to its type. The documentation
-  * (https://golang.org/pkg/builtin/#len) gives the following
-  * possible cases:
+  * (https://golang.org/pkg/builtin/#len) gives the following possible cases:
   *
   * - Array: the number of elements in `exp`.
   * - Pointer to array: the number of elements in `*exp`.
@@ -391,6 +397,18 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * - Sequence: the number of elements in `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
+
+/**
+  * Represents Go's built-in "cap(`exp`)" function that returns the
+  * capacity of `exp`, according to its type. The documentation
+  * (https://golang.org/pkg/builtin/#cap) gives the following possible cases:
+  *
+  * - Array: the number of elements in `exp`.
+  * - Pointer to array: the number of elements in `*exp`.
+  * - Slice: the max length `exp` can reach when resliced; or `0` if `exp` is `null`.
+  * - Channel: the channel buffer capacity (in units of elements); or `0` if `exp` is `null`.
+  */
+case class PCapacity(exp : PExpression) extends PActualExpression
 
 /**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",
@@ -811,6 +829,13 @@ sealed trait PSequenceExp extends PGhostCollectionExp
   * The appending of two sequences represented by `left` and `right`.
   */
 case class PSequenceAppend(left : PExpression, right : PExpression) extends PSequenceExp with PBinaryGhostExp
+
+/**
+  * Represents the explicit conversion of `exp` to a sequence
+  * (of a matching, appropriate type), written "seq(`exp`)" in
+  * Gobra's specification language.
+  */
+case class PSequenceConversion(exp : PExpression) extends PSequenceExp
 
 /**
   * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",

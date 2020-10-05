@@ -11,3 +11,4 @@ viperserver
 logger.log
 
 *.go.*
+*.gobra.*

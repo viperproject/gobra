@@ -1,0 +1,62 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+	a := [2]int { 12, 24 }
+  assert a[0] == 12
+  assert a[1] == 24
+}
+
+func test2() {
+  a := [...]bool { true, false, true }
+  assert len(a) == 3
+}
+
+func test3() {
+	a := [2][2]int{[2]int{1, 2}, [2]int{3, 4}}
+}
+
+requires a == [2]int { 1, 2 }
+func test4(a [2]int) {
+  assert a[0] == 1
+  assert a[1] == 2
+}
+
+ensures a == [...]bool { true, false, false }
+func test5() (a [3]bool) {
+  a[0] = true
+  a[1] = false
+  a[2] = false
+}
+
+requires a == [...]int { 42, 44 }
+ensures b == [...]int { 42, 44 }
+func test6(a [2]int) (b [2]int) {
+  b = a
+}
+
+requires a == [1][1][1]int { [1][1]int { [1]int { 1 } } }
+func test7(a [1][1][1]int) {
+  assert a[0][0][0] == 1
+}
+
+func test8() {
+  assert [4]int { 1, 2, 3, 4 } == [2 + 2]int { 0 + 1, 1 + 1, 1 + 2, 2 + 2 }
+  assert [0]bool { } == [2 - 2]bool { }
+  assert [2][2]int { [2]int { 1, 2 }, [2]int { 3, 4 } } == [2][2]int { [2]int { 1, 1 + 1 }, [2]int { 3, 2 + 2 } }
+  assert [...]bool { true, false } == [2]bool { true, false }
+}
+
+func test9() {
+  assert len([2]int { 1, 2 }) == 2
+  assert cap([4]bool { true, false, true, false }) == 4
+  assert len([...]int { 42 }) == 1
+  assert len([2][1]int { [1]int { 8 }, [1]int { 8 } }) == 2
+}
+
+func test10() {
+  assert [4]int { 0, 1, 42, 8 }[2] == 42
+  assert forall i int :: 0 <= i && i < 4 ==> ([4]int { 0, 2, 4, 6 })[i] == i + i
+}

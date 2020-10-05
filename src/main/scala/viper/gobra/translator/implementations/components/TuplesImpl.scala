@@ -44,7 +44,7 @@ class TuplesImpl extends Tuples {
     vpr.DomainFuncApp(
       func = getter(index, arity),
       args = Vector(arg),
-      typVarMap = typeVarMap(Vector(arg.typ))
+      typVarMap = arg.typ.asInstanceOf[vpr.DomainType].typVarsMap
     )()
   }
 

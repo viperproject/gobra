@@ -7,79 +7,93 @@
 package viper.gobra.translator.implementations
 
 import viper.gobra.ast.internal.LookupTable
+import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.translator.interfaces.{Context, TranslatorConfig}
 import viper.gobra.translator.interfaces.translator._
 import viper.gobra.translator.interfaces.components._
 import viper.silver.ast.LocalVarDecl
 
 case class ContextImpl(
+                        field : Fields,
+                        array : Arrays,
                         seqToSet : SeqToSet,
                         seqToMultiset : SeqToMultiset,
                         seqMultiplicity : SeqMultiplicity,
                         fixpoint: Fixpoint,
                         tuple: Tuples,
-                        typeProperty: TypeProperties,
+                        equality: Equality,
+                        condition: Conditions,
+                        unknownValue: UnknownValues,
+                        typeEncoding: TypeEncoding,
                         ass: Assertions,
                         expr: Expressions,
                         method: Methods,
                         pureMethod: PureMethods,
                         predicate: Predicates,
                         stmt: Statements,
-                        typ: Types,
-                        loc: Locations,
                         table: LookupTable
                       ) extends Context {
 
   def this(conf: TranslatorConfig, table: LookupTable) {
     this(
+      conf.field,
+      conf.array,
       conf.seqToSet,
       conf.seqToMultiset,
       conf.seqMultiplicity,
       conf.fixpoint,
       conf.tuple,
-      conf.typeProperty,
+      conf.equality,
+      conf.condition,
+      conf.unknownValue,
+      conf.typeEncoding,
       conf.ass,
       conf.expr,
       conf.method,
       conf.pureMethod,
       conf.predicate,
       conf.stmt,
-      conf.typ,
-      conf.loc,
       table
     )
   }
 
   /** copy constructor */
   override def :=(
+                   fieldN : Fields = field,
+                   arrayN : Arrays = array,
                    seqToSetN : SeqToSet = seqToSet,
                    seqToMultisetN : SeqToMultiset = seqToMultiset,
                    seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
                    fixpointN: Fixpoint = fixpoint,
                    tupleN: Tuples = tuple,
-                   typePropertyN: TypeProperties = typeProperty,
+                   equalityN: Equality = equality,
+                   conditionN: Conditions = condition,
+                   unknownValueN: UnknownValues = unknownValue,
+                   typeEncodingN: TypeEncoding = typeEncoding,
                    assN: Assertions = ass,
                    exprN: Expressions = expr,
                    methodN: Methods = method,
                    pureMethodN: PureMethods = pureMethod,
                    predicateN: Predicates = predicate,
                    stmtN: Statements = stmt,
-                   typN: Types = typ,
-                   locN: Locations = loc,
                  ): Context = copy(
-    seqToSet,
-    seqToMultiset,
-    seqMultiplicity,
-    fixpoint,
-    tuple,
-    typeProperty,
+    fieldN,
+    arrayN,
+    seqToSetN,
+    seqToMultisetN,
+    seqMultiplicityN,
+    fixpointN,
+    tupleN,
+    equalityN,
+    conditionN,
+    unknownValueN,
+    typeEncodingN,
     assN,
     exprN,
     methodN,
     pureMethodN,
     predicateN,
-    stmtN,
-    typN
+    stmtN
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this

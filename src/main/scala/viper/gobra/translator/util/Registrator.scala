@@ -28,5 +28,4 @@ class Registrator[T <: vpr.Member] extends Generator {
     gens += x
     x
   }
-
 }

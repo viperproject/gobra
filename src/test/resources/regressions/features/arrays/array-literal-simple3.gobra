@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+const ZERO = 0
+const ONE = 1
+const TWO = 2
+const FORTYTWO = 42
+
+func test1() {
+	a := [ONE]int { FORTYTWO }
+  assert seq(a) == seq[int] { 42 }
+}
+
+func test2() {
+  a := [ONE]int { ZERO : FORTYTWO }
+  assert len(a) == 1
+  assert cap(a) == 1
+}
+
+func test3() {
+  a := [TWO]int { ONE : 12, ZERO : 24 }
+  assert a == [2]int { 24, 12 }
+}
+
+func test4() {
+  a := [ONE][ONE]int { [ONE]int { FORTYTWO } }
+  assert a[ZERO][ZERO] == FORTYTWO
+}

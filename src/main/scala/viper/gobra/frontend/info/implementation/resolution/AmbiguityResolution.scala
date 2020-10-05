@@ -92,6 +92,11 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           }
       }
 
+    case n: PIndexedExp => exprOrType(n.base) match {
+      case Left(base) => Some(ap.IndexedExp(base, n.index))
+      case Right(_) => None // unknown pattern
+    }
+
       // unknown pattern
     case _ => None
   }

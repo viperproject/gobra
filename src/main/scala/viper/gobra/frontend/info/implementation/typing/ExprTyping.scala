@@ -243,9 +243,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n) ++ {
-              val constVal = intConstantEval(n)
-              val typCtx = getTypeFromContext(n.asInstanceOf[PNumExpression])
-              if (constVal.isDefined && typCtx.isDefined) assignableWithinBounds.errors(typCtx.get, n)(n) else noMessages
+              val res = for {
+                typCtx <- getTypeFromContext(n.asInstanceOf[PNumExpression])
+              } yield assignableWithinBounds.errors(typCtx, n)(n)
+              res.getOrElse(noMessages)
             }
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
         })

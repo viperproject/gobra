@@ -266,34 +266,6 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
   def transitiveClosure[T](t : T, onestep : T => Vector[T]): Relation[T, T] = {
-
-    def alternativeTransitiveClosure(t : T, onestep : T => Vector[T]): Relation[T, T] = {
-      val relation = new Relation[T, T]
-
-      @tailrec
-      def loop(pending : Queue[T]) : Relation[T, T] =
-        if (pending.isEmpty)
-          relation
-        else {
-          val l = pending.front
-          val next = onestep(l)
-          if (next.nonEmpty)
-            relation.putAll(t, next)
-          loop(pending.tail.enqueue(next))
-        }
-
-      loop(Queue(t))
-    }
-
-    def relationEquality(relation1: Relation[T, T], relation2: Relation[T, T]): Boolean = {
-      (relation1.pairs.forall(pair =>
-        relation2.containsInDomain(pair._1) &&
-          relation2(pair._1).contains(pair._2))
-      && relation2.pairs.forall(pair =>
-        relation1.containsInDomain(pair._1) &&
-          relation1(pair._1).contains(pair._2)))
-    }
-
     // fromOneStep creates a new relation in which all links from t to the root are contained in
     val links = Relation.fromOneStep(t, onestep)
     // create a new relation that consists of the image of links but only has t as its domain:
@@ -301,10 +273,6 @@ trait MemberResolution { this: TypeInfoImpl =>
     for (pair <- links.pairs) {
       relation.put(t, pair._2)
     }
-
-    // this should be equivalent to the following:
-    assert(relationEquality(relation, alternativeTransitiveClosure(t, onestep)))
-
     relation
   }
 

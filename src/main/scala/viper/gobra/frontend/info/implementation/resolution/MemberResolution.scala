@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.resolution
 
+import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
@@ -15,6 +16,9 @@ import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
+
+import scala.annotation.tailrec
+import scala.collection.immutable.Queue
 
 
 trait MemberResolution { this: TypeInfoImpl =>
@@ -149,10 +153,13 @@ trait MemberResolution { this: TypeInfoImpl =>
     structMemberSet(t).lookupWithPath(id.name)
 
   def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
-    val typ = exprType(e)
-    val context = getMethodReceiverContext(typ)
-    if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
-    else context.tryNonAddressableMethodLikeLookup(typ, id)
+    // check whether e is well-defined:
+    if (wellDefExpr(e).valid) {
+      val typ = exprType(e)
+      val context = getMethodReceiverContext(typ)
+      if (effAddressable(e)) context.tryAddressableMethodLikeLookup(typ, id)
+      else context.tryNonAddressableMethodLikeLookup(typ, id)
+    } else None
   }
 
   def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
@@ -241,18 +248,33 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
     attr[PIdnUse, Entity] {
       id => {
-        val unqualifiedImports = tree.root.imports.collect { case ui: PUnqualifiedImport => ui }
-        val results = unqualifiedImports.map(ui => tryPackageLookup(ui, id)).collect { case Some(r) => r }
-        if (results.isEmpty) {
-          UnknownEntity()
-        } else if (results.length > 1) {
-          MultipleEntity()
-        } else {
-          results.head._1
+        val transitiveParent = transitiveClosure(id, tree.parent(_))
+        val entities = for {
+          // get enclosing PProgram for this PIdnUse node
+          program <- transitiveParent(id).collectFirst { case p: PProgram => p }
+          // consider all unqualified imports for this program (not package)
+          unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
+          // perform a package lookup in each unqualifiedly imported package
+          results = unqualifiedImports.flatMap(ui => tryPackageLookup(ui, id))
+        } yield results
+        entities match {
+          case Some(Vector(elem)) => elem._1
+          case Some(v) if v.length > 1 => MultipleEntity()
+          case _ => UnknownEntity()
         }
       }
     }
 
+  def transitiveClosure[T](t : T, onestep : T => Vector[T]): Relation[T, T] = {
+    // fromOneStep creates a new relation in which all links from t to the root are contained in
+    val links = Relation.fromOneStep(t, onestep)
+    // create a new relation that consists of the image of links but only has t as its domain:
+    val relation = new Relation[T, T]
+    for (pair <- links.pairs) {
+      relation.put(t, pair._2)
+    }
+    relation
+  }
 
 
   def findField(t: Type, id: PIdnUse): Option[StructMember] =

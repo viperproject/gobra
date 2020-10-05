@@ -52,7 +52,7 @@ case class PProgram(
                      packageClause: PPackageClause,
                      imports: Vector[PImport],
                      declarations: Vector[PMember]
-                   ) extends PNode
+                   ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
 class PositionManager extends PositionStore with Messaging {

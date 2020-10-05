@@ -151,7 +151,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PPackage => (n.declarations flatMap { m =>
+      case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
           case d: PConstDecl => d.left
@@ -167,10 +167,13 @@ trait NameResolution { this: TypeInfoImpl =>
           case p: PMPredicateDecl => Vector(p.id)
           case p: PFPredicateDecl => Vector(p.id)
         }
-      }) ++ (n.imports flatMap {
+      }
+
+      // imports do not belong to the root environment but are file/program specific (instead of package specific):
+      case n: PProgram => n.imports flatMap {
         case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
         case _ => Vector.empty
-      })
+      }
 
       case n: PStructType => n.clauses.flatMap { c =>
         def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
@@ -223,8 +226,6 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
-
-      case tree.parent.pair(id: PIdnDef, _: PImport) => defEntity(id)
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)

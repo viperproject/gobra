@@ -24,17 +24,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PConstDecl(typ, right, left) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n) ++
-        (if(typ.isDefined)
-          right.flatMap(assignWithinBounds.errors(typeType(typ.get), _)(n))
-        else noMessages)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n) ++
-        (if(typ.isDefined)
-          right.flatMap(assignWithinBounds.errors(typeType(typ.get), _)(n))
-        else noMessages)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n: PTypeDecl => isType(n.right).out
 
@@ -49,17 +43,14 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PAssignment(rights, lefts) =>
       rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
-        lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n) ++
-        (lefts zip rights).flatMap(p => assignWithinBounds.errors(exprType(p._1), p._2)(n))
+        lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
 
     case n@PAssignmentWithOp(right, op, left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
-        assignableTo.errors(exprType(right), exprType(left))(n) ++
-        assignWithinBounds.errors(exprType(left), right)(n)
+        assignableTo.errors(exprType(right), exprType(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
-      // TODO: add overflow checks
       if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
           multiAssignableTo.errors(rights map exprType, lefts map idType)(n)

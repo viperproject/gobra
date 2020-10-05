@@ -175,7 +175,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (l, t) => failedProp(s"cannot assign literal $l to $t")
   }
 
-  def assignWithinBounds: Property[(Type, PExpression)] = createFlatProperty[(Type, PExpression)] {
+  def assignableWithinBounds: Property[(Type, PExpression)] = createFlatProperty[(Type, PExpression)] {
     case (typ, expr) => s"constant expression $expr overflows $typ"
   } {
     case (typ, expr) =>

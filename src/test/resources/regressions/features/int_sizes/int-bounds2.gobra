@@ -1,0 +1,12 @@
+package main
+
+type IntType int
+
+func main() {
+	//:: ExpectedOutput(type_error)
+	id(255 + 1)
+}
+
+func id(x byte) byte {
+	return x
+}

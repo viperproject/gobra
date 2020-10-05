@@ -408,7 +408,7 @@ case class PLength(exp : PExpression) extends PActualExpression with PNumExpress
   * - Slice: the max length `exp` can reach when resliced; or `0` if `exp` is `null`.
   * - Channel: the channel buffer capacity (in units of elements); or `0` if `exp` is `null`.
   */
-case class PCapacity(exp : PExpression) extends PActualExpression
+case class PCapacity(exp : PExpression) extends PActualExpression with PNumExpression
 
 /**
   * Represents a slicing expression roughly of the form "`base`[`low`:`high`:`cap`]",

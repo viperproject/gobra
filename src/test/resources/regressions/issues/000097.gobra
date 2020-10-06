@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type intPair struct {
+    a int;
+    b int;
+};
+
+func test(t intPair) (res int) {
+    return t.a + t.b
+}

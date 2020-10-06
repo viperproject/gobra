@@ -28,7 +28,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
 
     if (member.spec.isPure) {
-      message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
       message(member, "For now, pure methods must have exactly one result argument", member.result.outs.size != 1) ++
         (member.body match {
           case Some(b: PBlock) => isPureBlock(b)
@@ -40,7 +39,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefIfPureFunction(member: PFunctionDecl): Messages = {
     if (member.spec.isPure) {
-      message(member, "expected the same pre and postcondition", member.spec.pres != member.spec.posts) ++
         message(member, "For now, pure functions must have exactly one result argument", member.result.outs.size != 1) ++
         (member.body match {
           case Some(b: PBlock) => isPureBlock(b)

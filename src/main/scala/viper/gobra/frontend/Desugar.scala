@@ -325,6 +325,7 @@ object Desugar {
 
       // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
+      val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
         b: PBlock =>
@@ -334,7 +335,7 @@ object Desugar {
           }
       }
 
-      in.PureFunction(name, args, returns, pres, bodyOpt)(fsrc)
+      in.PureFunction(name, args, returns, pres, posts, bodyOpt)(fsrc)
     }
 
 
@@ -491,6 +492,7 @@ object Desugar {
 
       // translate pre- and postconditions
       val pres = decl.spec.pres map preconditionD(ctx)
+      val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
         b: PBlock =>
@@ -500,7 +502,7 @@ object Desugar {
           }
       }
 
-      in.PureMethod(recv, name, args, returns, pres, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {

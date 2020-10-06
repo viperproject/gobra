@@ -1,0 +1,8 @@
+package pkg;
+
+pure func test()(res int){
+    return 3
+}
+
+ensures forall i int :: i==3 ==> (i == test())
+func client(){}

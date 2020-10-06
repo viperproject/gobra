@@ -1,0 +1,10 @@
+package pkg;
+
+type list struct{
+		val int;
+		next *list;
+};
+
+pure func sum(a list) (res int) {
+    return a.val + (a.next==nil ? 0 : sum(*a.next))
+};

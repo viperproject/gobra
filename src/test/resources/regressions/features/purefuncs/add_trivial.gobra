@@ -1,0 +1,6 @@
+package pkg;
+
+ensures res == a + b
+pure func test(a, b int) (res int) {
+    return a + b
+}

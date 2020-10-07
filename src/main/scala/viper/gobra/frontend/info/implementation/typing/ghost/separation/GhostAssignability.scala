@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message,noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -19,6 +19,15 @@ trait GhostAssignability {
 
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
   private[separation] def ghostAssignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
+
+    val isPure = resolve(callee) match {
+      case Some(p: ap.Function) => p.symb.isPure
+      case Some(p: ap.MethodExpr) => p.symb.isPure
+      case Some(p: ap.ReceivedMethod) => p.symb.isPure
+      case _ => false
+    }
+    if (isPure) {return noMessages}
+
     val argTyping = calleeArgGhostTyping(callee).toTuple
     generalGhostAssignableTo[PExpression, Boolean](ghostExprTyping){
       case (g, l) => message(callee, "ghost error: ghost cannot be assigned to non-ghost", g && !l)

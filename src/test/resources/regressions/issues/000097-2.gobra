@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// This test checks whether defined types suffer from the same problem as
+// predefined types reported on issue 97.
+
+package pkg
+
+type intPair struct {
+	a int
+	b int
+}
+
+type intPairWrapper struct {
+	p intPair
+}
+
+func test(t intPairWrapper) (res int) {
+	return t.p.a
+}

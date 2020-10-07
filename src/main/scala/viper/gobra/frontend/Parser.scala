@@ -15,6 +15,8 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 
+import scala.util.matching.Regex
+
 object Parser {
 
   /**
@@ -883,22 +885,24 @@ object Parser {
         declaredType
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
-      "bool" ^^^ PBoolType() |
+      exactWord("bool") ^^^ PBoolType() |
         // signed integer types
-        "rune" ^^^ PRune() |
-        "int8" ^^^ PInt8Type() |
-        "int16" ^^^ PInt16Type() |
-        "int32" ^^^ PInt32Type() |
-        "int64" ^^^ PInt64Type() |
-        "int" ^^^ PIntType() | // 'int' must come after all 'intX' parsers, otherwise parsing will stop at 'int'
+        exactWord("rune") ^^^ PRune() |
+        exactWord("int") ^^^ PIntType() |
+        exactWord("int8") ^^^ PInt8Type() |
+        exactWord("int16") ^^^ PInt16Type() |
+        exactWord("int32") ^^^ PInt32Type() |
+        exactWord("int64") ^^^ PInt64Type() |
         // unsigned integer types
-        "byte" ^^^ PByte() |
-        "uint8" ^^^ PUInt8Type() |
-        "uint16" ^^^ PUInt16Type() |
-        "uint32" ^^^ PUInt32Type() |
-        "uint64" ^^^ PUInt64Type() |
-        "uintptr" ^^^ PUIntPtr() |
-        "uint" ^^^ PUIntType()
+        exactWord("byte") ^^^ PByte() |
+        exactWord("uint") ^^^ PUIntType() |
+        exactWord("uint8") ^^^ PUInt8Type() |
+        exactWord("uint16") ^^^ PUInt16Type() |
+        exactWord("uint32") ^^^ PUInt32Type() |
+        exactWord("uint64") ^^^ PUInt64Type() |
+        exactWord("uintptr") ^^^ PUIntPtr()
+
+    private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
 
     lazy val qualifiedType: Parser[PDot] =
       declaredType ~ ("." ~> idnUse) ^^ PDot

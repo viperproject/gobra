@@ -91,8 +91,6 @@ trait GhostAssignability {
     def argTyping(args: Vector[PParameter], context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(context.isParamGhost))
 
-    val x = resolve(callee)
-
     resolve(callee) match {
       case Some(p: ap.Function) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)

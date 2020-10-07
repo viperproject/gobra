@@ -902,7 +902,7 @@ object Parser {
         exactWord("uint64") ^^^ PUInt64Type() |
         exactWord("uintptr") ^^^ PUIntPtr()
 
-    private def exactWord(s: String): Regex = (s ++ "\\b").r
+    private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
 
     lazy val qualifiedType: Parser[PDot] =
       declaredType ~ ("." ~> idnUse) ^^ PDot

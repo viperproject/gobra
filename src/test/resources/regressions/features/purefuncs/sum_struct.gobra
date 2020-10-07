@@ -10,8 +10,8 @@ pure func test(t tripleInt) (res int) {
     return t.a + t.b + t.c
 }
 
-//ensures forall i int, a int, b int, c int :: test(tripleInt{a:a,b:b,c:c})==test(tripleInt{a:a-i,b:b+i,c:c})
+ensures forall i int, a int, b int, c int :: test(tripleInt{a,b,c})==test(tripleInt{a-i,b+i,c})
 func client(a,b,c,i int){
-    assert test(tripleInt{a,b,c}) == a+b+c
+    assert test(tripleInt{a:a,b:b,c:c}) == a+b+c
     assert test(tripleInt{a,b,c}) == test(tripleInt{a,b+i,c-i})
 }

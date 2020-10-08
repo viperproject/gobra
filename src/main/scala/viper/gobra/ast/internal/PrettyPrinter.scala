@@ -132,9 +132,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, body) =>
+    case PureFunction(name, args, results, pres, posts, body) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
@@ -144,9 +144,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -409,9 +409,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, body) =>
+    case PureFunction(name, args, results, pres, posts, body) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres))
+        spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showMethod(m: Method): Doc = m match {
@@ -421,9 +421,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres))
+        spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {

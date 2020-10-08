@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+ensures res == a + b
+pure func test(a, b int) (res int) {
+    return a + b
+}

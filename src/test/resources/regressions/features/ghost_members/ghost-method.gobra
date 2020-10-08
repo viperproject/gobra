@@ -9,7 +9,6 @@ type Rectangle struct {
 
 ghost
 requires acc(r.Width)
-ensures acc(r.Width)
 pure func (r *Rectangle) GetWidth() (res int) {
     return r.Width
 }

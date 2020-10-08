@@ -61,6 +61,7 @@ case class PureMethod(
                        args: Vector[Parameter.In],
                        results: Vector[Parameter.Out],
                        pres: Vector[Assertion],
+                       posts: Vector[Assertion],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member {
   require(results.size <= 1)
@@ -80,6 +81,7 @@ case class PureFunction(
                          args: Vector[Parameter.In],
                          results: Vector[Parameter.Out],
                          pres: Vector[Assertion],
+                         posts: Vector[Assertion],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member {
   require(results.size <= 1)

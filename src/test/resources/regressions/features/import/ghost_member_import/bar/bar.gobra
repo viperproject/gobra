@@ -41,14 +41,12 @@ func SquaredHypotenuse(r *Rectangle) (res int) {
 
 ghost
 requires RectMem(r)
-ensures RectMem(r)
 pure func (r *Rectangle) GetWidth() (res int) {
     return unfolding RectMem(r) in r.Width
 }
 
 ghost
 requires RectMem(r)
-ensures RectMem(r)
 pure func Height(r *Rectangle) (res int) {
     return unfolding RectMem(r) in r.Height
 }

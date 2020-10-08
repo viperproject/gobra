@@ -27,9 +27,9 @@ object Nodes {
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(types, members, _) => members
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
-      case PureMethod(receiver, name, args, results, pres, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ body
+      case PureMethod(receiver, name, args, results, pres, posts, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
       case Function(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
-      case PureFunction(name, args, results, pres, body) => Seq(name) ++ args ++ results ++ pres ++ body
+      case PureFunction(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
       case Field(name, typ, ghost) => Seq()

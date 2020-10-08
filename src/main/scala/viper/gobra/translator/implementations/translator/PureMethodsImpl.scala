@@ -37,11 +37,15 @@ class PureMethodsImpl extends PureMethods {
     assert(vResults.size == 1)
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
+    val fixResultvar = (x: vpr.Exp) => {
+      x.transform { case v: vpr.LocalVar if v.name == meth.results.head => vpr.Result(resultType)() }
+    }
+
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
-      posts <- sequence(vResultPosts)
+      posts <- sequence(vResultPosts ++ meth.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
 
-      body <- option(meth.body map {b =>
+      body <- option(meth.body map { b =>
         pure(
           for {
             results <- ctx.expr.translate(b)(ctx)
@@ -61,7 +65,6 @@ class PureMethodsImpl extends PureMethods {
     } yield function
   }
 
-
   override def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = {
     require(func.results.size == 1)
 
@@ -75,11 +78,15 @@ class PureMethodsImpl extends PureMethods {
     assert(vResults.size == 1)
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
+    val fixResultvar = (x: vpr.Exp) => {
+      x.transform { case v: vpr.LocalVar if v.name == func.results.head.id => vpr.Result(resultType)() }
+    }
+
     for {
       pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
-      posts <- sequence(vResultPosts)
+      posts <- sequence(vResultPosts ++ func.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
 
-      body <- option(func.body map {b =>
+      body <- option(func.body map { b =>
         pure(
           for {
             results <- ctx.expr.translate(b)(ctx)
@@ -98,6 +105,5 @@ class PureMethodsImpl extends PureMethods {
 
     } yield function
   }
-
 
 }

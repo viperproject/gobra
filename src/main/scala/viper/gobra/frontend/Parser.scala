@@ -845,7 +845,7 @@ object Parser {
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
 
     lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl

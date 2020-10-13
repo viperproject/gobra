@@ -21,6 +21,8 @@ trait Context {
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
   def seqMultiplicity : SeqMultiplicity
+  def option : Options
+  def optionToSeq : OptionToSeq
   def fixpoint: Fixpoint
   def tuple: Tuples
   def equality: Equality
@@ -51,6 +53,8 @@ trait Context {
           seqToSetN : SeqToSet = seqToSet,
           seqToMultisetN : SeqToMultiset = seqToMultiset,
           seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
+          optionN : Options = option,
+          optionToSeq : OptionToSeq = optionToSeq,
           fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
           equalityN: Equality = equality,
@@ -73,6 +77,8 @@ trait Context {
     seqToSet.finalize(col)
     seqToMultiset.finalize(col)
     seqMultiplicity.finalize(col)
+    option.finalize(col)
+    optionToSeq.finalize(col)
     fixpoint.finalize(col)
     tuple.finalize(col)
     equality.finalize(col)

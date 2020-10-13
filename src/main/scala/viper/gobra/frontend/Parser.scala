@@ -285,7 +285,8 @@ object Parser {
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
-      "intersection", "setminus", "subset", "mset"
+      "intersection", "setminus", "subset", "mset", "option",
+      "none", "some"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -813,7 +814,7 @@ object Parser {
         channelType | functionType | structType | interfaceType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType
+      sequenceType | setType | multisetType | optionType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -843,6 +844,9 @@ object Parser {
 
     lazy val multisetType : Parser[PMultisetType] =
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
+
+    lazy val optionType : Parser[POptionType] =
+      "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
@@ -1063,7 +1067,8 @@ object Parser {
         rangeMultiset |
         sequenceConversion |
         setConversion |
-        multisetConversion
+        multisetConversion |
+        optionNone | optionSome | optionGet
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
@@ -1099,6 +1104,15 @@ object Parser {
     lazy val rangeMultiset : Parser[PGhostExpression] = "mset" ~> rangeExprBody ^^ {
       case left ~ right => PMultisetConversion(PRangeSequence(left, right).range(left, right))
     }
+
+    lazy val optionNone : Parser[POptionNone] =
+      "none" ~> ("[" ~> typ <~ "]") ^^ POptionNone
+
+    lazy val optionSome : Parser[POptionSome] =
+      "some" ~> ("(" ~> expression <~ ")") ^^ POptionSome
+
+    lazy val optionGet : Parser[POptionGet] =
+      "option" ~> ("(" ~> expression <~ ")") ^^ POptionGet
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

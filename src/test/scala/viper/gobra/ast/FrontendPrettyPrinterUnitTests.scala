@@ -945,6 +945,38 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple option type") {
+    val typ = POptionType(POptionType(PBoolType()))
+
+    frontend.show(typ) should matchPattern {
+      case "option[option[bool]]" =>
+    }
+  }
+
+  test("Printer: should correctly show a 'none' option type expression") {
+    val exp = POptionNone(PSetType(PIntType()))
+
+    frontend.show(exp) should matchPattern {
+      case "none[set[int]]" =>
+    }
+  }
+
+  test("Printer: should correctly show a 'some' option type expression") {
+    val exp = POptionSome(PIntLit(42))
+
+    frontend.show(exp) should matchPattern {
+      case "some(42)" =>
+    }
+  }
+
+  test("Printer: should correctly show a 'get' option type expression") {
+    val exp = POptionGet(PAdd(PIntLit(4), PIntLit(2)))
+
+    frontend.show(exp) should matchPattern {
+      case "option(4 + 2)" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

@@ -313,6 +313,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
 
+    case OptionNone(t) => "none" <> brackets(showType(t))
+    case OptionSome(exp) => "some" <> parens(showExpr(exp))
+    case OptionGet(exp) => "option" <> parens(showExpr(exp))
+
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
@@ -384,6 +389,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
+    case OptionT(elem, _) => "option" <> brackets(showType(elem))
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

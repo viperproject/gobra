@@ -778,6 +778,19 @@ case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], bod
 case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 
+/* ** Option types */
+
+/** The 'none' option (of option type `t`). */
+case class POptionNone(t : PType) extends PGhostExpression
+
+/** The 'some(`exp`)' option. */
+case class POptionSome(exp : PExpression) extends PGhostExpression
+
+/** The 'get(`exp`)' projection function; `exp` should be of an option type. */
+case class POptionGet(exp : PExpression) extends PGhostExpression
+
+
+
 /* ** Ghost collections */
 
 /**
@@ -954,7 +967,8 @@ case class PSetType(elem : PType) extends PGhostLiteralType
   */
 case class PMultisetType(elem : PType) extends PGhostLiteralType
 
-
+/** The type of option types. */
+case class POptionType(elem : PType) extends PGhostLiteralType
 
 /**
   * Miscellaneous

@@ -2311,6 +2311,48 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse an option type") {
+    frontend.parseTypeOrFail("option[option[int]]") should matchPattern {
+      case POptionType(POptionType(PIntType())) =>
+    }
+  }
+
+  test("Parser: should not parse 'option' as an identifier") {
+    frontend.parseExp("option") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse a simple 'none' (option type) expression") {
+    frontend.parseExpOrFail("none[option[bool]]") should matchPattern {
+      case POptionNone(POptionType(PBoolType())) =>
+    }
+  }
+
+  test("Parser: should parse a simple 'some' (option type) expression") {
+    frontend.parseExpOrFail("some(42)") should matchPattern  {
+      case POptionSome(PIntLit(n)) if n == BigInt(42) =>
+    }
+  }
+
+  test("Parser: should parse a simple 'get' (option type) expression") {
+    frontend.parseExpOrFail("option(x)") should matchPattern  {
+      case POptionGet(PNamedOperand(PIdnUse("x"))) =>
+    }
+  }
+
+  test("Parser: should not parse 'none' as a keyword") {
+    frontend.parseExp("none") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse 'some' as a keyword") {
+    frontend.parseExp("some") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

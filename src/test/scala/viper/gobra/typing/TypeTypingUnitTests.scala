@@ -243,6 +243,24 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.isWellDef(t).valid)
   }
 
+  test("Typing: should let a simply option type be well-defined") {
+    val t = POptionType(PIntType())
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should mark option types as ghost") {
+    val t = POptionType(PIntType())
+    assert (frontend.isGhostType(t))
+  }
+
+  test("Typing: should correctly type a simple option type") {
+    val t = POptionType(POptionType(PBoolType()))
+
+    frontend.typType(t) should matchPattern {
+      case Type.OptionT(Type.OptionT(Type.BooleanT)) =>
+    }
+  }
+
 
   /* ** Stubs, mocks, and other test setup  */
 

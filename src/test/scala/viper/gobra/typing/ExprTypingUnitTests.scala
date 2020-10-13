@@ -3098,6 +3098,156 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (frontend.wellDefExpr(expr)(args).valid)
   }
 
+  test("TypeChecker: should classify the 'none' option type expression as well-defined") {
+    val exp = POptionNone(POptionType(PIntType()))
+    assert (frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should classify the 'some(e)' option type expression as well-defined if 'e' is well-defined") {
+    val exp = POptionSome(PIntLit(42))
+    assert (frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should classify 'some(e)' as ill-defined if 'e' is ill-defined") {
+    val exp = POptionSome(PSequenceAppend(PIntLit(2), PIntLit(3)))
+    assert (!frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should classify 'option(e)' as well-defined if 'e' is well-defined") {
+    val exp = POptionGet(POptionSome(PIntLit(42)))
+    assert (frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should classify 'option(e)' as ill-defined if 'e' is ill-defined (1)") {
+    val exp = POptionGet(PIntLit(42))
+    assert (!frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should classify 'option(e)' as ill-defined if 'e' is ill-defined (2)") {
+    val exp = POptionGet(POptionSome(PSequenceAppend(PIntLit(2), PIntLit(3))))
+    assert (!frontend.wellDefExpr(exp)().valid)
+  }
+
+  test("TypeChecker: should mark 'none' as a ghost expression") {
+    val exp = POptionNone(PBoolType())
+    assert (frontend.isGhostExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'some(e)' as a ghost expression") {
+    val exp = POptionSome(PIntLit(23))
+    assert (frontend.isGhostExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'get(e)' as a ghost expression (1)") {
+    val exp = POptionGet(POptionSome(PIntLit(12)))
+    assert (frontend.isGhostExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'get(e)' as a ghost expression (2)") {
+    val exp = POptionGet(POptionNone(PIntType()))
+    assert (frontend.isGhostExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'none' as a pure expression") {
+    val exp = POptionNone(PBoolType())
+    assert (frontend.isPureExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'some(e)' as a pure expression") {
+    val exp = POptionSome(PIntLit(23))
+    assert (frontend.isPureExpr(exp)())
+  }
+
+  test("TypeChecker: should mark 'get(e)' as a pure expression") {
+    val exp = POptionGet(PIntLit(12))
+    assert (frontend.isPureExpr(exp)())
+  }
+
+  test("TypeChecker: should correctly type a simple 'none' option type expression") {
+    val exp = POptionNone(POptionType(PBoolType()))
+
+    frontend.exprType(exp)() should matchPattern {
+      case Type.OptionT(Type.OptionT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a simple 'some' option type expression") {
+    val exp = POptionSome(PBoolLit(false))
+
+    frontend.exprType(exp)() should matchPattern {
+      case Type.OptionT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a simple option type projection expression") {
+    val exp = POptionGet(POptionSome(PIntLit(33)))
+
+    frontend.exprType(exp)() should matchPattern {
+      case Type.IntT(Type.UntypedConst) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a 'get(none)' option expression") {
+    val exp = POptionGet(POptionNone(PSequenceType(PBoolType())))
+
+    frontend.exprType(exp)() should matchPattern {
+      case Type.SequenceT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should accept conversions from option types to sequences") {
+    val expr = PSequenceConversion(POptionNone(PBoolType()))
+    assert (frontend.wellDefExpr(expr)().valid)
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a sequence (1)") {
+    val expr = PSequenceConversion(POptionNone(PMultisetType(PBoolType())))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a sequence (2)") {
+    val expr = PSequenceConversion(POptionSome(PBoolLit(true)))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SequenceT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a set (1)") {
+    val expr = PSetConversion(POptionNone(PMultisetType(PBoolType())))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a set (2)") {
+    val expr = PSetConversion(POptionSome(PBoolLit(true)))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.SetT(Type.BooleanT) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a multiset (1)") {
+    val expr = PMultisetConversion(POptionNone(PMultisetType(PBoolType())))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.MultisetT(Type.BooleanT)) =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a conversion from an option type to a multiset (2)") {
+    val expr = PMultisetConversion(POptionSome(PBoolLit(true)))
+
+    frontend.exprType(expr)() should matchPattern {
+      case Type.MultisetT(Type.BooleanT) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

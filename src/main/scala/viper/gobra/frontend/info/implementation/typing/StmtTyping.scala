@@ -33,7 +33,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         val typ = n.left.name
-        message(n, s"invalid recursive type $typ", invalidRecursiveType(n.left.name, s))
+        message(n, s"invalid recursive type $typ", cyclicStructDef(n.left.name, s))
       case _ => noMessages
     })
 
@@ -127,13 +127,17 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /**
-    * Checks whether a struct is defined in terms of a variable whose type name is 'name'
+    * Checks whether a struct whose type has name 'name' is cyclically defined (in terms of itself or other cyclic structures).
+    * `visitedTypes` keeps track of the types that were already checked, used for detecting cycles of definitions
     */
-  private def invalidRecursiveType(name: String, struct: PStructType) : Boolean =
-    struct.embedded.map(_.typ.name).contains(name) ||
-      struct.fields.exists(_.typ match {
-        case s: PStructType => invalidRecursiveType(name, s)
-        case n: PNamedType => n.name == name
+  private def cyclicStructDef(name: String, struct: PStructType, visitedTypes: Set[String] = Set.empty) : Boolean = {
+      val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
+      fieldTypes exists {
+        case s: PStructType => cyclicStructDef(name, s, visitedTypes)
+        case n: PNamedType if n.name == name || visitedTypes.contains(n.name) => true
+        case n: PNamedType if underlyingTypeP(n).exists(_.isInstanceOf[PStructType]) =>
+          cyclicStructDef(name, underlyingTypeP(n).get.asInstanceOf[PStructType], visitedTypes ++ Set(n.name))
         case _ => false
-      })
+      }
+  }
 }

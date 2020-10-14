@@ -15,21 +15,36 @@ type Wrong2 struct {
 	}
 }
 
-/*
-type OK1 struct {
-	w Wrong3
+//:: ExpectedOutput(type_error)
+type Wrong3 struct {
+	w Wrong4
 }
 
 //:: ExpectedOutput(type_error)
-type Wrong3 struct {
-	o OK1
+type Wrong4 struct {
+	w Wrong3
+}
+
+/* Not supported due to isse 42
+type Wrong5 struct {
+	Wrong6
+}
+
+type Wrong6 struct {
+	w Wrong5
 }
 */
 
-/* Unsupported due to issue 42
-type Wrong struct {
-	Hello
+//:: ExpectedOutput(type_error)
+type Wrong7 struct {
+	w Wrong8
 }
 
-type Hello int
-*/
+//:: ExpectedOutput(type_error)
+type Wrong8 struct {
+	w Wrong8
+}
+
+type OK1 struct {
+	o *OK1
+}

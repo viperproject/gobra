@@ -33,7 +33,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
         val typ = n.left.name
-        message(n, s"invalid recursive type $typ", cyclicStructDef(n.left.name, s))
+        message(n, s"invalid recursive type $typ", cyclicStructDef(typ, s))
       case _ => noMessages
     })
 

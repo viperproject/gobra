@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+//:: ExpectedOutput(type_error)
+type Wrong struct {
+	w Wrong
+}
+
+//:: ExpectedOutput(type_error)
+type Wrong2 struct {
+	w struct {
+		w Wrong2
+	}
+}
+
+/*
+type OK1 struct {
+	w Wrong3
+}
+
+//:: ExpectedOutput(type_error)
+type Wrong3 struct {
+	o OK1
+}
+*/
+
+/* Unsupported due to issue 42
+type Wrong struct {
+	Hello
+}
+
+type Hello int
+*/

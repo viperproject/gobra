@@ -30,7 +30,12 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       right.flatMap(isExpr(_).out) ++
         declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
-    case n: PTypeDecl => isType(n.right).out
+    case n: PTypeDecl => isType(n.right).out ++ (n.right match {
+      case s: PStructType =>
+        val typ = n.left.name
+        message(n, s"invalid recursive type $typ", invalidRecursiveType(n.left.name, s))
+      case _ => noMessages
+    })
 
     case n@PExpressionStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 
@@ -120,4 +125,15 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case s => violation(s"$s was not handled")
   }
+
+  /**
+    * Checks whether a struct is defined in terms of a variable whose type name is 'name'
+    */
+  private def invalidRecursiveType(name: String, struct: PStructType) : Boolean =
+    struct.embedded.map(_.typ.name).contains(name) ||
+      struct.fields.exists(_.typ match {
+        case s: PStructType => invalidRecursiveType(name, s)
+        case n: PNamedType => n.name == name
+        case _ => false
+      })
 }

@@ -8,8 +8,8 @@ type Wrong struct {
 	w Wrong
 }
 
-//:: ExpectedOutput(type_error)
 type Wrong2 struct {
+	//:: ExpectedOutput(type_error)
 	w struct {
 		w Wrong2
 	}

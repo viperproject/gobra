@@ -58,7 +58,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(structType(t)).errors(t) ++ addressableMethodSet(structType(t)).errors(t)
+      structMemberSet(structType(t)).errors(t) ++ addressableMethodSet(structType(t)).errors(t) ++
+      message(t, "invalid recursive struct", cyclicStructDef(t))
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
 
@@ -134,5 +135,27 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x)
     }
     StructT(clauses, t, this)
+  }
+
+  /**
+    * Checks whether a struct is cyclically defined in terms of itself (if its name is provided)
+    * or other cyclic structures.
+    */
+  def cyclicStructDef(struct: PStructType, name: Option[PIdnDef] = None) : Boolean = {
+    // `visitedTypes` keeps track of the types that were already discovered and checked,
+    // used for detecting cyclic definition chains
+    def isCyclic: (PStructType, Set[String]) => Boolean = (struct, visitedTypes) => {
+      val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
+
+      fieldTypes exists {
+        case s: PStructType => isCyclic(s, visitedTypes)
+        case n: PNamedType if visitedTypes.contains(n.name) => true
+        case n: PNamedType if underlyingTypeP(n).exists(_.isInstanceOf[PStructType]) =>
+          isCyclic(underlyingTypeP(n).get.asInstanceOf[PStructType], visitedTypes + n.name)
+        case _ => false
+      }
+    }
+
+    isCyclic(struct, name.map(_.name).toSet)
   }
 }

@@ -977,6 +977,30 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should be able to show a simple integer slice type") {
+    val expr = PSliceType(PIntType())
+
+    frontend.show(expr) should matchPattern {
+      case "[]int" =>
+    }
+  }
+
+  test("Printer: should be able to show a slice type with a slightly more complex 'inner type'") {
+    val expr = PSliceType(PSequenceType(PSetType(PBoolType())))
+
+    frontend.show(expr) should matchPattern {
+      case "[]seq[set[bool]]" =>
+    }
+  }
+
+  test("Printer: should be able to show a nested slice type") {
+    val expr = PSliceType(PSliceType(PSliceType(PIntType())))
+
+    frontend.show(expr) should matchPattern {
+      case "[][][]int" =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

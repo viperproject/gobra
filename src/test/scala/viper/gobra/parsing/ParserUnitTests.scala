@@ -2353,6 +2353,101 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should be able to parse a very simple integer slice type") {
+    frontend.parseTypeOrFail("[]int") should matchPattern {
+      case PSliceType(PIntType()) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slightly more complex slice type") {
+    frontend.parseTypeOrFail("[]seq[set[bool]]") should matchPattern {
+      case PSliceType(PSequenceType(PSetType(PBoolType()))) =>
+    }
+  }
+
+  test("Parser: should correctly parse a nested (integer) slice type") {
+    frontend.parseTypeOrFail("[][][]int") should matchPattern {
+      case PSliceType(PSliceType(PSliceType(PIntType()))) =>
+    }
+  }
+
+  test("Parser: should correctly parse a simple slice type with some extra spaces added") {
+    frontend.parseTypeOrFail("[  ]  bool ") should matchPattern {
+      case PSliceType(PBoolType()) =>
+    }
+  }
+
+  test("Parser: should not parse a slice type with a missing opening bracket") {
+    frontend.parseType("]int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a slice type with a missing closing bracket") {
+    frontend.parseType("[int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a slice type if there are too many opening backets") {
+    frontend.parseType("[[]int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a slice type if there are too many closing backets") {
+    frontend.parseType("[]]int") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should not parse a slice type if there is a parsing problem in the inner type") {
+    frontend.parseType("[]seq[set[]]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should correctly parse a combination of slice types and sequence types") {
+    frontend.parseTypeOrFail("[]seq[[]seq[[]int]]") should matchPattern {
+      case PSliceType(PSequenceType(PSliceType(PSequenceType(PSliceType(PIntType()))))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slice literal expression with a missing length (1)") {
+    frontend.parseExpOrFail("[]int{}") should matchPattern {
+      case PCompositeLit(PSliceType(PIntType()), PLiteralValue(Vector())) =>
+    }
+  }
+
+  test("Parser: should be able to parse a slice literal expression with a missing length (2)") {
+    frontend.parseExpOrFail("[ ]int { }") should matchPattern {
+      case PCompositeLit(PSliceType(PIntType()), PLiteralValue(Vector())) =>
+    }
+  }
+
+  test("Parser: should be able to parse an array type of sequences") {
+    frontend.parseTypeOrFail("[n]seq[bool]") should matchPattern {
+      case PArrayType(
+      PNamedOperand(PIdnUse("n")),
+      PSequenceType(PBoolType())
+      ) =>
+    }
+  }
+
+  test("Parser: should be able to parse a sequence type of integer arrays") {
+    frontend.parseTypeOrFail("seq[[n]int]") should matchPattern {
+      case PSequenceType(
+      PArrayType(PNamedOperand(PIdnUse("n")), PIntType())
+      ) =>
+    }
+  }
+
+  test("Parser: should parse a simple integer array type with some extra spaces added") {
+    frontend.parseTypeOrFail("[ n ] int") should matchPattern {
+      case PArrayType(PNamedOperand(PIdnUse("n")), PIntType()) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

@@ -13,7 +13,12 @@ import viper.silver.{ast => vpr}
 class OptionImpl extends Options {
   private val domainName : String = "Option"
   private val typeVar : vpr.TypeVar = vpr.TypeVar("T")
-  private var generated : Boolean = false
+
+  /**
+    * Determines whether the Viper domain
+    * should be generated upon finalisation.
+    */
+  private var generateDomain : Boolean = false
 
   /**
     * Definition of the "optsome" function for the Viper domain of options:
@@ -172,7 +177,7 @@ class OptionImpl extends Options {
     * of an option type with an inner type `t`.
     */
   def get(exp : vpr.Exp, t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
-    generated = true
+    generateDomain = true
     vpr.DomainFuncApp(
       func = optget_func,
       args = Vector(exp),
@@ -185,7 +190,7 @@ class OptionImpl extends Options {
     * of the Viper domain of options.
     */
   def none(t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
-    generated = true
+    generateDomain = true
     vpr.DomainFuncApp(
       func = optnone_func,
       args = Vector(),
@@ -198,7 +203,7 @@ class OptionImpl extends Options {
     * of the Viper domain of options.
     */
   def some(exp : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
-    generated = true
+    generateDomain = true
     vpr.DomainFuncApp(
       func = optsome_func,
       args = Vector(exp),
@@ -210,11 +215,11 @@ class OptionImpl extends Options {
     * Gives the Viper domain type of options.
     */
   def typ(t : vpr.Type) : vpr.DomainType = {
-    generated = true
+    generateDomain = true
     vpr.DomainType(domain, Map(typeVar -> t))
   }
 
   override def finalize(col : Collector) : Unit = {
-    if (generated) col.addMember(domain)
+    if (generateDomain) col.addMember(domain)
   }
 }

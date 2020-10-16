@@ -255,15 +255,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT => noMessages
+        case _: ArrayT | _: SliceT => noMessages
         case _: SequenceT => isPureExpr(op)
-        case typ => message(op, s"expected an array or sequence type, but got $typ")
+        case typ => message(op, s"expected an array, sequence or slice type, but got $typ")
       }
     }
 
     case PCapacity(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case typ => message(op, s"expected an array type, but got $typ", !typ.isInstanceOf[ArrayT])
+        case _: ArrayT | _: SliceT => noMessages
+        case typ => message(op, s"expected an array or slice type, but got $typ")
       }
     }
 

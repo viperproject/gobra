@@ -281,6 +281,14 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 }
 
 /**
+  * Represents the "cap(`exp`)" in Go, which gives
+  * the capacity of `exp` according to its type.
+  */
+case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT(Addressability.rValue)
+}
+
+/**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
   * and `index` of an integer type.
@@ -289,6 +297,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   override val typ : Type = base.typ match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
+    case t: SliceT => t.elems
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
@@ -744,8 +753,7 @@ case class PermissionT(addressability: Addressability) extends Type {
 }
 
 /**
-  * The type of `length`-sized arrays
-  * of elements of type `typ`.
+  * The type of `length`-sized arrays of elements of type `typ`.
   */
 case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends Type {
   /** (Deeply) converts the current type to a `SequenceT`. */
@@ -761,6 +769,19 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
 
   override def withAddressability(newAddressability: Addressability): ArrayT =
     ArrayT(length, elems.withAddressability(Addressability.arrayElement(newAddressability)), newAddressability)
+}
+
+/**
+  * The (composite) type of slices of type `elems`.
+  */
+case class SliceT(elems : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): SliceT =
+    SliceT(elems.withAddressability(Addressability.sliceElement), newAddressability)
 }
 
 /**

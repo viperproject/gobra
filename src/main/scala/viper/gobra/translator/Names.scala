@@ -32,7 +32,13 @@ object Names {
   def embeddingUnboxFunc: String = "unbox"
 
   // pointer
-  def pointerField(t: vpr.Type) : String = s"val$$_$t"
+  def pointerField(t : vpr.Type) : String = {
+    val ts = t.toString()
+      .replace('[', '_')
+      .replace("]", "")
+
+    s"val$$_$ts"
+  }
 
   // struct
   def sharedStructDomain: String = "ShStruct"

@@ -261,6 +261,85 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("Typing: should mark a simple integer slice type as well-defined") {
+    val t = PSliceType(PIntType())
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should mark a slightly more complex slice type as well-defined") {
+    val t = PSliceType(PSequenceType(PSetType(PBoolType())))
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should mark a nested slice type as well-defined") {
+    val t = PSliceType(PSliceType(PIntType()))
+    assert (frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should not mark a slice type as well-defined if there is a typing problem in the inner type") {
+    val t = PSliceType(PArrayType(PIntLit(-4), PIntType()))
+    assert (!frontend.isWellDef(t).valid)
+  }
+
+  test("Typing: should mark a simple integer slice type as non-ghost") {
+    val t = PSliceType(PIntType())
+    assert (!frontend.isGhostType(t))
+  }
+
+  test("Typing: should mark a sequence slice type as ghost") {
+    val t = PSliceType(PSequenceType(PBoolType()))
+    assert (frontend.isGhostType(t))
+  }
+
+  test("Typing: should correctly type a simple integer slice type") {
+    val t = PSliceType(PIntType())
+
+    frontend.typType(t) should matchPattern {
+      case Type.SliceT(Type.IntT(_)) =>
+    }
+  }
+
+  test("Typing: should correctly type a slightly more complex slice type") {
+    val t = PSliceType(PSetType(PSequenceType(PBoolType())))
+
+    frontend.typType(t) should matchPattern {
+      case Type.SliceT(Type.SetT(Type.SequenceT(Type.BooleanT))) =>
+    }
+  }
+
+  test("Typing: should correctly type a nested slice type") {
+    val t = PSliceType(PSliceType(PSliceType(PIntType())))
+
+    frontend.typType(t) should matchPattern {
+      case Type.SliceT(Type.SliceT(Type.SliceT(Type.IntT(_)))) =>
+    }
+  }
+
+  test("Typing: should not let a(ny) slice type be comparable to itself") {
+    val t1 = PSliceType(PIntType())
+    val t2 = PSliceType(PIntType())
+    assert (!frontend.areComparable(t1, t2)) // i.e., slices are always incomparable
+  }
+
+  test("Typing: should not let two slice type be comparable if their inner types are incomparable (1)") {
+    val t1 = PSliceType(PIntType())
+    val t2 = PSliceType(PBoolType())
+    assert (!frontend.areComparable(t1, t2))
+  }
+
+  test("Typing: should not let two slice type be comparable if their inner types are incomparable (2)") {
+    val t1 = PSliceType(PIntType())
+    val t2 = PSliceType(PSliceType(PIntType()))
+    assert (!frontend.areComparable(t1, t2))
+  }
+
+  test("Typing: should not let slices be comparable to arrays") {
+    val t1 = PSliceType(PIntType())
+    val t2 = PArrayType(PIntLit(0), PIntType())
+    assert (!frontend.areComparable(t1, t2))
+  }
+
+
 
   /* ** Stubs, mocks, and other test setup  */
 

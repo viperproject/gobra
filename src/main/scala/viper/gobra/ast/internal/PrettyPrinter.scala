@@ -302,6 +302,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
+    case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
@@ -390,6 +391,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
+    case SliceT(elem, _) => "[]" <> showType(elem)
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

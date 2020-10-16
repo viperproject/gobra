@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Type, UntypedConst}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, SliceT, Type, UntypedConst}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -54,7 +54,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(_: ap.PredicateCall) => noMessages
       case Some(n: ap.IndexedExp) => exprType(n.base) match {
         case _: ArrayT => message(n.base, s"expected a shared array, but found an exclusive array ${n.base}", !addressable(n.base))
-        case t => message(n, s"expected an array type, but got $t")
+        case _: SliceT => noMessages
+        case t => message(n, s"expected an array or slice type, but got $t")
       }
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
     }

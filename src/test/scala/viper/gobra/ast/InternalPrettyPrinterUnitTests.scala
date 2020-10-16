@@ -1129,6 +1129,44 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple integer slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(intT, a)
+
+    frontend.show(t) should matchPattern {
+      case "[]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(SetT(SequenceT(boolT, a), a), a)
+
+    frontend.show(t) should matchPattern {
+      case "[]set[seq[bool]]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(SliceT(SliceT(SliceT(intT, a), a), a), a)
+
+    frontend.show(t) should matchPattern {
+      case "[][][][]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple capacity expression") {
+    val expr = Capacity(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal)
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "cap(s)" =>
+    }
+  }
+
+
   /* * Stubs, mocks, and other test setup  */
 
   class TestFrontend {

@@ -985,7 +985,8 @@ object Desugar {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
               case _: in.ArrayT => in.Length(dop)(src)
-              case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
+              case _: in.SliceT => in.Capacity(dop)(src)
+              case t => violation(s"expected an array or slice type, but got $t")
             }
           }
 
@@ -1193,7 +1194,7 @@ object Desugar {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.IntT(_) => in.IntT(addrMod)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
-      case Type.SliceT(elem) => ???
+      case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(key, elem) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))

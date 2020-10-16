@@ -12,6 +12,7 @@ import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeType
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
 import viper.gobra.translator.encodings.sets.SetEncoding
+import viper.gobra.translator.encodings.slices.SliceEncoding
 import viper.gobra.translator.encodings.structs.StructEncoding
 import viper.gobra.translator.implementations.components._
 import viper.gobra.translator.implementations.translator._
@@ -34,7 +35,8 @@ class DfltTranslatorConfig(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding,
       new PointerEncoding, new StructEncoding, new ArrayEncoding,
-      new SequenceEncoding, new SetEncoding, new OptionEncoding
+      new SequenceEncoding, new SetEncoding, new OptionEncoding,
+      new SliceEncoding
     ))
   ),
   val ass : Assertions = new AssertionsImpl,
@@ -46,4 +48,5 @@ class DfltTranslatorConfig(
 ) extends TranslatorConfig {
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)
   val optionToSeq : OptionToSeq = new OptionToSeqImpl(option)
+  val slice : Slices = new SlicesImpl(array)
 }

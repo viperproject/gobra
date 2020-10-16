@@ -82,6 +82,13 @@ object TypePatterns {
       }
     }
 
+    object Slice {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.SliceT => Some(t.elems)
+        case _ => None
+      }
+    }
+
     object Seq {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.SequenceT => Some(t.t)

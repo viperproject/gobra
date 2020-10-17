@@ -89,7 +89,7 @@ case class ContextImpl(
     seqToMultisetN,
     seqMultiplicityN,
     optionN,
-    optionToSeq,
+    optionToSeqN,
     fixpointN,
     tupleN,
     equalityN,

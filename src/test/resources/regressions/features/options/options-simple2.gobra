@@ -10,23 +10,29 @@ func test1(v int) {
 
 requires option(o) == 2
 func test2(ghost o option[int]) {
+  assert o == some(2)
   assert seq(o) == seq[int] { 2 }
 }
 
 ensures len(seq(o)) <= 1
 func test3(ghost o option[int]) {
+  assert o != none[int] ==> o == some(option(o))
   assert o != none[int] ==> seq(o) == seq[int] { option(o) }
 }
 
 requires v in seq(o)
 ensures o == some(v)
 func test4(ghost o option[int], v int) {
+  assert o == some(option(o))
   assert seq(o) == seq[int] { option(o) }
 }
 
 requires len(seq(o)) == 0
 ensures o == none[int]
 func test5(ghost o option[int]) {
+  ghost if (o != none[int]) {
+    assert o == some(option(o))
+  }
 }
 
 requires v # (seq(l) ++ seq(r)) == 2

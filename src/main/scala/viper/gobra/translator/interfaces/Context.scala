@@ -54,7 +54,7 @@ trait Context {
           seqToMultisetN : SeqToMultiset = seqToMultiset,
           seqMultiplicityN : SeqMultiplicity = seqMultiplicity,
           optionN : Options = option,
-          optionToSeq : OptionToSeq = optionToSeq,
+          optionToSeqN : OptionToSeq = optionToSeq,
           fixpointN: Fixpoint = fixpoint,
           tupleN: Tuples = tuple,
           equalityN: Equality = equality,

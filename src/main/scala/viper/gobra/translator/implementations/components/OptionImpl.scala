@@ -21,8 +21,6 @@ class OptionImpl extends Options {
   private var generateDomain : Boolean = false
 
   /**
-    * Definition of the "optsome" function for the Viper domain of options:
-    *
     * {{{
     * function optsome(e : T) : Option[T]
     * }}}
@@ -34,8 +32,6 @@ class OptionImpl extends Options {
   )(domainName = domainName)
 
   /**
-    * Definition of the "optnone" function for the Viper domain of options:
-    *
     * {{{
     * function optnone() : Option[T]
     * }}}
@@ -47,8 +43,6 @@ class OptionImpl extends Options {
   )(domainName = domainName)
 
   /**
-    * Definition of the "optget" function for the Viper domain of options:
-    *
     * {{{
     * function optget(o : Option[T]) : T
     * }}}
@@ -60,10 +54,8 @@ class OptionImpl extends Options {
   )(domainName = domainName)
 
   /**
-    * Definition of the "option_ex" axiom for the Viper domain of options:
-    *
     * {{{
-    * axiom option_ex {
+    * axiom {
     *   forall o : Option[T] :: o == optnone() || exists e : T :: o == optsome(e)
     * }
     * }}}
@@ -72,9 +64,8 @@ class OptionImpl extends Options {
     val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
 
-    vpr.NamedDomainAxiom(
-      name = "option_ex",
-      exp = vpr.Forall(
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
         Seq(oDecl),
         Seq(),
         vpr.Or(
@@ -90,11 +81,9 @@ class OptionImpl extends Options {
   }
 
   /**
-    * Definition of the "optnone_some" axiom for the Viper domain of options:
-    *
     * {{{
-    * axiom optnone_some {
-    *   forall e : T :: optsome(e) != optnone()
+    * axiom {
+    *   forall e : T :: { optsome(e) } optsome(e) != optnone()
     * }
     * }}}
     */
@@ -103,63 +92,52 @@ class OptionImpl extends Options {
     val left = some(eDecl.localVar)()
     val right = none(typeVar)()
 
-    vpr.NamedDomainAxiom(
-      name = "optnone_some",
-      exp = vpr.Forall(
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
         Seq(eDecl),
-        Seq(),
+        Seq(vpr.Trigger(Seq(left))()),
         vpr.NeCmp(left, right)()
       )()
     )(domainName = domainName)
   }
 
   /**
-    * Definition of the "optsome_over_get" axiom:
-    *
     * {{{
-    * axiom optsome_over_get {
-    *   forall o : Option[T], e : T :: optget(o) == e <==> o == optsome(e)
+    * axiom {
+    *   forall e : T :: { optget(optsome(e)) } optget(optsome(e)) == e
     * }
     * }}}
     */
   private lazy val optsome_over_get_axiom : vpr.DomainAxiom = {
-    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
-    val left = get(oDecl.localVar, typeVar)()
-    val right = some(eDecl.localVar)()
+    val expr = get(some(eDecl.localVar)(), typeVar)()
 
-    vpr.NamedDomainAxiom(
-      name = "optsome_over_get",
-      exp = vpr.Forall(
-        Seq(oDecl, eDecl),
-        Seq(),
-        vpr.EqCmp(
-          vpr.EqCmp(left, eDecl.localVar)(),
-          vpr.EqCmp(oDecl.localVar, right)()
-        )()
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(eDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.EqCmp(expr, eDecl.localVar)()
       )()
     )(domainName = domainName)
   }
 
   /**
-    * The "Option" Viper domain:
-    *
     * {{{
     * domain Option[T] {
     *   function optsome(e : T) : Option[T]
     *   function optnone() : Option[T]
     *   function optget(o : Option[T]) : T
     *
-    *   axiom optnone_some {
-    *     forall e : T :: optsome(e) != optnone()
+    *   axiom {
+    *     forall e : T :: { optsome(e) } optsome(e) != optnone()
     *   }
     *
-    *   axiom option_ex {
+    *   axiom {
     *     forall o : Option[T] :: o == optnone() || exists e : T :: o == optsome(e)
     *   }
     *
-    *   axiom optsome_over_get {
-    *     forall o : Option[T], e : T :: optget(o) == e <==> o == optsome(e)
+    *   axiom {
+    *     forall e : T :: { optget(optsome(e)) } optget(optsome(e)) == e
     *   }
     * }
     * }}}

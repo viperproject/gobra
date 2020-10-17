@@ -16,7 +16,7 @@ func test2(b bool) {
 requires opt != none[int]
 ensures set(opt) == set[int] { option(opt) }
 func lemma_set_some(ghost opt option[int]) {
-  assert seq(opt) == seq[int] { option(opt) }
+  assert opt == some(option(opt))
 }
 
 requires set(opt) == set[int] { }

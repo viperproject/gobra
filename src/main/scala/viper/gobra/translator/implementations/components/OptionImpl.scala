@@ -103,20 +103,25 @@ class OptionImpl extends Options {
 
   /**
     * {{{
-    * axiom {
-    *   forall e : T :: { optget(optsome(e)) } optget(optsome(e)) == e
+    * axiom optsome_over_get {
+    *   forall o : Option[T], e : T :: optget(o) == e <==> o == optsome(e)
     * }
     * }}}
     */
   private lazy val optsome_over_get_axiom : vpr.DomainAxiom = {
+    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
-    val expr = get(some(eDecl.localVar)(), typeVar)()
+    val left = get(oDecl.localVar, typeVar)()
+    val right = some(eDecl.localVar)()
 
     vpr.AnonymousDomainAxiom(
       vpr.Forall(
-        Seq(eDecl),
-        Seq(vpr.Trigger(Seq(expr))()),
-        vpr.EqCmp(expr, eDecl.localVar)()
+        Seq(oDecl, eDecl),
+        Seq(),
+        vpr.EqCmp(
+          vpr.EqCmp(left, eDecl.localVar)(),
+          vpr.EqCmp(oDecl.localVar, right)()
+        )()
       )()
     )(domainName = domainName)
   }
@@ -137,7 +142,7 @@ class OptionImpl extends Options {
     *   }
     *
     *   axiom {
-    *     forall e : T :: { optget(optsome(e)) } optget(optsome(e)) == e
+    *     forall o : Option[T], e : T :: optget(o) == e <==> o == optsome(e)
     *   }
     * }
     * }}}

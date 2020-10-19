@@ -28,7 +28,7 @@ private[arrays] object ArrayEncoding {
   }
 }
 
-class ArrayEncoding extends TypeEncoding {
+class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
@@ -44,6 +44,14 @@ class ArrayEncoding extends TypeEncoding {
     conversionFunc.finalize(col)
     exDfltFunc.finalize(col)
   }
+
+  /** Boxing in the context of the shared-array domain. */
+  override def box(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.box(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
+
+  /** Unboxing in the context of the shared-array domain. */
+  override def unbox(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.unbox(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
 
   /**
     * Translates a type into a Viper type.

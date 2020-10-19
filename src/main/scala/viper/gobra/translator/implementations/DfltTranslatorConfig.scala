@@ -31,14 +31,6 @@ class DfltTranslatorConfig(
   val equality: Equality = new EqualityImpl,
   val condition: Conditions = new ConditionsImpl,
   val unknownValue: UnknownValues = new UnknownValuesImpl,
-  val typeEncoding: TypeEncoding = new FinalTypeEncoding(
-    new SafeTypeEncodingCombiner(Vector(
-      new BoolEncoding, new IntEncoding,
-      new PointerEncoding, new StructEncoding, new ArrayEncoding,
-      new SequenceEncoding, new SetEncoding, new OptionEncoding,
-      new SliceEncoding
-    ))
-  ),
   val ass : Assertions = new AssertionsImpl,
   val expr : Expressions = new ExpressionsImpl,
   val method : Methods = new MethodsImpl,
@@ -46,7 +38,19 @@ class DfltTranslatorConfig(
   val predicate : Predicates = new PredicatesImpl,
   val stmt : Statements = new StatementsImpl
 ) extends TranslatorConfig {
+
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)
   val optionToSeq : OptionToSeq = new OptionToSeqImpl(option)
   val slice : Slices = new SlicesImpl(array)
+
+  private val arrayEncoding: ArrayEncoding = new ArrayEncoding()
+
+  val typeEncoding: TypeEncoding = new FinalTypeEncoding(
+    new SafeTypeEncodingCombiner(Vector(
+      new BoolEncoding, new IntEncoding,
+      new PointerEncoding, new StructEncoding, arrayEncoding,
+      new SequenceEncoding, new SetEncoding, new OptionEncoding,
+      new SliceEncoding(arrayEncoding)
+    ))
+  )
 }

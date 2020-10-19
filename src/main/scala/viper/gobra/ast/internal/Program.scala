@@ -632,6 +632,20 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
+/**
+  * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
+  * Only the `max` component is optional at this point.
+  * Any slicing expression "a[:j]" is assumed to be desugared into "a[0:j]",
+  * and any expression "a[i:]" is assumed to be desugared into "a[i:len(a)]".
+  */
+case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = base.typ match {
+    case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
+    case t: SliceT => t
+    case t => Violation.violation(s"expected an array or slice type, but got $t")
+  }
+}
+
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
   lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }

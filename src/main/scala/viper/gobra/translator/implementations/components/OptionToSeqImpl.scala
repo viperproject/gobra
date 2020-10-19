@@ -23,8 +23,6 @@ class OptionToSeqImpl(options : Options) extends OptionToSeq {
   private var generateDomain : Boolean = false
 
   /**
-    * Definition of the "opt2seq" domain function:
-    *
     * {{{
     * function opt2seq(o : Option[T]) : Seq[T]
     * }}}
@@ -36,69 +34,56 @@ class OptionToSeqImpl(options : Options) extends OptionToSeq {
   )(domainName = domainName)
 
   /**
-    * Definition of the "opt2seq_none" axiom:
-    *
     * {{{
-    * axiom opt2seq_none {
-    *   forall o : Option[T] :: opt2seq(o) == Seq() <==> o == optnone()
+    * axiom {
+    *   opt2seq(optnone()) == Seq()
     * }
     * }}}
     */
   private lazy val opt2seq_none_axiom : vpr.DomainAxiom = {
-    val oDecl = vpr.LocalVarDecl("o", options.typ(typeVar))()
-
-    vpr.NamedDomainAxiom(
-      name = "opt2seq_none",
-      exp = vpr.Forall(
-        Seq(oDecl),
-        Seq(),
-        vpr.EqCmp(
-          vpr.EqCmp(create(oDecl.localVar, typeVar)(), vpr.EmptySeq(typeVar)())(),
-          vpr.EqCmp(oDecl.localVar, options.none(typeVar)())()
-        )()
+    vpr.AnonymousDomainAxiom(
+      vpr.EqCmp(
+        create(options.none(typeVar)(), typeVar)(),
+        vpr.EmptySeq(typeVar)()
       )()
     )(domainName = domainName)
   }
 
   /**
-    * Definition of the "opt2seq_some" axiom:
-    *
     * {{{
-    * axiom opt2seq_some {
-    *   forall o : Option[T], e : T :: opt2seq(o) == Seq(e) <==> o == optsome(e)
+    * axiom {
+    *   forall e : T :: { opt2seq(optsome(e)) } opt2seq(optsome(e)) == Seq(e)
     * }
     * }}}
     */
   private lazy val opt2seq_some_axiom : vpr.DomainAxiom = {
-    val oDecl = vpr.LocalVarDecl("o", options.typ(typeVar))()
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
+    val left = create(options.some(eDecl.localVar)(), typeVar)()
+    val right = vpr.ExplicitSeq(Seq(eDecl.localVar))()
 
-    vpr.NamedDomainAxiom(
-      name = "opt2seq_some",
-      exp = vpr.Forall(
-        Seq(oDecl, eDecl),
-        Seq(),
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(eDecl),
+        Seq(vpr.Trigger(Seq(left))()),
         vpr.EqCmp(
-          vpr.EqCmp(create(oDecl.localVar, typeVar)(), vpr.ExplicitSeq(Seq(eDecl.localVar))())(),
-          vpr.EqCmp(oDecl.localVar, options.some(eDecl.localVar)())()
+          left,
+          right
         )()
       )()
     )(domainName = domainName)
   }
 
   /**
-    * The "Option" Viper domain:
-    *
     * {{{
     * domain OptToSeq[T] {
     *   function opt2seq(o : Option[T]) : Seq[T]
     *
-    *   axiom opt2seq_none {
-    *     forall o : Option[T] :: opt2seq(o) == Seq() <==> o == optnone()
+    *   axiom {
+    *     opt2seq(optnone()) == Seq()
     *   }
     *
-    *   axiom opt2seq_some {
-    *     forall o : Option[T], e : T :: opt2seq(o) == Seq(e) <==> o == optsome(e)
+    *   axiom {
+    *     forall e : T :: { opt2seq(optsome(e)) } opt2seq(optsome(e)) == Seq(e)
     *   }
     * }
     * }}}

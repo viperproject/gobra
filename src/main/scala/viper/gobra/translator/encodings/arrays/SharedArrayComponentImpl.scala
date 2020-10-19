@@ -85,4 +85,16 @@ class SharedArrayComponentImpl extends SharedArrayComponent {
     val (pos, info, errT) = src.vprMeta
     ctx.array.len(emb.unbox(arg, t)(pos, info, errT)(ctx))(pos, info, errT) // len(unbox(arg))
   }
+
+  /** Boxing in the context of the shared-array domain. */
+  override def box(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+    emb.box(arg, t)(pos, info, errT)(ctx)
+  }
+
+  /** Unboxing in the context of the shared-array domain. */
+  override def unbox(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+    emb.unbox(arg, t)(pos, info, errT)(ctx)
+  }
 }

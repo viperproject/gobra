@@ -23,8 +23,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   private var generateDomain : Boolean = false
 
   /**
-    * Definition of the "sarray" domain function.
-    *
     * {{{
     * function sarray(s : Slice[T]) : ShArray[T]
     * }}}
@@ -36,8 +34,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   )(domainName = domainName)
 
   /**
-    * Definition of the "soffset" domain function.
-    *
     * {{{
     * function soffset(s : Slice[T]) : Int
     * }}}
@@ -49,8 +45,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   )(domainName = domainName)
 
   /**
-    * Definition of the "slen" domain function.
-    *
     * {{{
     * function slen(s : Slice[T]) : Int
     * }}}
@@ -62,8 +56,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   )(domainName = domainName)
 
   /**
-    * Definition of the "slen" domain function.
-    *
     * {{{
     * function slen(s : Slice[T]) : Int
     * }}}
@@ -75,8 +67,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   )(domainName = domainName)
 
   /**
-    * Definition of the "slice_offset_nonneg" axiom.
-    *
     * {{{
     * axiom slice_offset_nonneg {
     *   forall s : Slice[T] :: { soffset(s) } 0 <= soffset(s)
@@ -97,8 +87,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   }
 
   /**
-    * Definition of the "slice_len_nonneg" axiom.
-    *
     * {{{
     * axiom slice_len_nonneg {
     *   forall s : Slice[T] :: { slen(s) } 0 <= slen(s)
@@ -119,8 +107,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   }
 
   /**
-    * Definition of the "slice_len_leq_cap" axiom.
-    *
     * {{{
     * axiom slice_len_leq_cap {
     *   forall s : Slice[T] :: { slen(s) } { scap(s) } slen(s) <= scap(s)
@@ -142,8 +128,6 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   }
 
   /**
-    * Definition of the "slice_cap_leq_alen" axiom.
-    *
     * {{{
     * axiom slice_cap_leq_alen {
     *   forall s : Slice[T] :: { soffset(s), scap(s) } { alen(sarray(s)) }
@@ -187,14 +171,29 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   }
 
   /**
-    * The "Slice" Viper domain:
-    *
     * {{{
     * domain Slice[T] {
     *   function sarray(s : Slice[T]) : ShArray[T]
     *   function soffset(s : Slice[T]) : Int
     *   function slen(s : Slice[T]) : Int
     *   function scap(s : Slice[T]) : Int
+    *
+    *   axiom slice_offset_nonneg {
+    *     forall s : Slice[T] :: { soffset(s) } 0 <= soffset(s)
+    *   }
+    *
+    *   axiom slice_len_nonneg {
+    *     forall s : Slice[T] :: { slen(s) } 0 <= slen(s)
+    *   }
+    *
+    *   axiom slice_len_leq_cap {
+    *     forall s : Slice[T] :: { slen(s) } { scap(s) } slen(s) <= scap(s)
+    *   }
+    *
+    *   axiom slice_cap_leq_alen {
+    *     forall s : Slice[T] :: { soffset(s), scap(s) } { alen(sarray(s)) }
+    *       soffset(s) + scap(s) <= alen(sarray(s))
+    *   }
     * }
     * }}}
     */

@@ -968,6 +968,12 @@ object Desugar {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
+            case _: in.ArrayT | _: in.SliceT => (dlow, dhigh) match {
+              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap)(src)
+              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap)(src)
+              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap)(src)
+              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap)(src)
+            }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -1478,7 +1484,9 @@ object Desugar {
           dop <- go(op)
         } yield dop.typ match {
           case _: in.SequenceT => dop
-          case _ => in.SequenceConversion(dop)(src)
+          case _: in.ArrayT => in.SequenceConversion(dop)(src)
+          case _: in.OptionT => in.SequenceConversion(dop)(src)
+          case t => violation(s"expected a sequence, array or option type, but got $t")
         }
 
         case PSetConversion(op) => for {

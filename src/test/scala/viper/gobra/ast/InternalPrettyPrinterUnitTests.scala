@@ -1166,6 +1166,32 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple full slice expression") {
+    val expr = Slice(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      IntLit(2)(Internal),
+      IntLit(4)(Internal),
+      Some(IntLit(6)(Internal))
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "s[2:4:6]" =>
+    }
+  }
+
+  test("Printer: should correctly show a (partial) slice expression") {
+    val expr = Slice(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      IntLit(8)(Internal),
+      IntLit(4)(Internal),
+      None
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "s[8:4]" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

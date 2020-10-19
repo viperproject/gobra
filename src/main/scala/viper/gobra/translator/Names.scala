@@ -49,6 +49,13 @@ object Names {
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
 
+  // slices
+  def fullSliceFromArray: String = "sfullSliceFromArray"
+  def fullSliceFromSlice: String = "sfullSliceFromSlice"
+  def sliceConstruct: String = "sconstruct"
+  def sliceFromArray: String = "ssliceFromArray"
+  def sliceFromSlice: String = "ssliceFromSlice"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"

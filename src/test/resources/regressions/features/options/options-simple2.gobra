@@ -24,7 +24,6 @@ requires v in seq(o)
 ensures o == some(v)
 func test4(ghost o option[int], v int) {
   assert o == some(option(o))
-  assert seq(o) == seq[int] { option(o) }
 }
 
 requires len(seq(o)) == 0

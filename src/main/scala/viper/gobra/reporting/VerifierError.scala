@@ -7,6 +7,7 @@
 package viper.gobra.reporting
 
 import viper.silver.ast.SourcePosition
+import viper.silver.verifier.errors.AssertFailed
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]
@@ -178,6 +179,11 @@ case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.
 case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "seq_index_negative_error"
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
+}
+
+case class OverflowError(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "integer_overflow_error"
+  override def message: String = "Operation may cause integer overflow"
 }
 
 sealed trait VerificationErrorClarification {

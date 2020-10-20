@@ -15,11 +15,11 @@ import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.ast.{Assert, TrueLit}
-import viper.silver.verifier.errors.{AssertFailed, ErrorNode}
+import viper.silver.verifier.errors.AssertFailed
 import viper.silver.verifier.{AbstractVerificationError, ErrorReason, errors}
 import viper.silver.{ast => vpr}
 
-class StatementsImpl extends Statements {
+class StatementsImpl(checkOverflows: Boolean = false) extends Statements {
 
   var counter: Int = 0
 
@@ -43,18 +43,21 @@ class StatementsImpl extends Statements {
     def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     def assertExprWithinBounds(expr: in.Expr, typ: in.Type): vpr.Assert = {
-      def applyArgs[B]: ((vpr.Position, vpr.Info, vpr.ErrorTrafo) => B) => B = _(pos, info, OverflowErrorTrafo())
+      def applyArgs[B]: ((vpr.Position, vpr.Info, vpr.ErrorTrafo) => B) => B = _(pos, info, OverflowErrorTrafo)
       // TODO: add checks for all subexpression
-      typ match {
+      val ret = typ match {
         // TODO: create a verifier error for overflow
-        case in.IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] =>
+          // TODO: move condition out of if in the next case
+        case in.IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] && checkOverflows =>
           val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
           applyArgs(vpr.Assert(
             applyArgs(vpr.And(
               applyArgs(vpr.LeCmp(applyArgs(vpr.IntLit(boundedKind.lower)), goE(expr).res)),
               applyArgs(vpr.LeCmp(goE(expr).res, applyArgs(vpr.IntLit(boundedKind.upper))))))))
+
         case _ => vpr.Assert(TrueLit()(pos, info, errT))(pos, info, errT)
       }
+      ret
     }
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
@@ -182,27 +185,9 @@ class StatementsImpl extends Statements {
     val id = "overflow.error"
     val text = "Operation may overflow"
 
-    def withNode(offendingNode: errors.ErrorNode = this.offendingNode) = AssertFailed(offendingNode.asInstanceOf[Assert], this.reason)
-    def withReason(r: ErrorReason) = AssertFailed(offendingNode, r)
+    def withNode(offendingNode: errors.ErrorNode = this.offendingNode) = ??? // AssertFailed(offendingNode.asInstanceOf[Assert], this.reason)
+    def withReason(r: ErrorReason) = ??? // AssertFailed(offendingNode, r)
   }
 
-  case class OverflowErrorTrafo() extends vpr.ErrorTrafo {
-    override def eTransformations: List[PartialFunction[AbstractVerificationError, AbstractVerificationError]] =
-      {
-        print("Ola\n")
-        Nil
-      }
-      /*
-      List({
-      //case AssertFailed(x, y, z) => OverflowError(x, y, z).asInstanceOf[AbstractVerificationError]
-      case x => print(x); x
-    })*/
-
-    override def rTransformations: List[PartialFunction[ErrorReason, ErrorReason]] = {
-      print("Ola")
-      Nil
-    }
-
-    override def nTransformations: Option[ErrorNode] = None
-  }
+  val OverflowErrorTrafo = vpr.ErrTrafo{ case AssertFailed(x, y, z) => OverflowError(x, y, z) }
 }

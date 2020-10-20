@@ -39,6 +39,7 @@ case class Config(
                  shouldTypeCheck: Boolean = true,
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
+                 checkOverflows: Boolean = false,
                  shouldVerify: Boolean = true
             ) {
   def merge(other: Config): Config = {
@@ -54,6 +55,7 @@ case class Config(
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
       shouldViperEncode = shouldViperEncode,
+      checkOverflows = checkOverflows,
       shouldVerify = shouldVerify
     )
   }
@@ -176,6 +178,13 @@ class ScallopGobraConfig(arguments: Seq[String])
     descr = "The Boogie executable",
     default = None,
     noshort = true
+  )
+
+  val checkOverflows: ScallopOption[Boolean] = toggle(
+    name = "overflow",
+    descrYes = "Find expressions that may lead to integer overflow",
+    default = Some(false),
+    noshort = false
   )
 
 
@@ -332,6 +341,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,
     shouldViperEncode = shouldViperEncode,
+    checkOverflows = checkOverflows.supplied,
     shouldVerify = shouldVerify
   )
 }

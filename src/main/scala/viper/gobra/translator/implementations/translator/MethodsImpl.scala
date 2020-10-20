@@ -6,12 +6,14 @@
 
 package viper.gobra.translator.implementations.translator
 
+import viper.gobra.ast.internal.Parameter
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.base.Type.BoundedIntegerKind
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Methods
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.silver.ast.Method
+import viper.silver.ast.{Method, TrueLit}
 import viper.silver.{ast => vpr}
 
 class MethodsImpl extends Methods {
@@ -40,12 +42,27 @@ class MethodsImpl extends Methods {
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
+      assumeArgsBounds <- sequence{ x.args.map {
+        case Parameter.In(name, typ) => typ match { // TODO: maybe use an Optional for this?
+            // TODO: abstract this code in function to avoid repeating
+          case in.IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] =>
+            val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
+            vpr.Assume(
+              vpr.And(
+                vpr.LeCmp(vpr.IntLit(boundedKind.lower)(), vpr.LocalVar(name, vpr.Int)(pos, info, errT))(pos, info, errT),
+                vpr.LeCmp(vpr.LocalVar(name, vpr.Int)(pos, info, errT), vpr.IntLit(boundedKind.upper)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
+          case _ => vpr.Assert(TrueLit()(pos, info, errT))(pos, info, errT)
+        }
+      }.map{unit}} //flatMap((x) => x)
+
+
+
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+        } yield vu.seqn(assumeArgsBounds  ++ Vector(init, core, returnLabel))(pos, info, errT)
       }})
 
       method = vpr.Method(
@@ -79,12 +96,25 @@ class MethodsImpl extends Methods {
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
+      // TODO: abstract this code on a function
+      assumeArgsBounds <- sequence{ x.args.map {
+        case Parameter.In(name, typ) => typ match { // TODO: maybe use an Optional for this?
+          case in.IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] =>
+            val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
+            vpr.Assume(
+              vpr.And(
+                vpr.LeCmp(vpr.IntLit(boundedKind.lower)(), vpr.LocalVar(name, vpr.Int)(pos, info, errT))(pos, info, errT),
+                vpr.LeCmp(vpr.LocalVar(name, vpr.Int)(pos, info, errT), vpr.IntLit(boundedKind.upper)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
+          case _ => vpr.Assert(TrueLit()(pos, info, errT))(pos, info, errT)
+        }
+      }.map{unit}}
+
       body <- option(x.body.map{ b => block{
         for {
           init <- vResultInit
           _ <- cl.global(returnLabel)
           core <- ctx.stmt.translate(b)(ctx)
-        } yield vu.seqn(Vector(init, core, returnLabel))(pos, info, errT)
+        } yield vu.seqn(assumeArgsBounds ++ Vector(init, core, returnLabel))(pos, info, errT)
       }})
 
       method = vpr.Method(

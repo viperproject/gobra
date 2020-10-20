@@ -7,12 +7,16 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.base.Type.BoundedIntegerKind
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.ast.{Assert, TrueLit}
+import viper.silver.verifier.errors.{AssertFailed, ErrorNode}
+import viper.silver.verifier.{AbstractVerificationError, ErrorReason, errors}
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -37,6 +41,21 @@ class StatementsImpl extends Statements {
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
+
+    def assertExprWithinBounds(expr: in.Expr, typ: in.Type): vpr.Assert = {
+      def applyArgs[B]: ((vpr.Position, vpr.Info, vpr.ErrorTrafo) => B) => B = _(pos, info, OverflowErrorTrafo())
+      // TODO: add checks for all subexpression
+      typ match {
+        // TODO: create a verifier error for overflow
+        case in.IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] =>
+          val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
+          applyArgs(vpr.Assert(
+            applyArgs(vpr.And(
+              applyArgs(vpr.LeCmp(applyArgs(vpr.IntLit(boundedKind.lower)), goE(expr).res)),
+              applyArgs(vpr.LeCmp(goE(expr).res, applyArgs(vpr.IntLit(boundedKind.upper))))))))
+        case _ => vpr.Assert(TrueLit()(pos, info, errT))(pos, info, errT)
+      }
+    }
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
@@ -76,7 +95,16 @@ class StatementsImpl extends Statements {
           ))(pos, info, errT)
         } yield wh
 
-      case ass: in.SingleAss => ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)
+      //TODO: add overflow checks here (and also in expressions (e.g. loop conditions))
+      case ass: in.SingleAss =>
+        val typ = ass.left.op.typ
+        // TODO: remove: print(s"var: ${ass.left}; val: ${ass.right}; typeL: ${ass.left.op.typ}; typeR: ${ass.right.typ}\n")
+
+        val assertBounds: Assert = assertExprWithinBounds(ass.right, typ)// (pos, info, errT)
+
+        for {
+          assign <- ctx.typeEncoding.assignment(ctx)(ass.left, ass.right, ass)
+        } yield vpr.Seqn(Vector(assertBounds, assign), Vector.empty)(pos, info, errT)
 
       case in.FunctionCall(targets, func, args) =>
         for {
@@ -92,6 +120,7 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
+        // TODO: add assume statements of the bounds of integer sizes
       case in.MethodCall(targets, recv, meth, args) =>
         for {
           vRecv <- goE(recv)
@@ -147,4 +176,33 @@ class StatementsImpl extends Statements {
   }
 
 
+
+  // TODO: remove?
+  case class OverflowError(offendingNode: Assert, reason: ErrorReason, override val cached: Boolean = false) extends AbstractVerificationError {
+    val id = "overflow.error"
+    val text = "Operation may overflow"
+
+    def withNode(offendingNode: errors.ErrorNode = this.offendingNode) = AssertFailed(offendingNode.asInstanceOf[Assert], this.reason)
+    def withReason(r: ErrorReason) = AssertFailed(offendingNode, r)
+  }
+
+  case class OverflowErrorTrafo() extends vpr.ErrorTrafo {
+    override def eTransformations: List[PartialFunction[AbstractVerificationError, AbstractVerificationError]] =
+      {
+        print("Ola\n")
+        Nil
+      }
+      /*
+      List({
+      //case AssertFailed(x, y, z) => OverflowError(x, y, z).asInstanceOf[AbstractVerificationError]
+      case x => print(x); x
+    })*/
+
+    override def rTransformations: List[PartialFunction[ErrorReason, ErrorReason]] = {
+      print("Ola")
+      Nil
+    }
+
+    override def nTransformations: Option[ErrorNode] = None
+  }
 }

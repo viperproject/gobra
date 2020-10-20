@@ -9,6 +9,8 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.Type.UntypedConst
 import viper.gobra.theory.Addressability
 import viper.silver.ast.{Position => GobraPosition}
 
@@ -373,7 +375,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showType(typ : Type) : Doc = typ match {
     case BoolT(_) => "bool"
-    case IntT(_) => "int"
+    case IntT(_, Some(Type.Int)) => "int"
+    case IntT(_, Some(Type.Int8)) => "int8"
+    case IntT(_, Some(Type.Int16)) => "int16"
+    case IntT(_, Some(Type.Int32)) => "int32"
+    case IntT(_, Some(Type.Int64)) => "int64"
+    case IntT(_, Some(Type.UInt)) => "uint"
+    case IntT(_, Some(Type.UInt8)) => "uint8"
+    case IntT(_, Some(Type.UInt16)) => "uint16"
+    case IntT(_, Some(Type.UInt32)) => "uint32"
+    case IntT(_, Some(Type.UInt64)) => "uint64"
+    case IntT(_, Some(Type.UIntPtr)) => "uintptr"
+    case IntT(_, _) => "Integer"
     case VoidT => "void"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name

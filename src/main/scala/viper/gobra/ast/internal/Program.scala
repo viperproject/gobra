@@ -15,6 +15,7 @@ package viper.gobra.ast.internal
   * - extend translator
   */
 
+import viper.gobra.frontend.info.base.Type.IntegerKind
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
@@ -699,9 +700,10 @@ case class BoolT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
 }
 
-case class IntT(addressability: Addressability) extends Type {
-  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT]
-  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability)
+// TODO: change integer modifier
+case class IntT(addressability: Addressability, kind: Option[IntegerKind] = None) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
+  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
 case object VoidT extends Type {

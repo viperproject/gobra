@@ -6,12 +6,9 @@
 
 package viper.gobra.translator.implementations.translator
 
-import viper.gobra.ast.internal.Parameter
 import viper.gobra.ast.{internal => in}
-import viper.gobra.frontend.info.base.Type.BoundedIntegerKind
 import viper.gobra.translator.interfaces.translator.PureMethods
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.silver.ast.{Assert, LocalVarDecl, TrueLit}
 import viper.silver.{ast => vpr}
 
 class PureMethodsImpl extends PureMethods {

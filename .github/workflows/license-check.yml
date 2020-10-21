@@ -1,0 +1,23 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2011-2020 ETH Zurich.
+
+name: license-check
+
+on:
+  pull_request:
+
+jobs:
+  check-license-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Gobra
+        uses: actions/checkout@v2
+      - name: Check license headers
+        uses: viperproject/check-license-header@v1
+        with:
+          path: ./
+          config: ./.github/license-check/config.json
+          strict: true

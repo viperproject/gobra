@@ -8,13 +8,14 @@ package viper.gobra.ast
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.internal._
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.reporting.Source.Parser.Internal
 import viper.gobra.theory.Addressability
 
 class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
-  val intT: Type = IntT(Addressability.Exclusive)
+  val intT: Type = IntT(Addressability.Exclusive, Some(Type.Int))
   val boolT: Type = BoolT(Addressability.Exclusive)
   def sequenceT(memT: Type): Type = SequenceT(memT, Addressability.Exclusive)
   def setT(memT: Type): Type = SetT(memT, Addressability.Exclusive)
@@ -1034,7 +1035,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a shared (integer) array type") {
-    val typ = sharedArrayT(12, IntT(Addressability.Shared))
+    val typ = sharedArrayT(12, IntT(Addressability.Shared, Some(Type.Int)))
 
     frontend.show(typ) should matchPattern {
       case "[12]int" =>

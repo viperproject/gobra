@@ -147,13 +147,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+    var result = program
+
     if (config.checkOverflows) {
-      val transProgram = OverflowChecksTransform.transform(program)
-      config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => transProgram)
-      Right(transProgram)
-    } else {
-      Left(Vector())
+      result = OverflowChecksTransform.transform(program)
+      config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
     }
+
+    Right(result)
   }
 
   private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {

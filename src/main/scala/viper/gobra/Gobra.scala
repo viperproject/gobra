@@ -11,10 +11,11 @@ import java.io.File
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
+import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
-import viper.gobra.reporting.{BackTranslator, CopyrightReport, VerifierError, VerifierResult}
+import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
 import viper.silver.{ast => vpr}
 
@@ -73,6 +74,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         parsedPackage <- performParsing(input, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
+        program <- performInternalTransformations(program, config)
+
+        // TODO: make bounds of IntegerKind depend on config
         viperTask <- performViperEncoding(program, finalConfig)
       } yield (viperTask, finalConfig)
     }
@@ -133,6 +137,20 @@ class Gobra extends GoVerifier with GoIdeVerifier {
   private def performDesugaring(parsedPackage: PPackage, typeInfo: TypeInfo, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.shouldDesugar) {
       Right(Desugar.desugar(parsedPackage, typeInfo)(config))
+    } else {
+      Left(Vector())
+    }
+  }
+
+  /**
+    * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
+    * be easily extended to perform more transformations
+    */
+  private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+    if (config.checkOverflows) {
+      val transProgram = OverflowChecksTransform.transform(program)
+      config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => transProgram)
+      Right(transProgram)
     } else {
       Left(Vector())
     }

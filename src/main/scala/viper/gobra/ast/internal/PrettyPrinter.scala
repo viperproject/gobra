@@ -10,7 +10,6 @@ import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.frontend.info.base.Type.UntypedConst
 import viper.gobra.theory.Addressability
 import viper.silver.ast.{Position => GobraPosition}
 

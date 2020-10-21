@@ -7,7 +7,6 @@
 package viper.gobra.reporting
 
 import viper.silver.ast.SourcePosition
-import viper.silver.verifier.errors.AssertFailed
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]

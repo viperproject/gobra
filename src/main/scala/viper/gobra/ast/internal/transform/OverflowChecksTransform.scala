@@ -88,34 +88,4 @@ object OverflowChecksTransform extends InternalTransform {
     }
 
   case object OverflowCheckAnnotation extends Source.Annotation
-
-  /*
-  case object OverflowErrorTrafo extends ErrorTrafo {
-    override def eTransformations: List[PartialFunction[AbstractVerificationError, AbstractVerificationError]] = {
-      List({ case AssertFailed(offendingNode, reason, _) => OverflowError(offendingNode, reason) })
-    }
-
-    override def rTransformations: List[PartialFunction[ErrorReason, ErrorReason]] =
-      List({case AssertionFalse(offendingNode) => ???})
-
-    override def nTransformations: Option[ErrorNode] = None
-  }
-
-  case class OverflowError(offendingNode: viper.silver.ast.Assert, reason: ErrorReason) extends AbstractVerificationError {
-    val id = "overflow.error"
-    val text = "Operation may cause integer overflow"
-
-    def withNode(offendingNode: errors.ErrorNode = this.offendingNode) = OverflowError(offendingNode.asInstanceOf[viper.silver.ast.Assert], this.reason)
-    def withReason(r: ErrorReason) = OverflowError(offendingNode, r)
-  }
-   */
-
-  /*
-
-  case object Internal extends Source.Parser.Info {
-    override lazy val origin: Option[Origin] = None
-    override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
-      (vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-  }
-   */
 }

@@ -6,6 +6,8 @@
 
 package viper.gobra.reporting
 
+import viper.gobra.ast.internal.transform.OverflowChecksTransform.OverflowCheckAnnotation
+import viper.gobra.reporting.Source.AnnotatedOrigin
 import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
@@ -60,7 +62,13 @@ object DefaultErrorBackTranslator {
     case vprrea.InsufficientPermission(Source(info)) =>
       InsufficientPermissionError(info)
     case vprrea.AssertionFalse(Source(info)) =>
-      AssertionFalseError(info)
+      info.origin match {
+        case origin: AnnotatedOrigin => origin.annotation match {
+          case OverflowCheckAnnotation => OverflowErrorReason(info)
+          case _ => ???
+        }
+        case _ => AssertionFalseError(info)
+      }
     case vprrea.AssertionFalse(Source(info)) =>
       AssertionFalseError(info)
     case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
@@ -100,7 +108,15 @@ class DefaultErrorBackTranslator(
     case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
       PreconditionError(info) dueTo translate(reason)
     case vprerr.AssertFailed(Source(info), reason, _) =>
-      AssertError(info) dueTo translate(reason)
+      info.origin match {
+        case origin: AnnotatedOrigin =>
+          origin.annotation match {
+            case OverflowCheckAnnotation => OverflowError(info) dueTo translate(reason)
+            case _ => ???
+          }
+        case _ =>
+          AssertError(info) dueTo translate(reason)
+      }
     case vprerr.ExhaleFailed(Source(info), reason, _) =>
       ExhaleError(info) dueTo translate(reason)
     case vprerr.FoldFailed(Source(info), reason, _) =>

@@ -17,6 +17,9 @@ object Source {
 
   case class Origin(pos: SourcePosition, tag: String)
 
+  abstract class Annotation()
+  class AnnotatedOrigin(val origin: Origin, val annotation: Annotation) extends Origin(origin.pos, origin.tag)
+
   object Parser {
 
     sealed trait Info {
@@ -39,6 +42,9 @@ object Source {
       override lazy val origin: Option[Origin] = Some(src)
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
         (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
+
+      def annotateOrigin(annotation: Annotation): Single =
+        new Single(pnode, new AnnotatedOrigin(src, annotation))
     }
 
     object Single {

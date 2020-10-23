@@ -15,10 +15,10 @@ package viper.gobra.ast.internal
   * - extend translator
   */
 
-import viper.gobra.frontend.info.base.Type.{IntegerKind, UntypedConst}
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
 
 case class Program(
@@ -700,8 +700,7 @@ case class BoolT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
 }
 
-// TODO: change integer modifier
-case class IntT(addressability: Addressability, kind: IntegerKind = UntypedConst) extends Type {
+case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }

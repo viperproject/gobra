@@ -17,8 +17,7 @@ import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends}
 import viper.gobra.GoVerifier
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-
-
+import viper.gobra.util.TypeBounds
 import viper.server.core.{ViperBackendConfig, ViperBackendConfigs}
 
 
@@ -40,7 +39,8 @@ case class Config(
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
                  checkOverflows: Boolean = false,
-                 shouldVerify: Boolean = true
+                 shouldVerify: Boolean = true,
+                 int64bit: Boolean = false // picks the size of int's, 32 if false, 64 bit otherwise
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -56,11 +56,18 @@ case class Config(
       shouldDesugar = shouldDesugar,
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows,
-      shouldVerify = shouldVerify
+      shouldVerify = shouldVerify,
+      int64bit = int64bit
     )
   }
-}
 
+  lazy val typeBounds: TypeBounds =
+    if (int64bit) {
+      TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
+    } else {
+      TypeBounds()
+    }
+}
 
 class ScallopGobraConfig(arguments: Seq[String])
     extends ScallopConf(arguments)
@@ -183,6 +190,13 @@ class ScallopGobraConfig(arguments: Seq[String])
   val checkOverflows: ScallopOption[Boolean] = toggle(
     name = "overflow",
     descrYes = "Find expressions that may lead to integer overflow",
+    default = Some(false),
+    noshort = false
+  )
+
+  val int64Bit: ScallopOption[Boolean] = toggle(
+    name = "int64",
+    descrYes = "Run with 64-bit sized integers",
     default = Some(false),
     noshort = false
   )
@@ -342,6 +356,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldDesugar = shouldDesugar,
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows.supplied,
+    int64bit = int64Bit.supplied,
     shouldVerify = shouldVerify
   )
 }

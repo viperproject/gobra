@@ -75,8 +75,6 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, config)
-
-        // TODO: make bounds of IntegerKind depend on config
         viperTask <- performViperEncoding(program, finalConfig)
       } yield (viperTask, finalConfig)
     }

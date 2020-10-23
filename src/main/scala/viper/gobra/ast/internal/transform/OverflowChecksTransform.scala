@@ -7,9 +7,9 @@
 package viper.gobra.ast.internal.transform
 
 import viper.gobra.ast.internal._
-import viper.gobra.frontend.info.base.Type.BoundedIntegerKind
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser.Single
+import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
 /**

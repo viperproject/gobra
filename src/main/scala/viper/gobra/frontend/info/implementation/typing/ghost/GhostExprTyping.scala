@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type, UntypedConst}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -151,11 +151,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
-      case PCardinality(_) => IntT(UntypedConst)
-      case PMultiplicity(_, _) => IntT(UntypedConst)
+      case PCardinality(_) => IntT(config.typeBounds.UntypedConst)
+      case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
-        case PRangeSequence(_, _) => SequenceT(IntT(UntypedConst))
+        case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
 
         case PSequenceAppend(left, right) =>
           val lType = exprType(left)

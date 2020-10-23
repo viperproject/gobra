@@ -13,7 +13,7 @@ import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.Violation.violation
 
 /**
-  * TODO doc
+  * Adds overflow checks to programs written in Gobra's internal language
   */
 object OverflowChecksTransform extends InternalTransform {
   override def name(): String = "add_integer_overflow_checks"
@@ -74,8 +74,9 @@ object OverflowChecksTransform extends InternalTransform {
   private val assume: Assertion => Source.Parser.Info => Stmt = a => Assume(a)(_)
 
   private def exprWithinBounds(assertionType: Assertion => Source.Parser.Info => Stmt)(expr: Expr, typ: Type)(info: Source.Parser.Info): Stmt =
+    // TODO: check that every subexpression is within bounds, not only the top level one
     typ match {
-      case IntT(_, Some(kind)) if kind.isInstanceOf[BoundedIntegerKind] =>
+      case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
         val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
         // TODO: look for more elegant way to do this (`info` very repeated)
         assertionType(
@@ -87,5 +88,6 @@ object OverflowChecksTransform extends InternalTransform {
       case _ => assertionType(ExprAssertion(BoolLit(true)(info))(info))(info)
     }
 
+  // should this be moved to Source class?
   case object OverflowCheckAnnotation extends Source.Annotation
 }

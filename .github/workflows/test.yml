@@ -99,8 +99,8 @@ jobs:
           # note that `actions/cache` uses a sophisticated logic based on the current branch and the cache versions' age
           # to select a particular cache version if multiple versions match the restore keys.
           key: ${{ runner.os }}-sbt-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-sbt-
+          # restore-keys: |
+          #   ${{ runner.os }}-sbt-
 
       - name: Execute all tests
         run: sbt test

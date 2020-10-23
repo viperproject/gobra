@@ -73,24 +73,24 @@ jobs:
         run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy" >> $GITHUB_ENV
         # note that the cache path is relative to the directory in which sbt is invoked.
 
-#      - name: Cache SBT
-#        uses: actions/cache@v2
-#        with:
-#          path: |
-#            gobra/sbt-cache/.sbtboot
-#            gobra/sbt-cache/.boot
-#            gobra/sbt-cache/.ivy/cache
-#            gobra/project/target
-#            gobra/target
-#            viperserver/project/target
-#            viperserver/target
-#            carbon/project/target
-#            carbon/target
-#            silicon/project/target
-#            silicon/target
-#            silver/project/target
-#            silver/target
-#          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+      - name: Cache SBT
+        uses: actions/cache@v2
+        with:
+          path: |
+            gobra/sbt-cache/.sbtboot
+            gobra/sbt-cache/.boot
+            gobra/sbt-cache/.ivy/cache
+            gobra/project/target
+            gobra/target
+            viperserver/project/target
+            viperserver/target
+            carbon/project/target
+            carbon/target
+            silicon/project/target
+            silicon/target
+            silver/project/target
+            silver/target
+          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
 
       - name: Execute all tests
         run: sbt test

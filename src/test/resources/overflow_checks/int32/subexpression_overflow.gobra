@@ -3,14 +3,15 @@
 
 package ints
 
-// the following causes no errors even though subexpressions may overflow.
-// this is due to type information not being precisely propagated to all subexpressions of integer expressions
+// Even though the value of the expression as a whole
+// may not overflow, (x * x) and (x + 1) may both lead to overflows
 requires 0 < x && x <= 250
 func subExp1(x int8) int8 {
+	//:: ExpectedOutput(integer_overflow_error)
 	return (x * x) / (x + 1)
 }
 
-// the possibility for overflow is detected here
+// the example above is made clear here
 requires 0 < x && x <= 250
 func subExp(x int8) int8 {
 	//:: ExpectedOutput(integer_overflow_error)

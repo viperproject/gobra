@@ -137,8 +137,8 @@ object OverflowChecksTransform extends InternalTransform {
       }
 
     val exprBoundCheck = genAssertion(expr, typ) // typ must be provided from the outside to obtain the most precise type info possible
-    val x = Expr.getProperSubExpressions(expr)
-    val subExprsBoundChecks = x.filter(_.typ.isInstanceOf[IntT]).map{x => genAssertion(x, x.typ)}
+    val subExprsBoundChecks =
+      Expr.getProperSubExpressions(expr).filter(_.typ.isInstanceOf[IntT]).map{x => genAssertion(x, x.typ)}
 
     ExprAssertion(subExprsBoundChecks.foldRight(exprBoundCheck)((x,y) => And(x,y)(info)))(info)
   }

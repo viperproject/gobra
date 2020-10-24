@@ -18,8 +18,10 @@ package viper.gobra.ast.internal
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
@@ -220,7 +222,6 @@ object Expr {
       getProperSubExpressions(thn) ++
       getProperSubExpressions(els) + (cond, thn, els)
     case PureForall(vars, _, body) => vars.map(_.asInstanceOf[Expr]).toSet ++ getProperSubExpressions(body) + body
-    case PureForall(vars, _, _) => vars.map(_.asInstanceOf[Expr]).toSet
     case Exists(vars, _, body) => vars.map(_.asInstanceOf[Expr]).toSet ++ getProperSubExpressions(body) + body
     case Multiplicity(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l,r)
     case Length(exp) => getProperSubExpressions(exp) + exp
@@ -609,6 +610,13 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
   def right: Expr
 }
 
+sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
+  override val typ: Type = (left.typ, right.typ) match {
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.rValue, TypeBounds.merge(kind1, kind2))
+    case (l, r) => violation(s"cannot merge types $l and $r")
+  }
+}
+
 object BinaryExpr {
   def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
     Some((arg.left, arg.operator, arg.right, arg.typ))
@@ -625,11 +633,11 @@ case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
 
-case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntOperation
-case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntOperation
-case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntOperation
-case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntOperation
-case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntOperation
+case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
+case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
+case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
+case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
+case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
 
 

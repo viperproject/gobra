@@ -6,8 +6,8 @@
 
 package viper.gobra.util
 
-import viper.gobra.util.TypeBounds.{DefaultInt, DefaultUInt, IntegerKind, Rune, Byte, SignedInteger16, SignedInteger32,
-  SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
+import viper.gobra.util.TypeBounds.{Byte, DefaultInt, DefaultUInt, IntegerKind, Rune, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntPtr, UnboundedInteger, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
+import viper.gobra.util.Violation.violation
 
 /**
   * Defines the integer type bounds for an execution of Gobra
@@ -63,4 +63,11 @@ object TypeBounds {
   object UnsignedInteger64 extends AbstractUnsignedInteger64("uint64")
   object UIntWith64Bit extends AbstractUnsignedInteger64("uint") // uint definition when Gobra runs in 64-bit mode
   object UIntPtr extends AbstractUnsignedInteger64("uintptr")
+
+  def merge(integerKind1: IntegerKind, integerKind2: IntegerKind): IntegerKind = (integerKind1, integerKind2) match {
+    case (a, b) if a == b => a
+    case (a, UnboundedInteger) => a
+    case (UnboundedInteger, b) => b
+    case _ => violation(s"kinds $integerKind1 and $integerKind2 cannot be merged")
+  }
 }

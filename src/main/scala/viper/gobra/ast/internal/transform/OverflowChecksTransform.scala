@@ -90,11 +90,19 @@ object OverflowChecksTransform extends InternalTransform {
 
     case s@Seqn(stmts) => Seqn(stmts map stmtTransform)(s.info)
 
-    // TODO: check condition expression for overflow
-    case i@If(cond, thn, els) => If(cond, stmtTransform(thn), stmtTransform(els))(i.info)
+    case i@If(cond, thn, els) =>
+      val info = i.info match {
+        case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
+        case i => violation(s"info ($i) is expected to be a Single")
+      }
+      Seqn(Vector(Assert(assertionExprInBounds(cond, cond.typ)(info))(info), If(cond, stmtTransform(thn), stmtTransform(els))(info)))(info)
 
-    // TODO: check condition expression for overflow
-    case w@While(cond, invs, body) => While(cond, invs, stmtTransform(body))(w.info)
+    case w@While(cond, invs, body) =>
+      val info = w.info match {
+        case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
+        case i => violation(s"info ($i) is expected to be a Single")
+      }
+      Seqn(Vector(Assert(assertionExprInBounds(cond, cond.typ)(info))(info), While(cond, invs, stmtTransform(body))(info)))(info)
 
     case ass@SingleAss(l, r) =>
       val assertBounds = {
@@ -115,19 +123,27 @@ object OverflowChecksTransform extends InternalTransform {
     case x => x
   }
 
-  private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion =
-    // TODO: check that every subexpression is within bounds, not only the top level one
-    typ match {
-      case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
-        val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
-        // TODO: look for more elegant way to do this (`info` very repeated)
-          ExprAssertion(
-            And(
-              AtMostCmp(IntLit(boundedKind.lower)(info), expr)(info),
-              AtMostCmp(expr, IntLit(boundedKind.upper)(info))(info))(info))(info)
+  // Checks if expr and its subexpressions are within bounds of type `typ`
+  private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion = {
+    def genAssertion(expr: Expr, typ: Type): Expr =
+      typ match {
+        case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
+          val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
+          And(
+            AtMostCmp(IntLit(boundedKind.lower)(info), expr)(info),
+            AtMostCmp(expr, IntLit(boundedKind.upper)(info))(info))(info)
 
-      case _ => ExprAssertion(BoolLit(true)(info))(info)
-    }
+        case _ => BoolLit(true)(info)
+      }
+
+    val exprBoundCheck = genAssertion(expr, typ) // typ must be provided from the outside to obtain the most precise type info possible
+    val x = Expr.getProperSubExpressions(expr)
+    val subExprsBoundChecks = x.filter(_.typ.isInstanceOf[IntT]).map{x => genAssertion(x, x.typ)}
+
+    ExprAssertion(subExprsBoundChecks.foldRight(exprBoundCheck)((x,y) => And(x,y)(info)))(info)
+  }
+
+
 
   // should this be moved to Source class?
   case object OverflowCheckAnnotation extends Source.Annotation

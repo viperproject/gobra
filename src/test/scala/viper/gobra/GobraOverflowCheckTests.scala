@@ -18,7 +18,7 @@ import viper.silver.utility.TimingUtils
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-abstract class GobraOverflowCheckTests extends GobraTests {
+sealed abstract class GobraOverflowCheckTests extends GobraTests {
   override val testDirectories: Seq[String] = Vector("overflow_checks")
 
   def configWithInput(files: Vector[File]): Config
@@ -46,7 +46,7 @@ abstract class GobraOverflowCheckTests extends GobraTests {
 /**
   * Tests overflow checks in 32 bit mode
   */
-class GobraOverflowCheckTests32 extends GobraOverflowCheckTests {
+final class GobraOverflowCheckTests32 extends GobraOverflowCheckTests {
   override def configWithInput(files: Vector[File]): Config =
     Config(
       logLevel = Level.INFO,
@@ -61,7 +61,7 @@ class GobraOverflowCheckTests32 extends GobraOverflowCheckTests {
 /**
   * Tests overflow checks in 64 bit mode
   */
-class GobraOverflowCheckTests64 extends GobraOverflowCheckTests {
+final class GobraOverflowCheckTests64 extends GobraOverflowCheckTests {
   override def configWithInput(files: Vector[File]): Config =
     Config(
       logLevel = Level.INFO,

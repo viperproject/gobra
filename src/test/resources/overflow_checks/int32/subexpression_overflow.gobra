@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+// the following causes no errors even though subexpressions may overflow.
+// this is due to type information not being precisely propagated to all subexpressions of integer expressions
+requires 0 < x && x <= 250
+func subExp1(x int8) int8 {
+	return (x * x) / (x + 1)
+}
+
+// the possibility for overflow is detected here
+requires 0 < x && x <= 250
+func subExp(x int8) int8 {
+	//:: ExpectedOutput(integer_overflow_error)
+    x_square := x * x
+	return x_square / (x + 1)
+}

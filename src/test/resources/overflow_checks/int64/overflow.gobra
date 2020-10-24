@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package overflow
+
+// Should overflow when running in 32 bit mode, not in 64
+requires i <= 2147483647
+ensures res == i + 1
+func overflowInt32(i int) (res int) {
+	return i + 1
+}
+
+// Operation may overflow, no bound checks are performed
+ensures ret == u + 1
+func incrementU8(u uint) (ret uint) {
+	//:: ExpectedOutput(integer_overflow_error)
+	ret = u + 1
+	return
+}

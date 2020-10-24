@@ -104,7 +104,14 @@ class DefaultErrorBackTranslator(
     case vprerr.AssignmentFailed(Source(info), reason, _) =>
       AssignmentError(info) dueTo translate(reason)
     case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
-      PostconditionError(info) dueTo translate(reason)
+      info.origin match {
+        case origin: AnnotatedOrigin => origin.annotation match {
+          case OverflowCheckAnnotation => OverflowError(info) dueTo translate(reason)
+          case _ => ???
+        }
+        case _ => PostconditionError(info) dueTo translate(reason)
+      }
+
     case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
       PreconditionError(info) dueTo translate(reason)
     case vprerr.AssertFailed(Source(info), reason, _) =>

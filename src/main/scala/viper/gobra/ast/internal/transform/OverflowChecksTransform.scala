@@ -79,10 +79,7 @@ object OverflowChecksTransform extends InternalTransform {
   private def getPureBlockPost(body: Expr, results: Vector[Parameter.Out]): Assertion = {
     // relies on the current assumption that pure functions and methods must have exactly one result argument
     if (results.length != 1) violation("Pure functions and methods must have exactly one result argument")
-    body.info match {
-      case s: Single => assertionExprInBounds(body, results(0).typ)(s.annotateOrigin(OverflowCheckAnnotation))
-      case i => violation(s"expr.info ($i) is expected to be a Single")
-    }
+    assertionExprInBounds(body, results(0).typ)(addAnnotation(body.info))
   }
 
   private def stmtTransform(stmt: Stmt): Stmt = stmt match {
@@ -91,34 +88,25 @@ object OverflowChecksTransform extends InternalTransform {
     case s@Seqn(stmts) => Seqn(stmts map stmtTransform)(s.info)
 
     case i@If(cond, thn, els) =>
-      val info = i.info match {
-        case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
-        case i => violation(s"info ($i) is expected to be a Single")
-      }
-      Seqn(Vector(Assert(assertionExprInBounds(cond, cond.typ)(info))(info), If(cond, stmtTransform(thn), stmtTransform(els))(info)))(info)
+      val condInfo = addAnnotation(cond.info)
+      val ifInfo = addAnnotation(i.info)
+      val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
+      val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(ifInfo)
+      Seqn(Vector(assertCond, ifStmt))(ifInfo)
 
     case w@While(cond, invs, body) =>
-      val info = w.info match {
-        case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
-        case i => violation(s"info ($i) is expected to be a Single")
-      }
-      Seqn(Vector(Assert(assertionExprInBounds(cond, cond.typ)(info))(info), While(cond, invs, stmtTransform(body))(info)))(info)
+      val condInfo = addAnnotation(cond.info)
+      val whileInfo = addAnnotation(w.info)
+      val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
+      val whileStmt = While(cond, invs, stmtTransform(body))(whileInfo)
+      Seqn(Vector(assertCond, whileStmt))(whileInfo)
 
     case ass@SingleAss(l, r) =>
       val assertBounds = {
-        val info = r.info match {
-          case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
-          case i => violation(s"r.info ($i) is expected to be a Single")
-        }
+        val info = addAnnotation(r.info)
         Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
       }
-
-      Seqn(Vector(assertBounds, ass)) {
-        l.op.info match {
-          case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
-          case i => violation(s"l.op.info ($i) is expected to be a Single")
-        }
-      }
+      Seqn(Vector(assertBounds, ass))(addAnnotation(l.op.info))
 
     case x => x
   }
@@ -143,8 +131,12 @@ object OverflowChecksTransform extends InternalTransform {
     ExprAssertion(subExprsBoundChecks.foldRight(exprBoundCheck)((x,y) => And(x,y)(info)))(info)
   }
 
-
-
   // should this be moved to Source class?
   case object OverflowCheckAnnotation extends Source.Annotation
+
+  private def addAnnotation(info: Source.Parser.Info): Source.Parser.Info =
+    info match {
+      case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
+      case i => violation(s"l.op.info ($i) is expected to be a Single")
+    }
 }

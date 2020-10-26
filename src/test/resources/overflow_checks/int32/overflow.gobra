@@ -65,3 +65,22 @@ pure func (r rect) perim() int {
 	//:: ExpectedOutput(integer_overflow_error)
     return 2 * r.width + 2 * r.height
 }
+
+// Test if conditions for overflow
+func strangeAbs(x int) int {
+	//:: ExpectedOutput(integer_overflow_error)
+	if x + 1 > 0 {
+		return x
+	} else {
+		return -x
+	}
+}
+
+// Test loop conditions
+func whileCheck() {
+	x := 0
+	for x + 1 > 0 {
+		//:: ExpectedOutput(integer_overflow_error)
+		x += 1
+	}
+}

@@ -80,27 +80,11 @@ jobs:
             gobra/sbt-cache/.sbtboot
             gobra/sbt-cache/.boot
             gobra/sbt-cache/.ivy/cache
-            gobra/project/target
-            gobra/target
-            viperserver/project/target
-            viperserver/target
-            carbon/project/target
-            carbon/target
-            silicon/project/target
-            silicon/target
-            silver/project/target
-            silver/target
-          # use run ID as primary key to avoid a cache hit on the primary key (but on a restore key).
-          # this ensures that an updated version of above's directories will be added to the cache and used next time.
-          # if instead the key is based on hashing some sbt build files, there will be a cache hit on the primary key
-          # (unless the build files have changed) and the updated directories won't be added to the cache (because
-          # `actions/cache` skips the cache update after a primary key hit). Hence, the next build job will need to
-          # recompile more source files than necessary as compilation will use on an outdated cache.
-          # note that `actions/cache` uses a sophisticated logic based on the current branch and the cache versions' age
-          # to select a particular cache version if multiple versions match the restore keys.
-          key: ${{ runner.os }}-sbt-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-sbt-
+          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'viperserver', are intentionally not
+          # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
+          # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
+          # disabled caching of compiled source files altogether
+          key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
 
       - name: Execute all tests
         run: sbt test

@@ -54,7 +54,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         unit(nilSlice(t)(ctx)(pos, info, errT))
       }
 
-      case in.Length(exp :: ctx.Slice(typ) / Exclusive) => for {
+      case in.Length(exp :: ctx.Slice(typ)) => for {
         expT <- goE(exp)
         typT = ctx.typeEncoding.typ(ctx)(typ)
         (pos, info, errT) = exp.vprMeta
@@ -64,7 +64,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         ctx.slice.len(ctx.option.get(expT, ctx.slice.typ(typT))(pos, info, errT))(pos, info, errT)
       )(pos, info, errT)
 
-      case in.Capacity(exp :: ctx.Slice(typ) / Exclusive) => for {
+      case in.Capacity(exp :: ctx.Slice(typ)) => for {
         expT <- goE(exp)
         typT = ctx.typeEncoding.typ(ctx)(typ)
         (pos, info, errT) = exp.vprMeta
@@ -92,7 +92,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         })(pos, info, errT)
       }
 
-      case exp @ in.Slice((base : in.Location) :: ctx.Slice(typ) / Exclusive, low, high, max) => for {
+      case exp @ in.Slice((base : in.Location) :: ctx.Slice(typ), low, high, max) => for {
         baseT <- goE(base)
         lowT <- goE(low)
         highT <- goE(high)
@@ -281,7 +281,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     *   ensures scap(result) == k - i
     *   ensures sarray(result) == sarray(s)
     * {
-    * 	sfullSliceFromArray(sarray(s), soffset(s) + i, soffset(s) + j, soffset(s) + k)
+    *   sfullSliceFromArray(sarray(s), soffset(s) + i, soffset(s) + j, soffset(s) + k)
     * }
     * }}}
     */

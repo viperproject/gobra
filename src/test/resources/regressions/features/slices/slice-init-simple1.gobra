@@ -43,3 +43,11 @@ func test4() {
   assert s[0] == 1
   assert forall i int :: 0 <= i && i < len(s) ==> s[i] == a[i]
 }
+
+func test5() {
+  a! := [4]int { 1, 2, 4, 8 }
+	s! := a[1:]
+  t := s[1:]
+  assert len(t) == 2
+  assert cap(t) == 2
+}

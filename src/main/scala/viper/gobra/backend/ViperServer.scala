@@ -35,12 +35,16 @@ object ViperServer {
         sender ! verificationPromise
 
       case msg: Message =>
-        reporter.report(msg)
+        try {
+          reporter.report(msg)
 
-        msg match {
-          case msg: OverallFailureMessage => verificationPromise success msg.result
-          case _: OverallSuccessMessage   => verificationPromise success Success
-          case _ =>
+          msg match {
+            case msg: OverallFailureMessage => verificationPromise success msg.result
+            case _: OverallSuccessMessage   => verificationPromise success Success
+            case _ =>
+          }
+        } catch {
+          case e: Throwable => verificationPromise failure e
         }
 
       case e: Throwable => verificationPromise failure e

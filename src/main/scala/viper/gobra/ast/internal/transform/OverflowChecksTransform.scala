@@ -21,8 +21,9 @@ object OverflowChecksTransform extends InternalTransform {
   override def transform(p: Program): Program = transformMembers(memberTrans)(p)
 
   private def memberTrans(member: Member): Member = member match {
-    // Adds overflow checks per statement that contains an expression and assume statements in the beginning
-    // specifying the bounds of each argument
+    // adds overflow checks per statement that contains subexpressions of bounded integer type and adds assume
+    /// statements at the beginning of a function or method body assuming that the value of an argument (of
+    // bounded integer type) respects the bounds.
     case f@Function(name, args, results, pres, posts, body) =>
       Function(name, args, results, pres, posts, body map (computeNewBody(args, _)))(f.info)
 
@@ -34,8 +35,8 @@ object OverflowChecksTransform extends InternalTransform {
     // overflows
     case f@PureFunction(name, args, results, pres, posts, body) => body match {
       case Some(expr) =>
-        val newPre = pres ++ getPureBlockPre(args)
-        val newPost = posts ++ Vector(getPureBlockPost(expr, results))
+        val newPre = pres ++ getPureBlockPres(args)
+        val newPost = posts ++ getPureBlockPosts(expr, results)
         PureFunction(name, args, results, newPre, newPost, body)(f.info)
       case None => f
     }
@@ -43,8 +44,8 @@ object OverflowChecksTransform extends InternalTransform {
     // Same as pure functions
     case m@PureMethod(receiver, name, args, results, pres, posts, body) => body match {
       case Some(expr) =>
-        val newPre = pres ++ getPureBlockPre(args)
-        val newPost = posts ++ Vector(getPureBlockPost(expr, results))
+        val newPre = pres ++ getPureBlockPres(args)
+        val newPost = posts ++ getPureBlockPosts(expr, results)
         PureMethod(receiver, name, args, results, newPre, newPost, body)(m.info)
       case None => m
     }
@@ -68,7 +69,7 @@ object OverflowChecksTransform extends InternalTransform {
     * Computes the pre-conditions to be added to pure functions and methods to check for overflows, i.e.
     * that each argument is within the bounds for its type
     */
-  private def getPureBlockPre(args: Vector[Parameter.In]): Vector[Assertion] = {
+  private def getPureBlockPres(args: Vector[Parameter.In]): Vector[Assertion] = {
     args.map { p: Parameter.In => assertionExprInBounds(p, p.typ)(p.info) }
   }
 
@@ -76,10 +77,10 @@ object OverflowChecksTransform extends InternalTransform {
     * Computes the post-conditions to be added to pure functions and methods to check for overflows, i.e.
     * that the expression result is within the bounds of its type
     */
-  private def getPureBlockPost(body: Expr, results: Vector[Parameter.Out]): Assertion = {
+  private def getPureBlockPosts(body: Expr, results: Vector[Parameter.Out]): Vector[Assertion] = {
     // relies on the current assumption that pure functions and methods must have exactly one result argument
     if (results.length != 1) violation("Pure functions and methods must have exactly one result argument")
-    assertionExprInBounds(body, results(0).typ)(addAnnotation(body.info))
+    Vector(assertionExprInBounds(body, results(0).typ)(addAnnotation(body.info)))
   }
 
   private def stmtTransform(stmt: Stmt): Stmt = stmt match {

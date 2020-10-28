@@ -94,6 +94,11 @@ case class AssignmentError(info: Source.Verifier.Info) extends VerificationError
   override def localMessage: String = "Assignment might fail"
 }
 
+case class CallError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "call_error"
+  override def localMessage: String = "Call might fail"
+}
+
 case class PostconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "postcondition_error"
   override def localMessage: String = "Postcondition might not hold"
@@ -112,6 +117,11 @@ case class AssertError(info: Source.Verifier.Info) extends VerificationError {
 case class ExhaleError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "exhale_error"
   override def localMessage: String = "Exhale might fail"
+}
+
+case class InhaleError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "inhale_error"
+  override def localMessage: String = "Inhale might fail"
 }
 
 case class FoldError(info: Source.Verifier.Info) extends VerificationError {

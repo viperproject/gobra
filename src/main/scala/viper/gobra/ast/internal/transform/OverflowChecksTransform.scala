@@ -50,7 +50,10 @@ object OverflowChecksTransform extends InternalTransform {
       case None => m
     }
 
-    // TODO: should we add overflow checks to predicates?
+    /* As discussed on the Gobra meeting (27/10/2020), overflow checks should not be added to predicates, assertions
+    * and any other purely logical (i.e. non-executable code) statements and expressions. This seems to be the approach taken
+    * by other verification tools such as FramaC, as noted by Wytse
+    */
 
     case x => x
   }

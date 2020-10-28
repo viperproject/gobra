@@ -355,6 +355,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       lenP <> typP <+> exprsP
     }
 
+    case SliceLit(typ, exprs) => {
+      val typP = showType(typ)
+      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      brackets(emptyDoc) <> typP <+> exprsP
+    }
+
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)

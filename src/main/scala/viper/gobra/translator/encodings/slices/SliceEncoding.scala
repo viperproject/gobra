@@ -9,6 +9,7 @@ package viper.gobra.translator.encodings.slices
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
@@ -92,7 +93,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         })(pos, info, errT)
       }
 
-      case exp @ in.Slice((base : in.Location) :: ctx.Slice(typ), low, high, max) => for {
+      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(typ), low, high, max) => for {
         baseT <- goE(base)
         lowT <- goE(low)
         highT <- goE(high)
@@ -109,6 +110,20 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           case None => sliceFromSlice(vpr.Ref, baseOptT, lowT, highT)(ctx)(pos, info, errT)
           case Some(maxT) => fullSliceFromSlice(vpr.Ref, baseOptT, lowT, highT, maxT)(ctx)(pos, info, errT)
         })(pos, info, errT)
+      }
+
+      case (lit : in.SliceLit) :: ctx.Slice(_) => {
+        val litA = lit.asArrayLit
+        val tmp = in.LocalVar(Names.freshName, litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
+        val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
+        for {
+          initT <- ctx.typeEncoding.initialization(ctx)(tmp)
+          assignT <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(tmp), litA, lit)
+          sliceT <- ctx.expr.translate(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None)(lit.info))(ctx)
+          _ <- local(tmpT)
+          _ <- write(initT)
+          _ <- write(assignT)
+        } yield sliceT
       }
     }
   }

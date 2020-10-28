@@ -179,7 +179,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         case Shared => ctx.typeEncoding.reference(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>

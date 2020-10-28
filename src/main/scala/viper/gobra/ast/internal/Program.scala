@@ -653,8 +653,13 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 sealed trait CompositeLit extends Lit
 
 case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length: BigInt = exprs.length
+  lazy val length : BigInt = exprs.length
   override val typ : Type = ArrayT(exprs.length, memberType, Addressability.literal)
+}
+
+case class SliceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val asArrayLit : ArrayLit = ArrayLit(memberType.withAddressability(Addressability.rValue), exprs)(info)
+  override val typ : Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit

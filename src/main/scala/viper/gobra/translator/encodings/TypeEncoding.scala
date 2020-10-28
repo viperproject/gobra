@@ -104,7 +104,7 @@ trait TypeEncoding extends Generator {
         vLhs = variable(ctx)(v).localVar
       } yield vpr.LocalVarAssign(vLhs, vRhs)(pos, info, errT)
 
-    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
+    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       seqn(
         for {

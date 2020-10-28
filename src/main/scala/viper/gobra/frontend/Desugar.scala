@@ -1058,6 +1058,7 @@ object Desugar {
 
     object CompositeKind {
       case class Array(t : in.ArrayT) extends CompositeKind
+      case class Slice(t : in.SliceT) extends CompositeKind
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
@@ -1067,6 +1068,7 @@ object Desugar {
     def compositeTypeD(t : in.Type) : CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case t: in.ArrayT => CompositeKind.Array(t)
+      case t: in.SliceT => CompositeKind.Slice(t)
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
@@ -1145,6 +1147,13 @@ object Desugar {
           val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
           for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
             yield in.ArrayLit(typ, elemsD)(src)
+
+        case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
+          Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
+          val indices = info.keyElementIndices(lit.elems)
+          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
+          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
+            yield in.SliceLit(typ, elemsD)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) =>
           val indices = info.keyElementIndices(lit.elems)

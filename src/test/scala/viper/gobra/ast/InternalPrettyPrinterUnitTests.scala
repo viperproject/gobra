@@ -1192,6 +1192,17 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should show a simple slice literal as expected") {
+    val expr = SliceLit(
+      intT,
+      Vector(IntLit(8)(Internal), IntLit(3)(Internal), IntLit(2)(Internal))
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "[]int { 8, 3, 2 }" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

@@ -112,7 +112,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         })
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
-          case _: ArrayT => isExpr(op).out ++ message(op, s"exclusive array expected, but shared array '$op' found", addressable(op))
+          case _: ArrayT => isExpr(op).out ++ message(op, s"exclusive array expected, but shared array $op found", addressable(op))
           case _: OptionT => isExpr(op).out
           case t => message(op, s"expected an array or sequence type, but got $t")
         }

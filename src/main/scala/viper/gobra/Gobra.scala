@@ -74,7 +74,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         parsedPackage <- performParsing(input, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
-        program <- performInternalTransformations(program, config)
+        program <- performInternalTransformations(program, finalConfig)
         viperTask <- performViperEncoding(program, finalConfig)
       } yield (viperTask, finalConfig)
     }

@@ -55,9 +55,9 @@ case class Config(
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
       shouldViperEncode = shouldViperEncode,
-      checkOverflows = checkOverflows,
+      checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int64bit = int64bit
+      int64bit = int64bit || other.int64bit
     )
   }
 

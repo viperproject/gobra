@@ -59,40 +59,47 @@ object DefaultErrorBackTranslator {
     translateWithTransformer(viperReason, defaultReasonTransformer)
 
   val defaultReasonTransformer: BackTranslator.ReasonTransformer = {
-    case vprrea.InsufficientPermission(Source(info)) =>
-      InsufficientPermissionError(info)
-    case vprrea.AssertionFalse(Source(info)) =>
-      info.origin match {
-        case origin: AnnotatedOrigin => origin.annotation match {
+    val defaultReasonTransformerAux: BackTranslator.ReasonTransformer = {
+      case vprrea.InsufficientPermission(Source(info)) =>
+        InsufficientPermissionError(info)
+      case vprrea.AssertionFalse(Source(info)) =>
+        AssertionFalseError(info)
+      case vprrea.AssertionFalse(Source(info)) =>
+        AssertionFalseError(info)
+      case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
+        SeqIndexExceedsLengthError(node, index)
+      case vprrea.SeqIndexNegative(Source(node), Source(index)) =>
+        SeqIndexNegativeError(node, index)
+      //      case vprrea.DummyReason =>
+      //      case vprrea.InternalReason(offendingNode, explanation) =>
+      //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>
+      //      case vprrea.UnexpectedNode(offendingNode, explanation, stackTrace) =>
+      //      case vprrea.VariantNotDecreasing(offendingNode, decExp) =>
+      //      case vprrea.TerminationNoBound(offendingNode, decExp) =>
+      //      case vprrea.CallingNonTerminatingFunction(offendingNode, callee) =>
+      //      case vprrea.NoDecClauseSpecified(offendingNode) =>
+      //      case vprrea.EpsilonAsParam(offendingNode) =>
+      //      case vprrea.ReceiverNull(offendingNode) =>
+      //      case vprrea.DivisionByZero(offendingNode) =>
+      //      case vprrea.NegativePermission(offendingNode) =>
+      //      case vprrea.InvalidPermMultiplication(offendingNode) =>
+      //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
+      //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
+      //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
+      //      case vprrea.ReceiverNotInjective(offendingNode) =>
+      //      case vprrea.LabelledStateNotReached(offendingNode) =>
+    }
+
+    val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
+      case a@AssertionFalseError(info) if info.origin.isInstanceOf[AnnotatedOrigin] =>
+        info.origin.asInstanceOf[AnnotatedOrigin].annotation match {
           case OverflowCheckAnnotation => OverflowErrorReason(info)
-          case _ => ???
+          case _ => a
         }
-        case _ => AssertionFalseError(info)
-      }
-    case vprrea.AssertionFalse(Source(info)) =>
-      AssertionFalseError(info)
-    case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
-      SeqIndexExceedsLengthError(node, index)
-    case vprrea.SeqIndexNegative(Source(node), Source(index)) =>
-      SeqIndexNegativeError(node, index)
-    //      case vprrea.DummyReason =>
-    //      case vprrea.InternalReason(offendingNode, explanation) =>
-    //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>
-    //      case vprrea.UnexpectedNode(offendingNode, explanation, stackTrace) =>
-    //      case vprrea.VariantNotDecreasing(offendingNode, decExp) =>
-    //      case vprrea.TerminationNoBound(offendingNode, decExp) =>
-    //      case vprrea.CallingNonTerminatingFunction(offendingNode, callee) =>
-    //      case vprrea.NoDecClauseSpecified(offendingNode) =>
-    //      case vprrea.EpsilonAsParam(offendingNode) =>
-    //      case vprrea.ReceiverNull(offendingNode) =>
-    //      case vprrea.DivisionByZero(offendingNode) =>
-    //      case vprrea.NegativePermission(offendingNode) =>
-    //      case vprrea.InvalidPermMultiplication(offendingNode) =>
-    //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
-    //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
-    //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
-    //      case vprrea.ReceiverNotInjective(offendingNode) =>
-    //      case vprrea.LabelledStateNotReached(offendingNode) =>
+      case x => x
+    }
+
+    { case x => transformVerificationErrorReason(defaultReasonTransformerAux(x)) }
   }
 }
 

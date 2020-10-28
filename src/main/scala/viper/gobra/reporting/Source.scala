@@ -15,35 +15,35 @@ import viper.silver.ast.utility.rewriter.Traverse.Traverse
 
 object Source {
 
-  case class Origin(pos: SourcePosition, tag: String)
-
-  abstract class Annotation()
-  class AnnotatedOrigin(val origin: Origin, val annotation: Annotation) extends Origin(origin.pos, origin.tag)
+  sealed abstract class AbstractOrigin(val pos: SourcePosition, val tag: String)
+  case class Origin(override val pos: SourcePosition, override val tag: String) extends AbstractOrigin(pos, tag)
+  case class AnnotatedOrigin(origin: AbstractOrigin, annotation: Annotation) extends AbstractOrigin(origin.pos, origin.tag)
+  trait Annotation
 
   object Parser {
 
     sealed trait Info {
-      def origin: Option[Origin]
+      def origin: Option[AbstractOrigin]
       def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo)
     }
 
     object Unsourced extends Info {
-      override def origin: Option[Origin] = throw new IllegalStateException()
+      override def origin: Option[AbstractOrigin] = throw new IllegalStateException()
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) = throw new IllegalStateException()
     }
 
     case object Internal extends Info {
-      override lazy val origin: Option[Origin] = None
+      override lazy val origin: Option[AbstractOrigin] = None
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
         (vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
     }
 
-    case class Single(pnode: frontend.PNode, src: Origin) extends Info {
-      override lazy val origin: Option[Origin] = Some(src)
+    case class Single(pnode: frontend.PNode, src: AbstractOrigin) extends Info {
+      override lazy val origin: Option[AbstractOrigin] = Some(src)
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
         (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
 
-      def annotateOrigin(annotation: Annotation): Single = Single(pnode, new AnnotatedOrigin(src, annotation))
+      def annotateOrigin(annotation: Annotation): Single = Single(pnode, AnnotatedOrigin(src, annotation))
     }
 
     object Single {
@@ -56,7 +56,7 @@ object Source {
 
   object Verifier {
 
-    case class Info(pnode: frontend.PNode, node: internal.Node, origin: Origin) extends vpr.Info {
+    case class Info(pnode: frontend.PNode, node: internal.Node, origin: AbstractOrigin) extends vpr.Info {
       override def comment: Seq[String] = Vector.empty
       override def isCached: Boolean = false
     }

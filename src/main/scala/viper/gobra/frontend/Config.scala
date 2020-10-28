@@ -40,7 +40,10 @@ case class Config(
                  shouldViperEncode: Boolean = true,
                  checkOverflows: Boolean = false,
                  shouldVerify: Boolean = true,
-                 int64bit: Boolean = false // picks the size of int's, 32 if false, 64 bit otherwise
+                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if false,
+                 // 64 bit otherwise.
+                 int64bit: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config

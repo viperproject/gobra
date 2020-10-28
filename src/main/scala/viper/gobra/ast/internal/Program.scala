@@ -215,52 +215,10 @@ case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extend
 sealed trait Expr extends Node with Typed
 
 object Expr {
-  def getProperSubExpressions(expr: Expr): Set[Expr] = expr match {
-    case Unfolding(_, in) => getProperSubExpressions(in) + in
-    case Old(op, _) => getProperSubExpressions(op) + op
-    case Conditional(cond, thn, els, _) => getProperSubExpressions(cond) ++
-      getProperSubExpressions(thn) ++
-      getProperSubExpressions(els) + (cond, thn, els)
-    case PureForall(vars, _, body) => vars.map(_.asInstanceOf[Expr]).toSet ++ getProperSubExpressions(body) + body
-    case Exists(vars, _, body) => vars.map(_.asInstanceOf[Expr]).toSet ++ getProperSubExpressions(body) + body
-    case Multiplicity(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l,r)
-    case Length(exp) => getProperSubExpressions(exp) + exp
-    case IndexedExp(base, index) => getProperSubExpressions(base) ++ getProperSubExpressions(index) + (base, index)
-    case ArrayUpdate(base, l, r) => getProperSubExpressions(base) ++ getProperSubExpressions(l) ++ getProperSubExpressions(r) + (base, l, r)
-    case SequenceLit(_, exprs) => (exprs ++ exprs flatMap getProperSubExpressions).toSet
-    case RangeSequence(low, high) => getProperSubExpressions(low) ++ getProperSubExpressions(high) + (low, high)
-    case SequenceAppend(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l,r)
-    case SequenceUpdate(base, l, r) => getProperSubExpressions(base) ++ getProperSubExpressions(l) ++ getProperSubExpressions(r) + (base, l, r)
-    case _: Var => Set.empty
-    case Negation(op: Expr) => getProperSubExpressions(op) + op
-    case bin: BinaryExpr => getProperSubExpressions(bin.left) ++ getProperSubExpressions(bin.right) + (bin.left, bin.right)
-    case l: Lit if !l.isInstanceOf[CompositeLit] => Set.empty
-    case SequenceDrop(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case SequenceTake(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case SequenceConversion(expr) => getProperSubExpressions(expr) + expr
-    case Union(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case Intersection(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case SetMinus(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case Subset(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case Cardinality(expr) => getProperSubExpressions(expr) + expr
-    case Contains(l, r) => getProperSubExpressions(l) ++ getProperSubExpressions(r) + (l, r)
-    case SetLit(_, exprs) => (exprs ++ exprs.flatMap(getProperSubExpressions)).toSet
-    case SetConversion(expr) => getProperSubExpressions(expr) + expr
-    case MultisetLit(_, exprs) => (exprs ++ exprs.flatMap(getProperSubExpressions)).toSet
-    case MultisetConversion(expr) => getProperSubExpressions(expr) + expr
-    case PureFunctionCall(_, args, _) => (args.flatMap(getProperSubExpressions) ++ args).toSet
-    case PureMethodCall(recv: Expr, _, args: Vector[Expr], _) =>
-      (args.flatMap(getProperSubExpressions) ++ args ++ getProperSubExpressions(recv)).toSet + recv
-    case Deref(expr, _) => getProperSubExpressions(expr) + expr
-    case Ref(_, _) => Set.empty
-    case FieldRef(recv, _) => getProperSubExpressions(recv) + recv
-    case StructUpdate(base, _, newVal) => getProperSubExpressions(base) ++ getProperSubExpressions(newVal) + (base, newVal)
-    case DfltVal(_) => Set.empty
-    case Tuple(args) => (args.flatMap(getProperSubExpressions) ++ args).toSet
-    case ArrayLit(_, exprs) => (exprs.flatMap(getProperSubExpressions) ++ exprs).toSet
-    case StructLit(_, args) => (args.flatMap(getProperSubExpressions) ++ args).toSet
-    case _: Var => Set.empty
-    case x => ???
+  def getProperSubExpressions(x: Expr): Set[Expr] = {
+    def aux(x: Expr): Set[Expr] = x.subnodes.collect{ case e: Expr => e }.toSet
+    def auxClosed(x: Expr): Set[Expr] = aux(x).flatMap(auxClosed) + x
+    aux(x).flatMap(auxClosed)
   }
 }
 

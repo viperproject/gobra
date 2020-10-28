@@ -64,8 +64,6 @@ object DefaultErrorBackTranslator {
         InsufficientPermissionError(info)
       case vprrea.AssertionFalse(Source(info)) =>
         AssertionFalseError(info)
-      case vprrea.AssertionFalse(Source(info)) =>
-        AssertionFalseError(info)
       case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
         SeqIndexExceedsLengthError(node, index)
       case vprrea.SeqIndexNegative(Source(node), Source(index)) =>

@@ -36,38 +36,26 @@ class OptionToSeqImpl(options : Options) extends OptionToSeq {
   /**
     * {{{
     * axiom {
-    *   opt2seq(optnone()) == Seq()
+    *   forall o : Option[T] :: { opt2seq(o) }
+    *     opt2seq(o) == (optIsNone(o) ? Seq() : Seq(optGet(o)))
     * }
     * }}}
     */
-  private lazy val opt2seq_none_axiom : vpr.DomainAxiom = {
-    vpr.AnonymousDomainAxiom(
-      vpr.EqCmp(
-        create(options.none(typeVar)(), typeVar)(),
-        vpr.EmptySeq(typeVar)()
-      )()
-    )(domainName = domainName)
-  }
-
-  /**
-    * {{{
-    * axiom {
-    *   forall e : T :: { opt2seq(optsome(e)) } opt2seq(optsome(e)) == Seq(e)
-    * }
-    * }}}
-    */
-  private lazy val opt2seq_some_axiom : vpr.DomainAxiom = {
-    val eDecl = vpr.LocalVarDecl("e", typeVar)()
-    val left = create(options.some(eDecl.localVar)(), typeVar)()
-    val right = vpr.ExplicitSeq(Seq(eDecl.localVar))()
+  private lazy val opt2seq_axiom : vpr.DomainAxiom = {
+    val oDecl = vpr.LocalVarDecl("o", options.typ(typeVar))()
+    val expr = create(oDecl.localVar, typeVar)()
 
     vpr.AnonymousDomainAxiom(
       vpr.Forall(
-        Seq(eDecl),
-        Seq(vpr.Trigger(Seq(left))()),
+        Seq(oDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
         vpr.EqCmp(
-          left,
-          right
+          expr,
+          vpr.CondExp(
+            options.isNone(oDecl.localVar, typeVar)(),
+            vpr.EmptySeq(typeVar)(),
+            vpr.ExplicitSeq(Seq(options.get(oDecl.localVar, typeVar)()))()
+          )()
         )()
       )()
     )(domainName = domainName)
@@ -77,22 +65,14 @@ class OptionToSeqImpl(options : Options) extends OptionToSeq {
     * {{{
     * domain OptToSeq[T] {
     *   function opt2seq(o : Option[T]) : Seq[T]
-    *
-    *   axiom {
-    *     opt2seq(optnone()) == Seq()
-    *   }
-    *
-    *   axiom {
-    *     forall e : T :: { opt2seq(optsome(e)) } opt2seq(optsome(e)) == Seq(e)
-    *   }
     * }
     * }}}
     */
   private lazy val domain : vpr.Domain = vpr.Domain(
-    domainName,
-    Seq(domainFunc),
-    Seq(opt2seq_none_axiom, opt2seq_some_axiom),
-    Seq(typeVar)
+    name = domainName,
+    functions = Seq(domainFunc),
+    axioms = Seq(opt2seq_axiom),
+    typVars = Seq(typeVar)
   )()
 
   override def create(exp : Exp, typ : vpr.Type)(pos : Position, info : Info, errT : ErrorTrafo) : DomainFuncApp = {

@@ -970,10 +970,10 @@ class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a 'get' option type expression") {
-    val exp = POptionGet(PAdd(PIntLit(4), PIntLit(2)))
+    val exp = POptionGet(POptionSome(PAdd(PIntLit(4), PIntLit(2))))
 
     frontend.show(exp) should matchPattern {
-      case "option(4 + 2)" =>
+      case "get(some(4 + 2))" =>
     }
   }
 

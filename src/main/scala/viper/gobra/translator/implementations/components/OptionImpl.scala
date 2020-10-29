@@ -22,79 +22,252 @@ class OptionImpl extends Options {
 
   /**
     * {{{
-    * function optsome(e : T) : Option[T]
+    * function optSome(e : T) : Option[T]
     * }}}
     */
-  private lazy val optsome_func : vpr.DomainFunc = vpr.DomainFunc(
-    "optsome",
+  private lazy val optSome_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optSome",
     Seq(vpr.LocalVarDecl("e", typeVar)()),
     vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar))
   )(domainName = domainName)
 
   /**
     * {{{
-    * function optnone() : Option[T]
+    * function optNone() : Option[T]
     * }}}
     */
-  private lazy val optnone_func : vpr.DomainFunc = vpr.DomainFunc(
-    "optnone",
+  private lazy val optNone_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optNone",
     Seq(),
     vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar))
   )(domainName = domainName)
 
   /**
     * {{{
-    * function optget(o : Option[T]) : T
+    * function optGet(o : Option[T]) : T
     * }}}
     */
-  private lazy val optget_func : vpr.DomainFunc = vpr.DomainFunc(
-    "optget",
+  private lazy val optGet_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optGet",
     Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
     typeVar
   )(domainName = domainName)
 
   /**
     * {{{
+    * function optType(o : Option[T]) : Int
+    * }}}
+    */
+  private lazy val optType_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optType",
+    Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
+    vpr.Int
+  )(domainName = domainName)
+
+  /**
+    * {{{
+    * unique function optTypeNone() : Int
+    * }}}
+    */
+  private lazy val optTypeNone_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optTypeNone",
+    Seq(),
+    vpr.Int,
+    true
+  )(domainName = domainName)
+
+  /**
+    * {{{
+    * unique function optTypeSome() : Int
+    * }}}
+    */
+  private lazy val optTypeSome_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optTypeSome",
+    Seq(),
+    vpr.Int,
+    true
+  )(domainName = domainName)
+
+  /**
+    * {{{
+    * function optIsNone(o : Option[T]) : Bool
+    * }}}
+    */
+  private lazy val optIsNone_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optIsNone",
+    Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
+    vpr.Bool
+  )(domainName = domainName)
+
+  /**
+    * {{{
+    * function optIsNone(o : Option[T]) : Bool
+    * }}}
+    */
+  private lazy val optIsSome_func : vpr.DomainFunc = vpr.DomainFunc(
+    "optIsSome",
+    Seq(vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()),
+    vpr.Bool
+  )(domainName = domainName)
+
+  /**
+    * {{{
     * axiom {
-    *   forall e : T :: { optsome(e) } optsome(e) != optnone()
+    *   forall e : T :: { optSome(e) } optGet(optSome(e)) == e
     * }
     * }}}
     */
-  private lazy val optnone_some_axiom : vpr.DomainAxiom = {
+  private lazy val optGet_some_axiom : vpr.DomainAxiom = {
     val eDecl = vpr.LocalVarDecl("e", typeVar)()
-    val left = some(eDecl.localVar)()
-    val right = none(typeVar)()
+    val expr = some(eDecl.localVar)()
 
     vpr.AnonymousDomainAxiom(
       vpr.Forall(
         Seq(eDecl),
-        Seq(vpr.Trigger(Seq(left))()),
-        vpr.NeCmp(left, right)()
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.EqCmp(get(expr, typeVar)(), eDecl.localVar)()
       )()
     )(domainName = domainName)
   }
 
   /**
     * {{{
-    * axiom optsome_over_get {
-    *   forall o : Option[T], e : T :: { optget(o), optsome(e) }
-    *     (optget(o) == e) <==> (o == optsome(e))
+    * axiom {
+    *   forall o : Option[T] :: { optGet(o) } optIsSome(o) ==> optSome(optGet(o)) == o
     * }
     * }}}
     */
-  private lazy val optsome_over_get_axiom : vpr.DomainAxiom = {
+  private lazy val optSome_get_axiom : vpr.DomainAxiom = {
     val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
-    val eDecl = vpr.LocalVarDecl("e", typeVar)()
-    val left = get(oDecl.localVar, typeVar)()
-    val right = some(eDecl.localVar)()
+    val expr = get(oDecl.localVar, typeVar)()
 
     vpr.AnonymousDomainAxiom(
       vpr.Forall(
-        Seq(oDecl, eDecl),
-        Seq(vpr.Trigger(Seq(left, right))()),
+        Seq(oDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.Implies(
+          isSome(oDecl.localVar, typeVar)(),
+          vpr.EqCmp(
+            some(expr)(),
+            oDecl.localVar
+          )()
+        )()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * {{{
+    * axiom {
+    *   optType(optNone()) == optTypeNone()
+    * }
+    * }}}
+    */
+  private lazy val optType_none_axiom : vpr.DomainAxiom = {
+    vpr.AnonymousDomainAxiom(
+      vpr.EqCmp(
+        optType(none(typeVar)(), typeVar)(),
+        optTypeNone(typeVar)()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * {{{
+    * axiom {
+    *   forall e : T :: { optSome(e) } optType(optSome(e)) == optTypeSome()
+    * }
+    * }}}
+    */
+  private lazy val optType_some_axiom : vpr.DomainAxiom = {
+    val eDecl = vpr.LocalVarDecl("e", typeVar)()
+    val expr = some(eDecl.localVar)()
+
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(eDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
         vpr.EqCmp(
-          vpr.EqCmp(left, eDecl.localVar)(),
-          vpr.EqCmp(oDecl.localVar, right)()
+          optType(expr, typeVar)(),
+          optTypeSome(typeVar)()
+        )()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * {{{
+    * axiom {
+    *   forall o : Option[T] :: { optType(o) }
+    *     optType(o) == optTypeNone() && o == optNone() ||
+    *     optType(o) == optTypeSome() && exists e : T :: o == optSome(e)
+    * }
+    * }}}
+    */
+  private lazy val optType_existence_axiom : vpr.DomainAxiom = {
+    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
+    val eDecl = vpr.LocalVarDecl("e", typeVar)()
+    val expr = optType(oDecl.localVar, typeVar)()
+
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(oDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.Or(
+          vpr.And(
+            vpr.EqCmp(expr, optTypeNone(typeVar)())(),
+            vpr.EqCmp(oDecl.localVar, none(typeVar)())()
+          )(),
+          vpr.And(
+            vpr.EqCmp(expr, optTypeSome(typeVar)())(),
+            vpr.Exists(Seq(eDecl), Seq(), vpr.EqCmp(oDecl.localVar, some(eDecl.localVar)())())()
+          )()
+        )()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * {{{
+    * axiom {
+    *   forall o : Option[T] :: { optIsNone(o) } optType(o) == optTypeNone() <==> optIsNone(o)
+    * }
+    * }}}
+    */
+  private lazy val optIsNone_type_axiom : vpr.DomainAxiom = {
+    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
+    val expr = isNone(oDecl.localVar, typeVar)()
+
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(oDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.EqCmp(
+          vpr.EqCmp(optType(oDecl.localVar, typeVar)(), optTypeNone(typeVar)())(),
+          expr
+        )()
+      )()
+    )(domainName = domainName)
+  }
+
+  /**
+    * {{{
+    * axiom {
+    *   forall o : Option[T] :: { optIsSome(o) } optType(o) == optTypeSome() <==> optIsSome(o)
+    * }
+    * }}}
+    */
+  private lazy val optIsSome_type_axiom : vpr.DomainAxiom = {
+    val oDecl = vpr.LocalVarDecl("o", vpr.DomainType(domainName, Map[vpr.TypeVar, vpr.Type]())(Seq(typeVar)))()
+    val expr = isSome(oDecl.localVar, typeVar)()
+
+    vpr.AnonymousDomainAxiom(
+      vpr.Forall(
+        Seq(oDecl),
+        Seq(vpr.Trigger(Seq(expr))()),
+        vpr.EqCmp(
+          vpr.EqCmp(optType(oDecl.localVar, typeVar)(), optTypeSome(typeVar)())(),
+          expr
         )()
       )()
     )(domainName = domainName)
@@ -103,26 +276,66 @@ class OptionImpl extends Options {
   /**
     * {{{
     * domain Option[T] {
-    *   function optsome(e : T) : Option[T]
-    *   function optnone() : Option[T]
-    *   function optget(o : Option[T]) : T
+    *
+    *   // Constructors
+    *
+    *   function optSome(e : T) : Option[T]
+    *   function optNone() : Option[T]
+    *
+    *   // Destructor
+    *
+    *   function optGet(o : Option[T]) : T
+    *
+    *   // Constructor Types
+    *
+    *   function optType(o : Option[T]) : Int
+    *   unique function optTypeNone() : Int
+    *   unique function optTypeSome() : Int
+    *   function optIsNone(o : Option[T]) : Bool
+    *   function optIsSome(o : Option[T]) : Bool
+    *
+    *   // Axioms
     *
     *   axiom {
-    *     forall e : T :: { optsome(e) } optsome(e) != optnone()
+    *     forall e : T :: { optSome(e) } optGet(optSome(e)) == e
     *   }
     *
     *   axiom {
-    *     forall o : Option[T], e : T :: { optget(o), optsome(e) }
-    *       (optget(o) == e) <==> (o == optsome(e))
+    *     forall o : Option[T] :: { optGet(o) } optIsSome(o) ==> o == optSome(optGet(o))
+    *   }
+    *
+    *   axiom {
+    *     optType(optNone()) == optTypeNone()
+    *   }
+    *
+    *   axiom {
+    *     forall e : T :: { optSome(e) } optType(optSome(e)) == optTypeSome()
+    *   }
+    *
+    *   axiom {
+    *     forall o : Option[T] :: { optType(o) }
+    *       optType(o) == optTypeNone() && o == optNone() ||
+    *       optType(o) == optTypeSome() && exists e : T :: o == optSome(e)
+    *   }
+    *
+    *   axiom {
+    *     forall o : Option[T] :: { optIsNone(o) } optType(o) == optTypeNone() <==> optIsNone(o)
+    *   }
+    *
+    *   axiom {
+    *     forall o : Option[T] :: { optIsSome(o) } optType(o) == optTypeSome() <==> optIsSome(o)
     *   }
     * }
     * }}}
     */
   private lazy val domain : vpr.Domain = vpr.Domain(
-    domainName,
-    Seq(optsome_func, optnone_func, optget_func),
-    Seq(optnone_some_axiom, optsome_over_get_axiom),
-    Seq(typeVar)
+    name = domainName,
+    functions = Seq(optSome_func, optNone_func, optGet_func, optType_func,
+      optTypeNone_func, optTypeSome_func, optIsNone_func, optIsSome_func),
+    axioms = Seq(optGet_some_axiom, optSome_get_axiom, optType_none_axiom,
+      optType_some_axiom, optType_existence_axiom, optIsNone_type_axiom,
+      optIsSome_type_axiom),
+    typVars = Seq(typeVar)
   )()
 
   /**
@@ -132,7 +345,27 @@ class OptionImpl extends Options {
   def get(exp : vpr.Exp, t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
     generateDomain = true
     vpr.DomainFuncApp(
-      func = optget_func,
+      func = optGet_func,
+      args = Vector(exp),
+      typVarMap = Map(typeVar -> t)
+    )(pos, info, errT)
+  }
+
+  /** A function application of 'optIsNone'. */
+  def isNone(exp : vpr.Exp, t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
+    generateDomain = true
+    vpr.DomainFuncApp(
+      func = optIsNone_func,
+      args = Vector(exp),
+      typVarMap = Map(typeVar -> t)
+    )(pos, info, errT)
+  }
+
+  /** A function application of 'optIsNone'. */
+  def isSome(exp : vpr.Exp, t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
+    generateDomain = true
+    vpr.DomainFuncApp(
+      func = optIsSome_func,
       args = Vector(exp),
       typVarMap = Map(typeVar -> t)
     )(pos, info, errT)
@@ -144,7 +377,37 @@ class OptionImpl extends Options {
   def none(t : vpr.Type)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
     generateDomain = true
     vpr.DomainFuncApp(
-      func = optnone_func,
+      func = optNone_func,
+      args = Vector(),
+      typVarMap = Map(typeVar -> t)
+    )(pos, info, errT)
+  }
+
+  /** A function application of 'optType'. */
+  private def optType(exp : vpr.Exp, t : vpr.Type)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.DomainFuncApp = {
+    generateDomain = true
+    vpr.DomainFuncApp(
+      func = optType_func,
+      args = Vector(exp),
+      typVarMap = Map(typeVar -> t)
+    )(pos, info, errT)
+  }
+
+  /** A function application of 'optTypeNone'. */
+  private def optTypeNone(t : vpr.Type)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.DomainFuncApp = {
+    generateDomain = true
+    vpr.DomainFuncApp(
+      func = optTypeNone_func,
+      args = Vector(),
+      typVarMap = Map(typeVar -> t)
+    )(pos, info, errT)
+  }
+
+  /** A function application of 'optTypeSome'. */
+  private def optTypeSome(t : vpr.Type)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.DomainFuncApp = {
+    generateDomain = true
+    vpr.DomainFuncApp(
+      func = optTypeSome_func,
       args = Vector(),
       typVarMap = Map(typeVar -> t)
     )(pos, info, errT)
@@ -156,7 +419,7 @@ class OptionImpl extends Options {
   def some(exp : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.DomainFuncApp = {
     generateDomain = true
     vpr.DomainFuncApp(
-      func = optsome_func,
+      func = optSome_func,
       args = Vector(exp),
       typVarMap = Map(typeVar -> exp.typ)
     )(pos, info, errT)

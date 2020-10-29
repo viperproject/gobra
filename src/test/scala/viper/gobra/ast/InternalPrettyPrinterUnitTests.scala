@@ -1121,11 +1121,11 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
-  test("Printer: should correctly show an 'option(...)' expression") {
+  test("Printer: should correctly show an 'get(...)' expression") {
     val exp = OptionGet(OptionSome(IntLit(23)(Internal))(Internal))(Internal)
 
     frontend.show(exp) should matchPattern {
-      case "option(some(23))" =>
+      case "get(some(23))" =>
     }
   }
 

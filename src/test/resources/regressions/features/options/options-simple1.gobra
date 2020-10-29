@@ -21,36 +21,30 @@ func test3() {
 func test4(b bool) {
   ghost var opt option[bool]
   opt = some(false || b)
-  assert option(opt) == b
+  assert get(opt) == b
 }
 
-requires option(opt) == false
-func test5(ghost opt option[bool]) {
-  assert opt == some(false)
-  assert opt != none[bool]
-}
-
-requires option(none[int]) == n
-ensures false
-func test6(n int) {
-  assert none[int] == some(n)
-}
-
-func test7(val int) {
-  assert option(some(val)) == val
+func test5(val int) {
+  assert get(some(val)) == val
 }
 
 requires o != none[int]
-func test8(ghost o option[int]) {
-  assert some(option(o)) == o
+func test6(ghost o option[int]) {
+  assert some(get(o)) == o
 }
 
 ensures opt != none[int]
-ensures option(opt) == 23
-func test9() (ghost opt option[int]) {
+ensures get(opt) == 23
+func test7() (ghost opt option[int]) {
   opt = some(23)
 }
 
-func test10() {
-  assert option(none[int]) == option(none[int])
+func test8() {
+  assert get(none[int]) == get(none[int])
 }
+
+func test9() {
+  assert none[int] != some(get(none[int]))
+}
+
+

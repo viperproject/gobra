@@ -382,7 +382,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))
-      case POptionGet(e) => "option" <> parens(showExpr(e))
+      case POptionGet(e) => "get" <> parens(showExpr(e))
 
       case expr : PGhostCollectionExp => expr match {
         case PCardinality(operand) => "|" <> showExpr(operand) <> "|"

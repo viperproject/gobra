@@ -315,7 +315,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
-    case OptionGet(exp) => "option" <> parens(showExpr(exp))
+    case OptionGet(exp) => "get" <> parens(showExpr(exp))
 
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))

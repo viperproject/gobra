@@ -3,10 +3,7 @@
 
 package pkg
 
-func foo(b bool) {
-  ghost var opt option[bool]
-  opt = some(false || b)
-  
+func foo() {
   //:: ExpectedOutput(assert_error:assertion_error)
-  assert get(opt) == !b
+  assert none[int] == some(get(none[int]))
 }

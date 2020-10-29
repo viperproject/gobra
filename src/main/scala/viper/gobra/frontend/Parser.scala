@@ -286,7 +286,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some"
+      "none", "some", "get"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -1112,7 +1112,7 @@ object Parser {
       "some" ~> ("(" ~> expression <~ ")") ^^ POptionSome
 
     lazy val optionGet : Parser[POptionGet] =
-      "option" ~> ("(" ~> expression <~ ")") ^^ POptionGet
+      "get" ~> ("(" ~> expression <~ ")") ^^ POptionGet
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess

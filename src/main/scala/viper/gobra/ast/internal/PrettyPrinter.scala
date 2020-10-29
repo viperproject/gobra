@@ -316,7 +316,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
-    case OptionGet(exp) => "option" <> parens(showExpr(exp))
+    case OptionGet(exp) => "get" <> parens(showExpr(exp))
 
     case Slice(exp, low, high, max) => {
       val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)

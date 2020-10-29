@@ -2317,8 +2317,8 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should not parse 'option' as an identifier") {
-    frontend.parseExp("option") should matchPattern {
+  test("Parser: should not parse 'get' as an identifier") {
+    frontend.parseExp("get") should matchPattern {
       case Left(_) =>
     }
   }
@@ -2336,7 +2336,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a simple 'get' (option type) expression") {
-    frontend.parseExpOrFail("option(x)") should matchPattern  {
+    frontend.parseExpOrFail("get(x)") should matchPattern  {
       case POptionGet(PNamedOperand(PIdnUse("x"))) =>
     }
   }

@@ -6,7 +6,8 @@ package pkg
 func foo1(a [4][2]int) {
 }
 
-func foo2(a@ [4][2]int) {
+func foo2(a [4][2]int) {
+  share a
 }
 
 func bar1() {

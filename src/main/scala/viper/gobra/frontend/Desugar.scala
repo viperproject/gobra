@@ -245,12 +245,12 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -276,17 +276,17 @@ object Desugar {
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
-      val bodyOpt = decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val body = argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
@@ -314,12 +314,12 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -328,7 +328,7 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        b: PBlock =>
+        case (_, b: PBlock) =>
           b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case b => Violation.violation(s"unexpected pure function body: $b")
@@ -387,7 +387,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -397,7 +397,7 @@ object Desugar {
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -434,18 +434,18 @@ object Desugar {
       }
 
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
 
-      val bodyOpt = decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val body = recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
@@ -476,7 +476,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -486,7 +486,7 @@ object Desugar {
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -495,7 +495,7 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        b: PBlock =>
+        case (_, b: PBlock) =>
           b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case s => Violation.violation(s"unexpected pure function body: $s")
@@ -1297,7 +1297,7 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
+            case PNamedParameter(id, typ) =>
               val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
@@ -1317,7 +1317,7 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
+            case PNamedParameter(id, typ) =>
               val param = in.Parameter.Out(idName(id), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)

@@ -14,7 +14,8 @@ func test2() {
 }
 
 ensures flag[0]
-func test3() (flag@ [1]bool) {
+func test3() (flag [1]bool) {
+  share flag
   flag[0] = true
 }
 

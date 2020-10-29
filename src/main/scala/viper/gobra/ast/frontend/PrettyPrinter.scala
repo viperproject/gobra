@@ -8,6 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.util.Constants
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -45,6 +46,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PSelectClause => showSelectClause(n)
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
+    case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case PPos(_) => emptyDoc
   }
 
@@ -84,10 +86,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PFunctionDecl(id, args, res, spec, body) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> showStmt(b))
+        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+          opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PMethodDecl(id, rec, args, res, spec, body) =>
         showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
-        opt(body)(b => space <> showStmt(b))
+        opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
@@ -111,6 +114,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case PLoopSpec(inv) =>
       hcat(inv map (showInv(_) <> line))
+  }
+
+  def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {
+    this.block(
+      showBodyParameterInfo(info) <> showStmtList(block.stmts)
+    )
+  }
+
+  def showBodyParameterInfo(info: PBodyParameterInfo): Doc = {
+    if (info.addressedParameters.isEmpty) {
+      Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.addressedParameters) <> line
+    } else emptyDoc
   }
 
   def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))
@@ -139,7 +154,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showParameter(para: PParameter): Doc = para match {
     case PExplicitGhostParameter(p) => "ghost" <+> showParameter(p)
     case PUnnamedParameter(typ) => showType(typ)
-    case PNamedParameter(id, typ, addressable) => showAddressable(addressable, id) <+> showType(typ)
+    case PNamedParameter(id, typ) => showId(id) <+> showType(typ)
   }
 
   def showReceiver(rec: PReceiver): Doc = rec match {
@@ -152,7 +167,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showAddressable(addressable: Boolean, id: PIdnNode): Doc =
-    (if (addressable) "!" else "") <> showId(id)
+    (if (addressable) Constants.ADDRESSABILITY_MODIFIER else "") <> showId(id)
 
   // statements
 
@@ -206,7 +221,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PContinue(label) => "continue" <> opt(label)(space <> showLabel(_))
       case PGoto(label) => "goto" <+> showLabel(label)
       case PDeferStmt(exp) => "defer" <+> showExpr(exp)
-      case PBlock(stmts) => block(showStmtList(stmts))
+      case n: PBlock => block(showStmtList(n.stmts))
       case PSeq(stmts) => showStmtList(stmts)
     }
     case statement: PGhostStatement => statement match {

@@ -56,8 +56,8 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PFieldDecl => Field(decl, isGhost, this)
         case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
 
-        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, decl.addressable, this)
-        case decl: PNamedParameter => InParameter(decl, isGhost, decl.addressable, this)
+        case tree.parent.pair(decl: PNamedParameter, _: PResult) => OutParameter(decl, isGhost, isParameterUsedAsShared(decl), this)
+        case decl: PNamedParameter => InParameter(decl, isGhost, isParameterUsedAsShared(decl), this)
         case decl: PNamedReceiver => ReceiverParameter(decl, isGhost, decl.addressable, this)
 
         case decl: PTypeSwitchStmt => TypeSwitchVariable(decl, isGhost, addressable = false, this) // TODO: check if type switch variables are addressable in Go
@@ -72,8 +72,6 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PMPredicateSig => MPredicateSpec(decl, this)
       }
     }
-
-
 
   private lazy val unkEntity: PIdnUnk => Entity =
     attr[PIdnUnk, Entity] {

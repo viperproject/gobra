@@ -13,7 +13,6 @@ pred cooMem(self *coordinate) {
 
 
 requires cooMem(self)
-ensures  cooMem(self)
 pure func (self *coordinate) value() int {
     return unfolding cooMem(self) in self.val
 }

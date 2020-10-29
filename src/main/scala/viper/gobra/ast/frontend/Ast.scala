@@ -692,7 +692,11 @@ case class PFunctionSpec(
                       ) extends PSpecification
 
 case class PBodyParameterInfo(
-                               /** stores parameters that can be used as shared variables in the code body */
+                               /**
+                                 * Stores parameters that have been declared as shared in the body of a function or method.
+                                 * The parameter itself is not shared.
+                                 * Instead, in the code body, the parameter is changed to a shared local variable.
+                                 * */
                                shareableParameters: Vector[PIdnUse]
                          ) extends PNode
 

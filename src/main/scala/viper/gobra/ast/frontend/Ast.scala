@@ -692,8 +692,8 @@ case class PFunctionSpec(
                       ) extends PSpecification
 
 case class PBodyParameterInfo(
-                           /** stores indices of parameters that are used as addressable variables in the code body */
-                           addressedParameters: Vector[PIdnUse]
+                               /** stores parameters that can be used as shared variables in the code body */
+                               shareableParameters: Vector[PIdnUse]
                          ) extends PNode
 
 

@@ -123,8 +123,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showBodyParameterInfo(info: PBodyParameterInfo): Doc = {
-    if (info.addressedParameters.isEmpty) {
-      Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.addressedParameters) <> line
+    if (info.shareableParameters.nonEmpty) {
+      Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.shareableParameters) <> line
     } else emptyDoc
   }
 
@@ -221,7 +221,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PContinue(label) => "continue" <> opt(label)(space <> showLabel(_))
       case PGoto(label) => "goto" <+> showLabel(label)
       case PDeferStmt(exp) => "defer" <+> showExpr(exp)
-      case n: PBlock => block(showStmtList(n.stmts))
+      case PBlock(stmts) => block(showStmtList(stmts))
       case PSeq(stmts) => showStmtList(stmts)
     }
     case statement: PGhostStatement => statement match {

@@ -104,15 +104,15 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     }}
 
   /** a parameter can be used as shared if it is included in the shared clause of the enclosing function or method */
-  lazy val isParameterUsedAsShared: PParameter => Boolean =
+  lazy val canParameterBeUsedAsShared: PParameter => Boolean =
     attr[PParameter, Boolean] {
       case n: PNamedParameter =>
         enclosingCodeRoot(n) match {
-          case c: PMethodDecl => c.body.exists(_._1.addressedParameters.exists(_.name == n.id.name))
-          case c: PFunctionDecl => c.body.exists(_._1.addressedParameters.exists(_.name == n.id.name))
+          case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
           case _ => false
         }
       case _: PUnnamedParameter => false
-      case PExplicitGhostParameter(p) => isParameterUsedAsShared(p)
+      case PExplicitGhostParameter(p) => canParameterBeUsedAsShared(p)
     }
 }

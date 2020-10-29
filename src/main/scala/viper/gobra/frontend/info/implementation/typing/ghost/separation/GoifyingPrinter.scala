@@ -141,8 +141,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   }
 
   override def showBodyParameterInfo(info: PBodyParameterInfo): Doc = {
-    if (info.addressedParameters.isEmpty) {
-      specComment <+> Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.addressedParameters) <> line
+    if (info.shareableParameters.nonEmpty) {
+      specComment <+> Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.shareableParameters) <> line
     } else emptyDoc
   }
 

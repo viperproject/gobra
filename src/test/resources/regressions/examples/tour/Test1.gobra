@@ -24,7 +24,7 @@ func client1() {
   r := max(a, b);
   assert r == 7;
 
-  /* the following leads to a crash (reported) 
+  /* the following leads to a crash (reported)
   var s, l int;
   s, l = sort(a, b);
   assert s == 5 && l == 7;

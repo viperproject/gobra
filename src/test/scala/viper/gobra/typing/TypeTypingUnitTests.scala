@@ -249,7 +249,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   class TestFrontend {
     private def stubParams(xs : Vector[PType]) : Vector[PNamedParameter] = {
       xs.zipWithIndex.foldLeft(Vector[PNamedParameter]()) {
-        case (ys, (t, i)) => ys ++ Vector(PNamedParameter(PIdnDef("n" + i), t, false))
+        case (ys, (t, i)) => ys ++ Vector(PNamedParameter(PIdnDef("n" + i), t))
       }
     }
 

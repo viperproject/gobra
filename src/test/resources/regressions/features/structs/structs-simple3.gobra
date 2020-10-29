@@ -11,7 +11,7 @@ func foo() {
 	x := &cell{42};
 	assert acc(x.val);
 
-	y! := cell{42};
+	y@ := cell{42};
 	assert acc(y.val);
 
 	p := &y;

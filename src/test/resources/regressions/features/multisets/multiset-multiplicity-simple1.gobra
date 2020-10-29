@@ -6,10 +6,10 @@ package pkg
 func example1(ghost x int, y int, ghost m mset[int]) {
   ghost var n1 int
   ghost var n2 int
-  
+
   n1 = x # m
   n2 = y # m
-  
+
   assert 0 <= n1
   assert 0 <= n2
 }
@@ -39,7 +39,7 @@ func example5(ghost x int) {
 func example6(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
   assert x # m1 <= x # m1 union m2
   assert 0 < x # m1 ==> 0 < x # m1 union m2
-  
+
   assert x # m1 intersection m2 <= x # m1
   assert 0 < x # m1 intersection m2 ==> 0 < x # m1
 }

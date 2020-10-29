@@ -32,7 +32,7 @@ func example6() (ghost m mset[bool]) {
 func example7() {
   assert mset[int] { 1, 2, 3 } == mset[int] { 3, 2, 1 }
   assert mset[int] { 1, 2, 2, 3 } == mset[int] { 3, 2, 2, 1 }
-  // assert mset[int] { 1 } != mset[int] { 2 } -- doesn't verify!?
+  // assert mset[int] { 1 } != mset[int] { 2 } -- doesn't verify@?
   assert mset[bool] { true, false } == mset[bool] { false, true }
 }
 

@@ -31,7 +31,7 @@ func test6() {
   var a1 [6]int
   a1[2] = 42
   assert seq(a1)[2] == 42
-  
+
   var a2 [8]int
   a2[2] = 42
   assert seq(a1)[2] == seq(a2)[2]

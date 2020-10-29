@@ -4,7 +4,7 @@
 package pkg
 
 func foo() {
-  var a! [4]int
+  var a@ [4]int
   // currently only exclusive arrays can be converted to sequences
   //:: ExpectedOutput(type_error)
   ghost xs := seq(a)

@@ -6,7 +6,7 @@ package pkg
 func foo1(a [4][2]int) {
 }
 
-func foo2(a! [4][2]int) {
+func foo2(a@ [4][2]int) {
 }
 
 func bar1() {
@@ -16,7 +16,7 @@ func bar1() {
 }
 
 func bar2() {
-  var a! [4][2]int
+  var a@ [4][2]int
   foo1(a)
   foo2(a)
 }

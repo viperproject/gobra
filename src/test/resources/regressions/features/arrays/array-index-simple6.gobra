@@ -14,11 +14,11 @@ func test2() {
 }
 
 ensures flag[0]
-func test3() (flag! [1]bool) {
+func test3() (flag@ [1]bool) {
   flag[0] = true
 }
 
 func test4() {
-  a! := test3()
+  a@ := test3()
   assert a[0]
 }

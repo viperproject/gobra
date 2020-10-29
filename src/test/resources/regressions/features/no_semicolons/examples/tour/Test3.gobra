@@ -10,14 +10,14 @@ func assign(p *int, v int) {
 }
 
 func pointer1() {
-  i! := 5
+  i@ := 5
   p := &i
   *p = 7
   assert i == 7
 }
 
 func pointer2() {
-  i! := 5
+  i@ := 5
   assign(&i, 7)
   assert i == 7
 }
@@ -33,8 +33,8 @@ func swap(p, q *int) {
 }
 
 func pointer3() {
-  i! := 5
-  j! := 7
+  i@ := 5
+  j@ := 7
   swap(&i, &j)
   assert i == 7
 }

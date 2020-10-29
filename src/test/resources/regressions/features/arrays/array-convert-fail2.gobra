@@ -3,7 +3,7 @@
 
 package pkg
 
-func foo(a! [4]int) {
+func foo(a@ [4]int) {
   // currently only exclusive arrays can be converted to sequences
   //:: ExpectedOutput(type_error)
   ghost xs := seq(a)

@@ -986,10 +986,10 @@ object Parser {
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
     lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+      idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+      idnUnk ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
@@ -1001,6 +1001,8 @@ object Parser {
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
 
     lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
+
+    lazy val addressabilityMod: Parser[String] = "@"
 
 
     lazy val identifier: Parser[String] =

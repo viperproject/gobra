@@ -21,7 +21,7 @@ func (p *Point) getX2() (res int) {
 };
 
 func client() {
-  p! := Point{5, 7};
+  p@ := Point{5, 7};
   x := (&p).getX2();
   assert x == 5;
   y := p.getX2();

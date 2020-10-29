@@ -12,5 +12,5 @@ func CreateRectangle() (res Rectangle) {
 }
 
 func main() {
-    r! := CreateRectangle()
+    r@ := CreateRectangle()
 }

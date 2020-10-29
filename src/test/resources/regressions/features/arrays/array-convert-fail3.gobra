@@ -6,5 +6,5 @@ package pkg
 // currently only exclusive arrays can be converted to sequences
 //:: ExpectedOutput(type_error)
 ensures 0 < len(seq(a))
-func foo() (a! [4]int) {
+func foo() (a@ [4]int) {
 }

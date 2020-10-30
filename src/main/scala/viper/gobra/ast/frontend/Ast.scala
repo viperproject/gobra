@@ -114,6 +114,11 @@ sealed trait PGhostifiable extends PNode
 
 sealed trait PMember extends PNode
 
+/** Member that can have a body */
+sealed trait PBodyMember extends PMember {
+  def body: Option[(PBodyParameterInfo, PBlock)]
+}
+
 sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
@@ -134,7 +139,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
+                        ) extends PActualMember with PScope with PCodeRootWithResult with PBodyMember with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -143,7 +148,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
+                      ) extends PActualMember with PScope with PCodeRootWithResult with PBodyMember with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 

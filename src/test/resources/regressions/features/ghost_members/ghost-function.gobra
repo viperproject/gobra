@@ -14,7 +14,7 @@ pure func GetHeight(r *Rectangle) (res int) {
 }
 
 func main() {
-    r! := Rectangle{Width: 2, Height: 5}
+    r@ := Rectangle{Width: 2, Height: 5}
     h := GetHeight(&r)
     assert h == GetHeight(&r) && h == 5
 }

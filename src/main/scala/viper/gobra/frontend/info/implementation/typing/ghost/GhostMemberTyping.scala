@@ -30,7 +30,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     if (member.spec.isPure) {
       message(member, "For now, pure methods must have exactly one result argument", member.result.outs.size != 1) ++
         (member.body match {
-          case Some(b: PBlock) => isPureBlock(b)
+          case Some((_, b: PBlock)) => isPureBlock(b)
           case None => noMessages
           case Some(b) => message(member, s"For now the body of a pure method is expected to be a single return with a pure expression, got $b instead")
         })
@@ -41,7 +41,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     if (member.spec.isPure) {
         message(member, "For now, pure functions must have exactly one result argument", member.result.outs.size != 1) ++
         (member.body match {
-          case Some(b: PBlock) => isPureBlock(b)
+          case Some((_, b: PBlock)) => isPureBlock(b)
           case None => noMessages
           case Some(b) => message(member, s"For now the body of a pure method is expected to be a single return with a pure expression, got $b instead")
         })

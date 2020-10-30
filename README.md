@@ -64,3 +64,11 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 ### Assembly
 1. In an sbt shell, run `assembly`. The fat jar is then located in the target/scala folder.
 2. To verify a file, run `java -jar -Xss128m gobra.jar -i path/to/file`
+
+
+## Licensing
+Most Gobra sources are licensed under the Mozilla Public License Version 2.0. 
+The [LICENSE](./LICENSE) lists the exceptions to this rule.
+Note that source files (whenever possible) should list their license in a short header.
+Continuous integration checks these file headers.
+The same checks can be performed locally by running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in this repository's root directory.

@@ -9,7 +9,7 @@ type Cell struct {
 };
 
 func test1(c Cell) () {
-    q! := c
+    q@ := c
     x := q.a;
     p := &(q.a);
     *p = x+1;
@@ -18,7 +18,7 @@ func test1(c Cell) () {
 };
 
 func test2() (c Cell) {
-    q! := c
+    q@ := c
     x := q.a;
     p := &(q.a);
     *p = x+1;

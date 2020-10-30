@@ -168,6 +168,45 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   }
 
 
+  /* ** structs */
+
+  test("Parser: struct literal") {
+    frontend.parseExp("bla{42}") should matchPattern {
+      case Right(PCompositeLit(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+    }
+  }
+
+  test("Parser: struct literal with inline type") {
+    val res = frontend.parseExp("struct {Number int;}{42}")
+    // semicolon is optional:
+    res shouldEqual frontend.parseExp("struct {Number int}{42}")
+    res should matchPattern {
+      case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))))),
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+    }
+  }
+
+  test("Parser: keyed struct literal with inline type") {
+    val res = frontend.parseExp("struct {Number int;}{Number: 42}")
+    // semicolon is optional:
+    res shouldEqual frontend.parseExp("struct {Number int}{Number: 42}")
+    res should matchPattern {
+      case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))))),
+      PLiteralValue(Vector(PKeyedElement(Some(PIdentifierKey(PIdnUse("Number"))), PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+    }
+  }
+
+  test("Parser: struct literal with inline type and multiple fields") {
+    val res = frontend.parseExp("struct {Number int; Text int;}{42, 1}")
+    // semicolon is optional:
+    res shouldEqual frontend.parseExp("struct {Number int; Text int}{42, 1}")
+    res should matchPattern {
+      case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))), PFieldDecls(Vector(PFieldDecl(PIdnDef("Text"), PIntType()))))),
+      PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(numberValue))), PKeyedElement(None, PExpCompositeVal(PIntLit(textValue))))))) if numberValue == 42 && textValue == 1 =>
+    }
+  }
+
+
   /* ** Mathematical sequences */
 
   test("Parser: simple integer sequence") {

@@ -28,7 +28,7 @@ func example4(ghost x int) {
 func example5(ghost x int, ghost m1 mset[int], ghost m2 mset[int]) {
   assert x in m1 ==> x in m1 union m2
   assert x in m2 ==> x in m1 union m2
-  
+
   assert x in m1 intersection m2 ==> x in m1
   assert x in m1 intersection m2 ==> x in m2
 }

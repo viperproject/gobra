@@ -80,17 +80,11 @@ jobs:
             gobra/sbt-cache/.sbtboot
             gobra/sbt-cache/.boot
             gobra/sbt-cache/.ivy/cache
-            gobra/project/target
-            gobra/target
-            viperserver/project/target
-            viperserver/target
-            carbon/project/target
-            carbon/target
-            silicon/project/target
-            silicon/target
-            silver/project/target
-            silver/target
-          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'viperserver', are intentionally not
+          # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
+          # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
+          # disabled caching of compiled source files altogether
+          key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
 
       - name: Execute all tests
         run: sbt test

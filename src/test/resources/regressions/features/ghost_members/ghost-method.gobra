@@ -14,7 +14,7 @@ pure func (r *Rectangle) GetWidth() (res int) {
 }
 
 func main() {
-    r! := Rectangle{Width: 2, Height: 5}
+    r@ := Rectangle{Width: 2, Height: 5}
     w := r.GetWidth()
     assert (*(Rectangle)).GetWidth(&r) == w && w == 2
 }

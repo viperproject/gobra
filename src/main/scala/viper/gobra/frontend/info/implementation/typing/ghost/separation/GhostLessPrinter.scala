@@ -14,11 +14,28 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
   override def showMember(mem: PMember): Doc = mem match {
 
-    case PMethodDecl(id, rec, args, res, spec, body) =>
-      super.showMember(PMethodDecl(id, rec, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+    case PMethodDecl(id, rec, args, res, _, body) =>
+      super.showMember(
+        PMethodDecl(
+          id,
+          rec,
+          filterParamList(args),
+          filterResult(res),
+          PFunctionSpec(Vector.empty, Vector.empty),
+          body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
+        )
+      )
 
     case PFunctionDecl(id, args, res, _, body) =>
-      super.showMember(PFunctionDecl(id, filterParamList(args), filterResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      super.showMember(
+        PFunctionDecl(
+          id,
+          filterParamList(args),
+          filterResult(res),
+          PFunctionSpec(Vector.empty, Vector.empty),
+          body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
+        )
+      )
 
     case m if classifier.isMemberGhost(m) => emptyDoc
     case m => super.showMember(m)

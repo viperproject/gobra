@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, St
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
+import viper.gobra.util.Constants
 
 import scala.util.matching.Regex
 
@@ -389,8 +390,9 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(block) ^^ {
-        case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
+        case spec ~ name ~ sig ~ body =>
+          PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
@@ -399,7 +401,7 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(block) ^^ {
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
@@ -490,6 +492,16 @@ object Parser {
 
     lazy val block: Parser[PBlock] =
       "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
+
+    lazy val blockWithoutBraces: Parser[PBlock] =
+      repsep(statement, eos) <~ eos.? ^^ PBlock
+
+    lazy val blockWithBodyParameterInfo: Parser[(PBodyParameterInfo, PBlock)] =
+      "{" ~> bodyParameterInfo ~ blockWithoutBraces <~ "}"
+
+    lazy val bodyParameterInfo: Parser[PBodyParameterInfo] =
+      Constants.SHARE_PARAMETER_KEYWORD ~> repsep(idnUse, ",") <~ eos.? ^^ PBodyParameterInfo |
+        success(PBodyParameterInfo(Vector.empty))
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
@@ -849,7 +861,7 @@ object Parser {
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
 
     lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl
@@ -958,8 +970,8 @@ object Parser {
 
     lazy val parameterDecl: Parser[Vector[PParameter]] =
       ghostParameter |
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PNamedParameter(id._1, t.copy, id._2).at(id._1): PParameter)
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
       } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
 
 
@@ -990,10 +1002,10 @@ object Parser {
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
     lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+      idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+      idnUnk ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
@@ -1005,6 +1017,8 @@ object Parser {
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
 
     lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
+
+    lazy val addressabilityMod: Parser[String] = Constants.ADDRESSABILITY_MODIFIER
 
 
     lazy val identifier: Parser[String] =
@@ -1053,8 +1067,8 @@ object Parser {
       "unfold" ~> predicateAccess ^^ PUnfold
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
+      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =

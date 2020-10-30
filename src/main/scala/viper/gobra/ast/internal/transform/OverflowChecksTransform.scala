@@ -83,7 +83,7 @@ object OverflowChecksTransform extends InternalTransform {
   private def getPureBlockPosts(body: Expr, results: Vector[Parameter.Out]): Vector[Assertion] = {
     // relies on the current assumption that pure functions and methods must have exactly one result argument
     if (results.length != 1) violation("Pure functions and methods must have exactly one result argument")
-    Vector(assertionExprInBounds(body, results(0).typ)(addAnnotation(body.info)))
+    Vector(assertionExprInBounds(body, results(0).typ)(createAnnotatedInfo(body.info)))
   }
 
   private def stmtTransform(stmt: Stmt): Stmt = stmt match {
@@ -92,25 +92,25 @@ object OverflowChecksTransform extends InternalTransform {
     case s@Seqn(stmts) => Seqn(stmts map stmtTransform)(s.info)
 
     case i@If(cond, thn, els) =>
-      val condInfo = addAnnotation(cond.info)
-      val ifInfo = addAnnotation(i.info)
+      val condInfo = createAnnotatedInfo(cond.info)
+      val ifInfo = createAnnotatedInfo(i.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
       val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(ifInfo)
       Seqn(Vector(assertCond, ifStmt))(ifInfo)
 
     case w@While(cond, invs, body) =>
-      val condInfo = addAnnotation(cond.info)
-      val whileInfo = addAnnotation(w.info)
+      val condInfo = createAnnotatedInfo(cond.info)
+      val whileInfo = createAnnotatedInfo(w.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
       val whileStmt = While(cond, invs, stmtTransform(body))(whileInfo)
       Seqn(Vector(assertCond, whileStmt))(whileInfo)
 
     case ass@SingleAss(l, r) =>
       val assertBounds = {
-        val info = addAnnotation(r.info)
+        val info = createAnnotatedInfo(r.info)
         Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
       }
-      Seqn(Vector(assertBounds, ass))(addAnnotation(l.op.info))
+      Seqn(Vector(assertBounds, ass))(createAnnotatedInfo(l.op.info))
 
     case x => x
   }
@@ -138,7 +138,7 @@ object OverflowChecksTransform extends InternalTransform {
   // should this be moved to Source class?
   case object OverflowCheckAnnotation extends Source.Annotation
 
-  private def addAnnotation(info: Source.Parser.Info): Source.Parser.Info =
+  private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {
       case s: Single => s.createAnnotatedInfo(OverflowCheckAnnotation)
       case i => violation(s"l.op.info ($i) is expected to be a Single")

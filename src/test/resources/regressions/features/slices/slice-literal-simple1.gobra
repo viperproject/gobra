@@ -11,7 +11,7 @@ func test1() {
 }
 
 func test2() {
-	s! := [][]int{[]int{1}, []int{2}}
+	s@ := [][]int{[]int{1}, []int{2}}
   assert len(s) == 2
 }
 

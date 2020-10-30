@@ -19,7 +19,7 @@ func test2() {
 }
 
 func test3() {
-  var a! [2][]int 
+  var a@ [2][]int 
   s := a[0]
   assert s == nil
   assert len(s) == 0

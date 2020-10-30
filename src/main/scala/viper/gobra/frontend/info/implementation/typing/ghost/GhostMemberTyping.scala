@@ -50,14 +50,14 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     member.body match {
       case Some((_, b: PBlock)) => isPureBlock(b)
       case None => noMessages
-      case Some(b) => message(member, s"For now the body of a pure method or pure function is expected to be a single return with a pure expression, got $b instead")
+      case Some(b) => message(member, s"For now, the body of a pure method or pure function is expected to be a single return with a pure expression, got $b instead")
     }
   }
 
   private def isPureBlock(block: PBlock): Messages = {
     block.nonEmptyStmts match {
       case Vector(PReturn(Vector(ret))) => isPureExpr(ret)
-      case b => message(block, s"For now the body of a pure block is expected to be a single return with a pure expression, got $b instead")
+      case b => message(block, s"For now, the body of a pure block is expected to be a single return with a pure expression, got $b instead")
     }
   }
 

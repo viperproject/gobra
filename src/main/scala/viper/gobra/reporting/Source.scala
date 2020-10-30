@@ -43,7 +43,7 @@ object Source {
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
         (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
 
-      def annotateOrigin(annotation: Annotation): Single = Single(pnode, AnnotatedOrigin(src, annotation))
+      def createAnnotatedInfo(annotation: Annotation): Single = Single(pnode, AnnotatedOrigin(src, annotation))
     }
 
     object Single {

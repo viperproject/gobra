@@ -140,7 +140,7 @@ object OverflowChecksTransform extends InternalTransform {
 
   private def addAnnotation(info: Source.Parser.Info): Source.Parser.Info =
     info match {
-      case s: Single => s.annotateOrigin(OverflowCheckAnnotation)
+      case s: Single => s.createAnnotatedInfo(OverflowCheckAnnotation)
       case i => violation(s"l.op.info ($i) is expected to be a Single")
     }
 }

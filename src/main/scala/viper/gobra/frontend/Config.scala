@@ -41,9 +41,9 @@ case class Config(
                  checkOverflows: Boolean = false,
                  shouldVerify: Boolean = true,
                  // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if false,
+                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                  // 64 bit otherwise.
-                 int64bit: Boolean = false
+                 int32bit: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -60,12 +60,12 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int64bit = int64bit || other.int64bit
+      int32bit = int32bit || other.int32bit
     )
   }
 
   lazy val typeBounds: TypeBounds =
-    if (int64bit) {
+    if (int32bit) {
       TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     } else {
       TypeBounds()
@@ -197,9 +197,9 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = false
   )
 
-  val int64Bit: ScallopOption[Boolean] = toggle(
-    name = "int64",
-    descrYes = "Run with 64-bit sized integers",
+  val int32Bit: ScallopOption[Boolean] = toggle(
+    name = "int32",
+    descrYes = "Run with 32-bit sized integers",
     default = Some(false),
     noshort = false
   )
@@ -359,7 +359,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldDesugar = shouldDesugar,
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows.supplied,
-    int64bit = int64Bit.supplied,
+    int32bit = int32Bit.supplied,
     shouldVerify = shouldVerify
   )
 }

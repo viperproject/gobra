@@ -1029,6 +1029,7 @@ object Desugar {
 
     def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
       case l: in.ArrayLit => in.CompositeObject.Array(l)
+      case l: in.SliceLit => in.CompositeObject.Slice(l)
       case l: in.StructLit => in.CompositeObject.Struct(l)
       case l: in.SequenceLit => in.CompositeObject.Sequence(l)
       case l: in.SetLit => in.CompositeObject.Set(l)

@@ -152,6 +152,7 @@ object CompositeObject {
   def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
 
   case class Array(op : ArrayLit) extends CompositeObject
+  case class Slice(op : SliceLit) extends CompositeObject
   case class Struct(op : StructLit) extends CompositeObject
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject

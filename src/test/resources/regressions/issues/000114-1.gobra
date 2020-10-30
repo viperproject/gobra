@@ -8,7 +8,7 @@ type coordinate struct{
 }
 
 pred cooMem(self *coordinate) {
-    acc(self.x) && acc(self.y) && acc(self.val)
+    acc(&self.x) && acc(&self.y) && acc(&self.val)
 }
 
 requires cooMem(self)

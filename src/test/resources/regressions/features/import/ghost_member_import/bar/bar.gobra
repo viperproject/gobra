@@ -12,7 +12,7 @@ ghost const Answer int = tmp
 }
 
 pred RectMem(r *Rectangle) {
-    acc(r.Width) && acc(r.Height)
+    acc(&r.Width) && acc(&r.Height)
 }
 
 ghost

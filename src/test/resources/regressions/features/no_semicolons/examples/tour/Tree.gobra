@@ -10,7 +10,7 @@ type Tree struct {
 }
 
 pred tree(self *Tree) {
-  acc(self.Left) && acc(self.Value) && acc(self.Right) &&
+  acc(&self.Left) && acc(&self.Value) && acc(&self.Right) &&
   (self.Left != nil ==> tree(self.Left)) &&
   (self.Right != nil ==> tree(self.Right))
 }

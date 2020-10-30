@@ -10,5 +10,5 @@ type Point struct {
 
 func test() {
   //:: ExpectedOutput(parser_error)
-  assert forall p *Point :: { p.x , } acc(p.x)
+  assert forall p *Point :: { p.x , } acc(&p.x)
 }

@@ -11,8 +11,8 @@ type Rectangle struct {
     Width, Height int
 }
 
-requires acc(r.Width)
-ensures acc(r.Width)
+requires acc(&r.Width)
+ensures acc(&r.Width)
 ensures res == r.Width * r.Width
 ensures old(r.Width) == r.Width
 func (r *Rectangle) Area() (res int) {

@@ -5,25 +5,25 @@ package pkg
 
 func test1() {
   var a@ [4]int
-  assert acc(a[2])
+  assert acc(&a[2])
 }
 
 func test2(a [4]int) {
   share a
-  assert acc(a[1])
+  assert acc(&a[1])
 }
 
 
 func test3(a [4]int) {
   share a
-  assert acc(a[2])
+  assert acc(&a[2])
 }
 
 
 
 func test5() (a [4]int) {
   share a
-  assert acc(a[2])
+  assert acc(&a[2])
 }
 
 ensures a == [4]int { 0, 0, 12, 0 }

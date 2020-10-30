@@ -3,8 +3,8 @@
 
 package trivial;
 
-requires acc(*p);
-ensures acc(*p) && *p == v;
+requires acc(p);
+ensures acc(p) && *p == v;
 func assign(p *int, v int) {
   *p = v;
 };
@@ -22,8 +22,8 @@ func pointer2() {
   assert i == 7;
 };
 
-requires acc(*p) && acc(*q);
-ensures acc(*p) && acc(*q);
+requires acc(p) && acc(q);
+ensures acc(p) && acc(q);
 ensures *p == old(*q);
 ensures *q == old(*p);
 func swap(p, q *int) {
@@ -59,8 +59,8 @@ func mirror() {
   assert p.x == 7;
 };
 
-ensures acc(r.x) && r.x == 0;
-ensures acc(r.y) && r.y == 0;
+ensures acc(&r.x) && r.x == 0;
+ensures acc(&r.y) && r.y == 0;
 func Origin() (r *Point) {
   r = &Point{0, 0};
 };

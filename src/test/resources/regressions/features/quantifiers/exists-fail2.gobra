@@ -9,5 +9,5 @@ type Point struct {
 }
 
 //:: ExpectedOutput(type_error)
-requires exists p *Point :: acc(p.x)
+requires exists p *Point :: acc(&p.x)
 func test () { }

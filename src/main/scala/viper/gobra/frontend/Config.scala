@@ -66,9 +66,9 @@ case class Config(
 
   lazy val typeBounds: TypeBounds =
     if (int32bit) {
-      TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
-    } else {
       TypeBounds()
+    } else {
+      TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
     }
 }
 

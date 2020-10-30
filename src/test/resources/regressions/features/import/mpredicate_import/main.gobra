@@ -7,7 +7,7 @@ package main
 import b "bar"
 
 func foo() {
-    r! := b.Rectangle{Width: 2, Height: 5}
+    r@ := b.Rectangle{Width: 2, Height: 5}
     fold r.RectMem()
     assert r.Area() == 10
     unfold (*(b.Rectangle)).RectMem(&r)

@@ -133,7 +133,7 @@ case class PFunctionDecl(
                           args: Vector[PParameter],
                           result: PResult,
                           spec: PFunctionSpec,
-                          body: Option[PBlock]
+                          body: Option[(PBodyParameterInfo, PBlock)]
                         ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
 
 case class PMethodDecl(
@@ -142,7 +142,7 @@ case class PMethodDecl(
                         args: Vector[PParameter],
                         result: PResult,
                         spec: PFunctionSpec,
-                        body: Option[PBlock]
+                        body: Option[(PBodyParameterInfo, PBlock)]
                       ) extends PActualMember with PScope with PCodeRootWithResult with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
@@ -639,7 +639,7 @@ sealed trait PParameter extends PMisc {
 
 sealed trait PActualParameter extends PParameter with PActualMisc
 
-case class PNamedParameter(id: PIdnDef, typ: PType, addressable: Boolean) extends PActualParameter
+case class PNamedParameter(id: PIdnDef, typ: PType) extends PActualParameter
 
 case class PUnnamedParameter(typ: PType) extends PActualParameter
 
@@ -690,6 +690,15 @@ case class PFunctionSpec(
                       posts: Vector[PExpression],
                       isPure: Boolean = false,
                       ) extends PSpecification
+
+case class PBodyParameterInfo(
+                               /**
+                                 * Stores parameters that have been declared as shared in the body of a function or method.
+                                 * The parameter itself is not shared.
+                                 * Instead, in the code body, the parameter is changed to a shared local variable.
+                                 * */
+                               shareableParameters: Vector[PIdnUse]
+                         ) extends PNode
 
 
 case class PLoopSpec(

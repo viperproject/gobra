@@ -6,7 +6,7 @@ package pkg
 func example1(ghost b bool, ghost xs seq[bool], ghost ys seq[int]) {
   ghost n1 := b # xs
   ghost n2 := b # xs # ys
-  
+
   assert 0 <= n1;
   assert n1 <= len(xs)
   assert 0 <= n2;

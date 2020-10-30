@@ -8,9 +8,8 @@ package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
-import viper.gobra.util.Violation
+import viper.gobra.util.{Constants, Violation}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-
 import org.bitbucket.inkytonik.kiama.attribution.Decorators
 
 
@@ -110,11 +109,28 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
     case PMethodDecl(id, rec, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
-      super.showMember(PMethodDecl(id, rec, getActualParams(args), getActualResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      super.showMember(
+        PMethodDecl(
+          id,
+          rec,
+          getActualParams(args),
+          getActualResult(res),
+          PFunctionSpec(Vector.empty, Vector.empty),
+          body
+        )
+      )
 
     case PFunctionDecl(id, args, res, spec, body) =>
       showDeclarationSpec(DeclarationSpec(getGhostParams(args), getGhostParams(res.outs), spec)) <>
-      super.showMember(PFunctionDecl(id, getActualParams(args), getActualResult(res), PFunctionSpec(Vector.empty, Vector.empty), body))
+      super.showMember(
+        PFunctionDecl(
+          id,
+          getActualParams(args),
+          getActualResult(res),
+          PFunctionSpec(Vector.empty, Vector.empty),
+          body
+        )
+      )
 
     case pred: PFPredicateDecl => blockSpecComment(super.showMember(pred))
 
@@ -124,6 +140,11 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case m => super.showMember(m)
   }
 
+  override def showBodyParameterInfo(info: PBodyParameterInfo): Doc = {
+    if (info.shareableParameters.nonEmpty) {
+      specComment <+> Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.shareableParameters) <> line
+    } else emptyDoc
+  }
 
   /**
     * Shows a ghost statement in the goified version with a given prefix.

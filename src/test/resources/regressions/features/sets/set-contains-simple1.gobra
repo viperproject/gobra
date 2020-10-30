@@ -18,5 +18,5 @@ func example3(ghost x int, ghost s set[int], ghost t set[int]) {
   assert x in s ==> x in t ==> x in s intersection t
   assert x in s ==> s subset t ==> x in t
   assert x in s intersection t ==> x in s && x in t
-  assert x in s union t ==> x in s || x in t 
+  assert x in s union t ==> x in s || x in t
 }

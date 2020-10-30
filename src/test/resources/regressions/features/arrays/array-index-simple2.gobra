@@ -31,18 +31,18 @@ func test4(a [2][3]int) {
   assert a[0] == [...]int { 0, 0, 0 }
   assert a[1] == [...]int { 0, 0, 0 }
   assert a == [2][3]int { a[0], a[1] }
-  
+
   var b [2][3]int
-  
+
   assert b[0] == [...]int { 0, 0, 0 }
   assert b[1] == [...]int { 0, 0, 0 }
   assert b == [2][3]int { b[0], b[1] }
-  
+
   assert a == b
-  
+
   b[0][2] = 24
-  
+
   assert a[0][2] != b[0][2]
-  
+
   assert a != b
 }

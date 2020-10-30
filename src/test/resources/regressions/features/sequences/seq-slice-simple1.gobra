@@ -44,12 +44,12 @@ func example7() {
 }
 
 requires x in xs[4:]
-func example8(ghost xs seq[int], x int) { 
+func example8(ghost xs seq[int], x int) {
   assert x in xs
 }
 
 requires x in xs[:7]
-func example9(ghost xs seq[int], x int) { 
+func example9(ghost xs seq[int], x int) {
   assert x in xs
 }
 
@@ -61,4 +61,4 @@ func example10(ghost xs seq[int], x int) {
 
 ensures xs == xs[:n] ++ xs[n:]
 func example11(ghost xs seq[int], n int) {
-} 
+}

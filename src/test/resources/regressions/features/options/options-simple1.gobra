@@ -47,4 +47,17 @@ func test9() {
   assert none[int] != some(get(none[int]))
 }
 
+func test10() {
+  ghost var o option[int]
+  o = some(12)
+  assert o != none[int]
+  assert get(o) == 12
+}
+
+requires o != none[int]
+func test11(ghost o option[int]) {
+  assert o == some(get(o))
+  assert exists v int :: o == some(v)
+  assert 0 < len(seq(o))
+}
 

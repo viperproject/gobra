@@ -1651,17 +1651,25 @@ object Desugar {
       val src: Meta = meta(acc)
 
       info.resolve(acc) match {
-        case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Accessible.Address
-        case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Accessible.Address
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
-        case Some(p : ap.IndexedExp) =>
-          indexedExprD(p)(ctx)(src) map in.Accessible.Address
 
-        case p => Violation.violation(s"unexpected ast pattern $p ")
+        case _ =>
+          val argT = info.typ(acc)
+          underlyingType(argT) match {
+            case ut: Type.PointerT =>
+              // [[in.Accessible.Address]] represents '&'.
+              // If there is no outermost '&', then adds '&*'.
+              acc match {
+                case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
+                case _ =>
+                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
+              }
+
+            case _ => Violation.violation(s"expected pointer type, but got $argT")
+          }
       }
+
     }
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {

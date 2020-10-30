@@ -859,6 +859,8 @@ object Desugar {
           derefD(ctx)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
           fieldSelectionD(ctx)(p)(src) map in.Addressable.Field
+        case Some(p: ap.IndexedExp) =>
+          indexedExprD(p)(ctx)(src) map in.Addressable.Index
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }

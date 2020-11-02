@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  ghost var o1 option[int]
+  ghost var o2 option[option[option[bool]]]
+}
+
+func test2() {
+  ghost var opt option[bool]
+  opt = none[bool]
+}
+
+func test3() {
+  ghost var opt option[int]
+  opt = some(34)
+}
+
+func test4(b bool) {
+  ghost var opt option[bool]
+  opt = some(false || b)
+  assert get(opt) == b
+}
+
+func test5(val int) {
+  assert get(some(val)) == val
+}
+
+requires o != none[int]
+func test6(ghost o option[int]) {
+  assert some(get(o)) == o
+}
+
+ensures opt != none[int]
+ensures get(opt) == 23
+func test7() (ghost opt option[int]) {
+  opt = some(23)
+}
+
+func test8() {
+  assert get(none[int]) == get(none[int])
+}
+
+func test9() {
+  assert none[int] != some(get(none[int]))
+}
+
+func test10() {
+  ghost var o option[int]
+  o = some(12)
+  assert o != none[int]
+  assert get(o) == 12
+}
+
+requires o != none[int]
+func test11(ghost o option[int]) {
+  assert o == some(get(o))
+  assert exists v int :: o == some(v)
+  assert 0 < len(seq(o))
+}
+

@@ -1197,6 +1197,7 @@ object Desugar {
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
+      case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, mod) => ???
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -1479,7 +1480,8 @@ object Desugar {
         } yield dop.typ match {
           case _: in.SequenceT => dop
           case _: in.ArrayT => in.SequenceConversion(dop)(src)
-          case t => violation(s"expected a sequence or exclusive array type, but got $t")
+          case _: in.OptionT => in.SequenceConversion(dop)(src)
+          case t => violation(s"expected a sequence, array or option type, but got $t")
         }
 
         case PSetConversion(op) => for {
@@ -1487,7 +1489,8 @@ object Desugar {
         } yield dop.typ match {
           case _: in.SetT => dop
           case _: in.SequenceT => in.SetConversion(dop)(src)
-          case t => violation(s"expected a set or sequence type, but found $t")
+          case _: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src))(src)
+          case t => violation(s"expected a sequence, set or option type, but found $t")
         }
 
         case PUnion(left, right) => for {
@@ -1515,8 +1518,22 @@ object Desugar {
         } yield dop.typ match {
           case _: in.MultisetT => dop
           case _: in.SequenceT => in.MultisetConversion(dop)(src)
-          case t => violation(s"expected a sequence or multiset type, but found $t")
+          case _: in.OptionT => in.MultisetConversion(in.SequenceConversion(dop)(src))(src)
+          case t => violation(s"expected a sequence, multiset or option type, but found $t")
         }
+
+        case POptionNone(t) => {
+          val dt = typeD(info.typ(t), Addressability.rValue)(src)
+          unit(in.OptionNone(dt)(src))
+        }
+
+        case POptionSome(op) => for {
+          dop <- go(op)
+        } yield in.OptionSome(dop)(src)
+
+        case POptionGet(op) => for {
+          dop <- go(op)
+        } yield in.OptionGet(dop)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

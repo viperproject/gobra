@@ -9,5 +9,5 @@ type Cell struct {
 
 // invalid trigger: disallowed for now; one just has to write `c` instead of `*c`.
 //:: ExpectedOutput(type_error)
-requires forall c *Cell :: { *c } acc(c.val)
+requires forall c *Cell :: { *c } acc(&c.val)
 func foo () { }

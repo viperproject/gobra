@@ -9,8 +9,9 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, SliceT, Type, UntypedConst}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Type, UntypedConst}
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
@@ -48,17 +49,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check whether the right operand is either Boolean or an assertion
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
-    case n: PAccess => resolve(n.exp) match {
-      case Some(_: ap.Deref) => noMessages
-      case Some(_: ap.FieldSelection) => noMessages
-      case Some(_: ap.PredicateCall) => noMessages
-      case Some(n: ap.IndexedExp) => exprType(n.base) match {
-        case _: ArrayT => message(n.base, s"expected a shared array, but found an exclusive array ${n.base}", !addressable(n.base))
-        case _: SliceT => noMessages
-        case t => message(n, s"expected an array or slice type, but got $t")
+    case n: PAccess =>
+      resolve(n.exp) match {
+        case Some(_: ap.PredicateCall) => noMessages
+        case _ =>
+          val argT = exprType(n.exp)
+          // Not all pointer types are supported currently. Later, we can just check isPointerType.
+          underlyingType(argT) match {
+            case Type.NilType | _: Type.PointerT => noMessages
+            case _ => message(n, s"expected expression with pointer type, but got $argT")
+          }
       }
-      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
-    }
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages

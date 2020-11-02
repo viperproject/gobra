@@ -31,9 +31,9 @@ requires forall c Cell :: { f(g(c)) } 0 < c.val
 requires exists c Cell :: { f(g(c)) } 0 < c.val
 func example5 () { }
 
-requires forall c *Cell :: { c } acc(c.val)
+requires forall c *Cell :: { c } acc(&c.val)
 func example6 () { }
 
-requires forall c *Cell :: { (*c).val } acc(c.val)
+requires forall c *Cell :: { (*c).val } acc(&c.val)
 func example7 () { }
 

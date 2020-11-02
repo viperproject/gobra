@@ -8,7 +8,7 @@ type Rectangle struct {
 }
 
 pred (r *Rectangle) RectMem() {
-    acc(r.Width) && acc(r.Height)
+    acc(&r.Width) && acc(&r.Height)
 }
 
 requires r.RectMem()

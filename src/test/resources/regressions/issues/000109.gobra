@@ -8,7 +8,7 @@ type Node struct {
   next *Node
 }
 
-requires acc(ptr.value)
+requires acc(&ptr.value)
 func remove(val int, ptr *Node) (result *Node) {
   if (ptr == nil) {
     result = nil

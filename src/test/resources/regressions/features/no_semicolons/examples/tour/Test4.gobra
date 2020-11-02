@@ -8,13 +8,13 @@ type Point struct {
   y int
 }
 
-requires acc(p.x)
+requires acc(&p.x)
 pure func (p *Point) getX1() int {
   return p.x
 }
 
-requires acc(p.x)
-ensures  acc(p.x) && res == old(p.x) && p.x == old(p.x)
+requires acc(&p.x)
+ensures  acc(&p.x) && res == old(p.x) && p.x == old(p.x)
 func (p *Point) getX2() (res int) {
   res = p.x
 }
@@ -46,14 +46,14 @@ type Pair interface {
   setX(int)
 };
 
-requires acc(p.x);
-ensures  acc(p.x) && res == old(p.x) && p.x == old(p.x);
+requires acc(&p.x);
+ensures  acc(&p.x) && res == old(p.x) && p.x == old(p.x);
 func (p *Point) getX() (res int) {
   res = p.x;
 };
 
-requires acc(p.x);
-ensures  acc(p.x) && p.x == v;
+requires acc(&p.x);
+ensures  acc(&p.x) && p.x == v;
 func (p *Point) getX(v int) {
   p.x = v;
 };
@@ -63,8 +63,8 @@ func client(p *Pair) {
 }
 */
 
-requires this != nil ==> (acc(this.x) && acc(this.y))
-ensures acc(res.x) && acc(res.y)
+requires this != nil ==> (acc(&this.x) && acc(&this.y))
+ensures acc(&res.x) && acc(&res.y)
 func (this *Point) idOrNew() (res *Point) {
   if this == nil {
     res = &Point{0,0}

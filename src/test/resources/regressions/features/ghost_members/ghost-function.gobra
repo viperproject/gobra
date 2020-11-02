@@ -8,7 +8,7 @@ type Rectangle struct {
 }
 
 ghost
-requires acc(r.Height)
+requires acc(&r.Height)
 pure func GetHeight(r *Rectangle) (res int) {
     return r.Height
 }

@@ -395,6 +395,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression => "acc" <> parens(showExpr(n))
       }
 
+      case POptionNone(t) => "none" <> brackets(showType(t))
+      case POptionSome(e) => "some" <> parens(showExpr(e))
+      case POptionGet(e) => "get" <> parens(showExpr(e))
+
       case expr : PGhostCollectionExp => expr match {
         case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
@@ -492,6 +496,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
+    case POptionType(elem) => "option" <> brackets(showType(elem))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {

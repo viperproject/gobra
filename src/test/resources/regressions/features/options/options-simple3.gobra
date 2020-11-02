@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1(v int) {
+  assert set(none[int]) == set[int] { }
+  assert set(some(v)) == set[int] { v }
+}
+
+func test2(b bool) {
+  assert mset(none[bool]) == mset[bool] { }
+  assert mset(some(b)) == mset[bool] { b }
+}
+
+requires opt != none[int]
+ensures set(opt) == set[int] { get(opt) }
+func lemma_set_some(ghost opt option[int]) {
+}
+
+requires set(opt) == set[int] { }
+ensures opt == none[int]
+func lemma_set_empty(ghost opt option[int]) {
+  ghost if (opt != none[int]) {
+    lemma_set_some(opt)
+  }
+}
+
+requires left != none[int] && right != none[int]
+requires get(left) == get(right)
+ensures left == right
+func lemma_option_inj(ghost left option[int], ghost right option[int]) {
+}
+
+requires left != none[int] && right != none[int]
+requires set(left) == set(right)
+ensures left == right
+func test3(ghost left option[int], ghost right option[int]) {
+  ghost if (left == none[int]) {
+    lemma_set_empty(left)
+    lemma_set_empty(right)
+  } else {
+    lemma_set_some(left)
+    lemma_set_some(right)
+  }
+}

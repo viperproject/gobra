@@ -9,6 +9,7 @@ package viper.gobra.translator.implementations
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.{BoolEncoding, IntEncoding, PointerEncoding, TypeEncoding}
 import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeTypeEncodingCombiner}
+import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
 import viper.gobra.translator.encodings.sets.SetEncoding
 import viper.gobra.translator.encodings.structs.StructEncoding
@@ -23,6 +24,7 @@ class DfltTranslatorConfig(
   val array : Arrays = new ArraysImpl,
   val seqToSet : SeqToSet = new SeqToSetImpl,
   val seqMultiplicity : SeqMultiplicity = new SeqMultiplicityImpl,
+  val option : Options = new OptionImpl,
   val fixpoint: Fixpoint = new FixpointImpl,
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
@@ -32,7 +34,7 @@ class DfltTranslatorConfig(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding,
       new PointerEncoding, new StructEncoding, new ArrayEncoding,
-      new SequenceEncoding, new SetEncoding
+      new SequenceEncoding, new SetEncoding, new OptionEncoding
     ))
   ),
   val ass : Assertions = new AssertionsImpl,
@@ -43,4 +45,5 @@ class DfltTranslatorConfig(
   val stmt : Statements = new StatementsImpl
 ) extends TranslatorConfig {
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)
+  val optionToSeq : OptionToSeq = new OptionToSeqImpl(option)
 }

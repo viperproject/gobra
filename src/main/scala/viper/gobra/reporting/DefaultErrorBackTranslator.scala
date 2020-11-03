@@ -8,6 +8,7 @@ package viper.gobra.reporting
 
 import viper.gobra.ast.internal.transform.OverflowChecksTransform.OverflowCheckAnnotation
 import viper.gobra.reporting.Source.AnnotatedOrigin
+import viper.gobra.util.Violation.violation
 import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
@@ -108,59 +109,63 @@ class DefaultErrorBackTranslator(
   protected val defaultErrorTransformer: BackTranslator.ErrorTransformer = {
     // same order as they are declared in VerificationError.scala
     // errors regarding wellformedness, termination, magic wands, and heuristics are currently not transformed
-    case vprerr.AssignmentFailed(Source(info), reason, _) =>
-      AssignmentError(info) dueTo translate(reason)
-    case vprerr.CallFailed(Source(info), reason, _) =>
-      CallError(info) dueTo translate(reason)
-    case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
-      PreconditionError(info) dueTo translate(reason)
-    case vprerr.PreconditionInAppFalse(Source(info), reason, _) =>
-      PreconditionError(info) dueTo translate(reason)
-    case vprerr.ExhaleFailed(Source(info), reason, _) =>
-      ExhaleError(info) dueTo translate(reason)
-    case vprerr.InhaleFailed(Source(info), reason, _) =>
-      InhaleError(info) dueTo translate(reason)
-    case vprerr.IfFailed(Source(info), reason, _) =>
-      IfError(info) dueTo translate(reason)
-    case vprerr.WhileFailed(Source(info), reason, _) =>
-      ForLoopError(info) dueTo translate(reason)
-    case vprerr.AssertFailed(Source(info), reason, _) =>
-      info.origin match {
+    val errorMapper: BackTranslator.ErrorTransformer = {
+      case vprerr.AssignmentFailed(Source(info), reason, _) =>
+        AssignmentError(info) dueTo translate(reason)
+      case vprerr.CallFailed(Source(info), reason, _) =>
+        CallError(info) dueTo translate(reason)
+      case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
+        PreconditionError(info) dueTo translate(reason)
+      case vprerr.PreconditionInAppFalse(Source(info), reason, _) =>
+        PreconditionError(info) dueTo translate(reason)
+      case vprerr.ExhaleFailed(Source(info), reason, _) =>
+        ExhaleError(info) dueTo translate(reason)
+      case vprerr.InhaleFailed(Source(info), reason, _) =>
+        InhaleError(info) dueTo translate(reason)
+      case vprerr.IfFailed(Source(info), reason, _) =>
+        IfError(info) dueTo translate(reason)
+      case vprerr.WhileFailed(Source(info), reason, _) =>
+        ForLoopError(info) dueTo translate(reason)
+      case vprerr.AssertFailed(Source(info), reason, _) =>
+        AssertError(info) dueTo translate(reason)
+      case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
+        PostconditionError(info) dueTo translate(reason)
+      case vprerr.FoldFailed(Source(info), reason, _) =>
+        FoldError(info) dueTo translate(reason)
+      case vprerr.UnfoldFailed(Source(info), reason, _) =>
+        UnfoldError(info) dueTo translate(reason)
+      case vprerr.LoopInvariantNotPreserved(Source(info), reason, _) =>
+        LoopInvariantPreservationError(info) dueTo translate(reason)
+      case vprerr.LoopInvariantNotEstablished(Source(info), reason, _) =>
+        LoopInvariantEstablishmentError(info) dueTo translate(reason)
+
+      // Wytse (2020-05-22):
+      // It appears that Viper sometimes negates conditions
+      // during the translation of if-statements.
+      // However, these generated negated conditions
+      // don't appear to preserve any source information,
+      // meaning that the above case for `IfFailed` doesn't catch all errors...
+      // This extra case provides a workaround for this issue.
+      // Nevertheless, this should eventually be solved on the Viper level I think.
+      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
+        IfError(info) dueTo translate(reason)
+    }
+
+    val transformAnnotatedError: VerificationError => VerificationError = x => {
+      x.info.origin match {
         case origin: AnnotatedOrigin =>
+          // errorMapper assigns a reason to every error. as such, at this point, every error should have one error reason
+          violation(x.reasons.size == 1, "Error expected to have one and only one reason.")
           origin.annotation match {
-            case OverflowCheckAnnotation => OverflowError(info) dueTo translate(reason)
+            case OverflowCheckAnnotation =>
+              OverflowError(x.info) dueTo x.reasons.head
             case _ => ???
           }
-        case _ =>
-          AssertError(info) dueTo translate(reason)
+        case _ => x
       }
-    case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
-      info.origin match {
-        case origin: AnnotatedOrigin => origin.annotation match {
-          case OverflowCheckAnnotation => OverflowError(info) dueTo translate(reason)
-          case _ => ???
-        }
-        case _ => PostconditionError(info) dueTo translate(reason)
-      }
-    case vprerr.FoldFailed(Source(info), reason, _) =>
-      FoldError(info) dueTo translate(reason)
-    case vprerr.UnfoldFailed(Source(info), reason, _) =>
-      UnfoldError(info) dueTo translate(reason)
-    case vprerr.LoopInvariantNotPreserved(Source(info), reason, _) =>
-      LoopInvariantPreservationError(info) dueTo translate(reason)
-    case vprerr.LoopInvariantNotEstablished(Source(info), reason, _) =>
-      LoopInvariantEstablishmentError(info) dueTo translate(reason)
+    }
 
-    // Wytse (2020-05-22):
-    // It appears that Viper sometimes negates conditions
-    // during the translation of if-statements.
-    // However, these generated negated conditions
-    // don't appear to preserve any source information,
-    // meaning that the above case for `IfFailed` doesn't catch all errors...
-    // This extra case provides a workaround for this issue.
-    // Nevertheless, this should eventually be solved on the Viper level I think.
-    case vprerr.IfFailed(Not(Source(info)), reason, _) =>
-      IfError(info) dueTo translate(reason)
+    { case x => transformAnnotatedError(errorMapper(x)) }
   }
 
   private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer){

@@ -9,7 +9,6 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
 import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
 import viper.gobra.ast.frontend.{PIdnNode, _}
-import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl

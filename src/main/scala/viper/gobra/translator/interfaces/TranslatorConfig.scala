@@ -17,6 +17,8 @@ trait TranslatorConfig {
   def seqToSet : SeqToSet
   def seqToMultiset : SeqToMultiset
   def seqMultiplicity : SeqMultiplicity
+  def option : Options
+  def optionToSeq : OptionToSeq
   def fixpoint: Fixpoint
   def tuple: Tuples
   def equality: Equality

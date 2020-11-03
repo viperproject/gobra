@@ -3,5 +3,5 @@
 
 package main;
 
-requires acc(*p);
+requires acc(p);
 func test (p *int) { };

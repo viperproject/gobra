@@ -40,7 +40,7 @@ func example7() {
   // TODO could we do without this assertion?
   assert seq[0..10][5:] == seq[5..10]
   assert 8 in set(seq[0..10][5:])
-  
+
   // TODO could we do without this assertion?
   assert seq[0..10][:5] == seq[0..5]
   assert 2 in set(seq[0..10][:5])

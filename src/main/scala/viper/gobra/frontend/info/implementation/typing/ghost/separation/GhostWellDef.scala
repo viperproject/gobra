@@ -101,11 +101,11 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PLength
        | _: PCapacity
        | _: PLiteral
+       | _: PReference
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
-      |  _: PReference
       ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {

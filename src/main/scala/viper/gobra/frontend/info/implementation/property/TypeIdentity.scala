@@ -29,6 +29,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
       case (SetT(l), SetT(r)) => identicalTypes(l, r)
       case (MultisetT(l), MultisetT(r)) => identicalTypes(l, r)
+      case (OptionT(l), OptionT(r)) => identicalTypes(l, r)
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {

@@ -8,13 +8,13 @@ type Rectangle struct {
 }
 
 ghost
-requires acc(r.Width)
+requires acc(&r.Width)
 pure func (r *Rectangle) GetWidth() (res int) {
     return r.Width
 }
 
 func main() {
-    r! := Rectangle{Width: 2, Height: 5}
+    r@ := Rectangle{Width: 2, Height: 5}
     w := r.GetWidth()
     assert (*(Rectangle)).GetWidth(&r) == w && w == 2
 }

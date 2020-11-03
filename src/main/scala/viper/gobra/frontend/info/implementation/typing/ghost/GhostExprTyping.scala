@@ -9,8 +9,9 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, SequenceT, SetT, MultisetT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
@@ -48,20 +49,28 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check whether the right operand is either Boolean or an assertion
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
-    case n: PAccess => resolve(n.exp) match {
-      case Some(_: ap.Deref) => noMessages
-      case Some(_: ap.FieldSelection) => noMessages
-      case Some(_: ap.PredicateCall) => noMessages
-      case Some(n: ap.IndexedExp) => exprType(n.base) match {
-        case _: ArrayT => message(n.base, s"expected a shared array, but found an exclusive array ${n.base}", !addressable(n.base))
-        case t => message(n, s"expected an array type, but got $t")
+    case n: PAccess =>
+      resolve(n.exp) match {
+        case Some(_: ap.PredicateCall) => noMessages
+        case _ =>
+          val argT = exprType(n.exp)
+          // Not all pointer types are supported currently. Later, we can just check isPointerType.
+          underlyingType(argT) match {
+            case Type.NilType | _: Type.PointerT => noMessages
+            case _ => message(n, s"expected expression with pointer type, but got $argT")
+          }
       }
-      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.exp}")
-    }
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
+    }
+
+    case POptionNone(t) => isType(t).out
+    case POptionSome(e) => isExpr(e).out
+    case POptionGet(e) => isExpr(e).out ++ {
+      val t = exprType(e)
+      message(e, s"expected an option type, but got $t", !t.isInstanceOf[OptionT])
     }
 
     case expr : PGhostCollectionExp => expr match {
@@ -105,6 +114,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
           case _: ArrayT => isExpr(op).out ++ message(op, s"exclusive array expected, but shared array '$op' found", addressable(op))
+          case _: OptionT => isExpr(op).out
           case t => message(op, s"expected an array or sequence type, but got $t")
         }
       }
@@ -118,12 +128,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             mergeableTypes.errors(t1, t2)(expr)
         }
         case PSetConversion(op) => exprType(op) match {
-          case SequenceT(_) | SetT(_) => isExpr(op).out
-          case t => message(op, s"expected a sequence or a set, but got $t")
+          case SequenceT(_) | SetT(_) | OptionT(_) => isExpr(op).out
+          case t => message(op, s"expected a sequence, set or option type, but got $t")
         }
         case PMultisetConversion(op) => exprType(op) match {
-          case SequenceT(_) | MultisetT(_) => isExpr(op).out
-          case t => message(op, s"expected a sequence or a multiset, but got $t")
+          case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
+          case t => message(op, s"expected a sequence, multiset or option type, but got $t")
         }
       }
     }
@@ -149,6 +159,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PAccess | _: PPredicateAccess => AssertionT
 
+    case POptionNone(t) => OptionT(typeType(t))
+    case POptionSome(e) => OptionT(exprType(e))
+    case POptionGet(e) => exprType(e) match {
+      case OptionT(t) => t
+      case t => violation(s"expected an option type, but got $t")
+    }
+
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
       case PCardinality(_) => IntT(config.typeBounds.UntypedConst)
@@ -168,7 +185,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t
           case t: ArrayT => SequenceT(t.elem)
-          case t => violation(s"expected an array or sequence type, but got $t")
+          case t: OptionT => SequenceT(t.elem)
+          case t => violation(s"expected an array, sequence or option type, but got $t")
         }
       }
       case expr : PUnorderedGhostCollectionExp => expr match {
@@ -177,12 +195,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => exprType(expr.left)
         }
         case PSetConversion(op) => exprType(op) match {
-          case t : GhostCollectionType => SetT(t.elem)
-          case t => violation(s"expected a ghost collection type, but got $t")
+          case t: GhostCollectionType => SetT(t.elem)
+          case t: OptionT => SetT(t.elem)
+          case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMultisetConversion(op) => exprType(op) match {
           case t : GhostCollectionType => MultisetT(t.elem)
-          case t => violation(s"expected a ghost collection type, but got $t")
+          case t: OptionT => MultisetT(t.elem)
+          case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
       }
     }
@@ -283,6 +303,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _: PArrayType | _: PImplicitSizeArrayType => !strong
         case _ => true
       }
+
+      case POptionNone(_) => true
+      case POptionSome(e) => go(e)
+      case POptionGet(e) => go(e)
 
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)

@@ -21,11 +21,14 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       message(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PMultisetType(elem) => isType(elem).out ++
       message(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case POptionType(elem) => isType(elem).out ++
+      message(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
   }
 
   private[typing] def ghostTypeType(typ : PGhostType) : Type = typ match {
     case PSequenceType(elem) => SequenceT(typeType(elem))
     case PSetType(elem) => SetT(typeType(elem))
     case PMultisetType(elem) => MultisetT(typeType(elem))
+    case POptionType(elem) => OptionT(typeType(elem))
   }
 }

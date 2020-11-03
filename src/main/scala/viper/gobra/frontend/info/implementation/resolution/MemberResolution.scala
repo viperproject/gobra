@@ -17,9 +17,6 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
 
-import scala.annotation.tailrec
-import scala.collection.immutable.Queue
-
 
 trait MemberResolution { this: TypeInfoImpl =>
 

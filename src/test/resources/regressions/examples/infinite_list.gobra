@@ -9,7 +9,7 @@ type node struct {
 };
 
 pred infList(headPtr *node) {
-  headPtr != nil && acc(headPtr.value) && acc(headPtr.next) && infList(headPtr.next)
+  headPtr != nil && acc(&headPtr.value) && acc(&headPtr.next) && infList(headPtr.next)
 };
 
 

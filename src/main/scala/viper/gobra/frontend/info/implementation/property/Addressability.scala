@@ -11,6 +11,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.theory.{Addressability => AddrMod}
 import viper.gobra.util.Violation
 
@@ -60,7 +61,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
           case t => Violation.violation(s"Expected slice, array, map, or sequence, but got $t")
         }
       case n: PDot => resolve(n) match {
-        case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressability(s.base))
+        case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressabilityMemberPath(addressability(s.base), s.path))
         case Some(_: ap.Constant) => AddrMod.constant
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
         case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate) => AddrMod.rValue
@@ -87,11 +88,19 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PIn | _: PCardinality | _: PMultiplicity | _: PSequenceAppend |
            _: PSequenceUpdate | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset => AddrMod.rValue
+      case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
 
     }
 
-
+  def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {
+    path.foldLeft(base){
+      case (b, MemberPath.Underlying) => b
+      case (b, _: MemberPath.Next) => AddrMod.fieldLookup(b)
+      case (_, MemberPath.Deref) => AddrMod.dereference
+      case (_, MemberPath.Ref) => AddrMod.reference
+    }
+  }
 
   /** returns addressability modifier of argument variable */
   override def addressableVar(id: PIdnNode): AddrMod = addressableVarAttr(id)
@@ -102,4 +111,17 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case c: Constant => AddrMod.constant
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
+
+  /** a parameter can be used as shared if it is included in the shared clause of the enclosing function or method */
+  lazy val canParameterBeUsedAsShared: PParameter => Boolean =
+    attr[PParameter, Boolean] {
+      case n: PNamedParameter =>
+        enclosingCodeRoot(n) match {
+          case c: PMethodDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case c: PFunctionDecl => c.body.exists(_._1.shareableParameters.exists(_.name == n.id.name))
+          case _ => false
+        }
+      case _: PUnnamedParameter => false
+      case PExplicitGhostParameter(p) => canParameterBeUsedAsShared(p)
+    }
 }

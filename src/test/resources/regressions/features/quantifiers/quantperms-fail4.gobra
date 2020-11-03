@@ -8,5 +8,5 @@ type Cell struct {
 }
 
 //:: ExpectedOutput(type_error)
-requires forall c *Cell :: { cc.val } acc(c.val)
+requires forall c *Cell :: { cc.val } acc(&c.val)
 func foo(cc *Cell) { }

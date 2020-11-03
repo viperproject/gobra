@@ -1088,6 +1088,47 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
     }
   }
 
+  test("Printer: should correctly show a simple (exclusive) option type") {
+    val a = Addressability.Exclusive
+    val typ = OptionT(OptionT(BoolT(a), a), a)
+
+    frontend.show(typ) should matchPattern {
+      case "option[option[bool]]" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple (shared) option type") {
+    val a = Addressability.Shared
+    val typ = OptionT(OptionT(BoolT(a), a), a)
+
+    frontend.show(typ) should matchPattern {
+      case "option[option[bool]]" =>
+    }
+  }
+
+  test("Printer: should correctly show an 'none' option type expression") {
+    val exp = OptionNone(sequenceT(intT))(Internal)
+
+    frontend.show(exp) should matchPattern {
+      case "none[seq[int]]" =>
+    }
+  }
+
+  test("Printer: should correctly show an 'some' option type expression") {
+    val exp = OptionSome(And(BoolLit(true)(Internal), BoolLit(false)(Internal))(Internal))(Internal)
+
+    frontend.show(exp) should matchPattern {
+      case "some(true && false)" =>
+    }
+  }
+
+  test("Printer: should correctly show an 'get(...)' expression") {
+    val exp = OptionGet(OptionSome(IntLit(23)(Internal))(Internal))(Internal)
+
+    frontend.show(exp) should matchPattern {
+      case "get(some(23))" =>
+    }
+  }
 
   /* * Stubs, mocks, and other test setup  */
 

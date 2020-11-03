@@ -9,7 +9,7 @@ type node struct {
 };
 
 pred list(ptr *node) {
-  ptr != nil ==> acc(ptr.value) && acc(ptr.next) && list(ptr.next)
+  ptr != nil ==> acc(&ptr.value) && acc(&ptr.next) && list(ptr.next)
 };
 
 

@@ -246,6 +246,33 @@ override def typ: Type = BoolT(Addressability.rValue)
 }
 
 
+/* ** Option type expressions */
+
+/**
+  * The 'none' constructor for option types of type `elem`.
+  */
+case class OptionNone(elem : Type)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = OptionT(elem, Addressability.rValue)
+}
+
+/**
+  * The 'some(`exp`)' constructor for option types.
+  */
+case class OptionSome(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = OptionT(exp.typ, Addressability.rValue)
+}
+
+/**
+  * The 'option(`exp`)' projection function, where `exp` is expected to be an option type.
+  */
+case class OptionGet(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = exp.typ match {
+    case OptionT(t, _) => t
+    case t => Violation.violation(s"expected an option type, but got $t")
+  }
+}
+
+
 /* ** Collection expressions */
 
 /**
@@ -361,6 +388,7 @@ case class SequenceConversion(expr : Expr)(val info: Source.Parser.Info) extends
   override val typ : Type = expr.typ match {
     case t: SequenceT => t
     case t: ArrayT => t.sequence
+    case OptionT(t, addr) => SequenceT(t, addr)
     case t => Violation.violation(s"expected a sequence or exclusive array type. but got $t")
   }
 }
@@ -789,6 +817,19 @@ case class MultisetT(t : Type, addressability: Addressability) extends Type {
 
   override def withAddressability(newAddressability: Addressability): MultisetT =
     MultisetT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
+
+/**
+  * The (mathematical) type encapsulating an optional value of type `t`.
+  */
+case class OptionT(t : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t : Type): Boolean = t match {
+    case OptionT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability) : OptionT =
+    OptionT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
 }
 
 case class DefinedT(name: String, addressability: Addressability) extends Type with TopType {

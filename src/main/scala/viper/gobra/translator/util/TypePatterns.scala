@@ -103,6 +103,13 @@ object TypePatterns {
       }
     }
 
+    object Option {
+      def unapply(arg : in.Type) : Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.OptionT => Some(t.t)
+        case _ => None
+      }
+    }
+
     object Pointer {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.PointerT => Some(t.t)

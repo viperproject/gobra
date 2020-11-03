@@ -245,12 +245,12 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -276,17 +276,17 @@ object Desugar {
 
       // extent context
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
-      val bodyOpt = decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
         val body = argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
@@ -314,12 +314,12 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach {
         // substitution has to be added since otherwise the parameter is translated as a addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -328,7 +328,7 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        b: PBlock =>
+        case (_, b: PBlock) =>
           b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case b => Violation.violation(s"unexpected pure function body: $b")
@@ -387,7 +387,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -397,7 +397,7 @@ object Desugar {
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => specCtx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => specCtx.addSubst(id, p)
         case _ =>
       }
 
@@ -434,18 +434,18 @@ object Desugar {
       }
 
       (decl.args zip argsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case _ =>
       }
 
       (decl.result.outs zip returnsWithSubs).foreach{
-        case (NoGhost(PNamedParameter(id, _, _)), (_, Some(q))) => ctx.addSubst(id, q)
+        case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
         case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
 
-      val bodyOpt = decl.body.map{ s =>
+      val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
         val body = recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
@@ -476,7 +476,7 @@ object Desugar {
       (decl.args zip argsWithSubs).foreach{
         // substitution has to be added since otherwise the parameter is translated as an addressable variable
         // TODO: another, maybe more consistent, option is to always add a context entry
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -486,7 +486,7 @@ object Desugar {
       }
 
       (decl.result.outs zip returnsWithSubs).foreach {
-        case (NoGhost(PNamedParameter(id, _, _)), (p, _)) => ctx.addSubst(id, p)
+        case (NoGhost(PNamedParameter(id, _)), (p, _)) => ctx.addSubst(id, p)
         case _ =>
       }
 
@@ -495,7 +495,7 @@ object Desugar {
       val posts = decl.spec.posts map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
-        b: PBlock =>
+        case (_, b: PBlock) =>
           b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case s => Violation.violation(s"unexpected pure function body: $s")
@@ -859,6 +859,8 @@ object Desugar {
           derefD(ctx)(p)(src) map in.Addressable.Pointer
         case Some(p: ap.FieldSelection) =>
           fieldSelectionD(ctx)(p)(src) map in.Addressable.Field
+        case Some(p: ap.IndexedExp) =>
+          indexedExprD(p)(ctx)(src) map in.Addressable.Index
 
         case p => Violation.violation(s"unexpected ast pattern $p ")
       }
@@ -1195,6 +1197,7 @@ object Desugar {
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => ???
       case Type.MapT(key, elem) => ???
+      case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, mod) => ???
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -1297,7 +1300,7 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
+            case PNamedParameter(id, typ) =>
               val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
@@ -1317,7 +1320,7 @@ object Desugar {
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
-            case PNamedParameter(id, typ, _) =>
+            case PNamedParameter(id, typ) =>
               val param = in.Parameter.Out(idName(id), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
@@ -1477,7 +1480,8 @@ object Desugar {
         } yield dop.typ match {
           case _: in.SequenceT => dop
           case _: in.ArrayT => in.SequenceConversion(dop)(src)
-          case t => violation(s"expected a sequence or exclusive array type, but got $t")
+          case _: in.OptionT => in.SequenceConversion(dop)(src)
+          case t => violation(s"expected a sequence, array or option type, but got $t")
         }
 
         case PSetConversion(op) => for {
@@ -1485,7 +1489,8 @@ object Desugar {
         } yield dop.typ match {
           case _: in.SetT => dop
           case _: in.SequenceT => in.SetConversion(dop)(src)
-          case t => violation(s"expected a set or sequence type, but found $t")
+          case _: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src))(src)
+          case t => violation(s"expected a sequence, set or option type, but found $t")
         }
 
         case PUnion(left, right) => for {
@@ -1513,8 +1518,22 @@ object Desugar {
         } yield dop.typ match {
           case _: in.MultisetT => dop
           case _: in.SequenceT => in.MultisetConversion(dop)(src)
-          case t => violation(s"expected a sequence or multiset type, but found $t")
+          case _: in.OptionT => in.MultisetConversion(in.SequenceConversion(dop)(src))(src)
+          case t => violation(s"expected a sequence, multiset or option type, but found $t")
         }
+
+        case POptionNone(t) => {
+          val dt = typeD(info.typ(t), Addressability.rValue)(src)
+          unit(in.OptionNone(dt)(src))
+        }
+
+        case POptionSome(op) => for {
+          dop <- go(op)
+        } yield in.OptionSome(dop)(src)
+
+        case POptionGet(op) => for {
+          dop <- go(op)
+        } yield in.OptionGet(dop)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
@@ -1651,17 +1670,25 @@ object Desugar {
       val src: Meta = meta(acc)
 
       info.resolve(acc) match {
-        case Some(p: ap.Deref) =>
-          derefD(ctx)(p)(src) map in.Accessible.Address
-        case Some(p: ap.FieldSelection) =>
-          fieldSelectionD(ctx)(p)(src) map in.Accessible.Address
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
-        case Some(p : ap.IndexedExp) =>
-          indexedExprD(p)(ctx)(src) map in.Accessible.Address
 
-        case p => Violation.violation(s"unexpected ast pattern $p ")
+        case _ =>
+          val argT = info.typ(acc)
+          underlyingType(argT) match {
+            case ut: Type.PointerT =>
+              // [[in.Accessible.Address]] represents '&'.
+              // If there is no outermost '&', then adds '&*'.
+              acc match {
+                case PReference(op) => addressableD(ctx)(op) map (x => in.Accessible.Address(x.op))
+                case _ =>
+                  goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
+              }
+
+            case _ => Violation.violation(s"expected pointer type, but got $argT")
+          }
       }
+
     }
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {

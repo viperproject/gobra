@@ -215,10 +215,10 @@ case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extend
 sealed trait Expr extends Node with Typed
 
 object Expr {
-  def getProperSubExpressions(x: Expr): Set[Expr] = {
+  def getSubExpressions(x: Expr): Set[Expr] = {
     def aux(x: Expr): Set[Expr] = x.subnodes.collect{ case e: Expr => e }.toSet
     def auxClosed(x: Expr): Set[Expr] = aux(x).flatMap(auxClosed) + x
-    aux(x).flatMap(auxClosed)
+    aux(x).flatMap(auxClosed) + x
   }
 }
 

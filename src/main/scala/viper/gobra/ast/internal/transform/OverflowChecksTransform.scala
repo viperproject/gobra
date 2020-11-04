@@ -25,28 +25,26 @@ object OverflowChecksTransform extends InternalTransform {
     /// statements at the beginning of a function or method body assuming that the value of an argument (of
     // bounded integer type) respects the bounds.
     case f@Function(name, args, results, pres, posts, body) =>
-      Function(name, args, results, pres, posts, body map (computeNewBody(args, _)))(f.info)
+      Function(name, args, results, pres, posts, body map computeNewBody)(f.info)
 
     // same as functions
     case m@Method(receiver, name, args, results, pres, posts, body) =>
-      Method(receiver, name, args, results, pres, posts, body map (computeNewBody(args, _)))(m.info)
+      Method(receiver, name, args, results, pres, posts, body map computeNewBody)(m.info)
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
     case f@PureFunction(name, args, results, pres, posts, body) => body match {
       case Some(expr) =>
-        val newPre = pres ++ getPureBlockPres(args)
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureFunction(name, args, results, newPre, newPost, body)(f.info)
+        PureFunction(name, args, results, pres, newPost, body)(f.info)
       case None => f
     }
 
     // Same as pure functions
     case m@PureMethod(receiver, name, args, results, pres, posts, body) => body match {
       case Some(expr) =>
-        val newPre = pres ++ getPureBlockPres(args)
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureMethod(receiver, name, args, results, newPre, newPost, body)(m.info)
+        PureMethod(receiver, name, args, results, pres, newPost, body)(m.info)
       case None => m
     }
 
@@ -59,21 +57,11 @@ object OverflowChecksTransform extends InternalTransform {
   }
 
   /**
-    * Adds overflow checks to the bodies of a block. If block is parametrized,
-    * `computeNewBody` adds assumptions about the parameters' bounds
+    * Adds overflow checks to the body of a block.
     */
-  private def computeNewBody(args: Vector[Parameter.In], body: Block): Block = {
-    val assumeArgBounds = args map { case p@Parameter.In(_, typ) => Assume(assertionExprInBounds(p, typ)(p.info))(p.info) }
+  private def computeNewBody(body: Block): Block = {
     val blockStmts = body.stmts map stmtTransform
-    Block(body.decls, assumeArgBounds ++ blockStmts)(body.info)
-  }
-
-  /**
-    * Computes the pre-conditions to be added to pure functions and methods to check for overflows, i.e.
-    * that each argument is within the bounds for its type
-    */
-  private def getPureBlockPres(args: Vector[Parameter.In]): Vector[Assertion] = {
-    args.map { p: Parameter.In => assertionExprInBounds(p, p.typ)(p.info) }
+    Block(body.decls, blockStmts)(body.info)
   }
 
   /**
@@ -93,31 +81,51 @@ object OverflowChecksTransform extends InternalTransform {
 
     case i@If(cond, thn, els) =>
       val condInfo = createAnnotatedInfo(cond.info)
-      val ifInfo = createAnnotatedInfo(i.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
-      val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(ifInfo)
-      Seqn(Vector(assertCond, ifStmt))(ifInfo)
+      val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(i.info)
+      Seqn(Vector(assertCond, ifStmt))(i.info)
 
     case w@While(cond, invs, body) =>
       val condInfo = createAnnotatedInfo(cond.info)
-      val whileInfo = createAnnotatedInfo(w.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
-      val whileStmt = While(cond, invs, stmtTransform(body))(whileInfo)
-      Seqn(Vector(assertCond, whileStmt))(whileInfo)
+      val whileStmt = While(cond, invs, stmtTransform(body))(w.info)
+      Seqn(Vector(assertCond, whileStmt))(w.info)
 
     case ass@SingleAss(l, r) =>
-      val assertBounds = {
-        val info = createAnnotatedInfo(r.info)
-        Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
-      }
-      Seqn(Vector(assertBounds, ass))(createAnnotatedInfo(l.op.info))
+      val info = createAnnotatedInfo(r.info)
+      val assertBounds = Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
+      Seqn(Vector(assertBounds, ass))(l.op.info)
 
-    case x => x
+    case f@FunctionCall(_, _, args) =>
+      val asserts = args map (expr => {
+        val info = createAnnotatedInfo(expr.info)
+        Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
+      })
+      Seqn(f +: asserts)(f.info)
+
+    case m@MethodCall(_, recv, _, args) =>
+      val asserts = args map (expr => {
+        val info = createAnnotatedInfo(expr.info)
+        Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
+      })
+      val recvInfo = createAnnotatedInfo(recv.info)
+      val recvAssert = Assert(assertionExprInBounds(recv, recv.typ)(recvInfo))(recvInfo)
+      Seqn(m +: recvAssert +: asserts)(m.info)
+
+    case m@Make(_, typ) =>
+      val info = createAnnotatedInfo(typ.info)
+      val assertBounds = Assert(assertionExprInBounds(typ.op, typ.op.typ)(info))(info)
+      Seqn(Vector(assertBounds, m))(m.info)
+
+    // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold) => x
   }
 
   // Checks if expr and its subexpressions are within bounds of type `typ`
   private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion = {
-    def genAssertion(expr: Expr, typ: Type): Expr =
+    val trueLit: Expr = BoolLit(true)(info)
+
+    def genAssertionExpr(expr: Expr, typ: Type): Expr =
       typ match {
         case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
           val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
@@ -125,14 +133,27 @@ object OverflowChecksTransform extends InternalTransform {
             AtMostCmp(IntLit(boundedKind.lower)(info), expr)(info),
             AtMostCmp(expr, IntLit(boundedKind.upper)(info))(info))(info)
 
-        case _ => BoolLit(true)(info)
+        case _ => trueLit
       }
 
-    val exprBoundCheck = genAssertion(expr, typ) // typ must be provided from the outside to obtain the most precise type info possible
-    val subExprsBoundChecks =
-      Expr.getProperSubExpressions(expr).filter(_.typ.isInstanceOf[IntT]).map{x => genAssertion(x, x.typ)}
+    val intSubExprs: Set[Expr] = Expr.getSubExpressions(expr).filter(_.typ.isInstanceOf[IntT])
 
-    ExprAssertion(subExprsBoundChecks.foldRight(exprBoundCheck)((x,y) => And(x,y)(info)))(info)
+    // values assumed to be within bounds, i.e. variables, fields from structs, dereferences of pointers and indexed expressions
+    // this stops Gobra from throwing overflow errors in field accesses and pointer dereferences because Gobra was not able to prove that
+    // they were within bounds even though that is guaranteed by the expression's type
+    val valuesWithinBounds = intSubExprs.filter {
+      case _: Var | _: FieldRef | _: IndexedExp | _: Deref => true
+      case _ => false
+    }
+
+    val computeAssertions = (exprs: Set[Expr]) => exprs.map{x => genAssertionExpr(x, x.typ)}.foldRight(trueLit)((x,y) => And(x,y)(info))
+
+    // assumptions for the values that are considered within bounds
+    val assumptions = computeAssertions(valuesWithinBounds)
+
+    // Assertions that need to be verified assuming the expressions in `assumptions`
+    val obligations = ExprAssertion(computeAssertions(intSubExprs))(info)
+    Implication(assumptions, obligations)(info)
   }
 
   // should this be moved to Source class?

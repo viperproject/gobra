@@ -67,6 +67,10 @@ pure func (r rect) perim() int {
     return 2 * r.width + 2 * r.height
 }
 
+func (r rect) smallerArea(other rect) bool {
+	return r.area() < other.area()
+}
+
 // Test if conditions for overflow
 func strangeAbs(x int) int {
 	//:: ExpectedOutput(integer_overflow_error)
@@ -85,3 +89,22 @@ func whileCheck() {
 		x += 1
 	}
 }
+
+// Test for overflow detection in function call statement
+func funcCallMayOverflow(x, y int8) {
+	//:: ExpectedOutput(integer_overflow_error)
+	increment8(x + y)
+}
+
+// Test for overflow detection in method call statment
+func methodCallMayOverflow(height, width int) {
+	r := rect{height: height, width: width}
+	//:: ExpectedOutput(integer_overflow_error)
+	r.smallerArea(rect{height: 2*height, width: 2*width})
+}
+
+/* make is not supported at this point
+func newSlice(size int) {
+	c := make([]int, size * 2)
+}
+*/

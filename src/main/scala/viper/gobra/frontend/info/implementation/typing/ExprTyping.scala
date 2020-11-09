@@ -235,14 +235,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
     case n: PBinaryExp =>
+      val intKind = config.typeBounds.UntypedConst
       isExpr(n.left).out ++ isExpr(n.right).out ++
         ((n, exprType(n.left), exprType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n)
+            assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            assignableTo.errors(l, IntT(UntypedConst))(n) ++ assignableTo.errors(r, IntT(UntypedConst))(n) ++ {
+            assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n) ++ {
               val res = for {
                 typCtx <- getTypeFromContext(n.asInstanceOf[PNumExpression])
               } yield assignableWithinBounds.errors(typCtx, n)(n)
@@ -333,13 +334,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PLength => IntT(Int)
+    case _: PLength => IntT(config.typeBounds.Int)
 
-    case _: PCapacity => IntT(Int)
+    case _: PCapacity => IntT(config.typeBounds.Int)
 
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
-      if (typ == IntT(UntypedConst)) getTypeFromContext(exprNum).getOrElse(typ) else typ
+      if (typ == IntT(config.typeBounds.UntypedConst)) getTypeFromContext(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
 
@@ -352,7 +353,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def getTypeFromContext(expr: PNumExpression): Option[Type] = expr match {
     case tree.parent(p) => p match {
       // if no type is specified, integer constants default to int in short var declarations
-      case _: PShortVarDecl => Some(IntT(Int))
+      case _: PShortVarDecl => Some(IntT(config.typeBounds.Int))
       case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
       case PAssignment(rights, lefts) =>
         val index = rights.indexOf(expr)
@@ -381,9 +382,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def intExprType(expr: PNumExpression): Type = expr match {
-    case _: PIntLit => IntT(UntypedConst)
+    case _: PIntLit => IntT(config.typeBounds.UntypedConst)
 
-    case _: PLength | _: PCapacity => IntT(Int)
+    case _: PLength | _: PCapacity => IntT(config.typeBounds.Int)
 
     case bExpr: PBinaryExp =>
       val typeLeft = exprType(bExpr.left)

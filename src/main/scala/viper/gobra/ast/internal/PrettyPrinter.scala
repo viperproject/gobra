@@ -378,7 +378,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showType(typ : Type) : Doc = typ match {
     case BoolT(_) => "bool"
-    case IntT(_) => "int"
+    case IntT(_, kind) => kind.name
     case VoidT => "void"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name

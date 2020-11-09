@@ -164,6 +164,12 @@ case class ForLoopError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "For loop statement might fail"
 }
 
+case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "integer_overflow_error"
+  override def localMessage: String = "Expression may cause integer overflow"
+}
+
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -188,6 +194,11 @@ case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.
 case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "seq_index_negative_error"
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
+}
+
+case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "integer_overflow_error"
+  override def message: String = s"Expression ${node.origin.tag} may cause integer overflow"
 }
 
 sealed trait VerificationErrorClarification {

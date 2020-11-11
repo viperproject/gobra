@@ -3,8 +3,8 @@
 
 package main
 
-// ##(-I src/test/resources/regressions/issues/issue124/)
-import gobra "github.com/gobra"
+// ##(-I src/test/resources/regressions/issues/000124/)
+import "github.com/gobra"
 
 func main() {
 	x := gobra.F()

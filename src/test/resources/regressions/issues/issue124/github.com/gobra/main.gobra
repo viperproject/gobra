@@ -1,0 +1,5 @@
+package gobra
+
+func F() int {
+  return 0
+}

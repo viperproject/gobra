@@ -59,15 +59,15 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"unexpected range type $t")
     }
 
-    case p: PParameter => typeType(p.typ)
-    case r: PReceiver => typeType(r.typ)
+    case p: PParameter => typeSymbType(p.typ)
+    case r: PReceiver => typeSymbType(r.typ)
     case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
-    case PEmbeddedName(t) => typeType(t)
-    case PEmbeddedPointer(t) => PointerT(typeType(t))
+    case PEmbeddedName(t) => typeSymbType(t)
+    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
 
-    case f: PFieldDecl => typeType(f.typ)
+    case f: PFieldDecl => typeSymbType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)
@@ -81,6 +81,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent.pair(l: PLiteralValue, p) => p match {
         case cl: PCompositeLit => expectedCompositeLitType(cl)
         case cv: PCompositeVal => expectedMiscType(cv)
+        case _ => Violation.violation(s"found unexpected literal: $p")
       }
 
       case tree.parent.pair(e: PKeyedElement, lv: PLiteralValue) => underlyingType(expectedMiscType(lv)) match {

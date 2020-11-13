@@ -29,7 +29,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
     case Single(st) => st match {
       case t: StructT =>
         structMemberSet(t).collect {
-          case (_, f: Field) => typeType(f.decl.typ)
+          case (_, f: Field) => typeSymbType(f.decl.typ)
           case (_, e: Embbed) => miscType(e.decl.typ)
         }.forall(comparableType)
 

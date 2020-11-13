@@ -113,6 +113,14 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("untypable")
   }
 
+  lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
+    entity(id) match {
+      case NamedType(decl, _, context) => DeclaredT(decl, context)
+      case Import(decl, _) => ImportT(decl)
+      case _ => violation(s"expected type, but got $id")
+    }
+  }
+
   lazy val idType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {
       case entity: ActualRegular => actualEntityType(entity, id)
@@ -142,7 +150,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
-    case NamedType(decl, _, context) => DeclaredT(decl, context)
+    case NamedType(decl, _, context) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.typ(right)
 
     case InParameter(p, _, _, context) => context.typ(p.typ)

@@ -61,6 +61,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
         // for ghost types
       case (BooleanT, AssertionT) => true
+      case (SortT, SortT) => true
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)

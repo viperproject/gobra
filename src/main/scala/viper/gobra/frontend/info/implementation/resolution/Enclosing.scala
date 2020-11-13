@@ -94,10 +94,10 @@ trait Enclosing { this: TypeInfoImpl =>
             // no reference
             // no deref
             // no negation
-          case PEquals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
-          case PEquals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
-          case PUnequals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
-          case PUnequals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
+          case PEquals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
+          case PEquals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
+          case PUnequals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
+          case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
             // no array type

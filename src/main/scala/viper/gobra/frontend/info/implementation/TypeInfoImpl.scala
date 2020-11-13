@@ -68,9 +68,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
+  override def typOfExprOrType(expr: PExpressionOrType): Type.Type = exprOrTypeType(expr)
+
   override def typ(misc: PMisc): Type.Type = miscType(misc)
 
-  override def typ(typ: PType): Type.Type = typeType(typ)
+  override def typ(typ: PType): Type.Type = typeSymbType(typ)
 
   override def typ(id: PIdnNode): Type.Type = idType(id)
 

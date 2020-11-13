@@ -6,12 +6,11 @@
 
 package viper.gobra.frontend
 
-import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.ast.internal.{Lit, LocalVar}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
@@ -930,8 +929,22 @@ object Desugar {
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
-          case PEquals(left, right) => for {l <- go(left); r <- go(right)} yield in.EqCmp(l, r)(src)
-          case PUnequals(left, right) => for {l <- go(left); r <- go(right)} yield in.UneqCmp(l, r)(src)
+          case PEquals(left, right) =>
+            (info.typOfExprOrType(left), left, right) match {
+              case (Type.SortT, _, _) => ???
+              case (_, l: PExpression, r: PExpression) =>
+                for {l <- go(l); r <- go(r)} yield in.EqCmp(l, r)(src)
+              case _ => Violation.violation(s"Invalid arguments for equals: $left, $right")
+            }
+
+          case PUnequals(left, right) =>
+            (info.typOfExprOrType(left), left, right) match {
+              case (Type.SortT, _, _) => ???
+              case (_, l: PExpression, r: PExpression) =>
+                for {l <- go(l); r <- go(r)} yield in.UneqCmp(l, r)(src)
+              case _ => Violation.violation(s"Invalid arguments for equals: $left, $right")
+            }
+
           case PLess(left, right) => for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
           case PAtMost(left, right) => for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
           case PGreater(left, right) => for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)

@@ -12,7 +12,6 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.internal.{Lit, LocalVar}
-import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
@@ -62,7 +61,7 @@ object Desugar {
 
     val desugarWriter = new DesugarWriter
     import desugarWriter._
-    type Writer[R] = desugarWriter.Writer[R]
+    type Writer[+R] = desugarWriter.Writer[R]
 
 //    def complete[X <: in.Stmt](w: Agg[X]): in.Stmt = {val (xs, x) = w.run; in.Seqn(xs :+ x)(x.info)}
 
@@ -729,11 +728,27 @@ object Desugar {
         } yield (acceptCond, stmt)
       }
 
-    def multiassD(lefts: Vector[in.Assignee], right: in.Expr)(src: Source.Parser.Info): in.Stmt = right match {
-      case in.Tuple(args) if args.size == lefts.size =>
-        in.Seqn(lefts.zip(args) map { case (l, r) => in.SingleAss(l, r)(src)})(src)
+    def multiassD(lefts: Vector[in.Assignee], right: in.Expr)(src: Source.Parser.Info): in.Stmt = {
 
-      case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
+      right match {
+        case in.Tuple(args) if args.size == lefts.size =>
+          in.Seqn(lefts.zip(args) map { case (l, r) => in.SingleAss(l, r)(src)})(src)
+
+        case n: in.TypeAssertion if lefts.size == 2 =>
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val successTarget = freshExclusiveVar(lefts(1).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector(
+              in.SafeTypeAssertion(resTarget, successTarget, n.exp, n.arg)(n.info),
+              in.SingleAss(lefts(0), resTarget)(src),
+              in.SingleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
+
+
+        case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
+      }
     }
 
 
@@ -881,6 +896,7 @@ object Desugar {
     def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+      def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(e)
 
       val src: Meta = meta(expr)
 
@@ -888,14 +904,19 @@ object Desugar {
 
       expr match {
         case NoGhost(noGhost) => noGhost match {
-          case PNamedOperand(id) => info.regular(id) match {
-            case sc: SingleConstant => unit[in.Expr](globalConstD(sc)(src))
-            case _ => unit[in.Expr](varD(ctx)(id))
+          case n: PNamedOperand => info.resolve(n) match {
+            case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
+            case Some(_: ap.LocalVariable) => unit(varD(ctx)(n.id))
+            case Some(_: ap.NamedType) =>
+              val name = typeD(info.symbTyp(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              unit(in.DefinedTExpr(name)(src))
+            case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)
-            case _ => Violation.violation("cannot desugar pointer type to an expression")
+            case Some(p: ap.PointerType) => for { inElem <- goTExpr(p.base) } yield in.PointerTExpr(inElem)(src)
+            case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
           case PReference(exp) => exp match {
@@ -915,7 +936,10 @@ object Desugar {
           case n: PDot => info.resolve(n) match {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
-            case Some(p) => Violation.violation(s"only field selections and global constants can be desugared to an expression, but got $p")
+            case Some(_: ap.NamedType) =>
+              val name = typeD(info.symbTyp(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              unit(in.DefinedTExpr(name)(src))
+            case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
 
@@ -926,6 +950,12 @@ object Desugar {
               case Some(ap: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
             }
+
+          case n: PTypeAssertion =>
+            for {
+              inExpr <- go(n.base)
+              inArg = typeD(info.symbTyp(n.typ), Addressability.typeAssertionResult)(src)
+            } yield in.TypeAssertion(inExpr, inArg)(src)
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
@@ -1020,6 +1050,38 @@ object Desugar {
           in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(base.typ.addressability), info)(pinfo))(pinfo)
       }}
     }
+
+    def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
+
+      def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(x)
+
+      val src: Meta = meta(expr)
+
+      expr match {
+        case e: PExpression => exprD(ctx)(e)
+
+        case PBoolType() => unit(in.BoolTExpr()(src))
+
+        case t: PIntegerType =>
+          val st = info.symbTyp(t).asInstanceOf[Type.IntT]
+          unit(in.IntTExpr(st.kind)(src))
+
+        case PArrayType(len, elem) =>
+          for {
+            inLen <- exprD(ctx)(len)
+            inElem <- go(elem)
+          } yield in.ArrayTExpr(inLen, inElem)(src)
+
+        case PSequenceType(elem) => for { inElem <- go(elem) } yield in.SequenceTExpr(inElem)(src)
+        case PSetType(elem) => for { inElem <- go(elem) } yield in.SetTExpr(inElem)(src)
+        case PMultisetType(elem) => for { inElem <- go(elem) } yield in.MultisetTExpr(inElem)(src)
+        case POptionType(elem) => for { inElem <- go(elem) } yield in.OptionTExpr(inElem)(src)
+
+          // TODO: struct and interface types will be added later.
+        case t => Violation.violation(s"encountered unsupported type expression: $t")
+      }
+    }
+
 
     def litD(ctx: FunctionContext)(lit: PLiteral): Writer[in.Expr] = {
 
@@ -1224,9 +1286,13 @@ object Desugar {
         registerType(in.StructT(structName, inFields, addrMod))
 
       case Type.FunctionT(args, result) => ???
-      case Type.InterfaceT(decl) => ???
+      case t: Type.InterfaceT =>
+        val interfaceName = nm.interface(t)
+        registerType(in.InterfaceT(interfaceName, addrMod))
 
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
+
+      case Type.SortT => in.SortT
 
       case _ => Violation.violation(s"got unexpected type $t")
     }
@@ -1449,6 +1515,8 @@ object Desugar {
           wthn <- go(right)
           wels = in.BoolLit(b = true)(src)
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
+
+        case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
 
         case PCardinality(op) => for {
           dop <- go(op)
@@ -1754,6 +1822,7 @@ object Desugar {
     private val METHOD_PREFIX = "M"
     private val TYPE_PREFIX = "T"
     private val STRUCT_PREFIX = "X"
+    private val INTERFACE_PREFIX = "Y"
     private val GLOBAL_PREFIX = "G"
 
     private var counter = 0
@@ -1815,6 +1884,14 @@ object Desugar {
       // replace characters that could be misinterpreted:
       val structName = pos.toString.replace(".", "$")
       s"$STRUCT_PREFIX$$$structName"
+    }
+
+    def interface(s: InterfaceT): String = {
+      if (s.isEmpty) {
+        s"$INTERFACE_PREFIX$$empty"
+      } else {
+        Violation.violation("non-empty interfaces are not supported right now")
+      }
     }
   }
 }

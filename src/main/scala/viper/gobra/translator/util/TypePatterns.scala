@@ -132,6 +132,13 @@ object TypePatterns {
       }
     }
 
+    object Interface {
+      def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
+        case t : in.InterfaceT => Some(Vector())
+        case _ => None
+      }
+    }
+
     object Tuple {
       def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.TupleT => Some(t.ts)

@@ -488,7 +488,7 @@ sealed abstract class PPredeclaredType(override val name: String) extends PNamed
 
 case class PBoolType() extends PPredeclaredType("bool")
 
-sealed trait PIntegerType
+sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
 case class PInt8Type() extends PPredeclaredType("int8") with PIntegerType
 case class PInt16Type() extends PPredeclaredType("int16") with PIntegerType

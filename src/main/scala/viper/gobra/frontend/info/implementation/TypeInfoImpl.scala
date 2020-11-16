@@ -76,6 +76,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def typ(id: PIdnNode): Type.Type = idType(id)
 
+  override def symbTyp(typ: PType): Type.Type = typeSymbType(typ)
+
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
   override def codeRoot(n: PNode): PScope = enclosingCodeRoot(n)

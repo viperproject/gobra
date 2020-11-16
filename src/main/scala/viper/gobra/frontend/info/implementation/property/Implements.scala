@@ -12,8 +12,14 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 trait Implements { this: TypeInfoImpl =>
 
   def implements(l: Type, r: Type): Boolean = underlyingType(r) match {
-    case t: InterfaceT => t.isEmpty
+    case t: InterfaceT if t.isEmpty => supportedSortForInterfaces(t)
     case _ => false
+  }
+
+
+  /** Returns true if the type is supported for interfaces. All finite types are supported. */
+  def supportedSortForInterfaces(t: Type): Boolean = {
+    true
   }
 
 }

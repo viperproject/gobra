@@ -123,7 +123,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case MethodSpec(PMethodSig(_, args, result), _, context) => FunctionT(args map context.typ, context.typ(result))
 
-    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
   }

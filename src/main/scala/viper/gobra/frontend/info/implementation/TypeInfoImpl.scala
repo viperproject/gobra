@@ -72,11 +72,9 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def typ(misc: PMisc): Type.Type = miscType(misc)
 
-  override def typ(typ: PType): Type.Type = typeSymbType(typ)
+  override def symbType(typ: PType): Type.Type = typeSymbType(typ)
 
   override def typ(id: PIdnNode): Type.Type = idType(id)
-
-  override def symbTyp(typ: PType): Type.Type = typeSymbType(typ)
 
   override def scope(n: PIdnNode): PScope = enclosingIdScope(n)
 
@@ -152,7 +150,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
         struct(decls)
 
       case tree.parent.pair(decls: PFieldDecls, structDecl: PStructType) =>
-        Some(typ(structDecl).asInstanceOf[Type.StructT])
+        Some(symbType(structDecl).asInstanceOf[Type.StructT])
 
       case _ => None
     }

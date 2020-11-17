@@ -16,9 +16,7 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def context: Info.Context
 
-  def typ(expr: PExpression): Type
   def typOfExprOrType(expr: PExpressionOrType): Type
-  def symbTyp(t: PType): Type
   def addressability(expr: PExpression): Addressability
   def addressableVar(id: PIdnNode): Addressability
 

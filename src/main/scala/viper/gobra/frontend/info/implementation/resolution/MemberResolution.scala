@@ -85,7 +85,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
 
-      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case s: StructT =>
@@ -104,7 +104,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
 
-      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case s: StructT =>

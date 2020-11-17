@@ -66,8 +66,8 @@ trait Enclosing { this: TypeInfoImpl =>
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
-          case PConstDecl(t, _, _) => t.map(typ)
-          case PVarDecl(t, _, _, _) => t.map(typ)
+          case PConstDecl(t, _, _) => t.map(symbType)
+          case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
           case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))
@@ -80,7 +80,7 @@ trait Enclosing { this: TypeInfoImpl =>
             // no defer stmt
           case p: PExpCompositeVal => Some(expectedMiscType(p))
           case i: PInvoke => (exprOrType(i.base), resolve(i)) match {
-            case (Right(target), Some(_: ap.Conversion)) => Some(typ(target))
+            case (Right(target), Some(_: ap.Conversion)) => Some(symbType(target))
             case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
             case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
           }

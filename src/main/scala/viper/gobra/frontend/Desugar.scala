@@ -216,14 +216,14 @@ object Desugar {
         if (rets.isEmpty) {
           in.Seqn(
             returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(src))
+              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
               case _ => None
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
             returns.zip(rets).map{
-              case (p, v) => in.SingleAss(in.Assignee.Var(p), v)(src)
+              case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
@@ -258,14 +258,14 @@ object Desugar {
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
-        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
         case _ => None
       }
 
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
-          case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(fsrc))
+          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(fsrc))
           case _ => None
         } // :+ in.Return()(fsrc)
 
@@ -357,14 +357,14 @@ object Desugar {
         if (rets.isEmpty) {
           in.Seqn(
             returnsWithSubs.flatMap{
-              case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(src))
+              case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(src))
               case _ => None
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == returns.size) {
           in.Seqn(
             returns.zip(rets).map{
-              case (p, v) => in.SingleAss(in.Assignee.Var(p), v)(src)
+              case (p, v) => singleAss(in.Assignee.Var(p), v)(src)
             } :+ in.Return()(src)
           )(src)
         } else if (rets.size == 1) { // multi assignment
@@ -405,20 +405,20 @@ object Desugar {
 
       // s' := s
       val recvInits = (recvWithSubs match {
-        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
         case _ => None
       }).toVector
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
-        case (p, Some(q)) => Some(in.SingleAss(in.Assignee.Var(q), p)(p.info))
+        case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
         case _ => None
       }
 
       // r1 := r1'; .... rn := rn'
       val resultAssignments =
         returnsWithSubs.flatMap{
-          case (p, Some(v)) => Some(in.SingleAss(in.Assignee.Var(p), v)(fsrc))
+          case (p, Some(v)) => Some(singleAss(in.Assignee.Var(p), v)(fsrc))
           case _ => None
         } // :+ in.Return()(fsrc)
 
@@ -612,15 +612,15 @@ object Desugar {
           case PAssignment(right, left) =>
             if (left.size == right.size) {
               if (left.size == 1) {
-                for{le <- goL(left.head); re <- goE(right.head)} yield in.SingleAss(le, re)(src)
+                for{le <- goL(left.head); re <- goE(right.head)} yield singleAss(le, re)(src)
               } else {
                 // copy results to temporary variables and then to assigned variables
                 val temps = left map (l => freshExclusiveVar(typeD(info.typ(l), Addressability.exclusiveVariable)(src))(src))
                 val resToTemps = (temps zip right).map{ case (l, r) =>
-                  for{re <- goE(r)} yield in.SingleAss(in.Assignee.Var(l), re)(src)
+                  for{re <- goE(r)} yield singleAss(in.Assignee.Var(l), re)(src)
                 }
                 val tempsToVars = (left zip temps).map{ case (l, r) =>
-                  for{le <- goL(l)} yield in.SingleAss(le, r)(src)
+                  for{le <- goL(l)} yield singleAss(le, r)(src)
                 }
                 declare(temps: _*) flatMap (_ =>
                   sequence(resToTemps ++ tempsToVars).map(in.Seqn(_)(src))
@@ -643,7 +643,7 @@ object Desugar {
                   case PDivOp() => in.Div(l.op, r)(src)
                   case PModOp() => in.Mod(l.op, r)(src)
                 }
-              } yield in.SingleAss(l, rWithOp)(src)
+              } yield singleAss(l, rWithOp)(src)
 
           case PShortVarDecl(right, left, _) =>
 
@@ -652,7 +652,7 @@ object Desugar {
                 for{
                   le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
-                } yield in.SingleAss(le, re)(src)
+                } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
@@ -668,7 +668,7 @@ object Desugar {
                 for{
                   le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
-                } yield in.SingleAss(le, re)(src)
+                } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
@@ -677,8 +677,8 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
-              unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
+              val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
+              unit(in.Seqn((lelems zip relems).map{ case (l, r) => singleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
@@ -692,7 +692,7 @@ object Desugar {
               dExp <- exprD(ctx)(exp)
               exprVar = freshExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable))(dExp.info)
               _ <- declare(exprVar)
-              exprAss = in.SingleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
+              exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
               clauses <- sequence(cases.map(c => switchCaseD(c, exprVar)(ctx)))
 
@@ -732,7 +732,7 @@ object Desugar {
 
       right match {
         case in.Tuple(args) if args.size == lefts.size =>
-          in.Seqn(lefts.zip(args) map { case (l, r) => in.SingleAss(l, r)(src)})(src)
+          in.Seqn(lefts.zip(args) map { case (l, r) => singleAss(l, r)(src)})(src)
 
         case n: in.TypeAssertion if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
@@ -741,8 +741,8 @@ object Desugar {
             Vector(resTarget, successTarget),
             Vector(
               in.SafeTypeAssertion(resTarget, successTarget, n.exp, n.arg)(n.info),
-              in.SingleAss(lefts(0), resTarget)(src),
-              in.SingleAss(lefts(1), successTarget)(src)
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
             )
           )(src)
 
@@ -780,7 +780,7 @@ object Desugar {
 
               // encode result
               val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
-              val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.typ(o.typ), Addressability.exclusiveVariable)(src))(src))
+              val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
               val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
               base match {
@@ -790,12 +790,12 @@ object Desugar {
                   if (base.symb.isPure) {
                     for {
                       args <- dArgs
-                    } yield in.PureFunctionCall(fproxy, args, resT)(src)
+                    } yield in.PureFunctionCall(fproxy, arguments(base.symb, args), resT)(src)
                   } else {
                     for {
                       args <- dArgs
                       _ <- declare(targets: _*)
-                      _ <- write(in.FunctionCall(targets, fproxy, args)(src))
+                      _ <- write(in.FunctionCall(targets, fproxy, arguments(base.symb, args))(src))
                     } yield res
                   }
 
@@ -810,13 +810,13 @@ object Desugar {
                     for {
                       recv <- dRecv
                       args <- dArgs
-                    } yield in.PureMethodCall(recv, fproxy, args, resT)(src)
+                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
                   } else {
                     for {
                       recv <- dRecv
                       args <- dArgs
                       _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, args)(src))
+                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
                     } yield res
                   }
 
@@ -829,12 +829,12 @@ object Desugar {
                   if (base.symb.isPure) {
                     for {
                       (recv, args) <- dRecvWithArgs
-                    } yield in.PureMethodCall(recv, fproxy, args, resT)(src)
+                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
                   } else {
                     for {
                       (recv, args) <- dRecvWithArgs
                       _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, args)(src))
+                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
                     } yield res
                   }
               }
@@ -842,6 +842,28 @@ object Desugar {
             case sym => Violation.violation(s"expected symbol with arguments and result, but got $sym")
           }
       }
+    }
+
+    def implicitConversion(from: in.Type, to: in.Type, exp: in.Expr): in.Expr = {
+
+      val fromUt = underlyingType(from)
+      val toUt = underlyingType(to)
+
+      if (toUt.isInstanceOf[in.InterfaceT] && !fromUt.isInstanceOf[in.InterfaceT]) {
+        in.ToInterface(exp, toUt)(exp.info)
+      } else {
+        exp
+      }
+    }
+
+    def singleAss(left: in.Assignee, right: in.Expr)(info: Source.Parser.Info): in.SingleAss = {
+      in.SingleAss(left, implicitConversion(right.typ, left.op.typ, right))(info)
+    }
+
+    def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {
+      val c = args zip symb.args
+      val assignments = c.map{ case (from, pTo) => (from, typeD(info.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
+      assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
     }
 
     def assigneeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Assignee] = {
@@ -908,7 +930,7 @@ object Desugar {
             case Some(p: ap.Constant) => unit(globalConstD(p.symb)(src))
             case Some(_: ap.LocalVariable) => unit(varD(ctx)(n.id))
             case Some(_: ap.NamedType) =>
-              val name = typeD(info.symbTyp(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
@@ -937,7 +959,7 @@ object Desugar {
             case Some(p: ap.FieldSelection) => fieldSelectionD(ctx)(p)(src)
             case Some(p: ap.Constant) => unit[in.Expr](globalConstD(p.symb)(src))
             case Some(_: ap.NamedType) =>
-              val name = typeD(info.symbTyp(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
+              val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
@@ -954,7 +976,7 @@ object Desugar {
           case n: PTypeAssertion =>
             for {
               inExpr <- go(n.base)
-              inArg = typeD(info.symbTyp(n.typ), Addressability.typeAssertionResult)(src)
+              inArg = typeD(info.symbType(n.typ), Addressability.typeAssertionResult)(src)
             } yield in.TypeAssertion(inExpr, inArg)(src)
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
@@ -1063,7 +1085,7 @@ object Desugar {
         case PBoolType() => unit(in.BoolTExpr()(src))
 
         case t: PIntegerType =>
-          val st = info.symbTyp(t).asInstanceOf[Type.IntT]
+          val st = info.symbType(t).asInstanceOf[Type.IntT]
           unit(in.IntTExpr(st.kind)(src))
 
         case PArrayType(len, elem) =>
@@ -1109,18 +1131,18 @@ object Desugar {
 
       case t: PImplicitSizeArrayType =>
         val arrayLen : BigInt = lit.lit.elems.length
-        val arrayTyp = typeD(info.typ(t.elem), Addressability.arrayElement(Addressability.literal))(meta(lit))
+        val arrayTyp = typeD(info.symbType(t.elem), Addressability.arrayElement(Addressability.literal))(meta(lit))
         literalValD(ctx)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
 
       case t: PType =>
-        val it = typeD(info.typ(t), Addressability.literal)(meta(lit))
+        val it = typeD(info.symbType(t), Addressability.literal)(meta(lit))
         literalValD(ctx)(lit.lit, it)
 
       case _ => ???
     }
 
     def underlyingType(t: Type.Type): Type.Type = t match {
-      case Type.DeclaredT(d, context) => underlyingType(context.typ(d.right))
+      case Type.DeclaredT(d, context) => underlyingType(context.symbType(d.right))
       case _ => t
     }
 
@@ -1251,7 +1273,7 @@ object Desugar {
 
       if (!definedTypesSet.contains(name, addrMod)) {
         definedTypesSet += ((name, addrMod))
-        val newEntry = typeD(t.context.typ(t.decl.right), Addressability.underlying(addrMod))(src)
+        val newEntry = typeD(t.context.symbType(t.decl.right), Addressability.underlying(addrMod))(src)
         definedTypes += (name, addrMod) -> newEntry
       }
 
@@ -1259,9 +1281,9 @@ object Desugar {
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
-      case PEmbeddedName(typ) => typeD(info.typ(typ), addrMod)(src)
+      case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
-        registerType(in.PointerT(typeD(info.typ(typ), Addressability.pointerBase)(src), addrMod))
+        registerType(in.PointerT(typeD(info.symbType(typ), Addressability.pointerBase)(src), addrMod))
     }
 
     def typeD(t: Type, addrMod: Addressability)(src: Source.Parser.Info): in.Type = t match {
@@ -1380,12 +1402,12 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.typ(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -1400,12 +1422,12 @@ object Desugar {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.Out(idName(id), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(idName(id), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.typ(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -1416,12 +1438,12 @@ object Desugar {
       val src: Meta = meta(p)
       p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter.In(idName(id), typeD(info.typ(typ), Addressability.receiver)(src))(src)
+          val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
           val local = Some(localAlias(localVarContextFreeD(id)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.typ(typ), Addressability.receiver)(src))(src)
+          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
           val local = None
           (param, local)
       }
@@ -1459,7 +1481,7 @@ object Desugar {
 
     def fieldDeclD(decl: PFieldDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
       val struct = context.struct(decl)
-      val field: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      val field: (String, Type) = (decl.id.name, context.symbType(decl.typ))
       fieldDeclD(field, addrMod, struct.get)(src)
     }
 
@@ -1604,7 +1626,7 @@ object Desugar {
         }
 
         case POptionNone(t) => {
-          val dt = typeD(info.typ(t), Addressability.rValue)(src)
+          val dt = typeD(info.symbType(t), Addressability.rValue)(src)
           unit(in.OptionNone(dt)(src))
         }
 
@@ -1648,7 +1670,7 @@ object Desugar {
     }
 
     def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
-      in.BoundVar(idName(x.id), typeD(info.typ(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
+      in.BoundVar(idName(x.id), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
 
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
       val dExp = exprD(ctx)(expr)

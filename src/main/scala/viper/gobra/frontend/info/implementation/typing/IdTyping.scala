@@ -130,13 +130,13 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def actualEntityType(entity: ActualRegular, id: PIdnNode): Type = entity match {
 
-    case SingleConstant(_, _, exp, opt, _, context) => opt.map(context.typ)
+    case SingleConstant(_, _, exp, opt, _, context) => opt.map(context.symbType)
       .getOrElse(context.typ(exp) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
       })
 
-    case SingleLocalVariable(exp, opt, _, _, context) => opt.map(context.typ)
+    case SingleLocalVariable(exp, opt, _, _, context) => opt.map(context.symbType)
       .getOrElse(context.typ(exp.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")
@@ -151,24 +151,24 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       FunctionT(args map context.typ, context.typ(r))
 
     case NamedType(decl, _, context) => SortT // DeclaredT(decl, context)
-    case TypeAlias(PTypeAlias(right, _), _, context) => context.typ(right)
+    case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)
 
-    case InParameter(p, _, _, context) => context.typ(p.typ)
+    case InParameter(p, _, _, context) => context.symbType(p.typ)
 
-    case ReceiverParameter(p, _, _, context) => context.typ(p.typ)
+    case ReceiverParameter(p, _, _, context) => context.symbType(p.typ)
 
-    case OutParameter(p, _, _, context) => context.typ(p.typ)
+    case OutParameter(p, _, _, context) => context.symbType(p.typ)
 
     case TypeSwitchVariable(decl, _, _, context) =>
       val constraints = typeSwitchConstraints(id)
-      if (constraints.size == 1) context.typ(constraints.head) else context.typ(decl.exp)
+      if (constraints.size == 1) context.symbType(constraints.head) else context.typ(decl.exp)
 
     case RangeVariable(idx, range, _, _, context) => context.typ(range) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)
       case t => violation(s"expected tuple but got $t")
     }
 
-    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(_, fieldId), _, context) => context.typ(fieldId)
 

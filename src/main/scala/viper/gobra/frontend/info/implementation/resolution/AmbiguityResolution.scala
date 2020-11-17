@@ -30,7 +30,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         exprOrType(n.base)
           .fold(
             _ => Left(n),
-            typ(_) match { // check if base is a package qualifier and id points to a type
+            symbType(_) match { // check if base is a package qualifier and id points to a type
               case _: ImportT if pointsToType(n.id) => Right(n)
               case _ => Left(n)
             })

@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// All declared types can now have methods, including all declared types,
+// not only those whose underlying type is a struct.
+type DeclaredInt int
+
+pure func (i DeclaredInt) Increment() DeclaredInt {
+    return i + 1
+}
+
+func foo() {
+	var i DeclaredInt = 1
+	j := i.Increment()
+	assert i == 1 && j == 2
+}
+
+// Declared Types still work as before
+type DeclaredStruct struct {
+	id uint
+}
+
+func (i DeclaredStruct) Increment() (res DeclaredStruct) {
+	res = DeclaredStruct{i.id+1}
+	return i
+}
+
+// Pointers to declared types are also acceptable receiver types
+requires acc(i)
+ensures acc(i) && acc(res) && res.id == 1 + i.id
+func (i *DeclaredStruct) Increment() (res *DeclaredStruct) {
+	res = &DeclaredStruct{i.id + 1}
+}
+
+// Non-declared types are not acceptable receiver types, according to the go spec
+//:: ExpectedOutput(type_error)
+func (i int) Increment() int {
+	return i + 1
+}

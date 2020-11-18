@@ -172,4 +172,8 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
   }
 
+  lazy val isReceiverType: Property[Type] = createBinaryProperty("not a receiver type") {
+    case t: DeclaredT => true
+    case PointerT(t) => t.isInstanceOf[DeclaredT]
+  }
 }

@@ -598,8 +598,22 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
 
 sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
   override val typ: Type = (left.typ, right.typ) match {
-    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.rValue, TypeBounds.merge(kind1, kind2))
+    // should always produce an exclusive val. from the go spec:
+    // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
+    // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
+    // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.merge(kind1, kind2))
+
+    // A binary expression may have one operand of a defined type T and another operand that is an unbounded integer.
+    // If T's underlying type is an integer type, then the result of the expression should be of type T.
+    // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
+    // However, this should not pose a problem assuming that the original program has been type-checked before the
+    // translation to the internal language.
+    case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+
     case (l, r) => violation(s"cannot merge types $l and $r")
+
   }
 }
 

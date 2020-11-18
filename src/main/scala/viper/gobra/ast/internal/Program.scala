@@ -18,7 +18,10 @@ package viper.gobra.ast.internal
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
@@ -211,6 +214,14 @@ case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extend
 
 
 sealed trait Expr extends Node with Typed
+
+object Expr {
+  def getSubExpressions(x: Expr): Set[Expr] = {
+    def aux(x: Expr): Set[Expr] = x.subnodes.collect{ case e: Expr => e }.toSet
+    def auxClosed(x: Expr): Set[Expr] = aux(x).flatMap(auxClosed) + x
+    aux(x).flatMap(auxClosed) + x
+  }
+}
 
 case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extends Expr {
   require(acc.e.isInstanceOf[Accessible.Predicate])
@@ -595,6 +606,13 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
   def right: Expr
 }
 
+sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
+  override val typ: Type = (left.typ, right.typ) match {
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.rValue, TypeBounds.merge(kind1, kind2))
+    case (l, r) => violation(s"cannot merge types $l and $r")
+  }
+}
+
 object BinaryExpr {
   def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
     Some((arg.left, arg.operator, arg.right, arg.typ))
@@ -611,11 +629,11 @@ case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
 
-case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntOperation
-case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntOperation
-case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntOperation
-case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntOperation
-case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntOperation
+case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
+case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
+case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
+case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
+case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
 
 
@@ -756,9 +774,9 @@ case class BoolT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
 }
 
-case class IntT(addressability: Addressability) extends Type {
-  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT]
-  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability)
+case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
+  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
 case object VoidT extends Type {

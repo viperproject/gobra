@@ -102,7 +102,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
     * [x: *[0]T° == x] -> true
-    * [lhs: *[0]T° == rhs] -> unknown()
+    * [lhs: *[0]T° == rhs] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
     *
     * [lhs: *[n]T° == rhs] -> [lhs] == [rhs]
     */
@@ -117,7 +117,18 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
     case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs, src) =>
       if (len == 0) {
-        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+        val (pos, info, errT) = src.vprMeta
+        if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
+        else {
+          for {
+            vLhs <- ctx.expr.translate(lhs)(ctx)
+            vRhs <- ctx.expr.translate(rhs)(ctx)
+            vNil <- ctx.expr.translate(in.NilLit(rhs.typ)(src.info))(ctx)
+            eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
+            eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+            vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
+          } yield vpr.CondExp(eq1, eq2, vUnk)(pos, info, errT)
+        }
       } else {
         for {
           vLhs <- ctx.expr.translate(lhs)(ctx)
@@ -281,6 +292,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   /**
     * Generates:
     * function arrayDefault(): ([n]T)°
+    *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
     * */
   private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
@@ -292,10 +304,12 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
       val resAccess = in.IndexedExp(resDummy, idx)(src.info)
+      val lenEq = pure(ctx.typeEncoding.equal(ctx)(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info), src))(ctx).res
+        .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val post = vpr.Forall(
+      val arrayEq = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
@@ -306,7 +320,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,
-        posts = Vector(post),
+        posts = Vector(lenEq, arrayEq),
         body = None
       )()
     }

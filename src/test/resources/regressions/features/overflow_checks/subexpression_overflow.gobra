@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--overflow)
+package ints
+
+// Even though the value of the expression as a whole
+// may not overflow, (x * x) and (x + 1) may both lead to overflows
+requires 0 < x && x <= 250
+func subExp1(x int8) int8 {
+	//:: ExpectedOutput(integer_overflow_error)
+	return (x * x) / (x + 1)
+}
+
+// the example above is made clear here
+requires 0 < x && x <= 250
+func subExp(x int8) int8 {
+	//:: ExpectedOutput(integer_overflow_error)
+    x_square := x * x
+	return x_square / (x + 1)
+}
+
+// Test overflow detection in expressions with pointers
+requires acc(p)
+func pointerDerefOverflow(p *int) int {
+	//:: ExpectedOutput(integer_overflow_error)
+	return (*p) + 1
+}
+
+// This should not cause an overflow.
+// In previous commits, an overflow was reported here because Gobra
+// could not prove that the value obtained by dereferencing p was within bounds
+requires acc(p)
+func pointerDerefNonOverflow(p *int) int {
+	return *p
+}
+
+// Test overflow detection in indexed expressions
+func indexedSlice(x [5]int) int {
+	//:: ExpectedOutput(integer_overflow_error)
+	return x[0] + x[1]
+}
+
+// should not overflow
+// It used to throw an overflow error for the same reason as pointerDerefNonOverflow
+pure func head(x[5]int) int {
+	return x[0]
+}

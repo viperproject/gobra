@@ -12,6 +12,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.Info
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds.DefaultInt
 
 class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
@@ -19,7 +20,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type an integer sequence type") {
     val t = PSequenceType(PIntType())
     frontend.typType(t) should matchPattern {
-      case Type.SequenceT(Type.IntT(Type.Int)) =>
+      case Type.SequenceT(Type.IntT(DefaultInt)) =>
     }
   }
 
@@ -36,7 +37,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type an integer set type") {
     val t = PSetType(PIntType())
     frontend.typType(t) should matchPattern {
-      case Type.SetT(Type.IntT(Type.Int)) =>
+      case Type.SetT(Type.IntT(DefaultInt)) =>
     }
   }
 
@@ -70,7 +71,7 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
   test("Typing: should correctly type a nested multiset type") {
     val t = PMultisetType(PMultisetType(PIntType()))
     frontend.typType(t) should matchPattern {
-      case Type.MultisetT(Type.MultisetT(Type.IntT(Type.Int))) =>
+      case Type.MultisetT(Type.MultisetT(Type.IntT(DefaultInt))) =>
     }
   }
 

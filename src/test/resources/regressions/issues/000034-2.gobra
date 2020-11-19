@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Pointers to pointers are not acceptable receiver types, according to the go spec
+//:: ExpectedOutput(parser_error)
+func (i **DeclaredStruct) Increment() **DeclaredStruct {
+	return i
+}

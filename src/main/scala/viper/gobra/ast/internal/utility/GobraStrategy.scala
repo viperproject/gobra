@@ -88,6 +88,7 @@ object GobraStrategy {
       case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (n: Multiplicity, Seq(left: Expr, right: Expr)) => Multiplicity(left, right)(meta)
       case (n: Length, Seq(exp: Expr)) => Length(exp)(meta)
+      case (n: Capacity, Seq(exp: Expr)) => Capacity(exp)(meta)
       case (n: RangeSequence, Seq(low: Expr, high: Expr)) => RangeSequence(low, high)(meta)
       case (n: SequenceAppend, Seq(l: Expr, r: Expr)) => SequenceAppend(l, r)(meta)
       case (n: SequenceUpdate, Seq(base: Expr, left: Expr, right: Expr)) => SequenceUpdate(base, left, right)(meta)

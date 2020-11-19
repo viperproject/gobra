@@ -18,3 +18,21 @@ ensures s == nil
 ensures len(s) == 0
 func test3() (s []int) {
 }
+
+func test4() {
+	var s1 []int = nil
+  assert len(s1) == 0
+  assert cap(s1) == 0
+  
+  s2 := s1[:]
+  assert s2 == nil
+  
+  var a@ [0]int
+  s3 := a[:]
+  assert s3 != nil
+}
+
+requires s == nil
+func test5(s []int) {
+  assert s[:] == nil
+}

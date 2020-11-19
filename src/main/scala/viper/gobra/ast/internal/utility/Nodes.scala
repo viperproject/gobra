@@ -85,6 +85,8 @@ object Nodes {
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case Length(expr) => Seq(expr)
+        case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq()
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)

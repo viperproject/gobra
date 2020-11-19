@@ -9,6 +9,7 @@ package viper.gobra.translator.encodings.slices
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -29,71 +30,68 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     fullSliceFromSliceGenerator.finalize(col)
     sliceFromArrayGenerator.finalize(col)
     sliceFromSliceGenerator.finalize(col)
+    nilSliceGenerator.finalize(col)
   }
 
+  /**
+    * Translates a type into a Viper type.
+    */
   override def typ(ctx : Context) : in.Type ==> vpr.Type = {
     case ctx.Slice(t) / m => m match {
-      case Exclusive => ctx.option.typ(ctx.slice.typ(ctx.typeEncoding.typ(ctx)(t)))
+      case Exclusive => ctx.slice.typ(ctx.typeEncoding.typ(ctx)(t))
       case Shared => vpr.Ref
     }
   }
 
+  /**
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
+    *
+    * R[ dflt([]T°) ] -> nilSlice()
+    * R[ dflt([]T@) ] -> null
+    * R[ nil: []T° ] -> nilSlice()
+    * R[ len(e: []T) ] -> slen([e])
+    * R[ cap(e: []T) ] -> scap([e])
+    * R[ (e: [n]T@)[e1:e2] ] -> sliceFromArray([e], [e1], [e2])
+    * R[ (e: [n]T@)[e1:e2:e3] ] -> fullSliceFromArray([e], [e1], [e2], [e3])
+    * R[ (e: []T@)[e1:e2] ] -> sliceFromSlice([e], [e1], [e2])
+    * R[ (e: []T@)[e1:e2:e3] ] -> fullSliceFromSlice([e], [e1], [e2], [e3])
+    * R[ sliceLit(E) ] -> R[ arrayLit(E)[0:|E|] ]
+    */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.expr(ctx)) {
-      case (exp : in.DfltVal) :: ctx.Slice(t) / m => {
-        val (pos, info, errT) = exp.vprMeta
-        m match {
-          case Exclusive => unit(nilSlice(t)(ctx)(pos, info, errT))
-          case Shared => unit(vpr.NullLit()(pos, info, errT))
-        }
+      case (exp : in.DfltVal) :: ctx.Slice(t) / m => m match {
+        case Exclusive => unit(withSrc(nilSlice(t)(ctx), exp))
+        case Shared => unit(withSrc(vpr.NullLit(), exp))
       }
 
-      case (exp : in.NilLit) :: ctx.Slice(t) / Exclusive => {
-        val (pos, info, errT) = exp.vprMeta
-        unit(nilSlice(t)(ctx)(pos, info, errT))
-      }
+      case (exp : in.NilLit) :: ctx.Slice(t) / Exclusive =>
+        unit(withSrc(nilSlice(t)(ctx), exp))
 
-      case in.Length(exp :: ctx.Slice(typ)) => for {
+      case in.Length(exp :: ctx.Slice(_)) => for {
         expT <- goE(exp)
-        typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield vpr.CondExp(
-        vpr.EqCmp(expT, nilSlice(typT)(ctx)(pos, info, errT))(pos, info, errT),
-        vpr.IntLit(0)(pos, info, errT),
-        ctx.slice.len(ctx.option.get(expT, ctx.slice.typ(typT))(pos, info, errT))(pos, info, errT)
-      )(pos, info, errT)
+      } yield withSrc(ctx.slice.len(expT), exp)
 
-      case in.Capacity(exp :: ctx.Slice(typ)) => for {
+      case in.Capacity(exp :: ctx.Slice(_)) => for {
         expT <- goE(exp)
-        typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield vpr.CondExp(
-        vpr.EqCmp(expT, nilSlice(typT)(ctx)(pos, info, errT))(pos, info, errT),
-        vpr.IntLit(0)(pos, info, errT),
-        ctx.slice.cap(ctx.option.get(expT, ctx.slice.typ(typT))(pos, info, errT))(pos, info, errT)
-      )(pos, info, errT)
+      } yield withSrc(ctx.slice.cap(expT), exp)
 
       case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max) => for {
         baseT <- ctx.typeEncoding.reference(ctx)(base)
+        unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
         lowT <- goE(low)
         highT <- goE(high)
         maxOptT <- option(max match {
           case Some(e) => Some(goE(e))
           case None => None
         })
-      } yield {
-        val (pos, info, errT) = exp.vprMeta
-        val unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
-
-        ctx.option.some(maxOptT match {
-          case None => sliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT)(ctx)(pos, info, errT)
-          case Some(maxT) => fullSliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT, maxT)(ctx)(pos, info, errT)
-        })(pos, info, errT)
+      } yield maxOptT match {
+        case None => withSrc(sliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT)(ctx), exp)
+        case Some(maxT) => withSrc(fullSliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
 
-      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(typ), low, high, max) => for {
+      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max) => for {
         baseT <- goE(base)
         lowT <- goE(low)
         highT <- goE(high)
@@ -101,15 +99,9 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           case Some(e) => Some(goE(e))
           case None => None
         })
-      } yield {
-        val (pos, info, errT) = exp.vprMeta
-        val typT = ctx.typeEncoding.typ(ctx)(typ)
-        val baseOptT = ctx.option.get(baseT, ctx.slice.typ(typT))(pos, info, errT)
-
-        ctx.option.some(maxOptT match {
-          case None => sliceFromSlice(vpr.Ref, baseOptT, lowT, highT)(ctx)(pos, info, errT)
-          case Some(maxT) => fullSliceFromSlice(vpr.Ref, baseOptT, lowT, highT, maxT)(ctx)(pos, info, errT)
-        })(pos, info, errT)
+      } yield maxOptT match {
+        case None => withSrc(sliceFromSlice(vpr.Ref, baseT, lowT, highT)(ctx), exp)
+        case Some(maxT) => withSrc(fullSliceFromSlice(vpr.Ref, baseT, lowT, highT, maxT)(ctx), exp)
       }
 
       case (lit : in.SliceLit) :: ctx.Slice(_) => {
@@ -128,16 +120,47 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes the comparison of two expressions.
+    *
+    * [lhs: []T == rhs: []T] ->
+    *   len([lhs]) == len([rhs]) &&
+    *   cap([lhs]) == cap([rhs]) &&
+    *   offset([lhs]) == offset([rhs]) &&
+    *   array([lhs]) == array([rhs])
+    *
+    * [lhs: *[]T° == rhs] -> [lhs] == [rhs]
+    */
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
+    case (lhs :: ctx.Slice(t), rhs, src) => for {
+      lhsT <- ctx.expr.translate(lhs)(ctx)
+      rhsT <- ctx.expr.translate(rhs)(ctx)
+      typT = ctx.typeEncoding.typ(ctx)(t)
+      offsetT = vpr.EqCmp(withSrc(ctx.slice.offset(lhsT), src), withSrc(ctx.slice.offset(rhsT), src))()
+      lenT = vpr.EqCmp(withSrc(ctx.slice.len(lhsT), src), withSrc(ctx.slice.len(rhsT), src))()
+      capT = vpr.EqCmp(withSrc(ctx.slice.cap(lhsT), src), withSrc(ctx.slice.cap(rhsT), src))()
+      arrayT = vpr.EqCmp(withSrc(ctx.slice.array(lhsT, typT), src), withSrc(ctx.slice.array(rhsT, typT), src))()
+    } yield Seq(offsetT, lenT, capT, arrayT).reduce[vpr.Exp] {
+      case (l, r) => withSrc(vpr.And(l, r), src)
+    }
+
+    case (lhs :: ctx.*(ctx.Slice(_)) / Exclusive, rhs, src) => for {
+      vLhs <- ctx.expr.translate(lhs)(ctx)
+      vRhs <- ctx.expr.translate(rhs)(ctx)
+    } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
+  }
+
+  /**
+    * Encodes the reference of an expression.
+    *
+    * Ref[ (e: []T)[idx] ] -> slice_get(Ref[e], [idx])
+    */
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
     case (exp @ in.IndexedExp(base :: ctx.Slice(typ), idx)) :: _ / Shared => for {
       baseT <- ctx.expr.translate(base)(ctx)
       idxT <- ctx.expr.translate(idx)(ctx)
       typT = ctx.typeEncoding.typ(ctx)(typ)
-    } yield {
-      val (pos, info, errT) = exp.vprMeta
-      val getT = ctx.option.get(baseT, ctx.slice.typ(typT))(pos, info, errT)
-      ctx.slice.loc(getT, idxT, typT)(pos, info, errT)
-    }
+    } yield withSrc(ctx.slice.loc(baseT, idxT, typT), exp)
   }
 
   /** An application of the "sconstruct[`typ`](...)" Viper function. */
@@ -152,13 +175,9 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   private def fullSliceFromSlice(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp, k : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
     fullSliceFromSliceGenerator(Vector(base, i, j, k), typ)(pos, info, errT)(ctx)
 
-  /** Gives the 'nil' slice of type `typ`. */
-  private def nilSlice(typ : vpr.Type)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Exp =
-    ctx.option.none(ctx.slice.typ(typ))(pos, info, errT)
-
-  /** Gives the 'nil' slice of type `typ`. */
-  private def nilSlice(typ : in.Type)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.Exp =
-    nilSlice(ctx.typeEncoding.typ(ctx)(typ))(ctx)(pos, info, errT)
+  /** Gives the 'nil' slice of inner type `typ`. */
+  private def nilSlice(typ: in.Type)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+    nilSliceGenerator(Vector(), typ)(pos, info, errT)(ctx)
 
   /** An application of the "ssliceFromArray[`typ`](...)" Viper function. */
   private def sliceFromArray(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
@@ -175,7 +194,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
   /**
     * Generator for the "sconstruct" Viper function supporting
-    * the domain of Slices. This function is a constructor for Slices:
+    * the domain of Slices, which is the constructor for Slices:
     *
     * {{{
     * function sconstruct(a : Array[T], offset : Int, len : Int, cap : Int) : Slice[T]
@@ -453,6 +472,59 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         Seq(sDecl, iDecl, jDecl),
         ctx.slice.typ(typ),
         Seq(pre),
+        Seq(post1, post2, post3, post4),
+        if (generateFunctionBodies) Some(body) else None
+      )()
+    }
+  }
+
+  /**
+    * Definition of the "nilSlice" Viper function that supports the Viper domain on Slices,
+    * that represents the nil slice (of the specified type).
+    *
+    * {{{
+    * function nilSlice() : Slice[T]
+    *   ensures soffset(result) == 0
+    *   ensures slen(result) == 0
+    *   ensures scap(result) == 0
+    *   ensures sarray(result) == defaultArray[T]()
+    * {
+    *   sconstruct(defaultArray[T](), 0, 0, 0)
+    * }
+    * }}}
+    */
+  private val nilSliceGenerator : FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
+    def genFunction(typ: in.Type)(ctx: Context): vpr.Function = {
+      // translate type
+      val typT = ctx.typeEncoding.typ(ctx)(typ)
+      val sliceTypT = ctx.slice.typ(typT)
+
+      // get default shared array of type `typ`
+      val arrayT = in.ArrayT(1, typ, Shared)
+      val dfltArray = in.DfltVal(arrayT)(Source.Parser.Internal)
+      val dfltArrayT = arrayEmb.unbox(ctx.expr.translate(dfltArray)(ctx).res, arrayT)(dfltArray)(ctx)
+
+      // postconditions
+      val result = vpr.Result(sliceTypT)()
+      val post1 = vpr.EqCmp(ctx.slice.offset(result)(), vpr.IntLit(0)())()
+      val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.IntLit(0)())()
+      val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.IntLit(0)())()
+      val post4 = vpr.EqCmp(ctx.slice.array(result, typT)(), dfltArrayT)()
+
+      // function body
+      val body: vpr.FuncApp = construct(
+        typT,
+        dfltArrayT,
+        vpr.IntLit(0)(),
+        vpr.IntLit(0)(),
+        vpr.IntLit(0)()
+      )(ctx)()
+
+      vpr.Function(
+        s"${Names.sliceDefaultFunc}_${Names.freshName}",
+        Seq(),
+        sliceTypT,
+        Seq(),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()

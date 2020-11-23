@@ -135,7 +135,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
         val msgs = message(n, "expected a single argument", p.arg.size != 1)
         if (msgs.nonEmpty) msgs
-        else convertibleTo.errors(exprType(p.arg.head), typeType(p.typ))(n) ++ isExpr(p.arg.head).out
+        else convertibleTo.errors(typeType(p.typ), exprType(p.arg.head))(n) ++ isExpr(p.arg.head).out
 
       case (Left(callee), Some(p: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {

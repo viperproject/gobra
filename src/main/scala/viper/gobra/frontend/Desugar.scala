@@ -923,7 +923,13 @@ object Desugar {
           case n: PInvoke =>
             info.resolve(n) match {
               case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
-              case Some(ap: ap.Conversion) => Violation.violation(s"desugarer: conversion $n is not supported")
+              case Some(ap.Conversion(typ, arg)) =>
+                val desugaredTyp = typeD(info.typ(typ), info.addressability(n))(src)
+                if (arg.length == 1) {
+                  for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
+                } else {
+                  Violation.violation(s"desugarer: conversion $n is not supported")
+                }
               case Some(ap: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
             }

@@ -649,7 +649,9 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
-
+case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = newType
+}
 
 sealed trait Lit extends Expr
 

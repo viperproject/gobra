@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+	var s1 []int
+  ghost var s2 []bool
+}
+
+func test2(s []bool) {
+}
+
+func test3(s []int) {
+	var t []int
+	t = s
+}
+
+func test4() {
+  ghost var s []seq[int]
+  ghost var t [][][][]mset[int]
+}
+
+func test5() {
+  var s [][2]int
+}
+
+func test6(s [][][]bool) {
+}
+
+func test7() {
+  ghost var s set[[]set[[]int]]
+}

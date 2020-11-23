@@ -194,9 +194,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l))) ++
+          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
             message(n, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
@@ -211,7 +211,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
 
-        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => noMessages
+        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
+          val lowOpt = low.map(intConstantEval)
+          message(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
+
         case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
@@ -256,15 +259,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT => noMessages
+        case _: ArrayT | _: SliceT => noMessages
         case _: SequenceT => isPureExpr(op)
-        case typ => message(op, s"expected an array or sequence type, but got $typ")
+        case typ => message(op, s"expected an array, sequence or slice type, but got $typ")
       }
     }
 
     case PCapacity(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case typ => message(op, s"expected an array type, but got $typ", !typ.isInstanceOf[ArrayT])
+        case _: ArrayT | _: SliceT => noMessages
+        case typ => message(op, s"expected an array or slice type, but got $typ")
       }
     }
 

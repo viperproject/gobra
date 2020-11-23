@@ -76,6 +76,7 @@ object Nodes {
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
+        case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
         case SequenceUpdate(base, left, right) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
@@ -84,6 +85,8 @@ object Nodes {
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case Length(expr) => Seq(expr)
+        case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq()
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)
@@ -97,14 +100,15 @@ object Nodes {
           case BoolLit(_) => Seq()
           case NilLit(_) => Seq()
           case ArrayLit(_, exprs) => exprs
+          case SliceLit(_, exprs) => exprs
           case StructLit(_, args) => args
           case SequenceLit(_, args) => args
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
         }
-        case Parameter.In(id, typ) => Seq()
-        case Parameter.Out(id, typ) => Seq()
-        case LocalVar(id, typ) => Seq()
+        case Parameter.In(_, _) => Seq()
+        case Parameter.Out(_, _) => Seq()
+        case LocalVar(_, _) => Seq()
       }
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {

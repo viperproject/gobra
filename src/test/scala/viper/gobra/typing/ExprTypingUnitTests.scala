@@ -3255,6 +3255,114 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     }
   }
 
+  test("TypeChecker: should let a 'len' of a slice be well-defined") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not let an application of 'len' on a slice expression be well-defined if the slice is ill-typed") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PArrayType(PIntLit(-12), PIntType()))), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+    assert (!frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not mark a simple application of 'len' on slices as ghost") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+    assert (!frontend.isGhostExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'len' on a slice as ghost if the inner slice type is a sequence") {
+    val args = Vector((PExplicitGhostParameter(PNamedParameter(PIdnDef("s"), PSliceType(PSequenceType(PIntType())))), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+    assert (frontend.isGhostExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'len' on an array as pure") {
+    val args = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("a")))
+    assert (frontend.isPureExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'len' on a slice as pure") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+    assert (frontend.isPureExpr(expr)(args))
+  }
+
+  test("TypeChecker: should assign the correct type to an application of 'len' on a simple slice expression (1)") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.IntT(_) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to an application of 'len' on a simple slice expression (2)") {
+    val args = Vector((PExplicitGhostParameter(PNamedParameter(PIdnDef("s"), PSliceType(PSequenceType(PArrayType(PIntLit(12), PIntType()))))), false))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.IntT(_) =>
+    }
+  }
+
+  test("TypeChecker: should let a 'cap' of a slice be well-defined") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+    assert (frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not let an application of 'cap' on a slice expression be well-defined if the slice is ill-typed") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PArrayType(PIntLit(-12), PIntType()))), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+    assert (!frontend.wellDefExpr(expr)(args).valid)
+  }
+
+  test("TypeChecker: should not mark a simple application of 'cap' on slices as ghost") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+    assert (!frontend.isGhostExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'cap' on a slice as ghost if the inner slice type is a sequence") {
+    val args = Vector((PExplicitGhostParameter(PNamedParameter(PIdnDef("s"), PSliceType(PSequenceType(PIntType())))), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+    assert (frontend.isGhostExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'cap' on an array as pure") {
+    val args = Vector((PNamedParameter(PIdnDef("a"), PArrayType(PIntLit(42), PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("a")))
+    assert (frontend.isPureExpr(expr)(args))
+  }
+
+  test("TypeChecker: should mark an application of 'cap' on a slice as pure") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+    assert (frontend.isPureExpr(expr)(args))
+  }
+
+  test("TypeChecker: should assign the correct type to an application of 'cap' on a simple slice expression (1)") {
+    val args = Vector((PNamedParameter(PIdnDef("s"), PSliceType(PIntType())), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.IntT(_) =>
+    }
+  }
+
+  test("TypeChecker: should assign the correct type to an application of 'cap' on a simple slice expression (2)") {
+    val args = Vector((PExplicitGhostParameter(PNamedParameter(PIdnDef("s"), PSliceType(PSequenceType(PArrayType(PIntLit(12), PIntType()))))), false))
+    val expr = PCapacity(PNamedOperand(PIdnUse("s")))
+
+    frontend.exprType(expr)(args) should matchPattern {
+      case Type.IntT(_) =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

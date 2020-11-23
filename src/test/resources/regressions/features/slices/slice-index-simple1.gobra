@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires acc(&s[0])
+func test1(s []int) {
+	n := s[0]
+}
+
+requires len(s) == 2
+requires forall i int :: 0 <= i && i < cap(s) ==> acc(&s[i])
+func test2(s []int) {
+  a := s[0]
+  b := s[1]
+}
+
+requires acc(&s[0]) && acc(&s[0][0]) && s[0][0] == 42
+func test3(s [][]int) {
+	t := s[0]
+  n := t[0]
+  assert n == 42
+}

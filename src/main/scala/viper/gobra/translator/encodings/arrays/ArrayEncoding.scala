@@ -28,7 +28,7 @@ private[arrays] object ArrayEncoding {
   }
 }
 
-class ArrayEncoding extends TypeEncoding {
+class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
@@ -44,6 +44,14 @@ class ArrayEncoding extends TypeEncoding {
     conversionFunc.finalize(col)
     exDfltFunc.finalize(col)
   }
+
+  /** Boxing in the context of the shared-array domain. */
+  override def box(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.box(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
+
+  /** Unboxing in the context of the shared-array domain. */
+  override def unbox(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.unbox(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
 
   /**
     * Translates a type into a Viper type.
@@ -182,7 +190,7 @@ class ArrayEncoding extends TypeEncoding {
         case Shared => ctx.typeEncoding.reference(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>

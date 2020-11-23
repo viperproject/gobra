@@ -832,7 +832,7 @@ object Parser {
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
-      "[]" ~> typ ^^ PSliceType
+      ("[" ~ "]") ~> typ ^^ PSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType

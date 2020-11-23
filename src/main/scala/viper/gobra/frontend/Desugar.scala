@@ -970,6 +970,12 @@ object Desugar {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
+            case _: in.ArrayT | _: in.SliceT => (dlow, dhigh) match {
+              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap)(src)
+              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap)(src)
+              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap)(src)
+              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap)(src)
+            }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -987,7 +993,8 @@ object Desugar {
             case dop : in.ArrayLit => in.IntLit(dop.length)(src)
             case _ => dop.typ match {
               case _: in.ArrayT => in.Length(dop)(src)
-              case t => violation(s"desugaring of 'cap' function applications on elements typed $t is currently not supported")
+              case _: in.SliceT => in.Capacity(dop)(src)
+              case t => violation(s"expected an array or slice type, but got $t")
             }
           }
 
@@ -1024,6 +1031,7 @@ object Desugar {
 
     def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
       case l: in.ArrayLit => in.CompositeObject.Array(l)
+      case l: in.SliceLit => in.CompositeObject.Slice(l)
       case l: in.StructLit => in.CompositeObject.Struct(l)
       case l: in.SequenceLit => in.CompositeObject.Sequence(l)
       case l: in.SetLit => in.CompositeObject.Set(l)
@@ -1053,6 +1061,7 @@ object Desugar {
 
     object CompositeKind {
       case class Array(t : in.ArrayT) extends CompositeKind
+      case class Slice(t : in.SliceT) extends CompositeKind
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
@@ -1062,6 +1071,7 @@ object Desugar {
     def compositeTypeD(t : in.Type) : CompositeKind = t match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case t: in.ArrayT => CompositeKind.Array(t)
+      case t: in.SliceT => CompositeKind.Slice(t)
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
@@ -1141,6 +1151,13 @@ object Desugar {
           for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
             yield in.ArrayLit(typ, elemsD)(src)
 
+        case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
+          Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
+          val indices = info.keyElementIndices(lit.elems)
+          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
+          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
+            yield in.SliceLit(typ, elemsD)(src)
+
         case CompositeKind.Sequence(in.SequenceT(typ, _)) =>
           val indices = info.keyElementIndices(lit.elems)
           val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
@@ -1195,7 +1212,7 @@ object Desugar {
       case Type.BooleanT => in.BoolT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
-      case Type.SliceT(elem) => ???
+      case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(key, elem) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))

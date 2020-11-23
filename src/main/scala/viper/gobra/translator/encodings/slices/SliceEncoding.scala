@@ -82,10 +82,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
         lowT <- goE(low)
         highT <- goE(high)
-        maxOptT <- option(max match {
-          case Some(e) => Some(goE(e))
-          case None => None
-        })
+        maxOptT <- option(max map goE)
       } yield maxOptT match {
         case None => withSrc(sliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT, maxT)(ctx), exp)
@@ -95,10 +92,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         baseT <- goE(base)
         lowT <- goE(low)
         highT <- goE(high)
-        maxOptT <- option(max match {
-          case Some(e) => Some(goE(e))
-          case None => None
-        })
+        maxOptT <- option(max map goE)
       } yield maxOptT match {
         case None => withSrc(sliceFromSlice(vpr.Ref, baseT, lowT, highT)(ctx), exp)
         case Some(maxT) => withSrc(fullSliceFromSlice(vpr.Ref, baseT, lowT, highT, maxT)(ctx), exp)

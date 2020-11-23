@@ -362,8 +362,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
   /**
     * Definition of the "ssliceFromArray" Viper function supporting the
     * Viper domain of Slices. This function is used in the translation
-    * of array slicing expressions "a[i:j]" in Gobra (without a third
-    * slicing index). Its Viper definition is:
+    * of array slicing expressions "a[i:j]" in Gobra (without a
+    * capacity argument). Its Viper definition is:
     *
     * {{{
     * function ssliceFromArray(a : Array[T], i : Int, j : Int) : Slice[T]

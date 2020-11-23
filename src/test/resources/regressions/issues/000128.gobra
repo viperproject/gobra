@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	var y uint16 = 1
+	var x int32 = int32(y)
+}
+
+func inc(i int) (res int64) {
+  return int64(i) + 1
+}
+
+// Type conversions are also supported for declared types, as long as they have the same underlying type
+type IntN int
+type IntN2 int
+
+func g(i IntN) IntN2 {
+  return IntN2(i)
+}
+
+// Typing rules apply to the results of conversions
+func inc_type_error(i int) (res int64) {
+  //:: ExpectedOutput(type_error)
+  return int64(i) + int(1)
+}

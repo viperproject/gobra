@@ -18,3 +18,16 @@ func incrementOverflows(u uint) (ret uint) {
 	ret = u + 1
 	return
 }
+
+// Overflow checks are also performed when a type conversion occurs
+func f(i int) uint {
+	//:: ExpectedOutput(integer_overflow_error)
+	return uint(i)
+}
+
+// For 64-bit ints, the following can lead to an overflow.
+ensures res == int64(i) + 1
+func inc(i int) (res int64) {
+  //:: ExpectedOutput(integer_overflow_error)
+  return int64(i) + 1
+}

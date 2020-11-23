@@ -29,3 +29,8 @@ func test2() {
   
   assert forall i int :: 0 <= i && i < len(s2) ==> s1[i] == s2[i]
 }
+
+func test3 () {
+  var a@ [0]int
+  s1 := a[0:0]
+}

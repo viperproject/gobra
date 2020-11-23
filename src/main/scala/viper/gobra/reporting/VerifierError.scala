@@ -201,6 +201,11 @@ case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationE
   override def message: String = s"Expression ${node.origin.tag} may cause integer overflow"
 }
 
+case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assertion_error"
+  override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

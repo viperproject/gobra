@@ -368,46 +368,4 @@ object ViperWriter {
   }
 
   type CodeWriter[R] = CodeLevel.Writer[R]
-
-
-  /* ** Utilities */
-
-  /**
-    * Yields the first `vpr.Position` in `xs` that is
-    * not equal to `vpr.NoPosition`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprPosition(xs : Vector[vpr.Exp]) : vpr.Position = xs match {
-    case Vector() => vpr.NoPosition
-    case e +: es => e.pos match {
-      case vpr.NoPosition => vprPosition(es)
-      case pos => pos
-    }
-  }
-
-  /**
-    * Yields the first `vpr.Info` in `xs` that is
-    * not equal to `vpr.NoInfo`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprInfo(xs : Vector[vpr.Exp]) : vpr.Info = xs match {
-    case Vector() => vpr.NoInfo
-    case e +: es => e.info match {
-      case vpr.NoInfo => vprInfo(es)
-      case info => info
-    }
-  }
-
-  /**
-    * Yields the first `vpr.ErrorTrafo` in `xs` that is
-    * not equal to `vpr.NoTrafos`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprErrorTrafo(xs : Vector[vpr.Exp]) : vpr.ErrorTrafo = xs match {
-    case Vector() => vpr.NoTrafos
-    case e +: es => e.errT match {
-      case vpr.NoTrafos => vprErrorTrafo(es)
-      case trafo => trafo
-    }
-  }
 }

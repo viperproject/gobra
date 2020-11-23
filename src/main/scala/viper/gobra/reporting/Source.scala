@@ -55,10 +55,16 @@ object Source {
   }
 
   object Verifier {
-
-    case class Info(pnode: frontend.PNode, node: internal.Node, origin: AbstractOrigin) extends vpr.Info {
-      override def comment: Seq[String] = Vector.empty
+    case class Info(pnode: frontend.PNode, node: internal.Node, origin: AbstractOrigin, comment: Seq[String] = Vector.empty) extends vpr.Info {
       override def isCached: Boolean = false
+      def addComment(cs : Seq[String]) : Info = Info(pnode, node, origin, comment ++ cs)
+    }
+  }
+
+  object Synthesized {
+    def unapply(node : vpr.Node) : Option[Verifier.Info] = node.meta._2 match {
+      case vpr.SimpleInfo(comment) => searchInfo(node).map(_.addComment(comment))
+      case _ => None
     }
   }
 
@@ -80,6 +86,24 @@ object Source {
         n(newPos, newInfo, vpr.NoTrafos)
     }
   }
+
+  /**
+    * Searches for source information  in the AST (sub)graph of `node`
+    * and returns the first info encountered; or `None` if no such info exists.
+    */
+  def searchInfo(node : vpr.Node) : Option[Verifier.Info] = node.meta._2 match {
+    case info: Verifier.Info => Some(info)
+    case _ => searchInfo(node.subnodes)
+  }
+
+  private def searchInfo(nodes : Seq[vpr.Node]) : Option[Verifier.Info] = nodes match {
+    case Seq() => None
+    case nodes => searchInfo(nodes.head) match {
+      case Some(info) => Some(info)
+      case None => searchInfo(nodes.tail)
+    }
+  }
+
 
   implicit class RichViperNode[N <: vpr.Node](node: N) {
 
@@ -126,6 +150,4 @@ object Source {
       }
     }
   }
-
-
 }

@@ -2139,20 +2139,6 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
-  test("TypeChecker: should not let a composite (sequence) literal with a key be well-defined if the key is out-of-bounds") {
-    val expr = PCompositeLit(
-      PSequenceType(PIntType()),
-      PLiteralValue(Vector(
-        PKeyedElement(
-          Some(PExpCompositeVal(PIntLit(12))),
-          PExpCompositeVal(PIntLit(42))
-        )
-      ))
-    )
-
-    assert (!frontend.wellDefExpr(expr)().valid)
-  }
-
   test("TypeChecker: should not let a composite (sequence) literal with a key be well-defined if the key is not constant") {
     val args = Vector((PNamedParameter(PIdnDef("n"), PIntType()), false))
 
@@ -2774,18 +2760,6 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
   test("TypeChecker: should not let an array literal be well-defined if there are more inner elements than expected according to the array type") {
     val expr = PCompositeLit(
       PArrayType(PIntLit(1), PBoolType()),
-      PLiteralValue(Vector(
-        PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
-        PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))
-      ))
-    )
-
-    assert (!frontend.wellDefExpr(expr)().valid)
-  }
-
-  test("TypeChecker: should not let an array literal be well-defined if there are fewer inner elements than expected according to the array type") {
-    val expr = PCompositeLit(
-      PArrayType(PIntLit(3), PBoolType()),
       PLiteralValue(Vector(
         PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
         PKeyedElement(None, PExpCompositeVal(PBoolLit(true)))

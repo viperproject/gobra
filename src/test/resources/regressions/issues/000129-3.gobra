@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func issue () {
+  assert seq[int]{4: 20, 1: 10}[2] == 0
+}
+
+func extra1() {
+	ghost xs := seq[int]{4: 20, 1: 10}
+	assert xs[0] == 0 && xs[1] == 10 && xs[4] == 20
+}

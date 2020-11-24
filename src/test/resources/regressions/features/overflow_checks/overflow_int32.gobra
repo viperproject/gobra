@@ -106,7 +106,7 @@ func methodCallMayOverflow(height, width int) {
 // For 32-bit ints, the following cannot lead to an overflow. Not true for 64-bit ints.
 ensures res == int64(i) + 1
 func inc(i int) (res int64) {
-  return int64(i) + 1
+	return int64(i) + 1
 }
 
 /* make is not supported at this point

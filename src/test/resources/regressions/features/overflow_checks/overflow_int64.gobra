@@ -28,6 +28,6 @@ func f(i int) uint {
 // For 64-bit ints, the following can lead to an overflow.
 ensures res == int64(i) + 1
 func inc(i int) (res int64) {
-  //:: ExpectedOutput(integer_overflow_error)
-  return int64(i) + 1
+	//:: ExpectedOutput(integer_overflow_error)
+	return int64(i) + 1
 }

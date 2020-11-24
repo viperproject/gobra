@@ -9,7 +9,7 @@ func main() {
 }
 
 func inc(i int) (res int64) {
-  return int64(i) + 1
+	return int64(i) + 1
 }
 
 // Type conversions are also supported for declared types, as long as they have the same underlying type
@@ -17,11 +17,11 @@ type IntN int
 type IntN2 int
 
 func g(i IntN) IntN2 {
-  return IntN2(i)
+	return IntN2(i)
 }
 
 // Typing rules apply to the results of conversions
 func inc_type_error(i int) (res int64) {
-  //:: ExpectedOutput(type_error)
-  return int64(i) + int(1)
+	//:: ExpectedOutput(type_error)
+	return int64(i) + int(1)
 }

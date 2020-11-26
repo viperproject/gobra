@@ -60,7 +60,6 @@ object Names {
 
   // sequences
   def emptySequenceFunc: String = "sequenceEmpty"
-  def sequenceUpdateFunc: String = "sequenceUpdate"
 
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"

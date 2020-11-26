@@ -99,10 +99,10 @@ object Nodes {
           case IntLit(_) => Seq()
           case BoolLit(_) => Seq()
           case NilLit(_) => Seq()
-          case ArrayLit(_, exprs) => exprs
-          case SliceLit(_, exprs) => exprs
+          case ArrayLit(_, _, elems) => elems.values.toSeq
+          case SliceLit(_, elems) => elems.values.toSeq
           case StructLit(_, args) => args
-          case SequenceLit(_, args) => args
+          case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
         }

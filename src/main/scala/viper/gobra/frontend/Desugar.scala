@@ -1146,22 +1146,19 @@ object Desugar {
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for {
-            elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
-          } yield {
-            val mappedElemsD = info.keyElementIndices(lit.elems).zip(elemsD).toMap
-            val supplementedElemsD = Range.BigInt(0, len, 1).map(i => mappedElemsD.getOrElse(i, in.DfltVal(typ)(Source.Parser.Internal))).toVector
-            in.ArrayLit(typ, supplementedElemsD)(src)
-          }
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+            yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- keyedElementsD(ctx)(lit.elems, typ, addressability) }
-            yield in.SliceLit(typ, elemsD)(src)
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+            yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
-        case CompositeKind.Sequence(in.SequenceT(typ, addressability)) => for {
-          elemsD <- keyedElementsD(ctx)(lit.elems, typ, addressability)
-        } yield in.SequenceLit(typ, elemsD)(src)
+        case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsMap = info.keyElementIndices(lit.elems).zip(elemsD).toMap
+          lengthD = if (elemsMap.isEmpty) BigInt(0) else elemsMap.maxBy(_._1)._1 + 1
+        } yield in.SequenceLit(lengthD, typ, elemsMap)(src)
 
         case CompositeKind.Set(in.SetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
@@ -1171,17 +1168,6 @@ object Desugar {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
       }
-    }
-
-    private def keyedElementsD(ctx : FunctionContext)(elems : Vector[PKeyedElement], typ : in.Type, addressability : Addressability) : Writer[Vector[in.Expr]] = for {
-      elemsD <- sequence(elems.map(e => compositeValD(ctx)(e.exp, typ)))
-    } yield elemsD match {
-      case Vector() => elemsD
-      case elemsD =>
-        val indices = info.keyElementIndices(elems)
-        val mappedElemsD = indices.zip(elemsD).toMap
-        val dfltVal = in.DfltVal(typ.withAddressability(addressability))(Source.Parser.Internal)
-        Range.BigInt.inclusive(0, indices.max, 1).map(i => mappedElemsD.getOrElse(i, dfltVal)).toVector
     }
 
     // Type

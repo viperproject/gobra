@@ -244,6 +244,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showExprList[T <: Expr](list: Vector[T]): Doc =
     showList(list)(showExpr)
 
+  protected def showExprMap[K, V <: Expr](map : Map[K, V])(f : K => Doc) : Doc =
+    showMap(map)(f, showExpr)
+
+  protected def showIndexedExprMap[T <: Expr](map : Map[BigInt, T]) : Doc =
+    showExprMap(map)(_.toString())
+
   def showAssignee(ass: Assignee): Doc = updatePositionStore(ass) <> (ass match {
     case Assignee.Var(v) => showVar(v)
     case Assignee.Pointer(e) => showExpr(e)
@@ -348,21 +354,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
-    case ArrayLit(typ, exprs) => {
-      val lenP = brackets(exprs.length.toString)
+    case ArrayLit(len, typ, elems) => {
+      val lenP = brackets(len.toString)
       val typP = showType(typ)
-      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       lenP <> typP <+> exprsP
     }
 
-    case SliceLit(typ, exprs) => {
+    case SliceLit(typ, elems) => {
       val typP = showType(typ)
-      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       brackets(emptyDoc) <> typP <+> exprsP
     }
 
+    case SequenceLit(_, typ, elems) => {
+      val typP = showType(typ)
+      val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
+      "seq" <> brackets(showType(typ)) <+> exprsP
+    }
+
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
-    case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
   }
@@ -409,6 +420,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
+  def showMap[K, V](map : Map[K, V])(f : K => Doc, g : V => Doc) : Doc =
+    ssep(map.map { case (k, v) => f(k) <> ":" <> g(v) }.toVector, comma <> space)
 }
 
 class ShortPrettyPrinter extends DefaultPrettyPrinter {

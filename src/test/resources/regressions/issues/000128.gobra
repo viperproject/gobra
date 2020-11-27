@@ -25,3 +25,31 @@ func inc_type_error(i int) (res int64) {
 	//:: ExpectedOutput(type_error)
 	return int64(i) + int(1)
 }
+
+type T1 struct {
+	x int
+	y uint32
+}
+
+type T2 struct {
+	x int
+	y uint32
+}
+
+/* Fails because Gobra does not support struct tags
+type T3 struct {
+	x int "this is a struct tag"
+	y uint32
+}
+*/
+
+ensures t1.x == t2.x
+func m() (t1 T1, t2 T2) {
+	var x T1 = T1 {x: 1, y: 2}
+	var y T2 = T2 {x: 1, y: 2}
+	// Casts between struct types are also supported
+	var z T1 = T1(y)
+	// Does not work due to issue #133
+	// var w T1 = struct {x int; y uint32}(y)
+	return x, y
+}

@@ -8,20 +8,21 @@ func main() {
 	var x int32 = int32(y)
 }
 
+// Conversions between integer types supported
 func inc(i int) (res int64) {
 	return int64(i) + 1
 }
 
-// Type conversions are also supported for declared types, as long as they have the same underlying type
 type IntN int
 type IntN2 int
 
-func g(i IntN) IntN2 {
+// Type conversions are also supported for declared types, as long as they have the same underlying type
+func convertNtoN2(i IntN) IntN2 {
 	return IntN2(i)
 }
 
 // Typing rules apply to the results of conversions
-func inc_type_error(i int) (res int64) {
+func incTypeError(i int) (res int64) {
 	//:: ExpectedOutput(type_error)
 	return int64(i) + int(1)
 }
@@ -43,13 +44,24 @@ type T3 struct {
 }
 */
 
-ensures t1.x == t2.x
-func m() (t1 T1, t2 T2) {
-	var x T1 = T1 {x: 1, y: 2}
-	var y T2 = T2 {x: 1, y: 2}
-	// Casts between struct types are also supported
-	var z T1 = T1(y)
+// Conversions between struct types are also supported, as long as they have the same underlying type
+func structConversion() {
+	l := T1{x: 1, y: 2}
+	r := T2(l)
+	assert l.x == 1 && r.y == 2
 	// Does not work due to issue #133
 	// var w T1 = struct {x int; y uint32}(y)
-	return x, y
+}
+
+type T4 struct {
+	x int
+	z uint32
+}
+
+// fst's type and snd's type have different underlying types (field names differ), leading to a type error
+func diffStructError() {
+  var fst T4 = T4{x: 1, z: 2}
+  //:: ExpectedOutput(type_error)
+  var snd T2 = T2(fst)
+  assert snd.x == 1 && snd.y == 2
 }

@@ -42,7 +42,9 @@ type T3 struct {
 func structConversion() {
 	l := T1{x: 1, y: 2}
 	r := T2(l)
-	assert l.x == 1 && r.y == 2
+	assert r.x == 1 && r.y == 2
+	assert l.x == r.x && l.y == r.y
+
 	// Does not work due to issue #133
 	// var w T1 = struct {x int; y uint32}(y)
 }

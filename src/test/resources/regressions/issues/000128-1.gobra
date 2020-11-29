@@ -21,12 +21,6 @@ func convertNtoN2(i IntN) IntN2 {
 	return IntN2(i)
 }
 
-// Typing rules apply to the results of conversions
-func incTypeError(i int) (res int64) {
-	//:: ExpectedOutput(type_error)
-	return int64(i) + int(1)
-}
-
 type T1 struct {
 	x int
 	y uint32
@@ -51,17 +45,4 @@ func structConversion() {
 	assert l.x == 1 && r.y == 2
 	// Does not work due to issue #133
 	// var w T1 = struct {x int; y uint32}(y)
-}
-
-type T4 struct {
-	x int
-	z uint32
-}
-
-// fst's type and snd's type have different underlying types (field names differ), leading to a type error
-func diffStructError() {
-  var fst T4 = T4{x: 1, z: 2}
-  //:: ExpectedOutput(type_error)
-  var snd T2 = T2(fst)
-  assert snd.x == 1 && snd.y == 2
 }

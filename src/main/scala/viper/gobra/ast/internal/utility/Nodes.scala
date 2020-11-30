@@ -68,6 +68,7 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, typ) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, typ) => Seq(recv, meth) ++ args
+        case Conversion(_, expr) => Seq(expr)
         case DfltVal(typ) => Seq()
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)

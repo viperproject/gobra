@@ -31,12 +31,23 @@ object Names {
   def embeddingBoxFunc: String = "box"
   def embeddingUnboxFunc: String = "unbox"
 
+  // polymorph-value domain
+  def polyValueDomain: String = "Poly"
+  def polyValueBoxFunc: String = "box"
+  def polyValueUnboxFunc: String = "unbox"
+
+  // interface
+  def emptyInterface: String = "empty_interface"
+
   // pointer
   def pointerField(t: vpr.Type) : String = s"val$$_$t"
 
   // struct
   def sharedStructDomain: String = "ShStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
+
+  // types
+  def typesDomain: String = "Types"
 
   // array
   def sharedArrayDomain: String = "ShArray"

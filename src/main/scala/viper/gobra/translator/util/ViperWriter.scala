@@ -287,7 +287,7 @@ object ViperWriter {
       create(reaTs.toVector.map(ReasonT), ())
   }
 
-  type MemberWriter[R] = MemberLevel.Writer[R]
+  type MemberWriter[+R] = MemberLevel.Writer[R]
 
 
 
@@ -367,7 +367,7 @@ object ViperWriter {
     }
   }
 
-  type CodeWriter[R] = CodeLevel.Writer[R]
+  type CodeWriter[+R] = CodeLevel.Writer[R]
 
 
   /* ** Utilities */

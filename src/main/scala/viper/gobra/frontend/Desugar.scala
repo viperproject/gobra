@@ -15,6 +15,7 @@ import viper.gobra.ast.internal.{Lit, LocalVar}
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
+import viper.gobra.translator.Names
 import viper.gobra.util.{DesugarWriter, Violation}
 
 object Desugar {
@@ -982,20 +983,16 @@ object Desugar {
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
           case PEquals(left, right) =>
-            (info.typOfExprOrType(left), left, right) match {
-              case (Type.SortT, _, _) => ???
-              case (_, l: PExpression, r: PExpression) =>
-                for {l <- go(l); r <- go(r)} yield in.EqCmp(l, r)(src)
-              case _ => Violation.violation(s"Invalid arguments for equals: $left, $right")
-            }
+            for {
+              l <- exprAndTypeAsExpr(ctx)(left)
+              r <- exprAndTypeAsExpr(ctx)(right)
+            } yield in.EqCmp(l, r)(src)
 
           case PUnequals(left, right) =>
-            (info.typOfExprOrType(left), left, right) match {
-              case (Type.SortT, _, _) => ???
-              case (_, l: PExpression, r: PExpression) =>
-                for {l <- go(l); r <- go(r)} yield in.UneqCmp(l, r)(src)
-              case _ => Violation.violation(s"Invalid arguments for equals: $left, $right")
-            }
+            for {
+              l <- exprAndTypeAsExpr(ctx)(left)
+              r <- exprAndTypeAsExpr(ctx)(right)
+            } yield in.UneqCmp(l, r)(src)
 
           case PLess(left, right) => for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
           case PAtMost(left, right) => for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
@@ -1910,7 +1907,7 @@ object Desugar {
 
     def interface(s: InterfaceT): String = {
       if (s.isEmpty) {
-        s"$INTERFACE_PREFIX$$empty"
+        Names.emptyInterface
       } else {
         Violation.violation("non-empty interfaces are not supported right now")
       }

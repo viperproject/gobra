@@ -208,5 +208,11 @@ trait TypeEncoding extends Generator {
     val (pos, info, errT) = src.vprMeta
     node(pos, info, errT)
   }
+
+  /** Adds source information to a node without source information. */
+  protected def withSrc[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => Context => T, src: in.Node, ctx: Context): T = {
+    val (pos, info, errT) = src.vprMeta
+    node(pos, info, errT)(ctx)
+  }
 }
 

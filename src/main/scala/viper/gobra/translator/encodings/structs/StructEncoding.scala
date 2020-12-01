@@ -112,14 +112,14 @@ class StructEncoding extends TypeEncoding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [(lhs: Struct{F}) == rhs] -> AND f in F: [lhs.f == rhs.f]
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f]
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [(x: *Struct{}°) == x] -> true
-    * [(lhs: *Struct{}°) == rhs] -> unknown()
-    * [(lhs: *Struct{F}°) == rhs] -> [lhs] == [rhs]
+    * [(x: *Struct{}°) == x: *Struct{}] -> true
+    * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
+    * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>

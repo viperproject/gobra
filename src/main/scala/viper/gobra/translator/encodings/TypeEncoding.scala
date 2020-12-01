@@ -123,18 +123,18 @@ trait TypeEncoding extends Generator {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: t, rhs, src) if typ(ctx).isDefinedAt(t) =>
+    case (lhs :: t, rhs :: s, src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
         vRhs <- ctx.expr.translate(rhs)(ctx)
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
 
-    case (lhs :: ctx.*(t) / Exclusive, rhs, src) if typ(ctx).isDefinedAt(t) =>
+    case (lhs :: ctx.*(t) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)

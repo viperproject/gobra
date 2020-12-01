@@ -86,20 +86,20 @@ class ArrayEncoding extends TypeEncoding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [lhs: [n]T == rhs] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
+    * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
     *
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x] -> true
-    * [lhs: *[0]T° == rhs] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
+    * [x: *[0]T° == x: *[0]T] -> true
+    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
     *
-    * [lhs: *[n]T° == rhs] -> [lhs] == [rhs]
+    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.Array(len, _), rhs, src) =>
+    case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
@@ -107,7 +107,7 @@ class ArrayEncoding extends TypeEncoding {
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs, src) =>
+    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
       if (len == 0) {
         val (pos, info, errT) = src.vprMeta
         if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))

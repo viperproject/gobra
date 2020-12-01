@@ -46,6 +46,27 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * Encodes the comparison of two expressions.
+    * The first and second argument is the left-hand side and right-hand side, respectively.
+    * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
+    * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
+    *
+    * The default implements:
+    * [lhs: interface{...} == rhs: interface{...}] -> [lhs] == [rhs]
+    * [lhs: *interface{...}° == rhs: *interface{...}] -> [lhs] == [rhs]
+    *
+    * [itf: interface{...} == oth: T] -> [itf == toInterface(oth)]
+    * [oth: T == itf: interface{...}] -> [itf == toInterface(oth)]
+    */
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = super.equal(ctx) orElse {
+    case (itf :: ctx.Interface(_), oth :: ctx.NotInterface(), src) =>
+      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
+
+    case (oth :: ctx.NotInterface(), itf :: ctx.Interface(_), src) =>
+      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
+  }
+
+  /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
     * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:

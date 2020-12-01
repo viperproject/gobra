@@ -121,7 +121,7 @@ class TypeComponentImpl extends TypeComponent {
 
     val tagAxiom = vpr.AnonymousDomainAxiom(
       if (args.isEmpty) {
-        vpr.DomainFuncApp(func = tagFunc, Seq(vpr.DomainFuncApp(func = func, Seq(), Map())()), Map())()
+        vpr.EqCmp(vpr.DomainFuncApp(func = tagFunc, Seq(vpr.DomainFuncApp(func = func, Seq(), Map())()), Map())(), vpr.IntLit(tag)())()
       } else {
         vpr.Forall(
           variables = varsDecl,
@@ -221,12 +221,15 @@ class TypeComponentImpl extends TypeComponent {
     appType("tuple", elems)(pos, info, errT)
 
 
-  private def genDomain: vpr.Domain = vpr.Domain(
-    name = domainName,
-    functions = tagFunc +: behavioralSubtypeFunc +: genFuncs,
-    axioms = behavioralSubtypeAxioms ++ genAxioms,
-    typVars = Seq.empty
-  )()
+  private def genDomain: vpr.Domain = {
+    val lazyAxioms = behavioralSubtypeAxioms
+    vpr.Domain(
+      name = domainName,
+      functions = tagFunc +: behavioralSubtypeFunc +: genFuncs,
+      axioms = lazyAxioms ++ genAxioms,
+      typVars = Seq.empty
+    )()
+  }
 
   private var genFuncs: List[vpr.DomainFunc] = List.empty
   private var genAxioms: List[vpr.DomainAxiom] = List.empty

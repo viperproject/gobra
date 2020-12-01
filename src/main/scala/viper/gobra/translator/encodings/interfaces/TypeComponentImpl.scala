@@ -183,7 +183,7 @@ class TypeComponentImpl extends TypeComponent {
 
   /** constructor for struct type. */
   override def struct(fields: Vector[(String, vpr.Exp, Boolean)])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val (fieldNames, args) = fields.collect{ case (n, e, true) => (n, e) }.unzip
+    val (fieldNames, args) = fields.collect{ case (n, e, false) => (n, e) }.unzip
     val name = s"struct_${fieldNames.mkString("_")}"
     appType(name, args)(pos, info , errT)
   }

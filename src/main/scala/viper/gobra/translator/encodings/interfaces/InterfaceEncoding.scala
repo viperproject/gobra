@@ -9,10 +9,12 @@ package viper.gobra.translator.encodings.interfaces
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.{DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
 class InterfaceEncoding extends LeafTypeEncoding {
@@ -106,11 +108,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
       case n@ in.TypeAssertion(exp, t) =>
         val (pos, info, errT) = n.vprMeta
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
+          TypeAssertionError(x).dueTo(DynamicValueNotASubtypeReason(x))
         for {
           arg <- goE(exp)
           dynType = typeOf(arg)(pos, info, errT)(ctx)
           staticType = typeExpr(t)(pos, info, errT)(ctx)
-          _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx))
+          _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
           res = t match {
             case ctx.Interface(_) => arg
             case _ => valueOf(arg, ctx.typeEncoding.typ(ctx)(t))(pos, info, errT)(ctx)
@@ -195,11 +199,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
     default(super.statement(ctx)){
       case n@ in.SafeTypeAssertion(resTarget, successTarget, expr, typ@ ctx.Interface(_)) =>
         val (pos, info, errT) = n.vprMeta
+        val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
+          TypeAssertionError(x).dueTo(SafeTypeAssertionsToInterfaceNotSucceedingReason(x))
         for {
           arg <- ctx.expr.translate(expr)(ctx)
           dynType = typeOf(arg)(pos, info, errT)(ctx)
           staticType = typeExpr(typ)(pos, info, errT)(ctx)
-          _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx))
+          _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
           vResTarget = ctx.typeEncoding.variable(ctx)(resTarget).localVar
           vSuccessTarget = ctx.typeEncoding.variable(ctx)(successTarget).localVar
         } yield vpr.Seqn(Seq(

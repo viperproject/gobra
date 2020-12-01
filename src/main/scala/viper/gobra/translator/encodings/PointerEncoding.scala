@@ -37,11 +37,11 @@ class PointerEncoding extends LeafTypeEncoding {
     * An encoding for type T should be defined at left-hand sides of type T and exclusive *T.
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
-    * [lhs: *T@ == rhs: *T@] -> [lhs] == [rhs]
+    * [lhs: *T@ == rhs: *T] -> [lhs] == [rhs]
     * [lhs: **T° == rhs: **T] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.*(_) / Shared, rhs :: ctx.*(_) / Shared, src) => super.equal(ctx)(lhs, rhs, src)
+    case (lhs :: ctx.*(_) / Shared, rhs :: ctx.*(_), src) => super.equal(ctx)(lhs, rhs, src)
     case (lhs :: ctx.*(ctx.*(_)) / Exclusive, rhs :: ctx.*(ctx.*(_)), src) => super.equal(ctx)(lhs, rhs, src)
   }
 

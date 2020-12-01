@@ -54,6 +54,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
       // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
+      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
+        && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
+        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+
       case (l, r: InterfaceT) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (NilType, r) if isPointerType(r) => true

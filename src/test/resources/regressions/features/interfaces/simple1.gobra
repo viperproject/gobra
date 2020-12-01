@@ -34,3 +34,31 @@ func structTest() {
   assert x == pair{1,2}
 }
 
+func pointerTest() {
+
+  var a, b *int = nil, nil
+  var x interface{} = a
+  c := x.(*int)
+  assert c == nil
+  assert x != nil
+  assert x == b
+  assert b == x
+}
+
+
+func definedTest() {
+  a := pair{1, 2}
+  b := struct{ left, right int }{1, 2}
+  assert a == b
+  var x interface{} = a
+  var y interface{} = b
+  assert x != y
+
+  // not transitive
+  assert x == a
+  assert y == b
+
+  b := x.(pair)
+  //:: UnexpectedOutput(type_assertion_error:failed_type_assertion, /gobra/issue/134/)
+  c := y.(struct{ left, right int })
+}

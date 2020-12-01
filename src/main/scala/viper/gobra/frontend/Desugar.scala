@@ -863,7 +863,7 @@ object Desugar {
 
     def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {
       val c = args zip symb.args
-      val assignments = c.map{ case (from, pTo) => (from, typeD(info.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
+      val assignments = c.map{ case (from, pTo) => (from, typeD(symb.context.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
       assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
     }
 

@@ -52,6 +52,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     *
     * R[ dflt(interface{...}°) ] -> tuple2(null, nilT)
+    * R[ nil: interface{...} ] -> tuple2(null, nilT)
     * R[ toInterface(e: interface{...}, _) ] -> [e]
     * R[ toInterface(e: T, _) ] -> tuple2([e], TYPE(T))
     * R[ e.(interface{...}) ] -> assert behavioralSubtype(TYPE_OF([e]), T); [e]
@@ -64,8 +65,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.expr(ctx)){
-      case (e: in.DfltVal) :: ctx.Interface(_) / Exclusive =>
-        val (pos, info, errT) = e.vprMeta
+      case n@ (  (_: in.DfltVal) :: ctx.Interface(_) / Exclusive
+               | (_: in.NilLit) :: ctx.Interface(_)  ) =>
+        val (pos, info, errT) = n.vprMeta
         val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
         val typ = types.nil()(pos, info, errT)(ctx)
         unit(ctx.tuple.create(Vector(value, typ))(pos, info, errT)): CodeWriter[vpr.Exp]

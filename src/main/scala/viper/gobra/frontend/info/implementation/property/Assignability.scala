@@ -191,6 +191,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case _ => true
       }
 
+      case _: InterfaceT =>
+        ??? // TODO
+
       case _ => violation(s"Expected an integer type but instead received $typ.")
     }
 

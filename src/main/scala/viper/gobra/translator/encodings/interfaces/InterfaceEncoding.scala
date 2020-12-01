@@ -78,7 +78,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ in.ToInterface(exp, _) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          value <- goE(exp)
+          dynValue <- goE(exp)
+          value = poly.box(dynValue)(pos, info, errT)(ctx)
           typ = typeExpr(exp.typ)(pos, info, errT)(ctx)
         } yield ctx.tuple.create(Vector(value, typ))(pos, info, errT)
 

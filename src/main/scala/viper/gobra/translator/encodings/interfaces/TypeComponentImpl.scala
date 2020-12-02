@@ -8,8 +8,10 @@ package viper.gobra.translator.encodings.interfaces
 
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
-import viper.gobra.util.TypeBounds
+import viper.gobra.translator.util.ViperUtil
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.IntegerKind
 
 /** Encoding of Gobra types into Viper expressions. */
@@ -20,6 +22,8 @@ class TypeComponentImpl extends TypeComponent {
   private val domainType: vpr.DomainType =
     vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(typeParameters = Seq.empty)
 
+  private def functionName(name: String): String = s"${name}_$domainName"
+  private def reverseFunctionName(functionName: String): String = functionName.stripSuffix(s"_$domainName")
 
   /** Generates:
     * Type += {
@@ -27,7 +31,7 @@ class TypeComponentImpl extends TypeComponent {
     * }
     */
   private val tagFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = s"tag_$domainName", formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Int
+    name = functionName("tag"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Int
   )(domainName = domainName)
 
   /**
@@ -50,7 +54,7 @@ class TypeComponentImpl extends TypeComponent {
     * }
     */
   private lazy val behavioralSubtypeFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = s"behavioral_subtype_$domainName", formalArgs = Seq(vpr.LocalVarDecl("l", domainType)(), vpr.LocalVarDecl("r", domainType)()), typ = vpr.Bool
+    name = functionName("behavioral_subtype"), formalArgs = Seq(vpr.LocalVarDecl("l", domainType)(), vpr.LocalVarDecl("r", domainType)()), typ = vpr.Bool
   )(domainName = domainName)
 
   private lazy val behavioralSubtypeAxioms: Vector[vpr.DomainAxiom] = {
@@ -98,6 +102,55 @@ class TypeComponentImpl extends TypeComponent {
     Vector(transitivity, reflexivity, empty)
   }
 
+
+  /**
+    * Generates:
+    * Type += {
+    *   function nameGet0(Type): 'args[0]'
+    *   ...
+    *   function nameGetN(Type): 'args[N]'
+    *
+    *   axiom {
+    *     forall x0: 'args[0]', ..., xN: 'args[N]' :: {name(x0, ..., xN)} nameGet0(name(x0, ..., xN)) == x0 && ... && nameGetN(name(x0, ..., xN)) == xN
+    *   }
+    * }
+    */
+  private def precise(name: String, args: Vector[vpr.Type]): Unit = {
+    if (args.nonEmpty && !preciseTypes.contains(name)) {
+      preciseTypes += name
+
+      val funArgDecl = vpr.LocalVarDecl("t", domainType)(); val funArg = funArgDecl
+      val getterVarDecls = args.zipWithIndex map {
+        case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)()
+      }
+
+      val getters = args.zipWithIndex map {
+        case (t, idx) =>
+          vpr.DomainFunc(
+            name = functionName(s"get_${idx}_$name"),
+            formalArgs = Seq(funArgDecl),
+            typ = t
+          )(domainName = domainName)
+      }
+
+      val funcApp = appType(name, getterVarDecls map (_.localVar))()
+      val getterApps = getters.map(f => vpr.DomainFuncApp(func = f, Seq(funcApp), Map.empty)())
+
+      val axiom = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          getterVarDecls,
+          Seq(vpr.Trigger(Seq(funcApp))()),
+          ViperUtil.bigAnd(getterApps.zip(getterVarDecls).map{ case (fapp, x) => vpr.EqCmp(fapp, x.localVar)() })(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        )()
+      )(domainName = domainName)
+
+      genFuncs ++= getters
+      genAxioms ::= axiom
+    }
+  }
+
+  private var preciseTypes: Set[String] = Set.empty
+
   /**
     * Generates:
     * Type += {
@@ -105,6 +158,10 @@ class TypeComponentImpl extends TypeComponent {
     *
     *   axiom {
     *     forall args :: {name(args)} tag(name(args)) == 'tag'
+    *   }
+    *
+    *   axiom {
+    *     forall args :: {name(args)} get0(name(args)) == args0 && ... && getN(name(args))
     *   }
     * }
     */
@@ -114,7 +171,7 @@ class TypeComponentImpl extends TypeComponent {
     val vars = varsDecl map (_.localVar)
 
     val func = vpr.DomainFunc(
-      name = s"${name}_$domainName",
+      name = functionName(name),
       formalArgs = varsDecl,
       typ = domainType
     )(domainName = domainName)
@@ -134,7 +191,7 @@ class TypeComponentImpl extends TypeComponent {
     (func, Vector(tagAxiom))
   }
 
-  private def appType(name: String, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
+  private def appType(name: String, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
     if (genTypesMap.contains(name)) {
       vpr.DomainFuncApp(func = genTypesMap(name), args, Map.empty)(pos, info, errT)
     } else {
@@ -148,6 +205,81 @@ class TypeComponentImpl extends TypeComponent {
 
   /** Type of viper expressions encoding Gobra types.  */
   override def typ()(ctx: Context): vpr.Type = domainType
+
+  /** transaltes Gobra types into Viper type expressions. */
+  override def typeExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    def go(typ: in.Type): vpr.Exp = typeExpr(typ)(pos, info, errT)(ctx)
+
+    typ match {
+      case t: in.DefinedT => defined(t.name)(pos, info, errT)(ctx)
+      case t: in.PointerT => pointer(go(t.t))(pos, info, errT)(ctx)
+      case _: in.BoolT => bool()(pos, info, errT)(ctx)
+      case t: in.IntT => int(t.kind)(pos, info, errT)(ctx)
+      case t: in.StructT => struct(t.fields.map( f => (f.name, go(f.typ), f.ghost)))(pos, info, errT)(ctx)
+      case t: in.ArrayT => array(vpr.IntLit(t.length)(pos, info, errT), go(t.elems))(pos, info, errT)(ctx)
+      case t: in.InterfaceT => interface(t.name)(pos, info, errT)(ctx)
+      case _: in.PermissionT => perm()(pos, info, errT)(ctx)
+      case t: in.SequenceT => sequence(go(t.t))(pos, info, errT)(ctx)
+      case t: in.SetT => set(go(t.t))(pos, info, errT)(ctx)
+      case t: in.MultisetT => mset(go(t.t))(pos, info, errT)(ctx)
+      case t: in.OptionT => option(go(t.t))(pos, info, errT)(ctx)
+      case t: in.TupleT => tuple(t.ts map go)(pos, info, errT)(ctx)
+      case t => Violation.violation(s"type $t is not supported as a type expression.")
+    }
+  }
+
+  /** Generates precise equality axioms for 'typ'. */
+  override def precise(typ: in.Type)(ctx: Context): Unit = {
+
+    def genAxiom(funcApp: vpr.Exp): Unit = {
+      val actualFuncApp = funcApp.asInstanceOf[vpr.DomainFuncApp]
+      val funcName = reverseFunctionName(actualFuncApp.funcname)
+      val funcArgTypes = actualFuncApp.args.map(_.typ).toVector
+      precise(funcName, funcArgTypes)
+    }
+
+    def go(typ: in.Type): Unit = precise(typ)(ctx)
+
+    val typeVar = (idx: Int) => vpr.LocalVar(s"x$idx", domainType)()
+    val intVar = (idx: Int) => vpr.LocalVar(s"x$idx", vpr.Int)()
+
+    typ match {
+      case _: in.DefinedT | _: in.BoolT | _: in.IntT | _: in.InterfaceT | _: in.PermissionT =>
+
+      case t: in.PointerT =>
+        genAxiom(pointer(typeVar(0))()(ctx)); go(t.t)
+
+      case t: in.StructT =>
+        genAxiom(struct(t.fields.zipWithIndex map { case (f, idx) => (f.name, typeVar(idx), f.ghost) })()(ctx))
+        t.fields foreach (f => go(f.typ))
+
+      case t: in.ArrayT =>
+        genAxiom(array(intVar(0), typeVar(1))()(ctx))
+        go(t.elems)
+
+      case t: in.SequenceT =>
+        genAxiom(sequence(typeVar(0))()(ctx))
+        go(t.t)
+
+      case t: in.SetT =>
+        genAxiom(set(typeVar(0))()(ctx))
+        go(t.t)
+
+      case t: in.MultisetT =>
+        genAxiom(mset(typeVar(0))()(ctx))
+        go(t.t)
+
+      case t: in.OptionT =>
+        genAxiom(option(typeVar(0))()(ctx))
+        go(t.t)
+
+      case t: in.TupleT =>
+        genAxiom(tuple(t.ts.indices.toVector map typeVar)()(ctx))
+        t.ts foreach go
+
+      case t => Violation.violation(s"type $t is not supported as a type expression.")
+    }
+  }
 
   /** behavioral subtype relation. */
   override def behavioralSubtype(subType: vpr.Exp, superType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =

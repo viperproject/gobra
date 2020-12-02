@@ -1776,7 +1776,7 @@ object Desugar {
         case _ =>
           val argT = info.typ(acc)
           underlyingType(argT) match {
-            case ut: Type.PointerT =>
+            case Single(ut: Type.PointerT) =>
               // [[in.Accessible.Address]] represents '&'.
               // If there is no outermost '&', then adds '&*'.
               acc match {

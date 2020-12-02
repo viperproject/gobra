@@ -10,12 +10,20 @@ import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.gobra.util.TypeBounds.IntegerKind
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 
 /** Encoding of Gobra types into Viper expressions. */
 trait TypeComponent extends Generator {
 
   /** Type of viper expressions encoding Gobra types.  */
   def typ()(ctx: Context): vpr.Type
+
+  /** transaltes Gobra types into Viper type expressions. */
+  def typeExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+
+  /** Generates precise equality axioms for 'typ'. */
+  def precise(typ: in.Type)(ctx: Context): Unit
+
 
   /** behavioral subtype relation. */
   def behavioralSubtype(subType: vpr.Exp, superType: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp

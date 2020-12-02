@@ -25,7 +25,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => noMessages
+            case Single(PointerT(t)) => noMessages
             case t => message(n, s"expected pointer type but got $t")
           }
 
@@ -59,7 +59,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => t
+            case Single(PointerT(t)) => t
             case t => violation(s"expected pointer but got $t")
           }
         case Some(_: ap.PointerType) => SortT

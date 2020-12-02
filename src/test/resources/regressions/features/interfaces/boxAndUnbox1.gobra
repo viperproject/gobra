@@ -16,6 +16,9 @@ func intTest() {
   assert x != 42
   assert x == b
   assert b == x
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
 }
 
 type pair struct{
@@ -32,6 +35,9 @@ func structTest() {
   c := x.(pair)
   assert c == pair{1, 2}
   assert x == pair{1,2}
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
 }
 
 func pointerTest() {
@@ -43,6 +49,9 @@ func pointerTest() {
   assert x != nil
   assert x == b
   assert b == x
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
 }
 
 
@@ -58,7 +67,26 @@ func definedTest() {
   assert x == a
   assert y == b
 
-  b := x.(pair)
+  c := x.(pair)
   //:: UnexpectedOutput(type_assertion_error:failed_type_assertion, /gobra/issue/134/)
-  c := y.(struct{ left, right int })
+  d := y.(struct{ left, right int })
+
+  // //:: ExpectedOutput(assert_error:assertion_error)
+  // assert false
+}
+
+func definedTestFailing1() {
+  a := pair{1, 2}
+  var x interface{} = a
+  
+  //:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+  q := x.(struct{ left, right int })
+}
+
+func definedTestFailing2() {
+  a := struct{ left, right int }{1, 2}
+  var x interface{} = a
+  
+  //:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+  q := x.(pair)
 }

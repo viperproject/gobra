@@ -288,7 +288,8 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get",
-      "typeOf"
+      "typeOf",
+      "int32"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, SortT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -56,7 +56,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argT = exprType(n.exp)
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
-            case Type.NilType | _: Type.PointerT => noMessages
+            case Single(Type.NilType | _: Type.PointerT) => noMessages
             case _ => message(n, s"expected expression with pointer type, but got $argT")
           }
       }

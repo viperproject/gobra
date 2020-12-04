@@ -792,6 +792,8 @@ case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], bod
 
 case class PTypeOf(exp: PExpression) extends PGhostExpression
 
+case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
+
 
 /* ** Option types */
 

@@ -406,6 +406,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+      case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))

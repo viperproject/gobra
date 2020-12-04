@@ -31,6 +31,48 @@ func compareInterfaces2(x, y interface{}) {
   assert false
 }
 
+requires isComparable(typeOf(x)) || isComparable(typeOf(y))
+func compareInterfaces3(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires isComparable(x) || isComparable(x)
+func compareInterfaces4(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires isComparable(x) || isComparable(typeOf(y))
+func compareInterfaces5(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
 func compareSlices() {
   var x, y []int
   var z struct{ f struct{ g int } }

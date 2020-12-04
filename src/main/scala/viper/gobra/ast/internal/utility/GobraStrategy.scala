@@ -89,6 +89,8 @@ object GobraStrategy {
       case (e: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (e: TypeAssertion, Seq(exp: Expr)) => TypeAssertion(exp, e.arg)(meta)
       case (e: TypeOf, Seq(exp: Expr)) => TypeOf(exp)(meta)
+      case (e: IsComparableInterface, Seq(exp: Expr)) => IsComparableInterface(exp)(meta)
+      case (e: IsComparableType, Seq(exp: Expr)) => IsComparableType(exp)(meta)
       case (e: ToInterface, Seq(exp: Expr)) => ToInterface(exp, e.typ)(meta)
       case (e: BoolTExpr, Seq()) => BoolTExpr()(meta)
       case (e: IntTExpr, Seq()) => IntTExpr(e.kind)(meta)

@@ -78,6 +78,8 @@ object Nodes {
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
         case TypeAssertion(exp, _) => Seq(exp)
         case TypeOf(exp) => Seq(exp)
+        case IsComparableType(exp) => Seq(exp)
+        case IsComparableInterface(exp) => Seq(exp)
         case ToInterface(exp, _) => Seq(exp)
         case BoolTExpr() => Seq()
         case IntTExpr(kind) => Seq()

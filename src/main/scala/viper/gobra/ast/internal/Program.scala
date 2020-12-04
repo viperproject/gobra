@@ -264,6 +264,14 @@ case class TypeOf(exp: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = SortT
 }
 
+case class IsComparableType(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class IsComparableInterface(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
 /** Boxes an expression into an interface. */
 case class ToInterface(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 

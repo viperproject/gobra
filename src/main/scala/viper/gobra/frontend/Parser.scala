@@ -288,7 +288,7 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get",
-      "typeOf",
+      "typeOf", "isComparable",
       "int32"
     )
 
@@ -1081,6 +1081,7 @@ object Parser {
         old |
         access |
         typeOf |
+        isComparable |
         rangeSequence |
         rangeSet |
         rangeMultiset |
@@ -1103,6 +1104,9 @@ object Parser {
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
+
+    lazy val isComparable: Parser[PIsComparable] =
+      "isComparable" ~> "(" ~> (expression | typ) <~ ")" ^^ PIsComparable
 
     private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
       "[" ~> expression ~ (".." ~> expression <~ "]")

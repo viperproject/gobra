@@ -1564,6 +1564,11 @@ object Desugar {
         } yield in.Conditional(wcond, wthn, wels, typ)(src)
 
         case PTypeOf(exp) => for { wExp <- go(exp) } yield in.TypeOf(wExp)(src)
+        case PIsComparable(exp) => underlyingType(info.typOfExprOrType(exp)) match {
+          case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableInterface(wExp)(src)
+          case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableType(wExp)(src)
+          case t => Violation.violation(s"Expected interface or sort type, but got $t")
+        }
 
         case PCardinality(op) => for {
           dop <- go(op)

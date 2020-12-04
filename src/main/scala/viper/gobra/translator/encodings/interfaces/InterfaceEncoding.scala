@@ -155,6 +155,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
           arg <- goE(exp)
         } yield typeOf(arg)(pos, info, errT)(ctx)
 
+      case n@ in.IsComparableInterface(exp) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          arg <- goE(exp)
+        } yield isComparabeInterface(arg)(pos, info, errT)(ctx)
+
+      case n@ in.IsComparableType(exp) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          arg <- goE(exp)
+        } yield types.isComparableType(arg)(pos, info, errT)(ctx)
+
       case n: in.TypeExpr =>
         for { es <- sequence(TypeHead.children(n) map goE) } yield withSrc(types.typeApp(TypeHead.typeHead(n), es), n, ctx)
     }

@@ -105,7 +105,7 @@ trait TypeEncoding extends Generator {
         vLhs = variable(ctx)(v).localVar
       } yield vpr.LocalVarAssign(vLhs, vRhs)(pos, info, errT)
 
-    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if  typ(ctx).isDefinedAt(t) =>
+    case (in.Assignee((loc: in.Location) :: t / Shared), rhs, src) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = src.vprMeta
       seqn(
         for {
@@ -225,5 +225,9 @@ trait TypeEncoding extends Generator {
     val (pos, info, errT) = src.vprMeta
     node(pos, info, errT)(ctx)
   }
+
+  /** Adds simple (source) information to a node without source information. */
+  protected def synthesized[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T)(comment : String) : T =
+    node(vpr.NoPosition, vpr.SimpleInfo(Seq(comment)), vpr.NoTrafos)
 }
 

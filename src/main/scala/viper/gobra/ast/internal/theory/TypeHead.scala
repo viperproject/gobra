@@ -57,6 +57,7 @@ object TypeHead {
     case _: PermissionT => PermHD
     case SortT => SortHD
     case _: ArrayT => ArrayHD
+    case _: SliceT => SliceHD
     case _: SequenceT => SeqHD
     case _: SetT => SetHD
     case _: MultisetT => MSetHD
@@ -76,6 +77,7 @@ object TypeHead {
     case _: PermissionT => Vector.empty
     case SortT => Vector.empty
     case t: ArrayT => Vector(t.elems)
+    case t: SliceT => Vector(t.elems)
     case t: SequenceT => Vector(t.t)
     case t: SetT => Vector(t.t)
     case t: MultisetT => Vector(t.t)

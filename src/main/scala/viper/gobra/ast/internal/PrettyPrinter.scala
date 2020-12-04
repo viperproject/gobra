@@ -304,6 +304,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
+    case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
@@ -314,10 +315,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+    case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
     case OptionGet(exp) => "get" <> parens(showExpr(exp))
+
+    case Slice(exp, low, high, max) => {
+      val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)
+      showExpr(exp) <> brackets(showExpr(low) <> ":" <> showExpr(high) <> maxD)
+    }
 
     case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
     case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
@@ -368,6 +375,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       lenP <> typP <+> exprsP
     }
 
+    case SliceLit(typ, exprs) => {
+      val typP = showType(typ)
+      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      brackets(emptyDoc) <> typP <+> exprsP
+    }
+
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
@@ -410,6 +423,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
+    case SliceT(elem, _) => "[]" <> showType(elem)
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

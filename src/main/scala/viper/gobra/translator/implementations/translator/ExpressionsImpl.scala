@@ -95,6 +95,8 @@ class ExpressionsImpl extends Expressions {
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
+      case in.Conversion(typ, expr) => goE(expr)
+
       case _ => Violation.violation(s"Expression $x did not match with any implemented case.")
     }
   }

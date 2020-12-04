@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+func foo(s []int) {
+  //:: ExpectedOutput(assignment_error:permission_error)
+  n := s[0]
+}

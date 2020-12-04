@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func simpleslice_from_array_1 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(type_error)
+  s := a[-1:] // negative low bound
+}
+
+func simpleslice_from_array_3 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(type_error)
+  s := a[:8] // high bound exceeds array capacity
+}
+
+func simpleslice_from_slice_1 () {
+  var a@ [1]int
+  s1 := a[1:]
+  //:: ExpectedOutput(type_error)
+  s2 := s1[-1:] // negative low bound
+}
+
+func fullslice_from_array_1 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(type_error)
+  s := a[-1:1:2] // negative low bound
+}
+
+func fullslice_from_array_4 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(type_error)
+  s := a[0:1:5] // max bound exceeds array capacity
+}
+
+func fullslice_from_slice_1 () {
+	a@ := [4]int { 1, 2, 4, 8 }
+  s1 := a[:]
+  //:: ExpectedOutput(type_error)
+  s2 := s1[-1:1:2] // negative low bound
+}
+

@@ -5,6 +5,7 @@ package pkg
 
 func foo() {
   ghost var opt option[int]
+  
   //:: ExpectedOutput(type_error)
   opt = none[bool]
 }

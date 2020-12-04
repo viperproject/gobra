@@ -29,33 +29,38 @@ class OptionEncoding extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
+    *
+    * R[ dflt(option[T]) ] -> none()
+    * R[ none() : option[T] ] -> optNone()
+    * R[ some(e) : option[T] ] -> optSome([e])
+    * R[ get(e : option[T]) ] -> optGet([e])
+    * R[ seq(e : option[T]) ] -> opt2seq([e])
+    */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     default(super.expr(ctx)) {
       case (exp : in.DfltVal) :: ctx.Option(t) / Exclusive =>
         unit(withSrc(ctx.option.none(ctx.typeEncoding.typ(ctx)(t)), exp))
 
       case exp @ in.OptionNone(typ) => {
-        val (pos, info, errT) = exp.vprMeta
         val typT = ctx.typeEncoding.typ(ctx)(typ)
-        unit(ctx.option.none(typT)(pos, info, errT))
+        unit(withSrc(ctx.option.none(typT), exp))
       }
 
       case exp @ in.OptionSome(op) => for {
         opT <- ctx.expr.translate(op)(ctx)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.option.some(opT)(pos, info, errT)
+      } yield withSrc(ctx.option.some(opT), exp)
 
       case exp @ in.OptionGet(op :: ctx.Option(typ)) => for {
         opT <- ctx.expr.translate(op)(ctx)
         typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.option.get(opT, typT)(pos, info, errT)
+      } yield withSrc(ctx.option.get(opT, typT), exp)
 
       case exp @ in.SequenceConversion(op :: ctx.Option(typ)) => for {
         opT <- ctx.expr.translate(op)(ctx)
         typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.optionToSeq.create(opT, typT)(pos, info, errT)
+      } yield withSrc(ctx.optionToSeq.create(opT, typT), exp)
     }
   }
 

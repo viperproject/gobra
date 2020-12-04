@@ -41,7 +41,14 @@ object Names {
   def toInterfaceFunc: String = "toInterface"
 
   // pointer
-  def pointerField(t: vpr.Type) : String = s"val$$_$t"
+  def pointerField(t : vpr.Type) : String = {
+    // sanitizes type name to a valid Viper field name
+    val ts = t.toString()
+      .replace('[', '_')
+      .replace("]", "")
+
+    s"val$$_$ts"
+  }
 
   // struct
   def sharedStructDomain: String = "ShStruct"
@@ -55,8 +62,15 @@ object Names {
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
 
+  // slices
+  def fullSliceFromArray: String = "sfullSliceFromArray"
+  def fullSliceFromSlice: String = "sfullSliceFromSlice"
+  def sliceConstruct: String = "sconstruct"
+  def sliceDefaultFunc: String = "sliceDefault"
+  def sliceFromArray: String = "ssliceFromArray"
+  def sliceFromSlice: String = "ssliceFromSlice"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"
-
 }

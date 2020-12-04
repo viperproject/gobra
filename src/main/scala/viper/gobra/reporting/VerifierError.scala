@@ -226,6 +226,11 @@ case class ComparisonOnIncomparableInterfaces(node: Source.Verifier.Info) extend
   override def message: String = s"Both operands of ${node.origin.tag.trim} might not have comparable values."
 }
 
+case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assertion_error"
+  override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

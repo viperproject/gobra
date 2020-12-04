@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1(s []int) {
+  n := len(s)
+  assert 0 <= n
+}
+
+func test2() {
+  var s []bool
+  assert len(s) == 0 
+}
+
+ensures len(s) == 0
+func test3() (s []int) {
+}
+
+requires 0 < len(s)
+func test4(s []int) {
+  assert s != nil
+}

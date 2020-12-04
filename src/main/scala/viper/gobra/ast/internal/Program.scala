@@ -155,6 +155,7 @@ object CompositeObject {
   def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
 
   case class Array(op : ArrayLit) extends CompositeObject
+  case class Slice(op : SliceLit) extends CompositeObject
   case class Struct(op : StructLit) extends CompositeObject
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject
@@ -336,6 +337,14 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 }
 
 /**
+  * Represents the "cap(`exp`)" in Go, which gives
+  * the capacity of `exp` according to its type.
+  */
+case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT(Addressability.rValue)
+}
+
+/**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
   * and `index` of an integer type.
@@ -344,6 +353,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   override val typ : Type = base.typ match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
+    case t: SliceT => t.elems
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
@@ -642,8 +652,22 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
 
 sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
   override val typ: Type = (left.typ, right.typ) match {
-    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.rValue, TypeBounds.merge(kind1, kind2))
+    // should always produce an exclusive val. from the go spec:
+    // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
+    // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
+    // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.merge(kind1, kind2))
+
+    // A binary expression may have one operand of a defined type T and another operand that is an unbounded integer.
+    // If T's underlying type is an integer type, then the result of the expression should be of type T.
+    // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
+    // However, this should not pose a problem assuming that the original program has been type-checked before the
+    // translation to the internal language.
+    case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+
     case (l, r) => violation(s"cannot merge types $l and $r")
+
   }
 }
 
@@ -669,7 +693,9 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
-
+case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = newType
+}
 
 sealed trait Lit extends Expr
 
@@ -685,6 +711,20 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
+/**
+  * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
+  * Only the `max` component is optional at this point.
+  * Any slicing expression "a[:j]" is assumed to be desugared into "a[0:j]",
+  * and any expression "a[i:]" is assumed to be desugared into "a[i:len(a)]".
+  */
+case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = base.typ match {
+    case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
+    case t: SliceT => t
+    case t => Violation.violation(s"expected an array or slice type, but got $t")
+  }
+}
+
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
   lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }
@@ -692,8 +732,13 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 sealed trait CompositeLit extends Lit
 
 case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length: BigInt = exprs.length
+  lazy val length : BigInt = exprs.length
   override val typ : Type = ArrayT(exprs.length, memberType, Addressability.literal)
+}
+
+case class SliceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val asArrayLit : ArrayLit = ArrayLit(memberType.withAddressability(Addressability.rValue), exprs)(info)
+  override val typ : Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
@@ -812,8 +857,7 @@ case object SortT extends Type {
 }
 
 /**
-  * The type of `length`-sized arrays
-  * of elements of type `typ`.
+  * The type of `length`-sized arrays of elements of type `typ`.
   */
 case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends Type {
   /** (Deeply) converts the current type to a `SequenceT`. */
@@ -829,6 +873,19 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
 
   override def withAddressability(newAddressability: Addressability): ArrayT =
     ArrayT(length, elems.withAddressability(Addressability.arrayElement(newAddressability)), newAddressability)
+}
+
+/**
+  * The (composite) type of slices of type `elems`.
+  */
+case class SliceT(elems : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): SliceT =
+    SliceT(elems.withAddressability(Addressability.sliceElement), newAddressability)
 }
 
 /**

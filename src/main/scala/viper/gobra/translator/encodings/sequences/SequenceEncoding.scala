@@ -149,4 +149,31 @@ class SequenceEncoding extends LeafTypeEncoding {
         } yield vpr.SeqTake(leftT, rightT)(pos, info, errT)
     }
   }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: seq[T] ] -> forall s :: { s in [e], isComp[s] } s in [e] ==> isComp[s]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Seq(t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val s = in.BoundVar("s", t)(exp.info)
+        val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
+        for {
+          vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s).right.get)(ctx)
+          contains = vpr.SeqContains(vS, vExp)(pos, info, errT)
+          res = vpr.Forall(
+            variables = Seq(vSDecl),
+            triggers = Seq(vpr.Trigger(Seq(rhs, contains))(pos, info, errT)),
+            exp = vpr.Implies(contains, rhs)(pos, info, errT)
+          )(pos, info, errT)
+        } yield res
+      }
+  }
+
+
 }

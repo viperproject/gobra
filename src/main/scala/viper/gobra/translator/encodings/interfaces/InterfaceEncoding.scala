@@ -8,11 +8,14 @@ package viper.gobra.translator.encodings.interfaces
 
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.ast.internal.theory.TypeHead
+import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
+import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterfaces, DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
+import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
@@ -25,9 +28,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private val poly: PolymorphValueComponent = new PolymorphValueComponentImpl
   private val types: TypeComponent = new TypeComponentImpl
 
+  private var genMembers: List[vpr.Member] = List.empty
+
   override def finalize(col: Collector): Unit = {
     poly.finalize(col)
     types.finalize(col)
+    genMembers foreach col.addMember
   }
 
   /**
@@ -54,13 +60,29 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: interface{...} == rhs: interface{...}] -> [lhs] == [rhs]
     * [lhs: *interface{...}° == rhs: *interface{...}] -> [lhs] == [rhs]
     *
+    * [lhs: interface{...} == rhs: interface{...}] -> [lhs] == [rhs]
     * [itf: interface{...} == oth: T] -> [itf == toInterface(oth)]
     * [oth: T == itf: interface{...}] -> [itf == toInterface(oth)]
     */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = super.equal(ctx) orElse {
+  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)) {
+    case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
+      val (pos, info, errT) = src.vprMeta
+      val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
+        ComparisonError(x).dueTo(ComparisonOnIncomparableInterfaces(x))
+      for {
+        vLhs <- ctx.expr.translate(lhs)(ctx)
+        vRhs <- ctx.expr.translate(rhs)(ctx)
+        _ <- assert(
+          vpr.Or(
+            isComparabeInterface(vLhs)(pos, info, errT)(ctx),
+            isComparabeInterface(vRhs)(pos, info, errT)(ctx)
+          )(pos, info, errT),
+          errorT
+        )
+      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+
     case (itf :: ctx.Interface(_), oth :: ctx.NotInterface(), src) =>
       equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
 
@@ -100,11 +122,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
       case n@ in.ToInterface(exp, _) =>
         val (pos, info, errT) = n.vprMeta
-        for {
-          dynValue <- goE(exp)
-          value = poly.box(dynValue)(pos, info, errT)(ctx)
-          typ = types.typeToExpr(exp.typ)(pos, info, errT)(ctx)
-        } yield ctx.tuple.create(Vector(value, typ))(pos, info, errT)
+        if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
+          for {
+            dynValue <- goE(exp)
+            typ = types.typeToExpr(exp.typ)(pos, info, errT)(ctx)
+          } yield boxInterface(dynValue, typ)(pos, info, errT)(ctx)
+        } else {
+          for {
+            dynValue <- goE(exp)
+          } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, info, errT)(ctx)
+        }
 
       case n@ in.TypeAssertion(exp, t) =>
         val (pos, info, errT) = n.vprMeta
@@ -132,6 +159,21 @@ class InterfaceEncoding extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: interface{...} ] -> isComparableInterface(e)
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Interface(_) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        for {
+          vExp <- ctx.expr.translate(exp)(ctx)
+        } yield isComparabeInterface(vExp)(pos, info ,errT)(ctx)
+      }
+  }
+
   /** returns dynamic type of an interface expression. */
   private def typeOf(arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
     ctx.tuple.get(arg, 1, 2)(pos, info, errT)
@@ -142,6 +184,66 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val polyVal = ctx.tuple.get(arg, 0, 2)(pos, info, errT)
     poly.unbox(polyVal, typ)(pos, info, errT)(ctx)
   }
+
+  private def boxInterface(value: vpr.Exp, typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    val polyVar = poly.box(value)(pos, info, errT)(ctx)
+    ctx.tuple.create(Vector(polyVar, typ))(pos, info, errT)
+  }
+
+
+  /** Function returning whether a type is comparable. */
+  private def isComparabeInterface(arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.DomainFuncApp = {
+    val func = genComparableInterfaceFunc(ctx)
+    vpr.DomainFuncApp(func = func, Seq(arg), Map.empty)(pos, info, errT)
+  }
+
+  /** Generates:
+    * ComparableInterfaceDomain {
+    *
+    *   function comparableInterface(i: [interface{}]): Bool
+    *
+    *   axiom {
+    *     forall i: [interface{}] :: { comparableInterface(i) }
+    *       comparableType([typeOf(i)]) ==> comparableInterface(i)
+    *   }
+    * }
+    */
+  private def genComparableInterfaceFunc(ctx: Context): vpr.DomainFunc = {
+    generatedComparableFunc.getOrElse{
+      val domainName = "ComparableInterfaceDomain"
+
+      val vItfT = typ(ctx)(in.InterfaceT(Names.emptyInterface, Addressability.Exclusive))
+      val iDecl = vpr.LocalVarDecl("i", vItfT)(); val i = iDecl.localVar
+
+      val func = vpr.DomainFunc(
+        name = "comparableInterface", formalArgs = Seq(iDecl), typ = vpr.Bool
+      )(domainName = domainName)
+      val funcApp = vpr.DomainFuncApp(func = func, Seq(i), Map.empty)()
+
+      val axiom = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          variables = Seq(iDecl),
+          triggers = Seq(vpr.Trigger(Seq(funcApp))()),
+          exp = vpr.Implies(
+            types.isComparableType(typeOf(i)()(ctx))()(ctx),
+            funcApp
+          )()
+        )()
+      )(domainName = domainName)
+
+      val domain = vpr.Domain(
+        name = domainName,
+        functions = Seq(func),
+        axioms = Seq(axiom),
+      )()
+
+      genMembers ::= domain
+      generatedComparableFunc = Some(func)
+      func
+    }
+  }
+  private var generatedComparableFunc: Option[vpr.DomainFunc] = None
+
 
   /**
     * Encodes statements.
@@ -200,10 +302,38 @@ class InterfaceEncoding extends LeafTypeEncoding {
               vpr.Seqn(Seq(vpr.LocalVarAssign(vResTarget, vDflt)(pos, info, errT)), Seq.empty)(pos, info, errT)
             )(pos, info, errT)
           } yield res
-        )
+        ): Writer[vpr.Stmt]
     }
   }
 
+  /**
+    * Generates:
+    * function toInterface(x: [T°]): [interface{}]
+    *   ensures result == tuple2(x, TYPE(T))
+    *   ensures isComp[x: T°] ==> comparableInterface(result)
+    *
+    */
+  private val toInterfaceFunc: FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
+    override def genFunction(t: in.Type)(ctx: Context): vpr.Function = {
+      val x = in.LocalVar("x", t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal)
+      val vX = ctx.typeEncoding.variable(ctx)(x)
 
+      val isComp = ctx.typeEncoding.isComparable(ctx)(x).fold(vpr.BoolLit(_)(), pure(_)(ctx).res)
+      val emptyItfT = typ(ctx)(in.InterfaceT(Names.emptyInterface, Addressability.Exclusive))
+      val vRes = vpr.Result(emptyItfT)()
+
+      vpr.Function(
+        name = Names.toInterfaceFunc,
+        formalArgs = Seq(vX),
+        typ = emptyItfT,
+        pres = Seq.empty,
+        posts = Seq(
+          vpr.EqCmp(vRes, boxInterface(vX.localVar, types.typeToExpr(t)()(ctx))()(ctx))(),
+          vpr.Implies(isComp, isComparabeInterface(vRes)()(ctx))()
+        ),
+        body = None
+      )()
+    }
+  }
 
 }

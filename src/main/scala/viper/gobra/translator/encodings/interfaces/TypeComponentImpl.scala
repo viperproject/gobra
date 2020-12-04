@@ -59,33 +59,35 @@ class TypeComponentImpl extends TypeComponent {
   }
 
 
+  private var genFuncs: List[vpr.DomainFunc] = List.empty
+  private var genAxioms: List[vpr.DomainAxiom] = List.empty
+
+
   /** Generates:
     * Type += {
     *   function tag(Type): Int
     * }
     */
-  private val tagFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = functionName("tag"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Int
-  )(domainName = domainName)
+  private lazy val tagFunc: vpr.DomainFunc = {
+    val func = vpr.DomainFunc(
+      name = functionName("tag"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Int
+    )(domainName = domainName)
+    genFuncs ::= func
+    func
+  }
 
   /** Generates:
     * Type += {
     *   function comparableType(Type): Bool
     * }
     */
-  private val comparableTypeFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = functionName("comparableType"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Bool
-  )(domainName = domainName)
-
-  /** Generates:
-    * Type += {
-    *   function comparableInterface(Type): Bool
-    * }
-    */
-  private val comparableInterfaceFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = functionName("comparableInterface"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Bool
-  )(domainName = domainName)
-
+  private lazy val comparableTypeFunc: vpr.DomainFunc = {
+    val func = vpr.DomainFunc(
+      name = functionName("comparableType"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Bool
+    )(domainName = domainName)
+    genFuncs ::= func
+    func
+  }
 
   /**
     * Generates:
@@ -106,9 +108,13 @@ class TypeComponentImpl extends TypeComponent {
     *   }
     * }
     */
-  private lazy val behavioralSubtypeFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = functionName("behavioral_subtype"), formalArgs = Seq(vpr.LocalVarDecl("l", domainType)(), vpr.LocalVarDecl("r", domainType)()), typ = vpr.Bool
-  )(domainName = domainName)
+  private lazy val behavioralSubtypeFunc: vpr.DomainFunc = {
+    val func = vpr.DomainFunc(
+      name = functionName("behavioral_subtype"), formalArgs = Seq(vpr.LocalVarDecl("l", domainType)(), vpr.LocalVarDecl("r", domainType)()), typ = vpr.Bool
+    )(domainName = domainName)
+    genFuncs ::= func
+    func
+  }
 
   private def genBehavioralSubtypeAxioms(ctx: Context): Unit = {
     if (!generatedBehaviouralSubtypeAxioms) {
@@ -180,7 +186,7 @@ class TypeComponentImpl extends TypeComponent {
 
       val name = serialize(typeHead)
 
-      val funArgDecl = vpr.LocalVarDecl("t", domainType)(); val funArg = funArgDecl
+      val funArgDecl = vpr.LocalVarDecl("t", domainType)()
       val getterVarDecls = args.zipWithIndex map {
         case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)()
       }
@@ -212,8 +218,6 @@ class TypeComponentImpl extends TypeComponent {
   private var preciseTypes: Set[TypeHead] = Set.empty
 
 
-
-
   /**
     * Generates:
     * Type += {
@@ -235,7 +239,8 @@ class TypeComponentImpl extends TypeComponent {
     *
     *   // if comparability is Recursive
     *   axiom {
-    *     forall args :: {comparable(name(args))} comparable(name(args)) == comparable(args0) && .. && comparable(argsN)
+    *     forall args :: {comparable(name(args))}
+    *       comparable(name(args)) == comparable(args0) && .. [all arguments of type Type] .. && comparable(argsN)
     *   }
     * }
     */
@@ -298,6 +303,7 @@ class TypeComponentImpl extends TypeComponent {
       func
     }
   }
+  private var genTypesMap: Map[TypeHead, vpr.DomainFunc] = Map.empty
 
   /** Type of viper expressions encoding Gobra types.  */
   override def typ()(ctx: Context): vpr.Type = domainType
@@ -328,8 +334,6 @@ class TypeComponentImpl extends TypeComponent {
     }}
   }
 
-
-
   /** Behavioral subtype relation. */
   override def behavioralSubtype(subType: vpr.Exp, superType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
     vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(subType, superType), Map.empty)(pos, info, errT)
@@ -337,10 +341,6 @@ class TypeComponentImpl extends TypeComponent {
   /** Function returning whether a type is comparable. */
   override def isComparableType(typ: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
     vpr.DomainFuncApp(func = comparableTypeFunc, Seq(typ), Map.empty)(pos, info, errT)
-
-  /** Function returning whether a type is comparable. */
-  override def isComparableInterface(typ: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    vpr.DomainFuncApp(func = comparableInterfaceFunc, Seq(typ), Map.empty)(pos, info, errT)
 
   /** Constructor for Viper type expressions. */
   override def typeApp(typeHead: TypeHead, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
@@ -352,16 +352,11 @@ class TypeComponentImpl extends TypeComponent {
   private def genDomain: vpr.Domain = {
     vpr.Domain(
       name = domainName,
-      functions = tagFunc +: behavioralSubtypeFunc +: genFuncs,
+      functions = genFuncs,
       axioms = genAxioms,
       typVars = Seq.empty
     )()
   }
-
-  private var genFuncs: List[vpr.DomainFunc] = List.empty
-  private var genAxioms: List[vpr.DomainAxiom] = List.empty
-  private var genTypesMap: Map[TypeHead, vpr.DomainFunc] = Map.empty
-
 
   override def finalize(collector: Collector): Unit = {
     if (genFuncs.nonEmpty) collector.addMember(genDomain)

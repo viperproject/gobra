@@ -7,11 +7,13 @@
 package viper.gobra.translator.encodings.combinators
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.Expr
 import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.util.Violation
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.silver.ast.Exp
 import viper.silver.{ast => vpr}
 
 /** Throws an error if a partial function that is expected to be defined on all inputs is not defined on an input. */
@@ -37,5 +39,6 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = te.expr(ctx)
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = te.reference(ctx) orElse expectedMatch("reference")
   override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = te.addressFootprint(ctx) orElse expectedMatch("addressFootprint")
+  override def isComparable(ctx: Context): Expr ==> Either[Boolean, CodeWriter[Exp]] = te.isComparable(ctx) orElse expectedMatch("isComparable")
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = te.statement(ctx)
 }

@@ -209,6 +209,26 @@ class StructEncoding extends TypeEncoding {
     case loc :: ctx.Struct(_) / Shared => sh.addressFootprint(loc)(ctx)
   }
 
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: Struct{F} ] -> AND f in F: isComp[e.f]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Struct(fs) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        // if executed, then for all fields f, isComb[exp.f] != Left(false)
+        val (pos, info, errT) = exp.vprMeta
+        // fields that are not ghost and with dynamic comparability
+        val fsAccs = fieldAccesses(exp, fs.filter(f => !f.ghost))
+        val fsComp = fsAccs map ctx.typeEncoding.isComparable(ctx)
+        // Left(true) can be removed.
+        for {
+          args <- sequence(fsComp collect { case Right(e) => e })
+        } yield VU.bigAnd(args)(pos, info, errT)
+      }
+  }
+
   /** Returns 'base'.f for every f in 'fields'. */
   private def fieldAccesses(base: in.Expr, fields: Vector[in.Field]): Vector[in.FieldRef] = {
     fields.map(f => in.FieldRef(base, f)(base.info))

@@ -103,6 +103,14 @@ object TypePatterns {
       }
     }
 
+    object AnySet {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.MultisetT => Some(t.t)
+        case t : in.SetT => Some(t.t)
+        case _ => None
+      }
+    }
+
     object Option {
       def unapply(arg : in.Type) : Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.OptionT => Some(t.t)

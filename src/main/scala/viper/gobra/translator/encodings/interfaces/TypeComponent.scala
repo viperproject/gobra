@@ -30,9 +30,6 @@ trait TypeComponent extends Generator {
   /** Function returning whether a type is comparable. */
   def isComparableType(typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 
-  /** Function returning whether a type is comparable. */
-  def isComparableInterface(typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
   /** Constructor for Viper type expressions. */
   def typeApp(head: TypeHead, args: Vector[vpr.Exp] = Vector.empty)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 }

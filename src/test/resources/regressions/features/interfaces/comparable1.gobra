@@ -15,11 +15,11 @@ func compareInterfaces(x, y interface{}) {
   }
 }
 
-func compareSlices() {
-  var x, y []int
-  var i, j interface{} = x, y
-
-  assert i != nil
-  //:: ExpectedOutput(comparison_error:incomparable_error)
-  assert i == j
-}
+//func compareSlices() {
+//  var x, y []int
+//  var i, j interface{} = x, y
+//
+//  assert i != nil
+//  //:: ExpectedOutput(comparison_error:incomparable_error)
+//  assert i == j
+//}

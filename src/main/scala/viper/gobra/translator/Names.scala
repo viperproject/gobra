@@ -38,6 +38,7 @@ object Names {
 
   // interface
   def emptyInterface: String = "empty_interface"
+  def toInterfaceFunc: String = "toInterface"
 
   // pointer
   def pointerField(t: vpr.Type) : String = s"val$$_$t"

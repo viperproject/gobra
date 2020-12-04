@@ -7,6 +7,7 @@
 package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -172,6 +173,14 @@ trait TypeEncoding extends Generator {
     */
   def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
+  /**
+    * Encodes whether a value is comparable or not.
+    * If comparability is unambiguously determined by the type of the value, then Left is returned.
+    */
+  def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: t if typ(ctx).isDefinedAt(t) =>
+      Comparability.comparable(t)(ctx.lookup).toLeft(unit(withSrc(vpr.FalseLit(), exp)))
+  }
 
   /**
     * Encodes statements.

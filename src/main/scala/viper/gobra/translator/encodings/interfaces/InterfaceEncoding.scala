@@ -33,6 +33,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def finalize(col: Collector): Unit = {
     poly.finalize(col)
     types.finalize(col)
+    toInterfaceFunc.finalize(col)
     genMembers foreach col.addMember
   }
 

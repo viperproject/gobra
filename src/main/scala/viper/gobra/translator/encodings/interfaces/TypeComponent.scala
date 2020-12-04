@@ -6,9 +6,9 @@
 
 package viper.gobra.translator.encodings.interfaces
 
+import viper.gobra.ast.internal.theory.TypeHead
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Generator
-import viper.gobra.util.TypeBounds.IntegerKind
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
 
@@ -18,55 +18,21 @@ trait TypeComponent extends Generator {
   /** Type of viper expressions encoding Gobra types.  */
   def typ()(ctx: Context): vpr.Type
 
-  /** transaltes Gobra types into Viper type expressions. */
-  def typeExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+  /** Translates Gobra types into Viper type expressions. */
+  def typeToExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 
   /** Generates precise equality axioms for 'typ'. */
-  def precise(typ: in.Type)(ctx: Context): Unit
+  def genPreciseEqualityAxioms(typ: in.Type)(ctx: Context): Unit
 
-
-  /** behavioral subtype relation. */
+  /** Behavioral subtype relation. */
   def behavioralSubtype(subType: vpr.Exp, superType: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 
-  /** constructor for defined type. */
-  def defined(name: String)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+  /** Function returning whether a type is comparable. */
+  def isComparableType(typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 
-  /** constructor for pointer type. */
-  def pointer(elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+  /** Function returning whether a type is comparable. */
+  def isComparableInterface(typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 
-  /** constructor for nil type. */
-  def nil()(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for boolean type. */
-  def bool()(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for integer type. */
-  def int(kind: IntegerKind)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for struct type. */
-  def struct(fields: Vector[(String, vpr.Exp, Boolean)])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for array type. */
-  def array(len: vpr.Exp, elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for interface type. */
-  def interface(name: String)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for permission type. */
-  def perm()(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for sequence type. */
-  def sequence(elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for set type. */
-  def set(elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for multiset type. */
-  def mset(elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for option type. */
-  def option(elem: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
-
-  /** constructor for tuple type. */
-  def tuple(elems: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+  /** Constructor for Viper type expressions. */
+  def typeApp(head: TypeHead, args: Vector[vpr.Exp] = Vector.empty)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 }

@@ -8,6 +8,7 @@ package viper.gobra.translator.encodings.interfaces
 
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.theory.TypeHead
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.{DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
@@ -91,7 +92,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
                | (_: in.NilLit) :: ctx.Interface(_)  ) =>
         val (pos, info, errT) = n.vprMeta
         val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
-        val typ = types.nil()(pos, info, errT)(ctx)
+        val typ = types.typeApp(TypeHead.NilHD)(pos, info, errT)(ctx)
         unit(ctx.tuple.create(Vector(value, typ))(pos, info, errT)): CodeWriter[vpr.Exp]
 
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
@@ -102,7 +103,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         for {
           dynValue <- goE(exp)
           value = poly.box(dynValue)(pos, info, errT)(ctx)
-          typ = types.typeExpr(exp.typ)(pos, info, errT)(ctx)
+          typ = types.typeToExpr(exp.typ)(pos, info, errT)(ctx)
         } yield ctx.tuple.create(Vector(value, typ))(pos, info, errT)
 
       case n@ in.TypeAssertion(exp, t) =>
@@ -112,7 +113,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         for {
           arg <- goE(exp)
           dynType = typeOf(arg)(pos, info, errT)(ctx)
-          staticType = types.typeExpr(t)(pos, info, errT)(ctx)
+          staticType = types.typeToExpr(t)(pos, info, errT)(ctx)
           _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
           res = t match {
             case ctx.Interface(_) => arg
@@ -126,19 +127,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
           arg <- goE(exp)
         } yield typeOf(arg)(pos, info, errT)(ctx)
 
-
-      case n@ in.DefinedTExpr(name) => unit(withSrc(types.defined(name), n, ctx))
-      case n@ in.PointerTExpr(elem) => for { e <- goE(elem) } yield withSrc(types.pointer(e), n, ctx)
-      case n@ in.BoolTExpr() => unit(withSrc(types.bool(), n, ctx))
-      case n@ in.IntTExpr(kind) => unit(withSrc(types.int(kind), n, ctx))
-      case n@ in.StructTExpr(fields) => for { fs <- sequence(fields.map{ case (n, e, g) => goE(e).map((n, _, g)) }) } yield withSrc(types.struct(fs), n, ctx)
-      case n@ in.ArrayTExpr(len, elem) => for { l <- goE(len); e <- goE(elem) } yield withSrc(types.array(l, e), n, ctx)
-      case n@ in.PermTExpr() => unit(withSrc(types.perm(), n, ctx))
-      case n@ in.SequenceTExpr(elem) => for { e <- goE(elem) } yield withSrc(types.sequence(e), n, ctx)
-      case n@ in.SetTExpr(elem) => for { e <- goE(elem) } yield withSrc(types.set(e), n, ctx)
-      case n@ in.MultisetTExpr(elem) => for { e <- goE(elem) } yield withSrc(types.mset(e), n, ctx)
-      case n@ in.OptionTExpr(elem) => for { e <- goE(elem) } yield withSrc(types.option(e), n, ctx)
-      case n@ in.TupleTExpr(elem) => for { e <- sequence(elem map goE) } yield withSrc(types.tuple(e), n, ctx)
+      case n: in.TypeExpr =>
+        for { es <- sequence(TypeHead.children(n) map goE) } yield withSrc(types.typeApp(TypeHead.typeHead(n), es), n, ctx)
     }
   }
 
@@ -182,7 +172,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           for {
             arg <- ctx.expr.translate(expr)(ctx)
             dynType = typeOf(arg)(pos, info, errT)(ctx)
-            staticType = types.typeExpr(typ)(pos, info, errT)(ctx)
+            staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
             vResTarget = ctx.typeEncoding.variable(ctx)(resTarget).localVar
             vSuccessTarget = ctx.typeEncoding.variable(ctx)(successTarget).localVar
@@ -194,12 +184,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
       case n@ in.SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
         val (pos, info, errT) = n.vprMeta
-        types.precise(typ)(ctx)
+        types.genPreciseEqualityAxioms(typ)(ctx)
         seqn(
           for {
             arg <- ctx.expr.translate(expr)(ctx)
             dynType = typeOf(arg)(pos, info, errT)(ctx)
-            staticType = types.typeExpr(typ)(pos, info, errT)(ctx)
+            staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             vResTarget = ctx.typeEncoding.variable(ctx)(resTarget).localVar
             vSuccessTarget = ctx.typeEncoding.variable(ctx)(successTarget).localVar
             _ <- bind(vSuccessTarget, vpr.EqCmp(dynType, staticType)(pos, info, errT))

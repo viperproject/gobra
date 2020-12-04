@@ -196,6 +196,8 @@ trait TypeEncoding extends Generator {
       )
   }
 
+
+
   /**
     * Alternative version of `orElse` to simplify delegations to super implementations.
     * @param dflt default partial function, applied if 'f' is not defined at argument

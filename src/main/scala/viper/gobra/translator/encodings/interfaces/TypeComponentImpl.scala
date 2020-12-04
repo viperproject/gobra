@@ -6,13 +6,14 @@
 
 package viper.gobra.translator.encodings.interfaces
 
-import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.silver.{ast => vpr}
+import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
+import viper.gobra.ast.internal.theory.TypeHead._
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
+import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperUtil
-import viper.gobra.util.{TypeBounds, Violation}
-import viper.gobra.util.TypeBounds.IntegerKind
+import viper.gobra.util.TypeBounds
+import viper.silver.{ast => vpr}
 
 /** Encoding of Gobra types into Viper expressions. */
 class TypeComponentImpl extends TypeComponent {
@@ -23,7 +24,40 @@ class TypeComponentImpl extends TypeComponent {
     vpr.DomainType(domainName = domainName, partialTypVarsMap = Map.empty)(typeParameters = Seq.empty)
 
   private def functionName(name: String): String = s"${name}_$domainName"
-  private def reverseFunctionName(functionName: String): String = functionName.stripSuffix(s"_$domainName")
+
+  /** Returns serialized name for the type function of a type. */
+  private def serialize(head: TypeHead): String = head match {
+
+    case BoolHD => "bool"
+    case PointerHD => "pointer"
+    case ArrayHD => "array"
+    case SliceHD => "slice"
+    case NilHD => "nil"
+    case UnitHD => "unit"
+    case PermHD => "perm"
+    case SortHD => "sort"
+    case SeqHD => "seq"
+    case SetHD => "set"
+    case MSetHD => "mset"
+    case OptionHD => "option"
+    case t: TupleHD => s"tuple${t.arity}"
+
+    case t: TypeHead.DefinedHD => t.name
+    case t: TypeHead.InterfaceHD => t.name
+
+    case t: TypeHead.IntHD =>
+      // For identical types a representative is picked
+      t.kind match {
+        case TypeBounds.Rune => TypeBounds.SignedInteger32.name
+        case TypeBounds.UnsignedInteger8 => TypeBounds.Byte.name
+        case tb => tb.name
+      }
+
+    case t: TypeHead.StructHD =>
+      val fieldNames = t.fields.collect{ case (n, false) => n }
+      s"struct_${fieldNames.mkString("_")}"
+  }
+
 
   /** Generates:
     * Type += {
@@ -33,6 +67,25 @@ class TypeComponentImpl extends TypeComponent {
   private val tagFunc: vpr.DomainFunc = vpr.DomainFunc(
     name = functionName("tag"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Int
   )(domainName = domainName)
+
+  /** Generates:
+    * Type += {
+    *   function comparableType(Type): Bool
+    * }
+    */
+  private val comparableTypeFunc: vpr.DomainFunc = vpr.DomainFunc(
+    name = functionName("comparableType"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Bool
+  )(domainName = domainName)
+
+  /** Generates:
+    * Type += {
+    *   function comparableInterface(Type): Bool
+    * }
+    */
+  private val comparableInterfaceFunc: vpr.DomainFunc = vpr.DomainFunc(
+    name = functionName("comparableInterface"), formalArgs = Seq(vpr.LocalVarDecl("t", domainType)()), typ = vpr.Bool
+  )(domainName = domainName)
+
 
   /**
     * Generates:
@@ -57,51 +110,57 @@ class TypeComponentImpl extends TypeComponent {
     name = functionName("behavioral_subtype"), formalArgs = Seq(vpr.LocalVarDecl("l", domainType)(), vpr.LocalVarDecl("r", domainType)()), typ = vpr.Bool
   )(domainName = domainName)
 
-  private lazy val behavioralSubtypeAxioms: Vector[vpr.DomainAxiom] = {
-    val aDecl = vpr.LocalVarDecl("a", domainType)(); val a = aDecl.localVar
-    val bDecl = vpr.LocalVarDecl("b", domainType)(); val b = bDecl.localVar
-    val cDecl = vpr.LocalVarDecl("c", domainType)(); val c = cDecl.localVar
+  private def genBehavioralSubtypeAxioms(ctx: Context): Unit = {
+    if (!generatedBehaviouralSubtypeAxioms) {
+      generatedBehaviouralSubtypeAxioms = true
 
-    val appAB = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, b), Map.empty)()
-    val appBC = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(b, c), Map.empty)()
-    val appAC = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, c), Map.empty)()
+      val aDecl = vpr.LocalVarDecl("a", domainType)(); val a = aDecl.localVar
+      val bDecl = vpr.LocalVarDecl("b", domainType)(); val b = bDecl.localVar
+      val cDecl = vpr.LocalVarDecl("c", domainType)(); val c = cDecl.localVar
 
-    val transitivity = vpr.AnonymousDomainAxiom(
-      vpr.Forall(
-        Seq(aDecl, bDecl, cDecl),
-        Seq(vpr.Trigger(Seq(appAB, appBC))()),
-        vpr.Implies(
-          vpr.And(appAB, appBC)(),
-          appAC
+      val appAB = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, b), Map.empty)()
+      val appBC = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(b, c), Map.empty)()
+      val appAC = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, c), Map.empty)()
+
+      val transitivity = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          Seq(aDecl, bDecl, cDecl),
+          Seq(vpr.Trigger(Seq(appAB, appBC))()),
+          vpr.Implies(
+            vpr.And(appAB, appBC)(),
+            appAC
+          )()
         )()
-      )()
-    )(domainName = domainName)
+      )(domainName = domainName)
 
 
-    val appAA = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, a), Map.empty)()
+      val appAA = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, a), Map.empty)()
 
-    val reflexivity = vpr.AnonymousDomainAxiom(
-      vpr.Forall(
-        Seq(aDecl),
-        Seq(vpr.Trigger(Seq(appAA))()),
-        appAA
-      )()
-    )(domainName = domainName)
+      val reflexivity = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          Seq(aDecl),
+          Seq(vpr.Trigger(Seq(appAA))()),
+          appAA
+        )()
+      )(domainName = domainName)
 
 
-    val appAEmpty = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, appType(Names.emptyInterface, Vector.empty)(vpr.NoPosition, vpr.NoInfo , vpr.NoTrafos)), Map.empty)()
+      val appAEmpty = vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(a, typeApp(emptyInterfaceHD, Vector.empty)()(ctx)), Map.empty)()
 
-    val empty = vpr.AnonymousDomainAxiom(
-      vpr.Forall(
-        Seq(aDecl),
-        Seq(vpr.Trigger(Seq(appAEmpty))()),
-        appAEmpty
-      )()
-    )(domainName = domainName)
+      val empty = vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          Seq(aDecl),
+          Seq(vpr.Trigger(Seq(appAEmpty))()),
+          appAEmpty
+        )()
+      )(domainName = domainName)
 
-    Vector(transitivity, reflexivity, empty)
+      genAxioms ::= transitivity
+      genAxioms ::= reflexivity
+      genAxioms ::= empty
+    }
   }
-
+  private var generatedBehaviouralSubtypeAxioms = false
 
   /**
     * Generates:
@@ -115,9 +174,11 @@ class TypeComponentImpl extends TypeComponent {
     *   }
     * }
     */
-  private def precise(name: String, args: Vector[vpr.Type]): Unit = {
-    if (args.nonEmpty && !preciseTypes.contains(name)) {
-      preciseTypes += name
+  private def genPreciseEqualityAxioms(typeHead: TypeHead, args: Vector[vpr.Type])(ctx: Context): Unit = {
+    if (args.nonEmpty && !preciseTypes.contains(typeHead)) {
+      preciseTypes += typeHead
+
+      val name = serialize(typeHead)
 
       val funArgDecl = vpr.LocalVarDecl("t", domainType)(); val funArg = funArgDecl
       val getterVarDecls = args.zipWithIndex map {
@@ -133,7 +194,7 @@ class TypeComponentImpl extends TypeComponent {
           )(domainName = domainName)
       }
 
-      val funcApp = appType(name, getterVarDecls map (_.localVar))()
+      val funcApp = typeApp(typeHead, getterVarDecls map (_.localVar))()(ctx)
       val getterApps = getters.map(f => vpr.DomainFuncApp(func = f, Seq(funcApp), Map.empty)())
 
       val axiom = vpr.AnonymousDomainAxiom(
@@ -148,8 +209,10 @@ class TypeComponentImpl extends TypeComponent {
       genAxioms ::= axiom
     }
   }
+  private var preciseTypes: Set[TypeHead] = Set.empty
 
-  private var preciseTypes: Set[String] = Set.empty
+
+
 
   /**
     * Generates:
@@ -160,212 +223,144 @@ class TypeComponentImpl extends TypeComponent {
     *     forall args :: {name(args)} tag(name(args)) == 'tag'
     *   }
     *
+    *   // if comparability is Comparable
     *   axiom {
-    *     forall args :: {name(args)} get0(name(args)) == args0 && ... && getN(name(args))
+    *     forall args :: {comparable(name(args))} comparable(name(args)) == true
+    *   }
+    *
+    *   // if comparability is NonComparable or Dynamic
+    *   axiom {
+    *     forall args :: {comparable(name(args))} comparable(name(args)) == false
+    *   }
+    *
+    *   // if comparability is Recursive
+    *   axiom {
+    *     forall args :: {comparable(name(args))} comparable(name(args)) == comparable(args0) && .. && comparable(argsN)
     *   }
     * }
     */
-  private def genTypeFunc(name: String, args: Vector[vpr.Type], tag: Int): (vpr.DomainFunc, Vector[vpr.DomainAxiom]) = {
+  private def genTypeFunc(typeHead: TypeHead, args: Vector[vpr.Type], tag: Int)(ctx: Context): vpr.DomainFunc = {
 
-    val varsDecl = args.zipWithIndex.map{ case(t,i) => vpr.LocalVarDecl(s"p$i", t)() }
-    val vars = varsDecl map (_.localVar)
-
-    val func = vpr.DomainFunc(
-      name = functionName(name),
-      formalArgs = varsDecl,
-      typ = domainType
-    )(domainName = domainName)
-
-    val tagAxiom = vpr.AnonymousDomainAxiom(
-      if (args.isEmpty) {
-        vpr.EqCmp(vpr.DomainFuncApp(func = tagFunc, Seq(vpr.DomainFuncApp(func = func, Seq(), Map())()), Map())(), vpr.IntLit(tag)())()
-      } else {
-        vpr.Forall(
-          variables = varsDecl,
-          triggers = Seq(vpr.Trigger(Seq(vpr.DomainFuncApp(func = func, vars, Map())()))()),
-          exp = vpr.EqCmp(vpr.DomainFuncApp(func = tagFunc, Seq(vpr.DomainFuncApp(func = func, vars, Map())()), Map())(), vpr.IntLit(tag)())()
-        )()
-      }
-    )(domainName = domainName)
-
-    (func, Vector(tagAxiom))
-  }
-
-  private def appType(name: String, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
-    if (genTypesMap.contains(name)) {
-      vpr.DomainFuncApp(func = genTypesMap(name), args, Map.empty)(pos, info, errT)
+    if (genTypesMap.contains(typeHead)) {
+      genTypesMap(typeHead)
     } else {
-      val (func, axioms) = genTypeFunc(name, args.map(_.typ), genFuncs.size)
+
+      val name = serialize(typeHead)
+      val varsDecl = args.zipWithIndex.map{ case(t,i) => vpr.LocalVarDecl(s"p$i", t)() }
+      val vars = varsDecl map (_.localVar)
+
+      val func = vpr.DomainFunc(
+        name = functionName(name),
+        formalArgs = varsDecl,
+        typ = domainType
+      )(domainName = domainName)
+
+      val funcApp = vpr.DomainFuncApp(func = func, vars, Map.empty)()
+
+      val tagAxiom = {
+        val tagApp = vpr.DomainFuncApp(func = tagFunc, Seq(funcApp), Map.empty)()
+        val eq = vpr.EqCmp(tagApp, vpr.IntLit(tag)())()
+
+        vpr.AnonymousDomainAxiom(
+          if (args.isEmpty) eq
+          else vpr.Forall(varsDecl, Seq(vpr.Trigger(Seq(funcApp))()), eq)()
+        )(domainName = domainName)
+      }
+
+
+      val comparableAxiom = {
+        val rhs: vpr.Exp = Comparability.compareKind(typeHead)(ctx.lookup) match {
+          case Comparability.Kind.Comparable => vpr.TrueLit()();
+          case Comparability.Kind.NonComparable | Comparability.Kind.Dynamic => vpr.FalseLit()();
+          case Comparability.Kind.Recursive =>
+            val typVars = vars.filter(_.typ == domainType) // only arguments of type 'Type' have to be comparable
+            ViperUtil.bigAnd(
+              typVars map (v => vpr.DomainFuncApp(func = comparableTypeFunc, Seq(v), Map.empty)())
+            )(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        }
+
+        val comparableApp = vpr.DomainFuncApp(func = comparableTypeFunc, Seq(funcApp), Map.empty)()
+        val eq = vpr.EqCmp(comparableApp, rhs)()
+
+        vpr.AnonymousDomainAxiom(
+          if (args.isEmpty) eq
+          else vpr.Forall(varsDecl, Seq(vpr.Trigger(Seq(comparableApp))()), eq)()
+        )(domainName = domainName)
+      }
+
       genFuncs ::= func
-      genAxioms ++= axioms
-      genTypesMap += (name -> func)
-      vpr.DomainFuncApp(func = func, args, Map.empty)(pos, info, errT)
+      genAxioms ::= tagAxiom
+      genAxioms ::= comparableAxiom
+      genBehavioralSubtypeAxioms(ctx)
+
+      genTypesMap += (typeHead -> func)
+
+      func
     }
   }
 
   /** Type of viper expressions encoding Gobra types.  */
   override def typ()(ctx: Context): vpr.Type = domainType
 
-  /** transaltes Gobra types into Viper type expressions. */
-  override def typeExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
-    def go(typ: in.Type): vpr.Exp = typeExpr(typ)(pos, info, errT)(ctx)
+  /** Translates Gobra types into Viper type expressions. */
+  override def typeToExpr(typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    def go(typ: in.Type): vpr.Exp = typeToExpr(typ)(pos, info, errT)(ctx)
 
     typ match {
-      case t: in.DefinedT => defined(t.name)(pos, info, errT)(ctx)
-      case t: in.PointerT => pointer(go(t.t))(pos, info, errT)(ctx)
-      case _: in.BoolT => bool()(pos, info, errT)(ctx)
-      case t: in.IntT => int(t.kind)(pos, info, errT)(ctx)
-      case t: in.StructT => struct(t.fields.map( f => (f.name, go(f.typ), f.ghost)))(pos, info, errT)(ctx)
-      case t: in.ArrayT => array(vpr.IntLit(t.length)(pos, info, errT), go(t.elems))(pos, info, errT)(ctx)
-      case t: in.InterfaceT => interface(t.name)(pos, info, errT)(ctx)
-      case _: in.PermissionT => perm()(pos, info, errT)(ctx)
-      case t: in.SequenceT => sequence(go(t.t))(pos, info, errT)(ctx)
-      case t: in.SetT => set(go(t.t))(pos, info, errT)(ctx)
-      case t: in.MultisetT => mset(go(t.t))(pos, info, errT)(ctx)
-      case t: in.OptionT => option(go(t.t))(pos, info, errT)(ctx)
-      case t: in.TupleT => tuple(t.ts map go)(pos, info, errT)(ctx)
-      case t => Violation.violation(s"type $t is not supported as a type expression.")
+      case t: in.ArrayT =>
+        typeApp(typeHead(t), Vector(vpr.IntLit(t.length)(pos, info, errT), go(t.elems)))(pos, info, errT)(ctx)
+
+      case t =>
+        typeApp(typeHead(t), children(t) map go)(pos, info, errT)(ctx)
     }
   }
 
   /** Generates precise equality axioms for 'typ'. */
-  override def precise(typ: in.Type)(ctx: Context): Unit = {
+  override def genPreciseEqualityAxioms(typ: in.Type)(ctx: Context): Unit = {
 
-    def genAxiom(funcApp: vpr.Exp): Unit = {
-      val actualFuncApp = funcApp.asInstanceOf[vpr.DomainFuncApp]
-      val funcName = reverseFunctionName(actualFuncApp.funcname)
-      val funcArgTypes = actualFuncApp.args.map(_.typ).toVector
-      precise(funcName, funcArgTypes)
-    }
+    typeTree(typ).toVector foreach { hd => arity(hd) match {
+      case 0 => // already precise
+      case 1 if hd == ArrayHD =>
+        genPreciseEqualityAxioms(hd, Vector(vpr.Int, domainType))(ctx)
 
-    def go(typ: in.Type): Unit = precise(typ)(ctx)
-
-    val typeVar = (idx: Int) => vpr.LocalVar(s"x$idx", domainType)()
-    val intVar = (idx: Int) => vpr.LocalVar(s"x$idx", vpr.Int)()
-
-    typ match {
-      case _: in.DefinedT | _: in.BoolT | _: in.IntT | _: in.InterfaceT | _: in.PermissionT =>
-
-      case t: in.PointerT =>
-        genAxiom(pointer(typeVar(0))()(ctx)); go(t.t)
-
-      case t: in.StructT =>
-        genAxiom(struct(t.fields.zipWithIndex map { case (f, idx) => (f.name, typeVar(idx), f.ghost) })()(ctx))
-        t.fields foreach (f => go(f.typ))
-
-      case t: in.ArrayT =>
-        genAxiom(array(intVar(0), typeVar(1))()(ctx))
-        go(t.elems)
-
-      case t: in.SequenceT =>
-        genAxiom(sequence(typeVar(0))()(ctx))
-        go(t.t)
-
-      case t: in.SetT =>
-        genAxiom(set(typeVar(0))()(ctx))
-        go(t.t)
-
-      case t: in.MultisetT =>
-        genAxiom(mset(typeVar(0))()(ctx))
-        go(t.t)
-
-      case t: in.OptionT =>
-        genAxiom(option(typeVar(0))()(ctx))
-        go(t.t)
-
-      case t: in.TupleT =>
-        genAxiom(tuple(t.ts.indices.toVector map typeVar)()(ctx))
-        t.ts foreach go
-
-      case t => Violation.violation(s"type $t is not supported as a type expression.")
-    }
+      case n =>
+        genPreciseEqualityAxioms(hd, (0 until n).toVector map (_ => domainType))(ctx)
+    }}
   }
 
-  /** behavioral subtype relation. */
+
+
+  /** Behavioral subtype relation. */
   override def behavioralSubtype(subType: vpr.Exp, superType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
     vpr.DomainFuncApp(func = behavioralSubtypeFunc, Seq(subType, superType), Map.empty)(pos, info, errT)
 
-  /** constructor for defined type. */
-  override def defined(name: String)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType(name, Vector.empty)(pos, info, errT)
+  /** Function returning whether a type is comparable. */
+  override def isComparableType(typ: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
+    vpr.DomainFuncApp(func = comparableTypeFunc, Seq(typ), Map.empty)(pos, info, errT)
 
-  /** constructor for pointer type. */
-  override def pointer(elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("pointer", Vector(elem))(pos, info, errT)
+  /** Function returning whether a type is comparable. */
+  override def isComparableInterface(typ: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
+    vpr.DomainFuncApp(func = comparableInterfaceFunc, Seq(typ), Map.empty)(pos, info, errT)
 
-  /** constructor for nil type. */
-  override def nil()(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("nil", Vector.empty)(pos, info, errT)
-
-  /** constructor for boolean type. */
-  override def bool()(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("bool", Vector.empty)(pos, info, errT)
-
-  /** constructor for integer type. */
-  override def int(kind: IntegerKind)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    // in accordance with the type identity defined in [[frontend.info.implementation.property.TypeIdentity]]
-    val name = kind match {
-      case TypeBounds.Rune => TypeBounds.SignedInteger32.name
-      case TypeBounds.UnsignedInteger8 => TypeBounds.Byte.name
-      case tb => tb.name
-    }
-
-    appType(s"int_$name", Vector.empty)(pos, info, errT)
+  /** Constructor for Viper type expressions. */
+  override def typeApp(typeHead: TypeHead, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
+    val func = genTypeFunc(typeHead, args.map(_.typ), genFuncs.size)(ctx)
+    vpr.DomainFuncApp(func = func, args, Map.empty)(pos, info, errT)
   }
-
-  /** constructor for struct type. */
-  override def struct(fields: Vector[(String, vpr.Exp, Boolean)])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val (fieldNames, args) = fields.collect{ case (n, e, false) => (n, e) }.unzip
-    val name = s"struct_${fieldNames.mkString("_")}"
-    appType(name, args)(pos, info , errT)
-  }
-
-  /** constructor for array type. */
-  override def array(len: vpr.Exp, elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("array", Vector(len, elem))(pos, info, errT)
-
-  /** constructor for interface type. */
-  override def interface(name: String)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType(name, Vector.empty)(pos, info , errT)
-
-  /** constructor for permission type. */
-  override def perm()(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("perm", Vector.empty)(pos, info, errT)
-
-  /** constructor for sequence type. */
-  override def sequence(elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("sequence", Vector(elem))(pos, info, errT)
-
-  /** constructor for set type. */
-  override def set(elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("set", Vector(elem))(pos, info, errT)
-
-  /** constructor for multiset type. */
-  override def mset(elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("mset", Vector(elem))(pos, info, errT)
-
-  /** constructor for option type. */
-  override def option(elem: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("option", Vector(elem))(pos, info, errT)
-
-  /** constructor for tuple type. */
-  override def tuple(elems: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp =
-    appType("tuple", elems)(pos, info, errT)
 
 
   private def genDomain: vpr.Domain = {
-    val lazyAxioms = behavioralSubtypeAxioms
     vpr.Domain(
       name = domainName,
       functions = tagFunc +: behavioralSubtypeFunc +: genFuncs,
-      axioms = lazyAxioms ++ genAxioms,
+      axioms = genAxioms,
       typVars = Seq.empty
     )()
   }
 
   private var genFuncs: List[vpr.DomainFunc] = List.empty
   private var genAxioms: List[vpr.DomainAxiom] = List.empty
-  private var genTypesMap: Map[String, vpr.DomainFunc] = Map.empty
+  private var genTypesMap: Map[TypeHead, vpr.DomainFunc] = Map.empty
 
 
   override def finalize(collector: Collector): Unit = {

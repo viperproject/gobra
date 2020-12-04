@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// requires isComparable(typeOf(x)) || isComparable(typeOf(x)) 
+func compareInterfaces(x, y interface{}) {
+  var a int
+
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+}
+
+func compareSlices() {
+  var x, y []int
+  var i, j interface{} = x, y
+
+  assert i != nil
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  assert i == j
+}

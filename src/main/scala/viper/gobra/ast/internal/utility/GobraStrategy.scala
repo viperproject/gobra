@@ -97,6 +97,7 @@ object GobraStrategy {
       case (e: PointerTExpr, Seq(elems: Expr)) => PointerTExpr(elems)(meta)
       case (e: StructTExpr, Seq()) => StructTExpr(e.fields)(meta)
       case (e: ArrayTExpr, Seq(length: Expr, elems: Expr)) => ArrayTExpr(length, elems)(meta)
+      case (e: SliceTExpr, Seq(elems: Expr)) => SliceTExpr(elems)(meta)
       case (e: SequenceTExpr, Seq(elems: Expr)) => SequenceTExpr(elems)(meta)
       case (e: SetTExpr, Seq(elems: Expr)) => SetTExpr(elems)(meta)
       case (e: MultisetTExpr, Seq(elems: Expr)) => MultisetTExpr(elems)(meta)

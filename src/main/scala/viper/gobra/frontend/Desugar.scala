@@ -1104,6 +1104,11 @@ object Desugar {
             inElem <- go(elem)
           } yield in.ArrayTExpr(inLen, inElem)(src)
 
+        case PSliceType(elem) =>
+          for {
+            inElem <- go(elem)
+          } yield in.SliceTExpr(inElem)(src)
+
         case PSequenceType(elem) => for { inElem <- go(elem) } yield in.SequenceTExpr(inElem)(src)
         case PSetType(elem) => for { inElem <- go(elem) } yield in.SetTExpr(inElem)(src)
         case PMultisetType(elem) => for { inElem <- go(elem) } yield in.MultisetTExpr(inElem)(src)

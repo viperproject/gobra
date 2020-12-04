@@ -93,6 +93,7 @@ object TypeHead {
     case _: DefinedTExpr => Vector.empty
     case t: StructTExpr => t.fields.map(_._2)
     case t: ArrayTExpr => Vector(t.elems)
+    case t: SliceTExpr => Vector(t.elems)
     case _: PermTExpr => Vector.empty
     case t: SequenceTExpr => Vector(t.elems)
     case t: SetTExpr => Vector(t.elems)
@@ -109,6 +110,7 @@ object TypeHead {
     case t: DefinedTExpr => DefinedHD(t.name)
     case t: StructTExpr => StructHD(t.fields.map(t => (t._1, t._3)))
     case _: ArrayTExpr => ArrayHD
+    case _: SliceTExpr => SliceHD
     case _: PermTExpr => PermHD
     case _: SequenceTExpr => SeqHD
     case _: SetTExpr => SetHD

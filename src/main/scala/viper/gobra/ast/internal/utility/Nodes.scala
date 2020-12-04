@@ -85,6 +85,7 @@ object Nodes {
         case PointerTExpr(elem) => Seq(elem)
         case StructTExpr(fs) => Seq()
         case ArrayTExpr(len, elem) => Seq(len, elem)
+        case SliceTExpr(elem) => Seq(elem)
         case SequenceTExpr(elem) => Seq(elem)
         case SetTExpr(elem) => Seq(elem)
         case MultisetTExpr(elem) => Seq(elem)

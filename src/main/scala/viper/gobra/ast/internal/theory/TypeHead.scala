@@ -21,6 +21,7 @@ object TypeHead {
   case class IntHD(kind: IntegerKind) extends TypeHead
   case object PointerHD extends TypeHead
   case class DefinedHD(name: String) extends TypeHead
+  /** 'fields' stores for each field the name and whether the field is ghost. */
   case class StructHD(fields: Vector[(String, Boolean)]) extends TypeHead
   case object ArrayHD extends TypeHead
   case object SliceHD extends TypeHead

@@ -859,6 +859,7 @@ case class PermissionT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
 }
 
+/** The type of types. For now, we have a single sort. */
 case object SortT extends Type {
   override val addressability: Addressability = Addressability.mathDataStructureElement
   override def equalsWithoutMod(t: Type): Boolean = t == SortT

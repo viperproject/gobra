@@ -36,8 +36,8 @@ class StructEncoding extends TypeEncoding {
 
   private val ex: ExclusiveStructComponent = new ExclusiveStructComponent{ // For now, we use a simple tuple domain.
     override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
-    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.get(base, idx, vti.size)
-    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = ctx.tuple.create(args)
+    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.tuple.get(base, idx, vti.size), src)
+    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.tuple.create(args), src)
   }
 
   private val sh: SharedStructComponent = new SharedStructComponentImpl
@@ -112,14 +112,14 @@ class StructEncoding extends TypeEncoding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [(lhs: Struct{F}) == rhs] -> AND f in F: [lhs.f == rhs.f]
+    * [(lhs: Struct{F}) == rhs: Struct{_}] -> AND f in F: [lhs.f == rhs.f]
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [(x: *Struct{}°) == x] -> true
-    * [(lhs: *Struct{}°) == rhs] -> unknown()
-    * [(lhs: *Struct{F}°) == rhs] -> [lhs] == [rhs]
+    * [(x: *Struct{}°) == x: *Struct{}] -> true
+    * [(lhs: *Struct{}°) == rhs: *Struct{}] -> unknown()
+    * [(lhs: *Struct{F}°) == rhs: *Struct{_}] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
     case (lhs :: ctx.Struct(lhsFs), rhs :: ctx.Struct(rhsFs), src) =>
@@ -207,6 +207,26 @@ class StructEncoding extends TypeEncoding {
     */
   override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
     case loc :: ctx.Struct(_) / Shared => sh.addressFootprint(loc)(ctx)
+  }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: Struct{F} ] -> AND f in F: isComp[e.f]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Struct(fs) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        // if executed, then for all fields f, isComb[exp.f] != Left(false)
+        val (pos, info, errT) = exp.vprMeta
+        // fields that are not ghost and with dynamic comparability
+        val fsAccs = fieldAccesses(exp, fs.filter(f => !f.ghost))
+        val fsComp = fsAccs map ctx.typeEncoding.isComparable(ctx)
+        // Left(true) can be removed.
+        for {
+          args <- sequence(fsComp collect { case Right(e) => e })
+        } yield VU.bigAnd(args)(pos, info, errT)
+      }
   }
 
   /** Returns 'base'.f for every f in 'fields'. */

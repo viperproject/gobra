@@ -432,37 +432,36 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
-sealed trait PBinaryExp extends PActualExpression {
-  def left: PExpression
-
-  def right: PExpression
+sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
+  def left: L
+  def right: R
 }
 
-case class PEquals(left: PExpression, right: PExpression) extends PBinaryExp
+case class PEquals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
 
-case class PUnequals(left: PExpression, right: PExpression) extends PBinaryExp
+case class PUnequals(left: PExpressionOrType, right: PExpressionOrType) extends PBinaryExp[PExpressionOrType, PExpressionOrType]
 
-case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp
+case class PAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class POr(left: PExpression, right: PExpression) extends PBinaryExp
+case class POr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class PLess(left: PExpression, right: PExpression) extends PBinaryExp
+case class PLess(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class PAtMost(left: PExpression, right: PExpression) extends PBinaryExp
+case class PAtMost(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class PGreater(left: PExpression, right: PExpression) extends PBinaryExp
+case class PGreater(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class PAtLeast(left: PExpression, right: PExpression) extends PBinaryExp
+case class PAtLeast(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression]
 
-case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
+case class PAdd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PSub(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
+case class PSub(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PMul(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
+case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PMod(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
+case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp with PNumExpression
+case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
@@ -489,7 +488,7 @@ sealed abstract class PPredeclaredType(override val name: String) extends PNamed
 
 case class PBoolType() extends PPredeclaredType("bool")
 
-sealed trait PIntegerType
+sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
 case class PInt8Type() extends PPredeclaredType("int8") with PIntegerType
 case class PInt16Type() extends PPredeclaredType("int16") with PIntegerType
@@ -790,6 +789,10 @@ case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
 case class PExists(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
+
+case class PTypeOf(exp: PExpression) extends PGhostExpression
+
+case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
 
 /* ** Option types */

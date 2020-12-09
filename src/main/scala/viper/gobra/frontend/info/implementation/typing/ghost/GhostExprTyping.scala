@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -56,7 +56,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argT = exprType(n.exp)
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
-            case Type.NilType | _: Type.PointerT => noMessages
+            case Single(Type.NilType | _: Type.PointerT) => noMessages
             case _ => message(n, s"expected expression with pointer type, but got $argT")
           }
       }
@@ -64,6 +64,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
       case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
+    }
+
+    case PTypeOf(e) => isExpr(e).out
+    case n@ PIsComparable(e) => typOfExprOrType(e) match {
+      case t if isInterfaceType(t) => noMessages
+      case Type.SortT =>  noMessages
+      case t =>  message(n, s"expected interface or type, but got an expression of type $t")
     }
 
     case POptionNone(t) => isType(t).out
@@ -159,7 +166,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PAccess | _: PPredicateAccess => AssertionT
 
-    case POptionNone(t) => OptionT(typeType(t))
+    case _: PTypeOf => SortT
+    case _: PIsComparable => BooleanT
+
+    case POptionNone(t) => OptionT(typeSymbType(t))
     case POptionSome(e) => OptionT(exprType(e))
     case POptionGet(e) => exprType(e) match {
       case OptionT(t) => t
@@ -267,7 +277,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PNegation(e) => go(e)
 
-      case x: PBinaryExp => go(x.left) && go(x.right) && (x match {
+      case x: PBinaryExp[_,_] =>
+        asExpr(x.left).forall(go) && asExpr(x.right).forall(go) && (x match {
         case _: PEquals | _: PUnequals |
              _: PAnd | _: POr |
              _: PLess | _: PAtMost | _: PGreater | _: PAtLeast |
@@ -299,6 +310,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: PAccess | _: PPredicateAccess => !strong
 
+      case n: PTypeAssertion => go(n.base)
+      case n: PTypeOf => go(n.exp)
+      case n: PIsComparable => asExpr(n.exp).forall(go)
+
       case PCompositeLit(typ, _) => typ match {
         case _: PArrayType | _: PImplicitSizeArrayType => !strong
         case _ => true
@@ -317,7 +332,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PFunctionLit => false
 
       // Others
-      case PTypeAssertion(_, _) => false
       case PReceive(_) => false
     }
   }

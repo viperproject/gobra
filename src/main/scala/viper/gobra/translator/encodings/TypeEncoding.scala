@@ -7,6 +7,7 @@
 package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.theory.Comparability
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -123,18 +124,18 @@ trait TypeEncoding extends Generator {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     */
   def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: t, rhs, src) if typ(ctx).isDefinedAt(t) =>
+    case (lhs :: t, rhs :: s, src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
         vRhs <- ctx.expr.translate(rhs)(ctx)
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
 
-    case (lhs :: ctx.*(t) / Exclusive, rhs, src) if typ(ctx).isDefinedAt(t) =>
+    case (lhs :: ctx.*(t) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
@@ -172,6 +173,14 @@ trait TypeEncoding extends Generator {
     */
   def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
+  /**
+    * Encodes whether a value is comparable or not.
+    * If comparability is unambiguously determined by the type of the value, then Left is returned.
+    */
+  def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: t if typ(ctx).isDefinedAt(t) =>
+      Comparability.comparable(t)(ctx.lookup).toLeft(unit(withSrc(vpr.FalseLit(), exp)))
+  }
 
   /**
     * Encodes statements.
@@ -196,6 +205,8 @@ trait TypeEncoding extends Generator {
       )
   }
 
+
+
   /**
     * Alternative version of `orElse` to simplify delegations to super implementations.
     * @param dflt default partial function, applied if 'f' is not defined at argument
@@ -207,6 +218,12 @@ trait TypeEncoding extends Generator {
   protected def withSrc[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => T, src: in.Node): T = {
     val (pos, info, errT) = src.vprMeta
     node(pos, info, errT)
+  }
+
+  /** Adds source information to a node without source information. */
+  protected def withSrc[T](node: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => Context => T, src: in.Node, ctx: Context): T = {
+    val (pos, info, errT) = src.vprMeta
+    node(pos, info, errT)(ctx)
   }
 
   /** Adds simple (source) information to a node without source information. */

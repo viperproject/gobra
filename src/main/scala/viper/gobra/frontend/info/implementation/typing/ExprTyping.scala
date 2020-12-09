@@ -25,7 +25,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => noMessages
+            case Single(PointerT(t)) => noMessages
             case t => message(n, s"expected pointer type but got $t")
           }
 
@@ -52,16 +52,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprAndTypeType: Typing[PExpressionAndType] = createTyping[PExpressionAndType] {
-    case n: PNamedOperand => idType(n.id)
+    case n: PNamedOperand =>
+      exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
 
     case n: PDeref =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => t
+            case Single(PointerT(t)) => t
             case t => violation(s"expected pointer but got $t")
           }
-        case Some(p: ap.PointerType) => PointerT(typeType(p.base))
+        case Some(_: ap.PointerType) => SortT
         case _ => violation("Deref should always resolve to either the deref or pointer type pattern")
       }
 
@@ -72,12 +73,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.ReceivedPredicate) => memberType(p.symb)
 
         case Some(p: ap.MethodExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeType(p.typ))
+          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a method should be typed to a function type, but got $t")
         }
 
         case Some(p: ap.PredicateExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeType(p.typ))
+          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
 
@@ -87,7 +88,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => ???
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
-        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
         // TODO: supporting packages results in further options: global variable
@@ -95,6 +96,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
   }(wellDefExprAndType)
+
+  def exprOrTypeType(n: PExpressionOrType): Type = n match {
+    case n: PExpression => exprType(n)
+    case _: PType => SortT
+  }
 
 
   /** checks that argument is not a type. The argument might still be an assertion. */
@@ -116,17 +122,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PNilLit => noMessages
 
-    case n@PIntLit(v) =>
+    case n: PIntLit =>
       val typCtx = getTypeFromContext(n)
       if (typCtx.isDefined) assignableWithinBounds.errors(typCtx.get, n)(n) else noMessages
 
-    case n@PCompositeLit(t, lit) => {
+    case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
-        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
-        case t: PType => typeType(t)
+        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
+        case t: PType => typeSymbType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
-    }
 
     case _: PFunctionLit => noMessages
 
@@ -135,7 +140,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
         val msgs = message(n, "expected a single argument", p.arg.size != 1)
         if (msgs.nonEmpty) msgs
-        else convertibleTo.errors(exprType(p.arg.head), typeType(p.typ))(n) ++ isExpr(p.arg.head).out
+        else convertibleTo.errors(exprType(p.arg.head), typeSymbType(p.typ))(n) ++ isExpr(p.arg.head).out
 
       case (Left(callee), Some(p: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {
@@ -222,8 +227,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(base).out ++ isType(typ).out ++
         (exprType(base) match {
           case t: InterfaceT =>
-            val at = typeType(typ)
-            message(n, s"type error: expression $base of type $at does not implement $typ", implements(at, t))
+            val at = typeSymbType(typ)
+            message(n, s"type error: expression $base of type $at does not implement $typ", !implements(at, t))
           case t => message(n, s"type error: got $t expected interface")
         })
 
@@ -237,15 +242,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 
 
-    case n: PBinaryExp =>
-      val intKind = config.typeBounds.UntypedConst
-      isExpr(n.left).out ++ isExpr(n.right).out ++
-        ((n, exprType(n.left), exprType(n.right)) match {
+    case n: PBinaryExp[_,_] =>
+        (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+            val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
+            val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n) ++ {
               val res = for {
                 typCtx <- getTypeFromContext(n.asInstanceOf[PNumExpression])
@@ -253,7 +258,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               res.getOrElse(noMessages)
             }
           case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
-        })
+        }
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
@@ -292,7 +297,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       FunctionT(args map miscType, miscType(r))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(p: ap.Conversion)) => typeType(p.typ)
+      case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
@@ -319,7 +324,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
-    case PTypeAssertion(_, typ) => typeType(typ)
+    case PTypeAssertion(_, typ) =>
+      val resT = typeSymbType(typ)
+      InternalSingleMulti(resT, InternalTupleT(Vector(resT, BooleanT)))
 
     case PReceive(e) => exprType(e) match {
       case ChannelT(elem, ChannelModus.Bi | ChannelModus.Recv) =>
@@ -362,20 +369,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PAssignment(rights, lefts) =>
         val index = rights.indexOf(expr)
         Some(exprType(lefts(index)))
-      case PConstDecl(typ, _, _) => typ map typeType
-      case PVarDecl(typ, _, _, _) => typ map typeType
+      case PConstDecl(typ, _, _) => typ map typeSymbType
+      case PVarDecl(typ, _, _, _) => typ map typeSymbType
       case n: PInvoke => resolve(n) match {
         case Some(ap.FunctionCall(callee, args)) =>
           val index = args.indexOf(expr)
           callee match {
-            case f: ap.Function => Some(typeType(f.symb.args(index).typ))
+            case f: ap.Function => Some(typeSymbType(f.symb.args(index).typ))
             case _ => None
           }
 
         case Some(ap.PredicateCall(pred, args)) =>
           val index = args.indexOf(expr)
           pred match {
-            case p: ap.Predicate => Some(typeType(p.symb.args(index).typ))
+            case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
             case _ => None
           }
 
@@ -390,15 +397,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PLength | _: PCapacity => IntT(config.typeBounds.Int)
 
-    case bExpr: PBinaryExp =>
-      val typeLeft = exprType(bExpr.left)
-      val typeRight = exprType(bExpr.right)
+    case bExpr: PBinaryExp[_,_] =>
+      val typeLeft = exprOrTypeType(bExpr.left)
+      val typeRight = exprOrTypeType(bExpr.right)
       typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
-    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
-    case t: PType => typeType(t)
+    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
+    case t: PType => typeSymbType(t)
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {

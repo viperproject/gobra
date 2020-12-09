@@ -63,4 +63,27 @@ class OptionEncoding extends LeafTypeEncoding {
       } yield withSrc(ctx.optionToSeq.create(opT, typT), exp)
     }
   }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: option[T] ] -> [e] == none ? true : isComp[get(e)]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Option(t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val vT = ctx.typeEncoding.typ(ctx)(t)
+        for {
+          rhs <- ctx.typeEncoding.isComparable(ctx)(exp).right.get
+          isComp <- ctx.typeEncoding.isComparable(ctx)(in.OptionGet(exp)(exp.info)).right.get
+          res = vpr.CondExp(
+            vpr.EqCmp(rhs, ctx.option.none(vT)(pos, info, errT))(pos, info, errT),
+            vpr.TrueLit()(pos, info, errT),
+            isComp
+          )(pos, info, errT)
+        } yield res
+      }
+  }
 }

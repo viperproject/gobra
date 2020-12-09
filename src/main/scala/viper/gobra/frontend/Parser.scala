@@ -352,7 +352,7 @@ object Parser {
         "const" ~> "(" ~> (constSpec <~ eos).* <~ ")"
 
     lazy val constSpec: Parser[PConstDecl] =
-      rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
+      rep1sep(maybeBlankIdnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
         case left ~ None => PConstDecl(None, Vector.empty, left)
         case left ~ Some(t ~ right) => PConstDecl(t, right, left)
       }
@@ -362,7 +362,7 @@ object Parser {
         "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+      rep1sep(maybeAddressableIdn(maybeBlankIdnDef), ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
         case left ~ t ~ None =>
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), Vector.empty, vars, addressable)
@@ -370,7 +370,7 @@ object Parser {
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), right, vars, addressable)
       } |
-        (rep1sep(maybeAddressableIdnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
+        (rep1sep(maybeAddressableIdn(maybeBlankIdnDef), ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right =>
             val (vars, addressable) = left.unzip
             PVarDecl(None, right, vars, addressable)
@@ -457,10 +457,12 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selection | indexedExp | dereference | namedOperand
+      selection | indexedExp | dereference | namedOperand | blankIdentifierAssignee
+
+    lazy val blankIdentifierAssignee: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
+      (rep1sep(maybeAddressableIdn(maybeBlankIdnUnk), ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
         case lefts ~ rights =>
           val (vars, addressable) = lefts.unzip
           PShortVarDecl(rights, vars, addressable)
@@ -1001,6 +1003,14 @@ object Parser {
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
+    lazy val maybeBlankIdnDef: Parser[MaybeBlankPIdnDef] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnDef
+    lazy val maybeBlankIdnUse: Parser[MaybeBlankPIdnUse] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnUse
+    lazy val maybeBlankIdnUnk: Parser[MaybeBlankPIdnUnk] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnUnk
+
+    def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
+      p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+
+    // TODO: defined these methods using maybeAdressableIdn
     lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
       idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
@@ -1020,6 +1030,7 @@ object Parser {
 
     lazy val addressabilityMod: Parser[String] = Constants.ADDRESSABILITY_MODIFIER
 
+    lazy val blankIdentifier: Parser[String] = "_"
 
     lazy val identifier: Parser[String] =
       // "_" is not an identifier (but a wildcard)

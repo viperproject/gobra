@@ -76,7 +76,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
     case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left.map(_.fold(identity, identity)): _*)
+    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
       val res = enclosingCodeRootWithResult(n).result
@@ -102,6 +102,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PCapacity
        | _: PLiteral
        | _: PReference
+       | _: PBlankIdentifier
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.

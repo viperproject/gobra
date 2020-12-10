@@ -98,8 +98,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   /**
     * Shows a list of addressable variables.
     */
-  def showAddressableVars(vars: Vector[PIdnUnk], prefix: Doc): Doc =
-      (if (vars.isEmpty) emptyDoc else prefix <+> addressable_variables <+> showList(vars)(showId(_)))
+  def showAddressableVars(vars: Vector[PIdnNode], prefix: Doc): Doc =
+      (if (vars.isEmpty) emptyDoc else prefix <+> addressable_variables <+> showList(vars)(showId))
 
 
   /**
@@ -187,7 +187,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
-          showAddressableVars(aAddressableVars.filter(_.isRight).map(_.right.get), prefix)
+          showAddressableVars(aAddressableVars, prefix)
 
         case AssignMode.Multi =>
           val (aLeft, ghostLeft) = left.partition(!classifier.isIdGhost(_))
@@ -201,7 +201,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
-          showAddressableVars(aAddressableVars.filter(_.isRight).map(_.right.get), prefix)
+          showAddressableVars(aAddressableVars, prefix)
 
         case AssignMode.Error => errorMsg
       }

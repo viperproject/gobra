@@ -129,9 +129,9 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[Either[PWildcard, PIdnDef]]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[Either[PWildcard, PIdnDef]], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -200,7 +200,7 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PShortVarDecl(right: Vector[PExpression], left: Vector[Either[PWildcard, PIdnUnk]], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
+case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -594,26 +594,13 @@ sealed trait PIdnNode extends PNode {
   def name: String
 }
 
-trait PDefLikeId extends PIdnNode
-trait PUseLikeId extends PIdnNode
-trait PUnkLikeId extends PIdnNode
-
-// trait PAbstractPIdnDef extends PDefLikeId
-// trait PAbstractPIdnUse extends PUseLikeId
-// trait PAbstractPIdnUnk extends PUnkLikeId
-
-//case class PIdnDef(name: String) extends PAbstractPIdnDef
-//case class PIdnUse(name: String) extends PAbstractPIdnUse
-//case class PIdnUnk(name: String) extends PAbstractPIdnUnk
+sealed trait PDefLikeId extends PIdnNode
+sealed trait PUseLikeId extends PIdnNode
+sealed trait PUnkLikeId extends PIdnNode
 
 case class PIdnDef(name: String) extends PDefLikeId
 case class PIdnUse(name: String) extends PUseLikeId
 case class PIdnUnk(name: String) extends PUnkLikeId
-
-//case class MaybeBlankPIdnDef(name: String) extends PAbstractPIdnDef
-//case class MaybeBlankPIdnUse(name: String) extends PAbstractPIdnUse
-//case class MaybeBlankPIdnUnk(name: String) extends PAbstractPIdnUnk
-
 
 sealed trait PLabelNode extends PNode {
   def name: String
@@ -637,7 +624,7 @@ case class PPkgDef(name: PPkg) extends PDefLikePkg
 case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
-case class PWildcard() extends PDefLikeId with PUseLikeId {
+case class PWildcard() extends PDefLikeId with PUseLikeId with PUnkLikeId {
   override def name: String = "_"
 }
 

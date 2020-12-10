@@ -70,11 +70,11 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PShortVarDecl(right, left, _) =>
       StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
-          val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isIdGhost(p._2.fold(identity, identity))).unzip
+          val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isIdGhost(p._2)).unzip
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))
 
         case AssignMode.Multi =>
-          val aLeft = left.filter(x => !classifier.isIdGhost(x.fold(identity, identity)))
+          val aLeft = left.filter(!classifier.isIdGhost(_))
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(right, aLeft, aLeft.map(_ => false)))
 
         case AssignMode.Error => errorMsg

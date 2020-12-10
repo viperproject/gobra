@@ -178,8 +178,7 @@ object Desugar {
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map {
-      case Right(l) => {
-        // l is PIdnDef
+      case l: PIdnDef =>
         info.regular(l) match {
           case sc@st.SingleConstant(_, id, expr, _, _, context) =>
             val src = meta(id)
@@ -196,11 +195,9 @@ object Desugar {
             in.GlobalConstDecl(gVar, intLit)(src)
           case _ => ???
         }
-      }
 
-      case Left(_) =>
-        // Wildcard case
-        ???
+      case _: PWildcard =>
+        ??? // TODO
     }
 
     // Note: Alternatively, we could return the set of type definitions directly.
@@ -580,7 +577,11 @@ object Desugar {
       val src: Meta = meta(stmt)
 
       // TODO: doc parameters
-      def getVar[T <: PIdnNode](idn: Either[PWildcard, T])(t: in.Type): in.AssignableVar = idn.fold(_ => freshExclusiveVar(t)(src), x => assignableVarD(ctx)(x))
+      // TODO: check if similar function already exists
+      def getVar(idn: PIdnNode)(t: in.Type): in.AssignableVar = idn match {
+        case _: PWildcard => freshExclusiveVar(t)(src)
+        case x =>assignableVarD(ctx)(x)
+      }
 
       stmt match {
         case NoGhost(noGhost) => noGhost match {
@@ -665,15 +666,16 @@ object Desugar {
               sequence((left zip right).map{ case (l, r) =>
                 for{
                   // TODO: replace this
+
                   re <- goE(r)
-                  le <- unit(in.Assignee.Var(l.fold( _ => freshExclusiveVar(re.typ)(src) , x => assignableVarD(ctx)(x))))
+                  le <- unit(in.Assignee.Var(getVar(l)(re.typ)))
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
                 // TODO: replace this
                 re  <- goE(right.head)
-                les <- unit(left.map{l => in.Assignee.Var(l.fold(_ => freshExclusiveVar(re.typ)(src), x => assignableVarD(ctx)(x)))})
+                les <- unit(left.map{l => in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
@@ -696,7 +698,7 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typOpt.map(x => typeD(info.typ(x), Addressability.defaultValue)(src)).get)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(l.fold(meta, meta)/*meta(l)*/))(l.fold(meta,meta) /*meta(l)*/) }
+              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
 

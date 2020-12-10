@@ -30,7 +30,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case s if enclosingGhostContext(s) => true
       case PAssignment(_, left) => left.forall(ghostExprClassification)
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
-      case PShortVarDecl(_, left, _) => left.forall(x => ghostIdClassification(x.fold(identity, identity)))
+      case PShortVarDecl(_, left, _) => left.forall(ghostIdClassification)
       case _ => false
     }
 

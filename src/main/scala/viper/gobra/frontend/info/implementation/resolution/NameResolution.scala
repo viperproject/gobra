@@ -30,20 +30,18 @@ trait NameResolution { this: TypeInfoImpl =>
         p match {
 
         case decl: PConstDecl =>
-          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnDef] && x._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => decl.left(idx) match {
-              case Right(idn) => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
-              case Left(w) => Wildcard(w, this)
+              case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+              case w: PWildcard => Wildcard(w, this)
             }
             case _ => UnknownEntity()
           }
 
         case decl: PVarDecl =>
-          // TODO: fix bogus comparison
-          // val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnDef] && x._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), this)
@@ -86,8 +84,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
         case decl: PShortVarDecl =>
-          // val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
-          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnUnk] && x._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx), this)
@@ -158,8 +155,8 @@ trait NameResolution { this: TypeInfoImpl =>
       case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-          case d: PConstDecl => d.left.filter(_.isRight).map(_.right.get)
-          case d: PVarDecl => d.left.filter(_.isRight).map(_.right.get)
+          case d: PConstDecl => d.left.filter(_.isInstanceOf[PIdnDef]).map(_.asInstanceOf[PIdnDef])
+          case d: PVarDecl => d.left.filter(_.isInstanceOf[PIdnDef]).map(_.asInstanceOf[PIdnDef])
           case d: PFunctionDecl => Vector(d.id)
           case d: PTypeDecl => Vector(d.left)
           case _: PMethodDecl => Vector.empty

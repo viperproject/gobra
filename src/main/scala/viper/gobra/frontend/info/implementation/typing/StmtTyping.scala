@@ -24,11 +24,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PConstDecl(typ, right, left) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map (_.fold(idType, idType)))(n)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map (_.fold(idType, idType)))(n)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
@@ -55,9 +55,9 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(right), exprType(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
-      if (lefts.map(_.fold(identity, identity)).filter(_.isInstanceOf[PIdnUnk]).forall(pointsToData))//TODO: may lead to error because Wildcard is not data entity
+      if (lefts.filter(_.isInstanceOf[PIdnUnk]).forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
-          multiAssignableTo.errors(rights map exprType, lefts map (x => idType(x.fold(identity, identity))))(n)
+          multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
       else message(n, s"at least one assignee in $lefts points to a type")
 
     case n: PIfStmt => n.ifs.flatMap(ic =>

@@ -272,6 +272,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case PBlankIdentifier() => noMessages
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
@@ -349,6 +351,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PUnfolding => exprType(n.op)
 
     case n: PExpressionAndType => exprAndTypeType(n)
+
+    case PBlankIdentifier() => TopT
 
     case e => violation(s"unexpected expression $e")
   }

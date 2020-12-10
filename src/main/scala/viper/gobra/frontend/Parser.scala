@@ -1006,12 +1006,8 @@ object Parser {
     def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
       p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
-    // TODO: defined these methods using maybeAdressableIdn
-    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
-
-    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] = maybeAddressableIdn(idnDef)
+    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] = maybeAddressableIdn(idnUnk)
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard

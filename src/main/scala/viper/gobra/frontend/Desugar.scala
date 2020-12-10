@@ -665,15 +665,12 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  // TODO: replace this
-
                   re <- goE(r)
                   le <- unit(in.Assignee.Var(getVar(l)(re.typ)))
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                // TODO: replace this
                 re  <- goE(right.head)
                 les <- unit(left.map{l => in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)

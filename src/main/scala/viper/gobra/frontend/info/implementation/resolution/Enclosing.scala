@@ -71,8 +71,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
           case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))
-          case PShortVarDecl(right, left, _) => ??? // TODO: Some(typ(left(right.indexOf(n))))
-          // case PShortVarDecl(right, left, _) => Some(left(right.indexOf(n)).fold(_ => right(n).typ, typ))
+          case PShortVarDecl(right, left, _) => Some(typ(left(right.indexOf(n))))
             // no if statement
           case _: PExprSwitchStmt => None
             // no for stmt

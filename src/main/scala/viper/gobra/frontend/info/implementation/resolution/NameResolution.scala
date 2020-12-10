@@ -30,7 +30,7 @@ trait NameResolution { this: TypeInfoImpl =>
         p match {
 
         case decl: PConstDecl =>
-          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnDef] && x._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => decl.left(idx) match {
@@ -41,7 +41,7 @@ trait NameResolution { this: TypeInfoImpl =>
           }
 
         case decl: PVarDecl =>
-          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnDef] && x._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), this)
@@ -84,7 +84,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
         case decl: PShortVarDecl =>
-          val idx = decl.left.zipWithIndex.find(x => x._1.isInstanceOf[PIdnUnk] && x._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx), this)
@@ -218,7 +218,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)
 
-  lazy val entity: PIdnNode => Entity = {
+  lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
 
       case w@PWildcard() => Wildcard(w, this)
@@ -239,9 +239,8 @@ trait NameResolution { this: TypeInfoImpl =>
       case n =>
         (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
           // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
-          case (n: PIdnUse, UnknownEntity()) => print(n); tryUnqualifiedPackageLookup(n)
+          case (n: PIdnUse, UnknownEntity()) => tryUnqualifiedPackageLookup(n)
           case (_, e: Entity) => e
         }
     }
-  }
 }

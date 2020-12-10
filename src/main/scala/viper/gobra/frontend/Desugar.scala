@@ -177,22 +177,31 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
-      case sc@ st.SingleConstant(_, id, expr, _, _, context) =>
-        val src = meta(id)
-        val gVar = globalConstD(sc)(src)
-        val intLit: Lit = gVar.typ match {
-          case in.BoolT(Addressability.Exclusive) =>
-            val constValue = sc.context.boolConstantEvaluation(sc.exp)
-            in.BoolLit(constValue.get)(src)
-          case in.IntT(Addressability.Exclusive, _) =>
-            val constValue = sc.context.intConstantEvaluation(sc.exp)
-            in.IntLit(constValue.get)(src)
+    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map {
+      case Right(l) => {
+        // l is PIdnDef
+        info.regular(l) match {
+          case sc@st.SingleConstant(_, id, expr, _, _, context) =>
+            val src = meta(id)
+            val gVar = globalConstD(sc)(src)
+            val intLit: Lit = gVar.typ match {
+              case in.BoolT(Addressability.Exclusive) =>
+                val constValue = sc.context.boolConstantEvaluation(sc.exp)
+                in.BoolLit(constValue.get)(src)
+              case in.IntT(Addressability.Exclusive, _) =>
+                val constValue = sc.context.intConstantEvaluation(sc.exp)
+                in.IntLit(constValue.get)(src)
+              case _ => ???
+            }
+            in.GlobalConstDecl(gVar, intLit)(src)
           case _ => ???
         }
-        in.GlobalConstDecl(gVar, intLit)(src)
-      case _ => ???
-    })
+      }
+
+      case Left(_) =>
+        // Wildcard case
+        ???
+    }
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].
@@ -570,6 +579,9 @@ object Desugar {
 
       val src: Meta = meta(stmt)
 
+      // TODO: doc parameters
+      def getVar[T <: PIdnNode](idn: Either[PWildcard, T])(t: in.Type): in.AssignableVar = idn.fold(_ => freshExclusiveVar(t)(src), x => assignableVarD(ctx)(x))
+
       stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
@@ -652,34 +664,39 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
+                  // TODO: replace this
                   re <- goE(r)
+                  le <- unit(in.Assignee.Var(l.fold( _ => freshExclusiveVar(re.typ)(src) , x => assignableVarD(ctx)(x))))
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l => in.Assignee.Var(assignableVarD(ctx)(l))})
+                // TODO: replace this
                 re  <- goE(right.head)
+                les <- unit(left.map{l => in.Assignee.Var(l.fold(_ => freshExclusiveVar(re.typ)(src), x => assignableVarD(ctx)(x)))})
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, addressable) =>
 
-            if (left.size == right.size) {
-              sequence((left zip right).map{ case (l, r) =>
+            if (left.size == right.size && left.size == addressable.size) {
+              sequence((left zip right zip addressable).map{ case ((l, r), addr) =>
                 for{
-                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
+                  // TODO: does it even make sense to have shared `_`???
+                  typ: in.Type = typOpt.map(x => typeD(info.typ(x), if(addr) Addressability.Shared else Addressability.Exclusive)(src)).getOrElse(re.typ)
+                  le <- unit(in.Assignee.Var(getVar(l)(typ)))
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l =>  in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
+                // TODO: compute addressability just like above
+                les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
-              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
+              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typOpt.map(x => typeD(info.typ(x), Addressability.defaultValue)(src)).get)) }
+              val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(l.fold(meta, meta)/*meta(l)*/))(l.fold(meta,meta) /*meta(l)*/) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
 

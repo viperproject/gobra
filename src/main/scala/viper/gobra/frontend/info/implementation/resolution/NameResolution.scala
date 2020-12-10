@@ -30,19 +30,20 @@ trait NameResolution { this: TypeInfoImpl =>
         p match {
 
         case decl: PConstDecl =>
-          // TODO: hacky
-          // val idx = decl.left.zipWithIndex./*filter(_._1.name != "_").*/map(x => (PIdnDef(x._1.name), x._2)).find(_._1 == id).get._2
-          val idx = decl.left.zipWithIndex.map(x => (PIdnDef(x._1.name), x._2)).find(_._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleConstant(decl, PIdnDef(decl.left(idx).name), decl.right(idx), decl.typ, isGhost, this)
+            case AssignMode.Single => decl.left(idx) match {
+              case Right(idn) => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+              case Left(w) => Wildcard(w, this)
+            }
             case _ => UnknownEntity()
           }
 
         case decl: PVarDecl =>
-          // TODO: redo, looks like it is failing here
-          // println(decl.left)
-          val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          // TODO: fix bogus comparison
+          // val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), this)
@@ -85,8 +86,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
         p match {
         case decl: PShortVarDecl =>
-          // println("AAAA")
-          val idx = decl.left.zipWithIndex./*filter(_._1.name != "_").*/map { x => (PIdnUnk(x._1.name), x._2) }.find(_._1 == id).get._2 //TODO: fix this
+          // val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
+          val idx = decl.left.zipWithIndex.find(x => x._1.isRight && x._1.right.get == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
             case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx), this)
@@ -152,20 +153,13 @@ trait NameResolution { this: TypeInfoImpl =>
     }
 
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
-    // println("Add to env + :" + n)
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
       case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-            // TODO: Check with Felix
-            // TODO: improve/refactor solution
-          case d: PConstDecl =>
-            // print(d.left)
-            d.left./*filter(_.name != "_").*/map(x => PIdnDef(x.name))
-          case d: PVarDecl => // d.left
-            // println("Bla" + d.left)
-            d.left./*filter(_.name != "_").*/map(x => PIdnDef(x.name))
+          case d: PConstDecl => d.left.filter(_.isRight).map(_.right.get)
+          case d: PVarDecl => d.left.filter(_.isRight).map(_.right.get)
           case d: PFunctionDecl => Vector(d.id)
           case d: PTypeDecl => Vector(d.left)
           case _: PMethodDecl => Vector.empty
@@ -201,7 +195,6 @@ trait NameResolution { this: TypeInfoImpl =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
     }
 
-    println(shallowDefs(n))
     shallowDefs(n).foldLeft(env) {
       case (e, id) => defineIfNew(e, serialize(id), defEntity(id))
     }
@@ -231,7 +224,7 @@ trait NameResolution { this: TypeInfoImpl =>
   lazy val entity: PIdnNode => Entity = {
     attr[PIdnNode, Entity] {
 
-      // case x => println(x); UnknownEntity()
+      case w@PWildcard() => Wildcard(w, this)
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())
@@ -247,13 +240,10 @@ trait NameResolution { this: TypeInfoImpl =>
         } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
 
       case n =>
-//        println("Node " + n)
-//        println(serialize(n))
         (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
           // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
           case (n: PIdnUse, UnknownEntity()) => print(n); tryUnqualifiedPackageLookup(n)
           case (_, e: Entity) => e
-            // print("e: " + e)
         }
     }
   }

@@ -139,11 +139,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left, addressable) =>
-      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v.fold(identity, identity)) } <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showConstDecl(decl: PConstDecl): Doc = decl match {
-    case PConstDecl(typ, right, left) => "const" <+> showIdList(left) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+    case PConstDecl(typ, right, left) => "const" <+> showIdList(left.map(_.fold(identity, identity))) <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
   }
 
   def showTypeDecl(decl: PTypeDecl): Doc = decl match {
@@ -177,7 +177,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
-        showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
+        showList(left zip addressable){ case (l, a) => showAddressable(a, l.fold(identity, identity)) } <+> ":=" <+> showExprList(right)
       case PLabeledStmt(label, s) => showId(label) <> ":" <+> showStmt(s)
       case PEmptyStmt() => emptyDoc
       case PExpressionStmt(exp) => showExpr(exp)

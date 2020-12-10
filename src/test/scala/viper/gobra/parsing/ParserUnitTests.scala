@@ -141,7 +141,7 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
   test("Parser: imported struct initialization") {
     frontend.parseStmtOrFail("a := b.BarCell{10}") should matchPattern {
       case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
-        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(MaybeBlankPIdnUnk("a")), Vector(false))
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(Right(PIdnUnk("a"))), Vector(false))
           if value == 10 =>
     }
   }

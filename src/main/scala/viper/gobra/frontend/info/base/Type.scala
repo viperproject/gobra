@@ -20,6 +20,8 @@ object Type {
     val context: ExternalTypeInfo
   }
 
+  case object TopT extends Type
+
   case object UnknownType extends Type
 
   case object VoidType extends Type

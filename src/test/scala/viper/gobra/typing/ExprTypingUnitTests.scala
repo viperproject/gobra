@@ -3381,7 +3381,7 @@ class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
     )
 
     def singleExprProgram(inArgs: Vector[(PParameter, Boolean)], expr : PExpression) : PProgram = {
-      val stmt = PShortVarDecl(Vector(expr), Vector(MaybeBlankPIdnUnk("n")), Vector(false))
+      val stmt = PShortVarDecl(Vector(expr), Vector(Right(PIdnUnk("n"))), Vector(false))
       stubProgram(inArgs, stmt)
     }
 

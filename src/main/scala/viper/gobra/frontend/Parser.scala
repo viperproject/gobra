@@ -1003,11 +1003,11 @@ object Parser {
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
-    lazy val maybeBlankIdnDef: Parser[MaybeBlankPIdnDef] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnDef
-    lazy val maybeBlankIdnUse: Parser[MaybeBlankPIdnUse] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnUse
-    lazy val maybeBlankIdnUnk: Parser[MaybeBlankPIdnUnk] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnUnk
+    lazy val maybeBlankIdnDef: Parser[Either[PWildcard, PIdnDef]] = wildcard.map(Left(_)) | idnDef.map(Right(_))
+    // lazy val maybeBlankIdnUse: Parser[MaybeBlankPIdnUse] = (blankIdentifier | identifier) ^^ MaybeBlankPIdnUse
+    lazy val maybeBlankIdnUnk: Parser[Either[PWildcard, PIdnUnk]] = wildcard.map(Left(_)) | idnUnk.map(Right(_))
 
-    def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
+    def maybeAddressableIdn[T <: PIdnNode](p: Parser[Either[PWildcard, T]]): Parser[(Either[PWildcard, T], Boolean)] =
       p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
     // TODO: defined these methods using maybeAdressableIdn

@@ -187,8 +187,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
 
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
-          // TODO: hack
-          showAddressableVars(aAddressableVars.map{x => PIdnUnk(x.name)}, prefix)
+          showAddressableVars(aAddressableVars.filter(_.isRight).map(_.right.get), prefix)
 
         case AssignMode.Multi =>
           val (aLeft, ghostLeft) = left.partition(!classifier.isIdGhost(_))
@@ -202,8 +201,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
-          // TODO: Hack
-          showAddressableVars(aAddressableVars.map{x => PIdnUnk(x.name)}, prefix)
+          showAddressableVars(aAddressableVars.filter(_.isRight).map(_.right.get), prefix)
 
         case AssignMode.Error => errorMsg
       }

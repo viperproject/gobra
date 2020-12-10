@@ -22,6 +22,8 @@ trait GhostClassifier {
 
   def isIdGhost(id: PIdnNode): Boolean
 
+  def isIdGhost[T <: PIdnNode](id: Either[PWildcard, T]): Boolean = isIdGhost(id.fold(identity, identity))
+
   def isParamGhost(param: PParameter): Boolean
 
   def isStructClauseGhost(clause: PStructClause): Boolean

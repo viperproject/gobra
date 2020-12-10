@@ -18,8 +18,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {
-    id => println("ID: " + id.getClass.toString);
-      entity(if(id.isInstanceOf[MaybeBlankPIdnDef]) PIdnDef(id.name) else id) match {
+    id => entity(id) match {
       case _: UnknownEntity => LocalMessages(message(id, s"got unknown identifier $id"))
       case _: MultipleEntity => LocalMessages(message(id, s"got duplicate identifier $id"))
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
@@ -166,6 +165,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Embbed(PEmbeddedDecl(_, fieldId), _, context) => context.typ(fieldId)
 
     case Import(decl, _) => ImportT(decl)
+
+    case Wildcard(_, _) => TopT
 
     case _ => violation("untypable")
   }

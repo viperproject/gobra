@@ -14,6 +14,7 @@ import scala.concurrent.Future
 
 object ViperVerifierConfig {
   object EmptyConfig extends ViperVerifierConfig {val partialCommandLine: List[String] = Nil}
+  case class Config(partialCommandLine: List[String]) extends ViperVerifierConfig
 }
 
 trait ViperVerifierConfig {

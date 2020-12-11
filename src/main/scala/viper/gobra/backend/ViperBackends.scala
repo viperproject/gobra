@@ -6,7 +6,6 @@
 
 package viper.gobra.backend
 
-import scala.concurrent.ExecutionContext
 import viper.server.core.ViperCoreServer
 
 trait ViperBackend {
@@ -14,8 +13,6 @@ trait ViperBackend {
 }
 
 object ViperBackends {
-
-  implicit val executionContext = ExecutionContext.global
 
   object SiliconBackend extends ViperBackend {
     def create(exePaths: Vector[String]): Silicon = {

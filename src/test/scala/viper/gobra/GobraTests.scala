@@ -18,6 +18,7 @@ import viper.silver.utility.TimingUtils
 
 import scala.concurrent.ExecutionContextExecutor
 import akka.actor.ActorSystem
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -53,7 +54,8 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
           inputFiles = Vector(input.file.toFile)
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config), Duration.Inf))
+        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 

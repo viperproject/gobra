@@ -9,30 +9,20 @@ package viper.gobra.backend
 import viper.silver.ast.Program
 import viper.silver.reporter.{Message, OverallFailureMessage, OverallSuccessMessage, Reporter}
 import viper.silver.verifier.{Success, VerificationResult}
+import akka.actor.{Actor, Props}
 
-import akka.actor.{Actor, ActorSystem, Props}
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, Promise}
-import akka.pattern.ask
-import akka.util.Timeout
-import scala.concurrent.duration._
-
+import scala.concurrent.{Future, Promise}
+import viper.gobra.util.GobraExecutionContext
 
 import viper.server.core.{ViperBackendConfig, ViperCoreServer}
 
 
 object ViperServer {
-  implicit val actor_system: ActorSystem = ActorSystem("Gobra_Actor_System")
-  implicit private val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   case object Result
 
-  class GlueActor(reporter: Reporter) extends Actor {
-    val verificationPromise: Promise[VerificationResult] = Promise()
-
+  class GlueActor(reporter: Reporter, verificationPromise: Promise[VerificationResult]) extends Actor {
     override def receive: Receive = {
-
-      case Result =>
-        sender ! verificationPromise
 
       case msg: Message =>
         try {
@@ -55,17 +45,16 @@ object ViperServer {
 class ViperServer(server: ViperCoreServer) extends ViperVerifier {
 
   import ViperServer._
-  import scala.language.postfixOps
 
-  def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: Program): Future[VerificationResult] = {
+  def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
+    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
+    implicit val _executor: GobraExecutionContext = executor
 
     val handle = server.verify(programID, config, program)
-    val clientActor = actor_system.actorOf(Props(new GlueActor(reporter)))
+    val promise: Promise[VerificationResult] = Promise()
+    val clientActor = executor.actorSystem.actorOf(Props(new GlueActor(reporter, promise)))
     server.streamMessages(handle, clientActor)
-
-    implicit val askTimeout: Timeout = Timeout(server.config.actorCommunicationTimeout() milliseconds)
-    val query = (clientActor ? Result).mapTo[Promise[VerificationResult]]
-    query.flatMap(_.future)
+    promise.future
   }
 
 }

@@ -7,14 +7,21 @@
 package viper.gobra.backend
 
 import viper.gobra.util.GobraExecutionContext
-import viper.server.core.ViperBackendConfig
 import viper.silver
 import viper.silver.reporter.Reporter
 
 import scala.concurrent.Future
 
-trait ViperVerifier extends Backend[String, ViperBackendConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
+object ViperVerifierConfig {
+  object EmptyConfig extends ViperVerifierConfig {val partialCommandLine: List[String] = Nil}
+}
 
-  def verify(programID: String, config: ViperBackendConfig, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
+trait ViperVerifierConfig {
+  val partialCommandLine: List[String]
+}
+
+trait ViperVerifier extends Backend[String, ViperVerifierConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
+
+  def verify(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
 
 }

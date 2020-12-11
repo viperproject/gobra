@@ -6,8 +6,6 @@
 
 package viper.gobra.backend
 
-import viper.server.core.ViperCoreServer
-
 trait ViperBackend {
   def create(exePaths: Vector[String]): ViperVerifier
 }
@@ -34,24 +32,6 @@ object ViperBackends {
       options ++= exePaths
 
       new Carbon(options)
-    }
-  }
-
-  object ViperServerBackend extends ViperBackend {
-    var server: ViperCoreServer = _
-
-    def setServer(coreServer: ViperCoreServer) {
-      require(server == null, "ViperCoreServer is already set.")
-      server = coreServer
-    }
-
-    def create(exePaths: Vector[String]): ViperServer = {
-      require(server != null, "ViperCoreServer needs to be set before creation.")
-      new ViperServer(server)
-    }
-
-    def resetServer() {
-      server = null
     }
   }
 }

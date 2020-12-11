@@ -1,9 +1,5 @@
 package viper.gobra.util
 
-import java.util.concurrent.ExecutorService
+import scala.concurrent.ExecutionContext
 
-import viper.server.core.VerificationExecutionContext
-
-trait GobraExecutionContext extends VerificationExecutionContext {
-  def service: ExecutorService
-}
+trait GobraExecutionContext extends ExecutionContext

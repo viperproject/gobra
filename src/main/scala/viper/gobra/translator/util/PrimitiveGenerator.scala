@@ -17,12 +17,12 @@ object PrimitiveGenerator {
     def gen(v: A): (R, Vector[vpr.Member])
   }
 
-  def simpleGenerator[A, R](f: A => (R, Vector[vpr.Member])): PrimitiveGenerator[A, R] = new PrimitiveGenerator[A, R] {
+  def simpleGenerator[A <: AnyRef, R](f: A => (R, Vector[vpr.Member])): PrimitiveGenerator[A, R] = new PrimitiveGenerator[A, R] {
 
     var generatedMember: Set[vpr.Member] = Set.empty
-    val cashedGen: A => (R, Vector[vpr.Member]) = Computation.cashedComputation(f)
+    val cachedGen: A => (R, Vector[vpr.Member]) = Computation.cachedComputation(f)
 
-    override def gen(v: A): (R, Vector[vpr.Member]) = cashedGen(v)
+    override def gen(v: A): (R, Vector[vpr.Member]) = cachedGen(v)
 
     override def finalize(col: Collector): Unit = generatedMember foreach col.addMember
 

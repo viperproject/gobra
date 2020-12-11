@@ -8,10 +8,9 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, lookup}
+import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}

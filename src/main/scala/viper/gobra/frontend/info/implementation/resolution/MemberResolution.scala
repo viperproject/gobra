@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.relation.Relation
-import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
+import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{PackageResolver, Parser}
@@ -19,8 +19,6 @@ import viper.gobra.reporting.{NotFoundError, VerifierError}
 
 
 trait MemberResolution { this: TypeInfoImpl =>
-
-  import scala.collection.breakOut
 
   override def createField(decl: PFieldDecl): Field =
     defEntity(decl.id).asInstanceOf[Field]
@@ -45,9 +43,9 @@ trait MemberResolution { this: TypeInfoImpl =>
       .collect {
         case m: PMethodDecl => createMethodImpl(m)
         case PExplicitGhostMember(m: PMethodDecl) => createMethodImpl(m)
-      }(breakOut)
+      }
       .groupBy { m: MethodImpl => miscType(m.decl.receiver) }
-      .mapValues(ms => AdvancedMemberSet.init(ms))
+      .transform((_, ms) => AdvancedMemberSet.init(ms))
   }
 
   def receiverMethodSet(recv: Type): AdvancedMemberSet[MethodLike] =
@@ -55,9 +53,9 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
     tree.root.declarations
-      .collect { case m: PMPredicateDecl => createMPredImpl(m) }(breakOut)
+      .collect { case m: PMPredicateDecl => createMPredImpl(m) }
       .groupBy { m: MPredicateImpl => miscType(m.decl.receiver) }
-      .mapValues(ms => AdvancedMemberSet.init(ms))
+      .transform((_, ms) => AdvancedMemberSet.init(ms))
   }
 
   def receiverPredicateSet(recv: Type): AdvancedMemberSet[MethodLike] =

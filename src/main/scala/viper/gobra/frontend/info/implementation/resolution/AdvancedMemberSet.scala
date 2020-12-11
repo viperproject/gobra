@@ -18,8 +18,6 @@ class AdvancedMemberSet[M <: TypeMember] private(
   import org.bitbucket.inkytonik.kiama.==>
   import viper.gobra.util.Violation._
 
-  import scala.collection.breakOut
-
   type Record = (M, Vector[MemberPath], Int)
 
   def rank(path: Vector[MemberPath]): Int = path.count {
@@ -41,8 +39,9 @@ class AdvancedMemberSet[M <: TypeMember] private(
     new AdvancedMemberSet[M](newMap.toMap, duplicates ++ other.duplicates ++ newDups.flatten)
   }
 
-  private def updatePath(f: (M, Vector[MemberPath], Int) => (M, Vector[MemberPath], Int)): AdvancedMemberSet[M] =
-    new AdvancedMemberSet[M](internal.mapValues(f.tupled), duplicates)
+  private def updatePath(f: (M, Vector[MemberPath], Int) => (M, Vector[MemberPath], Int)): AdvancedMemberSet[M] = {
+    new AdvancedMemberSet[M](internal.transform((_, value) => f.tupled(value)), duplicates)
+  }
 
   def surface: AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Underlying +: p, l) }
   def promote(f: Embbed): AdvancedMemberSet[M] = updatePath { case (m, p, l) => (m, MemberPath.Next(f) +: p, l + 1) }
@@ -56,26 +55,24 @@ class AdvancedMemberSet[M <: TypeMember] private(
     internal.get(key).map(r => (r._1, r._2))
 
   def filter(f: TypeMember => Boolean): AdvancedMemberSet[M] =
-    new AdvancedMemberSet[M](internal.filterKeys(n => f(internal(n)._1)), duplicates)
+    new AdvancedMemberSet[M](internal.filter({ case (key, _) => f(internal(key)._1)}), duplicates)
 
   def collect[T](f: (String, M) ==> T): Vector[T] = internal.collect {
     case (n, (m, _, _)) if f.isDefinedAt(n, m) => f(n, m)
-  }(breakOut)
+  }.toVector
 
   def containsAll(other: AdvancedMemberSet[M]): Boolean = other.internal.keySet.forall(internal.contains)
 
-  def toMap: Map[String, M] = internal.mapValues(_._1)
+  def toMap: Map[String, M] = internal.transform((_, value) => value._1)
 
   def valid: Boolean = duplicates.isEmpty
 
   def errors(src: PType): Messages = {
-    duplicates.flatMap(n => message(src, s"type $src has member $n more than once"))(breakOut)
+    duplicates.flatMap(n => message(src, s"type $src has member $n more than once")).toVector
   }
 }
 
 object AdvancedMemberSet {
-
-  import scala.collection.breakOut
 
   def init[M <: TypeMember](s: TraversableOnce[M]): AdvancedMemberSet[M] = {
     val nmp: Vector[(String, M)] = s.map { tm =>
@@ -95,7 +92,7 @@ object AdvancedMemberSet {
     val groups = nmp.map(_._1).groupBy(identity)
     val member = nmp.toMap
 
-    val dups: Set[String] = groups.collect{ case (x, ys) if ys.size > 1 => x }(breakOut)
+    val dups: Set[String] = groups.collect{ case (x, ys) if ys.size > 1 => x }.toSet
     val distinct = groups.keySet
 
     new AdvancedMemberSet[M](distinct.map(n => n -> (member(n), Vector.empty[MemberPath], 0)).toMap, dups)

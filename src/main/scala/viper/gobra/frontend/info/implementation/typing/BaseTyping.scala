@@ -100,7 +100,7 @@ trait BaseTyping { this: TypeInfoImpl =>
     override def invalid(ret: Type): Boolean = ret == UnknownType
   }
 
-  private[typing] def createTyping[T](inference: T => Type)(implicit wellDef: WellDefinedness[T]): Typing[T] =
+  private[typing] def createTyping[T <: AnyRef](inference: T => Type)(implicit wellDef: WellDefinedness[T]): Typing[T] =
     new Attribution with Typing[T] with Memoization[T, Type] {
 
       override def safe(n: T): Boolean = wellDef.valid(n)
@@ -108,7 +108,7 @@ trait BaseTyping { this: TypeInfoImpl =>
       override def compute(n: T): Type = inference(n)
     }
 
-  private[typing] def createWellDefInference[X, Z](wellDef: X => Boolean)(inference: X => Z): X => Option[Z] =
+  private[typing] def createWellDefInference[X <: AnyRef, Z](wellDef: X => Boolean)(inference: X => Z): X => Option[Z] =
     new Attribution with Safety[X, Option[Z]] with Memoization[X, Option[Z]] {
 
       override def safe(n: X): Boolean = wellDef(n)

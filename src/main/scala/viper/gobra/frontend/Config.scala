@@ -357,8 +357,8 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,
     shouldViperEncode = shouldViperEncode,
-    checkOverflows = checkOverflows.supplied,
-    int32bit = int32Bit.supplied,
+    checkOverflows = checkOverflows(),
+    int32bit = int32Bit(),
     shouldVerify = shouldVerify
   )
 }

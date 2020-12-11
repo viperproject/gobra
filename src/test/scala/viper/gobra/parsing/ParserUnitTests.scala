@@ -12,7 +12,6 @@ import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
-import scala.reflect.ClassTag
 
 import scala.reflect.ClassTag
 

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Single, SortT, Type}
@@ -57,46 +57,46 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
             case Single(Type.NilType | _: Type.PointerT) => noMessages
-            case _ => message(n, s"expected expression with pointer type, but got $argT")
+            case _ => error(n, s"expected expression with pointer type, but got $argT")
           }
       }
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
-      case _ => message(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
+      case _ => error(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
     }
 
     case PTypeOf(e) => isExpr(e).out
     case n@ PIsComparable(e) => typOfExprOrType(e) match {
       case t if isInterfaceType(t) => noMessages
       case Type.SortT =>  noMessages
-      case t =>  message(n, s"expected interface or type, but got an expression of type $t")
+      case t =>  error(n, s"expected interface or type, but got an expression of type $t")
     }
 
     case POptionNone(t) => isType(t).out
     case POptionSome(e) => isExpr(e).out
     case POptionGet(e) => isExpr(e).out ++ {
       val t = exprType(e)
-      message(e, s"expected an option type, but got $t", !t.isInstanceOf[OptionT])
+      error(e, s"expected an option type, but got $t", !t.isInstanceOf[OptionT])
     }
 
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         exprType(right) match {
           case t : GhostCollectionType => comparableTypes.errors(exprType(left), t.elem)(expr)
-          case t => message(right, s"expected a ghost collection, but got $t")
+          case t => error(right, s"expected a ghost collection, but got $t")
         }
       }
 
       case PCardinality(op) => isExpr(op).out ++ {
         val t = exprType(op)
-        message(op,s"expected a set or multiset, but got $t", !t.isInstanceOf[GhostUnorderedCollectionType])
+        error(op,s"expected a set or multiset, but got $t", !t.isInstanceOf[GhostUnorderedCollectionType])
       }
 
       case PMultiplicity(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         (exprType(left), exprType(right)) match {
           case (t1, t2 : GhostCollectionType) => comparableTypes.errors(t1, t2.elem)(expr)
-          case (_, t) => message(right, s"expected a ghost collection, but got $t")
+          case (_, t) => error(right, s"expected a ghost collection, but got $t")
         }
       }
 
@@ -104,25 +104,25 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
           val highT = exprType(high)
-          message(low, s"expected an integer, but got $lowT", !lowT.isInstanceOf[IntT]) ++
-            message(high, s"expected an integer, but got $highT", !highT.isInstanceOf[IntT])
+          error(low, s"expected an integer, but got $lowT", !lowT.isInstanceOf[IntT]) ++
+            error(high, s"expected an integer, but got $highT", !highT.isInstanceOf[IntT])
         }
         case PSequenceAppend(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
           val t1 = exprType(left)
           val t2 = exprType(right)
-          message(left, s"expected a sequence, but got $t1", !t1.isInstanceOf[SequenceT]) ++
-            message(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
+          error(left, s"expected a sequence, but got $t1", !t1.isInstanceOf[SequenceT]) ++
+            error(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
         case PSequenceUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
           case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
-          case t => message(seq, s"expected a sequence, but got $t")
+          case t => error(seq, s"expected a sequence, but got $t")
         })
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
-          case _: ArrayT => isExpr(op).out ++ message(op, s"exclusive array expected, but shared array $op found", addressable(op))
+          case _: ArrayT => isExpr(op).out ++ error(op, s"exclusive array expected, but shared array $op found", addressable(op))
           case _: OptionT => isExpr(op).out
-          case t => message(op, s"expected an array or sequence type, but got $t")
+          case t => error(op, s"expected an array or sequence type, but got $t")
         }
       }
 
@@ -130,17 +130,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case expr: PBinaryGhostExp => isExpr(expr.left).out ++ isExpr(expr.right).out ++ {
           val t1 = exprType(expr.left)
           val t2 = exprType(expr.right)
-          message(expr.left, s"expected an unordered collection, but got $t1", !t1.isInstanceOf[GhostUnorderedCollectionType]) ++
-            message(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
+          error(expr.left, s"expected an unordered collection, but got $t1", !t1.isInstanceOf[GhostUnorderedCollectionType]) ++
+            error(expr.right, s"expected an unordered collection, but got $t2", !t2.isInstanceOf[GhostUnorderedCollectionType]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
         case PSetConversion(op) => exprType(op) match {
           case SequenceT(_) | SetT(_) | OptionT(_) => isExpr(op).out
-          case t => message(op, s"expected a sequence, set or option type, but got $t")
+          case t => error(op, s"expected a sequence, set or option type, but got $t")
         }
         case PMultisetConversion(op) => exprType(op) match {
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
-          case t => message(op, s"expected a sequence, multiset or option type, but got $t")
+          case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
       }
     }
@@ -149,7 +149,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
     case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
       assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
-    case t => message(clause.left, s"expected an integer type but got $t")
+    case t => error(clause.left, s"expected an integer type but got $t")
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
@@ -223,7 +223,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * in the standard separation logic sense.
     */
   def isPureExpr(expr: PExpression) : Messages =
-    message(expr, s"expected pure expression but got $expr", !isPureExprAttr(expr))
+    error(expr, s"expected pure expression but got $expr", !isPureExprAttr(expr))
 
   /**
     * Determines whether `expr` is a weakly pure expression,
@@ -231,7 +231,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * sense but is allowed to contain (accessibility) predicates.
     */
   private[typing] def isWeaklyPureExpr(expr: PExpression): Messages =
-    message(expr, s"expression '$expr' is an invalid quantified permission body'",
+    error(expr, s"expression '$expr' is an invalid quantified permission body'",
       !isWeaklyPureExprAttr(expr))
 
   /**
@@ -392,7 +392,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         combineTriggerResults(res1, res2)
       }
       case PNamedOperand(id) => (Vector(id.name), noMessages)
-      case _ => (Vector(), message(expr, s"invalid trigger pattern '$expr'"))
+      case _ => (Vector(), error(expr, s"invalid trigger pattern '$expr'"))
     }
   }
 
@@ -413,7 +413,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     // [consistency] check whether all `boundVars` occur inside `trigger`
     val msgs2 = (boundVars filterNot (v => usedVars.contains(v.id.name)))
-      .flatMap(v => message(v, s"consistency error: variable '${v.id}' is not mentioned in the trigger pattern '$trigger'"))
+      .flatMap(v => error(v, s"consistency error: variable '${v.id}' is not mentioned in the trigger pattern '$trigger'"))
 
     msgs1 ++ msgs2
   }

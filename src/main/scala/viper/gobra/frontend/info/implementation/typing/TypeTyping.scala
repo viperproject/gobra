@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -19,7 +19,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isTypeCondition = exprOrType(n).isRight
-    message(n, s"expected expression, but got $n", !isTypeCondition)
+    error(n, s"expected expression, but got $n", !isTypeCondition)
   }
 
   lazy val wellDefAndType: WellDefinedness[PType] = createWellDef { n =>
@@ -36,12 +36,12 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolType | _: PIntegerType => noMessages
 
     case typ @ PArrayType(_, PNamedOperand(_)) =>
-      message(typ, s"arrays of custom declared types are currently not supported")
+      error(typ, s"arrays of custom declared types are currently not supported")
 
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
-        case None => message(n, s"expected constant array length, but got $len")
-        case Some(v) => message(len, s"array length should be positive, but got $v", v < 0)
+        case None => error(n, s"expected constant array length, but got $len")
+        case Some(v) => error(len, s"array length should be positive, but got $v", v < 0)
       }
     }
 
@@ -54,13 +54,13 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PFunctionType => noMessages // parameters and result is implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
-      message(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
+      error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
       structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
-      message(t, "invalid recursive struct", cyclicStructDef(t))
+      error(t, "invalid recursive struct", cyclicStructDef(t))
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
 

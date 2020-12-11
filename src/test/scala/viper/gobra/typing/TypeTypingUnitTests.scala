@@ -6,6 +6,7 @@
 
 package viper.gobra.typing
 
+import org.bitbucket.inkytonik.kiama.util.Positions
 import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
@@ -366,10 +367,11 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
 
     private def typeInfo(ts : Vector[PType]) : TypeInfoImpl = {
       val program = stubProgram(ts)
+      val positions = new Positions
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
-        new PositionManager()
+        new PositionManager(positions)
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()

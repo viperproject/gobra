@@ -806,6 +806,11 @@ case class PermissionT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
 }
 
+case class TopT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[TopT]
+  override def withAddressability(newAddressability: Addressability): TopT = TopT(newAddressability)
+}
+
 /**
   * The type of `length`-sized arrays of elements of type `typ`.
   */

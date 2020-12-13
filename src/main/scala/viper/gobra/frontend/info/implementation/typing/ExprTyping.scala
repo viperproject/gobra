@@ -352,7 +352,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
-    case PBlankIdentifier() => TopT
+    case b: PBlankIdentifier => TopT //getBlankIdTypeFromCtx(b)
 
     case e => violation(s"unexpected expression $e")
   }
@@ -365,7 +365,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
       case PAssignment(rights, lefts) =>
         val index = rights.indexOf(expr)
-        Some(exprType(lefts(index)))
+        lefts(index) match {
+          case PBlankIdentifier() => None
+          case x => Some(exprType(x))
+        }
       case PConstDecl(typ, _, _) => typ map typeType
       case PVarDecl(typ, _, _, _) => typ map typeType
       case n: PInvoke => resolve(n) match {
@@ -386,6 +389,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => None
       }
       case _ => None
+    }
+  }
+
+  private def getBlankIdTypeFromCtx(b: PBlankIdentifier): Type = b match {
+    case tree.parent(p) => p match {
+      case PAssignment(right, left) => left.zipWithIndex.find(b eq _._1).map(x => exprType(right(x._2))).getOrElse(UnknownType)
+      case PAssForRange(_, ass, _) => ??? // TODO: implement when for range statements are supported
+      case PSelectAssRecv(_, ass, _) => ??? // TODO: implement when select statements are supported
+      case x => violation("blank identifier not supported in node " + x )
     }
   }
 

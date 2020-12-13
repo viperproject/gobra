@@ -177,28 +177,28 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map {
-      case l: PIdnDef =>
-        info.regular(l) match {
-          case sc@st.SingleConstant(_, id, expr, _, _, context) =>
-            val src = meta(id)
-            val gVar = globalConstD(sc)(src)
-            val intLit: Lit = gVar.typ match {
-              case in.BoolT(Addressability.Exclusive) =>
-                val constValue = sc.context.boolConstantEvaluation(sc.exp)
-                in.BoolLit(constValue.get)(src)
-              case in.IntT(Addressability.Exclusive, _) =>
-                val constValue = sc.context.intConstantEvaluation(sc.exp)
-                in.IntLit(constValue.get)(src)
-              case _ => ???
-            }
-            in.GlobalConstDecl(gVar, intLit)(src)
+    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+      case sc@st.SingleConstant(_, id, expr, _, _, context) =>
+        val src = meta(id)
+        val gVar = globalConstD(sc)(src)
+        val intLit: Lit = gVar.typ match {
+          case in.BoolT(Addressability.Exclusive) =>
+            val constValue = sc.context.boolConstantEvaluation(sc.exp)
+            in.BoolLit(constValue.get)(src)
+          case in.IntT(Addressability.Exclusive, _) =>
+            val constValue = sc.context.intConstantEvaluation(sc.exp)
+            in.IntLit(constValue.get)(src)
           case _ => ???
         }
+        Vector(in.GlobalConstDecl(gVar, intLit)(src))
 
-      case _: PWildcard =>
-        ??? // TODO
-    }
+      // Constants defined with the blank identifier can be safely ignored as they
+      // must be computable statically (and thus do not have side effects) and
+      // they can never be read
+      case st.Wildcard(_, _) => Vector()
+
+      case _ => ???
+    })
 
     // Note: Alternatively, we could return the set of type definitions directly.
     //       However, currently, this would require to have versions of [[typeD]].
@@ -576,11 +576,11 @@ object Desugar {
 
       val src: Meta = meta(stmt)
 
-      // TODO: doc parameters
-      // TODO: check if similar function already exists
+      // Generates a fresh variable if `idn` is a wildcard or returns the variable
+      // associated with idn otherwise
       def getVar(idn: PIdnNode)(t: in.Type): in.AssignableVar = idn match {
         case _: PWildcard => freshExclusiveVar(t)(src)
-        case x =>assignableVarD(ctx)(x)
+        case x => assignableVarD(ctx)(x)
       }
 
       stmt match {
@@ -682,19 +682,19 @@ object Desugar {
               sequence((left zip right zip addressable).map{ case ((l, r), addr) =>
                 for{
                   re <- goE(r)
-                  // TODO: does it even make sense to have shared `_`???
-                  typ: in.Type = typOpt.map(x => typeD(info.typ(x), if(addr) Addressability.Shared else Addressability.Exclusive)(src)).getOrElse(re.typ)
+                  addressability = if(addr) Addressability.Shared else Addressability.Exclusive
+                  typ: in.Type = typOpt.map(x => typeD(info.typ(x), addressability)(src)).getOrElse(re.typ)
                   le <- unit(in.Assignee.Var(getVar(l)(typ)))
                 } yield in.SingleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
                 re  <- goE(right.head)
-                // TODO: compute addressability just like above
                 les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typOpt.map(x => typeD(info.typ(x), Addressability.defaultValue)(src)).get)) }
+              val addressability = typOpt.map(x => typeD(info.typ(x), Addressability.defaultValue)(src)).get
+              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(addressability)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
@@ -858,6 +858,7 @@ object Desugar {
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
           indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
+        case Some(p: ap.BlankIdentifier) => unit(in.Assignee.Var(freshExclusiveVar(in.TopT(Addressability.defaultValue))(src)))
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
@@ -1253,6 +1254,8 @@ object Desugar {
       case Type.InterfaceT(decl) => ???
 
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
+
+      case Type.TopT => in.TopT(Addressability.defaultValue)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }

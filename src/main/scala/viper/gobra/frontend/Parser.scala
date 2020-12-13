@@ -445,9 +445,9 @@ object Parser {
       (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ { case left ~ right => PAssignment(right, left) }
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
-      assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
+      nonBlankAssignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
+        nonBlankAssignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
+        nonBlankAssignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |
@@ -456,10 +456,13 @@ object Parser {
         "/" ^^^ PDivOp() |
         "%" ^^^ PModOp()
 
-    lazy val assignee: Parser[PAssignee] =
-      selection | indexedExp | dereference | namedOperand | blankIdentifierAssignee
+    lazy val nonBlankAssignee: Parser[PAssignee] =
+      selection | indexedExp | dereference | namedOperand
 
-    lazy val blankIdentifierAssignee: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
+    lazy val assignee: Parser[PAssignee] =
+      nonBlankAssignee | blankIdentifier
+
+    lazy val blankIdentifier: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(maybeAddressableIdn(idnUnkLike), ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {

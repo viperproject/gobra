@@ -58,6 +58,10 @@ trait GhostAssignability {
 
       case _ => message(left, "ghost error: selections on types are not assignable")
     }
+
+    case PBlankIdentifier() =>
+      // message(left, "ghost error: ghost cannot be assigned to blank identifier", isRightGhost)
+      noMessages
   }
 
   /** conservative ghost separation assignment check */

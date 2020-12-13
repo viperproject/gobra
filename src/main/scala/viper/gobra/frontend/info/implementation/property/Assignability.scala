@@ -79,6 +79,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case _: MapT => true
       case _ => false
     }
+    case PBlankIdentifier() => true
     case e => goAddressable(e)
   }
 

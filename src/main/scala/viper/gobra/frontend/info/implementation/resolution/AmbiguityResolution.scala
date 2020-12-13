@@ -97,6 +97,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       case Right(_) => None // unknown pattern
     }
 
+    case b: PBlankIdentifier => Some(ap.BlankIdentifier(getRespectiveBlankIdExpression(b)))
+
       // unknown pattern
     case _ => None
   }

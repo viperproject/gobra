@@ -24,7 +24,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
       case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
       case entity: ActualRegular => wellDefActualRegular(entity, id)
-      case entity: GhostRegular  => wellDefGhostRegular(entity, id)
+      case entity: GhostRegular => wellDefGhostRegular(entity, id)
     }
   }
 
@@ -116,7 +116,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val idType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {
       case entity: ActualRegular => actualEntityType(entity, id)
-      case entity: GhostRegular =>  ghostEntityType(entity, id)
+      case entity: GhostRegular => ghostEntityType(entity, id)
     }
   }
 
@@ -166,8 +166,36 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Import(decl, _) => ImportT(decl)
 
-    case Wildcard(_, _) => TopT
+    case Wildcard(decl, _) => getWildcardType(decl)
 
     case _ => violation("untypable")
   }
+
+  def getRespectiveWildcardExpr(w: PWildcard): PExpression = {
+    def aux(left: Vector[PIdnNode], right: Vector[PExpression]): PExpression =
+      // joao: the use of "eq" here is a hack to find the index of the blank identifier in the left list
+      // and then use that index to retrieve the corresponding expression
+      left.zipWithIndex.find(w eq _._1)
+        .map(x => right(x._2))
+        .getOrElse(violation("wildcard must correspond to some expression"))
+
+    w match {
+      case tree.parent(p) => p match {
+        case PShortVarDecl(right, left, _) => aux(left, right)
+        case PVarDecl(_, right, left, _) => aux(left, right)
+        case PConstDecl(_, right, left) => aux(left, right)
+        case x => ???
+      }
+    }
+  }
+
+  private def getWildcardType(w: PWildcard): Type =
+    w match {
+      case tree.parent(p) => p match {
+        case _: PShortVarDecl => exprType(getRespectiveWildcardExpr(w))
+        case PVarDecl(typ, _, _, _) => typ.map(typeType).getOrElse(exprType(getRespectiveWildcardExpr(w)))
+        case PConstDecl(typ, _, _) => typ.map(typeType).getOrElse(exprType(getRespectiveWildcardExpr(w)))
+        case _ => ???
+      }
+    }
 }

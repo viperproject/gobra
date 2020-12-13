@@ -693,7 +693,7 @@ object Desugar {
                 les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val addressability = typOpt.map(x => typeD(info.typ(x), Addressability.defaultValue)(src)).get
+              val addressability = typeD(info.typ(typOpt.get), Addressability.defaultValue)(src)
               val lelems = left.map{ l => in.Assignee.Var(getVar(l)(addressability)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.typ(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => in.SingleAss(l, r)(src) })(src))
@@ -858,7 +858,8 @@ object Desugar {
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
           indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
-        case Some(p: ap.BlankIdentifier) => unit(in.Assignee.Var(freshExclusiveVar(in.TopT(Addressability.defaultValue))(src)))
+        case Some(ap.BlankIdentifier(correspondingExpr)) =>
+          for { expr <- exprD(ctx)(correspondingExpr) } yield in.Assignee.Var(freshExclusiveVar(expr.typ)(src))
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
@@ -1254,8 +1255,6 @@ object Desugar {
       case Type.InterfaceT(decl) => ???
 
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
-
-      case Type.TopT => in.TopT(Addressability.defaultValue)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }

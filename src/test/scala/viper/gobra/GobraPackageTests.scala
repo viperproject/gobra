@@ -93,7 +93,7 @@ class GobraPackageTests extends GobraTests {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)
       throwError.value = true
-      Some(new ScallopGobraConfig(args).config)
+      Some(new ScallopGobraConfig(args.toSeq).config)
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

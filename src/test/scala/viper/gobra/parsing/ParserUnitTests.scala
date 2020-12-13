@@ -9,13 +9,15 @@ package viper.gobra.parsing
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
 import org.scalatest.exceptions.TestFailedException
-import org.scalatest.{FunSuite, Inside, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Inside
+import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
 
 import scala.reflect.ClassTag
 
-class ParserUnitTests extends FunSuite with Matchers with Inside {
+class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   private val frontend = new TestFrontend()
 
   test("Parser: Dot") {

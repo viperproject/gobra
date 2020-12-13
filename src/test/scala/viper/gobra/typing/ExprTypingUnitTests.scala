@@ -7,7 +7,9 @@
 package viper.gobra.typing
 
 import org.bitbucket.inkytonik.kiama.util.Positions
-import org.scalatest.{FunSuite, Inside, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Inside
+import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.Info
@@ -15,7 +17,7 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{DefaultInt, UnboundedInteger}
 
-class ExprTypingUnitTests extends FunSuite with Matchers with Inside {
+class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
   test("TypeChecker: should classify an integer literal as integer") {

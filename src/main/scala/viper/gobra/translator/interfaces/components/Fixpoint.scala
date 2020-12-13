@@ -13,6 +13,6 @@ import viper.silver.{ast => vpr}
 
 trait Fixpoint extends Generator {
 
-  def create(gc: in.GlobalConstDecl)(ctx: Context)
+  def create(gc: in.GlobalConstDecl)(ctx: Context): Unit
   def get(gc: in.GlobalConst)(ctx: Context): vpr.DomainFuncApp
 }

@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.base
 
 import viper.gobra.ast.frontend.{PImport, PInterfaceType, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.util.TypeBounds
 
 import scala.collection.immutable.ListMap
 
@@ -29,26 +30,7 @@ object Type {
 
   case object BooleanT extends Type
 
-  case class IntT(kind: IntegerKind) extends Type
-
-  sealed trait IntegerKind
-  case object UntypedConst extends IntegerKind
-  sealed abstract class BoundedIntegerKind(val lower: BigInt, val upper: BigInt) extends IntegerKind
-  case object Int extends BoundedIntegerKind(-2147483648, 2147483647) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
-  case object Int8 extends BoundedIntegerKind(-128, 127)
-  case object Int16 extends BoundedIntegerKind(-32768, 32767)
-  sealed abstract class IntWith32bit extends BoundedIntegerKind(-2147483648, 2147483647)
-  case object Int32 extends IntWith32bit
-  case object Rune extends IntWith32bit
-  case object Int64 extends BoundedIntegerKind(-9223372036854775808L, 9223372036854775807L)
-  case object UInt extends BoundedIntegerKind(0, 4294967295L) // TODO: allow for changes according to the int size of the machine arch (either 32 or 64 bit)
-  sealed abstract class UIntWith8bit extends BoundedIntegerKind(0, 255)
-  case object UInt8 extends UIntWith8bit
-  case object Byte extends UIntWith8bit
-  case object UInt16 extends BoundedIntegerKind(0, 65535)
-  case object UInt32 extends BoundedIntegerKind(0, 4294967295L)
-  case object UInt64 extends BoundedIntegerKind(0, BigInt("18446744073709551615"))
-  case object UIntPtr extends BoundedIntegerKind(0, BigInt("18446744073709551615")) //TODO: change according to spec
+  case class IntT(kind: TypeBounds.IntegerKind) extends Type
 
   case class ArrayT(length: BigInt, elem: Type) extends Type {
     require(length >= 0, "The length of an array must be non-negative")
@@ -86,7 +68,12 @@ object Type {
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 
   // TODO: at least add type info
-  case class InterfaceT(decl: PInterfaceType) extends Type
+  case class InterfaceT(decl: PInterfaceType) extends Type {
+    lazy val isEmpty: Boolean = {
+      decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&
+        decl.embedded.isEmpty
+    }
+  }
 
 
   case class InternalTupleT(ts: Vector[Type]) extends Type
@@ -95,7 +82,7 @@ object Type {
 
   case class ImportT(decl: PImport) extends Type
 
-
+  case object SortT extends Type
 
   sealed trait GhostType extends Type
 

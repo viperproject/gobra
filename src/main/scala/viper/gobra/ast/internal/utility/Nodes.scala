@@ -49,6 +49,7 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
+        case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -68,14 +69,34 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, typ) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, typ) => Seq(recv, meth) ++ args
+        case Conversion(_, expr) => Seq(expr)
         case DfltVal(typ) => Seq()
         case Tuple(args) => args
         case Deref(exp, typ) => Seq(exp)
         case Ref(ref, typ) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
+        case TypeAssertion(exp, _) => Seq(exp)
+        case TypeOf(exp) => Seq(exp)
+        case IsComparableType(exp) => Seq(exp)
+        case IsComparableInterface(exp) => Seq(exp)
+        case ToInterface(exp, _) => Seq(exp)
+        case BoolTExpr() => Seq()
+        case IntTExpr(kind) => Seq()
+        case PermTExpr() => Seq()
+        case PointerTExpr(elem) => Seq(elem)
+        case StructTExpr(fs) => Seq()
+        case ArrayTExpr(len, elem) => Seq(len, elem)
+        case SliceTExpr(elem) => Seq(elem)
+        case SequenceTExpr(elem) => Seq(elem)
+        case SetTExpr(elem) => Seq(elem)
+        case MultisetTExpr(elem) => Seq(elem)
+        case OptionTExpr(elem) => Seq(elem)
+        case TupleTExpr(elem) => elem
+        case DefinedTExpr(name) => Seq()
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
+        case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
         case SequenceUpdate(base, left, right) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
@@ -84,6 +105,8 @@ object Nodes {
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case Length(expr) => Seq(expr)
+        case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq()
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)
@@ -97,14 +120,15 @@ object Nodes {
           case BoolLit(_) => Seq()
           case NilLit(_) => Seq()
           case ArrayLit(_, exprs) => exprs
+          case SliceLit(_, exprs) => exprs
           case StructLit(_, args) => args
           case SequenceLit(_, args) => args
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
         }
-        case Parameter.In(id, typ) => Seq()
-        case Parameter.Out(id, typ) => Seq()
-        case LocalVar(id, typ) => Seq()
+        case Parameter.In(_, _) => Seq()
+        case Parameter.Out(_, _) => Seq()
+        case LocalVar(_, _) => Seq()
       }
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {

@@ -51,23 +51,23 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def actualMiscType(misc: PActualMisc): Type = misc match {
 
     case PRange(exp) => exprType(exp) match {
-      case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
-      case PointerT(ArrayT(len, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
-      case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(Int), elem)))
+      case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
+      case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
     }
 
-    case p: PParameter => typeType(p.typ)
-    case r: PReceiver => typeType(r.typ)
+    case p: PParameter => typeSymbType(p.typ)
+    case r: PReceiver => typeSymbType(r.typ)
     case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
-    case PEmbeddedName(t) => typeType(t)
-    case PEmbeddedPointer(t) => PointerT(typeType(t))
+    case PEmbeddedName(t) => typeSymbType(t)
+    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
 
-    case f: PFieldDecl => typeType(f.typ)
+    case f: PFieldDecl => typeSymbType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)
@@ -81,6 +81,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent.pair(l: PLiteralValue, p) => p match {
         case cl: PCompositeLit => expectedCompositeLitType(cl)
         case cv: PCompositeVal => expectedMiscType(cv)
+        case _ => Violation.violation(s"found unexpected literal: $p")
       }
 
       case tree.parent.pair(e: PKeyedElement, lv: PLiteralValue) => underlyingType(expectedMiscType(lv)) match {
@@ -122,7 +123,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case MethodSpec(PMethodSig(_, args, result), _, context) => FunctionT(args map context.typ, context.typ(result))
 
-    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
   }

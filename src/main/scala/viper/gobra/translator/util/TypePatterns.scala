@@ -82,6 +82,13 @@ object TypePatterns {
       }
     }
 
+    object Slice {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.SliceT => Some(t.elems)
+        case _ => None
+      }
+    }
+
     object Seq {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.SequenceT => Some(t.t)
@@ -99,6 +106,14 @@ object TypePatterns {
     object Multiset {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.MultisetT => Some(t.t)
+        case _ => None
+      }
+    }
+
+    object AnySet {
+      def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.MultisetT => Some(t.t)
+        case t : in.SetT => Some(t.t)
         case _ => None
       }
     }
@@ -129,6 +144,20 @@ object TypePatterns {
       def unapply(arg: in.Type): Option[Vector[in.Field]] = underlyingType(arg)(ctx) match {
         case t : in.StructT => Some(t.fields)
         case _ => None
+      }
+    }
+
+    object Interface {
+      def unapply(arg: in.Type): Option[Unit] = underlyingType(arg)(ctx) match {
+        case t : in.InterfaceT => Some(())
+        case _ => None
+      }
+    }
+
+    object NotInterface {
+      def unapply(arg: in.Type): Boolean = underlyingType(arg)(ctx) match {
+        case t : in.InterfaceT => false
+        case _ => true
       }
     }
 

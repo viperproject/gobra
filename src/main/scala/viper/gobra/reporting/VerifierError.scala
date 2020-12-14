@@ -94,6 +94,16 @@ case class AssignmentError(info: Source.Verifier.Info) extends VerificationError
   override def localMessage: String = "Assignment might fail"
 }
 
+case class TypeAssertionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "type_assertion_error"
+  override def localMessage: String = "Type assertion might fail"
+}
+
+case class ComparisonError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "comparison_error"
+  override def localMessage: String = "Comparison might panic"
+}
+
 case class CallError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "call_error"
   override def localMessage: String = "Call might fail"
@@ -164,6 +174,12 @@ case class ForLoopError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "For loop statement might fail"
 }
 
+case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "integer_overflow_error"
+  override def localMessage: String = "Expression may cause integer overflow"
+}
+
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -190,8 +206,32 @@ case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verif
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
 }
 
+case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "integer_overflow_error"
+  override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow"
+}
+
+case class DynamicValueNotASubtypeReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "failed_type_assertion"
+  override def message: String = s"Dynamic value might not be a subtype of the target type."
+}
+
+case class SafeTypeAssertionsToInterfaceNotSucceedingReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "failed_safe_type_assertion"
+  override def message: String = s"The type assertion ${node.origin.tag.trim} might fail. Safe type assertions to interfaces must succeed."
+}
+
+case class ComparisonOnIncomparableInterfaces(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "incomparable_error"
+  override def message: String = s"Both operands of ${node.origin.tag.trim} might not have comparable values."
+}
+
+case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "assertion_error"
+  override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message
 }
-

@@ -10,11 +10,12 @@ import org.scalatest.{FunSuite, Inside, Matchers}
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source.Parser.Internal
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds
 
 class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
-  val intT: Type = IntT(Addressability.Exclusive)
+  val intT: Type = IntT(Addressability.Exclusive, TypeBounds.DefaultInt)
   val boolT: Type = BoolT(Addressability.Exclusive)
   def sequenceT(memT: Type): Type = SequenceT(memT, Addressability.Exclusive)
   def setT(memT: Type): Type = SetT(memT, Addressability.Exclusive)
@@ -1034,7 +1035,7 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
   }
 
   test("Printer: should correctly show a shared (integer) array type") {
-    val typ = sharedArrayT(12, IntT(Addressability.Shared))
+    val typ = sharedArrayT(12, IntT(Addressability.Shared, TypeBounds.DefaultInt))
 
     frontend.show(typ) should matchPattern {
       case "[12]int" =>
@@ -1128,6 +1129,81 @@ class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside 
       case "get(some(23))" =>
     }
   }
+
+  test("Printer: should correctly show a simple integer slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(intT, a)
+
+    frontend.show(t) should matchPattern {
+      case "[]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a slightly more complex slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(SetT(SequenceT(boolT, a), a), a)
+
+    frontend.show(t) should matchPattern {
+      case "[]set[seq[bool]]" =>
+    }
+  }
+
+  test("Printer: should correctly show a nested slice type") {
+    val a = Addressability.Exclusive
+    val t = SliceT(SliceT(SliceT(SliceT(intT, a), a), a), a)
+
+    frontend.show(t) should matchPattern {
+      case "[][][][]int" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple capacity expression") {
+    val expr = Capacity(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal)
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "cap(s)" =>
+    }
+  }
+
+  test("Printer: should correctly show a simple full slice expression") {
+    val expr = Slice(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      IntLit(2)(Internal),
+      IntLit(4)(Internal),
+      Some(IntLit(6)(Internal))
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "s[2:4:6]" =>
+    }
+  }
+
+  test("Printer: should correctly show a (partial) slice expression") {
+    val expr = Slice(
+      LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
+      IntLit(8)(Internal),
+      IntLit(4)(Internal),
+      None
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "s[8:4]" =>
+    }
+  }
+
+  test("Printer: should show a simple slice literal as expected") {
+    val expr = SliceLit(
+      intT,
+      Vector(IntLit(8)(Internal), IntLit(3)(Internal), IntLit(2)(Internal))
+    )(Internal)
+
+    frontend.show(expr) should matchPattern {
+      case "[]int { 8, 3, 2 }" =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 

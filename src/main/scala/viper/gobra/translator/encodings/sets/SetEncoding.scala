@@ -134,4 +134,34 @@ class SetEncoding extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: set[T] ] -> forall s :: { s in [e], isComp[s] } s in [e] ==> isComp[s]
+    * isComp[ e: mset[T] ] -> forall s :: { s in [e], isComp[s] } (s in [e]) > 0 ==> isComp[s]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.AnySet(t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val s = in.BoundVar("s", t)(exp.info)
+        val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
+        for {
+          vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s).right.get)(ctx)
+          contains = vpr.AnySetContains(vS, vExp)(pos, info, errT)
+          lhs = exp.typ match {
+            case ctx.Set(_) => contains
+            case ctx.Multiset(_) => vpr.GtCmp(contains, vpr.IntLit(0)(pos, info, errT))(pos, info, errT)
+          }
+          res = vpr.Forall(
+            variables = Seq(vSDecl),
+            triggers = Seq(vpr.Trigger(Seq(rhs, contains))(pos, info, errT)),
+            exp = vpr.Implies(lhs, rhs)(pos, info, errT)
+          )(pos, info, errT)
+        } yield res
+      }
+  }
+
 }

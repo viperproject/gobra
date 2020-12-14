@@ -80,11 +80,12 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PReceive => AddrMod.receive
       case _: PReference => AddrMod.reference
       case _: PNegation => AddrMod.rValue
-      case _: PBinaryExp => AddrMod.rValue
+      case _: PBinaryExp[_,_] => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
       case _: POld => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess => AddrMod.rValue
+      case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PCardinality | _: PMultiplicity | _: PSequenceAppend |
            _: PSequenceUpdate | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset => AddrMod.rValue

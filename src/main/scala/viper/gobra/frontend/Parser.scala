@@ -287,7 +287,8 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get"
+      "none", "some", "get",
+      "typeOf", "isComparable"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -832,7 +833,7 @@ object Parser {
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
-      "[]" ~> typ ^^ PSliceType
+      ("[" ~ "]") ~> typ ^^ PSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
@@ -1031,7 +1032,9 @@ object Parser {
       })
 
     lazy val idnImportPath: Parser[String] =
-      "\"" ~> "[a-zA-Z0-9_/]*".r <~ "\""
+      // this allows for seemingly meaningless paths such as ".......". It is not problematic that Gobra parses these
+      // paths given that it will throw an error if they do not exist in the filesystem
+      "\"" ~> "[.a-zA-Z0-9_/]*".r <~ "\""
       // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**
@@ -1076,6 +1079,8 @@ object Parser {
         exists |
         old |
         access |
+        typeOf |
+        isComparable |
         rangeSequence |
         rangeSet |
         rangeMultiset |
@@ -1095,6 +1100,12 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+
+    lazy val typeOf: Parser[PTypeOf] =
+      "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
+
+    lazy val isComparable: Parser[PIsComparable] =
+      "isComparable" ~> "(" ~> (expression | typ) <~ ")" ^^ PIsComparable
 
     private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
       "[" ~> expression ~ (".." ~> expression <~ "]")

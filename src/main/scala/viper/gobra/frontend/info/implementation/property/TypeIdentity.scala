@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds
 
 trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
@@ -17,7 +18,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
       // Two integer types are equal if they have the same type or they are from types which are aliased
-      case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(Int32, Rune)) || Set(x,y).subsetOf(Set(UInt8, Byte))
+      case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(TypeBounds.SignedInteger32, TypeBounds.Rune)) || Set(x,y).subsetOf(Set(TypeBounds.UnsignedInteger8, TypeBounds.Byte))
       case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
 

@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s1 := a[1:4]
+  s2 := a[1:4:5]
+  
+  assert len(s1) == 3 && len(s2) == 3
+  assert cap(s1) == 5 && cap(s2) == 4
+  
+  assert forall i int :: 0 <= i && i < len(s1) ==> s1[i] == s2[i]
+}
+
+func test2() {
+  a@ := [8]int { 1, 2, 4, 8, 16, 32, 64, 128 }
+  s1 := a[1:5:6]
+  s2 := s1[:4:4]
+  s3 := s2[1:2:3]
+  
+  assert len(s1) == 4 && len(s2) == 4 && len(s3) == 1
+  assert cap(s1) == 5 && cap(s2) == 4 && cap(s3) == 2
+  
+  assert s1[0] == 2
+  assert s2[0] == 2
+  assert s3[0] == 4
+  
+  assert forall i int :: 0 <= i && i < len(s2) ==> s1[i] == s2[i]
+}
+
+func test3 () {
+  var a@ [0]int
+  s1 := a[0:0]
+}

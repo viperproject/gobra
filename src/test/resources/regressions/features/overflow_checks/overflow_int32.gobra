@@ -1,0 +1,116 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--overflow --int32)
+package overflow
+
+// Safe function, does not overflow
+ensures (u < 127 ==> ret == u + 1) && (u == 127 ==> ret == u)
+func increment8(u int8) (ret int8) {
+	if u < 127 {
+		ret = u + 1
+	} else {
+		ret = 127
+	}
+	return
+}
+
+// Operation may overflow, no bound checks are performed
+ensures ret == u + 1
+func incrementU8(u uint8) (ret uint8) {
+	//:: ExpectedOutput(integer_overflow_error)
+	ret = u + 1
+	return
+}
+
+// Should overflow when running in 32 bit mode, not in 64
+requires i <= 2147483647
+ensures res == i + 1
+func overflowInt32(i int) (res int) {
+	//:: ExpectedOutput(integer_overflow_error)
+	return i + 1
+}
+
+// Pure functions can be checked for overflow
+// does not overflow
+requires x < 5
+pure func overflowPureFunc1(x int8) (int8) {
+	return x + 1
+}
+
+pure func overflowPureFunc2(x int8) (int8) {
+	//:: ExpectedOutput(integer_overflow_error)
+	return x + 1
+}
+
+// Overflow checks are supported in functions that return multiple values
+func multipleReturns(x int) (int, int) {
+	//:: ExpectedOutput(integer_overflow_error)
+	return x + 1, x + 2
+}
+
+// Abstract functions are not checked by default
+pure func abstractFunc(x int) (int)
+
+type rect struct {
+    width, height int
+}
+
+// Overflow checks support methods and pure methods
+func (r rect) area() int {
+	//:: ExpectedOutput(integer_overflow_error)
+    return r.width * r.height
+}
+
+pure func (r rect) perim() int {
+	//:: ExpectedOutput(integer_overflow_error)
+    return 2 * r.width + 2 * r.height
+}
+
+func (r rect) smallerArea(other rect) bool {
+	return r.area() < other.area()
+}
+
+// Test if conditions for overflow
+func strangeAbs(x int) int {
+	//:: ExpectedOutput(integer_overflow_error)
+	if x + 1 > 0 {
+		return x
+	} else {
+		return -x
+	}
+}
+
+// Test loop conditions
+func whileCheck() {
+	x := 0
+	for x + 1 > 0 {
+		//:: ExpectedOutput(integer_overflow_error)
+		x += 1
+	}
+}
+
+// Test for overflow detection in function call statement
+func funcCallMayOverflow(x, y int8) {
+	//:: ExpectedOutput(integer_overflow_error)
+	increment8(x + y)
+}
+
+// Test for overflow detection in method call statment
+func methodCallMayOverflow(height, width int) {
+	r := rect{height: height, width: width}
+	//:: ExpectedOutput(integer_overflow_error)
+	r.smallerArea(rect{height: 2*height, width: 2*width})
+}
+
+// For 32-bit ints, the following cannot lead to an overflow. Not true for 64-bit ints.
+ensures res == int64(i) + 1
+func inc(i int) (res int64) {
+	return int64(i) + 1
+}
+
+/* make is not supported at this point
+func newSlice(size int) {
+	c := make([]int, size * 2)
+}
+*/

@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
+import viper.gobra.util.TypeBounds
 
 
 object LoggerDefaults {
@@ -36,7 +37,12 @@ case class Config(
                  shouldTypeCheck: Boolean = true,
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
-                 shouldVerify: Boolean = true
+                 checkOverflows: Boolean = false,
+                 shouldVerify: Boolean = true,
+                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                 // 64 bit otherwise.
+                 int32bit: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -51,11 +57,19 @@ case class Config(
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
       shouldViperEncode = shouldViperEncode,
-      shouldVerify = shouldVerify
+      checkOverflows = checkOverflows || other.checkOverflows,
+      shouldVerify = shouldVerify,
+      int32bit = int32bit || other.int32bit
     )
   }
-}
 
+  lazy val typeBounds: TypeBounds =
+    if (int32bit) {
+      TypeBounds()
+    } else {
+      TypeBounds(Int = TypeBounds.IntWith64Bit, UInt = TypeBounds.UIntWith64Bit)
+    }
+}
 
 class ScallopGobraConfig(arguments: Seq[String])
     extends ScallopConf(arguments)
@@ -173,6 +187,20 @@ class ScallopGobraConfig(arguments: Seq[String])
     descr = "The Boogie executable",
     default = None,
     noshort = true
+  )
+
+  val checkOverflows: ScallopOption[Boolean] = toggle(
+    name = "overflow",
+    descrYes = "Find expressions that may lead to integer overflow",
+    default = Some(false),
+    noshort = false
+  )
+
+  val int32Bit: ScallopOption[Boolean] = toggle(
+    name = "int32",
+    descrYes = "Run with 32-bit sized integers",
+    default = Some(false),
+    noshort = false
   )
 
 
@@ -329,6 +357,8 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,
     shouldViperEncode = shouldViperEncode,
+    checkOverflows = checkOverflows.supplied,
+    int32bit = int32Bit.supplied,
     shouldVerify = shouldVerify
   )
 }

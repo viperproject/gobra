@@ -16,7 +16,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
-      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.typ(t.right))
+      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
       case t => t
     }
 
@@ -39,7 +39,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val derefType: Type => Option[Type] =
     attr[Type, Option[Type]] {
-      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => derefType(context.typ(t.right))
+      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => derefType(context.symbType(t.right))
       case Single(PointerT(elem)) => Some(elem)
       case _ => None
     }
@@ -172,4 +172,8 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
   }
 
+  lazy val isReceiverType: Property[Type] = createBinaryProperty("not a receiver type") {
+    case t: DeclaredT => true
+    case PointerT(t) => t.isInstanceOf[DeclaredT]
+  }
 }

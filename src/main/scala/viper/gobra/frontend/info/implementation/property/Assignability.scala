@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
 
 trait Assignability extends BaseProperty { this: TypeInfoImpl =>
@@ -42,11 +43,10 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
-
         // for go's types according to go's specification (mostly)
-      case (IntT(UntypedConst), r) if underlyingType(r).isInstanceOf[IntT] => true
+      case (IntT(kind), r) if kind == config.typeBounds.UntypedConst && underlyingType(r).isInstanceOf[IntT] => true
       // not part of Go spec, but necessary for the definition of comparability
-      case (l, IntT(UntypedConst)) if underlyingType(l).isInstanceOf[IntT] => true
+      case (l, IntT(kind)) if kind == config.typeBounds.UntypedConst && underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
       // even though the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
@@ -54,13 +54,17 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
       // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
+      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
+        && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
+        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+
       case (l, r: InterfaceT) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (l, NilType) if isPointerType(l) => true // not in spec
       case (NilType, r) if isPointerType(r) => true
 
         // for ghost types
       case (BooleanT, AssertionT) => true
+      case (SortT, SortT) => true
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
@@ -190,6 +194,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case typ: BoundedIntegerKind => typ.lower <= value && value <= typ.upper
         case _ => true
       }
+
+      case _: InterfaceT =>
+        ??? // TODO
 
       case _ => violation(s"Expected an integer type but instead received $typ.")
     }

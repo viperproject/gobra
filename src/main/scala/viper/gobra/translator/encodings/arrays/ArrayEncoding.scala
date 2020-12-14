@@ -28,7 +28,7 @@ private[arrays] object ArrayEncoding {
   }
 }
 
-class ArrayEncoding extends TypeEncoding {
+class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
@@ -44,6 +44,14 @@ class ArrayEncoding extends TypeEncoding {
     conversionFunc.finalize(col)
     exDfltFunc.finalize(col)
   }
+
+  /** Boxing in the context of the shared-array domain. */
+  override def box(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.box(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
+
+  /** Unboxing in the context of the shared-array domain. */
+  override def unbox(arg : vpr.Exp, typ : in.ArrayT)(src: in.Node)(ctx: Context): vpr.Exp =
+    sh.unbox(arg, cptParam(typ.length, typ.elems)(ctx))(src)(ctx)
 
   /**
     * Translates a type into a Viper type.
@@ -86,20 +94,20 @@ class ArrayEncoding extends TypeEncoding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [lhs: [n]T == rhs] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
+    * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
     *
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x] -> true
-    * [lhs: *[0]T° == rhs] -> unknown()
+    * [x: *[0]T° == x: *[0]T] -> true
+    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
     *
-    * [lhs: *[n]T° == rhs] -> [lhs] == [rhs]
+    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.Array(len, _), rhs, src) =>
+    case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
@@ -107,9 +115,20 @@ class ArrayEncoding extends TypeEncoding {
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs, src) =>
+    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
       if (len == 0) {
-        unit(withSrc(if (lhs == rhs) vpr.TrueLit() else ctx.unknownValue.unkownValue(vpr.Bool), src))
+        val (pos, info, errT) = src.vprMeta
+        if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
+        else {
+          for {
+            vLhs <- ctx.expr.translate(lhs)(ctx)
+            vRhs <- ctx.expr.translate(rhs)(ctx)
+            vNil <- ctx.expr.translate(in.NilLit(rhs.typ)(src.info))(ctx)
+            eq1 = vpr.EqCmp(vRhs, vNil)(pos, info, errT)
+            eq2 = vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+            vUnk = ctx.unknownValue.unkownValue(vpr.Bool)(pos, info ,errT)
+          } yield vpr.CondExp(eq1, eq2, vUnk)(pos, info, errT)
+        }
       } else {
         for {
           vLhs <- ctx.expr.translate(lhs)(ctx)
@@ -171,7 +190,7 @@ class ArrayEncoding extends TypeEncoding {
         case Shared => ctx.typeEncoding.reference(ctx)(e.asInstanceOf[in.Location]).map(sh.length(_, cptParam(len, t)(ctx))(n)(ctx))
       }
 
-    case n@ in.SequenceConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
     case n@ in.SetConversion(e :: ctx.Array(len, t)) =>
@@ -224,7 +243,7 @@ class ArrayEncoding extends TypeEncoding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: [n]T] -> Forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
+    * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
@@ -239,6 +258,29 @@ class ArrayEncoding extends TypeEncoding {
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
       )
+  }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: [n]T ] -> forall idx :: { isComp[ e[idx] ] } 0 <= idx < n ==> isComp[ e[idx] ]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Array(len, t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
+        val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
+        for {
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx)(exp.info)).right.get)(ctx)
+          res = vpr.Forall(
+            variables = Seq(vIdxDecl),
+            triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
+            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, len)(exp), rhs)(pos, info, errT)
+          )(pos, info, errT)
+        } yield res
+      }
   }
 
   /**
@@ -273,6 +315,7 @@ class ArrayEncoding extends TypeEncoding {
   /**
     * Generates:
     * function arrayDefault(): ([n]T)°
+    *   ensures len(result) == n
     *   ensures Forall idx :: {result[idx]} 0 <= idx < n ==> [result[idx] == dflt(T)]
     * */
   private val exDfltFunc: FunctionGenerator[(BigInt, in.Type)] = new FunctionGenerator[(BigInt, in.Type)]{
@@ -284,10 +327,12 @@ class ArrayEncoding extends TypeEncoding {
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
       val resAccess = in.IndexedExp(resDummy, idx)(src.info)
+      val lenEq = pure(ctx.typeEncoding.equal(ctx)(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info), src))(ctx).res
+        .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val trigger = ex.get(vpr.Result(vResType)(), vIdx.localVar, cptParam(t._1, t._2)(ctx))(src)(ctx)
-      val post = vpr.Forall(
+      val arrayEq = vpr.Forall(
         Seq(vIdx),
         Seq(vpr.Trigger(Seq(trigger))()),
         vpr.Implies(boundaryCondition(vIdx.localVar, t._1)(src), idxEq)()
@@ -298,7 +343,7 @@ class ArrayEncoding extends TypeEncoding {
         formalArgs = Seq.empty,
         typ = vResType,
         pres = Seq.empty,
-        posts = Vector(post),
+        posts = Vector(lenEq, arrayEq),
         body = None
       )()
     }

@@ -6,15 +6,18 @@
 
 package viper.gobra.translator.util
 
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer}
+import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer, RichErrorMessage}
 import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.{Source, VerificationError}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, ReasonT}
 import viper.gobra.util.Violation
+import viper.silver.verifier.ErrorReason
+import viper.silver.verifier.{errors => vprerr}
 
 object ViperWriter {
 
@@ -114,7 +117,7 @@ object ViperWriter {
     override val isPure: Boolean = false
   }
 
-  case class Assertion(x: vpr.Exp) extends Code {
+  case class Assertion(x: vpr.Exp, reasonT: Option[(Source.Verifier.Info, ErrorReason) => VerificationError]) extends Code {
     override val isPure: Boolean = true
   }
 
@@ -128,31 +131,50 @@ object ViperWriter {
                       code: Vector[Code]
                     ) extends DataSum
   {
-    def asStatement(body: vpr.Stmt): (vpr.Seqn, Vector[vpr.Declaration]) = {
+    def asStatement(body: vpr.Stmt): (vpr.Seqn, Vector[vpr.Declaration], Vector[DataKind]) = {
+      var memberKinds: Vector[DataKind] = Vector.empty
+
       val codeStmts = code map {
         case Statement(x) => x
         case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
-        case Assertion(x) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assertion(x, None) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assertion(x, Some(trans)) =>
+          val res = vpr.Assert(x)(x.pos, x.info, x.errT)
+          memberKinds :+= ErrorT({
+            case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
+              trans(info, reason)
+          })
+          res
         case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
       }
 
       val stmt = vpr.Seqn(codeStmts :+ body, local)()
-      (stmt, global)
+      (stmt, global, memberKinds)
     }
 
-    def asStatement: (vpr.Seqn, Vector[vpr.Declaration]) = {
+    def asStatement: (vpr.Seqn, Vector[vpr.Declaration], Vector[DataKind]) = {
+      var memberKinds: Vector[DataKind] = Vector.empty
+
       val codeStmts = code map {
         case Statement(x) => x
         case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
-        case Assertion(x) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assertion(x, None) => vpr.Assert(x)(x.pos, x.info, x.errT)
+        case Assertion(x, Some(trans)) =>
+          val res = vpr.Assert(x)(x.pos, x.info, x.errT)
+          memberKinds :+= ErrorT({
+            case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
+              trans(info, reason)
+          })
+          res
         case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
       }
 
       val stmt = vpr.Seqn(codeStmts, local)()
-      (stmt, global)
+      (stmt, global, memberKinds)
     }
 
-    def asExpr(body: vpr.Exp, ctx: Context): (vpr.Exp, Vector[vpr.Declaration], Vector[vpr.Declaration]) = {
+    def asExpr(body: vpr.Exp, ctx: Context): (vpr.Exp, Vector[vpr.Declaration], Vector[vpr.Declaration], Vector[DataKind]) = {
+      var memberKinds: Vector[DataKind] = Vector.empty
 
       val codeExpr = code.foldRight(body){ case (x, w) =>
         x match {
@@ -161,12 +183,18 @@ object ViperWriter {
           case Binding(v, e) =>
             vpr.Let(ViperUtil.toVarDecl(v), e, w)(w.pos, w.info, w.errT) // let lhs = rhs in e
 
-          case Assertion(a) =>
+          case Assertion(a, None) =>
             vpr.And(ctx.condition.assert(a), w)(w.pos, w.info, w.errT) // Maybe use inhaleExhaleExp instead
+
+          case Assertion(a, Some(trans)) =>
+            val (check, errorT) = ctx.condition.assert(a, trans)
+            val res = vpr.And(check, w)(w.pos, w.info, w.errT)
+            memberKinds :+= ErrorT(errorT)
+            res
         }
       }
 
-      (codeExpr, local, global)
+      (codeExpr, local, global, memberKinds)
     }
   }
 
@@ -264,8 +292,8 @@ object ViperWriter {
       val (codeSum, remainder, r) = w.execute
       require(codeSum.code.forall(_.isPure))
 
-      val newR = codeSum.asExpr(r, ctx)._1
-      MemberLevel.create(remainder, newR)
+      val (newR, _, _, remainderAddition) = codeSum.asExpr(r, ctx)
+      MemberLevel.create(remainderAddition ++ remainder, newR)
     }
 
     def split[R](w: CodeLevel.Writer[R]): Writer[(R, CodeLevel.Writer[Unit])] = {
@@ -275,9 +303,9 @@ object ViperWriter {
 
     def block(w: CodeLevel.Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
       val (codeSum, remainder, r) = w.execute
-      val (codeStmt, globals) = codeSum.asStatement(r)
+      val (codeStmt, globals, remainderAddition) = codeSum.asStatement(r)
       val newR = vpr.Seqn(Vector(codeStmt), globals)(r.pos, r.info, r.errT)
-      create(remainder, newR)
+      create(remainderAddition ++ remainder, newR)
     }
 
     def errorT(errTs: ErrorTransformer*): Writer[Unit] =
@@ -287,47 +315,49 @@ object ViperWriter {
       create(reaTs.toVector.map(ReasonT), ())
   }
 
-  type MemberWriter[R] = MemberLevel.Writer[R]
+  type MemberWriter[+R] = MemberLevel.Writer[R]
 
 
 
   case object CodeLevel extends LeveledViperWriter[CodeKind, CodeSum](CodeKindCompanion) {
 
     def pure(w: Writer[vpr.Exp])(ctx: Context): Writer[vpr.Exp] = {
-      move(w){ s => r =>
-        require(s.code.forall(_.isPure))
-        val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
-        val newR = s.asExpr(r, ctx)._1
-        (newSum, newR)
-      }
+      val (codeSum, remainder, r) = w.execute
+      require(codeSum.code.forall(_.isPure))
+      val (codeStmt, _, _, remainderAddition) = codeSum.asExpr(r, ctx)
+      val newData = DataContainer(Vector.empty[CodeKind], remainderAddition ++ remainder)
+      w.copy(newData, codeStmt)
     }
 
     def seqns(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =
       sequence(ws.map(seqn)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
-      move(w){ s => r =>
-        val newSum = s.copy(local = Vector.empty, code = Vector.empty)
-        val code = s.asStatement(r)._1
-        (newSum, code)
-      }
+    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
+      val (codeSum, remainder, r) = w.execute
+      val (codeStmt, _, remainderAddition) = codeSum.asStatement(r)
+      val newSum = codeSum.copy(local = Vector.empty, code = Vector.empty)
+      val newData = DataContainer(CodeKindCompanion.unsum(newSum), remainderAddition ++ remainder)
+      w.copy(newData, codeStmt)
+    }
 
     def seqnUnits(ws: Vector[Writer[Unit]], assume: Boolean = false): Writer[vpr.Seqn] =
       sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] =
-      move(w){ s => _ =>
-        val newSum = s.copy(local = Vector.empty, code = Vector.empty)
-        val code = s.asStatement._1
-        (newSum, code)
-      }
+    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] = {
+      val (codeSum, remainder, r) = w.execute
+      val (codeStmt, _, remainderAddition) = codeSum.asStatement
+      val newSum = codeSum.copy(local = Vector.empty, code = Vector.empty)
+      val newData = DataContainer(CodeKindCompanion.unsum(newSum), remainderAddition ++ remainder)
+      w.copy(newData, codeStmt)
+    }
 
-    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] =
-      move(w){ s => r =>
-        val newSum = s.copy(global = Vector.empty, local = Vector.empty, code = Vector.empty)
-        val (code, global) = s.asStatement(r)
-        (newSum, vpr.Seqn(Vector(code), global)(r.pos, r.info, r.errT))
-      }
+    def block(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
+      val (codeSum, remainder, r) = w.execute
+      val (codeStmt, global, remainderAddition) = codeSum.asStatement(r)
+      val newR = vpr.Seqn(Vector(codeStmt), global)(r.pos, r.info, r.errT)
+      val newData = DataContainer(Vector.empty[CodeKind], remainderAddition ++ remainder)
+      w.copy(newData, newR)
+    }
 
     def split[R](w: Writer[R]): Writer[(Writer[Unit], R)] = {
       val (codeData, remainder) = w.sum.split
@@ -344,7 +374,10 @@ object ViperWriter {
       create(Vector(Binding(lhs, rhs)), ())
 
     def assert(cond: vpr.Exp*): Writer[Unit] =
-      create(cond.toVector.map(Assertion), ())
+      create(cond.toVector.map(Assertion(_, None)), ())
+
+    def assert(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] =
+      create(Vector(Assertion(cond, Some(reasonT))), ())
 
     def local(locals: vpr.Declaration*): Writer[Unit] =
       create(locals.toVector.map(Local), ())
@@ -367,47 +400,5 @@ object ViperWriter {
     }
   }
 
-  type CodeWriter[R] = CodeLevel.Writer[R]
-
-
-  /* ** Utilities */
-
-  /**
-    * Yields the first `vpr.Position` in `xs` that is
-    * not equal to `vpr.NoPosition`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprPosition(xs : Vector[vpr.Exp]) : vpr.Position = xs match {
-    case Vector() => vpr.NoPosition
-    case e +: es => e.pos match {
-      case vpr.NoPosition => vprPosition(es)
-      case pos => pos
-    }
-  }
-
-  /**
-    * Yields the first `vpr.Info` in `xs` that is
-    * not equal to `vpr.NoInfo`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprInfo(xs : Vector[vpr.Exp]) : vpr.Info = xs match {
-    case Vector() => vpr.NoInfo
-    case e +: es => e.info match {
-      case vpr.NoInfo => vprInfo(es)
-      case info => info
-    }
-  }
-
-  /**
-    * Yields the first `vpr.ErrorTrafo` in `xs` that is
-    * not equal to `vpr.NoTrafos`. If no such element exists,
-    * then `vpr.NoPosition` is returned instead.
-    */
-  private def vprErrorTrafo(xs : Vector[vpr.Exp]) : vpr.ErrorTrafo = xs match {
-    case Vector() => vpr.NoTrafos
-    case e +: es => e.errT match {
-      case vpr.NoTrafos => vprErrorTrafo(es)
-      case trafo => trafo
-    }
-  }
+  type CodeWriter[+R] = CodeLevel.Writer[R]
 }

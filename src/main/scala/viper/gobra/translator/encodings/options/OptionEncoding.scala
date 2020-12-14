@@ -29,33 +29,61 @@ class OptionEncoding extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
+    *
+    * R[ dflt(option[T]) ] -> none()
+    * R[ none() : option[T] ] -> optNone()
+    * R[ some(e) : option[T] ] -> optSome([e])
+    * R[ get(e : option[T]) ] -> optGet([e])
+    * R[ seq(e : option[T]) ] -> opt2seq([e])
+    */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     default(super.expr(ctx)) {
       case (exp : in.DfltVal) :: ctx.Option(t) / Exclusive =>
         unit(withSrc(ctx.option.none(ctx.typeEncoding.typ(ctx)(t)), exp))
 
       case exp @ in.OptionNone(typ) => {
-        val (pos, info, errT) = exp.vprMeta
         val typT = ctx.typeEncoding.typ(ctx)(typ)
-        unit(ctx.option.none(typT)(pos, info, errT))
+        unit(withSrc(ctx.option.none(typT), exp))
       }
 
       case exp @ in.OptionSome(op) => for {
         opT <- ctx.expr.translate(op)(ctx)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.option.some(opT)(pos, info, errT)
+      } yield withSrc(ctx.option.some(opT), exp)
 
       case exp @ in.OptionGet(op :: ctx.Option(typ)) => for {
         opT <- ctx.expr.translate(op)(ctx)
         typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.option.get(opT, typT)(pos, info, errT)
+      } yield withSrc(ctx.option.get(opT, typT), exp)
 
       case exp @ in.SequenceConversion(op :: ctx.Option(typ)) => for {
         opT <- ctx.expr.translate(op)(ctx)
         typT = ctx.typeEncoding.typ(ctx)(typ)
-        (pos, info, errT) = exp.vprMeta
-      } yield ctx.optionToSeq.create(opT, typT)(pos, info, errT)
+      } yield withSrc(ctx.optionToSeq.create(opT, typT), exp)
     }
+  }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: option[T] ] -> [e] == none ? true : isComp[get(e)]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Option(t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val vT = ctx.typeEncoding.typ(ctx)(t)
+        for {
+          rhs <- ctx.typeEncoding.isComparable(ctx)(exp).right.get
+          isComp <- ctx.typeEncoding.isComparable(ctx)(in.OptionGet(exp)(exp.info)).right.get
+          res = vpr.CondExp(
+            vpr.EqCmp(rhs, ctx.option.none(vT)(pos, info, errT))(pos, info, errT),
+            vpr.TrueLit()(pos, info, errT),
+            isComp
+          )(pos, info, errT)
+        } yield res
+      }
   }
 }

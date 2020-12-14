@@ -189,6 +189,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
     case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
@@ -302,6 +304,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
+    case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
     case SequenceUpdate(seq, left, right) =>
@@ -312,11 +315,36 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+    case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
     case OptionGet(exp) => "get" <> parens(showExpr(exp))
 
+    case Slice(exp, low, high, max) => {
+      val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)
+      showExpr(exp) <> brackets(showExpr(low) <> ":" <> showExpr(high) <> maxD)
+    }
+
+    case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
+    case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+    case ToInterface(exp, typ) => "toInterface" <> parens(showExpr(exp))
+    case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
+    case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
+
+    case BoolTExpr() => "bool"
+    case IntTExpr(kind) => kind.name
+    case PermTExpr() => "perm"
+    case PointerTExpr(elem) => "*" <> showExpr(elem)
+    case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
+    case ArrayTExpr(len, elem) => brackets(showExpr(len)) <> showExpr(elem)
+    case SliceTExpr(elem) => brackets(emptyDoc) <> showExpr(elem)
+    case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))
+    case SetTExpr(elem) => "set" <> brackets(showExpr(elem))
+    case MultisetTExpr(elem) => "mset" <> brackets(showExpr(elem))
+    case OptionTExpr(elem) => "option" <> brackets(showExpr(elem))
+    case TupleTExpr(elem) => parens(showExprList(elem))
+    case DefinedTExpr(name) => name
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
@@ -350,6 +378,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       lenP <> typP <+> exprsP
     }
 
+    case SliceLit(typ, exprs) => {
+      val typP = showType(typ)
+      val exprsP = braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
+      brackets(emptyDoc) <> typP <+> exprsP
+    }
+
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SequenceLit(typ, exprs) => showGhostCollectionLiteral("seq", typ, exprs)
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
@@ -378,18 +412,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showType(typ : Type) : Doc = typ match {
     case BoolT(_) => "bool"
-    case IntT(_) => "int"
+    case IntT(_, kind) => kind.name
     case VoidT => "void"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
+    case interface: InterfaceT => "interface" <> parens("...")
+    case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
+    case SliceT(elem, _) => "[]" <> showType(elem)
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =
@@ -452,6 +489,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
     case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>

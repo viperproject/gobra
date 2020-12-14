@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	var y uint16 = 1
+	var x int32 = int32(y)
+}
+
+// Conversions between integer types supported
+func inc(i int) (res int64) {
+	return int64(i) + 1
+}
+
+type IntN int
+type IntN2 int
+
+// Type conversions are also supported for declared types, as long as they have the same underlying type
+func convertNtoN2(i IntN) IntN2 {
+	return IntN2(i)
+}
+
+type T1 struct {
+	x int
+	y uint32
+}
+
+type T2 struct {
+	x int
+	y uint32
+}
+
+/* Fails because Gobra does not support struct tags
+type T3 struct {
+	x int "this is a struct tag"
+	y uint32
+}
+*/
+
+// Conversions between struct types are also supported, as long as they have the same underlying type
+func structConversion() {
+	l := T1{x: 1, y: 2}
+	r := T2(l)
+	assert r.x == 1 && r.y == 2
+	assert l.x == r.x && l.y == r.y
+
+	// Does not work due to issue #133
+	// var w T1 = struct {x int; y uint32}(y)
+}

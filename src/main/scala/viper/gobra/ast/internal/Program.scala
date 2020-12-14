@@ -18,7 +18,10 @@ package viper.gobra.ast.internal
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
+import viper.gobra.util.TypeBounds
+import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
@@ -152,11 +155,20 @@ object CompositeObject {
   def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
 
   case class Array(op : ArrayLit) extends CompositeObject
+  case class Slice(op : SliceLit) extends CompositeObject
   case class Struct(op : StructLit) extends CompositeObject
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject
   case class Multiset(op : MultisetLit) extends CompositeObject
 }
+
+/**
+  * Type assertion that does not fail.
+  * 'successTarget' gets assigned a boolean, indicating whether the cast is valid or not.
+  * If the cast is not valid, 'resTarget' gets assigned the default value of 'typ'.
+  * The statement does not have side-effects.
+  * */
+case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr: Expr, typ: Type)(val info: Source.Parser.Info) extends Stmt
 
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
@@ -211,6 +223,14 @@ case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extend
 
 sealed trait Expr extends Node with Typed
 
+object Expr {
+  def getSubExpressions(x: Expr): Set[Expr] = {
+    def aux(x: Expr): Set[Expr] = x.subnodes.collect{ case e: Expr => e }.toSet
+    def auxClosed(x: Expr): Set[Expr] = aux(x).flatMap(auxClosed) + x
+    aux(x).flatMap(auxClosed) + x
+  }
+}
+
 case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extends Expr {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -225,14 +245,59 @@ case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: So
 case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT(Addressability.rValue)
+  override def typ: Type = BoolT(Addressability.rValue)
 }
 
 case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT(Addressability.rValue)
+  override def typ: Type = BoolT(Addressability.rValue)
 }
+
+/* Type related expressions */
+
+case class TypeAssertion(exp: Expr, arg: Type)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = arg.withAddressability(Addressability.rValue)
+}
+
+case class TypeOf(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = SortT
+}
+
+case class IsComparableType(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class IsComparableInterface(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+/** Boxes an expression into an interface. */
+case class ToInterface(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+
+sealed trait TypeExpr extends Expr {
+  override val typ: Type = SortT
+}
+
+case class PointerTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends TypeExpr
+
+
+case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
+case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class SequenceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class SetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MultisetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
+
+
+
+
 
 
 /* ** Option type expressions */
@@ -281,6 +346,14 @@ case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 }
 
 /**
+  * Represents the "cap(`exp`)" in Go, which gives
+  * the capacity of `exp` according to its type.
+  */
+case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = IntT(Addressability.rValue)
+}
+
+/**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
   * and `index` of an integer type.
@@ -289,6 +362,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
   override val typ : Type = base.typ match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
+    case t: SliceT => t.elems
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
@@ -585,6 +659,27 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
   def right: Expr
 }
 
+sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
+  override val typ: Type = (left.typ, right.typ) match {
+    // should always produce an exclusive val. from the go spec:
+    // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
+    // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
+    // As an exception to the addressability requirement, x may also be a (possibly parenthesized) composite literal.
+    case (IntT(_, kind1), IntT(_, kind2)) => IntT(Addressability.Exclusive, TypeBounds.merge(kind1, kind2))
+
+    // A binary expression may have one operand of a defined type T and another operand that is an unbounded integer.
+    // If T's underlying type is an integer type, then the result of the expression should be of type T.
+    // Here, the underlying type of a defined type is not checked, as the information is not available at this point.
+    // However, this should not pose a problem assuming that the original program has been type-checked before the
+    // translation to the internal language.
+    case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
+    case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
+
+    case (l, r) => violation(s"cannot merge types $l and $r")
+
+  }
+}
+
 object BinaryExpr {
   def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
     Some((arg.left, arg.operator, arg.right, arg.typ))
@@ -601,13 +696,15 @@ case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
 
-case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with IntOperation
-case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with IntOperation
-case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with IntOperation
-case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("%") with IntOperation
-case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with IntOperation
+case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
+case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
+case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
+case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
+case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
-
+case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = newType
+}
 
 sealed trait Lit extends Expr
 
@@ -623,6 +720,20 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
+/**
+  * Represents (full) slice expressions "`base`[`low`:`high`:`max`]".
+  * Only the `max` component is optional at this point.
+  * Any slicing expression "a[:j]" is assumed to be desugared into "a[0:j]",
+  * and any expression "a[i:]" is assumed to be desugared into "a[i:len(a)]".
+  */
+case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = base.typ match {
+    case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
+    case t: SliceT => t
+    case t => Violation.violation(s"expected an array or slice type, but got $t")
+  }
+}
+
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
   lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }
@@ -630,8 +741,13 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 sealed trait CompositeLit extends Lit
 
 case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length: BigInt = exprs.length
+  lazy val length : BigInt = exprs.length
   override val typ : Type = ArrayT(exprs.length, memberType, Addressability.literal)
+}
+
+case class SliceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val asArrayLit : ArrayLit = ArrayLit(memberType.withAddressability(Addressability.rValue), exprs)(info)
+  override val typ : Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
@@ -727,9 +843,9 @@ case class BoolT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
 }
 
-case class IntT(addressability: Addressability) extends Type {
-  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT]
-  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability)
+case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
+  override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
 case object VoidT extends Type {
@@ -743,9 +859,15 @@ case class PermissionT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
 }
 
+/** The type of types. For now, we have a single sort. */
+case object SortT extends Type {
+  override val addressability: Addressability = Addressability.mathDataStructureElement
+  override def equalsWithoutMod(t: Type): Boolean = t == SortT
+  override def withAddressability(newAddressability: Addressability): SortT.type = SortT
+}
+
 /**
-  * The type of `length`-sized arrays
-  * of elements of type `typ`.
+  * The type of `length`-sized arrays of elements of type `typ`.
   */
 case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends Type {
   /** (Deeply) converts the current type to a `SequenceT`. */
@@ -761,6 +883,19 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
 
   override def withAddressability(newAddressability: Addressability): ArrayT =
     ArrayT(length, elems.withAddressability(Addressability.arrayElement(newAddressability)), newAddressability)
+}
+
+/**
+  * The (composite) type of slices of type `elems`.
+  */
+case class SliceT(elems : Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): SliceT =
+    SliceT(elems.withAddressability(Addressability.sliceElement), newAddressability)
 }
 
 /**
@@ -857,6 +992,18 @@ case class StructT(name: String, fields: Vector[Field], addressability: Addressa
   override def withAddressability(newAddressability: Addressability): StructT =
     StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
+
+case class InterfaceT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: InterfaceT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): InterfaceT =
+    InterfaceT(name, newAddressability)
+}
+
+
 
 
 

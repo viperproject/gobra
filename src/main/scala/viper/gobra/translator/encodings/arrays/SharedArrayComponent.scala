@@ -25,4 +25,10 @@ trait SharedArrayComponent extends Generator {
 
   /** Length of shared-array domain. */
   def length(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+
+  /** Boxing in the context of the shared-array domain. */
+  def box(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
+
+  /** Unboxing in the context of the shared-array domain. */
+  def unbox(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 }

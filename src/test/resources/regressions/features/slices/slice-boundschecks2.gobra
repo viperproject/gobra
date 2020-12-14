@@ -1,0 +1,57 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func simpleslice_from_array_2 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s := a[2:1] // low bound exceeds high bound
+}
+
+func simpleslice_from_slice_2 () {
+  var a@ [1]int
+  s1 := a[1:]
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s2 := s1[1:] // low bound exceeds high bound
+}
+
+func simpleslice_from_slice_3 () {
+  var a@ [1]int
+  s1 := a[1:]
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s2 := s1[:4] // high bound exceeds slice capacity
+}
+
+func fullslice_from_array_2 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s := a[1:0:2] // low bound exceeds high bound
+}
+
+func fullslice_from_array_3 () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s := a[0:2:1] // high bound exceeds max bound
+}
+
+func fullslice_from_slice_2 () {
+	a@ := [4]int { 1, 2, 4, 8 }
+  s1 := a[:]
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s2 := s1[1:0:3] // low bound exceeds high bound
+}
+
+func fullslice_from_slice_3 () {
+	a@ := [4]int { 1, 2, 4, 8 }
+  s1 := a[:]
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s2 := s1[0:2:1] // high bound exceeds max bound
+}
+
+func fullslice_from_slice_4 () {
+	a@ := [4]int { 1, 2, 4, 8 }
+  s1 := a[:]
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  s2 := s1[0:2:8] // max bound exceeds the slice capacity
+}

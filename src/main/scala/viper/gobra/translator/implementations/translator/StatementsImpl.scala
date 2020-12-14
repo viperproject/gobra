@@ -36,7 +36,6 @@ class StatementsImpl extends Statements {
     def goS(s: in.Stmt): CodeWriter[vpr.Stmt] = translate(s)(ctx)
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>

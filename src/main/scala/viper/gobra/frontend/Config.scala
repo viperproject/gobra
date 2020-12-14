@@ -304,8 +304,8 @@ class ScallopGobraConfig(arguments: Seq[String])
           case Left(_) => PackageResolver.resolve("", includeDirs) // look for files in the current directory
         }
       } yield files
-      assert(res.isRight, s"validate function did not catch this problem: '${res.left.get}'")
-      res.right.get
+      assert(res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")
+      res.getOrElse(Vector())
     }
 
     /**
@@ -332,7 +332,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     private def identifyInput(input: List[String]): Option[Either[String, Vector[File]]] = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
-        case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => Some(Left(pkgs.head.left.get))
+        case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => pkgs.head.swap.map(Left(_)).toOption
         case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s))
         case _ => None
       }

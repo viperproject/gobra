@@ -74,8 +74,8 @@ class AdvancedMemberSet[M <: TypeMember] private(
 
 object AdvancedMemberSet {
 
-  def init[M <: TypeMember](s: TraversableOnce[M]): AdvancedMemberSet[M] = {
-    val nmp: Vector[(String, M)] = s.map { tm =>
+  def init[M <: TypeMember](s: IterableOnce[M]): AdvancedMemberSet[M] = {
+    val nmp: Vector[(String, M)] = s.iterator.map { tm =>
 
       def extractMemberName(tm: TypeMember): String = tm match {
         case MethodImpl(m, _, _) => m.id.name

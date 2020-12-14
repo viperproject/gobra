@@ -175,7 +175,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryPackageLookup(pkgImport: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(pkgImport: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
       val importPath = pkgImport.importPath
-      val pkgFiles = PackageResolver.resolve(importPath, config.includeDirs).right.getOrElse(Vector())
+      val pkgFiles = PackageResolver.resolve(importPath, config.includeDirs).getOrElse(Vector())
       val res = for {
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$importPath' found")))

@@ -85,12 +85,10 @@ object Parser {
 
     val parsedPrograms = {
       val parserResults = sources.map(parseSource)
-      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
-      val errors = errorLefts.flatMap(_.left.get)
-      val programs = programRights.map(_.right.get)
+      val (errors, programs) = parserResults.partitionMap(identity)
 
       if (errors.nonEmpty) {
-        Left(errors)
+        Left(errors.flatten)
       } else {
         // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
         // of the same package has failed

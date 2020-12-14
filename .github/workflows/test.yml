@@ -36,11 +36,6 @@ jobs:
         with:
           repository: viperproject/carbon
           path: carbon
-      - name: Checkout ViperServer
-        uses: actions/checkout@v2
-        with:
-          repository: viperproject/viperserver
-          path: viperserver
 
       - name: Java Version
         run: java --version
@@ -52,8 +47,6 @@ jobs:
         run: echo "Silicon commit:" $(git -C silicon rev-parse HEAD)
       - name: Carbon Commit
         run: echo "Carbon commit:" $(git -C carbon rev-parse HEAD)
-      - name: ViperServer Commit
-        run: echo "ViperServer commit:" $(git -C viperserver rev-parse HEAD)
 
       # create symlinks between and to Viper dependencies:
       - name: Create Silicon's sym links
@@ -62,11 +55,8 @@ jobs:
       - name: Create Carbon's sym links
         run: ln --symbolic ../silver
         working-directory: carbon
-      - name: Create ViperServers's sym links
-        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
-        working-directory: viperserver
       - name: Create Gobra's sym links
-        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon; ln --symbolic ../viperserver
+        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
         working-directory: gobra
 
       - name: Set sbt cache variables
@@ -80,7 +70,7 @@ jobs:
             gobra/sbt-cache/.sbtboot
             gobra/sbt-cache/.boot
             gobra/sbt-cache/.ivy/cache
-          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'viperserver', are intentionally not
+          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'silicon', are intentionally not
           # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
           # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
           # disabled caching of compiled source files altogether

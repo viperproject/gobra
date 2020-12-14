@@ -14,11 +14,10 @@ import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends}
+import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.TypeBounds
-import viper.server.core.{ViperBackendConfig, ViperBackendConfigs}
 
 
 object LoggerDefaults {
@@ -30,7 +29,7 @@ case class Config(
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
-                 backendConfig: ViperBackendConfig = ViperBackendConfigs.EmptyConfig,
+                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,

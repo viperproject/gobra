@@ -7,18 +7,18 @@
 package viper.gobra.backend
 
 import viper.carbon
-import viper.server.core.ViperBackendConfig
+import viper.gobra.util.GobraExecutionContext
 import viper.silver.ast.Program
 import viper.silver.reporter._
 import viper.silver.verifier.{Failure, Success, VerificationResult}
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.Future
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
-
-  def verify(programID: String, config: ViperBackendConfig, reporter:Reporter, program: Program): Future[VerificationResult] = {
+  def verify(programID: String, config: ViperVerifierConfig, reporter:Reporter, program: Program)(executor: GobraExecutionContext): Future[VerificationResult] = {
+    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
+    implicit val _executor: GobraExecutionContext = executor
     Future {
       val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
       backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))

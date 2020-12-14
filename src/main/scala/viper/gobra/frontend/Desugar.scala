@@ -281,7 +281,7 @@ object Desugar {
 
       (decl.result.outs zip returnsWithSubs).foreach{
         case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case (NoGhost(_: PUnnamedParameter), (_, _)) => violation("cannot have an alias for an unnamed parameter")
+        case (NoGhost(_: PUnnamedParameter), (_, Some(_))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
@@ -439,7 +439,7 @@ object Desugar {
 
       (decl.result.outs zip returnsWithSubs).foreach{
         case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case (NoGhost(_: PUnnamedParameter), (_, _)) => violation("cannot have an alias for an unnamed parameter")
+        case (NoGhost(_: PUnnamedParameter), (_, Some(_))) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 

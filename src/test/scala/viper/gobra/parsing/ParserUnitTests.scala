@@ -167,6 +167,34 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     })
   }
 
+  test("Parser: equality") {
+    val equalities = Set(
+      "x == y",
+      "(x == y)"
+    )
+    equalities.foreach(equality => {
+      frontend.parseExpOrFail(equality) should matchPattern {
+        case PEquals(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))) =>
+      }
+    })
+  }
+
+  test("Parser: empty if stmt") {
+    val test = frontend.parseExpOrFail("x == y {}")
+
+    val emptyStmts = Set(
+      //"if (x == y) {}",
+      //"if (x == y) { ; }",
+      //"if x == y { ; }",
+      "if x == y {}")
+    emptyStmts.foreach(emptyStmt => {
+      val result = frontend.parseStmtOrFail(emptyStmt)
+      result should matchPattern {
+        case PIfStmt(Vector(PIfClause(None, PEquals(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))), PBlock(stmts))), None) if TestHelper.areEmptyStmts(stmts) =>
+      }
+    })
+  }
+
 
   /* ** structs */
 
@@ -2414,5 +2442,13 @@ class ParserUnitTests extends FunSuite with Matchers with Inside {
     def parseTypeOrFail(source : String) : PType = parseOrFail(source, Parser.parseType)
     def parseImportDecl(source: String): Vector[PImport] = parseOrFail(source, Parser.parseImportDecl)
     def parseMember(source: String, specOnly: Boolean = false): Vector[PMember] = parseOrFail(source, (s: Source) => Parser.parseMember(s, specOnly = specOnly))
+  }
+
+  object TestHelper {
+    /** true if stmts is empty or only consists of empty statements */
+    def areEmptyStmts(stmts: Vector[PStatement]): Boolean = stmts.forall {
+      case PEmptyStmt() => true
+      case _ => false
+    }
   }
 }

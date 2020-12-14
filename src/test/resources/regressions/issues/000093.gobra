@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func Eg(x int, y int) {
+	if x == y {
+		// Fails. Works if I add this statement: z := 0
+		// also works if I put ';'
+	}
+}

@@ -457,7 +457,7 @@ object Parser {
         "%" ^^^ PModOp()
 
     lazy val assignee: Parser[PAssignee] =
-      selection | indexedExp | dereference | namedOperand
+      selection(DefaultContext) | indexedExp(DefaultContext) | dereference(DefaultContext) | namedOperand
 
     lazy val shortVarDecl: Parser[PShortVarDecl] =
       (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
@@ -508,10 +508,33 @@ object Parser {
         ifClause ~ ("else" ~> block).? ^^ { case clause ~ els => PIfStmt(Vector(clause), els) }
 
     lazy val ifClause: Parser[PIfClause] =
-      ("if" ~> (simpleStmt <~ ";").?) ~ expression ~ block ^^ PIfClause
+      ("if" ~> (simpleStmt <~ ";").?) ~ enclosedOnlyCompositeLitExpression ~ block ^^ PIfClause
+
+    // rejects composite literals occuring as last operand to achieve the same behavior as the Go compiler and
+    // as described in the spec:
+    // A parsing ambiguity arises when a composite literal using the TypeName form of the LiteralType appears as an
+    // operand between the keyword and the opening brace of the block of an "if", "for", or "switch" statement, and
+    // the composite literal is not enclosed in parentheses, square brackets, or curly braces. In this rare case, the
+    // opening brace of the literal is erroneously parsed as the one introducing the block of statements. To resolve
+    // the ambiguity, the composite literal must appear within parentheses.
+    /*
+    lazy val noCompositeLitOperand: Parser[PExpression] =
+      expression.into(e => {
+        val tree = new Tree[PNode, PExpression](e)
+        val containsCompLit = containsCompositeLiteral(tree, e)
+        // TODO: improve error message
+        if (containsCompLit) failure(s"composite literal in expression ${e.formatted}")
+        else success(e)
+      })
+
+    private def containsCompositeLiteral(tree: Tree[PNode, PExpression], n: PNode): Boolean = n match {
+      case c: PCompositeLit => true
+      case _ => tree.child(n).exists(containsCompositeLiteral(tree, _))
+    }
+    */
 
     lazy val exprSwitchStmt: Parser[PExprSwitchStmt] =
-      ("switch" ~> (simpleStmt <~ ";").?) ~ pos(expression.?) ~ ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+      ("switch" ~> (simpleStmt <~ ";").?) ~ pos(enclosedOnlyCompositeLitExpression.?) ~ ("{" ~> exprSwitchClause.* <~ "}") ^^ {
         case pre ~ cond ~ clauses =>
           val cases = clauses collect { case v: PExprSwitchCase => v }
           val dflt = clauses collect { case v: PExprSwitchDflt => v.body }
@@ -535,7 +558,7 @@ object Parser {
 
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
-        (idnDef <~ ":=").? ~ (primaryExp <~ "." <~ "(" <~ "type" <~ ")") ~
+        (idnDef <~ ":=").? ~ (primaryExp(DefaultContext) <~ "." <~ "(" <~ "type" <~ ")") ~
         ("{" ~> exprSwitchClause.* <~ "}") ^^ {
         case pre ~ binder ~ exp ~ clauses =>
           val cases = clauses collect { case v: PTypeSwitchCase => v }
@@ -570,17 +593,17 @@ object Parser {
       selectDflt | selectShortRecv | selectAssRecv | selectRecv
 
     lazy val selectRecv: Parser[PSelectRecv] =
-      ("case" ~> receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
+      ("case" ~> receiveExp(DefaultContext) <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case receive ~ stmts => PSelectRecv(receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectAssRecv: Parser[PSelectAssRecv] =
-      ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
+      ("case" ~> rep1sep(assignee, ",") <~ "=") ~ (receiveExp(DefaultContext) <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case receive ~ left ~ stmts => PSelectAssRecv(left, receive, PBlock(stmts.get).at(stmts))
       }
 
     lazy val selectShortRecv: Parser[PSelectShortRecv] =
-      ("case" ~> rep1sep(idnUnk, ",") <~ ":=") ~ (receiveExp <~ ":") ~ pos((statement <~ eos).*) ^^ {
+      ("case" ~> rep1sep(idnUnk, ",") <~ ":=") ~ (receiveExp(DefaultContext) <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case left ~ receive ~ stmts => PSelectShortRecv(receive, left, PBlock(stmts.get).at(stmts))
       }
 
@@ -601,7 +624,7 @@ object Parser {
           case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
           case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
         } |
-        loopSpec ~ ("for" ~> expression) ~ block ^^ {
+        loopSpec ~ ("for" ~> enclosedOnlyCompositeLitExpression) ~ block ^^ {
           case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
         }
 
@@ -621,73 +644,131 @@ object Parser {
       * Expressions
       */
 
-    lazy val expression: Parser[PExpression] =
-      precedence1
+    // declare the UnenclosedCompositeLiteralsExprParser as default expression parser:
+    /*
+    lazy val expression: Parser[PExpression] = unenclosedCompositeLiteralsExprParser.expression
+    lazy val primaryExp: Parser[PExpression] = unenclosedCompositeLiteralsExprParser.primaryExp
+    lazy val selection: PackratParser[PDot] = unenclosedCompositeLiteralsExprParser.selection
+    lazy val indexedExp: PackratParser[PIndexedExp] = unenclosedCompositeLiteralsExprParser.indexedExp
+    lazy val dereference: Parser[PDeref] = unenclosedCompositeLiteralsExprParser.dereference
+    lazy val namedOperand: Parser[PNamedOperand] = unenclosedCompositeLiteralsExprParser.namedOperand
+    lazy val receiveExp: Parser[PReceive] = unenclosedCompositeLiteralsExprParser.receiveExp
+    lazy val sequenceConversion: Parser[PSequenceConversion] = unenclosedCompositeLiteralsExprParser.sequenceConversion
+    lazy val setConversion: Parser[PSetConversion] = unenclosedCompositeLiteralsExprParser.setConversion
+    lazy val multisetConversion: Parser[PMultisetConversion] = unenclosedCompositeLiteralsExprParser.multisetConversion
+*/
+    trait Context {
+      def disallowUnenclosedCompositeLiterals: Boolean
+    }
 
-    lazy val precedence1: PackratParser[PExpression] = /* Right-associative */
-      precedence1P5 ~ ("?" ~> precedence1 <~ ":") ~ precedence1 ^^ PConditional |
-        precedence1P5
+    type ContextualParser[T] = Context => Parser[T]
+    type ContextualPackratParser[T] = Context => PackratParser[T]
+    /*
+    class ContextualParser[+T](parser: Parser[T], ctx: Context) extends Parser[T] {
 
-    lazy val precedence1P5: PackratParser[PExpression] = /* Right-associative */
-      precedence2 ~ ("==>" ~> precedence1P5) ^^ PImplication |
-        precedence2
+      p =>
 
-    lazy val precedence2: PackratParser[PExpression] = /* Left-associative */
-      precedence2 ~ ("||" ~> precedence3) ^^ POr |
-        precedence3
+      def mergeContexts(ctx1: Context, ctx2: Context): Context = {
+        if (ctx1.equals(ctx2)) ctx1
+        else ???
+      }
 
-    lazy val precedence3: PackratParser[PExpression] = /* Left-associative */
-      precedence3 ~ ("&&" ~> precedence4) ^^ PAnd |
-        precedence4
+      def ~[U](q : => ContextualParser[U]) : ContextualParser[~[T, U]] =
+        new ContextualParser(p.parser ~ q.parser, mergeContexts(p.ctx, q.ctx))
 
-    lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
-        precedence4 ~ ("<" ~> precedence4P1) ^^ PLess |
-        precedence4 ~ ("<=" ~> precedence4P1) ^^ PAtMost |
-        precedence4 ~ (">" ~> precedence4P1) ^^ PGreater |
-        precedence4 ~ (">=" ~> precedence4P1) ^^ PAtLeast |
-        precedence4P1
+      override def apply(in: Input): ParseResult[T] = p(in)
+    }
+     */
 
-    lazy val precedence4P1 : PackratParser[PExpression] = /* Left-associative */
-      precedence4P1 ~ ("in" ~> precedence4P2) ^^ PIn |
-        precedence4P1 ~ ("#" ~> precedence4P2) ^^ PMultiplicity |
-        precedence4P1 ~ ("subset" ~> precedence4P2) ^^ PSubset |
-        precedence4P2
+    object DisallowUnenclosedCompositeLiterals extends Context {
+      val disallowUnenclosedCompositeLiterals = true
+    }
+    object AllowUnenclosedCompositeLiterals extends Context {
+      val disallowUnenclosedCompositeLiterals = false
+    }
+    lazy val DefaultContext = AllowUnenclosedCompositeLiterals
 
-    lazy val precedence4P2 : PackratParser[PExpression] = /* Left-associative */
-      precedence4P2 ~ ("union" ~> precedence5) ^^ PUnion |
-        precedence4P2 ~ ("intersection" ~> precedence5) ^^ PIntersection |
-        precedence4P2 ~ ("setminus" ~> precedence5) ^^ PSetMinus |
-        precedence5
+    /** disallows occurences of composite literals that are not nested in parentheses or brackets */
+    lazy val enclosedOnlyCompositeLitExpression: Parser[PExpression] = expressionCtx(DisallowUnenclosedCompositeLiterals)
+    lazy val expression: Parser[PExpression] = expressionCtx(DefaultContext)
 
-    lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
-        precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
-        precedence5 ~ ("-" ~> precedence6) ^^ PSub |
-        precedence6
+    lazy val expressionCtx: ContextualParser[PExpression] =
+      ctx => precedence1(ctx)
 
-    lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
-      precedence6 ~ ("*" ~> precedence7) ^^ PMul |
-        precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
-        precedence6 ~ ("%" ~> precedence7) ^^ PMod |
-        precedence7
+    lazy val precedence1: ContextualPackratParser[PExpression] = /* Right-associative */
+      ctx =>
+        precedence1P5(ctx) ~ ("?" ~> precedence1(ctx) <~ ":") ~ precedence1(ctx) ^^ PConditional |
+        precedence1P5(ctx)
 
-    lazy val precedence7: PackratParser[PExpression] =
-      unaryExp
+    lazy val precedence1P5: ContextualPackratParser[PExpression] = /* Right-associative */
+      ctx =>
+        precedence2(ctx) ~ ("==>" ~> precedence1P5(ctx)) ^^ PImplication |
+        precedence2(ctx)
 
-    lazy val unaryExp: Parser[PExpression] =
-      "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
-        "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
-        "!" ~> unaryExp ^^ PNegation |
-        reference |
-        dereference |
-        receiveExp |
-        unfolding |
+    lazy val precedence2: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence2(ctx) ~ ("||" ~> precedence3(ctx)) ^^ POr |
+        precedence3(ctx)
+
+    lazy val precedence3: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence3(ctx) ~ ("&&" ~> precedence4(ctx)) ^^ PAnd |
+        precedence4(ctx)
+
+    lazy val precedence4: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence4(ctx) ~ ("==" ~> precedence4P1(ctx)) ^^ PEquals |
+        precedence4(ctx) ~ ("!=" ~> precedence4P1(ctx)) ^^ PUnequals |
+        precedence4(ctx) ~ ("<" ~> precedence4P1(ctx)) ^^ PLess |
+        precedence4(ctx) ~ ("<=" ~> precedence4P1(ctx)) ^^ PAtMost |
+        precedence4(ctx) ~ (">" ~> precedence4P1(ctx)) ^^ PGreater |
+        precedence4(ctx) ~ (">=" ~> precedence4P1(ctx)) ^^ PAtLeast |
+        precedence4P1(ctx)
+
+    lazy val precedence4P1: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence4P1(ctx) ~ ("in" ~> precedence4P2(ctx)) ^^ PIn |
+        precedence4P1(ctx) ~ ("#" ~> precedence4P2(ctx)) ^^ PMultiplicity |
+        precedence4P1(ctx) ~ ("subset" ~> precedence4P2(ctx)) ^^ PSubset |
+        precedence4P2(ctx)
+
+    lazy val precedence4P2: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence4P2(ctx) ~ ("union" ~> precedence5(ctx)) ^^ PUnion |
+        precedence4P2(ctx) ~ ("intersection" ~> precedence5(ctx)) ^^ PIntersection |
+        precedence4P2(ctx) ~ ("setminus" ~> precedence5(ctx)) ^^ PSetMinus |
+        precedence5(ctx)
+
+    lazy val precedence5: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence5(ctx) ~ ("++" ~> precedence6(ctx)) ^^ PSequenceAppend |
+        precedence5(ctx) ~ ("+" ~> precedence6(ctx)) ^^ PAdd |
+        precedence5(ctx) ~ ("-" ~> precedence6(ctx)) ^^ PSub |
+        precedence6(ctx)
+
+    lazy val precedence6: ContextualPackratParser[PExpression] = /* Left-associative */
+      ctx =>
+        precedence6(ctx) ~ ("*" ~> precedence7(ctx)) ^^ PMul |
+        precedence6(ctx) ~ ("/" ~> precedence7(ctx)) ^^ PDiv |
+        precedence6(ctx) ~ ("%" ~> precedence7(ctx)) ^^ PMod |
+        precedence7(ctx)
+
+    lazy val precedence7: ContextualPackratParser[PExpression] =
+      ctx => unaryExp(ctx)
+
+    lazy val unaryExp: ContextualParser[PExpression] =
+      ctx =>
+        "+" ~> unaryExp(ctx) ^^ (e => PAdd(PIntLit(0).at(e), e)) |
+        "-" ~> unaryExp(ctx) ^^ (e => PSub(PIntLit(0).at(e), e)) |
+        "!" ~> unaryExp(ctx) ^^ PNegation |
+        reference(ctx) |
+        dereference(ctx) |
+        receiveExp(ctx) |
+        unfolding(ctx) |
         len |
         cap |
-        ghostUnaryExp |
-        primaryExp
+        ghostUnaryExp(ctx) |
+        primaryExp(ctx)
 
     lazy val len : Parser[PLength] =
       "len" ~> ("(" ~> expression <~ ")") ^^ PLength
@@ -695,83 +776,84 @@ object Parser {
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
 
-    lazy val reference: Parser[PReference] =
-      "&" ~> unaryExp ^^ PReference
+    lazy val reference: ContextualParser[PReference] =
+      ctx => "&" ~> unaryExp(ctx) ^^ PReference
 
-    lazy val dereference: Parser[PDeref] =
-      "*" ~> unaryExp ^^ PDeref
+    lazy val dereference: ContextualParser[PDeref] =
+      ctx => "*" ~> unaryExp(ctx) ^^ PDeref
 
-    lazy val receiveExp: Parser[PReceive] =
-      "<-" ~> unaryExp ^^ PReceive
+    lazy val receiveExp: ContextualParser[PReceive] =
+      ctx => "<-" ~> unaryExp(ctx) ^^ PReceive
 
-    lazy val unfolding: Parser[PUnfolding] =
-      "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
+    lazy val unfolding: ContextualParser[PUnfolding] =
+      ctx => "unfolding" ~> predicateAccess(ctx) ~ ("in" ~> expressionCtx(ctx)) ^^ PUnfolding
 
-    lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality
+    lazy val ghostUnaryExp: ContextualParser[PGhostExpression] =
+      ctx => "|" ~> expressionCtx(ctx) <~ "|" ^^ PCardinality
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
-      "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
+      "seq" ~> ("(" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ ")") ^^ PSequenceConversion
 
     lazy val setConversion : Parser[PSetConversion] =
-      "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
+      "set" ~> ("(" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ ")") ^^ PSetConversion
 
     lazy val multisetConversion : Parser[PMultisetConversion] =
-      "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
+      "mset" ~> ("(" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ ")") ^^ PMultisetConversion
 
-    lazy val primaryExp: Parser[PExpression] =
-      conversion |
-        call |
-        selection |
-        indexedExp |
-        sliceExp |
-        seqUpdExp |
-        typeAssertion |
+    lazy val primaryExp: ContextualParser[PExpression] =
+      ctx => conversion |
+        call(ctx) |
+        selection(ctx) |
+        indexedExp(ctx) |
+        sliceExp(ctx) |
+        seqUpdExp(ctx) |
+        typeAssertion(ctx) |
         ghostPrimaryExp |
-        operand
+        operand(ctx)
 
     lazy val conversion: Parser[PInvoke] =
-      typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
+      typ ~ ("(" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ ",".? <~ ")") ^^ {
         case t ~ e => PInvoke(t, Vector(e))
       }
 
-    lazy val call: PackratParser[PInvoke] =
-      primaryExp ~ callArguments ^^ PInvoke
+    lazy val call: ContextualPackratParser[PInvoke] =
+      ctx => primaryExp(ctx) ~ callArguments ^^ PInvoke
 
     lazy val callArguments: Parser[Vector[PExpression]] =
-      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+      ("(" ~> (rep1sep(expressionCtx(AllowUnenclosedCompositeLiterals), ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
-    lazy val selection: PackratParser[PDot] =
-      primaryExp ~ ("." ~> idnUse) ^^ PDot
+    lazy val selection: ContextualPackratParser[PDot] =
+      ctx => primaryExp(ctx) ~ ("." ~> idnUse) ^^ PDot
 
     lazy val idBasedSelection: Parser[PDot] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ {
         case base ~ field => PDot(PNamedOperand(base).at(base), field)
       }
 
-    lazy val indexedExp: PackratParser[PIndexedExp] =
-      primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
+    lazy val indexedExp: ContextualPackratParser[PIndexedExp] =
+      ctx => primaryExp(ctx) ~ ("[" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ "]") ^^ PIndexedExp
 
-    lazy val sliceExp: PackratParser[PSliceExp] =
-      primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
+    lazy val sliceExp: ContextualPackratParser[PSliceExp] =
+      ctx => primaryExp(ctx) ~ ("[" ~> expressionCtx(AllowUnenclosedCompositeLiterals).?) ~ (":" ~> expressionCtx(AllowUnenclosedCompositeLiterals).?) ~ ((":" ~> expressionCtx(AllowUnenclosedCompositeLiterals)).? <~ "]") ^^ PSliceExp
 
-    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
-      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+    lazy val seqUpdExp : ContextualPackratParser[PSequenceUpdate] =
+      ctx => primaryExp(ctx) ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
 
     lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
-      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
+    // uses UnenclosedCompositeLiteralsExprParser as this parser is used inside square brackets (see seqUpdExp)
+      expressionCtx(AllowUnenclosedCompositeLiterals) ~ ("=" ~> expressionCtx(AllowUnenclosedCompositeLiterals)) ^^ PSequenceUpdateClause
 
-    lazy val typeAssertion: PackratParser[PTypeAssertion] =
-      primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
+    lazy val typeAssertion: ContextualPackratParser[PTypeAssertion] =
+      ctx => primaryExp(ctx) ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
 
-    lazy val operand: Parser[PExpression] =
-      literal | namedOperand | "(" ~> expression <~ ")"
+    lazy val operand: ContextualParser[PExpression] =
+      ctx => literal(ctx) | namedOperand | "(" ~> expressionCtx(AllowUnenclosedCompositeLiterals) <~ ")"
 
     lazy val namedOperand: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand
 
-    lazy val literal: Parser[PLiteral] =
-      basicLit | compositeLit | functionLit
+    lazy val literal: ContextualParser[PLiteral] =
+      ctx => basicLit | compositeLit(ctx) | functionLit
 
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
@@ -779,8 +861,10 @@ object Parser {
         "nil" ^^^ PNilLit() |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit)))
 
-    lazy val compositeLit: Parser[PCompositeLit] =
-      literalType ~ literalValue ^^ PCompositeLit
+    lazy val compositeLit: ContextualParser[PCompositeLit] =
+      ctx =>
+      if (ctx.disallowUnenclosedCompositeLiterals) failure("unenclosed composite literals not allowed")
+      else literalType ~ literalValue ^^ PCompositeLit
 
     lazy val literalValue: Parser[PLiteralValue] =
       "{" ~> (rep1sep(keyedElement, ",") <~ ",".?).? <~ "}" ^^ {
@@ -801,14 +885,14 @@ object Parser {
       expCompositeLiteral | litCompositeLiteral
 
     lazy val expCompositeLiteral: Parser[PExpCompositeVal] =
-      expression ^^ PExpCompositeVal
+    // uses UnenclosedCompositeLiteralsExprParser as this parser is used inside curly brackets (see literalValue)
+      expressionCtx(AllowUnenclosedCompositeLiterals) ^^ PExpCompositeVal
 
     lazy val litCompositeLiteral: Parser[PLitCompositeVal] =
       literalValue ^^ PLitCompositeVal
 
     lazy val functionLit: Parser[PFunctionLit] =
       "func" ~> signature ~ block ^^ { case sig ~ body => PFunctionLit(sig._1, sig._2, body) }
-
 
 
     /**
@@ -1063,8 +1147,8 @@ object Parser {
       "exhale" ~> expression ^^ PExhale |
       "assume" ~> expression ^^ PAssume |
       "inhale" ~> expression ^^ PInhale |
-      "fold" ~> predicateAccess ^^ PFold |
-      "unfold" ~> predicateAccess ^^ PUnfold
+      "fold" ~> predicateAccess(DefaultContext) ^^ PFold |
+      "unfold" ~> predicateAccess(DefaultContext) ^^ PUnfold
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
       "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
@@ -1128,9 +1212,9 @@ object Parser {
     lazy val optionGet : Parser[POptionGet] =
       "get" ~> ("(" ~> expression <~ ")") ^^ POptionGet
 
-    lazy val predicateAccess: Parser[PPredicateAccess] =
+    lazy val predicateAccess: ContextualParser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
-      primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
+      ctx => primaryExp(ctx) into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
         case invoke: PInvoke => success(PPredicateAccess(invoke))
         case e => failure(s"expected invoke but got ${e.getClass}")
       }
@@ -1179,8 +1263,4 @@ object Parser {
   private class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
 
   }
-
-
 }
-
-

@@ -678,12 +678,11 @@ object Desugar {
 
           case PVarDecl(typOpt, right, left, addressable) =>
 
-            if (left.size == right.size && left.size == addressable.size) {
-              sequence((left zip right zip addressable).map{ case ((l, r), addr) =>
+            if (left.size == right.size) {
+              sequence((left zip right).map{ case (l, r) =>
                 for{
                   re <- goE(r)
-                  addressability = if(addr) Addressability.Shared else Addressability.Exclusive
-                  typ: in.Type = typOpt.map(x => typeD(info.symbType(x), addressability)(src)).getOrElse(re.typ)
+                  typ: in.Type = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
                   le <- unit(in.Assignee.Var(getVar(l)(typ)))
                 } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
@@ -693,8 +692,8 @@ object Desugar {
                 les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val addressability = typeD(info.symbType(typOpt.get), Addressability.defaultValue)(src)
-              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(addressability)) }
+              val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
+              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typ)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => singleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
@@ -1088,7 +1087,7 @@ object Desugar {
           case g: PGhostExpression => ghostExprD(ctx)(g)
 
           case b: PBlankIdentifier =>
-            val typ = typeD(info.typ(b), Addressability.defaultValue)(src)
+            val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
             unit(freshExclusiveVar(typ)(src))
 
           case e => Violation.violation(s"desugarer: $e is not supported")

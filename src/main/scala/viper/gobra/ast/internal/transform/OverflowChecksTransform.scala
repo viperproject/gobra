@@ -125,9 +125,8 @@ object OverflowChecksTransform extends InternalTransform {
   private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion = {
     val trueLit: Expr = BoolLit(b = true)(info)
 
-    def genAssertionExpr(elem: (Expr, Type)): Expr = {
-      val expr = elem._1
-      elem._2 match {
+    def genAssertionExpr(expr: Expr, typ: Type): Expr = {
+      typ match {
         case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
           val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
           And(
@@ -150,7 +149,10 @@ object OverflowChecksTransform extends InternalTransform {
       case _ => false
     })
 
-    val computeAssertions = (exprsWithType: Set[(Expr, Type)]) => exprsWithType.map{elem => genAssertionExpr(elem)}.foldRight(trueLit)((x,y) => And(x,y)(info))
+    val computeAssertions = (exprsWithType: Set[(Expr, Type)]) =>
+      exprsWithType
+        .map{elem => genAssertionExpr(elem._1, elem._2)}
+        .foldRight(trueLit)((x,y) => And(x,y)(info))
 
     // assumptions for the values that are considered within bounds
     val assumptions = computeAssertions(valuesWithinBounds)

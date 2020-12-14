@@ -62,7 +62,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   type ViperPosition = (PPosition, Int)
   val positionStore: mutable.Map[GobraPosition, ListBuffer[(PPosition, PPosition)]] = mutable.Map[GobraPosition, ListBuffer[ViperPosition]]()
 
-  def addPosition(gobraPos: GobraPosition, viperPos: ViperPosition) = {
+  def addPosition(gobraPos: GobraPosition, viperPos: ViperPosition): Unit = {
     positionStore.get(gobraPos) match {
       case Some(b) => b += viperPos
       case None => positionStore += (gobraPos -> ListBuffer(viperPos))

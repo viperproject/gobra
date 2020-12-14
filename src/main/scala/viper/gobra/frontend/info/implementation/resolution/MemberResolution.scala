@@ -85,7 +85,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[M] = attr[Type, AdvancedMemberSet[M]] {
 
-      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case s: StructT =>
@@ -104,7 +104,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     def go(pastDeref: Boolean): Type => AdvancedMemberSet[StructMember] = attr[Type, AdvancedMemberSet[StructMember]] {
 
-      case DeclaredT(decl, context) => go(pastDeref)(context.typ(decl.right)).surface
+      case DeclaredT(decl, context) => go(pastDeref)(context.symbType(decl.right)).surface
       case PointerT(t) if !pastDeref => go(pastDeref = true)(t).ref
 
       case s: StructT =>
@@ -172,7 +172,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeType(e), id)
+  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
 
   def tryPackageLookup(pkgImport: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(pkgImport: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
@@ -235,7 +235,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else typeType(typ) match {
+        else typeSymbType(typ) match {
           case pkg: ImportT => tryPackageLookup(pkg.decl, id)
           case _ => None
         }

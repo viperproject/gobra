@@ -189,6 +189,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
     case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>
@@ -324,6 +326,26 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showExpr(exp) <> brackets(showExpr(low) <> ":" <> showExpr(high) <> maxD)
     }
 
+    case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
+    case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+    case ToInterface(exp, typ) => "toInterface" <> parens(showExpr(exp))
+    case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
+    case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
+
+    case BoolTExpr() => "bool"
+    case IntTExpr(kind) => kind.name
+    case PermTExpr() => "perm"
+    case PointerTExpr(elem) => "*" <> showExpr(elem)
+    case StructTExpr(fs) => "struct" <> braces(showList(fs)(f => f._1 <> ":" <+> showExpr(f._2)))
+    case ArrayTExpr(len, elem) => brackets(showExpr(len)) <> showExpr(elem)
+    case SliceTExpr(elem) => brackets(emptyDoc) <> showExpr(elem)
+    case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))
+    case SetTExpr(elem) => "set" <> brackets(showExpr(elem))
+    case MultisetTExpr(elem) => "mset" <> brackets(showExpr(elem))
+    case OptionTExpr(elem) => "option" <> brackets(showExpr(elem))
+    case TupleTExpr(elem) => parens(showExprList(elem))
+    case DefinedTExpr(name) => name
+
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
     case Deref(exp, typ) => "*" <> showExpr(exp)
@@ -397,6 +419,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
+    case interface: InterfaceT => "interface" <> parens("...")
+    case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
@@ -465,6 +489,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
     case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
 
     case FunctionCall(targets, func, args) =>

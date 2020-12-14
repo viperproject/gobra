@@ -8,9 +8,11 @@ package viper.gobra.translator.encodings.combinators
 
 import viper.gobra.translator.encodings.TypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.Expr
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.silver.ast.Exp
 import viper.silver.{ast => vpr}
 
 /**
@@ -38,5 +40,6 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = combiner(_.expr(ctx))
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = combiner(_.reference(ctx))
   override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = combiner(_.addressFootprint(ctx))
+  override def isComparable(ctx: Context): Expr ==> Either[Boolean, CodeWriter[Exp]] = combiner(_.isComparable(ctx))
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = combiner(_.statement(ctx))
 }

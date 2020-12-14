@@ -674,7 +674,7 @@ object Desugar {
                 re  <- goE(right.head)
                 les <- re.typ match {
                   case in.TupleT(ts, _) => unit(left.zipWithIndex.map {
-                    // assigns the correct type to a blank identifier if one is created
+                    // assigns the correct type to a blank identifier if one exists
                     case (l, idx) => in.Assignee.Var(getVar(l)(ts(idx)))
                   })
 

@@ -73,10 +73,10 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PDeferStmt
       ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
-    case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
-    case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
+    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
+    case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
       val res = enclosingCodeRootWithResult(n).result
@@ -109,9 +109,9 @@ trait GhostWellDef { this: TypeInfoImpl =>
       ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(p: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
       case (Left(callee), Some(p: ap.FunctionCall)) => ghostAssignableToCallExpr(p.args: _*)(callee)
-      case (Left(_), Some(p: ap.PredicateCall)) => noMessages
+      case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
   }

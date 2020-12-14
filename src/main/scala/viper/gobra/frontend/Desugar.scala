@@ -177,7 +177,7 @@ object Desugar {
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
-      case sc@ st.SingleConstant(_, id, expr, _, _, context) =>
+      case sc@ st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val intLit: Lit = gVar.typ match {
@@ -281,7 +281,7 @@ object Desugar {
 
       (decl.result.outs zip returnsWithSubs).foreach{
         case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case (NoGhost(_: PUnnamedParameter), (_, _)) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
@@ -439,7 +439,7 @@ object Desugar {
 
       (decl.result.outs zip returnsWithSubs).foreach{
         case (NoGhost(PNamedParameter(id, _)), (_, Some(q))) => ctx.addSubst(id, q)
-        case (NoGhost(_: PUnnamedParameter), (_, Some(q))) => violation("cannot have an alias for an unnamed parameter")
+        case (NoGhost(_: PUnnamedParameter), (_, _)) => violation("cannot have an alias for an unnamed parameter")
         case _ =>
       }
 
@@ -564,7 +564,6 @@ object Desugar {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
-      def goA(a: PExpression): Writer[in.Assertion] = assertionD(ctx)(a)
       def goL(a: PAssignee): Writer[in.Assignee] = assigneeD(ctx)(a)
 
       val src: Meta = meta(stmt)
@@ -662,7 +661,7 @@ object Desugar {
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
-          case PVarDecl(typOpt, right, left, addressable) =>
+          case PVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
@@ -923,8 +922,6 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
-      lazy val typ: in.Type = typeD(info.typ(expr), info.addressability(expr))(src)
-
       expr match {
         case NoGhost(noGhost) => noGhost match {
           case n: PNamedOperand => info.resolve(n) match {
@@ -976,7 +973,7 @@ object Desugar {
                 } else {
                   Violation.violation(s"desugarer: conversion $n is not supported")
                 }
-              case Some(ap: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
+              case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
             }
 
@@ -1318,10 +1315,10 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
-      case Type.MapT(key, elem) => ???
+      case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
-      case Type.ChannelT(elem, mod) => ???
+      case Type.ChannelT(_, _) => ???
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -1332,7 +1329,7 @@ object Desugar {
         val structName = nm.struct(t)
         registerType(in.StructT(structName, inFields, addrMod))
 
-      case Type.FunctionT(args, result) => ???
+      case Type.FunctionT(_, _) => ???
       case t: Type.InterfaceT =>
         val interfaceName = nm.interface(t)
         registerType(in.InterfaceT(interfaceName, addrMod))
@@ -1687,7 +1684,7 @@ object Desugar {
                       (vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression)
                       (go : FunctionContext => PExpression => Writer[T])
         : Writer[(Vector[in.BoundVar], Vector[in.Trigger], T)] = {
-      val newVars = vars map boundVariableD(ctx)
+      val newVars = vars map boundVariableD
 
       // substitution has to be added since otherwise all bound variables are translated to addressable variables
       val bodyCtx = ctx.copy
@@ -1699,7 +1696,7 @@ object Desugar {
       } yield (newVars, newTriggers, newBody)
     }
 
-    def boundVariableD(ctx: FunctionContext)(x: PBoundVariable) : in.BoundVar =
+    def boundVariableD(x: PBoundVariable) : in.BoundVar =
       in.BoundVar(idName(x.id), typeD(info.symbType(x.typ), Addressability.boundVariable)(meta(x)))(meta(x))
 
     def pureExprD(ctx: FunctionContext)(expr: PExpression): in.Expr = {
@@ -1888,8 +1885,6 @@ object Desugar {
         scopeCounter += 1
       }
     }
-
-    private var substitutions: Map[(String, PScope), String] = Map.empty
 
     private def name(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
       maybeRegister(s)

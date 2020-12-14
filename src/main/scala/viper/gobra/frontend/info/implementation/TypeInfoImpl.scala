@@ -145,10 +145,10 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     // lookup PStructType based on PFieldDecl and get then StructT
     attr[PNode, Option[Type.StructT]] {
 
-      case tree.parent.pair(decl: PFieldDecl, decls: PFieldDecls) =>
+      case tree.parent.pair(_: PFieldDecl, decls: PFieldDecls) =>
         struct(decls)
 
-      case tree.parent.pair(decls: PFieldDecls, structDecl: PStructType) =>
+      case tree.parent.pair(_: PFieldDecls, structDecl: PStructType) =>
         Some(symbType(structDecl).asInstanceOf[Type.StructT])
 
       case _ => None

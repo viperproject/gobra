@@ -91,7 +91,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PShortForRange =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-          val len = decl.shorts.size
           RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
 
         case decl: PSelectShortRecv =>

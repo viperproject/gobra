@@ -92,7 +92,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case RangeVariable(idx, range, _, _, _) => unsafeMessage(! {
       miscType(range) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
-        case t => false
+        case _ => false
       }
     })
 
@@ -150,7 +150,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
-    case NamedType(decl, _, context) => SortT // DeclaredT(decl, context)
+    case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)
 
     case InParameter(p, _, _, context) => context.symbType(p.typ)

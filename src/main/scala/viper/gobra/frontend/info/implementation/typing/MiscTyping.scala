@@ -32,7 +32,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PParameter => isType(n.typ).out
     case n: PReceiver => isType(n.typ).out
-    case n: PResult => noMessages // children already taken care of
+    case _: PResult => noMessages // children already taken care of
 
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out
@@ -78,7 +78,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val expectedMiscType: PShortCircuitMisc => Type =
     attr[PShortCircuitMisc, Type] {
 
-      case tree.parent.pair(l: PLiteralValue, p) => p match {
+      case tree.parent.pair(_: PLiteralValue, p) => p match {
         case cl: PCompositeLit => expectedCompositeLitType(cl)
         case cv: PCompositeVal => expectedMiscType(cv)
         case _ => Violation.violation(s"found unexpected literal: $p")
@@ -102,7 +102,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => Violation.violation(s"found unexpected type: $t")
       }
 
-      case tree.parent.pair(cv: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
+      case tree.parent.pair(_: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
     }
 
 

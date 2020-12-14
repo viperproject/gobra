@@ -25,27 +25,27 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case Single(PointerT(t)) => noMessages
+            case Single(PointerT(_)) => noMessages
             case t => error(n, s"expected pointer type but got $t")
           }
 
-        case Some(p: ap.PointerType) => noMessages
+        case Some(_: ap.PointerType) => noMessages
 
         case _ => violation("Deref should always resolve to either the deref or pointer type pattern")
       }
 
     case n: PDot =>
       resolve(n) match {
-        case Some(p: ap.FieldSelection) => noMessages
-        case Some(p: ap.ReceivedMethod) => noMessages
-        case Some(p: ap.ReceivedPredicate) => noMessages
-        case Some(p: ap.MethodExpr) => noMessages
-        case Some(p: ap.PredicateExpr) => noMessages
+        case Some(_: ap.FieldSelection) => noMessages
+        case Some(_: ap.ReceivedMethod) => noMessages
+        case Some(_: ap.ReceivedPredicate) => noMessages
+        case Some(_: ap.MethodExpr) => noMessages
+        case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
-        case Some(p: ap.Constant) => noMessages
-        case Some(p: ap.Function) => noMessages
-        case Some(p: ap.NamedType) => noMessages
-        case Some(p: ap.Predicate) => noMessages
+        case Some(_: ap.Constant) => noMessages
+        case Some(_: ap.Function) => noMessages
+        case Some(_: ap.NamedType) => noMessages
+        case Some(_: ap.Predicate) => noMessages
         // TODO: supporting packages results in further options: global variable
         case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
       }
@@ -142,7 +142,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         if (msgs.nonEmpty) msgs
         else convertibleTo.errors(exprType(p.arg.head), typeSymbType(p.typ))(n) ++ isExpr(p.arg.head).out
 
-      case (Left(callee), Some(p: ap.FunctionCall)) => // arguments have to be assignable to function
+      case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
@@ -171,11 +171,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
         ((exprType(base), exprType(index)) match {
-          case (ArrayT(l, elem), IntT(_)) =>
+          case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (PointerT(ArrayT(l, elem)), IntT(_)) =>
+          case (PointerT(ArrayT(l, _)), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
@@ -185,7 +185,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
-          case (MapT(key, elem), indexT) =>
+          case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")

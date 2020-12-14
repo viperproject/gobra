@@ -51,7 +51,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PRecvChannelType => isType(n.elem).out
     case n: PMethodReceiveName => isType(n.typ).out
     case n: PMethodReceivePointer => isType(n.typ).out
-    case n: PFunctionType => noMessages // parameters and result is implied by well definedness of children
+    case _: PFunctionType => noMessages // parameters and result is implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
       error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))

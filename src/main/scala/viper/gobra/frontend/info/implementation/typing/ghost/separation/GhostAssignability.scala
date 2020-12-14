@@ -44,7 +44,7 @@ trait GhostAssignability {
     case _: PDeref => // *x := e ~ !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
 
-    case PIndexedExp(base, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
+    case PIndexedExp(_, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
       error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
         error(left, "ghost error: ghost index are not permitted in index expressions", ghostExprClassification(index))
 
@@ -95,7 +95,7 @@ trait GhostAssignability {
       case Some(p: ap.Function) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
-      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case Some(_: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.notGhost // conservative choice
     }
   }
@@ -110,7 +110,7 @@ trait GhostAssignability {
       case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.context)
       case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.context)
       case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case Some(_: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.isGhost // conservative choice
     }
   }

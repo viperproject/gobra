@@ -16,11 +16,11 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostStmt(stmt: PGhostStatement): Messages = stmt match {
     case n@PExplicitGhostStatement(s) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
-    case n@PAssert(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case n@PExhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case n@PAssume(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case n@PInhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case n@PFold(exp) => noMessages
-    case n@PUnfold(exp) => noMessages
+    case PAssert(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
+    case PExhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
+    case PAssume(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
+    case PInhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
+    case PFold(_) => noMessages
+    case PUnfold(_) => noMessages
   }
 }

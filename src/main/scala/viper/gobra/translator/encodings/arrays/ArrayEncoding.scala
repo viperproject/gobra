@@ -94,20 +94,20 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * (Except the encoding of pointer types, which is not defined at exclusive *T to avoid a conflict).
     *
     * The default implements:
-    * [lhs: T == rhs] -> [lhs] == [rhs]
-    * [lhs: *T° == rhs] -> [lhs] == [rhs]
+    * [lhs: T == rhs: T] -> [lhs] == [rhs]
+    * [lhs: *T° == rhs: *T] -> [lhs] == [rhs]
     *
-    * [lhs: [n]T == rhs] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
+    * [lhs: [n]T == rhs: [n]T] -> let x = lhs, y = rhs in Forall idx :: {trigger} 0 <= idx < n ==> [ x[idx] == y[idx] ]
     *     where trigger = array_get(x, idx, n), array_get(y, idx, n)
     *
     * // According to the Go spec, pointers to distinct zero-sized data may or may not be equal. Thus:
-    * [x: *[0]T° == x] -> true
-    * [lhs: *[0]T° == rhs] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
+    * [x: *[0]T° == x: *[0]T] -> true
+    * [lhs: *[0]T° == rhs: *[0]T] -> [rhs] == [nil] ? [lhs] == [rhs] : unknown()
     *
-    * [lhs: *[n]T° == rhs] -> [lhs] == [rhs]
+    * [lhs: *[n]T° == rhs: *[n]T] -> [lhs] == [rhs]
     */
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.Array(len, _), rhs, src) =>
+    case (lhs :: ctx.Array(len, _), rhs :: ctx.Array(len2, _), src) if len == len2 =>
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
@@ -115,7 +115,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
-    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs, src) =>
+    case (lhs :: ctx.*(ctx.Array(len, _)) / Exclusive, rhs :: ctx.*(ctx.Array(len2, _)), src) if len == len2 =>
       if (len == 0) {
         val (pos, info, errT) = src.vprMeta
         if (lhs == rhs) unit(vpr.TrueLit()(pos, info ,errT))
@@ -243,7 +243,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: [n]T] -> Forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
+    * Footprint[loc: [n]T] -> forall idx :: {trigger} 0 <= idx < n ==> Footprint[ loc[idx] ]
     *   where trigger = sh_array_get(Ref[loc], idx, n)
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
@@ -258,6 +258,29 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
       )
+  }
+
+  /**
+    * Encodes whether a value is comparable or not.
+    *
+    * isComp[ e: [n]T ] -> forall idx :: { isComp[ e[idx] ] } 0 <= idx < n ==> isComp[ e[idx] ]
+    */
+  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
+    case exp :: ctx.Array(len, t) =>
+      super.isComparable(ctx)(exp).map{ _ =>
+        val (pos, info, errT) = exp.vprMeta
+        // if this is executed, then type parameter must have dynamic comparability
+        val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
+        val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
+        for {
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx)(exp.info)).right.get)(ctx)
+          res = vpr.Forall(
+            variables = Seq(vIdxDecl),
+            triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
+            exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, len)(exp), rhs)(pos, info, errT)
+          )(pos, info, errT)
+        } yield res
+      }
   }
 
   /**

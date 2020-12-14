@@ -118,7 +118,7 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(Vector(assertBounds, m))(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold) => x
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold | _: SafeTypeAssertion) => x
   }
 
   // Checks if expr and its subexpressions are within bounds of type `typ`

@@ -54,13 +54,17 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
       // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
+      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
+        && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
+        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+
       case (l, r: InterfaceT) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (l, NilType) if isPointerType(l) => true // not in spec
       case (NilType, r) if isPointerType(r) => true
 
         // for ghost types
       case (BooleanT, AssertionT) => true
+      case (SortT, SortT) => true
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
@@ -191,6 +195,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case typ: BoundedIntegerKind => typ.lower <= value && value <= typ.upper
         case _ => true
       }
+
+      case _: InterfaceT =>
+        ??? // TODO
 
       case _ => violation(s"Expected an integer type but instead received $typ.")
     }

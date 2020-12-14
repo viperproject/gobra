@@ -1,0 +1,121 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+
+type pair struct{
+  left, right int
+}
+
+type cell struct{
+  f int
+}
+
+func small() {
+
+  var x interface{} = pair{1,2}
+  a, ok := x.(pair)
+  assert ok
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+func small2() {
+  var x interface{} = &pair{1,2}
+  a, ok := x.(*pair)
+  assert ok
+
+  b, ok := x.(*cell)
+  assert !ok
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+func intTest() {
+  var a, b int32 = 42, 42
+  var x interface{} = a
+  c, ok := x.(int32)
+  assert ok && c == 42
+  assert x != 42
+  assert x == b
+  assert b == x
+
+  d, ok := x.(int64)
+  assert !ok && d == 0
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+
+
+
+
+func structTest() {
+  a := pair{1, 2}
+  var x interface{} = a
+  b := x.(pair)
+  assert b == pair{1, 2}
+
+  b.left = 3
+  c, ok := x.(pair)
+  assert ok && c == pair{1, 2}
+  assert x == pair{1,2}
+
+  d, ok := x.(cell)
+  assert !ok && d == cell{0}
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+func pointerTest() {
+
+  var a, b *int = nil, nil
+  var x interface{} = a
+  c, ok := x.(*int)
+  assert ok && c == nil
+  assert x != nil
+  assert x == b
+  assert b == x
+
+  d, ok := x.(*pair)
+  assert !ok && d == nil
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+
+func definedTest() {
+  a := pair{1, 2}
+  b := struct{ left, right int }{1, 2}
+  assert a == b
+  var x interface{} = a
+  var y interface{} = b
+  assert x != y
+
+  // not transitive
+  assert x == a
+  assert y == b
+
+  c, ok := x.(pair)
+  assert ok
+
+  e, ok := x.(struct{ left, right int })
+  assert !ok
+
+  f, ok := y.(pair)
+  assert !ok
+
+  d, ok := y.(struct{ left, right int })
+  //:: UnexpectedOutput(assert_error:assertion_error, /gobra/issue/134/)
+  assert ok
+
+  // //:: ExpectedOutput(assert_error:assertion_error)
+  // assert false
+}

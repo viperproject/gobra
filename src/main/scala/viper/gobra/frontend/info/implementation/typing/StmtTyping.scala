@@ -55,8 +55,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(right), exprType(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
-      // TODO: check that at least one of the arguments is not _, (a simplification of the original rule that requires
-      //       one var to be new
+      // TODO: check that at least one of the variables is new
       if (lefts.filter(_.isInstanceOf[PIdnUnk]).forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
           multiAssignableTo.errors(rights map exprType, lefts map idType)(n)

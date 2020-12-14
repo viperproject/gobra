@@ -672,7 +672,14 @@ object Desugar {
             } else if (right.size == 1) {
               for{
                 re  <- goE(right.head)
-                les <- unit(left.map{l => in.Assignee.Var(getVar(l)(re.typ))})
+                les <- re.typ match {
+                  case in.TupleT(ts, _) => unit(left.zipWithIndex.map {
+                    // assigns the correct type to a blank identifier if one is created
+                    case (l, idx) => in.Assignee.Var(getVar(l)(ts(idx)))
+                  })
+
+                  case _ => violation("invalid multiple assign")
+                }
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
@@ -1023,6 +1030,10 @@ object Desugar {
           }
 
           case g: PGhostExpression => ghostExprD(ctx)(g)
+
+          case b: PBlankIdentifier =>
+            val typ = typeD(info.typ(b), Addressability.defaultValue)(src)
+            unit(freshExclusiveVar(typ)(src))
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }

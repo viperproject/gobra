@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -352,7 +353,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
-    case b: PBlankIdentifier => getBlankIdTypeFromCtx(b)
+    case b: PBlankIdentifier => getBlankIdType(b)
 
     case e => violation(s"unexpected expression $e")
   }
@@ -395,24 +396,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  def getRespectiveBlankIdExpression(b: PBlankIdentifier): PExpression = {
-    val maybeExpr = b match {
-      case tree.parent(p) => p match {
-        // joao: the use of "eq" here is a hack to find the index of the blank identifier in the left list
-        // and then use that index to retrieve the corresponding expression
-        case PAssignment(right, left) => left.zipWithIndex.find(b eq _._1).map(x => right(x._2))
-        case PAssForRange(_, ass, _) => ??? // TODO: implement when for range statements are supported
-        case PSelectAssRecv(_, ass, _) => ??? // TODO: implement when select statements are supported
-        case x => violation("blank identifier not supported in node " + x)
-      }
+  def getBlankIdType(b: PBlankIdentifier): Type = b match {
+    case tree.parent(p) => p match {
+      case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
+      case PAssForRange(_, _, _) => ??? // TODO: implement when for range statements are supported
+      case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
+      case x => violation("blank identifier not supported in node " + x)
     }
-    if(maybeExpr.isEmpty) {
-      violation("blank identifier has no valid corresponding expression")
-    }
-    maybeExpr.get
   }
-
-  private def getBlankIdTypeFromCtx(b: PBlankIdentifier): Type = exprType(getRespectiveBlankIdExpression(b))
 
   private def intExprType(expr: PNumExpression): Type = expr match {
     case _: PIntLit => IntT(config.typeBounds.UntypedConst)

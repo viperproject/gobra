@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 
 trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -171,31 +172,34 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("untypable")
   }
 
-  def getRespectiveWildcardExpr(w: PWildcard): PExpression = {
-    def aux(left: Vector[PIdnNode], right: Vector[PExpression]): PExpression =
-      // joao: the use of "eq" here is a hack to find the index of the blank identifier in the left list
-      // and then use that index to retrieve the corresponding expression
-      left.zipWithIndex.find(w eq _._1)
-        .map(x => right(x._2))
-        .getOrElse(violation("wildcard must correspond to some expression"))
+  /**
+    * Gets the type of a blank identifier if it occurs in the `left` list
+    */
+  def getBlankAssigneeType(n: PNode, left: Vector[PNode], right: Vector[PExpression]): Type = {
+    require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
+    // joao: the use of "eq" here is a hack to find the index of the wildcard in the left list
+    // and then use that index to retrieve the corresponding expression
+    val pos = left indexWhere (n eq _)
+    violation(pos >= 0, "did not find expression corresponding to " + n)
 
-    w match {
-      case tree.parent(p) => p match {
-        case PShortVarDecl(right, left, _) => aux(left, right)
-        case PVarDecl(_, right, left, _) => aux(left, right)
-        case PConstDecl(_, right, left) => aux(left, right)
-        case x => ???
+    StrictAssignModi(left.length, right.length) match {
+      case AssignMode.Single => exprType(right(pos))
+      case AssignMode.Multi => exprType(right.head) match {
+        case t: InternalTupleT => t.ts(pos)
+        case _ => violation("return type of multi-assignment should be an InternalTupleT")
       }
+      case AssignMode.Error => violation("ill formed assignment")
     }
   }
 
-  private def getWildcardType(w: PWildcard): Type =
+  def getWildcardType(w: PWildcard): Type = {
     w match {
       case tree.parent(p) => p match {
-        case _: PShortVarDecl => exprType(getRespectiveWildcardExpr(w))
-        case PVarDecl(typ, _, _, _) => typ.map(typeType).getOrElse(exprType(getRespectiveWildcardExpr(w)))
-        case PConstDecl(typ, _, _) => typ.map(typeType).getOrElse(exprType(getRespectiveWildcardExpr(w)))
+        case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
+        case PVarDecl(typ, right, left, _) => typ.map(typeType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PConstDecl(typ, right, left) => typ.map(typeType).getOrElse(getBlankAssigneeType(w, left, right))
         case _ => ???
       }
     }
+  }
 }

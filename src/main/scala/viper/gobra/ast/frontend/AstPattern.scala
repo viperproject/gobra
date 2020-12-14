@@ -31,7 +31,7 @@ object AstPattern {
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
-  case class BlankIdentifier(assignedExpr: PExpression) extends Expr
+  case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 
   sealed trait FunctionKind extends Expr
 

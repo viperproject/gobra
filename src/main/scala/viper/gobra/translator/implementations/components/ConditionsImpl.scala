@@ -6,16 +6,10 @@
 
 package viper.gobra.translator.implementations.components
 
-import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
-import viper.gobra.reporting.Source.Verifier
-import viper.gobra.reporting.{Source, VerificationError}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Conditions
-import viper.silver.ast.Exp
-import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
-import viper.silver.verifier.{errors => vprerr}
 
 class ConditionsImpl extends Conditions {
 
@@ -41,13 +35,4 @@ class ConditionsImpl extends Conditions {
 
   /** Returns true, but asserts that the argument holds. */
   override def assert(x: vpr.Exp): vpr.Exp = vpr.FuncApp(assertFunction, Seq(x))(x.pos, x.info, x.errT)
-
-  override def assert(x: Exp, trans: (Verifier.Info, ErrorReason) => VerificationError): (Exp, ErrorTransformer) = {
-    val res = vpr.FuncApp(assertFunction, Seq(x))(x.pos, x.info, x.errT)
-    val errorT: ErrorTransformer = {
-      case e@ vprerr.PreconditionInAppFalse(Source(info), reason, _) if e causedBy res =>
-        trans(info, reason)
-    }
-    (res, errorT)
-  }
 }

@@ -287,8 +287,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get",
-      "typeOf", "isComparable"
+      "none", "some", "get"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -1084,8 +1083,6 @@ object Parser {
         exists |
         old |
         access |
-        typeOf |
-        isComparable |
         rangeSequence |
         rangeSet |
         rangeMultiset |
@@ -1105,12 +1102,6 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
-
-    lazy val typeOf: Parser[PTypeOf] =
-      "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
-
-    lazy val isComparable: Parser[PIsComparable] =
-      "isComparable" ~> "(" ~> (expression | typ) <~ ")" ^^ PIsComparable
 
     private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
       "[" ~> expression ~ (".." ~> expression <~ "]")

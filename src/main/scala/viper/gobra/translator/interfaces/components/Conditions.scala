@@ -6,14 +6,10 @@
 
 package viper.gobra.translator.interfaces.components
 
-import viper.gobra.reporting.BackTranslator.ErrorTransformer
-import viper.gobra.reporting.{Source, VerificationError}
 import viper.gobra.translator.interfaces.translator.Generator
-import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
 trait Conditions extends Generator {
   /** Returns true, but asserts that the argument holds. */
   def assert(x: vpr.Exp): vpr.Exp
-  def assert(x: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): (vpr.Exp, ErrorTransformer)
 }

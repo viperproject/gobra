@@ -49,7 +49,6 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
-        case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -76,24 +75,6 @@ object Nodes {
         case Ref(ref, typ) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
-        case TypeAssertion(exp, _) => Seq(exp)
-        case TypeOf(exp) => Seq(exp)
-        case IsComparableType(exp) => Seq(exp)
-        case IsComparableInterface(exp) => Seq(exp)
-        case ToInterface(exp, _) => Seq(exp)
-        case BoolTExpr() => Seq()
-        case IntTExpr(kind) => Seq()
-        case PermTExpr() => Seq()
-        case PointerTExpr(elem) => Seq(elem)
-        case StructTExpr(fs) => Seq()
-        case ArrayTExpr(len, elem) => Seq(len, elem)
-        case SliceTExpr(elem) => Seq(elem)
-        case SequenceTExpr(elem) => Seq(elem)
-        case SetTExpr(elem) => Seq(elem)
-        case MultisetTExpr(elem) => Seq(elem)
-        case OptionTExpr(elem) => Seq(elem)
-        case TupleTExpr(elem) => elem
-        case DefinedTExpr(name) => Seq()
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max

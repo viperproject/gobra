@@ -385,6 +385,6 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
 
     def isGhostType(t : PType) : Boolean = typeInfo(Vector(t)).isTypeGhost(t)
     def isWellDef(t : PType) = typeInfo(Vector(t)).wellDefType(t)
-    def typType(t : PType) : Type.Type = typeInfo(Vector(t)).symbType(t)
+    def typType(t : PType) : Type.Type = typeInfo(Vector(t)).typ(t)
   }
 }

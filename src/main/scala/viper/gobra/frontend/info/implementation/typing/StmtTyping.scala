@@ -24,11 +24,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PConstDecl(typ, right, left) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
+        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>

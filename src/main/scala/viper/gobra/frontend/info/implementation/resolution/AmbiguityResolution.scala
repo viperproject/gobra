@@ -30,7 +30,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         exprOrType(n.base)
           .fold(
             _ => Left(n),
-            symbType(_) match { // check if base is a package qualifier and id points to a type
+            typ(_) match { // check if base is a package qualifier and id points to a type
               case _: ImportT if pointsToType(n.id) => Right(n)
               case _ => Left(n)
             })
@@ -52,7 +52,6 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       entity(n.id) match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => Some(ap.LocalVariable(n.id, s))
-        case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case _ => None

@@ -25,10 +25,10 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       message(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
   }
 
-  private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
-    case PSequenceType(elem) => SequenceT(typeSymbType(elem))
-    case PSetType(elem) => SetT(typeSymbType(elem))
-    case PMultisetType(elem) => MultisetT(typeSymbType(elem))
-    case POptionType(elem) => OptionT(typeSymbType(elem))
+  private[typing] def ghostTypeType(typ : PGhostType) : Type = typ match {
+    case PSequenceType(elem) => SequenceT(typeType(elem))
+    case PSetType(elem) => SetT(typeType(elem))
+    case PMultisetType(elem) => MultisetT(typeType(elem))
+    case POptionType(elem) => OptionT(typeType(elem))
   }
 }

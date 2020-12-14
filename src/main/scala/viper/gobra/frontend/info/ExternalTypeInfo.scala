@@ -52,7 +52,7 @@ trait ExternalTypeInfo {
 
   def typ(misc: PMisc): Type
 
-  def symbType(typ: PType): Type
+  def typ(typ: PType): Type
 
   def typ(typ: PIdnNode): Type
 

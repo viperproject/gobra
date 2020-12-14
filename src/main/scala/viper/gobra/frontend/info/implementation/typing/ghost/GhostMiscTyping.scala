@@ -23,7 +23,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
-    case PBoundVariable(_, typ) => typeSymbType(typ)
+    case PBoundVariable(_, typ) => typeType(typ)
     case PTrigger(_) => BooleanT
     case PExplicitGhostParameter(param) => miscType(param)
   }

@@ -30,22 +30,22 @@ class TuplesImpl extends Tuples {
     )
   }
 
-  override def create(args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
+  override def create(args: Vector[vpr.Exp]): vpr.DomainFuncApp = {
     val arity = args.size
 
     vpr.DomainFuncApp(
       func = tuple(arity),
       args = args,
       typVarMap = typeVarMap(args map (_.typ))
-    )(pos, info, errT)
+    )()
   }
 
-  override def get(arg: vpr.Exp, index: Int, arity: Int)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
+  override def get(arg: vpr.Exp, index: Int, arity: Int): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(
       func = getter(index, arity),
       args = Vector(arg),
       typVarMap = arg.typ.asInstanceOf[vpr.DomainType].typVarsMap
-    )(pos, info, errT)
+    )()
   }
 
   def tuple(arity: Int): vpr.DomainFunc =

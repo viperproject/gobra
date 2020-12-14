@@ -12,6 +12,6 @@ import viper.silver.{ast => vpr}
 trait Tuples extends Generator {
 
   def typ(args: Vector[vpr.Type]): vpr.DomainType
-  def create(args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp
-  def get(arg: vpr.Exp, index: Int, arity: Int)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp
+  def create(args: Vector[vpr.Exp]): vpr.DomainFuncApp
+  def get(arg: vpr.Exp, index: Int, arity: Int): vpr.DomainFuncApp
 }

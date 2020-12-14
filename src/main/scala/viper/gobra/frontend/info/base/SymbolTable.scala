@@ -32,12 +32,10 @@ object SymbolTable extends Environments {
 
   sealed trait WithArguments {
     def args: Vector[PParameter]
-    def context: ExternalTypeInfo
   }
 
   sealed trait WithResult {
     def result: PResult
-    def context: ExternalTypeInfo
   }
 
   case class Function(decl: PFunctionDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {

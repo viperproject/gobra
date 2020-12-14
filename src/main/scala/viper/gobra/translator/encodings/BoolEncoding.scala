@@ -36,9 +36,6 @@ class BoolEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
-
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
-
     default(super.expr(ctx)){
       case (e: in.DfltVal) :: ctx.Bool() / Exclusive => unit(withSrc(vpr.BoolLit(b = false), e))
       case lit: in.BoolLit => unit(withSrc(vpr.BoolLit(lit.b), lit))

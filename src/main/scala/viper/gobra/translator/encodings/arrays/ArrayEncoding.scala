@@ -266,7 +266,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * isComp[ e: [n]T ] -> forall idx :: { isComp[ e[idx] ] } 0 <= idx < n ==> isComp[ e[idx] ]
     */
   override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
-    case exp :: ctx.Array(len, t) =>
+    case exp :: ctx.Array(len, _) =>
       super.isComparable(ctx)(exp).map{ _ =>
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability

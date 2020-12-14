@@ -109,7 +109,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
-      case c: Constant => AddrMod.constant
+      case _: Constant => AddrMod.constant
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
 

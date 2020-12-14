@@ -7,11 +7,32 @@
 package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import org.bitbucket.inkytonik.kiama.util.{Entity, Environments, ErrorEntity}
+import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
 
-object SymbolTable extends Environments {
+
+object SymbolTable extends Environments[Entity] {
+
+  /**
+    * An entity that represents an error situation. These entities are
+    * usually accepted in most situations to avoid cascade errors.
+    */
+  abstract class ErrorEntity extends Entity {
+    override def isError: Boolean = true
+  }
+
+  /**
+    * A entity represented by names for whom we have seen more than one
+    * declaration so we are unsure what is being represented.
+    */
+  case class MultipleEntity() extends ErrorEntity
+
+  /**
+    * An unknown entity, for example one that is represened by names whose
+    * declarations are missing.
+    */
+  case class UnknownEntity() extends ErrorEntity
 
   /**
     * Special entity that provides an error message

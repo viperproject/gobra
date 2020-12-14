@@ -30,7 +30,6 @@ class AssertionsImpl extends Assertions {
 
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     val ret = ass match {
       case in.SepAnd(l, r) => for {vl <- goA(l); vr <- goA(r)} yield vpr.And(vl, vr)(pos, info, errT)

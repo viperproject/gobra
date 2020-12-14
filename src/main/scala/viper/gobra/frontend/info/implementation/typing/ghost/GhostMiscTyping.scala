@@ -31,7 +31,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
     case MPredicateImpl(decl, _) => FunctionT(decl.args map miscType, AssertionT)
     case MPredicateSpec(decl, _) => FunctionT(decl.args map miscType, AssertionT)
-    case member: SymbolTable.GhostStructMember => ???
+    case _: SymbolTable.GhostStructMember => ???
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {

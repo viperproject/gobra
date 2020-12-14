@@ -149,14 +149,14 @@ object TypePatterns {
 
     object Interface {
       def unapply(arg: in.Type): Option[Unit] = underlyingType(arg)(ctx) match {
-        case t : in.InterfaceT => Some(())
+        case _ : in.InterfaceT => Some(())
         case _ => None
       }
     }
 
     object NotInterface {
       def unapply(arg: in.Type): Boolean = underlyingType(arg)(ctx) match {
-        case t : in.InterfaceT => false
+        case _ : in.InterfaceT => false
         case _ => true
       }
     }

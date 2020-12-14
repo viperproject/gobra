@@ -8,7 +8,7 @@ package viper.gobra.translator.interfaces
 import viper.silver.{ast => vpr}
 
 trait Collector {
-  def addMember(m: vpr.Member)
+  def addMember(m: vpr.Member): Unit
 
   def domains: Seq[vpr.Domain]
   def fields: Seq[vpr.Field]

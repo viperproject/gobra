@@ -93,7 +93,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val isInterfaceType: Property[Type] = createBinaryProperty("an interface type") { t =>
     underlyingType(t) match {
-      case InterfaceT(decl) => true
+      case InterfaceT(_) => true
       case _ => false
     }
   }
@@ -173,7 +173,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
   }
 
   lazy val isReceiverType: Property[Type] = createBinaryProperty("not a receiver type") {
-    case t: DeclaredT => true
+    case _: DeclaredT => true
     case PointerT(t) => t.isInstanceOf[DeclaredT]
   }
 }

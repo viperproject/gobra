@@ -121,11 +121,11 @@ object OverflowChecksTransform extends InternalTransform {
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold | _: SafeTypeAssertion) => x
   }
 
-  // Checks if expr and its subexpressions are within bounds of type `typ`
+  // Checks if expr and its subexpressions are within bounds given by their type
   private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion = {
-    val trueLit: Expr = BoolLit(true)(info)
+    val trueLit: Expr = BoolLit(b = true)(info)
 
-    def genAssertionExpr(expr: Expr, typ: Type): Expr =
+    def genAssertionExpr(expr: Expr, typ: Type): Expr = {
       typ match {
         case IntT(_, kind) if kind.isInstanceOf[BoundedIntegerKind] =>
           val boundedKind = kind.asInstanceOf[BoundedIntegerKind]
@@ -135,24 +135,30 @@ object OverflowChecksTransform extends InternalTransform {
 
         case _ => trueLit
       }
+    }
 
-    val intSubExprs: Set[Expr] = Expr.getSubExpressions(expr).filter(_.typ.isInstanceOf[IntT])
+    val intSubExprsWithType: Set[(Expr, Type)] = Expr.getSubExpressions(expr)
+      .filter(_.typ.isInstanceOf[IntT])
+      .map(e => if (e == expr) (expr, typ) else (e, e.typ))
 
     // values assumed to be within bounds, i.e. variables, fields from structs, dereferences of pointers and indexed expressions
     // this stops Gobra from throwing overflow errors in field accesses and pointer dereferences because Gobra was not able to prove that
     // they were within bounds even though that is guaranteed by the expression's type
-    val valuesWithinBounds = intSubExprs.filter {
+    val valuesWithinBounds = intSubExprsWithType.filter(elem => elem._1 match {
       case _: Var | _: FieldRef | _: IndexedExp | _: Deref => true
       case _ => false
-    }
+    })
 
-    val computeAssertions = (exprs: Set[Expr]) => exprs.map{x => genAssertionExpr(x, x.typ)}.foldRight(trueLit)((x,y) => And(x,y)(info))
+    val computeAssertions = (exprsWithType: Set[(Expr, Type)]) =>
+      exprsWithType
+        .map{elem => genAssertionExpr(elem._1, elem._2)}
+        .foldRight(trueLit)((x,y) => And(x,y)(info))
 
     // assumptions for the values that are considered within bounds
     val assumptions = computeAssertions(valuesWithinBounds)
 
     // Assertions that need to be verified assuming the expressions in `assumptions`
-    val obligations = ExprAssertion(computeAssertions(intSubExprs))(info)
+    val obligations = ExprAssertion(computeAssertions(intSubExprsWithType))(info)
     Implication(assumptions, obligations)(info)
   }
 

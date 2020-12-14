@@ -6,8 +6,8 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{message, noMessages}
-import org.bitbucket.inkytonik.kiama.util.{Entity, MultipleEntity, UnknownEntity}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
@@ -19,8 +19,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
   implicit lazy val wellDefID: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {
     id => entity(id) match {
-      case _: UnknownEntity => LocalMessages(message(id, s"got unknown identifier $id"))
-      case _: MultipleEntity => LocalMessages(message(id, s"got duplicate identifier $id"))
+      case _: UnknownEntity => LocalMessages(error(id, s"got unknown identifier $id"))
+      case _: MultipleEntity => LocalMessages(error(id, s"got duplicate identifier $id"))
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
       case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
       case entity: ActualRegular => wellDefActualRegular(entity, id)
@@ -31,7 +31,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   /**
     * Returns true if n or any of its children (in the current package) has an entity that is contained in the set e
     */
-  private def isNotCyclic(n: PNode, e: Set[Entity]): ValidityMessages = LocalMessages(message(n, s"got cyclic structure starting at $n", n match {
+  private def isNotCyclic(n: PNode, e: Set[Entity]): ValidityMessages = LocalMessages(error(n, s"got cyclic structure starting at $n", n match {
     case n: PIdnNode => entity(n) match {
       case r if e.contains(r) => true
       // we do not follow the evaluation into different packages, because the other package cannot point back to the
@@ -92,7 +92,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case RangeVariable(idx, range, _, _, _) => unsafeMessage(! {
       miscType(range) match {
         case Assign(InternalTupleT(ts)) if idx < ts.size => true
-        case t => false
+        case _ => false
       }
     })
 
@@ -150,7 +150,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
-    case NamedType(decl, _, context) => SortT // DeclaredT(decl, context)
+    case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)
 
     case InParameter(p, _, _, context) => context.symbType(p.typ)

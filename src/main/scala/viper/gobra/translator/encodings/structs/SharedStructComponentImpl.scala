@@ -59,7 +59,6 @@ class SharedStructComponentImpl extends SharedStructComponent {
     val yDecl = vpr.LocalVarDecl("y", domainType)()
     val y = yDecl.localVar
     val vsDecl = (0 until arity) map (i => vpr.LocalVarDecl(s"v$i", typeVars(i))())
-    val vs = vsDecl map (_.localVar)
 
     val getFuncs = (0 until arity) map (i => vpr.DomainFunc(s"${Names.sharedStructDomain}get${i}of$arity", Seq(xDecl), typeVars(i))(domainName = domainName))
     val getApps = getFuncs map (f => vpr.DomainFuncApp(func = f, Seq(x), typeVarMap)())

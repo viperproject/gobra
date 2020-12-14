@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -24,14 +24,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
     case m: PExplicitGhostMember => m.actual match {
-      case _: PTypeDecl => message(m, "ghost types are currently not supported") // TODO
+      case _: PTypeDecl => error(m, "ghost types are currently not supported") // TODO
       case _ => noMessages
     }
 
     case _: PGhostMember => noMessages
 
     case n : PVarDecl => n.typ match {
-      case Some(typ) => message(n, s"ghost error: expected an actual type but found $typ",
+      case Some(typ) => error(n, s"ghost error: expected an actual type but found $typ",
         isTypeGhost(typ) && !enclosingGhostContext(n))
       case None => noMessages
     }
@@ -48,7 +48,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case stmt @ PForStmt(pre, cond, post, _, body) => {
       // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
       val ghostChildFound = Seq(pre, post, Some(cond), Some(body)).flatten.map(noGhostPropagationFromChildren)
-      message(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
+      error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
     }
 
     case _: PLabeledStmt
@@ -71,12 +71,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
       |  _: PContinue
       |  _: PGoto
       |  _: PDeferStmt
-      ) => message(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
+      ) => error(n, "ghost error: Found ghost child expression but expected none", !noGhostPropagationFromChildren(n))
 
-    case n@ PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
-    case n@ PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
+    case PAssignment(right, left) => ghostAssignableToAssignee(right: _*)(left: _*)
+    case PAssignmentWithOp(right, _, left) => ghostAssignableToAssignee(right)(left)
 
-    case n@ PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
+    case PShortVarDecl(right, left, _) => ghostAssignableToId(right: _*)(left: _*)
 
     case n@ PReturn(right) =>
       val res = enclosingCodeRootWithResult(n).result
@@ -106,12 +106,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
       _: PReceive
-      ) => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      ) => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(p: ap.Conversion)) =>  message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+      case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
       case (Left(callee), Some(p: ap.FunctionCall)) => ghostAssignableToCallExpr(p.args: _*)(callee)
-      case (Left(_), Some(p: ap.PredicateCall)) => noMessages
+      case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
   }
@@ -119,15 +119,15 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private def typeGhostSeparation(typ: PType): Messages = typ match {
     case _: PGhostType => noMessages
     case n: PStructType => n.fields.flatMap(f => {
-      message(f, s"ghost error: expected an actual type but found ${f.typ}",
+      error(f, s"ghost error: expected an actual type but found ${f.typ}",
         isTypeGhost(f.typ) && !enclosingGhostContext(f))
     })
-    case n: PType => message(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
+    case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
   }
 
   private def miscGhostSeparation(misc : PMisc) : Messages = misc match {
     case _: PGhostMisc => noMessages
-    case p: PActualParameter => message(p, s"ghost error: expected an actual type but found ${p.typ}",
+    case p: PActualParameter => error(p, s"ghost error: expected an actual type but found ${p.typ}",
       isTypeGhost(p.typ) && !enclosingGhostContext(p))
     case _ => noMessages
   }

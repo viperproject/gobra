@@ -42,7 +42,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
   }
 
   def asExpr(n: PExpressionOrType): Option[PExpression] = exprOrType(n).left.toOption
-  def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).right.toOption
+  def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).toOption
 
 
 

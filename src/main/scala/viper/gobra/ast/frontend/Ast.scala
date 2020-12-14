@@ -55,7 +55,7 @@ case class PProgram(
                    ) extends PNode with PUnorderedScope // imports are in program scopes
 
 
-class PositionManager extends PositionStore with Messaging {
+class PositionManager(val positions: Positions) extends Messaging(positions) {
 
   def translate[E <: VerifierError](
                                      messages: Messages,

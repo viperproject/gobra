@@ -102,9 +102,9 @@ object PackageResolver {
           case _ => Left(f)
         }
       })
-      val (failedFiles, validFiles) = pkgClauses.partition(_.isLeft)
-      if (failedFiles.nonEmpty) Left(s"Parsing package clause for these files has failed: ${failedFiles.map(_.left.get.getPath).mkString(", ")}")
-      else Right(validFiles.map(_.right.get))
+      val (failedFiles, validFiles) = pkgClauses.partitionMap(identity)
+      if (failedFiles.nonEmpty) Left(s"Parsing package clause for these files has failed: ${failedFiles.map(_.getPath).mkString(", ")}")
+      else Right(validFiles)
     }
 
     def isEqual(pkgClauses: Vector[(File, String)]): Either[String, String] = {

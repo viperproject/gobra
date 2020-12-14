@@ -344,7 +344,7 @@ object ViperWriter {
       sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
 
     def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] = {
-      val (codeSum, remainder, r) = w.execute
+      val (codeSum, remainder, _) = w.execute
       val (codeStmt, _, remainderAddition) = codeSum.asStatement
       val newSum = codeSum.copy(local = Vector.empty, code = Vector.empty)
       val newData = DataContainer(CodeKindCompanion.unsum(newSum), remainderAddition ++ remainder)

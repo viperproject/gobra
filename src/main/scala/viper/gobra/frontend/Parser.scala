@@ -10,7 +10,7 @@ import java.io.{File, Reader}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
@@ -47,7 +47,8 @@ object Parser {
   }
 
   private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
@@ -55,8 +56,8 @@ object Parser {
         case Success(ast, _) =>
 
           val filename = source match {
-            case ffs: FromFileSource => Some(new File(ffs.filename))
-            case fs: FileSource => Some(new File(fs.filename))
+            case ffs: FromFileSource => Some(new File(ffs.name))
+            case fs: FileSource => Some(new File(fs.name))
             case _ => None
           }
 
@@ -84,12 +85,10 @@ object Parser {
 
     val parsedPrograms = {
       val parserResults = sources.map(parseSource)
-      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
-      val errors = errorLefts.flatMap(_.left.get)
-      val programs = programRights.map(_.right.get)
+      val (errors, programs) = parserResults.partitionMap(identity)
 
       if (errors.nonEmpty) {
-        Left(errors)
+        Left(errors.flatten)
       } else {
         // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
         // of the same package has failed
@@ -113,31 +112,36 @@ object Parser {
   }
 
   def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
     translateParseResult(pom)(parsers.parseAll(parsers.member, source))
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
   }
 
   def parseExpr(source: Source): Either[Messages, PExpression] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
   def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
   }
 
   def parseType(source : Source) : Either[Messages, PType] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
   }
@@ -160,12 +164,9 @@ object Parser {
       * Assumes that source corresponds to an existing file
       */
     def preprocess(source: FileSource)(config: Config): Source = {
-      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
-      FromFileSource(source.filename, translatedContent)
+      val translatedContent = translate(source.content)
+      config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
+      FromFileSource(source.name, translatedContent)
     }
 
     def preprocess(content: String): Source = {
@@ -201,9 +202,18 @@ object Parser {
     }
   }
 
-  case class FromFileSource(filename : String, content: String) extends Source {
-    val optName : Option[String] = Some(Source.dropCurrentPath(filename))
+  case class FromFileSource(name : String, content: String) extends Source {
+    val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
     def reader : Reader = IO.stringreader(content)
+
+    def useAsFile[T](fn : String => T) : T = {
+      // copied from StringSource
+      val filename = Filenames.makeTempFilename(name)
+      IO.createFile(filename, content)
+      val t = fn(filename)
+      IO.deleteFile(filename)
+      t
+    }
   }
 
   private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {

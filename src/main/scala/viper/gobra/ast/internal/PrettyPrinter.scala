@@ -62,7 +62,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   type ViperPosition = (PPosition, Int)
   val positionStore: mutable.Map[GobraPosition, ListBuffer[(PPosition, PPosition)]] = mutable.Map[GobraPosition, ListBuffer[ViperPosition]]()
 
-  def addPosition(gobraPos: GobraPosition, viperPos: ViperPosition) {
+  def addPosition(gobraPos: GobraPosition, viperPos: ViperPosition): Unit = {
     positionStore.get(gobraPos) match {
       case Some(b) => b += viperPos
       case None => positionStore += (gobraPos -> ListBuffer(viperPos))
@@ -164,7 +164,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
-    case Field(name, typ, ghost) => "field" <> name <> ":" <+> showType(typ)
+    case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
 
   def showTypeDecl(t: DefinedT): Doc =
@@ -328,7 +328,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
     case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
-    case ToInterface(exp, typ) => "toInterface" <> parens(showExpr(exp))
+    case ToInterface(exp, _) => "toInterface" <> parens(showExpr(exp))
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
 
@@ -348,8 +348,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case DfltVal(typ) => "dflt" <> brackets(showType(typ))
     case Tuple(args) => parens(showExprList(args))
-    case Deref(exp, typ) => "*" <> showExpr(exp)
-    case Ref(ref, typ) => "&" <> showAddressable(ref)
+    case Deref(exp, _) => "*" <> showExpr(exp)
+    case Ref(ref, _) => "&" <> showAddressable(ref)
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
@@ -419,7 +419,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
-    case interface: InterfaceT => "interface" <> parens("...")
+    case _: InterfaceT => "interface" <> parens("...")
     case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
@@ -446,46 +446,46 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, body) =>
+    case Function(name, args, results, pres, posts, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, body) =>
+    case PureFunction(name, args, results, pres, posts, _) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, body) =>
+    case Method(receiver, name, args, results, pres, posts, _) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, _) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts))
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
-    case FPredicate(name, args, body) =>
+    case FPredicate(name, args, _) =>
       "pred" <+> name.name <> parens(showFormalArgList(args))
   }
 
   override def showMPredicate(predicate: MPredicate): Doc = predicate match {
-    case MPredicate(recv, name, args, body) =>
+    case MPredicate(recv, name, args, _) =>
       "pred" <+> parens(showVarDecl(recv)) <+> name.name <> parens(showFormalArgList(args))
   }
 
   // statements
 
   override def showStmt(s: Stmt): Doc = s match {
-    case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls)
-    case Seqn(stmts) => emptyDoc
-    case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
-    case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
+    case Block(decls, _) => "decl" <+> showBlockDeclList(decls)
+    case Seqn(_) => emptyDoc
+    case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
+    case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
     case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))

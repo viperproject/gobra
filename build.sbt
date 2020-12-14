@@ -11,7 +11,6 @@ import scala.util.Try
 lazy val silver = project in file("silver")
 lazy val silicon = project in file("silicon")
 lazy val carbon = project in file("carbon")
-lazy val server = project in file("viperserver")
 
 
 // Gobra specific project settings
@@ -19,7 +18,6 @@ lazy val gobra = (project in file("."))
   .dependsOn(silver % "compile->compile;test->test")
   .dependsOn(silicon % "compile->compile;test->test")
   .dependsOn(carbon % "compile->compile;test->test")
-  .dependsOn(server % "compile->compile;test->test")
   .settings(
     // General settings
     name := "Gobra",
@@ -34,15 +32,14 @@ lazy val gobra = (project in file("."))
     Compile / unmanagedResourceDirectories += baseDirectory.value / "conf",
 
     libraryDependencies +=
-      ("org.bitbucket.inkytonik.kiama" %% "kiama" % "2.2.0") // Parsing
+      ("org.bitbucket.inkytonik.kiama" %% "kiama" % "2.3.0") // Parsing
         .exclude("com.google.guava", "guava"),
-    libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
+    libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2", // Logging Frontend
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
-    libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
+    // libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
     libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.9", // for SystemUtils
 
     scalacOptions ++= Seq(
-      "-Ypartial-unification",
       "-Ypatmat-exhaust-depth", "40"
     ),
 

@@ -14,7 +14,7 @@ import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssi
 
 trait NameResolution { this: TypeInfoImpl =>
 
-  import org.bitbucket.inkytonik.kiama.util.{Entity, UnknownEntity}
+  import org.bitbucket.inkytonik.kiama.util.Entity
   import org.bitbucket.inkytonik.kiama.==>
   import viper.gobra.util.Violation._
 
@@ -94,7 +94,6 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PShortForRange =>
           val idx = decl.shorts.zipWithIndex.find(_._1 == id).get._2
-          val len = decl.shorts.size
           RangeVariable(idx, decl.range, isGhost, addressable = false, this) // TODO: check if range variables are addressable in Go
 
         case decl: PSelectShortRecv =>
@@ -134,7 +133,7 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {
 
     case id: PIdnDef if doesAddEntry(id) && !isUnorderedDef(id) =>
-      defineIfNew(out(id), serialize(id), defEntity(id))
+      defineIfNew(out(id), serialize(id), MultipleEntity(), defEntity(id))
 
     case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
       define(out(id), serialize(id), unkEntity(id))
@@ -193,7 +192,7 @@ trait NameResolution { this: TypeInfoImpl =>
     }
 
     shallowDefs(n).foldLeft(env) {
-      case (e, id) => defineIfNew(e, serialize(id), defEntity(id))
+      case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
     }
   }
 

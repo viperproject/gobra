@@ -217,7 +217,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     case s if !isInGoifiedScope(s) => super.showStmt(s)
     case s if classifier.isStmtGhost(s) => showGhostStmt(stmt, emptyDoc)
 
-    case s => super.showStmt(stmt)
+    case _ => super.showStmt(stmt)
 
   }
 

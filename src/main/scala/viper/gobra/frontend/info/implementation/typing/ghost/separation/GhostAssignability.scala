@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message,noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -30,7 +30,7 @@ trait GhostAssignability {
 
     val argTyping = calleeArgGhostTyping(callee).toTuple
     generalGhostAssignableTo[PExpression, Boolean](ghostExprTyping){
-      case (g, l) => message(callee, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+      case (g, l) => error(callee, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
     }(right: _*)(argTyping: _*)
   }
 
@@ -42,21 +42,21 @@ trait GhostAssignability {
   private def ghostAssigneeAssignmentMsg(isRightGhost: Boolean, left: PAssignee): Messages = left match {
 
     case _: PDeref => // *x := e ~ !ghost(e)
-      message(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
+      error(left, "ghost error: ghost cannot be assigned to pointer", isRightGhost)
 
-    case PIndexedExp(base, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
-      message(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
-        message(left, "ghost error: ghost index are not permitted in index expressions", ghostExprClassification(index))
+    case PIndexedExp(_, index) => // a[i] := e ~ !ghost(i) && !ghost(e)
+      error(left, "ghost error: ghost cannot be assigned to index expressions", isRightGhost) ++
+        error(left, "ghost error: ghost index are not permitted in index expressions", ghostExprClassification(index))
 
     case PNamedOperand(id) => // x := e ~ ghost(e) ==> ghost(x)
-      message(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
+      error(left, "ghost error: ghost cannot be assigned to non-ghost", isRightGhost && !ghostIdClassification(id))
 
     case n: PDot => exprOrType(n.base) match {
       case Left(base) => // x.f := e ~ (ghost(x) || ghost(e)) ==> ghost(f)
-        message(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
-          message(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !ghostIdClassification(n.id))
+        error(left, "ghost error: ghost cannot be assigned to non-ghost field", isRightGhost && !ghostIdClassification(n.id)) ++
+          error(left, "ghost error: cannot assign to non-ghost field of ghost reference", ghostExprClassification(base) && !ghostIdClassification(n.id))
 
-      case _ => message(left, "ghost error: selections on types are not assignable")
+      case _ => error(left, "ghost error: selections on types are not assignable")
     }
 
     case PBlankIdentifier() =>
@@ -73,7 +73,7 @@ trait GhostAssignability {
     generalGhostAssignableTo(ghostExprTyping)(dfltGhostAssignableMsg(ghostParameterClassification))(exprs: _*)(lefts: _*)
 
   private def dfltGhostAssignableMsg[L <: PNode](ghost: L => Boolean): (Boolean, L) => Messages = {
-    case (g, l) => message(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
+    case (g, l) => error(l, "ghost error: ghost cannot be assigned to non-ghost", g && !ghost(l))
   }
 
   private def generalGhostAssignableTo[R, L](typing: R => GhostType)(msg: (Boolean, L) => Messages)(rights: R*)(lefts: L*): Messages =
@@ -99,7 +99,7 @@ trait GhostAssignability {
       case Some(p: ap.Function) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
-      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case Some(_: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.notGhost // conservative choice
     }
   }
@@ -114,7 +114,7 @@ trait GhostAssignability {
       case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.context)
       case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.context)
       case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.PredicateKind) => GhostType.isGhost
+      case Some(_: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.isGhost // conservative choice
     }
   }

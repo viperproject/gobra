@@ -6,10 +6,12 @@
 
 package viper.gobra.ast
 
-import org.scalatest.{FunSuite, Inside, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Inside
+import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 
-class FrontendPrettyPrinterUnitTests extends FunSuite with Matchers with Inside {
+class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
   test("Printer: should show sequence update clauses as expected") {

@@ -29,7 +29,7 @@ trait BaseProperty {
     })
   }
 
-  def propForall[A](base: Traversable[A], prop: Property[A]): PropertyResult =
+  def propForall[A](base: Iterable[A], prop: Property[A]): PropertyResult =
     base.foldLeft(successProp) { case (l, r) => l and prop.result(r) }
 
 

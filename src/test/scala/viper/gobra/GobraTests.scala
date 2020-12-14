@@ -16,16 +16,12 @@ import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, AnnotationBasedTestSuite, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
-import scala.concurrent.ExecutionContextExecutor
-import akka.actor.ActorSystem
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
-
-  implicit val system: ActorSystem = ActorSystem("Main")
-  implicit val executionContext: ExecutionContextExecutor = system.dispatcher
 
   val testDirectories: Seq[String] = Vector("regressions")
   override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
@@ -53,7 +49,8 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
           inputFiles = Vector(input.file.toFile)
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config), Duration.Inf))
+        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 

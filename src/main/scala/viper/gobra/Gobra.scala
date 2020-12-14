@@ -17,10 +17,11 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.{Await, Future}
 import scala.io.Source
 
 
@@ -47,22 +48,22 @@ trait GoVerifier {
     this.getClass.getSimpleName
   }
 
-  def verify(config: Config): Future[VerifierResult] = {
-    verify(config.inputFiles, config)
+  def verify(config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    verify(config.inputFiles, config)(executor)
   }
 
-  protected[this] def verify(input: Vector[File], config: Config): Future[VerifierResult]
+  protected[this] def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
-  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult]
+  protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
-
-  override def verify(input: Vector[File], config: Config): Future[VerifierResult] = {
+  override def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
+    implicit val _executor: GobraExecutionContext = executor
 
     val task = Future {
 
@@ -82,11 +83,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)
+      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)(executor)
     }
   }
 
-  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): Future[VerifierResult] = {
+  override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
+    // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
+    implicit val _executor: GobraExecutionContext = executor
     val viperTask = BackendVerifier.Task(ast, backtrack)
     performVerification(viperTask, config)
       .map(BackTranslator.backTranslate(_)(config))
@@ -162,7 +165,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performVerification(viperTask: BackendVerifier.Task, config: Config): Future[BackendVerifier.Result] = {
+  private def performVerification(viperTask: BackendVerifier.Task, config: Config)(implicit executor: GobraExecutionContext): Future[BackendVerifier.Result] = {
     if (config.shouldVerify) {
       BackendVerifier.verify(viperTask)(config)
     } else {
@@ -175,19 +178,19 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
 class GobraFrontend {
 
-  def createVerifier(config: Config): GoVerifier = {
+  def createVerifier(): GoVerifier = {
     new Gobra
   }
 }
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
-
-    val scallopGobraconfig = new ScallopGobraConfig(args)
+    val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
     val config = scallopGobraconfig.config
-    val verifier = createVerifier(config)
-    val resultFuture = verifier.verify(config)
+    val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
+    val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
+    val verifier = createVerifier()
+    val resultFuture = verifier.verify(config)(executor)
     val result = Await.result(resultFuture, Duration.Inf)
 
     result match {

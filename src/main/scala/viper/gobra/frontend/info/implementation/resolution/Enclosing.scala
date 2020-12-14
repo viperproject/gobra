@@ -35,7 +35,7 @@ trait Enclosing { this: TypeInfoImpl =>
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
-    down(false){ case g: PGhostifier[_] => true }
+    down(false){ case _: PGhostifier[_] => true }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
     typeSwitchConstraintsLookup(id)(id)
@@ -112,7 +112,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion
-          case PSequenceUpdateClause(left, `n`) => p match {
+          case PSequenceUpdateClause(_, `n`) => p match {
             case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
           }
             // no range sequence

@@ -10,15 +10,14 @@ import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
+import viper.gobra.util.GobraExecutionContext
 import viper.silver
 import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future}
+import scala.concurrent.Future
 
 object BackendVerifier {
-
-  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   case class Task(
                    program: vpr.Program,
@@ -32,7 +31,7 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config): Future[Result] = {
+  def verify(task: Task)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
     var exePaths: Vector[String] = Vector.empty
 
@@ -52,7 +51,7 @@ object BackendVerifier {
 
     val programID = "_programID_" + config.inputFiles.head.getName
 
-    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)
+    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
 
 
     verificationResult.map(

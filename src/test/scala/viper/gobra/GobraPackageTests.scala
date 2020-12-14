@@ -15,6 +15,7 @@ import org.rogach.scallop.throwError
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, DefaultAnnotatedTestInput, DefaultTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
@@ -64,7 +65,8 @@ class GobraPackageTests extends GobraTests {
           includeDirs = Vector(currentDir.toFile)
         )
 
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config), Duration.Inf))
+        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
         info(s"Time required: $elapsedMilis ms")
 
         equalConfigs(parsedConfig.get, config) ++ (result match {
@@ -91,7 +93,7 @@ class GobraPackageTests extends GobraTests {
       // set throwError to true: Scallop will throw an exception instead of terminating the program in case an
       // exception occurs (e.g. a validation failure)
       throwError.value = true
-      Some(new ScallopGobraConfig(args).config)
+      Some(new ScallopGobraConfig(args.toSeq).config)
     } catch {
       case _: ValidationFailure => None
       case other: Throwable => throw other

@@ -111,7 +111,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     attr[PIdnNode, AddrMod] { n => regular(n) match {
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
-      case _: Wildcard => AddrMod.rValue
+      case _: Wildcard => AddrMod.defaultValue
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
 

@@ -894,8 +894,8 @@ object Desugar {
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
           indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
-        case Some(ap.BlankIdentifier(correspondingExpr)) =>
-          for { expr <- exprD(ctx)(correspondingExpr) } yield in.Assignee.Var(freshExclusiveVar(expr.typ)(src))
+        case Some(ap.BlankIdentifier(decl)) =>
+          for { expr <- exprD(ctx)(decl) } yield in.Assignee.Var(freshExclusiveVar(expr.typ)(src))
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }

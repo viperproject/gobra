@@ -154,8 +154,8 @@ trait NameResolution { this: TypeInfoImpl =>
       case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-          case d: PConstDecl => d.left.filter(_.isInstanceOf[PIdnDef]).map(_.asInstanceOf[PIdnDef])
-          case d: PVarDecl => d.left.filter(_.isInstanceOf[PIdnDef]).map(_.asInstanceOf[PIdnDef])
+          case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+          case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PFunctionDecl => Vector(d.id)
           case d: PTypeDecl => Vector(d.left)
           case _: PMethodDecl => Vector.empty

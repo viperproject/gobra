@@ -129,9 +129,9 @@ sealed trait PCodeRootWithResult extends PCodeRoot {
   def result: PResult
 }
 
-case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PConstDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
-case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PIdnDef], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
+case class PVarDecl(typ: Option[PType], right: Vector[PExpression], left: Vector[PDefLikeId], addressable: Vector[Boolean]) extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember
 
 case class PFunctionDecl(
                           id: PIdnDef,
@@ -200,7 +200,7 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PShortVarDecl(right: Vector[PExpression], left: Vector[PIdnUnk], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
+case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -298,10 +298,11 @@ sealed trait PUnaryExp extends PActualExpression {
   def operand: PExpression
 }
 
+case class PBlankIdentifier() extends PAssignee
+
 case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
   override val name : String = id.name
 }
-
 
 sealed trait PLiteral extends PActualExpression
 
@@ -592,13 +593,13 @@ sealed trait PIdnNode extends PNode {
   def name: String
 }
 
-trait PDefLikeId extends PIdnNode
-trait PUseLikeId extends PIdnNode
+sealed trait PDefLikeId extends PIdnNode
+sealed trait PUseLikeId extends PIdnNode
+sealed trait PUnkLikeId extends PIdnNode
 
 case class PIdnDef(name: String) extends PDefLikeId
 case class PIdnUse(name: String) extends PUseLikeId
-case class PIdnUnk(name: String) extends PIdnNode
-
+case class PIdnUnk(name: String) extends PUnkLikeId
 
 sealed trait PLabelNode extends PNode {
   def name: String
@@ -611,18 +612,18 @@ case class PLabelDef(name: String) extends PDefLikeLabel
 case class PLabelUse(name: String) extends PUseLikeLabel
 
 
-sealed trait PPackegeNode extends PNode {
+sealed trait PPackageNode extends PNode {
   def name: PPkg
 }
 
-trait PDefLikePkg extends PPackegeNode
-trait PUseLikePkg extends PPackegeNode
+trait PDefLikePkg extends PPackageNode
+trait PUseLikePkg extends PPackageNode
 
 case class PPkgDef(name: PPkg) extends PDefLikePkg
 case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
-case class PWildcard() extends PDefLikeId with PUseLikeId {
+case class PWildcard() extends PDefLikeId with PUseLikeId with PUnkLikeId {
   override def name: String = "_"
 }
 

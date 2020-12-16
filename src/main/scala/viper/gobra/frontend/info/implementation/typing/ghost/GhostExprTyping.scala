@@ -255,6 +255,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     expr match {
       case PNamedOperand(id) => isPureId(id)
 
+      case PBlankIdentifier() => true
+
       case _: PBoolLit | _: PIntLit | _: PNilLit => true
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {

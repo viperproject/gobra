@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// constants may be declared with the balnk identifier
+const _ = false
+const const1, _ = 2, 1
+
+func main() {
+    var u bool
+    var x int
+    // blank identifiers may be used in definitions of local variables
+    var _ int = 2 
+    var _ bool = true
+
+    // assignment of multiple return values works for short var declarations...
+    q, _ := quocientAndRemainder(5,3)
+    assert q == 1
+
+    // and regular assignments
+    x, _ = quocientAndRemainder(10,3)
+    assert x == 3
+
+    // it also supports assignments of lists of values to lists of assignees,
+    // as long as they have the same size
+    b, z, _ := true, 2, 3
+    assert b == true && z == 2
+
+    x, _, _, _ = 42, 0, 1, false
+
+    // the following test should be invalidated in the future, when we add checks
+    // to detect that at least one of the variables in the LHS of a short var decl
+    // is new
+    x, _ := 1, 2
+
+}
+
+requires x > 0 && y > 0
+ensures quoc * y + rem == x
+ensures quoc == x / y && rem == x % y
+func quocientAndRemainder(x int, y int) (quoc int, rem int) {
+    return x / y, x % y
+}

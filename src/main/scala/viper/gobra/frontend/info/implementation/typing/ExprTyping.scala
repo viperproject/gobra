@@ -277,6 +277,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case PBlankIdentifier() => noMessages
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
@@ -357,6 +359,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
+    case b: PBlankIdentifier => getBlankIdType(b)
+
     case e => violation(s"unexpected expression $e")
   }
 
@@ -368,9 +372,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
       case PAssignment(rights, lefts) =>
         val index = rights.indexOf(expr)
-        Some(exprType(lefts(index)))
+        lefts(index) match {
+          case PBlankIdentifier() =>
+            // if no type is specified, integer constants default to int in assignments to blank identifiers
+            Some(IntT(config.typeBounds.Int))
+          case x => Some(exprType(x))
+        }
       case PConstDecl(typ, _, _) => typ map typeSymbType
-      case PVarDecl(typ, _, _, _) => typ map typeSymbType
+      // if no type is specified, integer constants default to int in var declarations
+      case PVarDecl(typ, _, _, _) => if(typ.isEmpty) Some(IntT(config.typeBounds.Int)) else typ map typeSymbType
       case n: PInvoke => resolve(n) match {
         case Some(ap.FunctionCall(callee, args)) =>
           val index = args.indexOf(expr)
@@ -389,6 +399,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => None
       }
       case _ => None
+    }
+  }
+
+  def getBlankIdType(b: PBlankIdentifier): Type = b match {
+    case tree.parent(p) => p match {
+      case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
+      case PAssForRange(_, _, _) => ??? // TODO: implement when for range statements are supported
+      case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
+      case x => violation("blank identifier not supported in node " + x)
     }
   }
 

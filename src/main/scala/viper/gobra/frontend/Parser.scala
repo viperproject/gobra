@@ -363,7 +363,7 @@ object Parser {
         "const" ~> "(" ~> (constSpec <~ eos).* <~ ")"
 
     lazy val constSpec: Parser[PConstDecl] =
-      rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
+      rep1sep(idnDefLike, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
         case left ~ None => PConstDecl(None, Vector.empty, left)
         case left ~ Some(t ~ right) => PConstDecl(t, right, left)
       }
@@ -373,7 +373,7 @@ object Parser {
         "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+      rep1sep(maybeAddressableIdn(idnDefLike), ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
         case left ~ t ~ None =>
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), Vector.empty, vars, addressable)
@@ -381,7 +381,7 @@ object Parser {
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), right, vars, addressable)
       } |
-        (rep1sep(maybeAddressableIdnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
+        (rep1sep(maybeAddressableIdn(idnDefLike), ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right =>
             val (vars, addressable) = left.unzip
             PVarDecl(None, right, vars, addressable)
@@ -456,9 +456,9 @@ object Parser {
       (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ { case left ~ right => PAssignment(right, left) }
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
-      assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
+      nonBlankAssignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
+        nonBlankAssignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
+        nonBlankAssignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |
@@ -467,11 +467,16 @@ object Parser {
         "/" ^^^ PDivOp() |
         "%" ^^^ PModOp()
 
-    lazy val assignee: Parser[PAssignee] =
+    lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
 
+    lazy val assignee: Parser[PAssignee] =
+      nonBlankAssignee | blankIdentifier
+
+    lazy val blankIdentifier: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
+
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
+      (rep1sep(maybeAddressableIdn(idnUnkLike), ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
         case lefts ~ rights =>
           val (vars, addressable) = lefts.unzip
           PShortVarDecl(rights, vars, addressable)
@@ -1012,14 +1017,15 @@ object Parser {
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
-    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+    def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
+      p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
-    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] = maybeAddressableIdn(idnDef)
+    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] = maybeAddressableIdn(idnUnk)
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
+    lazy val idnUnkLike: Parser[PUnkLikeId] = idnUnk | wildcard
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
@@ -1030,7 +1036,6 @@ object Parser {
     lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
 
     lazy val addressabilityMod: Parser[String] = Constants.ADDRESSABILITY_MODIFIER
-
 
     lazy val identifier: Parser[String] =
       // "_" is not an identifier (but a wildcard)

@@ -176,8 +176,8 @@ object Desugar {
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
-    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.map(l => info.regular(l) match {
-      case sc@ st.SingleConstant(_, id, _, _, _, _) =>
+    def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
+      case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val intLit: Lit = gVar.typ match {
@@ -189,7 +189,13 @@ object Desugar {
             in.IntLit(constValue.get)(src)
           case _ => ???
         }
-        in.GlobalConstDecl(gVar, intLit)(src)
+        Vector(in.GlobalConstDecl(gVar, intLit)(src))
+
+      // Constants defined with the blank identifier can be safely ignored as they
+      // must be computable statically (and thus do not have side effects) and
+      // they can never be read
+      case st.Wildcard(_, _) => Vector()
+
       case _ => ???
     })
 
@@ -568,6 +574,13 @@ object Desugar {
 
       val src: Meta = meta(stmt)
 
+      // Generates a fresh variable if `idn` is a wildcard or returns the variable
+      // associated with idn otherwise
+      def getVar(idn: PIdnNode)(t: in.Type): in.AssignableVar = idn match {
+        case _: PWildcard => freshExclusiveVar(t)(src)
+        case x => assignableVarD(ctx)(x)
+      }
+
       stmt match {
         case NoGhost(noGhost) => noGhost match {
           case _: PEmptyStmt => unit(in.Seqn(Vector.empty)(src))
@@ -650,14 +663,15 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
+                  le <- unit(in.Assignee.Var(getVar(l)(re.typ)))
                 } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l => in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
+                les <-
+                  unit(left.map{l =>  in.Assignee.Var(getVar(l)(typeD(info.typ(l), Addressability.exclusiveVariable)(src)))})
               } yield multiassD(les, re)(src)
             } else { violation("invalid assignment") }
 
@@ -666,17 +680,19 @@ object Desugar {
             if (left.size == right.size) {
               sequence((left zip right).map{ case (l, r) =>
                 for{
-                  le <- unit(in.Assignee.Var(assignableVarD(ctx)(l)))
                   re <- goE(r)
+                  typ: in.Type = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
+                  le <- unit(in.Assignee.Var(getVar(l)(typ)))
                 } yield singleAss(le, re)(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
-                les <- unit(left.map{l =>  in.Assignee.Var(assignableVarD(ctx)(l))})
                 re  <- goE(right.head)
+                les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
               } yield multiassD(les, re)(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
-              val lelems = left.map{ l => in.Assignee.Var(assignableVarD(ctx)(l)) }
+              val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
+              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typ)) }
               val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
               unit(in.Seqn((lelems zip relems).map{ case (l, r) => singleAss(l, r)(src) })(src))
             } else { violation("invalid declaration") }
@@ -878,6 +894,8 @@ object Desugar {
           fieldSelectionD(ctx)(p)(src) map in.Assignee.Field
         case Some(p : ap.IndexedExp) =>
           indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
+        case Some(ap.BlankIdentifier(decl)) =>
+          for { expr <- exprD(ctx)(decl) } yield in.Assignee.Var(freshExclusiveVar(expr.typ)(src))
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
@@ -1064,6 +1082,10 @@ object Desugar {
           }
 
           case g: PGhostExpression => ghostExprD(ctx)(g)
+
+          case b: PBlankIdentifier =>
+            val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
+            unit(freshExclusiveVar(typ)(src))
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }

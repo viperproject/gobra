@@ -58,6 +58,8 @@ trait GhostAssignability {
 
       case _ => error(left, "ghost error: selections on types are not assignable")
     }
+
+    case PBlankIdentifier() => noMessages
   }
 
   /** conservative ghost separation assignment check */

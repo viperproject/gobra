@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{PIdnNode, _}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 
 trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -24,7 +25,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
       case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
       case entity: ActualRegular => wellDefActualRegular(entity, id)
-      case entity: GhostRegular  => wellDefGhostRegular(entity, id)
+      case entity: GhostRegular => wellDefGhostRegular(entity, id)
     }
   }
 
@@ -124,7 +125,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val idType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {
       case entity: ActualRegular => actualEntityType(entity, id)
-      case entity: GhostRegular =>  ghostEntityType(entity, id)
+      case entity: GhostRegular => ghostEntityType(entity, id)
     }
   }
 
@@ -174,6 +175,39 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Import(decl, _) => ImportT(decl)
 
+    case Wildcard(decl, _) => getWildcardType(decl)
+
     case _ => violation("untypable")
+  }
+
+  /**
+    * Gets the type of a blank identifier if it occurs in the `left` list
+    */
+  def getBlankAssigneeType(n: PNode, left: Vector[PNode], right: Vector[PExpression]): Type = {
+    require(n.isInstanceOf[PIdnNode] || n.isInstanceOf[PBlankIdentifier])
+    // joao: the use of "eq" here is a hack to find the index of the wildcard in the left list
+    // and then use that index to retrieve the corresponding expression
+    val pos = left indexWhere (n eq _)
+    violation(pos >= 0, "did not find expression corresponding to " + n)
+
+    StrictAssignModi(left.length, right.length) match {
+      case AssignMode.Single => exprType(right(pos))
+      case AssignMode.Multi => exprType(right.head) match {
+        case t: InternalTupleT => t.ts(pos)
+        case _ => violation("return type of multi-assignment should be an InternalTupleT")
+      }
+      case AssignMode.Error => violation("ill formed assignment")
+    }
+  }
+
+  def getWildcardType(w: PWildcard): Type = {
+    w match {
+      case tree.parent(p) => p match {
+        case PShortVarDecl(right, left, _) => getBlankAssigneeType(w, left, right)
+        case PVarDecl(typ, right, left, _) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case PConstDecl(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
+        case _ => ???
+      }
+    }
   }
 }

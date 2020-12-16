@@ -33,7 +33,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PType => showType(n)
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
-    case n: PPackegeNode => showPackageId(n)
+    case n: PPackageNode => showPackageId(n)
     case n : PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
@@ -67,7 +67,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // package
 
   def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
-  def showPackageId(id: PPackegeNode): Doc = id.name
+  def showPackageId(id: PPackageNode): Doc = id.name
 
   // imports
 
@@ -390,6 +390,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
       case PLength(expr) => "len" <> parens(showExpr(expr))
       case PCapacity(expr) => "cap" <> parens(showExpr(expr))
+      case PBlankIdentifier() => "_"
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

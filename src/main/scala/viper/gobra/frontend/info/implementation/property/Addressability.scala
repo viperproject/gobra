@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
 import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -50,6 +50,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   private lazy val addressabilityAttr: PExpression => AddrMod =
     attr[PExpression, AddrMod] {
       case PNamedOperand(id) => addressableVar(id)
+      case PBlankIdentifier() => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>
         val baseType = exprType(base)
@@ -110,6 +111,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
     attr[PIdnNode, AddrMod] { n => regular(n) match {
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
       case _: Constant => AddrMod.constant
+      case _: Wildcard => AddrMod.defaultValue
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
 

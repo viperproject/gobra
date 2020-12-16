@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+    // blank identifiers are disallowed from appearing on the RHS
+    // of assignments
+    //:: ExpectedOutput(parser_error)
+    a := _ + 1
+}

@@ -107,6 +107,11 @@ object SymbolTable extends Environments[Entity] {
     override def rep: PNode = exp
   }
 
+  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {
+    override def rep: PNode = decl
+    override def ghost: Boolean = false
+  }
+
 
   sealed trait TypeEntity extends Regular
 
@@ -169,11 +174,6 @@ object SymbolTable extends Environments[Entity] {
   case class Label(decl: PLabeledStmt, context: ExternalTypeInfo) extends ActualRegular {
     override def rep: PNode = decl
     // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-    override def ghost: Boolean = false
-  }
-
-  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular {
-    override def rep: PNode = decl
     override def ghost: Boolean = false
   }
 

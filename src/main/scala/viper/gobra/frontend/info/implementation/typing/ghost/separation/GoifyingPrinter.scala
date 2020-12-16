@@ -98,8 +98,8 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   /**
     * Shows a list of addressable variables.
     */
-  def showAddressableVars(vars: Vector[PIdnUnk], prefix: Doc): Doc =
-      (if (vars.isEmpty) emptyDoc else prefix <+> addressable_variables <+> showList(vars)(showId(_)))
+  def showAddressableVars(vars: Vector[PIdnNode], prefix: Doc): Doc =
+      (if (vars.isEmpty) emptyDoc else prefix <+> addressable_variables <+> showList(vars)(showId))
 
 
   /**

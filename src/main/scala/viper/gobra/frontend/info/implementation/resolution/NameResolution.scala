@@ -33,7 +33,10 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleConstant(decl, decl.left(idx), decl.right(idx), decl.typ, isGhost, this)
+            case AssignMode.Single => decl.left(idx) match {
+              case idn: PIdnDef => SingleConstant(decl, idn, decl.right(idx), decl.typ, isGhost, this)
+              case w: PWildcard => Wildcard(w, this)
+            }
             case _ => UnknownEntity()
           }
 
@@ -151,8 +154,8 @@ trait NameResolution { this: TypeInfoImpl =>
       case n: PPackage => n.declarations flatMap { m =>
 
         def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-          case d: PConstDecl => d.left
-          case d: PVarDecl => d.left
+          case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+          case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PFunctionDecl => Vector(d.id)
           case d: PTypeDecl => Vector(d.left)
           case _: PMethodDecl => Vector.empty
@@ -216,6 +219,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
   lazy val entity: PIdnNode => Entity =
     attr[PIdnNode, Entity] {
+
+      case w@PWildcard() => Wildcard(w, this)
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())

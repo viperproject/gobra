@@ -16,6 +16,7 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
+import viper.gobra.frontend.PackageResolver.FileResource
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.TypeBounds
 
@@ -301,7 +302,17 @@ class ScallopGobraConfig(arguments: Seq[String])
         i <- identifyInput(input).toRight("invalid input")
         files <- i match {
           case Right(files) => Right(files)
-          case Left(_) => PackageResolver.resolve("", includeDirs) // look for files in the current directory
+          case Left(_) =>
+            for {
+              // look for files in the current directory, i.e. use an empty importPath
+              resolvedResources <- PackageResolver.resolve("", includeDirs)
+              resolvedFiles = resolvedResources.flatMap({
+                case fileResource: FileResource => Some(fileResource.file)
+                case _ => None
+              })
+              // we do not need the underlying resources anymore as we are only using FileResources:
+              _ = resolvedResources.foreach(_.close())
+            } yield resolvedFiles
         }
       } yield files
       assert(res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")

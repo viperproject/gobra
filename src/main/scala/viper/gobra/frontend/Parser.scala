@@ -7,6 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.{File, Reader}
+import java.nio.file.{Files, Path}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
@@ -16,6 +17,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 import viper.gobra.util.Constants
 
+import scala.io.BufferedSource
 import scala.util.matching.Regex
 
 object Parser {
@@ -36,14 +38,23 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
-      .map{ file => FileSource(file.getPath) }
-      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
+      .map{ getSource }
+      .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
       parseAst <- parseSources(preprocessedSources, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
+  }
+
+  private def getSource(path: Path): FromFileSource = {
+    val filename = path.getFileName.toString
+    val inputStream = Files.newInputStream(path)
+    val bufferedSource = new BufferedSource(inputStream)
+    val content = bufferedSource.mkString
+    bufferedSource.close()
+    FromFileSource(filename, content)
   }
 
   private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -163,7 +174,7 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: FileSource)(config: Config): Source = {
+    def preprocess(source: Source)(config: Config): Source = {
       val translatedContent = translate(source.content)
       config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
       FromFileSource(source.name, translatedContent)

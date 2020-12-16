@@ -177,7 +177,7 @@ object Desugar {
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
 
     def constDeclD(decl: PConstDecl): Vector[in.GlobalConstDecl] = decl.left.flatMap(l => info.regular(l) match {
-      case sc@st.SingleConstant(_, id, _, _, _, context) =>
+      case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
         val intLit: Lit = gVar.typ match {

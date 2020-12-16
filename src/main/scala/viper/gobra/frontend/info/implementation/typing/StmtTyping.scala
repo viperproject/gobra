@@ -56,7 +56,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PShortVarDecl(rights, lefts, _) =>
       // TODO: check that at least one of the variables is new
-      if (lefts.forall{ x => !x.isInstanceOf[PIdnUnk] || pointsToData(x) })
+      if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
           multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
       else error(n, s"at least one assignee in $lefts points to a type")

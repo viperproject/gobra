@@ -121,7 +121,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(input)(config)
+      Parser.parse(input.map(_.toPath))(config)
     } else {
       Left(Vector())
     }

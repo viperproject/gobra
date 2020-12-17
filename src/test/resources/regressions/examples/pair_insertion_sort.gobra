@@ -1,5 +1,7 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 // VerifyThis'17 -- Challenge 1 (sortedness property only)
-// https://ethz.ch/content/dam/ethz/special-interest/infk/chair-program-method/pm/documents/Verify%20This/challenge1.pdf
 
 package pkg
 

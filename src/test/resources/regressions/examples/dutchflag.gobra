@@ -1,3 +1,5 @@
+
+
 package pkg
 
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])

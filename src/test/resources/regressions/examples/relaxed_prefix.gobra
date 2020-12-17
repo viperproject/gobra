@@ -1,5 +1,7 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 // VerifyThis'15 -- Challenge 1 (soundness only)
-// https://www.pm.inf.ethz.ch/research/verifythis/Archive/2015.html
 
 package pkg
 

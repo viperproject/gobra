@@ -2,7 +2,7 @@
 This folder contains resources that are included in the Gobra jar file.
 
 ## Stubs
-In particular noteworthy are `.gobra` files contained in the `stubs` folder:
+The `.gobra` files contained in the `stubs` folder are particularly noteworthy:
 Gobra uses them when resolving package imports.
 Hence, predefined specification for imported libraries can be provided this way.
 Note that the `-I` command line option takes higher precendence in the package resolution and might overrule the provided stubs.

@@ -77,6 +77,11 @@ object PackageResolver {
       val nullableResourceUri = getClass.getClassLoader.getResource(stubDir).toURI
       for {
         resourceUri <- Option.when(nullableResourceUri != null)(nullableResourceUri)
+        // when executing the tests, the resource URI points to regular files in the filesystem (i.e. the
+        // URI scheme is "file"). However, when directly running Gobra, files in the resource folder are contained in
+        // the jar file. As this is some kind of zip file, accessing the stubs as regular files is not possible.
+        // BaseJarResource provides an abstraction that internally uses an adhoc filesystem to enable file-like access
+        // to these resources.
         resource <- resourceUri.getScheme match {
           case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri).toFile))
           case s if s == jarUriScheme => Some(BaseJarResource(resourceUri, stubDir))
@@ -214,7 +219,7 @@ object PackageResolver {
   case class FileResource(file: File) extends InputResource {
     override lazy val path: Path = file.toPath
 
-    def resolve(pathComponent: String): FileResource =
+    override def resolve(pathComponent: String): FileResource =
       FileResource(path.resolve(pathComponent).toFile)
 
     override def listContent(): Vector[FileResource] = {

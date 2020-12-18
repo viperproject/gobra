@@ -1,0 +1,70 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type myInt int32
+
+requires typeOf(x) == myInt
+func intTestIn(x interface{}) {
+  x := x.(myInt)
+}
+
+ensures typeOf(res) == myInt
+ensures res.(myInt) == 42
+func intTestOut() (res interface{}) {
+  var x myInt = 42
+  return x
+}
+
+//:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+ensures res.(myInt) == 42
+func intTestOutFailing() (res interface{}) {
+  var x myInt = 42
+  return x
+}
+
+type pair struct{
+  left, right int
+}
+
+requires typeOf(x) == pair
+func structTestIn(x interface{}) {
+  x := x.(pair)
+}
+
+ensures typeOf(res) == pair
+ensures res.(pair) == pair{1,2}
+func structTestOut() (res interface{}) {
+  var x pair = pair{1,2}
+  return x
+}
+
+//:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+ensures res.(pair) == pair{1,2}
+func structTestOutFailing() (res interface{}) {
+  var x pair = pair{1,2}
+  return x
+}
+
+
+
+requires typeOf(x) == *pair
+func pointerTestIn(x interface{}) {
+  x := x.(*pair)
+}
+
+ensures typeOf(res) == *pair
+ensures acc(res.(*pair)) && *res.(*pair) == pair{1,2}
+func pointerTestOut() (res interface{}) {
+  var x *pair = &pair{1,2}
+  return x
+}
+
+//:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+ensures acc(res.(*pair)) && *res.(*pair) == pair{1,2}
+func pointerTestOutFailing() (res interface{}) {
+  var x *pair = &pair{1,2}
+  return x
+}
+

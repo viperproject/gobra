@@ -162,6 +162,14 @@ object CompositeObject {
   case class Multiset(op : MultisetLit) extends CompositeObject
 }
 
+/**
+  * Type assertion that does not fail.
+  * 'successTarget' gets assigned a boolean, indicating whether the cast is valid or not.
+  * If the cast is not valid, 'resTarget' gets assigned the default value of 'typ'.
+  * The statement does not have side-effects.
+  * */
+case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr: Expr, typ: Type)(val info: Source.Parser.Info) extends Stmt
+
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
@@ -237,14 +245,59 @@ case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: So
 case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT(Addressability.rValue)
+  override def typ: Type = BoolT(Addressability.rValue)
 }
 
 case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
-override def typ: Type = BoolT(Addressability.rValue)
+  override def typ: Type = BoolT(Addressability.rValue)
 }
+
+/* Type related expressions */
+
+case class TypeAssertion(exp: Expr, arg: Type)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = arg.withAddressability(Addressability.rValue)
+}
+
+case class TypeOf(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = SortT
+}
+
+case class IsComparableType(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class IsComparableInterface(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+/** Boxes an expression into an interface. */
+case class ToInterface(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+
+sealed trait TypeExpr extends Expr {
+  override val typ: Type = SortT
+}
+
+case class PointerTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends TypeExpr
+
+
+case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
+case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
+case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class SequenceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class SetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MultisetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
+
+
+
+
 
 
 /* ** Option type expressions */
@@ -649,7 +702,9 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
-
+case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = newType
+}
 
 sealed trait Lit extends Expr
 
@@ -806,6 +861,13 @@ case class PermissionT(addressability: Addressability) extends Type {
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
 }
 
+/** The type of types. For now, we have a single sort. */
+case object SortT extends Type {
+  override val addressability: Addressability = Addressability.mathDataStructureElement
+  override def equalsWithoutMod(t: Type): Boolean = t == SortT
+  override def withAddressability(newAddressability: Addressability): SortT.type = SortT
+}
+
 /**
   * The type of `length`-sized arrays of elements of type `typ`.
   */
@@ -932,6 +994,18 @@ case class StructT(name: String, fields: Vector[Field], addressability: Addressa
   override def withAddressability(newAddressability: Addressability): StructT =
     StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
+
+case class InterfaceT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: InterfaceT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): InterfaceT =
+    InterfaceT(name, newAddressability)
+}
+
+
 
 
 

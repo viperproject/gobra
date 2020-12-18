@@ -37,7 +37,7 @@ case class ContextImpl(
                         table: LookupTable
                       ) extends Context {
 
-  def this(conf: TranslatorConfig, table: LookupTable) {
+  def this(conf: TranslatorConfig, table: LookupTable) = {
     this(
       conf.field,
       conf.array,

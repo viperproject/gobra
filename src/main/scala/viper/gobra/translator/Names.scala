@@ -31,6 +31,15 @@ object Names {
   def embeddingBoxFunc: String = "box"
   def embeddingUnboxFunc: String = "unbox"
 
+  // polymorph-value domain
+  def polyValueDomain: String = "Poly"
+  def polyValueBoxFunc: String = "box"
+  def polyValueUnboxFunc: String = "unbox"
+
+  // interface
+  def emptyInterface: String = "empty_interface"
+  def toInterfaceFunc: String = "toInterface"
+
   // pointer
   def pointerField(t : vpr.Type) : String = {
     // sanitizes type name to a valid Viper field name
@@ -44,6 +53,9 @@ object Names {
   // struct
   def sharedStructDomain: String = "ShStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
+
+  // types
+  def typesDomain: String = "Types"
 
   // array
   def sharedArrayDomain: String = "ShArray"

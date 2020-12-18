@@ -7,15 +7,17 @@
 package viper.gobra.frontend
 
 import java.io.{File, Reader}
+import java.nio.file.{Files, Path}
 
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
 import viper.gobra.util.Constants
 
+import scala.io.BufferedSource
 import scala.util.matching.Regex
 
 object Parser {
@@ -36,18 +38,28 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[File], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
-      .map{ file => FileSource(file.getPath) }
-      .map{ file => SemicolonPreprocessor.preprocess(file)(config) }
+      .map{ getSource }
+      .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
       parseAst <- parseSources(preprocessedSources, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
   }
 
+  private def getSource(path: Path): FromFileSource = {
+    val filename = path.getFileName.toString
+    val inputStream = Files.newInputStream(path)
+    val bufferedSource = new BufferedSource(inputStream)
+    val content = bufferedSource.mkString
+    bufferedSource.close()
+    FromFileSource(filename, content)
+  }
+
   private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
     def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
@@ -55,8 +67,8 @@ object Parser {
         case Success(ast, _) =>
 
           val filename = source match {
-            case ffs: FromFileSource => Some(new File(ffs.filename))
-            case fs: FileSource => Some(new File(fs.filename))
+            case ffs: FromFileSource => Some(new File(ffs.name))
+            case fs: FileSource => Some(new File(fs.name))
             case _ => None
           }
 
@@ -84,12 +96,10 @@ object Parser {
 
     val parsedPrograms = {
       val parserResults = sources.map(parseSource)
-      val (errorLefts, programRights) = parserResults.partition(_.isLeft)
-      val errors = errorLefts.flatMap(_.left.get)
-      val programs = programRights.map(_.right.get)
+      val (errors, programs) = parserResults.partitionMap(identity)
 
       if (errors.nonEmpty) {
-        Left(errors)
+        Left(errors.flatten)
       } else {
         // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
         // of the same package has failed
@@ -113,31 +123,36 @@ object Parser {
   }
 
   def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
     translateParseResult(pom)(parsers.parseAll(parsers.member, source))
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
   }
 
   def parseExpr(source: Source): Either[Messages, PExpression] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
   }
 
   def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
   }
 
   def parseType(source : Source) : Either[Messages, PType] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
   }
@@ -159,13 +174,10 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: FileSource)(config: Config): Source = {
-      val bufferedSource = scala.io.Source.fromFile(source.filename, source.encoding)
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      val translatedContent = translate(content)
-      config.reporter report PreprocessedInputMessage(new File(source.filename), () => translatedContent)
-      FromFileSource(source.filename, translatedContent)
+    def preprocess(source: Source)(config: Config): Source = {
+      val translatedContent = translate(source.content)
+      config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
+      FromFileSource(source.name, translatedContent)
     }
 
     def preprocess(content: String): Source = {
@@ -201,9 +213,18 @@ object Parser {
     }
   }
 
-  case class FromFileSource(filename : String, content: String) extends Source {
-    val optName : Option[String] = Some(Source.dropCurrentPath(filename))
+  case class FromFileSource(name : String, content: String) extends Source {
+    val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
     def reader : Reader = IO.stringreader(content)
+
+    def useAsFile[T](fn : String => T) : T = {
+      // copied from StringSource
+      val filename = Filenames.makeTempFilename(name)
+      IO.createFile(filename, content)
+      val t = fn(filename)
+      IO.deleteFile(filename)
+      t
+    }
   }
 
   private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
@@ -287,7 +308,8 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get"
+      "none", "some", "get",
+      "typeOf", "isComparable"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -352,7 +374,7 @@ object Parser {
         "const" ~> "(" ~> (constSpec <~ eos).* <~ ")"
 
     lazy val constSpec: Parser[PConstDecl] =
-      rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
+      rep1sep(idnDefLike, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
         case left ~ None => PConstDecl(None, Vector.empty, left)
         case left ~ Some(t ~ right) => PConstDecl(t, right, left)
       }
@@ -362,7 +384,7 @@ object Parser {
         "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+      rep1sep(maybeAddressableIdn(idnDefLike), ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
         case left ~ t ~ None =>
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), Vector.empty, vars, addressable)
@@ -370,7 +392,7 @@ object Parser {
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), right, vars, addressable)
       } |
-        (rep1sep(maybeAddressableIdnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
+        (rep1sep(maybeAddressableIdn(idnDefLike), ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right =>
             val (vars, addressable) = left.unzip
             PVarDecl(None, right, vars, addressable)
@@ -445,9 +467,9 @@ object Parser {
       (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ { case left ~ right => PAssignment(right, left) }
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
-      assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
+      nonBlankAssignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
+        nonBlankAssignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
+        nonBlankAssignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |
@@ -456,11 +478,16 @@ object Parser {
         "/" ^^^ PDivOp() |
         "%" ^^^ PModOp()
 
-    lazy val assignee: Parser[PAssignee] =
+    lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
 
+    lazy val assignee: Parser[PAssignee] =
+      nonBlankAssignee | blankIdentifier
+
+    lazy val blankIdentifier: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
+
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
+      (rep1sep(maybeAddressableIdn(idnUnkLike), ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
         case lefts ~ rights =>
           val (vars, addressable) = lefts.unzip
           PShortVarDecl(rights, vars, addressable)
@@ -1001,14 +1028,15 @@ object Parser {
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
-    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+    def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
+      p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
-    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
+    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] = maybeAddressableIdn(idnDef)
+    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] = maybeAddressableIdn(idnUnk)
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
+    lazy val idnUnkLike: Parser[PUnkLikeId] = idnUnk | wildcard
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
@@ -1019,7 +1047,6 @@ object Parser {
     lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
 
     lazy val addressabilityMod: Parser[String] = Constants.ADDRESSABILITY_MODIFIER
-
 
     lazy val identifier: Parser[String] =
       // "_" is not an identifier (but a wildcard)
@@ -1078,6 +1105,8 @@ object Parser {
         exists |
         old |
         access |
+        typeOf |
+        isComparable |
         rangeSequence |
         rangeSet |
         rangeMultiset |
@@ -1097,6 +1126,12 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+
+    lazy val typeOf: Parser[PTypeOf] =
+      "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
+
+    lazy val isComparable: Parser[PIsComparable] =
+      "isComparable" ~> "(" ~> (expression | typ) <~ ")" ^^ PIsComparable
 
     private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
       "[" ~> expression ~ (".." ~> expression <~ "]")

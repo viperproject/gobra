@@ -9,6 +9,7 @@ package viper.gobra.translator.implementations
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.{BoolEncoding, IntEncoding, PointerEncoding, TypeEncoding}
 import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeTypeEncodingCombiner}
+import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
 import viper.gobra.translator.encodings.sets.SetEncoding
@@ -48,7 +49,7 @@ class DfltTranslatorConfig(
   val typeEncoding: TypeEncoding = new FinalTypeEncoding(
     new SafeTypeEncodingCombiner(Vector(
       new BoolEncoding, new IntEncoding,
-      new PointerEncoding, new StructEncoding, arrayEncoding,
+      new PointerEncoding, new StructEncoding, arrayEncoding, new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding,
       new SliceEncoding(arrayEncoding)
     ))

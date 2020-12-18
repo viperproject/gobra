@@ -16,7 +16,7 @@ def compute(n: A): R
 override def apply(n: A): R = compute(n)
 }
 
-trait Memoization[-A, +R] extends Computation[A, R] { this: Attribution =>
+trait Memoization[-A <: AnyRef, +R] extends Computation[A, R] { this: Attribution =>
 
   lazy val store: A => R = attr(super.apply)
 
@@ -39,7 +39,7 @@ trait Validity[-A, R] extends Computation[A, R] {
 }
 
 object Computation {
-  def cashedComputation[A, R](f: A => R): A => R = new Attribution with Memoization[A, R] {
+  def cachedComputation[A <: AnyRef, R](f: A => R): A => R = new Attribution with Memoization[A, R] {
     override def compute(n: A): R = f(n)
   }
 }

@@ -6,13 +6,15 @@
 
 package viper.gobra.ast
 
-import org.scalatest.{FunSuite, Inside, Matchers}
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.Inside
+import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source.Parser.Internal
 import viper.gobra.theory.Addressability
 import viper.gobra.util.TypeBounds
 
-class InternalPrettyPrinterUnitTests extends FunSuite with Matchers with Inside {
+class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
   val intT: Type = IntT(Addressability.Exclusive, TypeBounds.DefaultInt)

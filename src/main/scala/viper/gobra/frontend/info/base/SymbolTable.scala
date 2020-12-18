@@ -7,11 +7,32 @@
 package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import org.bitbucket.inkytonik.kiama.util.{Entity, Environments, ErrorEntity}
+import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
 
-object SymbolTable extends Environments {
+
+object SymbolTable extends Environments[Entity] {
+
+  /**
+    * An entity that represents an error situation. These entities are
+    * usually accepted in most situations to avoid cascade errors.
+    */
+  abstract class ErrorEntity extends Entity {
+    override def isError: Boolean = true
+  }
+
+  /**
+    * A entity represented by names for whom we have seen more than one
+    * declaration so we are unsure what is being represented.
+    */
+  case class MultipleEntity() extends ErrorEntity
+
+  /**
+    * An unknown entity, for example one that is represened by names whose
+    * declarations are missing.
+    */
+  case class UnknownEntity() extends ErrorEntity
 
   /**
     * Special entity that provides an error message
@@ -32,10 +53,12 @@ object SymbolTable extends Environments {
 
   sealed trait WithArguments {
     def args: Vector[PParameter]
+    def context: ExternalTypeInfo
   }
 
   sealed trait WithResult {
     def result: PResult
+    def context: ExternalTypeInfo
   }
 
   case class Function(decl: PFunctionDecl, ghost: Boolean, context: ExternalTypeInfo) extends ActualDataEntity with WithArguments with WithResult {
@@ -82,6 +105,11 @@ object SymbolTable extends Environments {
   }
   case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
+  }
+
+  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular with ActualDataEntity {
+    override def rep: PNode = decl
+    override def ghost: Boolean = false
   }
 
 
@@ -146,11 +174,6 @@ object SymbolTable extends Environments {
   case class Label(decl: PLabeledStmt, context: ExternalTypeInfo) extends ActualRegular {
     override def rep: PNode = decl
     // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-    override def ghost: Boolean = false
-  }
-
-  case class Wildcard(decl: PWildcard, context: ExternalTypeInfo) extends ActualRegular {
-    override def rep: PNode = decl
     override def ghost: Boolean = false
   }
 

@@ -30,7 +30,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         exprOrType(n.base)
           .fold(
             _ => Left(n),
-            typ(_) match { // check if base is a package qualifier and id points to a type
+            symbType(_) match { // check if base is a package qualifier and id points to a type
               case _: ImportT if pointsToType(n.id) => Right(n)
               case _ => Left(n)
             })
@@ -42,7 +42,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
   }
 
   def asExpr(n: PExpressionOrType): Option[PExpression] = exprOrType(n).left.toOption
-  def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).right.toOption
+  def asType(n: PExpressionOrType): Option[PType] = exprOrType(n).toOption
 
 
 
@@ -52,6 +52,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       entity(n.id) match {
         case s: st.NamedType => Some(ap.NamedType(n.id, s))
         case s: st.Variable => Some(ap.LocalVariable(n.id, s))
+        case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
         case _ => None
@@ -96,6 +97,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
       case Left(base) => Some(ap.IndexedExp(base, n.index))
       case Right(_) => None // unknown pattern
     }
+
+    case b: PBlankIdentifier => Some(ap.BlankIdentifier(b))
 
       // unknown pattern
     case _ => None

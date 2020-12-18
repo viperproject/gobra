@@ -6,7 +6,10 @@
 
 package viper.gobra.typing
 
-import org.scalatest.{FunSuite, Inside, Matchers}
+import org.bitbucket.inkytonik.kiama.util.Positions
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.Inside
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.Info
@@ -14,7 +17,7 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.DefaultInt
 
-class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
+class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   val frontend = new TestFrontend()
 
   test("Typing: should correctly type an integer sequence type") {
@@ -366,10 +369,11 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
 
     private def typeInfo(ts : Vector[PType]) : TypeInfoImpl = {
       val program = stubProgram(ts)
+      val positions = new Positions
       val pkg = PPackage(
         PPackageClause(PPkgDef("pkg")),
         Vector(program),
-        new PositionManager()
+        new PositionManager(positions)
       )
       val tree = new Info.GoTree(pkg)
       val context = new Info.Context()
@@ -385,6 +389,6 @@ class TypeTypingUnitTests extends FunSuite with Matchers with Inside {
 
     def isGhostType(t : PType) : Boolean = typeInfo(Vector(t)).isTypeGhost(t)
     def isWellDef(t : PType) = typeInfo(Vector(t)).wellDefType(t)
-    def typType(t : PType) : Type.Type = typeInfo(Vector(t)).typ(t)
+    def typType(t : PType) : Type.Type = typeInfo(Vector(t)).symbType(t)
   }
 }

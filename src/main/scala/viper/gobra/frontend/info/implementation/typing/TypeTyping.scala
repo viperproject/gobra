@@ -6,9 +6,10 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -18,7 +19,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isTypeCondition = exprOrType(n).isRight
-    message(n, s"expected expression, but got $n", !isTypeCondition)
+    error(n, s"expected expression, but got $n", !isTypeCondition)
   }
 
   lazy val wellDefAndType: WellDefinedness[PType] = createWellDef { n =>
@@ -35,12 +36,12 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolType | _: PIntegerType => noMessages
 
     case typ @ PArrayType(_, PNamedOperand(_)) =>
-      message(typ, s"arrays of custom declared types are currently not supported")
+      error(typ, s"arrays of custom declared types are currently not supported")
 
     case n @ PArrayType(len, t) => isType(t).out ++ {
       intConstantEval(len) match {
-        case None => message(n, s"expected constant array length, but got $len")
-        case Some(v) => message(len, s"array length should be positive, but got $v", v < 0)
+        case None => error(n, s"expected constant array length, but got $len")
+        case Some(v) => error(len, s"array length should be positive, but got $v", v < 0)
       }
     }
 
@@ -50,28 +51,28 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PRecvChannelType => isType(n.elem).out
     case n: PMethodReceiveName => isType(n.typ).out
     case n: PMethodReceivePointer => isType(n.typ).out
-    case n: PFunctionType => noMessages // parameters and result is implied by well definedness of children
+    case _: PFunctionType => noMessages // parameters and result is implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
-      message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
+      error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(structType(t)).errors(t) ++ addressableMethodSet(structType(t)).errors(t) ++
-      message(t, "invalid recursive struct", cyclicStructDef(t))
+      structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
+      error(t, "invalid recursive struct", cyclicStructDef(t))
 
     case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
 
-  lazy val typeType: Typing[PType] = createTyping {
-    case typ: PActualType => actualTypeType(typ)
-    case typ: PGhostType  => ghostTypeType(typ)
+  lazy val typeSymbType: Typing[PType] = createTyping {
+    case typ: PActualType => actualTypeSymbType(typ)
+    case typ: PGhostType  => ghostTypeSymbType(typ)
   }
 
-  private[typing] def actualTypeType(typ: PActualType): Type = typ match {
+  private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {
 
     case PBoolType() => BooleanT
     case PIntType() => IntT(config.typeBounds.Int)
@@ -91,39 +92,46 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)
       violation(lenOpt.isDefined, s"expected constant expression, but got $len")
-      ArrayT(lenOpt.get, typeType(elem))
+      ArrayT(lenOpt.get, typeSymbType(elem))
 
-    case PSliceType(elem) => SliceT(typeType(elem))
+    case PSliceType(elem) => SliceT(typeSymbType(elem))
 
-    case PMapType(key, elem) => MapT(typeType(key), typeType(elem))
+    case PMapType(key, elem) => MapT(typeSymbType(key), typeSymbType(elem))
 
-    case PBiChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Bi)
+    case PBiChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Bi)
 
-    case PSendChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Send)
+    case PSendChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Send)
 
-    case PRecvChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Recv)
+    case PRecvChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Recv)
 
-    case t: PStructType => structType(t)
+    case t: PStructType => structSymbType(t)
 
-    case PMethodReceiveName(t) => typeType(t)
+    case PMethodReceiveName(t) => typeSymbType(t)
 
-    case PMethodReceivePointer(t) => PointerT(typeType(t))
+    case PMethodReceivePointer(t) => PointerT(typeSymbType(t))
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
     case t: PInterfaceType => InterfaceT(t)
 
-    case t: PExpressionAndType => exprAndTypeType(t)
+    case n: PNamedOperand => idSymType(n.id)
+
+    case n: PDeref =>
+      resolve(n) match {
+        case Some(p: ap.PointerType) => PointerT(typeSymbType(p.base))
+        case _ => violation(s"expected type, but got $n")
+      }
+
+    case n: PDot =>
+      resolve(n) match {
+        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case _ => violation(s"expected type, but got $n")
+      }
   }
 
-  def litTypeType(typ: PLiteralType): Type = typ match {
-    case PImplicitSizeArrayType(t) => typeType(t)
-    case t: PType => typeType(t)
-  }
-
-  private def structType(t: PStructType): Type = {
+  private def structSymbType(t: PStructType): Type = {
     def makeFields(x: PFieldDecls): ListMap[String, (Boolean, Type)] = {
-      x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeType(f.typ))) }
+      x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeSymbType(f.typ))) }
     }
     def makeEmbedded(x: PEmbeddedDecl): ListMap[String, (Boolean, Type)] =
       ListMap[String, (Boolean, Type)](x.id.name -> (false, miscType(x.typ)))

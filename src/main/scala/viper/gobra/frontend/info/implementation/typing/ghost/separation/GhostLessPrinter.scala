@@ -86,7 +86,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
       super.showStmt(PReturn(aRight))
 
     case s if classifier.isStmtGhost(s) => ghostToken
-    case s => super.showStmt(stmt)
+    case _ => super.showStmt(stmt)
   }
 
   override def showExpr(expr: PExpression): Doc = expr match {

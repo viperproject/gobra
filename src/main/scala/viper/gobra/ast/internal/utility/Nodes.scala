@@ -25,14 +25,14 @@ object Nodes {
     */
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
-      case Program(types, members, _) => members
+      case Program(_, members, _) => members
       case Method(receiver, name, args, results, pres, posts, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
       case PureMethod(receiver, name, args, results, pres, posts, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
       case Function(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
       case PureFunction(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
-      case Field(name, typ, ghost) => Seq()
+      case Field(_, _, _) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -49,6 +49,7 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
+        case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -66,14 +67,33 @@ object Nodes {
       }
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
-        case PureFunctionCall(func, args, typ) => Seq(func) ++ args
-        case PureMethodCall(recv, meth, args, typ) => Seq(recv, meth) ++ args
-        case DfltVal(typ) => Seq()
+        case PureFunctionCall(func, args, _) => Seq(func) ++ args
+        case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case Conversion(_, expr) => Seq(expr)
+        case DfltVal(_) => Seq()
         case Tuple(args) => args
-        case Deref(exp, typ) => Seq(exp)
-        case Ref(ref, typ) => Seq(ref)
+        case Deref(exp, _) => Seq(exp)
+        case Ref(ref, _) => Seq(ref)
         case FieldRef(recv, field) => Seq(recv, field)
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
+        case TypeAssertion(exp, _) => Seq(exp)
+        case TypeOf(exp) => Seq(exp)
+        case IsComparableType(exp) => Seq(exp)
+        case IsComparableInterface(exp) => Seq(exp)
+        case ToInterface(exp, _) => Seq(exp)
+        case BoolTExpr() => Seq()
+        case IntTExpr(_) => Seq()
+        case PermTExpr() => Seq()
+        case PointerTExpr(elem) => Seq(elem)
+        case StructTExpr(_) => Seq()
+        case ArrayTExpr(len, elem) => Seq(len, elem)
+        case SliceTExpr(elem) => Seq(elem)
+        case SequenceTExpr(elem) => Seq(elem)
+        case SetTExpr(elem) => Seq(elem)
+        case MultisetTExpr(elem) => Seq(elem)
+        case OptionTExpr(elem) => Seq(elem)
+        case TupleTExpr(elem) => elem
+        case DefinedTExpr(_) => Seq()
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
@@ -112,10 +132,10 @@ object Nodes {
       }
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {
-        case FunctionProxy(name) => Seq()
-        case MethodProxy(name, uniqueName) => Seq()
-        case FPredicateProxy(name) => Seq()
-        case MPredicateProxy(name, uniqueName) => Seq()
+        case FunctionProxy(_) => Seq()
+        case MethodProxy(_, _) => Seq()
+        case FPredicateProxy(_) => Seq()
+        case MPredicateProxy(_, _) => Seq()
       }
     }
 //    n match {

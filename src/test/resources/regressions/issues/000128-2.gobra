@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Typing rules apply to the results of conversions
+func incTypeError(i int) (res int64) {
+	//:: ExpectedOutput(type_error)
+	return int64(i) + int(1)
+}
+
+type T1 struct {
+	x int
+	y uint32
+}
+
+type T2 struct {
+	x int
+	y uint32
+}
+
+type T3 struct {
+	x int
+	z uint32
+}
+
+type T4 struct {
+	y uint32
+	x int
+}
+
+// fst's type and snd's type have different underlying types (field names differ), leading to a type error
+func diffStructError1() {
+  var fst T3 = T3{x: 1, z: 2}
+  //:: ExpectedOutput(type_error)
+  var snd T2 = T2(fst)
+  assert snd.x == 1 && snd.y == 2
+}
+
+// T1 and T4 have the same fields in different orders.
+// As such, they cannot be converted to each other.
+func diffStructError2() {
+	var fst T1 = T1{x: 1, y: 2}
+	//:: ExpectedOutput(type_error)
+	var snd T4 = T4(fst)
+	assert snd.x == 1 && snd.y == 2
+}

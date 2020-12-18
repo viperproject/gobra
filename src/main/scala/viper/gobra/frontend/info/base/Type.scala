@@ -68,7 +68,12 @@ object Type {
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 
   // TODO: at least add type info
-  case class InterfaceT(decl: PInterfaceType) extends Type
+  case class InterfaceT(decl: PInterfaceType) extends Type {
+    lazy val isEmpty: Boolean = {
+      decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&
+        decl.embedded.isEmpty
+    }
+  }
 
 
   case class InternalTupleT(ts: Vector[Type]) extends Type
@@ -77,7 +82,7 @@ object Type {
 
   case class ImportT(decl: PImport) extends Type
 
-
+  case object SortT extends Type
 
   sealed trait GhostType extends Type
 

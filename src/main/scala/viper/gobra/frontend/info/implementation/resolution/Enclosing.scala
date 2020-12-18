@@ -35,7 +35,7 @@ trait Enclosing { this: TypeInfoImpl =>
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRoot with PScope => m }
 
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
-    down(false){ case g: PGhostifier[_] => true }
+    down(false){ case _: PGhostifier[_] => true }
 
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
     typeSwitchConstraintsLookup(id)(id)
@@ -66,8 +66,8 @@ trait Enclosing { this: TypeInfoImpl =>
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
-          case PConstDecl(t, _, _) => t.map(typ)
-          case PVarDecl(t, _, _, _) => t.map(typ)
+          case PConstDecl(t, _, _) => t.map(symbType)
+          case PVarDecl(t, _, _, _) => t.map(symbType)
           case _: PExpressionStmt => None
           case PSendStmt(channel, `n`) => Some(typ(channel).asInstanceOf[Type.ChannelT].elem)
           case PAssignment(right, left) => Some(typ(left(right.indexOf(n))))
@@ -80,7 +80,7 @@ trait Enclosing { this: TypeInfoImpl =>
             // no defer stmt
           case p: PExpCompositeVal => Some(expectedMiscType(p))
           case i: PInvoke => (exprOrType(i.base), resolve(i)) match {
-            case (Right(target), Some(_: ap.Conversion)) => Some(typ(target))
+            case (Right(target), Some(_: ap.Conversion)) => Some(symbType(target))
             case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
             case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
           }
@@ -94,10 +94,10 @@ trait Enclosing { this: TypeInfoImpl =>
             // no reference
             // no deref
             // no negation
-          case PEquals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
-          case PEquals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
-          case PUnequals(`n`, r) => val t = typ(r); if (t == Type.NilType) None else Some(t)
-          case PUnequals(l, `n`) => val t = typ(l); if (t == Type.NilType) None else Some(t)
+          case PEquals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
+          case PEquals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
+          case PUnequals(`n`, r) => val t = exprOrTypeType(r); if (t == Type.NilType) None else Some(t)
+          case PUnequals(l, `n`) => val t = exprOrTypeType(l); if (t == Type.NilType) None else Some(t)
             // no and, or, less, at most, greater, at least, add, sub, mul, mod, div
           case p: PUnfolding => aux(p)
             // no array type
@@ -112,7 +112,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion
-          case PSequenceUpdateClause(left, `n`) => p match {
+          case PSequenceUpdateClause(_, `n`) => p match {
             case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
           }
             // no range sequence

@@ -4,7 +4,8 @@
       "**/*.scala",
       "**/*.vpr",
       "**/*.go",
-      "build.sbt"
+      "build.sbt",
+      "src/main/**/*.gobra"
     ],
     "exclude": [
       "carbon/**",
@@ -51,7 +52,8 @@
     "exclude": [
       "project/project/**",
       "project/target/**",
-      "target/**"
+      "target/**",
+      "src/main/**"
     ],
     "license": "./.github/license-check/headers/CC0.txt"
   },

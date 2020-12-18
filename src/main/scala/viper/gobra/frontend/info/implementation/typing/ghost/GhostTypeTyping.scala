@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -16,19 +16,19 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
     case PSequenceType(elem) => isType(elem).out ++
-      message(typ, s"sequences of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+      error(typ, s"sequences of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PSetType(elem) => isType(elem).out ++
-      message(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+      error(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PMultisetType(elem) => isType(elem).out ++
-      message(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+      error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case POptionType(elem) => isType(elem).out ++
-      message(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+      error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
   }
 
-  private[typing] def ghostTypeType(typ : PGhostType) : Type = typ match {
-    case PSequenceType(elem) => SequenceT(typeType(elem))
-    case PSetType(elem) => SetT(typeType(elem))
-    case PMultisetType(elem) => MultisetT(typeType(elem))
-    case POptionType(elem) => OptionT(typeType(elem))
+  private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
+    case PSequenceType(elem) => SequenceT(typeSymbType(elem))
+    case PSetType(elem) => SetT(typeSymbType(elem))
+    case PMultisetType(elem) => MultisetT(typeSymbType(elem))
+    case POptionType(elem) => OptionT(typeSymbType(elem))
   }
 }

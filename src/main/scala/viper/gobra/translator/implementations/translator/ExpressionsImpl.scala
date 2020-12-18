@@ -28,7 +28,6 @@ class ExpressionsImpl extends Expressions {
     val (pos, info, errT) = x.vprMeta
 
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = translate(e)(ctx)
-    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     x match {
 
@@ -94,6 +93,8 @@ class ExpressionsImpl extends Expressions {
         case Seq() => newExists
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
+
+      case in.Conversion(_, expr) => goE(expr)
 
       case _ => Violation.violation(s"Expression $x did not match with any implemented case.")
     }

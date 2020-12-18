@@ -32,7 +32,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PParameter => isType(n.typ).out
     case n: PReceiver => isType(n.typ).out
-    case n: PResult => noMessages // children already taken care of
+    case _: PResult => noMessages // children already taken care of
 
     case n: PEmbeddedName => isType(n.typ).out
     case n: PEmbeddedPointer => isType(n.typ).out
@@ -59,15 +59,15 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case t => violation(s"unexpected range type $t")
     }
 
-    case p: PParameter => typeType(p.typ)
-    case r: PReceiver => typeType(r.typ)
+    case p: PParameter => typeSymbType(p.typ)
+    case r: PReceiver => typeSymbType(r.typ)
     case PResult(outs) =>
       if (outs.size == 1) miscType(outs.head) else InternalTupleT(outs.map(miscType))
 
-    case PEmbeddedName(t) => typeType(t)
-    case PEmbeddedPointer(t) => PointerT(typeType(t))
+    case PEmbeddedName(t) => typeSymbType(t)
+    case PEmbeddedPointer(t) => PointerT(typeSymbType(t))
 
-    case f: PFieldDecl => typeType(f.typ)
+    case f: PFieldDecl => typeSymbType(f.typ)
 
     case l: PLiteralValue => expectedMiscType(l)
     case l: PKeyedElement => miscType(l.exp)
@@ -78,9 +78,10 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val expectedMiscType: PShortCircuitMisc => Type =
     attr[PShortCircuitMisc, Type] {
 
-      case tree.parent.pair(l: PLiteralValue, p) => p match {
+      case tree.parent.pair(_: PLiteralValue, p) => p match {
         case cl: PCompositeLit => expectedCompositeLitType(cl)
         case cv: PCompositeVal => expectedMiscType(cv)
+        case _ => Violation.violation(s"found unexpected literal: $p")
       }
 
       case tree.parent.pair(e: PKeyedElement, lv: PLiteralValue) => underlyingType(expectedMiscType(lv)) match {
@@ -101,7 +102,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => Violation.violation(s"found unexpected type: $t")
       }
 
-      case tree.parent.pair(cv: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
+      case tree.parent.pair(_: PCompositeVal, ke: PKeyedElement) => expectedMiscType(ke)
     }
 
 
@@ -122,7 +123,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case MethodSpec(PMethodSig(_, args, result), _, context) => FunctionT(args map context.typ, context.typ(result))
 
-    case Field(PFieldDecl(_, typ), _, context) => context.typ(typ)
+    case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
   }

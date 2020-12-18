@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
 import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -50,6 +50,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   private lazy val addressabilityAttr: PExpression => AddrMod =
     attr[PExpression, AddrMod] {
       case PNamedOperand(id) => addressableVar(id)
+      case PBlankIdentifier() => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>
         val baseType = exprType(base)
@@ -80,11 +81,12 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PReceive => AddrMod.receive
       case _: PReference => AddrMod.reference
       case _: PNegation => AddrMod.rValue
-      case _: PBinaryExp => AddrMod.rValue
+      case _: PBinaryExp[_,_] => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
       case _: POld => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess => AddrMod.rValue
+      case _: PTypeOf | _: PIsComparable => AddrMod.rValue
       case _: PIn | _: PCardinality | _: PMultiplicity | _: PSequenceAppend |
            _: PSequenceUpdate | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset => AddrMod.rValue
@@ -108,7 +110,8 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   private lazy val addressableVarAttr: PIdnNode => AddrMod =
     attr[PIdnNode, AddrMod] { n => regular(n) match {
       case v: Variable => if (v.addressable) AddrMod.sharedVariable else AddrMod.exclusiveVariable
-      case c: Constant => AddrMod.constant
+      case _: Constant => AddrMod.constant
+      case _: Wildcard => AddrMod.defaultValue
       case e => Violation.violation(s"Expected variable, but got $e")
     }}
 

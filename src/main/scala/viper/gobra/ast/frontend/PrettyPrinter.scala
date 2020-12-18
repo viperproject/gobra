@@ -33,7 +33,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PType => showType(n)
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
-    case n: PPackegeNode => showPackageId(n)
+    case n: PPackageNode => showPackageId(n)
     case n : PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
@@ -67,7 +67,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // package
 
   def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
-  def showPackageId(id: PPackegeNode): Doc = id.name
+  def showPackageId(id: PPackageNode): Doc = id.name
 
   // imports
 
@@ -187,7 +187,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PIfStmt(ifs, els) =>
         ssep(ifs map showIfClause, line) <>
           opt(els)(space <> "else" <+> showStmt(_) <> line)
-      case PExprSwitchStmt(pre, exp, cases, dflt) =>
+      case PExprSwitchStmt(pre, _, cases, dflt) =>
         "switch" <> showPreStmt(pre) <+> block(
           ssep(cases map showExprSwitchClause, line) <>
             ssep(dflt map { d =>
@@ -317,7 +317,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     val p7 = Value(8)
   }
 
-  def getPrecedence(expr: PExpression): Precedence.Value = expr match {
+  def getPrecedence(expr: PExpressionOrType): Precedence.Value = expr match {
     case _: PConditional => Precedence.p1
     case _: PImplication => Precedence.p1P5
     case _: POr => Precedence.p2
@@ -336,6 +336,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       parens(showExpr(subExpr))
     else
       showExpr(subExpr)
+  }
+
+  def showSubExprOrType(expr: PExpressionOrType, subExpr: PExpressionOrType): Doc = {
+    val exprPrecedence = getPrecedence(expr)
+    val subExprPrecedence = getPrecedence(subExpr)
+
+    if (subExprPrecedence < exprPrecedence)
+      parens(showExprOrType(subExpr))
+    else
+      showExprOrType(subExpr)
   }
 
 
@@ -364,8 +374,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       }
 
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
-      case PEquals(left, right) => showSubExpr(expr, left) <+> "==" <+> showSubExpr(expr, right)
-      case PUnequals(left, right) => showSubExpr(expr, left) <+> "!=" <+> showSubExpr(expr, right)
+      case PEquals(left, right) => showSubExprOrType(expr, left) <+> "==" <+> showSubExprOrType(expr, right)
+      case PUnequals(left, right) => showSubExprOrType(expr, left) <+> "!=" <+> showSubExprOrType(expr, right)
       case PAnd(left, right) => showSubExpr(expr, left) <+> "&&" <+> showSubExpr(expr, right)
       case POr(left, right) => showSubExpr(expr, left) <+> "||" <+> showSubExpr(expr, right)
       case PLess(left, right) => showSubExpr(expr, left) <+> "<" <+> showSubExpr(expr, right)
@@ -380,6 +390,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
       case PLength(expr) => "len" <> parens(showExpr(expr))
       case PCapacity(expr) => "cap" <> parens(showExpr(expr))
+      case PBlankIdentifier() => "_"
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
@@ -394,6 +405,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PInvoke => showExpr(n)
         case n: PExpression => "acc" <> parens(showExpr(n))
       }
+
+      case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+      case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
 
       case POptionNone(t) => "none" <> brackets(showType(t))
       case POptionSome(e) => "some" <> parens(showExpr(e))

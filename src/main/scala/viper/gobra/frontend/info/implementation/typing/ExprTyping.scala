@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
@@ -25,43 +25,44 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => noMessages
-            case t => message(n, s"expected pointer type but got $t")
+            case Single(PointerT(_)) => noMessages
+            case t => error(n, s"expected pointer type but got $t")
           }
 
-        case Some(p: ap.PointerType) => noMessages
+        case Some(_: ap.PointerType) => noMessages
 
         case _ => violation("Deref should always resolve to either the deref or pointer type pattern")
       }
 
     case n: PDot =>
       resolve(n) match {
-        case Some(p: ap.FieldSelection) => noMessages
-        case Some(p: ap.ReceivedMethod) => noMessages
-        case Some(p: ap.ReceivedPredicate) => noMessages
-        case Some(p: ap.MethodExpr) => noMessages
-        case Some(p: ap.PredicateExpr) => noMessages
+        case Some(_: ap.FieldSelection) => noMessages
+        case Some(_: ap.ReceivedMethod) => noMessages
+        case Some(_: ap.ReceivedPredicate) => noMessages
+        case Some(_: ap.MethodExpr) => noMessages
+        case Some(_: ap.PredicateExpr) => noMessages
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
-        case Some(p: ap.Constant) => noMessages
-        case Some(p: ap.Function) => noMessages
-        case Some(p: ap.NamedType) => noMessages
-        case Some(p: ap.Predicate) => noMessages
+        case Some(_: ap.Constant) => noMessages
+        case Some(_: ap.Function) => noMessages
+        case Some(_: ap.NamedType) => noMessages
+        case Some(_: ap.Predicate) => noMessages
         // TODO: supporting packages results in further options: global variable
-        case _ => message(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
       }
   }
 
   lazy val exprAndTypeType: Typing[PExpressionAndType] = createTyping[PExpressionAndType] {
-    case n: PNamedOperand => idType(n.id)
+    case n: PNamedOperand =>
+      exprOrType(n).fold(x => idType(x.asInstanceOf[PNamedOperand].id), _ => SortT)
 
     case n: PDeref =>
       resolve(n) match {
         case Some(p: ap.Deref) =>
           exprType(p.base) match {
-            case PointerT(t) => t
+            case Single(PointerT(t)) => t
             case t => violation(s"expected pointer but got $t")
           }
-        case Some(p: ap.PointerType) => PointerT(typeType(p.base))
+        case Some(_: ap.PointerType) => SortT
         case _ => violation("Deref should always resolve to either the deref or pointer type pattern")
       }
 
@@ -72,12 +73,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.ReceivedPredicate) => memberType(p.symb)
 
         case Some(p: ap.MethodExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeType(p.typ))
+          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a method should be typed to a function type, but got $t")
         }
 
         case Some(p: ap.PredicateExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeType(p.typ))
+          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
 
@@ -87,7 +88,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => ???
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
-        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
         // TODO: supporting packages results in further options: global variable
@@ -96,11 +97,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   }(wellDefExprAndType)
 
+  def exprOrTypeType(n: PExpressionOrType): Type = n match {
+    case n: PExpression => exprType(n)
+    case _: PType => SortT
+  }
+
 
   /** checks that argument is not a type. The argument might still be an assertion. */
   lazy val isExpr: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isExprCondition = exprOrType(n).isLeft
-    message(n, s"expected expression, but got $n", !isExprCondition)
+    error(n, s"expected expression, but got $n", !isExprCondition)
   }
 
   lazy val wellDefAndExpr: WellDefinedness[PExpression] = createWellDef { n =>
@@ -116,33 +122,32 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PNilLit => noMessages
 
-    case n@PIntLit(v) =>
+    case n: PIntLit =>
       val typCtx = getTypeFromContext(n)
       if (typCtx.isDefined) assignableWithinBounds.errors(typCtx.get, n)(n) else noMessages
 
-    case n@PCompositeLit(t, lit) => {
+    case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
-        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeType(elem))
-        case t: PType => typeType(t)
+        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
+        case t: PType => typeSymbType(t)
       }
       literalAssignableTo.errors(lit, simplifiedT)(n)
-    }
 
     case _: PFunctionLit => noMessages
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
 
       case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
-        val msgs = message(n, "expected a single argument", p.arg.size != 1)
+        val msgs = error(n, "expected a single argument", p.arg.size != 1)
         if (msgs.nonEmpty) msgs
-        else convertibleTo.errors(exprType(p.arg.head), typeType(p.typ))(n) ++ isExpr(p.arg.head).out
+        else convertibleTo.errors(exprType(p.arg.head), typeSymbType(p.typ))(n) ++ isExpr(p.arg.head).out
 
-      case (Left(callee), Some(p: ap.FunctionCall)) => // arguments have to be assignable to function
+      case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t => message(n, s"type error: got $t but expected function type")
+          case t => error(n, s"type error: got $t but expected function type")
         }
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
@@ -155,24 +160,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t => message(n, s"type error: got $t but expected function type")
+          case t => error(n, s"type error: got $t but expected function type")
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
 
-      case _ => message(n, s"expected a call to a conversion, function, or predicate, but got $n")
+      case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
         ((exprType(base), exprType(index)) match {
-          case (ArrayT(l, elem), IntT(_)) =>
+          case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
-            message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
-          case (PointerT(ArrayT(l, elem)), IntT(_)) =>
+          case (PointerT(ArrayT(l, _)), IntT(_)) =>
             val idxOpt = intConstantEval(index)
-            message(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
+            error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
 
           case (SequenceT(_), IntT(_)) =>
             noMessages
@@ -180,10 +185,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
-          case (MapT(key, elem), indexT) =>
-            message(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+          case (MapT(key, _), indexT) =>
+            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
-          case (bt, it) => message(n, s"$it index is not a proper index of $bt")
+          case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         })
 
 
@@ -194,42 +199,42 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
-            message(n, s"array $base is not addressable", !addressable(base))
+          error(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+            error(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+            error(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
+            error(n, s"array $base is not addressable", !addressable(base))
 
         case (SequenceT(_), lowT, highT, capT) => {
-          lowT.fold(noMessages)(t => message(low, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
-            highT.fold(noMessages)(t => message(high, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
-            message(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
+          lowT.fold(noMessages)(t => error(low, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
+            highT.fold(noMessages)(t => error(high, s"expected an integer but found $t", !t.isInstanceOf[IntT])) ++
+            error(cap, "sequence slice expressions do not allow specifying a capacity", capT.isDefined)
         }
 
         case (PointerT(ArrayT(l, _)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
-          message(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            message(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
-            message(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
+          error(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            error(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
+            error(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
 
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
           val lowOpt = low.map(intConstantEval)
-          message(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
+          error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
 
-        case (bt, lt, ht, ct) => message(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
+        case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
     case n@PTypeAssertion(base, typ) =>
       isExpr(base).out ++ isType(typ).out ++
         (exprType(base) match {
           case t: InterfaceT =>
-            val at = typeType(typ)
-            message(n, s"type error: expression $base of type $at does not implement $typ", implements(at, t))
-          case t => message(n, s"type error: got $t expected interface")
+            val at = typeSymbType(typ)
+            error(n, s"type error: expression $base of type $at does not implement $typ", !implements(at, t))
+          case t => error(n, s"type error: got $t expected interface")
         })
 
     case n@PReceive(e) => isExpr(e).out ++ (exprType(e) match {
       case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages
-      case t => message(n, s"expected receive-permitting channel but got $t")
+      case t => error(n, s"expected receive-permitting channel but got $t")
     })
 
     case n@PReference(e) => isExpr(e).out ++ effAddressable.errors(e)(n)
@@ -237,23 +242,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 
 
-    case n: PBinaryExp =>
-      val intKind = config.typeBounds.UntypedConst
-      isExpr(n.left).out ++ isExpr(n.right).out ++
-        ((n, exprType(n.left), exprType(n.right)) match {
+    case n: PBinaryExp[_,_] =>
+        (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
+            val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
+            val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n) ++ {
               val res = for {
                 typCtx <- getTypeFromContext(n.asInstanceOf[PNumExpression])
               } yield assignableWithinBounds.errors(typCtx, n)(n)
               res.getOrElse(noMessages)
             }
-          case (_, l, r) => message(n, s"$l and $r are invalid type arguments for $n")
-        })
+          case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
+        }
 
     case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
 
@@ -261,16 +266,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       exprType(op) match {
         case _: ArrayT | _: SliceT => noMessages
         case _: SequenceT => isPureExpr(op)
-        case typ => message(op, s"expected an array, sequence or slice type, but got $typ")
+        case typ => error(op, s"expected an array, sequence or slice type, but got $typ")
       }
     }
 
     case PCapacity(op) => isExpr(op).out ++ {
       exprType(op) match {
         case _: ArrayT | _: SliceT => noMessages
-        case typ => message(op, s"expected an array or slice type, but got $typ")
+        case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }
+
+    case PBlankIdentifier() => noMessages
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
@@ -292,11 +299,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       FunctionT(args map miscType, miscType(r))
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-      case (Right(_), Some(p: ap.Conversion)) => typeType(p.typ)
+      case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
-          case t => violation(s"expected function type but got $t") //(message(n, s""))
+          case t => violation(s"expected function type but got $t") //(error(n, s""))
         }
       case p => violation(s"expected conversion, function call, or predicate call, but got $p")
     }
@@ -319,7 +326,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
-    case PTypeAssertion(_, typ) => typeType(typ)
+    case PTypeAssertion(_, typ) =>
+      val resT = typeSymbType(typ)
+      InternalSingleMulti(resT, InternalTupleT(Vector(resT, BooleanT)))
 
     case PReceive(e) => exprType(e) match {
       case ChannelT(elem, ChannelModus.Bi | ChannelModus.Recv) =>
@@ -350,6 +359,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PExpressionAndType => exprAndTypeType(n)
 
+    case b: PBlankIdentifier => getBlankIdType(b)
+
     case e => violation(s"unexpected expression $e")
   }
 
@@ -361,21 +372,27 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
       case PAssignment(rights, lefts) =>
         val index = rights.indexOf(expr)
-        Some(exprType(lefts(index)))
-      case PConstDecl(typ, _, _) => typ map typeType
-      case PVarDecl(typ, _, _, _) => typ map typeType
+        lefts(index) match {
+          case PBlankIdentifier() =>
+            // if no type is specified, integer constants default to int in assignments to blank identifiers
+            Some(IntT(config.typeBounds.Int))
+          case x => Some(exprType(x))
+        }
+      case PConstDecl(typ, _, _) => typ map typeSymbType
+      // if no type is specified, integer constants default to int in var declarations
+      case PVarDecl(typ, _, _, _) => if(typ.isEmpty) Some(IntT(config.typeBounds.Int)) else typ map typeSymbType
       case n: PInvoke => resolve(n) match {
         case Some(ap.FunctionCall(callee, args)) =>
           val index = args.indexOf(expr)
           callee match {
-            case f: ap.Function => Some(typeType(f.symb.args(index).typ))
+            case f: ap.Function => Some(typeSymbType(f.symb.args(index).typ))
             case _ => None
           }
 
         case Some(ap.PredicateCall(pred, args)) =>
           val index = args.indexOf(expr)
           pred match {
-            case p: ap.Predicate => Some(typeType(p.symb.args(index).typ))
+            case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
             case _ => None
           }
 
@@ -385,25 +402,34 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
+  def getBlankIdType(b: PBlankIdentifier): Type = b match {
+    case tree.parent(p) => p match {
+      case PAssignment(right, left) => getBlankAssigneeType(b, left, right)
+      case PAssForRange(_, _, _) => ??? // TODO: implement when for range statements are supported
+      case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
+      case x => violation("blank identifier not supported in node " + x)
+    }
+  }
+
   private def intExprType(expr: PNumExpression): Type = expr match {
     case _: PIntLit => IntT(config.typeBounds.UntypedConst)
 
     case _: PLength | _: PCapacity => IntT(config.typeBounds.Int)
 
-    case bExpr: PBinaryExp =>
-      val typeLeft = exprType(bExpr.left)
-      val typeRight = exprType(bExpr.right)
+    case bExpr: PBinaryExp[_,_] =>
+      val typeLeft = exprOrTypeType(bExpr.left)
+      val typeRight = exprOrTypeType(bExpr.right)
       typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
-    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeType(i.elem))
-    case t: PType => typeType(t)
+    case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
+    case t: PType => typeSymbType(t)
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {
-    case BooleanT => message(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
-    case typ if underlyingType(typ).isInstanceOf[IntT] => message(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
-    case _ => message(expr, s"expected a constant expression")
+    case BooleanT => error(expr, s"expected constant boolean expression", boolConstantEval(expr).isEmpty)
+    case typ if underlyingType(typ).isInstanceOf[IntT] => error(expr, s"expected constant int expression", intConstantEval(expr).isEmpty)
+    case _ => error(expr, s"expected a constant expression")
   }
 }

@@ -25,7 +25,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
 
   private[typing] def ghostEntityType(entity: GhostRegular, id: PIdnNode): Type = entity match {
 
-    case x: BoundVariable => typeType(x.decl.typ)
+    case x: BoundVariable => typeSymbType(x.decl.typ)
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case _ => violation("untypable")
   }

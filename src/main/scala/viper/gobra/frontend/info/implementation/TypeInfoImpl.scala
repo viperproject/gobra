@@ -8,10 +8,9 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import org.bitbucket.inkytonik.kiama.util.UnknownEntity
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, lookup}
+import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
@@ -68,9 +67,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def typ(expr: PExpression): Type.Type = exprType(expr)
 
+  override def typOfExprOrType(expr: PExpressionOrType): Type.Type = exprOrTypeType(expr)
+
   override def typ(misc: PMisc): Type.Type = miscType(misc)
 
-  override def typ(typ: PType): Type.Type = typeType(typ)
+  override def symbType(typ: PType): Type.Type = typeSymbType(typ)
 
   override def typ(id: PIdnNode): Type.Type = idType(id)
 
@@ -144,11 +145,11 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     // lookup PStructType based on PFieldDecl and get then StructT
     attr[PNode, Option[Type.StructT]] {
 
-      case tree.parent.pair(decl: PFieldDecl, decls: PFieldDecls) =>
+      case tree.parent.pair(_: PFieldDecl, decls: PFieldDecls) =>
         struct(decls)
 
-      case tree.parent.pair(decls: PFieldDecls, structDecl: PStructType) =>
-        Some(typ(structDecl).asInstanceOf[Type.StructT])
+      case tree.parent.pair(_: PFieldDecls, structDecl: PStructType) =>
+        Some(symbType(structDecl).asInstanceOf[Type.StructT])
 
       case _ => None
     }

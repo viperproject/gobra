@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelModus, ChannelT, InterfaceT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -24,15 +24,15 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PConstDecl(typ, right, left) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
+        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 
     case n@PVarDecl(typ, right, left, _) =>
       right.flatMap(isExpr(_).out) ++
-        declarableTo.errors(right map exprType, typ map typeType, left map idType)(n)
+        declarableTo.errors(right map exprType, typ map typeSymbType, left map idType)(n)
 
     case n: PTypeDecl => isType(n.right).out ++ (n.right match {
       case s: PStructType =>
-        message(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
+        error(n, s"invalid recursive type ${n.left.name}", cyclicStructDef(s, Some(n.left)))
       case _ => noMessages
     })
 
@@ -42,7 +42,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(chn).out ++ isExpr(msg).out ++
         ((exprType(chn), exprType(msg)) match {
           case (ChannelT(elem, ChannelModus.Bi | ChannelModus.Send), t) => assignableTo.errors(t, elem)(n)
-          case (chnt, _) => message(n, s"type error: got $chnt but expected send-permitting channel")
+          case (chnt, _) => error(n, s"type error: got $chnt but expected send-permitting channel")
         })
 
     case n@PAssignment(rights, lefts) =>
@@ -55,10 +55,11 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(right), exprType(left))(n)
 
     case n@PShortVarDecl(rights, lefts, _) =>
+      // TODO: check that at least one of the variables is new
       if (lefts.forall(pointsToData))
         rights.flatMap(isExpr(_).out) ++
           multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
-      else message(n, s"at least one assignee in $lefts points to a type")
+      else error(n, s"at least one assignee in $lefts points to a type")
 
     case n: PIfStmt => n.ifs.flatMap(ic =>
       isExpr(ic.condition).out ++
@@ -66,7 +67,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     )
 
     case n@PExprSwitchStmt(_, exp, _, dflt) =>
-      message(n, s"found more than one default case", dflt.size > 1) ++
+      error(n, s"found more than one default case", dflt.size > 1) ++
         isExpr(exp).out ++ comparableType.errors(exprType(exp))(n)
 
     case _: PExprSwitchDflt => noMessages
@@ -75,18 +76,18 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       left.flatMap(e => isExpr(e).out ++ comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 
     case n: PTypeSwitchStmt =>
-      message(n, s"found more than one default case", n.dflt.size > 1) ++
+      error(n, s"found more than one default case", n.dflt.size > 1) ++
         isExpr(n.exp).out ++ {
         val et = exprType(n.exp)
         val ut = underlyingType(et)
-        message(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
+        error(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
       } // TODO: also check that cases have type that could implement the type
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
     case n@PShortForRange(exp, lefts, _) =>
       if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)
-      else message(n, s"at least one assignee in $lefts points to a type")
+      else error(n, s"at least one assignee in $lefts points to a type")
 
 
     case n@PAssForRange(exp, lefts, _) =>
@@ -103,7 +104,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       ) ++ n.sRec.flatMap(rec =>
         if (rec.shorts.forall(pointsToData))
           multiAssignableTo.errors(Vector(exprType(rec.recv)), rec.shorts map idType)(rec)
-        else message(n, s"at least one assignee in ${rec.shorts} points to a type")
+        else error(n, s"at least one assignee in ${rec.shorts} points to a type")
       )
 
     case n@PReturn(exps) =>
@@ -112,7 +113,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
           val res = enclosingCodeRootWithResult(n).result
           if (res.outs forall wellDefMisc.valid)
             multiAssignableTo.errors(exps map exprType, res.outs map miscType)(n)
-          else message(n, s"return cannot be checked because the enclosing signature is incorrect")
+          else error(n, s"return cannot be checked because the enclosing signature is incorrect")
         } else noMessages // a return without arguments is always well-defined
       }
 

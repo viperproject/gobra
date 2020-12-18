@@ -1,0 +1,112 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func compareInterfaces1(x, y interface{}) {
+  var a int
+
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+}
+
+type cell struct{ f int }
+type pair struct{ left, right int }
+
+requires typeOf(x) == cell || typeOf(y) == pair
+func compareInterfaces2(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires isComparable(typeOf(x)) || isComparable(typeOf(y))
+func compareInterfaces3(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires isComparable(x) || isComparable(x)
+func compareInterfaces4(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires isComparable(x) || isComparable(typeOf(y))
+func compareInterfaces5(x, y interface{}) {
+  var a int
+
+  if x == y {
+    a = 42
+  } else {
+    a = 12
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+func compareSlices() {
+  var x, y []int
+  var z struct{ f struct{ g int } }
+  var i, j, k interface{} = x, y, z
+
+  assert i != nil
+  assert i != k
+  assert k != i
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  assert i == j
+}
+
+func compareStructWithSlices() {
+  var x, y struct{ a int; b []int; c int }
+  var z struct{ f struct{ g int } }
+  var i, j, k interface{} = x, y, z
+
+  assert i != nil
+  assert i != k
+  assert k != i
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  assert i == j
+}
+
+func compareStructWithInterface1() {
+  var a, b struct{ f int; g []int; h int }
+  var c struct{ f struct{ g int } }
+  var x, y, z struct{ f interface{} }
+  x.f, y.f, z.f = a, b, c
+  var i, j, k interface{} = x, y, z
+
+  assert i != nil
+  assert i != k
+  assert k != i
+  //:: ExpectedOutput(comparison_error:incomparable_error)
+  assert i == j
+}

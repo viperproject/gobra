@@ -1175,7 +1175,8 @@ object Parser {
     lazy val predicateAccess: Parser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
       primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
-        case invoke: PInvoke => success(PPredicateAccess(invoke))
+        case invoke: PInvoke => success(PPredicateAccess(invoke, PFullPerm().at(invoke)))
+        case PAccess(invoke: PInvoke, perm) => success(PPredicateAccess(invoke, perm))
         case e => failure(s"expected invoke but got ${e.getClass}")
       }
 

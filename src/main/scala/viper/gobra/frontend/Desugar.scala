@@ -1763,9 +1763,15 @@ object Desugar {
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
         case n: PAccess => for {e <- accessibleD(ctx)(n.exp); p <- permissionD(ctx)(n.perm)} yield in.Access(e, p)(src)
-        case n: PPredicateAccess => predicateCallD(ctx)(n.pred)
+        case n: PPredicateAccess => predicateCallD(ctx)(n.pred, n.perm)
 
-        case n: PInvoke => predicateCallD(ctx)(n)
+        case n: PInvoke =>
+          // a predicate invocation corresponds to a predicate access with full permissions
+          // register the full permission AST node in the position manager such that its meta information
+          // is retrievable in predicateCallD
+          val perm = PFullPerm()
+          pom.positions.dupPos(n, perm)
+          predicateCallD(ctx)(n, perm)
 
         case PForall(vars, triggers, body) =>
           for { (newVars, newTriggers, newBody) <- quantifierD(ctx)(vars, triggers, body)(assertionD) }
@@ -1779,13 +1785,16 @@ object Desugar {
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(n: PInvoke): Writer[in.Assertion] = {
+    def predicateCallD(ctx: FunctionContext)(n: PInvoke, perm: PPermission): Writer[in.Assertion] = {
 
       val src: Meta = meta(n)
 
       info.resolve(n) match {
         case Some(p: ap.PredicateCall) =>
-          predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x), in.FullPerm(src))(src))
+          for {
+            predAcc <- predicateCallAccD(ctx)(p)(src)
+            p <- permissionD(ctx)(perm)
+          } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }

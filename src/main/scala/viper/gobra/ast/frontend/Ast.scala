@@ -785,7 +785,7 @@ case class PImplication(left: PExpression, right: PExpression) extends PGhostExp
 case class PAccess(exp: PExpression, perm: PPermission) extends PGhostExpression
 
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
-case class PPredicateAccess(pred: PInvoke) extends PGhostExpression
+case class PPredicateAccess(pred: PInvoke, perm: PPermission) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 

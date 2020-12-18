@@ -34,4 +34,5 @@ trait TranslatorConfig {
   def pureMethod: PureMethods
   def predicate: Predicates
   def stmt: Statements
+  def perm: Permissions
 }

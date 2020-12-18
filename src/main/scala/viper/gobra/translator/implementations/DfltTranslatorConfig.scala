@@ -37,7 +37,8 @@ class DfltTranslatorConfig(
   val method : Methods = new MethodsImpl,
   val pureMethod : PureMethods = new PureMethodsImpl,
   val predicate : Predicates = new PredicatesImpl,
-  val stmt : Statements = new StatementsImpl
+  val stmt : Statements = new StatementsImpl,
+  val perm : Permissions = new PermissionsImpl
 ) extends TranslatorConfig {
 
   val seqToMultiset : SeqToMultiset = new SeqToMultisetImpl(seqMultiplicity)

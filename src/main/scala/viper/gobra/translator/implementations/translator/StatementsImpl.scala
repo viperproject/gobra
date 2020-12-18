@@ -111,8 +111,8 @@ class StatementsImpl extends Statements {
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)
       case in.Exhale(ass) => for {v <- goA(ass)} yield vpr.Exhale(v)(pos, info, errT)
 
-      case fold: in.Fold => for {a <- ctx.predicate.predicateAccess(fold.op)(ctx) } yield vpr.Fold(a)(pos, info, errT)
-      case unfold: in.Unfold => for { a <- ctx.predicate.predicateAccess(unfold.op)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
+      case fold: in.Fold => for {a <- ctx.predicate.predicateAccess(fold.op, fold.acc.p)(ctx) } yield vpr.Fold(a)(pos, info, errT)
+      case unfold: in.Unfold => for { a <- ctx.predicate.predicateAccess(unfold.op, unfold.acc.p)(ctx) } yield vpr.Unfold(a)(pos, info, errT)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 

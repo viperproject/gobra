@@ -402,9 +402,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
       case PAccess(exp, PFullPerm()) => "acc" <> parens(showExpr(exp))
       case PAccess(exp, perm) => "acc" <> parens(showExpr(exp) <> "," <+> showExpr(perm))
-      case PPredicateAccess(exp) => exp match {
-        case n: PInvoke => showExpr(n)
-        case n: PExpression => "acc" <> parens(showExpr(n))
+      case PPredicateAccess(exp, perm) => exp match {
+        case n: PInvoke if perm == PFullPerm() => showExpr(n)
+        case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
+        case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))

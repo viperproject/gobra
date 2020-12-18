@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+const divisor = 1
+
+// currently, only int literals are supported
+//:: ExpectedOutput(parser_error)
+requires acc(myPred(x), divisor/2)
+func constPerm(x *int) {}

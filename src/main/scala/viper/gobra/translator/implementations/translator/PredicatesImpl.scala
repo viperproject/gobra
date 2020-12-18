@@ -80,27 +80,28 @@ class PredicatesImpl extends Predicates {
   }
 
   /**
-    * [acc(  p(as)] -> p(Argument[as])
-    * [acc(e.p(as)] -> p(Argument[e], Argument[as])
+    * [acc(  p(as), perm] -> p(Argument[as], Permission[perm])
+    * [acc(e.p(as), perm] -> p(Argument[e], Argument[as], Permission[perm])
     */
-  override def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+  override def predicateAccess(acc: in.PredicateAccess, perm: in.Permission)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
 
     val (pos, info, errT) = acc.vprMeta
-    val perm = vpr.FullPerm()(pos, info, errT)
 
     acc match {
       case in.FPredicateAccess(pred, args) =>
         for {
           vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
           pacc = vpr.PredicateAccess(vArgs, pred.name)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
+          vPerm <- ctx.perm.translate(perm)(ctx)
+        } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
       case in.MPredicateAccess(recv, pred, args) =>
         for {
           vRecv <- ctx.expr.translate(recv)(ctx)
           vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
           pacc = vpr.PredicateAccess(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
+          vPerm <- ctx.perm.translate(perm)(ctx)
+        } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
       case in.MemoryPredicateAccess(_) =>
         Violation.violation("memory predicate accesses are not supported")

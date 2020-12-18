@@ -149,9 +149,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFullPerm() => noMessages
       case PNoPerm() => noMessages
       case PFractionalPerm(left, right) => (intConstantEval(left), intConstantEval(right)) match {
-        case (l, r) if l.isEmpty || r.isEmpty => error(left, s"expected a constant, but got $left", l.isEmpty) ++
+        case (l, r) if l.isEmpty || r.isEmpty => error(left, s"expected an integer constant, but got $left", l.isEmpty) ++
           error(right, s"expected a constant, but got $right", r.isEmpty)
-        case (_, Some(dividend)) => error(right, s"expected a non-zero dividend, but got $right", dividend == 0)
+        case (_, Some(zero)) if zero == 0 => error(right, s"expected a non-zero dividend, but got $right")
         case _ => noMessages
       }
       case PWildcardPerm() =>noMessages

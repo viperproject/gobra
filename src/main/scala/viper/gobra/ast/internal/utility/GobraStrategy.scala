@@ -55,7 +55,7 @@ object GobraStrategy {
       case (_: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (_: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
       case (_: Implication, Seq(l: Expr, r: Assertion)) => Implication(l, r)(meta)
-      case (_: Access, Seq(acc: Accessible)) => Access(acc)(meta)
+      case (_: Access, Seq(acc: Accessible, perm: Permission)) => Access(acc, perm)(meta)
       case (_: Accessible.Address, Seq(d: Deref)) => Accessible.Address(d)
       case (_: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
       case (_: FPredicateAccess, Seq(pred: FPredicateProxy, args: Vector[Expr@unchecked])) => FPredicateAccess(pred, args)(meta)

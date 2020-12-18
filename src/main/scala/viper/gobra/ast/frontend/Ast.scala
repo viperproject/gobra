@@ -769,11 +769,11 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
   def right : PExpression
 }
 
-//sealed trait PPermission extends PGhostExpression
-//
-//case class PFullPerm() extends PPermission
-//
-//case class PNoPerm() extends PPermission
+sealed trait PPermission extends PGhostExpression
+case class PFullPerm() extends PPermission
+case class PNoPerm() extends PPermission
+case class PFractionalPerm(left: PBasicLiteral, right: PBasicLiteral) extends PPermission with PBinaryGhostExp
+case class PWildcardPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression
 
@@ -782,7 +782,7 @@ case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) e
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
 /** Expression has to be deref, field selection, or predicate call */
-case class PAccess(exp: PExpression) extends PGhostExpression
+case class PAccess(exp: PExpression, perm: PPermission) extends PGhostExpression
 
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
 case class PPredicateAccess(pred: PInvoke) extends PGhostExpression

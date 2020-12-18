@@ -261,7 +261,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
-    case Access(e) => "acc" <> parens(showAcc(e))
+    case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
+    case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
   })
@@ -294,6 +295,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case Exists(vars, triggers, body) =>
       "exists" <+>  showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showExpr(body)
+
+    case _: FullPerm => "write"
+    case _: NoPerm => "none"
+    case FractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
+    case _: WildcardPerm => "_"
 
     case PureFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))

@@ -39,7 +39,7 @@ abstract class TypeEncodingCombiner(encodings: Vector[TypeEncoding]) extends Typ
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = combiner(_.equal(ctx))
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = combiner(_.expr(ctx))
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = combiner(_.reference(ctx))
-  override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = combiner(_.addressFootprint(ctx))
+  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = combiner(_.addressFootprint(ctx))
   override def isComparable(ctx: Context): Expr ==> Either[Boolean, CodeWriter[Exp]] = combiner(_.isComparable(ctx))
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = combiner(_.statement(ctx))
 }

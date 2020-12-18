@@ -308,7 +308,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get",
+      "none", "some", "get", "write",
       "typeOf", "isComparable"
     )
 
@@ -1125,7 +1125,14 @@ object Parser {
       "old" ~> "(" ~> expression <~ ")" ^^ POld
 
     lazy val access : Parser[PAccess] =
-      "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+      "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+
+    lazy val permission: Parser[PPermission] =
+      basicLit ~ ("/" ~> basicLit) ^^ PFractionalPerm |
+      "write" ^^^ PFullPerm() |
+      "none" ^^^ PNoPerm() |
+      "_" ^^^ PWildcardPerm()
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf

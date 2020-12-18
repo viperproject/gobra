@@ -7,6 +7,7 @@
 package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
+import viper.gobra.ast.internal.{FractionalPerm, FullPerm, NoPerm, WildcardPerm}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
@@ -80,11 +81,25 @@ trait LeafTypeEncoding extends TypeEncoding {
     *
     * Footprint[loc: T@] -> acc([loc])
     */
-  override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
+    case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
-      val perm = vpr.FullPerm()(pos, info, errT)
-      val lval = ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
-      lval.map(l => vpr.FieldAccessPredicate(l, perm)(pos, info, errT))
+      for {
+        vprPerm <- translate(p)(ctx)
+        l <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
+      } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
+  }
+
+  private def translate(perm: in.Permission)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val (pos, info, errT) = perm.vprMeta
+    perm match {
+      case FullPerm(_) => unit(vpr.FullPerm()(pos, info, errT))
+      case NoPerm(_) => unit(vpr.NoPerm()(pos, info, errT))
+      case FractionalPerm(left, right) => for {
+        l <- ctx.expr.translate(left)(ctx)
+        r <- ctx.expr.translate(right)(ctx)
+      } yield vpr.FractionalPerm(l, r)(pos, info, errT)
+      case WildcardPerm(_) => unit(vpr.WildcardPerm()(pos, info, errT))
+    }
   }
 }

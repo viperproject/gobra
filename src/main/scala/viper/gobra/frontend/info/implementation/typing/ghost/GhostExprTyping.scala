@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -144,6 +144,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
     }
+
+    case expr: PPermission => expr match {
+      case PFullPerm() => noMessages
+      case PNoPerm() => noMessages
+      case PFractionalPerm(left, right) => (intConstantEval(left), intConstantEval(right)) match {
+        case (l, r) if l.isEmpty || r.isEmpty => error(left, s"expected a constant, but got $left", l.isEmpty) ++
+          error(right, s"expected a constant, but got $right", r.isEmpty)
+        case (_, Some(dividend)) => error(right, s"expected a non-zero dividend, but got $right", dividend == 0)
+        case _ => noMessages
+      }
+      case PWildcardPerm() =>noMessages
+    }
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
@@ -216,6 +228,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
     }
+
+    case _: PPermission => PermissionT
   }
 
   /**
@@ -335,6 +349,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // Others
       case PReceive(_) => false
+
+      case _: PPermission => true
     }
   }
 

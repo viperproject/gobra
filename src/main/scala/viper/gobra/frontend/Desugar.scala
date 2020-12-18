@@ -1762,7 +1762,7 @@ object Desugar {
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
-        case n: PAccess => for {e <- accessibleD(ctx)(n.exp)} yield in.Access(e)(src)
+        case n: PAccess => for {e <- accessibleD(ctx)(n.exp); p <- permissionD(ctx)(n.perm)} yield in.Access(e, p)(src)
         case n: PPredicateAccess => predicateCallD(ctx)(n.pred)
 
         case n: PInvoke => predicateCallD(ctx)(n)
@@ -1785,7 +1785,7 @@ object Desugar {
 
       info.resolve(n) match {
         case Some(p: ap.PredicateCall) =>
-          predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x))(src))
+          predicateCallAccD(ctx)(p)(src) map (x => in.Access(in.Accessible.Predicate(x), in.FullPerm(src))(src))
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
@@ -1841,6 +1841,18 @@ object Desugar {
           }
       }
 
+    }
+
+    def permissionD(ctx: FunctionContext)(perm: PPermission): Writer[in.Permission] = {
+      val src: Meta = meta(perm)
+      def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
+
+      perm match {
+        case PFullPerm() => unit(in.FullPerm(src))
+        case PNoPerm() => unit(in.NoPerm(src))
+        case PFractionalPerm(left, right) => for { l <- goE(left); r <- goE(right) } yield in.FractionalPerm(l, r)(src)
+        case PWildcardPerm() => unit(in.WildcardPerm(src))
+      }
     }
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {

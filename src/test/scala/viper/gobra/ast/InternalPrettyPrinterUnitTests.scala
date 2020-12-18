@@ -958,7 +958,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
           LocalVar("a", sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared))))(Internal),
           IntLit(2)(Internal)
         )(Internal)
-      )
+      ),
+      FullPerm(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {

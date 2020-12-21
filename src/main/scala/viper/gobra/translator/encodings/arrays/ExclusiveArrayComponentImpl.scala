@@ -45,9 +45,18 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   }
 
   /** Update function of exclusive-array domain. */
-  override def update(base: vpr.Exp, idx: vpr.Exp, newVal: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+  override def update(base: vpr.Exp, idx: vpr.Exp, newVal: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp =
+    update(base, Map(idx -> newVal), t)(src)(ctx)
+
+  /** Batch update function of exclusive-array domain. */
+  override def update(base : vpr.Exp, elems : Map[vpr.Exp, vpr.Exp], t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
-    emb.box(vpr.SeqUpdate(emb.unbox(base, t)(pos, info, errT)(ctx), idx, newVal)(pos, info, errT), t)(pos, info, errT)(ctx) // box(unbox(base)[idx := newVal])
+    val uBase = emb.unbox(base, t)(pos, info, errT)(ctx)
+    val uBody = elems.foldLeft[vpr.Exp](uBase) {
+      case (exp, (key, value)) => vpr.SeqUpdate(exp, key, value)(pos, info, errT)
+    }
+
+    emb.box(uBody, t)(pos, info, errT)(ctx)
   }
 
   /** Length of exclusive-array domain. */
@@ -56,8 +65,14 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
     vpr.SeqLength(emb.unbox(arg, t)(pos, info, errT)(ctx))(pos, info, errT) // len(unbox(arg))
   }
 
+  /** Returns an exclusive array from a sequence. */
+  override def fromSeq(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+    emb.box(arg, t)(pos, info, errT)(ctx) // box(arg)
+  }
+
   /** Returns argument as sequence. */
-  def toSeq(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
+  override def toSeq(arg: vpr.Exp, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = {
     val (pos, info, errT) = src.vprMeta
     emb.unbox(arg, t)(pos, info, errT)(ctx) // unbox(arg)
   }

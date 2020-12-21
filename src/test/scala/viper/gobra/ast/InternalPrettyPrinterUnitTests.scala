@@ -49,7 +49,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show an empty integer sequence") {
-    val expr = SequenceLit(intT, Vector())(Internal)
+    val expr = SequenceLit(0, intT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
       case "seq[int] { }" =>
@@ -57,7 +57,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show an empty (nested) Boolean sequence") {
-    val expr = SequenceLit(sequenceT(sequenceT(boolT)), Vector())(Internal)
+    val expr = SequenceLit(0, sequenceT(sequenceT(boolT)), Map())(Internal)
 
     frontend.show(expr) should matchPattern {
       case "seq[seq[seq[bool]]] { }" =>
@@ -77,32 +77,32 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a non-empty simple integer sequence literal") {
     val expr = SequenceLit(
-      intT,
-      Vector(
-        IntLit(BigInt(2))(Internal),
-        IntLit(BigInt(4))(Internal),
-        IntLit(BigInt(8))(Internal)
+      3, intT,
+      Map(
+        BigInt(0) -> IntLit(BigInt(2))(Internal),
+        BigInt(1) -> IntLit(BigInt(4))(Internal),
+        BigInt(2) -> IntLit(BigInt(8))(Internal)
       )
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[int] { 2, 4, 8 }" =>
+      case "seq[int] { 0:2, 1:4, 2:8 }" =>
     }
   }
 
   test("Printer: should correctly show a singleton integer sequence literal") {
     val expr = SequenceLit(
-      intT,
-      Vector(IntLit(BigInt(42))(Internal))
+      1, intT,
+      Map(BigInt(0) -> IntLit(BigInt(42))(Internal))
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq[int] { 42 }" =>
+      case "seq[int] { 0:42 }" =>
     }
   }
 
   test("Printer: should correctly show an empty sequence literal") {
-    val expr = SequenceLit(boolT, Vector())(Internal)
+    val expr = SequenceLit(0, boolT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
       case "seq[bool] { }" =>
@@ -722,15 +722,15 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a slightly more complex (sequence) multiplicity operator") {
     val expr = Multiplicity(
       Add(IntLit(40)(Internal), IntLit(2)(Internal))(Internal),
-      SequenceLit(intT, Vector(
-        IntLit(1)(Internal),
-        IntLit(2)(Internal),
-        IntLit(3)(Internal)
+      SequenceLit(3, intT, Map(
+        BigInt(0) -> IntLit(1)(Internal),
+        BigInt(1) -> IntLit(2)(Internal),
+        BigInt(2) -> IntLit(3)(Internal)
       ))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "40 + 2 # seq[int] { 1, 2, 3 }" =>
+      case "40 + 2 # seq[int] { 0:1, 1:2, 2:3 }" =>
     }
   }
 
@@ -881,19 +881,19 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should be able to show a slightly more complicated use of the sequence length function") {
     val expr = Length(
       SequenceAppend(
-        SequenceLit(boolT, Vector(BoolLit(false)(Internal)))(Internal),
+        SequenceLit(1, boolT, Map(BigInt(0) -> BoolLit(false)(Internal)))(Internal),
         LocalVar("xs", sequenceT(boolT))(Internal)
       )(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(seq[bool] { false } ++ xs)" =>
+      case "len(seq[bool] { 0:false } ++ xs)" =>
     }
   }
 
   test("Printer: should correctly show a nested use of the built-in sequence length operator") {
     val expr = Length(
-      Length(SequenceLit(intT, Vector())(Internal))(Internal)
+      Length(SequenceLit(0, intT, Map())(Internal))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -980,19 +980,19 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple integer array literal") {
-    val expr = ArrayLit(intT, Vector(
-      IntLit(12)(Internal),
-      IntLit(24)(Internal),
-      IntLit(48)(Internal)
+    val expr = ArrayLit(3, intT, Map(
+      BigInt(0) -> IntLit(12)(Internal),
+      BigInt(1) -> IntLit(24)(Internal),
+      BigInt(2) -> IntLit(48)(Internal)
     ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[3]int { 12, 24, 48 }" =>
+      case "[3]int { 0:12, 1:24, 2:48 }" =>
     }
   }
 
   test("Printer: should correctly show an empty Boolean array literal") {
-    val expr = ArrayLit(boolT, Vector())(Internal)
+    val expr = ArrayLit(0, boolT, Map())(Internal)
 
     frontend.show(expr) should matchPattern {
       case "[0]bool { }" =>
@@ -1000,24 +1000,23 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a nested array literal") {
-    val expr = ArrayLit(
-      exclusiveArrayT(2, intT),
-      Vector(
-        ArrayLit(intT, Vector(
-          IntLit(24)(Internal),
-          IntLit(42)(Internal)
-        ))(Internal)
-      )
-    )(Internal)
+    val expr = ArrayLit(1, exclusiveArrayT(2, intT), Map(
+      BigInt(0) -> ArrayLit(2, intT, Map(
+        BigInt(0) -> IntLit(24)(Internal),
+        BigInt(1) -> IntLit(42)(Internal)
+      ))(Internal)
+    ))(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[1][2]int { [2]int { 24, 42 } }" =>
+      case "[1][2]int { 0:[2]int { 0:24, 1:42 } }" =>
     }
   }
 
   test("Printer: should correctly show an empty 3D array literal") {
     val expr = ArrayLit(
-      exclusiveArrayT(24, exclusiveArrayT(48, boolT)), Vector()
+      0,
+      exclusiveArrayT(24, exclusiveArrayT(48, boolT)),
+      Map()
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1027,12 +1026,13 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a sequence array literal") {
     val expr = ArrayLit(
+      1,
       sequenceT(intT),
-      Vector(SequenceLit(intT, Vector())(Internal))
+      Map(BigInt(0) -> SequenceLit(0, intT, Map())(Internal))
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[1]seq[int] { seq[int] { } }" =>
+      case "[1]seq[int] { 0:seq[int] { } }" =>
     }
   }
 
@@ -1054,28 +1054,28 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a simple sequence conversion expression") {
     val expr = SequenceConversion(
-      SequenceLit(intT, Vector(
-        IntLit(1)(Internal),
-        IntLit(2)(Internal),
-        IntLit(4)(Internal)
+      SequenceLit(3, intT, Map(
+        BigInt(0) -> IntLit(1)(Internal),
+        BigInt(1) -> IntLit(2)(Internal),
+        BigInt(2) -> IntLit(4)(Internal)
       ))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq(seq[int] { 1, 2, 4 })" =>
+      case "seq(seq[int] { 0:1, 1:2, 2:4 })" =>
     }
   }
 
   test("Printer: should correctly show a simple conversion expression from an array literal to a sequence") {
     val expr = SequenceConversion(
-      ArrayLit(boolT, Vector(
-        BoolLit(false)(Internal),
-        BoolLit(true)(Internal)
+      ArrayLit(2, boolT, Map(
+        BigInt(0) -> BoolLit(false)(Internal),
+        BigInt(1) -> BoolLit(true)(Internal)
       ))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "seq([2]bool { false, true })" =>
+      case "seq([2]bool { 0:false, 1:true })" =>
     }
   }
 
@@ -1198,11 +1198,15 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should show a simple slice literal as expected") {
     val expr = SliceLit(
       intT,
-      Vector(IntLit(8)(Internal), IntLit(3)(Internal), IntLit(2)(Internal))
+      Map(
+        BigInt(0) -> IntLit(8)(Internal),
+        BigInt(1) -> IntLit(3)(Internal),
+        BigInt(2) -> IntLit(2)(Internal)
+      )
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "[]int { 8, 3, 2 }" =>
+      case "[]int { 0:8, 1:3, 2:2 }" =>
     }
   }
 

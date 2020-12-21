@@ -1268,25 +1268,21 @@ object Desugar {
           }
         }
 
-        case CompositeKind.Array(in.ArrayT(_, typ, addressability)) =>
+        case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          val indices = info.keyElementIndices(lit.elems)
-          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
-          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
-            yield in.ArrayLit(typ, elemsD)(src)
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+            yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          val indices = info.keyElementIndices(lit.elems)
-          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
-          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
-            yield in.SliceLit(typ, elemsD)(src)
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+            yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
-        case CompositeKind.Sequence(in.SequenceT(typ, _)) =>
-          val indices = info.keyElementIndices(lit.elems)
-          val elems = lit.elems.zip(indices).map(e => (e._2, e._1.exp)).sortBy(_._1).map(_._2)
-          for { elemsD <- sequence(elems.map(e => compositeValD(ctx)(e, typ))) }
-            yield in.SequenceLit(typ, elemsD)(src)
+        case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
+          elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
+          elemsMap = info.keyElementIndices(lit.elems).zip(elemsD).toMap
+          lengthD = if (elemsMap.isEmpty) BigInt(0) else elemsMap.maxBy(_._1)._1 + 1
+        } yield in.SequenceLit(lengthD, typ, elemsMap)(src)
 
         case CompositeKind.Set(in.SetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))

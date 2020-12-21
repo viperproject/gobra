@@ -21,3 +21,11 @@ func test3() {
 func test4() {
   assert (seq[int] { 1:10, 0:20 })[1] == 10
 }
+
+func test5 () {
+  ghost xs := seq[int] { 2, 1, 5:3, 124:5, 127:9, 1000:12 }
+  assert len(xs) == 1001
+  assert xs[1] == 1
+  assert xs[100] == 0
+  assert xs[127] == 9
+}

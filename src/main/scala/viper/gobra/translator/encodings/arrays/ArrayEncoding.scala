@@ -179,10 +179,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case (e: in.DfltVal) :: ctx.Array(len, t) / Shared =>
       unit(sh.nil((len, t))(e)(ctx))
 
-    case (lit: in.ArrayLit) :: ctx.Array(len, t) =>
-      for {
-        vExprs <- sequence(lit.exprs.map(e => ctx.expr.translate(e)(ctx)))
-      } yield ex.create(vExprs, cptParam(len, t)(ctx))(lit)(ctx)
+    case (lit: in.ArrayLit) :: ctx.Array(len, t) => for {
+      vLit <- ctx.expr.translate(in.SequenceLit(len, t, lit.elems)(lit.info))(ctx)
+    } yield ex.fromSeq(vLit, (len, t))(lit)(ctx)
 
     case n@ in.Length(e :: ctx.Array(len, t) / m) =>
       m match {

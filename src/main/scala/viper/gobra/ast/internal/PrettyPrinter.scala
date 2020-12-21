@@ -201,11 +201,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(recv) <> meth.name <> parens(showExprList(args))
 
-    case GoFunctionCall(func, args) =>
-      "go" <> space <> func.name.name <> parens(showExprList(args))
+    case GoFunctionCall(func, args) => "go" <> space <> func.name.name <> parens(showExprList(args))
 
     case GoMethodCall(recv, meth, args) =>
-      "go" <> space <> showExpr(recv) <> "" /*TODO: meth.name.name*/ <> parens(showExprList(args))
+      "go" <> space <> showExpr(recv) <>  meth.name.name <> parens(showExprList(args))
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
@@ -520,8 +519,11 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       (if (targets.nonEmpty) showVarList(targets) <+> "=" <> space else emptyDoc) <>
         showExpr(recv) <> meth.name <> parens(showExprList(args))
 
-    case GoFunctionCall(func, args) => "TODO"
-    case GoMethodCall(recv, func, args) => "TODO"
+    case GoFunctionCall(func, args) =>
+      "go" <> space <> func.name.name <> parens(showExprList(args))
+
+    case GoMethodCall(recv, meth, args) =>
+      "go" <> space <> showExpr(recv) <>  meth.name.name <> parens(showExprList(args))
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)

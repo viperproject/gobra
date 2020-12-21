@@ -63,8 +63,6 @@ case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parse
 
 case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info) extends Node
 
-
-// TODO: OVERRIDE VAL all the things
 case class Method(
                  override val receiver: Parameter.In,
                  override val name: MethodProxy,

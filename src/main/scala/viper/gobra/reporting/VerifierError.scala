@@ -231,6 +231,11 @@ case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends Ve
   override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
 }
 
+case class GoCallPreconditionError(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "go_call_precondition_error"
+  override def message: String = s"${node.origin.tag.trim} might not satisfy method precondition."
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

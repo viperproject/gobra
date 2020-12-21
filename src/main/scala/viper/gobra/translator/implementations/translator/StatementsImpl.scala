@@ -7,12 +7,14 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.{GoCallPreconditionError, PreconditionError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -42,6 +44,7 @@ class StatementsImpl extends Statements {
       */
     def genExhale(pre: Vector[in.Assertion], formalParams: Vector[in.Parameter.In], args: Vector[in.Expr]): Writer[vpr.Stmt] = {
       Violation.violation(args.length == formalParams.length, "number of passed arguments must match number of expected arguments")
+      val errorT = (x: Source.Verifier.Info, _: ErrorReason) => PreconditionError(x) dueTo GoCallPreconditionError(x)
       for {
         vArgss <- sequence(args map goE)
         funcArgs <- sequence(formalParams map goE)
@@ -49,6 +52,7 @@ class StatementsImpl extends Statements {
         preCond <- sequence(pre map goA)
         preCondInstance = preCond.map{ _.replace(substitutions) }
         and = preCondInstance.foldRight[vpr.Exp](vpr.TrueLit()(pos, info, errT))((x,y) => vpr.And(x,y)(pos, info, errT))
+        _ <- assert(and, errorT)
       } yield vpr.Exhale(and)(pos, info, errT)
     }
 
@@ -121,7 +125,6 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
-      // TODO: change error messages when a pre-condition cannot be satisfied
       case in.GoFunctionCall(func, args) => genExhale(func.pres, func.args, args)
       case in.GoMethodCall(recv, meth, args) => genExhale(meth.pres, meth.receiver +: meth.args, recv +: args)
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)

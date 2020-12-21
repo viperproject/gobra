@@ -207,7 +207,7 @@ object Desugar {
       typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl))
     }
 
-    def functionD(decl: PFunctionDecl): in.Member =
+    def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
       val name = functionProxyD(decl)
@@ -345,7 +345,7 @@ object Desugar {
 
 
 
-    def methodD(decl: PMethodDecl): in.Member =
+    def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
 
       val name = methodProxyD(decl)
@@ -727,6 +727,42 @@ object Desugar {
                   }
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
+          case PGoStmt(exp) =>
+            def unexpectedExprError(exp: PExpression) = violation(s"unexpected expression $exp in go statement")
+
+            def getArgs(args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
+              sequence(args map exprD(ctx)).map {
+                // go function chaining feature
+                case Vector(in.Tuple(targs)) if args.size > 1 => targs
+                case dargs => dargs
+              }
+            }
+
+            exp match {
+              case inv: PInvoke => info.resolve(inv) match {
+                case Some(p: ap.FunctionCall) => p.callee match {
+                  case ap.Function(_, symb) => symb match {
+                    case st.Function(decl, _, _) =>
+                      val func = functionD(decl)
+                      for { args <- getArgs(p.args) } yield in.GoFunctionCall(func, args)(src)
+                  }
+
+                  case ap.ReceivedMethod(recv, _, _, symb) => symb match {
+                    case st.MethodImpl(decl, _, _) =>
+                      val meth = methodD(decl)
+                      for {
+                        args <- getArgs(p.args)
+                        recvIn <- exprD(ctx)(recv)
+                      } yield in.GoMethodCall(recvIn, meth, args)(src)
+                  }
+
+                  case _ => unexpectedExprError(exp)
+                }
+                case _ => unexpectedExprError(exp)
+              }
+              case _ => unexpectedExprError(exp)
+            }
 
           case _ => ???
         }

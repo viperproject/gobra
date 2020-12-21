@@ -37,6 +37,23 @@ class LookupTable(
 
 sealed trait Member extends Node
 
+sealed trait MethodMember extends Member {
+  def name: MethodProxy
+  def receiver: Parameter.In
+  def args: Vector[Parameter.In]
+  def results: Vector[Parameter.Out]
+  def pres: Vector[Assertion]
+  def posts: Vector[Assertion]
+}
+
+sealed trait FunctionMember extends Member {
+  def name: FunctionProxy
+  def args: Vector[Parameter.In]
+  def results: Vector[Parameter.Out]
+  def pres: Vector[Assertion]
+  def posts: Vector[Assertion]
+}
+
 sealed trait Location extends Expr
 
 
@@ -47,46 +64,46 @@ case class GlobalConstDecl(left: GlobalConst, right: Lit)(val info: Source.Parse
 case class Field(name: String, typ: Type, ghost: Boolean)(val info: Source.Parser.Info) extends Node
 
 
-
+// TODO: OVERRIDE VAL all the things
 case class Method(
-                 receiver: Parameter.In,
-                 name: MethodProxy,
-                 args: Vector[Parameter.In],
-                 results: Vector[Parameter.Out],
-                 pres: Vector[Assertion],
-                 posts: Vector[Assertion],
+                 override val receiver: Parameter.In,
+                 override val name: MethodProxy,
+                 override val args: Vector[Parameter.In],
+                 override val results: Vector[Parameter.Out],
+                 override val pres: Vector[Assertion],
+                 override val posts: Vector[Assertion],
                  body: Option[Block]
-                 )(val info: Source.Parser.Info) extends Member
+                 )(val info: Source.Parser.Info) extends Member with MethodMember
 
 case class PureMethod(
-                       receiver: Parameter.In,
-                       name: MethodProxy,
-                       args: Vector[Parameter.In],
-                       results: Vector[Parameter.Out],
-                       pres: Vector[Assertion],
-                       posts: Vector[Assertion],
+                       override val receiver: Parameter.In,
+                       override val name: MethodProxy,
+                       override val args: Vector[Parameter.In],
+                       override val results: Vector[Parameter.Out],
+                       override val pres: Vector[Assertion],
+                       override val posts: Vector[Assertion],
                        body: Option[Expr]
-                     )(val info: Source.Parser.Info) extends Member {
+                     )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
 }
 
 case class Function(
-                     name: FunctionProxy,
-                     args: Vector[Parameter.In],
-                     results: Vector[Parameter.Out],
-                     pres: Vector[Assertion],
-                     posts: Vector[Assertion],
+                     override val name: FunctionProxy,
+                     override val args: Vector[Parameter.In],
+                     override val results: Vector[Parameter.Out],
+                     override val pres: Vector[Assertion],
+                     override val posts: Vector[Assertion],
                      body: Option[Block]
-                   )(val info: Source.Parser.Info) extends Member
+                   )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
-                         name: FunctionProxy,
-                         args: Vector[Parameter.In],
-                         results: Vector[Parameter.Out],
-                         pres: Vector[Assertion],
-                         posts: Vector[Assertion],
+                         override val name: FunctionProxy,
+                         override val  args: Vector[Parameter.In],
+                         override val  results: Vector[Parameter.Out],
+                         override val  pres: Vector[Assertion],
+                         override val  posts: Vector[Assertion],
                          body: Option[Expr]
-                       )(val info: Source.Parser.Info) extends Member {
+                       )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
 }
 
@@ -172,6 +189,9 @@ case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr:
 
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+// Go function and method calls must receive a Member(more precisely, a fully desugared function or method) in order to retrieve its pre-condition
+case class GoFunctionCall(func: FunctionMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class GoMethodCall(recv: Expr, meth: MethodMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 

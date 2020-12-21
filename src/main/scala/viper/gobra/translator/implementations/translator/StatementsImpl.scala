@@ -37,6 +37,21 @@ class StatementsImpl extends Statements {
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
 
+    /**
+      * Generates an Exhale statement for the assertions `pre` parametrized by `formalParams` and instantiated with `args`
+      */
+    def genExhale(pre: Vector[in.Assertion], formalParams: Vector[in.Parameter.In], args: Vector[in.Expr]): Writer[vpr.Stmt] = {
+      Violation.violation(args.length == formalParams.length, "number of passed arguments must match number of expected arguments")
+      for {
+        vArgss <- sequence(args map goE)
+        funcArgs <- sequence(formalParams map goE)
+        substitutions = (funcArgs zip vArgss).toMap
+        preCond <- sequence(pre map goA)
+        preCondInstance = preCond.map{ _.replace(substitutions) }
+        and = preCondInstance.foldRight[vpr.Exp](vpr.TrueLit()(pos, info, errT))((x,y) => vpr.And(x,y)(pos, info, errT))
+      } yield vpr.Exhale(and)(pos, info, errT)
+    }
+
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val inits = decls collect { case x: in.BodyVar => ctx.typeEncoding.initialization(ctx)(x) }
@@ -106,6 +121,9 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
+      // TODO: change error messages when a pre-condition cannot be satisfied
+      case in.GoFunctionCall(func, args) => genExhale(func.pres, func.args, args)
+      case in.GoMethodCall(recv, meth, args) => genExhale(meth.pres, meth.receiver +: meth.args, recv +: args)
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)

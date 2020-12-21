@@ -32,3 +32,15 @@ func test6() {
   assert len(a) == 3
   assert cap(a) == 3
 }
+
+func test7 () {
+  a := [12]int{}
+  assert len(a) == 12
+  assert a[7] == 0
+}
+
+func test8 () {
+  a := [10001]bool{ 2:true, 998:true }
+  assert len(a) == 10001
+  assert !a[1] && a[2] && !a[123] && a[998]
+}

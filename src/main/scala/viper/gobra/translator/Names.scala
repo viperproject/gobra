@@ -70,6 +70,9 @@ object Names {
   def sliceFromArray: String = "ssliceFromArray"
   def sliceFromSlice: String = "ssliceFromSlice"
 
+  // sequences
+  def emptySequenceFunc: String = "sequenceEmpty"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"

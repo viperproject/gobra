@@ -401,12 +401,12 @@ case class ArrayUpdate(base: Expr, left: Expr, right: Expr)(val info: Source.Par
 /* ** Sequence expressions */
 
 /**
-  * A (mathematical) sequence literal "seq[`memberType`] { e_0, ..., e_n }",
-  * where `exprs` constitutes the vector "e_0, ..., e_n" of members,
-  * which should all be of type `memberType`.
+  * A (mathematical) sequence literal "seq[`memberType`] { k_0:e_0, ..., k_n:e_n }",
+  * where `elems` is the map of key-value pairs that constitutes the members
+  * of the literal. Every "e_i" is expected to be of type `memberType`.
   */
-case class SequenceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length: BigInt = exprs.length
+case class SequenceLit(length : BigInt, memberType : Type, elems : Map[BigInt, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  require(elems.forall(e => 0 <= e._1 && e._1 < length), "All elements should be within bounds")
   override val typ : Type = SequenceT(memberType, Addressability.literal)
 }
 
@@ -760,14 +760,16 @@ case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr 
 
 sealed trait CompositeLit extends Lit
 
-case class ArrayLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val length : BigInt = exprs.length
-  override val typ : Type = ArrayT(exprs.length, memberType, Addressability.literal)
+/** An array literal of type '[`length`]`memberType`' consisting of `elems`. */
+case class ArrayLit(length : BigInt, memberType : Type, elems : Map[BigInt, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = ArrayT(length, memberType, Addressability.literal)
 }
 
-case class SliceLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  lazy val asArrayLit : ArrayLit = ArrayLit(memberType.withAddressability(Addressability.rValue), exprs)(info)
-  override val typ : Type = SliceT(memberType, Addressability.literal)
+/** A slice literal of type '[]`memberType`' consisting of `elems`. */
+case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  lazy val length: BigInt = if (elems.isEmpty) 0 else elems.maxBy(_._1)._1 + 1
+  lazy val asArrayLit: ArrayLit = ArrayLit(length, memberType.withAddressability(Addressability.rValue), elems)(info)
+  override val typ: Type = SliceT(memberType, Addressability.literal)
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit

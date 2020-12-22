@@ -187,7 +187,8 @@ case class SafeTypeAssertion(resTarget: LocalVar, successTarget: LocalVar, expr:
 
 case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-// Go function and method calls must receive a Member(more precisely, a fully desugared function or method) in order to retrieve its pre-condition
+// Go function and method calls must receive a Member (more precisely, a fully desugared function or method)
+// in order to retrieve its pre-condition
 case class GoFunctionCall(func: FunctionMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 case class GoMethodCall(recv: Expr, meth: MethodMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 

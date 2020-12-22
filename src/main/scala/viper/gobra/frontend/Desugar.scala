@@ -742,20 +742,16 @@ object Desugar {
             exp match {
               case inv: PInvoke => info.resolve(inv) match {
                 case Some(p: ap.FunctionCall) => p.callee match {
-                  case ap.Function(_, symb) => symb match {
-                    case st.Function(decl, _, _) =>
-                      val func = functionD(decl)
-                      for { args <- getArgs(p.args) } yield in.GoFunctionCall(func, args)(src)
-                  }
+                  case ap.Function(_, st.Function(decl, _, _)) =>
+                    val func = functionD(decl)
+                    for { args <- getArgs(p.args) } yield in.GoFunctionCall(func, args)(src)
 
-                  case ap.ReceivedMethod(recv, _, _, symb) => symb match {
-                    case st.MethodImpl(decl, _, _) =>
-                      val meth = methodD(decl)
-                      for {
-                        args <- getArgs(p.args)
-                        recvIn <- exprD(ctx)(recv)
-                      } yield in.GoMethodCall(recvIn, meth, args)(src)
-                  }
+                  case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, _)) =>
+                    val meth = methodD(decl)
+                    for {
+                      args <- getArgs(p.args)
+                      recvIn <- exprD(ctx)(recv)
+                    } yield in.GoMethodCall(recvIn, meth, args)(src)
 
                   case _ => unexpectedExprError(exp)
                 }

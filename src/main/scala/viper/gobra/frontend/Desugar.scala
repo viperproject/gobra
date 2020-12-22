@@ -731,10 +731,12 @@ object Desugar {
           case PGoStmt(exp) =>
             def unexpectedExprError(exp: PExpression) = violation(s"unexpected expression $exp in go statement")
 
-            def getArgs(args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
+            // nParams is the number of parameters in the function/method definition, and
+            // args is the actual list of arguments
+            def getArgs(nParams: Int, args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
               sequence(args map exprD(ctx)).map {
                 // go function chaining feature
-                case Vector(in.Tuple(targs)) if args.size > 1 => targs
+                case Vector(in.Tuple(targs)) if nParams > 1 => targs
                 case dargs => dargs
               }
             }
@@ -744,12 +746,12 @@ object Desugar {
                 case Some(p: ap.FunctionCall) => p.callee match {
                   case ap.Function(_, st.Function(decl, _, _)) =>
                     val func = functionD(decl)
-                    for { args <- getArgs(p.args) } yield in.GoFunctionCall(func, args)(src)
+                    for { args <- getArgs(decl.args.length, p.args) } yield in.GoFunctionCall(func, args)(src)
 
                   case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, _)) =>
                     val meth = methodD(decl)
                     for {
-                      args <- getArgs(p.args)
+                      args <- getArgs(decl.args.length, p.args)
                       recvIn <- exprD(ctx)(recv)
                     } yield in.GoMethodCall(recvIn, meth, args)(src)
 

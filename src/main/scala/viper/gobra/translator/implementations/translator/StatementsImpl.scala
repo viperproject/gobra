@@ -11,7 +11,7 @@ import viper.gobra.reporting.{GoCallPreconditionError, PreconditionError, Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{Comments, ViperUtil, ViperUtil => vu}
+import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.ErrorReason
@@ -54,7 +54,7 @@ class StatementsImpl extends Statements {
         substitutions = (funcArgs zip vArgss).toMap
         preCond <- sequence(pre map goA)
         preCondInstance = preCond.map{ _.replace(substitutions) }
-        and = ViperUtil.bigAnd(preCondInstance)(pos, info, errT)
+        and = vu.bigAnd(preCondInstance)(pos, info, errT)
         _ <- assert(and, errorT)
       } yield vpr.Exhale(and)(pos, info, errT)
     }

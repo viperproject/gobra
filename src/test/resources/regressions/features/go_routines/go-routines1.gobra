@@ -74,3 +74,16 @@ func badPrecondition() {
     //:: ExpectedOutput(precondition_error:go_call_precondition_error)
     go sumAbs(-1, 2)
 }
+
+// Function chaining is also correctly implemented for go routines
+func squareAndDouble(x int) (int, int) {
+    return x*x, 2*x
+}
+
+func sum(x int, y int) int {
+    return x+y
+}
+
+func testGoFunctionChain(x int) {
+    go sum(squareAndDouble(x)) // computes x^2 + 2*x
+}

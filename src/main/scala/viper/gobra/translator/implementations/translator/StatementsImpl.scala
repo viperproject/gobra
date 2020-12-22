@@ -11,7 +11,7 @@ import viper.gobra.reporting.{GoCallPreconditionError, PreconditionError, Source
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.{Comments, ViperUtil => vu}
+import viper.gobra.translator.util.{Comments, ViperUtil, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.verifier.ErrorReason
@@ -40,9 +40,12 @@ class StatementsImpl extends Statements {
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
 
     /**
-      * Generates an Exhale statement for the assertions `pre` parametrized by `formalParams` and instantiated with `args`
+      * Translates a go call to a function or method with pre-condition `pre` which is parameterized by
+      * formal parameters `formalParams` and is instantiated with `args`
       */
-    def genExhale(pre: Vector[in.Assertion], formalParams: Vector[in.Parameter.In], args: Vector[in.Expr]): Writer[vpr.Stmt] = {
+    def translateGoCall(pre: Vector[in.Assertion],
+                        formalParams: Vector[in.Parameter.In],
+                        args: Vector[in.Expr]): Writer[vpr.Stmt] = {
       Violation.violation(args.length == formalParams.length, "number of passed arguments must match number of expected arguments")
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) => PreconditionError(x) dueTo GoCallPreconditionError(x)
       for {
@@ -51,7 +54,7 @@ class StatementsImpl extends Statements {
         substitutions = (funcArgs zip vArgss).toMap
         preCond <- sequence(pre map goA)
         preCondInstance = preCond.map{ _.replace(substitutions) }
-        and = preCondInstance.foldRight[vpr.Exp](vpr.TrueLit()(pos, info, errT))((x,y) => vpr.And(x,y)(pos, info, errT))
+        and = ViperUtil.bigAnd(preCondInstance)(pos, info, errT)
         _ <- assert(and, errorT)
       } yield vpr.Exhale(and)(pos, info, errT)
     }
@@ -125,8 +128,8 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
-      case in.GoFunctionCall(func, args) => genExhale(func.pres, func.args, args)
-      case in.GoMethodCall(recv, meth, args) => genExhale(meth.pres, meth.receiver +: meth.args, recv +: args)
+      case in.GoFunctionCall(func, args) => translateGoCall(func.pres, func.args, args)
+      case in.GoMethodCall(recv, meth, args) => translateGoCall(meth.pres, meth.receiver +: meth.args, recv +: args)
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)

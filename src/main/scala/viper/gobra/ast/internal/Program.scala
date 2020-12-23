@@ -30,9 +30,17 @@ case class Program(
 }
 
 class LookupTable(
-                 definedTypes: Map[(String, Addressability), Type]
-                  ) {
+                 definedTypes: Map[(String, Addressability), Type],
+                 definedMethods: Map[MethodProxy, MethodMember],
+                 definedFunctions: Map[FunctionProxy, FunctionMember],
+                 definedMPredicates: Map[MPredicateProxy, MPredicate],
+                 definedFPredicates: Map[FPredicateProxy, FPredicate]
+                 ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
+  def lookup(m: MethodProxy): MethodMember = definedMethods(m)
+  def lookup(f: FunctionProxy): FunctionMember = definedFunctions(f)
+  def lookup(m: MPredicateProxy): MPredicate = definedMPredicates(m)
+  def lookup(f: FPredicateProxy): FPredicate = definedFPredicates(f)
 }
 
 sealed trait Member extends Node
@@ -189,8 +197,8 @@ case class FunctionCall(targets: Vector[LocalVar], func: FunctionProxy, args: Ve
 case class MethodCall(targets: Vector[LocalVar], recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 // Go function and method calls must receive a Member (more precisely, a fully desugared function or method)
 // in order to retrieve its pre-condition
-case class GoFunctionCall(func: FunctionMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
-case class GoMethodCall(recv: Expr, meth: MethodMember, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class GoFunctionCall(func: FunctionProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
+case class GoMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends Stmt
 
 case class Return()(val info: Source.Parser.Info) extends Stmt
 

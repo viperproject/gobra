@@ -128,8 +128,12 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
-      case in.GoFunctionCall(func, args) => translateGoCall(func.pres, func.args, args)
-      case in.GoMethodCall(recv, meth, args) => translateGoCall(meth.pres, meth.receiver +: meth.args, recv +: args)
+      case in.GoFunctionCall(func, args) =>
+        val funcM = ctx.lookup(func)
+        translateGoCall(funcM.pres, funcM.args, args)
+      case in.GoMethodCall(recv, meth, args) =>
+        val methM = ctx.lookup(meth)
+        translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)

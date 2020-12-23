@@ -41,7 +41,11 @@ object Desugar {
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
-    val table = new in.LookupTable(mainDesugarer.definedTypes ++ importedDesugarers.flatMap(_.definedTypes))
+    val table = new in.LookupTable(mainDesugarer.definedTypes ++ importedDesugarers.flatMap(_.definedTypes),
+      mainDesugarer.definedMethods ++ importedDesugarers.flatMap(_.definedMethods),
+      mainDesugarer.definedFunctions ++ importedDesugarers.flatMap(_.definedFunctions),
+      mainDesugarer.definedMPredicates ++ importedDesugarers.flatMap(_.definedMPredicates),
+      mainDesugarer.definedFPredicates ++ importedDesugarers.flatMap(_.definedFPredicates))
     in.Program(types, members, table)(mainProgram.info)
   }
 
@@ -157,8 +161,8 @@ object Desugar {
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
-        case NoGhost(x: PMethodDecl) => Vector(methodD(x))
-        case NoGhost(x: PFunctionDecl) => Vector(functionD(x))
+        case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
+        case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(mpredicateD(x))
         case x: PFPredicateDecl => Vector(fpredicateD(x))
         case _ => Vector.empty
@@ -169,7 +173,7 @@ object Desugar {
         case _ =>
       }
 
-      val table = new in.LookupTable(definedTypes)
+      val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
 
       in.Program(types.toVector, dMembers, table)(meta(p))
     }
@@ -745,11 +749,11 @@ object Desugar {
               case inv: PInvoke => info.resolve(inv) match {
                 case Some(p: ap.FunctionCall) => p.callee match {
                   case ap.Function(_, st.Function(decl, _, _)) =>
-                    val func = functionD(decl)
+                    val func = functionProxyD(decl)
                     for { args <- getArgs(decl.args.length, p.args) } yield in.GoFunctionCall(func, args)(src)
 
                   case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, _)) =>
-                    val meth = methodD(decl)
+                    val meth = methodProxyD(decl)
                     for {
                       args <- getArgs(decl.args.length, p.args)
                       recvIn <- exprD(ctx)(recv)
@@ -1340,6 +1344,10 @@ object Desugar {
 
     var definedTypes: Map[(String, Addressability), in.Type] = Map.empty
     var definedTypesSet: Set[(String, Addressability)] = Set.empty
+    var definedFunctions : Map[in.FunctionProxy, in.FunctionMember] = Map.empty
+    var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
+    var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
+    var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
@@ -1352,6 +1360,34 @@ object Desugar {
       }
 
       in.DefinedT(name, addrMod)
+    }
+
+    def registerMethod(decl: PMethodDecl): in.MethodMember = {
+      val method = methodD(decl)
+      val methodProxy = methodProxyD(decl)
+      definedMethods += methodProxy -> method
+      method
+    }
+
+    def registerFunction(decl: PFunctionDecl): in.FunctionMember = {
+      val function = functionD(decl)
+      val functionProxy = functionProxyD(decl)
+      definedFunctions += functionProxy -> function
+      function
+    }
+
+    def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {
+      val mPredProxy = mpredicateProxyD(decl)
+      val mPred = mpredicateD(decl)
+      definedMPredicates += mPredProxy -> mPred
+      mPred
+    }
+
+    def registerMPredicate(decl: PFPredicateDecl): in.FPredicate = {
+      val fPredProxy = fpredicateProxyD(decl)
+      val fPred = fpredicateD(decl)
+      definedFPredicates += fPredProxy -> fPred
+      fPred
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {

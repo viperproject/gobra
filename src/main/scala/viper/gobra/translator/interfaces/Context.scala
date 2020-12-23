@@ -42,6 +42,10 @@ trait Context {
   // lookup
   def table: LookupTable
   def lookup(t: in.DefinedT): in.Type = table.lookup(t)
+  def lookup(f: in.FunctionProxy): in.FunctionMember = table.lookup(f)
+  def lookup(m: in.MethodProxy): in.MethodMember = table.lookup(m)
+  def lookup(p: in.MPredicateProxy): in.MPredicate = table.lookup(p)
+  def lookup(p: in.FPredicateProxy): in.FPredicate = table.lookup(p)
 
   // mapping
 

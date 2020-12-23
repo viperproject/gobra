@@ -87,3 +87,9 @@ func sum(x int, y int) int {
 func testGoFunctionChain(x int) {
     go sum(squareAndDouble(x)) // computes x^2 + 2*x
 }
+
+// Test suggested by Felix; previous versions would suffer from an infinite
+// loop when desugaring this function
+func recursiveGoCall() {
+    go recursiveGoCall()
+}

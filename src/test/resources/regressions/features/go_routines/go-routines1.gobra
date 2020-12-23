@@ -18,6 +18,10 @@ func (t *T) setF(i int) {
     t.f = i
 }
 
+pure func (t T) isEven() bool {
+    return t.f % 2 == 0
+}
+
 requires acc(&t.f)
 ensures acc(&t.f) && t.f == i
 func functionSetF(t *T, i int) {
@@ -28,6 +32,7 @@ func success() {
     n@ := T{10}
     m@ := T{42}
     o@ := T{19}
+    p@ := T{13}
 
     // go statements work with regular function calls
     go functionSetF(&n, 5)
@@ -37,6 +42,9 @@ func success() {
     go sumAbs(21, 21)
     // and pure methods
     go (&o).getF()
+    // method expressions are also supported
+    go T.isEven(p)
+    go (*T).setF(&p, 17)
 }
 
 // Permissions are successfuly transferred in go routines and they are not given back after the go statement

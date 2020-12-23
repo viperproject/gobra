@@ -756,8 +756,15 @@ object Desugar {
                     val meth = methodProxyD(decl)
                     for {
                       args <- getArgs(decl.args.length, p.args)
-                      recvIn <- exprD(ctx)(recv)
+                      recvIn <- goE(recv)
                     } yield in.GoMethodCall(recvIn, meth, args)(src)
+
+                  case ap.MethodExpr(_, _, _, st.MethodImpl(decl, _, _)) =>
+                    val meth = methodProxyD(decl)
+                    for {
+                      args <- getArgs(decl.args.length, p.args.tail)
+                      recv <- goE(p.args.head)
+                    } yield in.GoMethodCall(recv, meth, args)(src)
 
                   case _ => unexpectedExprError(exp)
                 }

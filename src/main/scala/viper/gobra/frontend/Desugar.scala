@@ -41,11 +41,13 @@ object Desugar {
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
-    val table = new in.LookupTable(mainDesugarer.definedTypes ++ importedDesugarers.flatMap(_.definedTypes),
-      mainDesugarer.definedMethods ++ importedDesugarers.flatMap(_.definedMethods),
-      mainDesugarer.definedFunctions ++ importedDesugarers.flatMap(_.definedFunctions),
-      mainDesugarer.definedMPredicates ++ importedDesugarers.flatMap(_.definedMPredicates),
-      mainDesugarer.definedFPredicates ++ importedDesugarers.flatMap(_.definedFPredicates))
+    def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Map[X,Y] =
+      f(mainDesugarer) ++ importedDesugarers.flatMap(f)
+    val table = new in.LookupTable(combineTableField(_.definedTypes),
+      combineTableField(_.definedMethods),
+      combineTableField(_.definedFunctions),
+      combineTableField(_.definedMPredicates),
+      combineTableField(_.definedFPredicates))
     in.Program(types, members, table)(mainProgram.info)
   }
 

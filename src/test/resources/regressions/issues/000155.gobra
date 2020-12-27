@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+func ex1() {
+  i@ := 5
+  x, _ := 1, i
+}
+
+func ex2() {
+  i@ := 5
+  var x int
+  x, _ = 1, i
+}

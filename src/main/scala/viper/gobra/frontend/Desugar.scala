@@ -577,7 +577,7 @@ object Desugar {
       // Generates a fresh variable if `idn` is a wildcard or returns the variable
       // associated with idn otherwise
       def getVar(idn: PIdnNode)(t: in.Type): in.AssignableVar = idn match {
-        case _: PWildcard => freshExclusiveVar(t)(src)
+        case _: PWildcard => freshExclusiveVar(t.withAddressability(Addressability.Exclusive))(src)
         case x => assignableVarD(ctx)(x)
       }
 

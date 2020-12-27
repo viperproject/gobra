@@ -14,7 +14,6 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
-import viper.silver.verifier.ErrorReason
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
@@ -47,8 +46,12 @@ class StatementsImpl extends Statements {
     def translateGoCall(pre: Vector[in.Assertion],
                         formalParams: Vector[in.Parameter.In],
                         args: Vector[in.Expr]): Writer[vpr.Stmt] = {
-      Violation.violation(args.length == formalParams.length, "number of passed arguments must match number of expected arguments")
-      for {
+      Violation.violation(
+        args.length == formalParams.length,
+        "number of passed arguments must match number of expected arguments"
+      )
+
+      seqn(for {
         vArgss <- sequence(args map goE)
         funcArgs <- sequence(formalParams map goE)
         substitutions = (funcArgs zip vArgss).toMap
@@ -59,7 +62,7 @@ class StatementsImpl extends Statements {
         _ <- errorT {
           case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionError(info))
         }
-      } yield exhale
+      } yield exhale)
     }
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {

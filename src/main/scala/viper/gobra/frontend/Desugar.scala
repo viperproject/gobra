@@ -43,7 +43,8 @@ object Desugar {
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
     def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Map[X,Y] =
       f(mainDesugarer) ++ importedDesugarers.flatMap(f)
-    val table = new in.LookupTable(combineTableField(_.definedTypes),
+    val table = new in.LookupTable(
+      combineTableField(_.definedTypes),
       combineTableField(_.definedMethods),
       combineTableField(_.definedFunctions),
       combineTableField(_.definedMPredicates),

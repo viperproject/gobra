@@ -1,0 +1,103 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type T struct {
+    f int
+}
+
+requires acc(&t.f)
+pure func (t *T) getF() (ret int){
+    return t.f
+}
+
+requires acc(&t.f)
+ensures acc(&t.f) && t.f == i
+func (t *T) setF(i int) {
+    t.f = i
+}
+
+pure func (t T) isEven() bool {
+    return t.f % 2 == 0
+}
+
+requires acc(&t.f)
+ensures acc(&t.f) && t.f == i
+func functionSetF(t *T, i int) {
+    t.f = i
+}
+
+func success() {
+    n@ := T{10}
+    m@ := T{42}
+    o@ := T{19}
+    p@ := T{13}
+
+    // go statements work with regular function calls
+    go functionSetF(&n, 5)
+    // and with regular method calls
+    go (&m).setF(19)
+    // go statements also work with calls to pure functions
+    go sumAbs(21, 21)
+    // and pure methods
+    go (&o).getF()
+    // method expressions are also supported
+    go T.isEven(p)
+    go (*T).setF(&p, 17)
+}
+
+// Permissions are successfuly transferred in go routines and they are not given back after the go statement
+func lostPermissionGoFunction() {
+    n@ := T{10}
+    assert n.f == 10
+    functionSetF(&n, 5)
+    assert n.f == 5
+    go functionSetF(&n, 0)
+    // fails because permissions to n.f are not recovered from functionSetF postcondition
+    //:: ExpectedOutput(assert_error:permission_error)
+    assert n.f == 0 
+}
+
+// this example is similar to the previous one but calls a method in the go statement instead of calling a function
+func lostPermissionGoMethod() {
+    n@ := T{10}
+    assert n.f == 10
+    (&n).setF(5)
+    assert n.f == 5
+    go (&n).setF(0)
+    // fails because permissions to n.f are not recovered from setF postcondition
+    //:: ExpectedOutput(assert_error:permission_error)
+    assert n.f == 0 
+}
+
+requires x > 0 && y > 0
+ensures ret > 0
+pure func sumAbs(x int, y int) (ret int) {
+	return x + y
+}
+
+func badPrecondition() {
+    // fails because pre-condition is not satisfied
+    //:: ExpectedOutput(precondition_error:go_call_precondition_error)
+    go sumAbs(-1, 2)
+}
+
+// Function chaining is also correctly implemented for go routines
+func squareAndDouble(x int) (int, int) {
+    return x*x, 2*x
+}
+
+func sum(x int, y int) int {
+    return x+y
+}
+
+func testGoFunctionChain(x int) {
+    go sum(squareAndDouble(x)) // computes x^2 + 2*x
+}
+
+// Test suggested by Felix; previous versions would suffer from an infinite
+// loop when desugaring this function
+func recursiveGoCall() {
+    go recursiveGoCall()
+}

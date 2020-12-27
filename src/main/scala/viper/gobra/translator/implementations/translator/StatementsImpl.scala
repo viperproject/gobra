@@ -7,12 +7,14 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.{GoCallPreconditionError, PreconditionError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
+import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
 class StatementsImpl extends Statements {
@@ -36,6 +38,32 @@ class StatementsImpl extends Statements {
     def goS(s: in.Stmt): CodeWriter[vpr.Stmt] = translate(s)(ctx)
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(a)(ctx)
     def goE(e: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(e)(ctx)
+
+    /**
+      * Translates a go call to a function or method with pre-condition `pre` which is parameterized by
+      * formal parameters `formalParams` and is instantiated with `args`
+      */
+    def translateGoCall(pre: Vector[in.Assertion],
+                        formalParams: Vector[in.Parameter.In],
+                        args: Vector[in.Expr]): Writer[vpr.Stmt] = {
+      Violation.violation(
+        args.length == formalParams.length,
+        "number of passed arguments must match number of expected arguments"
+      )
+
+      seqn(for {
+        vArgss <- sequence(args map goE)
+        funcArgs <- sequence(formalParams map goE)
+        substitutions = (funcArgs zip vArgss).toMap
+        preCond <- sequence(pre map goA)
+        preCondInstance = preCond.map{ _.replace(substitutions) }
+        and = vu.bigAnd(preCondInstance)(pos, info, errT)
+        exhale = vpr.Exhale(and)(pos, info, errT)
+        _ <- errorT {
+          case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionError(info))
+        }
+      } yield exhale)
+    }
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
@@ -106,6 +134,12 @@ class StatementsImpl extends Statements {
           assignToTargets = vpr.Seqn(backAssignments, Seq())(pos, info, errT)
         } yield assignToTargets
 
+      case in.GoFunctionCall(func, args) =>
+        val funcM = ctx.lookup(func)
+        translateGoCall(funcM.pres, funcM.args, args)
+      case in.GoMethodCall(recv, meth, args) =>
+        val methM = ctx.lookup(meth)
+        translateGoCall(methM.pres, methM.receiver +: methM.args, recv +: args)
       case in.Assert(ass) => for {v <- goA(ass)} yield vpr.Assert(v)(pos, info, errT)
       case in.Assume(ass) => for {v <- goA(ass)} yield vpr.Assume(v)(pos, info, errT) // Assumes are later rewritten
       case in.Inhale(ass) => for {v <- goA(ass)} yield vpr.Inhale(v)(pos, info, errT)

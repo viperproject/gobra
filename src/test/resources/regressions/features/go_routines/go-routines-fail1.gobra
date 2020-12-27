@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+package main
+
+func main() {
+    // go statements must contain a method or function call.
+    //:: ExpectedOutput(type_error)
+    go 1 + 2
+}

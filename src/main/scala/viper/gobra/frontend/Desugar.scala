@@ -41,7 +41,14 @@ object Desugar {
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
-    val table = new in.LookupTable(mainDesugarer.definedTypes ++ importedDesugarers.flatMap(_.definedTypes))
+    def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Map[X,Y] =
+      f(mainDesugarer) ++ importedDesugarers.flatMap(f)
+    val table = new in.LookupTable(
+      combineTableField(_.definedTypes),
+      combineTableField(_.definedMethods),
+      combineTableField(_.definedFunctions),
+      combineTableField(_.definedMPredicates),
+      combineTableField(_.definedFPredicates))
     in.Program(types, members, table)(mainProgram.info)
   }
 
@@ -157,8 +164,8 @@ object Desugar {
       val dMembers = consideredDecls.flatMap{
         case NoGhost(x: PVarDecl) => varDeclGD(x)
         case NoGhost(x: PConstDecl) => constDeclD(x)
-        case NoGhost(x: PMethodDecl) => Vector(methodD(x))
-        case NoGhost(x: PFunctionDecl) => Vector(functionD(x))
+        case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
+        case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(mpredicateD(x))
         case x: PFPredicateDecl => Vector(fpredicateD(x))
         case _ => Vector.empty
@@ -169,7 +176,7 @@ object Desugar {
         case _ =>
       }
 
-      val table = new in.LookupTable(definedTypes)
+      val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
 
       in.Program(types.toVector, dMembers, table)(meta(p))
     }
@@ -207,7 +214,7 @@ object Desugar {
       typeD(DeclaredT(decl, info), Addressability.Exclusive)(meta(decl))
     }
 
-    def functionD(decl: PFunctionDecl): in.Member =
+    def functionD(decl: PFunctionDecl): in.FunctionMember =
       if (decl.spec.isPure) pureFunctionD(decl) else {
 
       val name = functionProxyD(decl)
@@ -345,7 +352,7 @@ object Desugar {
 
 
 
-    def methodD(decl: PMethodDecl): in.Member =
+    def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
 
       val name = methodProxyD(decl)
@@ -727,6 +734,47 @@ object Desugar {
                   }
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
+          case PGoStmt(exp) =>
+            def unexpectedExprError(exp: PExpression) = violation(s"unexpected expression $exp in go statement")
+
+            // nParams is the number of parameters in the function/method definition, and
+            // args is the actual list of arguments
+            def getArgs(nParams: Int, args: Vector[PExpression]): Writer[Vector[in.Expr]] = {
+              sequence(args map exprD(ctx)).map {
+                // go function chaining feature
+                case Vector(in.Tuple(targs)) if nParams > 1 => targs
+                case dargs => dargs
+              }
+            }
+
+            exp match {
+              case inv: PInvoke => info.resolve(inv) match {
+                case Some(p: ap.FunctionCall) => p.callee match {
+                  case ap.Function(_, st.Function(decl, _, _)) =>
+                    val func = functionProxyD(decl)
+                    for { args <- getArgs(decl.args.length, p.args) } yield in.GoFunctionCall(func, args)(src)
+
+                  case ap.ReceivedMethod(recv, _, _, st.MethodImpl(decl, _, _)) =>
+                    val meth = methodProxyD(decl)
+                    for {
+                      args <- getArgs(decl.args.length, p.args)
+                      recvIn <- goE(recv)
+                    } yield in.GoMethodCall(recvIn, meth, args)(src)
+
+                  case ap.MethodExpr(_, _, _, st.MethodImpl(decl, _, _)) =>
+                    val meth = methodProxyD(decl)
+                    for {
+                      args <- getArgs(decl.args.length, p.args.tail)
+                      recv <- goE(p.args.head)
+                    } yield in.GoMethodCall(recv, meth, args)(src)
+
+                  case _ => unexpectedExprError(exp)
+                }
+                case _ => unexpectedExprError(exp)
+              }
+              case _ => unexpectedExprError(exp)
+            }
 
           case _ => ???
         }
@@ -1306,6 +1354,10 @@ object Desugar {
 
     var definedTypes: Map[(String, Addressability), in.Type] = Map.empty
     var definedTypesSet: Set[(String, Addressability)] = Set.empty
+    var definedFunctions : Map[in.FunctionProxy, in.FunctionMember] = Map.empty
+    var definedMethods: Map[in.MethodProxy, in.MethodMember] = Map.empty
+    var definedMPredicates: Map[in.MPredicateProxy, in.MPredicate] = Map.empty
+    var definedFPredicates: Map[in.FPredicateProxy, in.FPredicate] = Map.empty
 
     def registerDefinedType(t: Type.DeclaredT, addrMod: Addressability)(src: Meta): in.DefinedT = {
       // this type was declared in the current package
@@ -1318,6 +1370,34 @@ object Desugar {
       }
 
       in.DefinedT(name, addrMod)
+    }
+
+    def registerMethod(decl: PMethodDecl): in.MethodMember = {
+      val method = methodD(decl)
+      val methodProxy = methodProxyD(decl)
+      definedMethods += methodProxy -> method
+      method
+    }
+
+    def registerFunction(decl: PFunctionDecl): in.FunctionMember = {
+      val function = functionD(decl)
+      val functionProxy = functionProxyD(decl)
+      definedFunctions += functionProxy -> function
+      function
+    }
+
+    def registerMPredicate(decl: PMPredicateDecl): in.MPredicate = {
+      val mPredProxy = mpredicateProxyD(decl)
+      val mPred = mpredicateD(decl)
+      definedMPredicates += mPredProxy -> mPred
+      mPred
+    }
+
+    def registerMPredicate(decl: PFPredicateDecl): in.FPredicate = {
+      val fPredProxy = fpredicateProxyD(decl)
+      val fPred = fpredicateD(decl)
+      definedFPredicates += fPredProxy -> fPred
+      fPred
     }
 
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {

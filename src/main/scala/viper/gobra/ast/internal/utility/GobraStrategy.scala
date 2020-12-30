@@ -35,7 +35,7 @@ object GobraStrategy {
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (_: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
-      case (_: Make, Seq(target: LocalVar, co: CompositeObject)) => Make(target, co)(meta)
+      case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (_: Assignee.Var, Seq(v: AssignableVar)) => Assignee.Var(v)
       case (_: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)

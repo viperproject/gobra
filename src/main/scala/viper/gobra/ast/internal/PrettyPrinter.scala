@@ -188,7 +188,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
-    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
@@ -378,7 +379,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showLit(l: Lit): Doc = l match {
-    case IntLit(v) => v.toString
+    case IntLit(v, _) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
@@ -506,7 +507,10 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
-    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
+
+      // TODO: make
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)

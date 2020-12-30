@@ -1006,14 +1006,14 @@ object Desugar {
           }
 
           case PReference(exp) => exp match {
-              // The reference of a literal is desugared to a make call
+              // TODO: change comment here
+              // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
               for {
                 c <- compositeLitD(ctx)(c)
-                co = compositeLitToObject(c)
                 v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- declare(v)
-                _ <- write(in.Make(v, co)(src))
+                _ <- write(in.New(v, c)(src))
               } yield v
 
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
@@ -1135,8 +1135,60 @@ object Desugar {
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
             unit(freshExclusiveVar(typ)(src))
 
+          case PMake(t, args) =>
+            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src) // TODO: should it be shared by default?
+            val target = freshExclusiveVar(resT)(src)
+            val res = target // TODO: remove this var
+
+            for {
+              _ <- declare(target)
+              typ <- goTExpr(t)
+              argsD <- sequence(args map go)
+              _ <- write(in.Make(target, ???)(src))
+              // TODO: also generate assertion in case of slice with two args that n <= m
+            } yield res
+
+          case PNew(t) =>
+            // TODO: do the same as in make but return the pointer
+            // TODO: remove unneeded variables
+            val resT = typeD(info.symbType(t), Addressability.Shared)(src)
+            val targetT = in.PointerT(resT, Addressability.Exclusive)
+            val target = freshExclusiveVar(targetT)(src)
+            val res = target
+
+            for {
+              _ <- declare(target)
+              zero = zeroValue(info.symbType(t))(src)
+              _ <- write(in.New(target, zero)(src))
+            } yield res
+
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
+      }
+    }
+
+    // TODO: doc
+    // false for booleans, 0 for numeric types, "" for strings, and nil for pointers, functions, interfaces, slices, channels, and maps. This initialization is done recursively, so for instance each element of an array of structs will have its fields zeroed if no value is specified.
+    def zeroValue(typ: Type)(src: Source.Parser.Info): in.Expr = {
+      typ match {
+        case IntT(kind) => in.IntLit(0, kind)(src)
+
+        case BooleanT => in.BoolLit(b = false)(src)
+
+        case x@(
+          _: PointerT
+          | _: FunctionT
+          | _: ChannelT
+          | _: SliceT
+          | _: InterfaceT
+          | _: MapT
+          ) => in.NilLit(typeD(x, Addressability.Shared)(src))(src)
+
+        // TODO: what to do in defined types and structs?
+          // TODO: test with creating struct and with creating defined type, ensure that the values
+          //  of the fields are the expected ones
+
+        // case StructT(clauses, decl, ctx) => in.StructLit()
       }
     }
 
@@ -1227,6 +1279,12 @@ object Desugar {
     def underlyingType(t: Type.Type): Type.Type = t match {
       case Type.DeclaredT(d, context) => underlyingType(context.symbType(d.right))
       case _ => t
+    }
+
+    def getDefaultValue(t: in.Type, args: PExpression): in.Expr = {
+      t match {
+        case _ => ???
+      }
     }
 
     sealed trait CompositeKind
@@ -1486,6 +1544,11 @@ object Desugar {
 
     def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
       require(typ.addressability == Addressability.exclusiveVariable)
+      in.LocalVar(nm.fresh, typ)(info)
+    }
+
+    def freshSharedVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
+      require(typ.addressability == Addressability.Shared)
       in.LocalVar(nm.fresh, typ)(info)
     }
 

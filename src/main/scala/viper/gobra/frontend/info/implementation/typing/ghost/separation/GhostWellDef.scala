@@ -115,6 +115,14 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
+
+    case _: PNew => noMessages
+
+    case n@PMake(_, args) => error(
+      n,
+      "ghost error: make expressions may not contain ghost expressions",
+      args exists (x => !noGhostPropagationFromChildren(x))
+    )
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

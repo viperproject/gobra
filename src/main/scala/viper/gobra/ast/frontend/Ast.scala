@@ -472,6 +472,14 @@ sealed trait PActualExprProofAnnotation extends PActualExpression {
 case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation
 
 /**
+  * TODO: doc
+  */
+case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpression
+// case class PMake(args: Vector[PExpressionOrType]) extends PActualExpression
+
+case class PNew(typ: PType) extends PActualExpression
+
+/**
   * Types
   */
 

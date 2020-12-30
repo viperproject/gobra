@@ -277,6 +277,36 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case _: PNew => noMessages
+
+    case m@PMake(typ, args) => typ match {
+      // TODO: check argument types
+      // TODO: refactor
+      case _: PSliceType =>
+        // TODO: check that len and cap of UntypedConst type are within bounds of integer
+        error(m, s"too many arguments to make($typ)", args.length > 2) ++
+          error(m, s"missing len argument to make($typ)", args.isEmpty) ++
+          (if (args.nonEmpty)
+            error(m, s"non-integer len argument in make($typ)", !Vector(IntT(config.typeBounds.Int), IntT(config.typeBounds.UntypedConst)).contains(exprType(args(0))))
+          else noMessages) ++
+          (if (args.length == 2) {
+            val maybeCapLessThanLen = for {
+              len <- intConstantEval(args(0))
+              cap <- intConstantEval(args(1))
+            } yield error(m, s"len larger than cap in make($typ)", len > cap)
+            maybeCapLessThanLen.getOrElse(noMessages) ++
+              error(m, s"non-integer cap argument in make($typ)", !Vector(IntT(config.typeBounds.Int), IntT(config.typeBounds.UntypedConst)).contains(exprType(args(1))))
+          } else noMessages)
+        // also compare len and cap if they are statically known
+      case _: PBiChannelType =>
+        // TODO: check args
+        noMessages
+      case _: PMapType =>
+        // TODO: check args
+        noMessages
+      case _ => error(typ, s"cannot make type $typ")
+    }
+
     case PBlankIdentifier() => noMessages
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
@@ -360,6 +390,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => exprAndTypeType(n)
 
     case b: PBlankIdentifier => getBlankIdType(b)
+
+    case PNew(typ) => PointerT(typeSymbType(typ))
+
+    case PMake(typ, _) => typeSymbType(typ)
 
     case e => violation(s"unexpected expression $e")
   }

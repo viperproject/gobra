@@ -166,8 +166,16 @@ object Assignee {
   case class Field(op: FieldRef) extends Assignee
   case class Index(op : IndexedExp) extends Assignee
 }
+// TODO: make the arguments of this and New more similar, maybe pass the expression
+case class Make(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt {
+  // TODO: assert that if arg1 is None, then the second also is
 
-case class Make(target: LocalVar, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
+}
+
+// TODO: maybe change this to receive a type or else change the pretty printer to show the type?
+// TODO: check what is the supposed argument for new (either a typ or expr)
+// TODO: doc
+case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {
   def op: CompositeLit
@@ -183,6 +191,8 @@ object CompositeObject {
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject
   case class Multiset(op : MultisetLit) extends CompositeObject
+  // TODO: add case for Map when they are added to the language
+  // TODO: should a channel also be implemented as a CompositeObject?
 }
 
 /**
@@ -735,8 +745,8 @@ sealed trait Lit extends Expr
 
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
-  override def typ: Type = IntT(Addressability.literal)
+case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = IntT(Addressability.literal, kind)
 }
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {

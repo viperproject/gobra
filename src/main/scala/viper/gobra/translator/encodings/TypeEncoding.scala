@@ -190,7 +190,8 @@ trait TypeEncoding extends Generator {
     * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
     */
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    case make@ in.Make(target, in.CompositeObject(lit :: t)) if typ(ctx).isDefinedAt(t) =>
+        // TODO: this can never be a composit object, only an expression
+    case make@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
       val (pos, info, errT) = make.vprMeta
       val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(make.info)
       val zDeref = in.Deref(z)(make.info)
@@ -198,7 +199,7 @@ trait TypeEncoding extends Generator {
         for {
           _ <- local(ctx.typeEncoding.variable(ctx)(z))
           footprint <- addressFootprint(ctx)(zDeref)
-          eq <- ctx.typeEncoding.equal(ctx)(zDeref, lit, make)
+          eq <- ctx.typeEncoding.equal(ctx)(zDeref, expr, make)
           _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
           ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
         } yield ass

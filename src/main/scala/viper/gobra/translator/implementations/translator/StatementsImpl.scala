@@ -150,6 +150,10 @@ class StatementsImpl extends Statements {
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 
+      // case in.New(_, _) => ???
+
+      case in.Make(_, _) => ???
+
       case _ => Violation.violation(s"Statement $x did not match with any implemented case.")
     }
 

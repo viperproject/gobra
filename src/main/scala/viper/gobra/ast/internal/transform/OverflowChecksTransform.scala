@@ -112,9 +112,9 @@ object OverflowChecksTransform extends InternalTransform {
       val recvAssert = Assert(assertionExprInBounds(recv, recv.typ)(recvInfo))(recvInfo)
       Seqn(m +: recvAssert +: asserts)(m.info)
 
-    case m@Make(_, typ) =>
-      val info = createAnnotatedInfo(typ.info)
-      val assertBounds = Assert(assertionExprInBounds(typ.op, typ.op.typ)(info))(info)
+    case m@New(_, expr) =>
+      val info = createAnnotatedInfo(expr.info)
+      val assertBounds = Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
       Seqn(Vector(assertBounds, m))(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added

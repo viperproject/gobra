@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.internal.{Lit, LocalVar}
+import viper.gobra.frontend.info.base.Type.ChannelModus
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
@@ -1009,10 +1010,12 @@ object Desugar {
               // TODO: change comment here
               // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
+              println("Bla Bla Bla")
               for {
                 c <- compositeLitD(ctx)(c)
                 v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- declare(v)
+                // TODO: change here to not use New, it will produce wrong results in the pretty printer! or else print the expression that is created
                 _ <- write(in.New(v, c)(src))
               } yield v
 
@@ -1136,20 +1139,61 @@ object Desugar {
             unit(freshExclusiveVar(typ)(src))
 
           case PMake(t, args) =>
+            // TODO: maybe abstract this further (the common parts)
+            def assertIsNonNegative(x: in.Expr): in.Stmt =
+              in.Assert(in.ExprAssertion(in.AtLeastCmp(x, in.IntLit(0)(src))(src))(src))(src)
+            def assertAtMost(left: in.Expr, right: in.Expr): in.Stmt =
+              in.Assert(in.ExprAssertion(in.AtMostCmp(left, right)(src))(src))(src)
+
             val resT = typeD(info.symbType(t), Addressability.Exclusive)(src) // TODO: should it be shared by default?
             val target = freshExclusiveVar(resT)(src)
             val res = target // TODO: remove this var
 
+            // TODO: write a seqn around all writes of statements that I do
             for {
               _ <- declare(target)
               typ <- goTExpr(t)
+
               argsD <- sequence(args map go)
-              _ <- write(in.Make(target, ???)(src))
-              // TODO: also generate assertion in case of slice with two args that n <= m
+              arg0 = argsD.lift(0)
+              arg1 = argsD.lift(1)
+              // TODO: maybe remove all these checks
+              _ = Violation.violation(arg0.isDefined || arg1.isEmpty, "Second argument to make function can only be provided if the first argument is also provided")
+
+              // TODO: simplify this or move to a function
+              // If arg0 is negative at runtime, then a panic occurs
+              // _ <- if (arg0.isDefined) {write(assertIsNonNegative(arg0.get))} else write()
+              // this one may be better
+              _ <- sequence(arg0.toVector.map(x => write(assertIsNonNegative(x))))
+              // if n and m are available at runtime, then n must be at most m otherwise it panics
+              _ <- if (resT.isInstanceOf[SliceT] && arg0.isDefined && arg1.isDefined) {
+                write(assertAtMost(arg0.get, arg1.get))
+              } else write()
+
+              // TODO: check that the size of the argument list is adequate for each type here and generate the corresponding res
+              // TODO: maybe replace info.symbType with something from an internal type
+              zeroExp: in.Expr = info.symbType(t) match {
+                case SliceT(elem) =>
+                  // Possible simplification: assume that n and m must be constants
+                  // violation("A length must be provided when making a slice")
+                  // TODO: maybe axiomatize this?? there exists a slice that has length .. adn capacity .. and for all elements, it is 0
+                  ???
+
+                case ChannelT(elem, ChannelModus.Bi) =>
+                  // TODO: implement when channels are added to the language
+                  ???
+
+                case MapT(key, elem) =>
+                  // TODO: implement when maps are added to the language
+                  ???
+
+                case _ => violation(???, ???); ???
+              }
+
+              _ <- write(in.Make(target, zeroExp)(src))
             } yield res
 
           case PNew(t) =>
-            // TODO: do the same as in make but return the pointer
             // TODO: remove unneeded variables
             val resT = typeD(info.symbType(t), Addressability.Shared)(src)
             val targetT = in.PointerT(resT, Addressability.Exclusive)
@@ -1168,6 +1212,7 @@ object Desugar {
     }
 
     // TODO: doc
+    // TODO: maybe change sig
     // false for booleans, 0 for numeric types, "" for strings, and nil for pointers, functions, interfaces, slices, channels, and maps. This initialization is done recursively, so for instance each element of an array of structs will have its fields zeroed if no value is specified.
     def zeroValue(typ: Type)(src: Source.Parser.Info): in.Expr = {
       typ match {
@@ -1188,7 +1233,20 @@ object Desugar {
           // TODO: test with creating struct and with creating defined type, ensure that the values
           //  of the fields are the expected ones
 
-        // case StructT(clauses, decl, ctx) => in.StructLit()
+        case StructT(clauses, decl, ctx) => ???
+      }
+    }
+
+    // TODO: doc
+    // TODO: maybe change sig
+    // TODO: remove
+    def valueFromMake(typ: Type, arg1: Option[in.Expr], arg2: Option[in.Expr]): in.Expr = {
+      // TODO: violation if arg1 == None and arg2 != None
+      typ match {
+        case SliceT(elem) => ???
+        case ChannelT(elem, ChannelModus.Bi) => ???
+        case SliceT(elem) => ???
+        case _ => violation(???)
       }
     }
 

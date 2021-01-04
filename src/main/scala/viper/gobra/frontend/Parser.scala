@@ -715,7 +715,6 @@ object Parser {
         newExp |
         len |
         cap |
-        // TODO: check if they are tretaed as functions when arity is more than expected
         ghostUnaryExp |
         primaryExp
 

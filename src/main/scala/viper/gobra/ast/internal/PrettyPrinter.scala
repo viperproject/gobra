@@ -190,6 +190,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
 
+    case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
@@ -509,7 +511,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
 
-      // TODO: make
+    case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

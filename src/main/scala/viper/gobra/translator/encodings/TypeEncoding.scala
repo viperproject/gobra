@@ -184,24 +184,37 @@ trait TypeEncoding extends Generator {
 
   /**
     * Encodes statements.
-    * This includes make-statements.
+    * This includes new-statements and make-statements.
     *
     * The default implements:
-    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    * [v: *T = new(expr)] -> var z (*T); inhale Footprint[*z] && [*z == expr]; [v = z]
+    * [v: T = make(expr)] -> var z T;  inhale [z == expr]; [v = z]
     */
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-        // TODO: this can never be a composit object, only an expression
-    case make@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
-      val (pos, info, errT) = make.vprMeta
-      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(make.info)
-      val zDeref = in.Deref(z)(make.info)
+    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
+      val (pos, info, errT) = newStmt.vprMeta
+      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(newStmt.info)
+      val zDeref = in.Deref(z)(newStmt.info)
       seqn(
         for {
           _ <- local(ctx.typeEncoding.variable(ctx)(z))
           footprint <- addressFootprint(ctx)(zDeref)
-          eq <- ctx.typeEncoding.equal(ctx)(zDeref, expr, make)
+          eq <- ctx.typeEncoding.equal(ctx)(zDeref, expr, newStmt)
           _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
+          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, newStmt)
+        } yield ass
+      )
+
+      // TODO: clean
+    case makeStmt@in.Make(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
+      val (pos, info, errT) = makeStmt.vprMeta
+      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(makeStmt.info)
+      seqn(
+        for {
+          _ <- local(ctx.typeEncoding.variable(ctx)(z))
+          eq <- ctx.typeEncoding.equal(ctx)(z, expr, makeStmt)
+          _ <- write(vpr.Inhale(eq)(pos, info, errT))
+          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, makeStmt)
         } yield ass
       )
   }

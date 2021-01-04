@@ -167,13 +167,8 @@ object Assignee {
   case class Index(op : IndexedExp) extends Assignee
 }
 // TODO: make the arguments of this and New more similar, maybe pass the expression
-case class Make(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt {
-  // TODO: assert that if arg1 is None, then the second also is
+case class Make(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
-}
-
-// TODO: maybe change this to receive a type or else change the pretty printer to show the type?
-// TODO: check what is the supposed argument for new (either a typ or expr)
 // TODO: doc
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 

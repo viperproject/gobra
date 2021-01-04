@@ -7,9 +7,12 @@ type cell struct{
 	val int;
 }
 
-const divisor = 1
+const divisor = 0
 
-// currently, only int literals are supported
-//:: ExpectedOutput(parser_error)
-requires acc(&x.val, divisor/2) && x.val == 42
-func constPerm(x *cell) {}
+//:: ExpectedOutput(type_error)
+requires acc(&x.val, 1/0) && x.val == 42
+func zeroDividend1(x *cell) {}
+
+//:: ExpectedOutput(type_error)
+requires acc(&x.val, 1/divisor) && x.val == 42
+func zeroDividend2(x *cell) {}

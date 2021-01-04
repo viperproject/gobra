@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+const dividend = 1
+const divisor = 1
+
+requires acc(myPred(x), dividend/divisor)
+ensures acc(myPred(x), dividend/divisor)
+func exprPerm(x *int) {
+    unfold myPred(x)
+    assert *x == 42
+    *x = 0
+    assert *x == 0
+    *x = 42
+    fold myPred(x)
+}

@@ -772,7 +772,7 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
 sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
-case class PFractionalPerm(left: PBasicLiteral, right: PBasicLiteral) extends PPermission with PBinaryGhostExp
+case class PFractionalPerm(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp
 case class PWildcardPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression

@@ -1129,10 +1129,16 @@ object Parser {
       "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
-      basicLit ~ ("/" ~> basicLit) ^^ PFractionalPerm |
+      fractionalPermission |
       "write" ^^^ PFullPerm() |
       "none" ^^^ PNoPerm() |
       "_" ^^^ PWildcardPerm()
+
+    lazy val fractionalPermission: Parser[PFractionalPerm] =
+      expression into {
+        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
+        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
+      }
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf

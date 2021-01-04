@@ -7,9 +7,12 @@ pred myPred(x *int) {
     acc(x) && *x == 42
 }
 
-const divisor = 1
+const divisor = 0
 
-// currently, only int literals are supported
-//:: ExpectedOutput(parser_error)
-requires acc(myPred(x), divisor/2)
-func constPerm(x *int) {}
+//:: ExpectedOutput(type_error)
+requires acc(myPred(x), 1/0)
+func zeroDividend1(x *int) {}
+
+//:: ExpectedOutput(type_error)
+requires acc(myPred(x), 1/divisor)
+func zeroDividend2(x *int) {}

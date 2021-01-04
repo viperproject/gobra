@@ -7,12 +7,6 @@ pred myPred(x *int) {
     acc(x) && *x == 42
 }
 
-const divisor = 1
-
-//:: ExpectedOutput(type_error)
-requires acc(myPred(x), 1/0)
-func zeroDividend(x *int) {}
-
 //:: ExpectedOutput(type_error)
 requires acc(myPred(x), true/2)
 func boolDivisor(x *int) {}

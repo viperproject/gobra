@@ -148,13 +148,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case expr: PPermission => expr match {
       case PFullPerm() => noMessages
       case PNoPerm() => noMessages
-      case PFractionalPerm(left, right) => (intConstantEval(left), intConstantEval(right)) match {
-        case (l, r) if l.isEmpty || r.isEmpty => error(left, s"expected an integer constant, but got $left", l.isEmpty) ++
-          error(right, s"expected a constant, but got $right", r.isEmpty)
-        case (_, Some(zero)) if zero == 0 => error(right, s"expected a non-zero dividend, but got $right")
-        case _ => noMessages
-      }
-      case PWildcardPerm() =>noMessages
+      case fp@ PFractionalPerm(left, right) =>
+        val intKind = config.typeBounds.UntypedConst
+        assignableTo.errors(exprOrTypeType(left), IntT(intKind))(fp) ++
+          assignableTo.errors(exprOrTypeType(right), IntT(intKind))(fp) ++
+          (intConstantEval(right) match {
+            // Silicon crashes on divisors that are statically known to be zero so catch these cases
+            case Some(divisor) if divisor == 0 => error(right, s"expected a non-zero dividend, but got $right")
+            case _ => noMessages
+          })
+      case PWildcardPerm() => noMessages
     }
   }
 

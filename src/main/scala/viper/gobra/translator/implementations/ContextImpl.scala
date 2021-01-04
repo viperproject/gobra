@@ -34,7 +34,6 @@ case class ContextImpl(
                         pureMethod: PureMethods,
                         predicate: Predicates,
                         stmt: Statements,
-                        perm: Permissions,
                         table: LookupTable
                       ) extends Context {
 
@@ -60,7 +59,6 @@ case class ContextImpl(
       conf.pureMethod,
       conf.predicate,
       conf.stmt,
-      conf.perm,
       table
     )
   }
@@ -87,7 +85,6 @@ case class ContextImpl(
                    pureMethodN: PureMethods = pureMethod,
                    predicateN: Predicates = predicate,
                    stmtN: Statements = stmt,
-                   permN: Permissions = perm,
                  ): Context = copy(
     fieldN,
     arrayN,
@@ -108,8 +105,7 @@ case class ContextImpl(
     methodN,
     pureMethodN,
     predicateN,
-    stmtN,
-    permN
+    stmtN
   )
 
   override def addVars(vars: LocalVarDecl*): Context = this

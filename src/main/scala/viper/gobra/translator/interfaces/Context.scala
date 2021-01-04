@@ -38,7 +38,6 @@ trait Context {
   def pureMethod: PureMethods
   def predicate: Predicates
   def stmt: Statements
-  def perm: Permissions
 
   // lookup
   def table: LookupTable
@@ -69,8 +68,7 @@ trait Context {
           methodN: Methods = method,
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
-          stmtN: Statements = stmt,
-          permN: Permissions = perm
+          stmtN: Statements = stmt
          ): Context
 
 
@@ -98,6 +96,5 @@ trait Context {
     pureMethod.finalize(col)
     predicate.finalize(col)
     stmt.finalize(col)
-    perm.finalize(col)
   }
 }

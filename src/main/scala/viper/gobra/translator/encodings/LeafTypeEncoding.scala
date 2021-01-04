@@ -84,7 +84,7 @@ trait LeafTypeEncoding extends TypeEncoding {
     case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        vprPerm <- ctx.perm.translate(p)(ctx)
+        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
         l <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
       } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
   }

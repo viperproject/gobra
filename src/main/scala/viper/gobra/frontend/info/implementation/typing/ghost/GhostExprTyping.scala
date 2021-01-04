@@ -350,7 +350,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // Others
       case PReceive(_) => false
 
-      case _: PPermission => true
+      case p: PPermission => p match {
+        case PFractionalPerm(left, right) => go(left) && go(right)
+        case _ => true
+      }
     }
   }
 

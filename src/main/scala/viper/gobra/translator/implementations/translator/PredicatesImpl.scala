@@ -92,7 +92,7 @@ class PredicatesImpl extends Predicates {
         for {
           vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
           pacc = vpr.PredicateAccess(vArgs, pred.name)(pos, info, errT)
-          vPerm <- ctx.perm.translate(perm)(ctx)
+          vPerm <- ctx.typeEncoding.expr(ctx)(perm)
         } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
       case in.MPredicateAccess(recv, pred, args) =>
@@ -100,7 +100,7 @@ class PredicatesImpl extends Predicates {
           vRecv <- ctx.expr.translate(recv)(ctx)
           vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
           pacc = vpr.PredicateAccess(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
-          vPerm <- ctx.perm.translate(perm)(ctx)
+          vPerm <- ctx.typeEncoding.expr(ctx)(perm)
         } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
       case in.MemoryPredicateAccess(_) =>

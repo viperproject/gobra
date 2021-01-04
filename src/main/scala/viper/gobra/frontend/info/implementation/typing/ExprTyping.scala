@@ -123,7 +123,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit | _: PNilLit => noMessages
 
     case n: PIntLit =>
-      val typCtx = getTypeFromContext(n)
+      val typCtx = getNonInterfaceTypeFromCtxt(n)
       if (typCtx.isDefined) assignableWithinBounds.errors(typCtx.get, n)(n) else noMessages
 
     case n@PCompositeLit(t, lit) =>
@@ -253,7 +253,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n) ++ {
               val res = for {
-                typCtx <- getTypeFromContext(n.asInstanceOf[PNumExpression])
+                typCtx <- getNonInterfaceTypeFromCtxt(n.asInstanceOf[PNumExpression])
               } yield assignableWithinBounds.errors(typCtx, n)(n)
               res.getOrElse(noMessages)
             }
@@ -353,7 +353,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
-      if (typ == IntT(config.typeBounds.UntypedConst)) getTypeFromContext(exprNum).getOrElse(typ) else typ
+      if (typ == IntT(config.typeBounds.UntypedConst)) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
 
@@ -364,8 +364,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"unexpected expression $e")
   }
 
-  /** returns a type that is implied by the context if the numeric expression is an untyped constant expression */
-  private def getTypeFromContext(expr: PNumExpression): Option[Type] = expr match {
+  /** Returns a non-interface type that is implied by the context if the numeric expression is an untyped
+    * constant expression. It ignores interface types. This is useful to check the bounds of constant expressions when
+    * they are assigned to a variable of an interface type. For those cases, we need to obtain the numeric type of the
+    * expression.
+    */
+  private def getNonInterfaceTypeFromCtxt(expr: PNumExpression): Option[Type] =
+    getTypeFromCtxt(expr).filterNot(underlyingType(_).isInstanceOf[InterfaceT])
+
+  /** Returns a type that is implied by the context if the numeric expression is an untyped constant expression */
+  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = expr match {
     case tree.parent(p) => p match {
       // if no type is specified, integer constants default to int in short var declarations
       case _: PShortVarDecl => Some(IntT(config.typeBounds.Int))

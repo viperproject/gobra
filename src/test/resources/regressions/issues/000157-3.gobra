@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	// The following assignments suffer from an overflow, as the untyped integer constants
+	// assigned to interface{} variables have int type by default.
+	// Previous versions were unable to statically find the overflow here.
+	//:: ExpectedOutput(type_error)
+	var x interface{} = 42123123123123231244124123412421341312327163921876329712696
+	//:: ExpectedOutput(type_error)
+	var y interface{} = 21342134123412341234132452314213 + 2
+
+	if y == nil {
+		assert false
+	}
+}

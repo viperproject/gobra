@@ -127,14 +127,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PBoolLit | _: PNilLit => noMessages
 
-    case n: PIntLit =>
-      val typ = intExprType(n)
-      if (typ == UNTYPED_INT_CONST) {
-        val typCtx = getNonInterfaceTypeFromCtxt(n)
-        typCtx.map(assignableWithinBounds.errors(_, n)(n)).getOrElse(noMessages)
-      } else {
-        assignableWithinBounds.errors(typ, n)(n)
-      }
+    case n: PIntLit => numExprWithinTypeBounds(n)
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
@@ -260,16 +253,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++ {
-              val num = n.asInstanceOf[PNumExpression]
-              val typ = intExprType(num)
-              if (typ == UNTYPED_INT_CONST) {
-                val typCtx = getNonInterfaceTypeFromCtxt(num)
-                typCtx.map(assignableWithinBounds.errors(_, n)(n)).getOrElse(noMessages)
-              } else {
-                assignableWithinBounds.errors(typ, n)(n)
-              }
-            }
+            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+              numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
@@ -293,6 +278,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBlankIdentifier() => noMessages
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
+  }
+
+  private def numExprWithinTypeBounds(num: PNumExpression): Messages = {
+    val typ = intExprType(num)
+    if (typ == UNTYPED_INT_CONST) {
+      val typCtx = getNonInterfaceTypeFromCtxt(num)
+      typCtx.map(assignableWithinBounds.errors(_, num)(num)).getOrElse(noMessages)
+    } else {
+      assignableWithinBounds.errors(typ, num)(num)
+    }
   }
 
   lazy val exprType: Typing[PExpression] = createTyping {
@@ -391,7 +386,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     violation(
       intExprType(expr) == UNTYPED_INT_CONST,
-      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getTypeFromCtxt"
+      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
     )
 
     expr match {

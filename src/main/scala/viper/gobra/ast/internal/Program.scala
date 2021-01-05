@@ -224,7 +224,7 @@ case class ExprAssertion(exp: Expr)(val info: Source.Parser.Info) extends Assert
 
 case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Access(e: Accessible)(val info: Source.Parser.Info) extends Assertion
+case class Access(e: Accessible, p: Permission)(val info: Source.Parser.Info) extends Assertion
 
 sealed trait Accessible extends Node {
   def op: Node
@@ -278,6 +278,15 @@ case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: As
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT(Addressability.rValue)
 }
+
+sealed trait Permission extends Expr {
+  override val typ: Type = PermissionT(Addressability.rValue)
+}
+
+case class FullPerm(info: Source.Parser.Info) extends Permission
+case class NoPerm(info: Source.Parser.Info) extends Permission
+case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
+case class WildcardPerm(info: Source.Parser.Info) extends Permission
 
 /* ** Type related expressions */
 

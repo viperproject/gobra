@@ -80,26 +80,26 @@ class PredicatesImpl extends Predicates {
   }
 
   /**
-    * [acc(  p(as)] -> p(Argument[as])
-    * [acc(e.p(as)] -> p(Argument[e], Argument[as])
+    * [acc(  p(as), perm] -> p(Argument[as], Permission[perm])
+    * [acc(e.p(as), perm] -> p(Argument[e], Argument[as], Permission[perm])
     */
-  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccessPredicate] = {
-    case acc@ in.FPredicateAccess(pred, args) =>
+  override def predicateAccess(ctx: Context): (in.PredicateAccess, in.Permission) ==> CodeWriter[vpr.PredicateAccessPredicate] = {
+    case (acc@ in.FPredicateAccess(pred, args), perm) =>
       val (pos, info, errT) = acc.vprMeta
-      val perm = vpr.FullPerm()(pos, info, errT)
       for {
         vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
         pacc = vpr.PredicateAccess(vArgs, pred.name)(pos, info, errT)
-      } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
+        vPerm <- ctx.typeEncoding.expr(ctx)(perm)
+      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
 
-    case acc@ in.MPredicateAccess(recv, pred, args) =>
+    case (acc@ in.MPredicateAccess(recv, pred, args), perm) =>
       val (pos, info, errT) = acc.vprMeta
-      val perm = vpr.FullPerm()(pos, info, errT)
       for {
         vRecv <- ctx.expr.translate(recv)(ctx)
         vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
         pacc = vpr.PredicateAccess(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
-      } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
+        vPerm <- ctx.typeEncoding.expr(ctx)(perm)
+      } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
   }
 
   /** Returns proxy(args) */

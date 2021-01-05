@@ -69,13 +69,13 @@ class PredEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.Predicate(in.PredExprInstance(p :: ctx.Pred(ts), args))) =>
+      case n@ in.Access(in.Accessible.Predicate(in.PredExprInstance(p :: ctx.Pred(ts), args)), perm) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vArgs <- sequence(args map goE)
           vBase <- ctx.expr.translate(p)(ctx)
-          perm = vpr.FullPerm()(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(defunc.instance(vBase, ts, vArgs)(pos, info, errT)(ctx), perm)(pos, info, errT) : vpr.Exp
+          vPerm <- ctx.expr.translate(perm)(ctx)
+        } yield vpr.PredicateAccessPredicate(defunc.instance(vBase, ts, vArgs)(pos, info, errT)(ctx), vPerm)(pos, info, errT) : vpr.Exp
     }
   }
 }

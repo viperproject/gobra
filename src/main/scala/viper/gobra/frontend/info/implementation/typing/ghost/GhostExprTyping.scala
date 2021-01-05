@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -144,6 +144,21 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
     }
+
+    case expr: PPermission => expr match {
+      case PFullPerm() => noMessages
+      case PNoPerm() => noMessages
+      case fp@ PFractionalPerm(left, right) =>
+        val intKind = config.typeBounds.UntypedConst
+        assignableTo.errors(exprOrTypeType(left), IntT(intKind))(fp) ++
+          assignableTo.errors(exprOrTypeType(right), IntT(intKind))(fp) ++
+          (intConstantEval(right) match {
+            // Silicon crashes on divisors that are statically known to be zero so catch these cases
+            case Some(divisor) if divisor == 0 => error(right, s"expected a non-zero dividend, but got $right")
+            case _ => noMessages
+          })
+      case PWildcardPerm() => noMessages
+    }
   }
 
   private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
@@ -216,6 +231,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
     }
+
+    case _: PPermission => PermissionT
   }
 
   /**
@@ -335,6 +352,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // Others
       case PReceive(_) => false
+
+      case p: PPermission => p match {
+        case PFractionalPerm(left, right) => go(left) && go(right)
+        case _ => true
+      }
     }
   }
 

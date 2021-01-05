@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(myPred(x), true/2)
+func boolDivisor(x *int) {}
+
+//:: ExpectedOutput(type_error)
+requires acc(myPred(x), 1/true)
+func boolDividend(x *int) {}

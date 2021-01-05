@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct{
+	val int;
+}
+
+const dividend = 1
+
+requires acc(&x.val, dividend/2) && x.val == 42
+func constPerm(x *cell) {}

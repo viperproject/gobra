@@ -52,12 +52,12 @@ trait SharedStructComponent extends Generator {
     * The default implementation is:
     * Footprint[loc: Struct{F}@] -> AND f in F: Footprint[loc.f]
     */
-  def addressFootprint(loc: in.Location)(ctx: Context): CodeWriter[vpr.Exp] = {
+  def addressFootprint(loc: in.Location, perm: in.Permission)(ctx: Context): CodeWriter[vpr.Exp] = {
     loc match {
       case _ :: ctx.Struct(fs) / Shared =>
         val (pos, info, errT) = loc.vprMeta
         val locFAs = fs.map(f => in.FieldRef(loc, f)(loc.info))
-        sequence(locFAs.map(fa => ctx.typeEncoding.addressFootprint(ctx)(fa))).map(VU.bigAnd(_)(pos, info, errT))
+        sequence(locFAs.map(fa => ctx.typeEncoding.addressFootprint(ctx)(fa, perm))).map(VU.bigAnd(_)(pos, info, errT))
 
       case _ :: t => Violation.violation(s"expected struct, but got $t")
     }

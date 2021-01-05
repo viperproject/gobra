@@ -308,7 +308,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get",
+      "none", "some", "get", "write",
       "typeOf", "isComparable"
     )
 
@@ -1125,7 +1125,20 @@ object Parser {
       "old" ~> "(" ~> expression <~ ")" ^^ POld
 
     lazy val access : Parser[PAccess] =
-      "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+      "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+
+    lazy val permission: Parser[PPermission] =
+      fractionalPermission |
+      "write" ^^^ PFullPerm() |
+      "none" ^^^ PNoPerm() |
+      "_" ^^^ PWildcardPerm()
+
+    lazy val fractionalPermission: Parser[PFractionalPerm] =
+      expression into {
+        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
+        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
+      }
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
@@ -1168,7 +1181,8 @@ object Parser {
     lazy val predicateAccess: Parser[PPredicateAccess] =
       // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
       primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
-        case invoke: PInvoke => success(PPredicateAccess(invoke))
+        case invoke: PInvoke => success(PPredicateAccess(invoke, PFullPerm().at(invoke)))
+        case PAccess(invoke: PInvoke, perm) => success(PPredicateAccess(invoke, perm))
         case e => failure(s"expected invoke but got ${e.getClass}")
       }
 

@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct{
+	val int;
+}
+
+func main() {
+    x := &cell{42};
+    assert x.val == 42
+    test(x)
+    assert x.val == 42
+}
+
+requires acc(&x.val, _) && x.val == 42
+ensures acc(&x.val, _)
+func test(x *cell) {
+    assert x.val == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+     assert false;
+}

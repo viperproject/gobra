@@ -37,8 +37,8 @@ class AssertionsImpl extends Assertions {
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access =>
         acc.e match {
-          case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(op)(ctx)
-          case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op)
+          case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(op, acc.p)(ctx)
+          case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
         }
 
 

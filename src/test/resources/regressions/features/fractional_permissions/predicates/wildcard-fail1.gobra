@@ -1,0 +1,24 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+func main() {
+    val@ := 42
+    x := &val;
+    fold myPred(x)
+    test(x)
+    unfold acc(myPred(x), _)
+    assert *x == 42
+}
+
+requires acc(myPred(x), _)
+ensures acc(myPred(x), _)
+func test(x *int) {
+    //:: ExpectedOutput(assignment_error:permission_error)
+    *x = 0
+}

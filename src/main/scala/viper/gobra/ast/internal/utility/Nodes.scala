@@ -57,7 +57,7 @@ object Nodes {
         case SepForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
-        case Access(e) => Seq(e)
+        case Access(e, p) => Seq(e, p)
       }
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {
@@ -115,6 +115,14 @@ object Nodes {
         case EqCmp(l, r) => Seq(l, r)
         case Old(op, _) => Seq(op)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
+        case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
+        case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
+        case p: Permission => p match {
+          case _: FullPerm => Seq()
+          case _: NoPerm => Seq()
+          case FractionalPerm(left, right) => Seq(left, right)
+          case _: WildcardPerm => Seq()
+        }
         case l: Lit => l match {
           case IntLit(_) => Seq()
           case BoolLit(_) => Seq()
@@ -130,6 +138,7 @@ object Nodes {
         case Parameter.Out(_, _) => Seq()
         case LocalVar(_, _) => Seq()
       }
+      case Trigger(exprs) => exprs
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {
         case FunctionProxy(_) => Seq()

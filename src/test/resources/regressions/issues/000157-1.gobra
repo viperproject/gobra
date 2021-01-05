@@ -6,6 +6,7 @@ package main
 type T interface{}
 
 func main() {
+    // In a previous version, the following assign would fail
 	var x T = nil
 	if x != nil {
 		assert false

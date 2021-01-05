@@ -17,6 +17,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
 
+  val INT_TYPE: Type = IntT(config.typeBounds.Int)
+  val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
+  // default type of unbounded integer constant expressions
+  val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
+
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
 
     case _: PNamedOperand => noMessages // no checks to avoid cycles
@@ -123,8 +128,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit | _: PNilLit => noMessages
 
     case n: PIntLit =>
-      val typCtx = getNonInterfaceTypeFromCtxt(n)
-      if (typCtx.isDefined) assignableWithinBounds.errors(typCtx.get, n)(n) else noMessages
+      val typ = intExprType(n)
+      if (typ == UNTYPED_INT_CONST) {
+        val typCtx = getNonInterfaceTypeFromCtxt(n)
+        typCtx.map(assignableWithinBounds.errors(_, n)(n)).getOrElse(noMessages)
+      } else {
+        assignableWithinBounds.errors(typ, n)(n)
+      }
 
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
@@ -250,12 +260,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val intKind = config.typeBounds.UntypedConst
             assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            val intKind = config.typeBounds.UntypedConst
-            assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n) ++ {
-              val res = for {
-                typCtx <- getNonInterfaceTypeFromCtxt(n.asInstanceOf[PNumExpression])
-              } yield assignableWithinBounds.errors(typCtx, n)(n)
-              res.getOrElse(noMessages)
+            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++ {
+              val num = n.asInstanceOf[PNumExpression]
+              val typ = intExprType(num)
+              if (typ == UNTYPED_INT_CONST) {
+                val typCtx = getNonInterfaceTypeFromCtxt(num)
+                typCtx.map(assignableWithinBounds.errors(_, n)(n)).getOrElse(noMessages)
+              } else {
+                assignableWithinBounds.errors(typ, n)(n)
+              }
             }
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
@@ -353,7 +366,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
-      if (typ == IntT(config.typeBounds.UntypedConst)) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
+      if (typ == UNTYPED_INT_CONST) getNonInterfaceTypeFromCtxt(exprNum).getOrElse(typ) else typ
 
     case n: PUnfolding => exprType(n.op)
 
@@ -369,44 +382,74 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * they are assigned to a variable of an interface type. For those cases, we need to obtain the numeric type of the
     * expression.
     */
-  private def getNonInterfaceTypeFromCtxt(expr: PNumExpression): Option[Type] =
-    getTypeFromCtxt(expr).filterNot(underlyingType(_).isInstanceOf[InterfaceT])
+  private def getNonInterfaceTypeFromCtxt(expr: PNumExpression): Option[Type] = {
+    // if an unbounded integer constant expression is assigned to an interface type,
+    // then it has the default type
+    def defaultTypeIfInterface(t: Type) : Type = {
+      if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
+    }
 
-  /** Returns a type that is implied by the context if the numeric expression is an untyped constant expression */
-  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = expr match {
-    case tree.parent(p) => p match {
-      // if no type is specified, integer constants default to int in short var declarations
-      case _: PShortVarDecl => Some(IntT(config.typeBounds.Int))
-      case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
-      case PAssignment(rights, lefts) =>
-        val index = rights.indexOf(expr)
-        lefts(index) match {
-          case PBlankIdentifier() =>
-            // if no type is specified, integer constants default to int in assignments to blank identifiers
-            Some(IntT(config.typeBounds.Int))
-          case x => Some(exprType(x))
+    violation(
+      intExprType(expr) == UNTYPED_INT_CONST,
+      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getTypeFromCtxt"
+    )
+
+    expr match {
+      case tree.parent(p) => p match {
+        case PShortVarDecl(rights, lefts, _) =>
+          val index = rights.indexOf(expr)
+          val iden = lefts(index)
+          val isDeclaration = iden == PWildcard() || isDef(lefts(index).asInstanceOf[PIdnUnk])
+          // if the var is already defined and has a non-interface type T, expr must be of type T. Otherwise,
+          // expr must have the default type (Int)
+          if (isDeclaration) {
+            Some(DEFAULT_INTEGER_TYPE)
+          } else {
+            val idenType = idType(iden)
+            Some(defaultTypeIfInterface(idenType))
+          }
+
+        case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
+
+        case PAssignment(rights, lefts) =>
+          val index = rights.indexOf(expr)
+          lefts(index) match {
+            case PBlankIdentifier() =>
+              // if no type is specified, integer constants have the default type
+              Some(DEFAULT_INTEGER_TYPE)
+            case x => Some(defaultTypeIfInterface(exprType(x)))
+          }
+
+        // if no type is specified, integer expressions default to unbounded integer in const declarations;
+        // there is no need to handle interface types because they are not allowed in constant declarations
+        case PConstDecl(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
+
+        // if no type is specified, integer expressions have default type in var declarations
+        case PVarDecl(typ, _, _, _) => typ map (x => defaultTypeIfInterface(typeSymbType(x)))
+
+        case n: PInvoke => resolve(n) match {
+          case Some(ap.FunctionCall(callee, args)) =>
+            val index = args.indexOf(expr)
+            callee match {
+              case f: ap.Function => Some(typeSymbType(f.symb.args(index).typ))
+              case _ => None
+            }
+
+          case Some(ap.PredicateCall(pred, args)) =>
+            val index = args.indexOf(expr)
+            pred match {
+              case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
+              case _ => None
+            }
+
+          case _ => None
         }
-      case PConstDecl(typ, _, _) => typ map typeSymbType
-      // if no type is specified, integer constants default to int in var declarations
-      case PVarDecl(typ, _, _, _) => if(typ.isEmpty) Some(IntT(config.typeBounds.Int)) else typ map typeSymbType
-      case n: PInvoke => resolve(n) match {
-        case Some(ap.FunctionCall(callee, args)) =>
-          val index = args.indexOf(expr)
-          callee match {
-            case f: ap.Function => Some(typeSymbType(f.symb.args(index).typ))
-            case _ => None
-          }
 
-        case Some(ap.PredicateCall(pred, args)) =>
-          val index = args.indexOf(expr)
-          pred match {
-            case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
-            case _ => None
-          }
+        // expr has the default type if it appears in any other kind of statement
+        case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
         case _ => None
       }
-      case _ => None
     }
   }
 
@@ -420,9 +463,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def intExprType(expr: PNumExpression): Type = expr match {
-    case _: PIntLit => IntT(config.typeBounds.UntypedConst)
+    case _: PIntLit => UNTYPED_INT_CONST
 
-    case _: PLength | _: PCapacity => IntT(config.typeBounds.Int)
+    case _: PLength | _: PCapacity => INT_TYPE
 
     case bExpr: PBinaryExp[_,_] =>
       val typeLeft = exprOrTypeType(bExpr.left)

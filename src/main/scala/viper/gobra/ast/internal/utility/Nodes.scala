@@ -95,7 +95,7 @@ object Nodes {
         case OptionTExpr(elem) => Seq(elem)
         case TupleTExpr(elem) => elem
         case DefinedTExpr(_) => Seq()
-        case PredicateConstructor(pred, args) => Seq(pred) ++ args.flatten
+        case PredicateConstructor(pred, _, args) => Seq(pred) ++ args.flatten
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
@@ -133,11 +133,6 @@ object Nodes {
         case LocalVar(_, _) => Seq()
       }
       case a: Addressable => Seq(a.op)
-      case a: PredicateConstructorArg => a match {
-        case a: PredicateConstructorArg.FPredArg => Seq(a.arg)
-        case a: PredicateConstructorArg.MPredArg => Seq(a.arg)
-        case a: PredicateConstructorArg.ExprArg => Seq(a.arg)
-      }
       case p: Proxy => p match {
         case FunctionProxy(_) => Seq()
         case MethodProxy(_, _) => Seq()

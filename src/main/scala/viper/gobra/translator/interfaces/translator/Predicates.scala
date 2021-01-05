@@ -19,5 +19,9 @@ abstract class Predicates extends Generator {
 
   def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccessPredicate]
 
+  /** Returns proxy(args) */
   def proxyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.PredicateAccess
+
+  /** Returns the body of proxy(args) */
+  def proxyBodyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
 }

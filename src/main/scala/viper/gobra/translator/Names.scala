@@ -74,7 +74,6 @@ object Names {
   def emptySequenceFunc: String = "sequenceEmpty"
 
   // predicate
-  def substitutePred: String = "substPred"
   def predDomain: String = "Pred"
 
   // unknown values

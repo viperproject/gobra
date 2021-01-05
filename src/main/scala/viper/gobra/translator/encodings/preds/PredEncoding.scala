@@ -9,10 +9,7 @@ package viper.gobra.translator.encodings.preds
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
-import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
-import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
@@ -26,7 +23,6 @@ class PredEncoding extends LeafTypeEncoding {
 
   override def finalize(col: Collector): Unit = {
     defunc.finalize(col)
-    genSubstitutePredicates foreach col.addMember
   }
 
   /**
@@ -47,56 +43,19 @@ class PredEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     *
     * [Q{d1, ..., dk}: pred(S)] -> make_S_ID([d1], ..., [dk]) where ID is the ID for the pattern used in Q{d1, ..., dk}
-    * [v{d1, ..., dk}] -> [newQ{v, d1, ..., dk}] where v: pred(T1, ..., Tn)
-    *    with pred newQ(p pred(T1, ..., Tn), x1 T1, ..., xn Tn) { p(x1, ..., xn) }
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.expr(ctx)) {
-      case n@ in.PredicateConstructor(p, args) :: ctx.Pred(_) / Exclusive =>
+      case n@ in.PredicateConstructor(p, pTs, args) :: ctx.Pred(_) / Exclusive =>
         val (pos, info, errT) = n.vprMeta
-
-        val (proxy, finalArgs) = p match {
-          case p: in.PredicateConstructorArg.FPredArg => (p.arg, args)
-          case p: in.PredicateConstructorArg.MPredArg => (p.arg, args)
-          case p: in.PredicateConstructorArg.ExprArg =>
-            (substitutePredicate(p.typ.args)(ctx), Some(p.arg) +: args)
-        }
-
         for {
-          vArgs <- sequence(finalArgs map (a => option(a map goE)))
-        } yield defunc.construct(proxy, p.typ.args, vArgs)(pos, info, errT)(ctx)
+          vArgs <- sequence(args map (a => option(a map goE)))
+        } yield defunc.construct(p, pTs.args, vArgs)(pos, info, errT)(ctx)
     }
   }
-
-  /**
-    * For a sequence of types T1, ..., Tn, the function returns a proxy to a predicate
-    *   pred substitutePredicate(p pred(T1, ..., Tn), x1 T1, ..., xn Tn) { p(x1, ..., xn) }
-    *
-    * For a combination of types T1, ..., Tn, the same proxy is returned always.
-    */
-  private def substitutePredicate(ts: Vector[in.Type])(ctx: Context): in.FPredicateProxy = {
-    genSubstitutePredicatesMap.getOrElse(ts, {
-      val name = s"${Names.substitutePred}_${genSubstitutePredicates.size}"
-      val proxy = in.FPredicateProxy(name)(Source.Parser.Internal)
-
-      val src = Source.Parser.Internal
-      val p = in.Parameter.In("p", in.PredT(ts, Addressability.Exclusive))(src)
-      val args = ts.zipWithIndex map { case (t, idx) => in.Parameter.In(s"x$idx", t)(src) }
-      val body = in.Access(in.Accessible.Predicate(in.PredExprInstance(p, args)(src)))(src)
-      val newPred = in.FPredicate(proxy, p +: args, Some(body))(src)
-
-      genSubstitutePredicatesMap += (ts -> proxy)
-      genSubstitutePredicates ::= ctx.predicate.fpredicate(newPred)(ctx).res
-
-      proxy
-    })
-  }
-  private var genSubstitutePredicatesMap: Map[Vector[in.Type], in.FPredicateProxy] = Map.empty
-  private var genSubstitutePredicates: List[vpr.Predicate] = List.empty
-
 
   /**
     * Encodes assertions.

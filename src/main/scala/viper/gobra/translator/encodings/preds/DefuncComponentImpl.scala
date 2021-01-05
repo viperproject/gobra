@@ -65,7 +65,7 @@ class DefuncComponentImpl extends DefuncComponent {
       val appliedArgTypes = computeAppliedTs(predTs, pattern) map ctx.typeEncoding.typ(ctx)
       appliedArgs += ((S, newId: BigInt) -> appliedArgTypes)
       patterns += ((S, newId: BigInt) -> pattern)
-      applications += ((S, newId: BigInt) -> ((args: Vector[vpr.Exp]) => ctx.predicate.proxyAccess(predicate, args)()))
+      applications += ((S, newId: BigInt) -> ((args: Vector[vpr.Exp]) => ctx.predicate.proxyBodyAccess(predicate, args)()(ctx)))
 
       newId
     })
@@ -202,6 +202,7 @@ class DefuncComponentImpl extends DefuncComponent {
     * predicate eval_S(p: pred_S, y1: T1, ..., yn: Tn) {
     *   // For every encountered ID with applied argument types T°1, ..., T°m
     *   id_S(p) == ID ? 'application'(e1, ..., ek)
+    *      // where application is the body of the predicate corresponding to ID
     *   ...
     *   eval_S_unknown(p, y1, ..., yn)
     * }

@@ -96,7 +96,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PredicateAccess => showPredicateAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
-    case n: PredicateConstructorArg => showPredicateConstructorArgs(n)
     case n: Proxy => showProxy(n)
   }
 
@@ -345,8 +344,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
 
-    case PredicateConstructor(pred, args) =>
-      showPredicateConstructorArgs(pred) <> braces(showList(args){
+    case PredicateConstructor(pred, _, args) =>
+      showProxy(pred) <> braces(showList(args){
         case Some(e) => showExpr(e)
         case None => "_"
       })
@@ -376,12 +375,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
   })
-
-  def showPredicateConstructorArgs(a: PredicateConstructorArg): Doc = a match {
-    case a: PredicateConstructorArg.FPredArg => showProxy(a.arg)
-    case a: PredicateConstructorArg.MPredArg => showProxy(a.arg)
-    case a: PredicateConstructorArg.ExprArg => showExpr(a.arg)
-  }
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 

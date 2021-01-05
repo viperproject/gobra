@@ -324,35 +324,8 @@ case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends
 
 /* ** Higher-order predicate expressions */
 
-case class PredicateConstructor(pred: PredicateConstructorArg, args: Vector[Option[Expr]])(val info: Source.Parser.Info) extends Expr {
-  override val typ: Type = PredT(pred.typ.args.zip(args).filter(_._2.isEmpty).map(_._1), Addressability.rValue)
-}
-
-sealed trait PredicateConstructorArg extends Node {
-  def typ: PredT
-}
-
-object PredicateConstructorArg {
-  case class FPredArg(arg: FPredicateProxy, typ: PredT) extends PredicateConstructorArg {
-    override val info: Source.Parser.Info = arg.info
-  }
-  def FPredArg(arg: FPredicateProxy, table: LookupTable): FPredArg = {
-    FPredArg(arg, PredT(table.lookup(arg).args map (_.typ), Addressability.constant))
-  }
-
-  case class MPredArg(arg: MPredicateProxy, typ: PredT) extends PredicateConstructorArg {
-    override val info: Source.Parser.Info = arg.info
-  }
-  def MPredArg(arg: MPredicateProxy, table: LookupTable): MPredArg = {
-    val mpred = table.lookup(arg)
-    val args = mpred.receiver +: mpred.args
-    MPredArg(arg, PredT(args map (_.typ), Addressability.constant))
-  }
-
-  case class ExprArg(arg: Expr) extends PredicateConstructorArg {
-    override val typ: PredT = arg.typ.asInstanceOf[PredT]
-    override val info: Source.Parser.Info = arg.info
-  }
+case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vector[Option[Expr]])(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = PredT(proxyT.args.zip(args).filter(_._2.isEmpty).map(_._1), Addressability.rValue)
 }
 
 case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
@@ -793,7 +766,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val i
 }
 
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
-  lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
+  lazy val typ: Type = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }
 
 sealed trait CompositeLit extends Lit

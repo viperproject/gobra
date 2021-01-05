@@ -1,6 +1,7 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
+// ##(--overflow --int32)
 package main
 
 func main() {
@@ -13,5 +14,5 @@ func main() {
     // but it uses a short variable declaration instead
     l := int64(2)
     l, z := 1, 19
-    l, m := 1 + 20, 19 // also tested with binary integer expressions
+    l, m := 4294967296 + 1, 19 // this would cause an overflow if the first term of the RHS is assigned int type
 }

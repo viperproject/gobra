@@ -19,7 +19,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   val INT_TYPE: Type = IntT(config.typeBounds.Int)
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
-  // default type of unbounded integer constant expressions
+  // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {

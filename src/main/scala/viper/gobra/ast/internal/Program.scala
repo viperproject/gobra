@@ -279,7 +279,7 @@ case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)
   override def typ: Type = BoolT(Addressability.rValue)
 }
 
-/* Type related expressions */
+/* ** Type related expressions */
 
 case class TypeAssertion(exp: Expr, arg: Type)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = arg.withAddressability(Addressability.rValue)
@@ -322,7 +322,40 @@ case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends
 
 
 
+/* ** Higher-order predicate expressions */
 
+case class PredicateConstructor(pred: PredicateConstructorArg, args: Vector[Option[Expr]])(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = PredT(pred.typ.args.zip(args).filter(_._2.isEmpty).map(_._1), Addressability.rValue)
+}
+
+sealed trait PredicateConstructorArg extends Node {
+  def typ: PredT
+}
+
+object PredicateConstructorArg {
+  case class FPredArg(arg: FPredicateProxy, typ: PredT) extends PredicateConstructorArg {
+    override val info: Source.Parser.Info = arg.info
+  }
+  def FPredArg(arg: FPredicateProxy, table: LookupTable): FPredArg = {
+    FPredArg(arg, PredT(table.lookup(arg).args map (_.typ), Addressability.constant))
+  }
+
+  case class MPredArg(arg: MPredicateProxy, typ: PredT) extends PredicateConstructorArg {
+    override val info: Source.Parser.Info = arg.info
+  }
+  def MPredArg(arg: MPredicateProxy, table: LookupTable): MPredArg = {
+    val mpred = table.lookup(arg)
+    val args = mpred.receiver +: mpred.args
+    MPredArg(arg, PredT(args map (_.typ), Addressability.constant))
+  }
+
+  case class ExprArg(arg: Expr) extends PredicateConstructorArg {
+    override val typ: PredT = arg.typ.asInstanceOf[PredT]
+    override val info: Source.Parser.Info = arg.info
+  }
+}
+
+case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
 
 
 /* ** Option type expressions */
@@ -780,7 +813,6 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
 
-
 sealed trait Declaration extends Node
 
 /** Everything that is defined with the scope of a code block. */
@@ -1008,6 +1040,16 @@ case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type
     TupleT(ts.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
 }
 
+case class PredT(args: Vector[Type], addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case PredT(otherTs, _) => args.zip(otherTs).forall{ case (l,r) => l.equalsWithoutMod(r) }
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): PredT =
+    PredT(args.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
+}
+
 
 // TODO: Maybe remove name
 case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType {
@@ -1038,8 +1080,10 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
 sealed trait Proxy extends Node
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends Proxy
-case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+
+sealed trait PredicateProxy extends Proxy
+case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
+case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy
 
 
 

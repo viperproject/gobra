@@ -61,6 +61,7 @@ object GobraStrategy {
       case (_: FPredicateAccess, Seq(pred: FPredicateProxy, args: Vector[Expr@unchecked])) => FPredicateAccess(pred, args)(meta)
       case (_: MPredicateAccess, Seq(recv: Expr, pred: MPredicateProxy, args: Vector[Expr@unchecked])) => MPredicateAccess(recv, pred, args)(meta)
       case (_: MemoryPredicateAccess, Seq(arg: Expr)) => MemoryPredicateAccess(arg)(meta)
+      case (_: PredExprInstance, Seq(base: Expr, args: Vector[Expr@unchecked])) => PredExprInstance(base, args)(meta)
         // Expressions
       case (_: Unfolding, Seq(acc: Access, e: Expr)) => Unfolding(acc, e)(meta)
       case (f: PureFunctionCall, Seq(func: FunctionProxy, args: Vector[Expr@unchecked])) => PureFunctionCall(func, args, f.typ)(meta)
@@ -105,6 +106,7 @@ object GobraStrategy {
       case (_: MultisetTExpr, Seq(elems: Expr)) => MultisetTExpr(elems)(meta)
       case (_: OptionTExpr, Seq(elems: Expr)) => OptionTExpr(elems)(meta)
       case (_: TupleTExpr, Seq(elems: Vector[Expr@unchecked])) => TupleTExpr(elems)(meta)
+      case (_: PredicateConstructor, Seq(base: PredicateConstructorArg, args: Vector[Option[Expr@unchecked]@unchecked])) => PredicateConstructor(base, args)(meta)
       case (_: Multiplicity, Seq(left: Expr, right: Expr)) => Multiplicity(left, right)(meta)
       case (_: Length, Seq(exp: Expr)) => Length(exp)(meta)
       case (_: Capacity, Seq(exp: Expr)) => Capacity(exp)(meta)
@@ -144,6 +146,9 @@ object GobraStrategy {
       case (_: Addressable.Pointer, Seq(v: Deref)) => Addressable.Pointer(v)
       case (_: Addressable.Field, Seq(v: FieldRef)) => Addressable.Field(v)
       case (_: Addressable.Index, Seq(v: IndexedExp)) => Addressable.Index(v)
+      case (n: PredicateConstructorArg.FPredArg, Seq(v: FPredicateProxy)) => PredicateConstructorArg.FPredArg(v, n.typ)
+      case (n: PredicateConstructorArg.MPredArg, Seq(v: MPredicateProxy)) => PredicateConstructorArg.MPredArg(v, n.typ)
+      case (_: PredicateConstructorArg.ExprArg, Seq(v: Expr)) => PredicateConstructorArg.ExprArg(v)
         // Proxy
       case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)

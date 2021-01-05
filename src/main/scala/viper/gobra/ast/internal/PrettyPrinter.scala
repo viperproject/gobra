@@ -96,6 +96,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PredicateAccess => showPredicateAcc(n)
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
+    case n: PredicateConstructorArg => showPredicateConstructorArgs(n)
     case n: Proxy => showProxy(n)
   }
 
@@ -286,6 +287,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
     case MPredicateAccess(recv, pred, args) => showExpr(recv) <> pred.name <> parens(showExprList(args))
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
+    case PredExprInstance(base, args) => showExpr(base) <> parens(showExprList(args))
   }
 
   def showTrigger(trigger: Trigger) : Doc = showExprList(trigger.exprs)
@@ -343,6 +345,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
 
+    case PredicateConstructor(pred, args) =>
+      showPredicateConstructorArgs(pred) <> braces(showList(args){
+        case Some(e) => showExpr(e)
+        case None => "_"
+      })
+
     case BoolTExpr() => "bool"
     case IntTExpr(kind) => kind.name
     case PermTExpr() => "perm"
@@ -368,6 +376,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
   })
+
+  def showPredicateConstructorArgs(a: PredicateConstructorArg): Doc = a match {
+    case a: PredicateConstructorArg.FPredArg => showProxy(a.arg)
+    case a: PredicateConstructorArg.MPredArg => showProxy(a.arg)
+    case a: PredicateConstructorArg.ExprArg => showExpr(a.arg)
+  }
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
 
@@ -434,6 +448,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
+    case PredT(args, _) => "pred" <> parens(showTypeList(args))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case _: InterfaceT => "interface" <> parens("...")
     case SortT => "sort"

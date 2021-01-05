@@ -6,11 +6,11 @@
 
 package viper.gobra.translator.implementations.translator
 
+import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.translator.Predicates
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
-import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class PredicatesImpl extends Predicates {
@@ -83,27 +83,30 @@ class PredicatesImpl extends Predicates {
     * [acc(  p(as)] -> p(Argument[as])
     * [acc(e.p(as)] -> p(Argument[e], Argument[as])
     */
-  override def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+  override def predicateAccess(ctx: Context): in.PredicateAccess ==> CodeWriter[vpr.PredicateAccessPredicate] = {
+    case acc@ in.FPredicateAccess(pred, args) =>
+      val (pos, info, errT) = acc.vprMeta
+      val perm = vpr.FullPerm()(pos, info, errT)
+      for {
+        vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
+        pacc = vpr.PredicateAccess(vArgs, pred.name)(pos, info, errT)
+      } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
 
-    val (pos, info, errT) = acc.vprMeta
-    val perm = vpr.FullPerm()(pos, info, errT)
+    case acc@ in.MPredicateAccess(recv, pred, args) =>
+      val (pos, info, errT) = acc.vprMeta
+      val perm = vpr.FullPerm()(pos, info, errT)
+      for {
+        vRecv <- ctx.expr.translate(recv)(ctx)
+        vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
+        pacc = vpr.PredicateAccess(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
+      } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
+  }
 
-    acc match {
-      case in.FPredicateAccess(pred, args) =>
-        for {
-          vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
-          pacc = vpr.PredicateAccess(vArgs, pred.name)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
-
-      case in.MPredicateAccess(recv, pred, args) =>
-        for {
-          vRecv <- ctx.expr.translate(recv)(ctx)
-          vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
-          pacc = vpr.PredicateAccess(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
-        } yield vpr.PredicateAccessPredicate(pacc, perm)(pos, info, errT)
-
-      case in.MemoryPredicateAccess(_) =>
-        Violation.violation("memory predicate accesses are not supported")
+  override def proxyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.PredicateAccess = {
+    val name = proxy match {
+      case proxy: in.FPredicateProxy => proxy.name
+      case proxy: in.MPredicateProxy => proxy.uniqueName
     }
+    vpr.PredicateAccess(args, name)(pos, info, errT)
   }
 }

@@ -157,6 +157,14 @@ trait TypeEncoding extends Generator {
   }
 
   /**
+    * Encodes assertions.
+    *
+    * Constraints:
+    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
+    */
+  def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+
+  /**
     * Encodes the reference of an expression.
     *
     * To avoid conflicts with other encodings, an encoding for type T should be defined at shared operations on type T.

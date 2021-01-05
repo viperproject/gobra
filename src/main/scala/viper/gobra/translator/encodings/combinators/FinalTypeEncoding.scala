@@ -37,6 +37,7 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = te.assignment(ctx) orElse expectedMatch("assignment")
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = te.equal(ctx) orElse expectedMatch("equal")
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = te.expr(ctx)
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = te.assertion(ctx)
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = te.reference(ctx) orElse expectedMatch("reference")
   override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = te.addressFootprint(ctx) orElse expectedMatch("addressFootprint")
   override def isComparable(ctx: Context): Expr ==> Either[Boolean, CodeWriter[Exp]] = te.isComparable(ctx) orElse expectedMatch("isComparable")

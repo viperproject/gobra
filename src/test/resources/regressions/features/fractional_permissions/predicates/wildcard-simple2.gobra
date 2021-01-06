@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+requires n >= 0
+func main(n int) {
+    val@ := 42
+    x := &val;
+    fold myPred(x)
+
+    // wildcard permissions are duplicable
+    invariant 0 <= i && i <= n;
+    invariant acc(myPred(x), _)
+    for i := 0; i < n; i++ {
+        test(x)
+    }
+
+    unfold acc(myPred(x), _)
+    assert *x == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}
+
+requires acc(myPred(x), _)
+func test(x *int) {
+    assert unfolding acc(myPred(x), _) in *x == 42
+}

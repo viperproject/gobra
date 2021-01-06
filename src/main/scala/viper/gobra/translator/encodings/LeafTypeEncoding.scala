@@ -78,13 +78,14 @@ trait LeafTypeEncoding extends TypeEncoding {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Footprint[loc: T@] -> acc([loc])
+    * Footprint[loc: T@, perm] -> acc([loc], [perm])
     */
-  override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
+  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
+    case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
-      val perm = vpr.FullPerm()(pos, info, errT)
-      val lval = ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
-      lval.map(l => vpr.FieldAccessPredicate(l, perm)(pos, info, errT))
+      for {
+        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
+        l <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
+      } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
   }
 }

@@ -76,7 +76,7 @@ trait TypeEncoding extends Generator {
     case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {
-        footprint <- addressFootprint(ctx)(loc)
+        footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
         eq1 <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
         eq2 <- ctx.typeEncoding.equal(ctx)(in.Ref(loc)(loc.info), in.NilLit(in.PointerT(t, Exclusive))(loc.info), loc)
       } yield vpr.Inhale(vpr.And(footprint, vpr.And(eq1, vpr.Not(eq2)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
@@ -109,7 +109,7 @@ trait TypeEncoding extends Generator {
       val (pos, info, errT) = src.vprMeta
       seqn(
         for {
-          footprint <- addressFootprint(ctx)(loc)
+          footprint <- addressFootprint(ctx)(loc, in.FullPerm(loc.info))
           eq <- ctx.typeEncoding.equal(ctx)(loc, rhs, src)
           _ <- write(vpr.Exhale(footprint)(pos, info, errT))
           inhale = vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT)
@@ -171,7 +171,7 @@ trait TypeEncoding extends Generator {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     */
-  def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes whether a value is comparable or not.
@@ -198,7 +198,7 @@ trait TypeEncoding extends Generator {
       seqn(
         for {
           _ <- local(ctx.typeEncoding.variable(ctx)(z))
-          footprint <- addressFootprint(ctx)(zDeref)
+          footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
           eq <- ctx.typeEncoding.equal(ctx)(zDeref, expr, newStmt)
           _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
           ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, newStmt)

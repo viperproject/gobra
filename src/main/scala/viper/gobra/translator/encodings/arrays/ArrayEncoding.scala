@@ -247,12 +247,12 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
-  override def addressFootprint(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case loc :: ctx.Array(len, t) / Shared =>
+  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
+    case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(sh.get(ctx.typeEncoding.reference(ctx)(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info))
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info), perm)
       boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -303,7 +303,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         name = s"${Names.arrayConversionFunc}_${Names.freshName}",
         formalArgs = Vector(variable(ctx)(x)),
         typ = vResultType,
-        pres = Vector(pure(addressFootprint(ctx)(x))(ctx).res),
+        pres = Vector(pure(addressFootprint(ctx)(x, in.FullPerm(Source.Parser.Internal)))(ctx).res),
         posts = Vector(post),
         body = None
       )()

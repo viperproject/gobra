@@ -16,5 +16,5 @@ abstract class Predicates extends Generator {
   def mpredicate(pred: in.MPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
   def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
 
-  def predicateAccess(acc: in.PredicateAccess)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]
+  def predicateAccess(acc: in.PredicateAccess, perm: in.Permission)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]
 }

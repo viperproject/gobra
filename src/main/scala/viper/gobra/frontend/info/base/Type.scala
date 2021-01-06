@@ -100,6 +100,8 @@ object Type {
 
   case class MultisetT(elem : Type) extends GhostUnorderedCollectionType
 
+  case object PermissionT extends GhostType
+
 
   /**
     * Type Contexts

@@ -405,10 +405,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PExists(vars, triggers, body) =>
         "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
       case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
-      case PAccess(exp) => "acc" <> parens(showExpr(exp))
-      case PPredicateAccess(exp) => exp match {
-        case n: PInvoke => showExpr(n)
-        case n: PExpression => "acc" <> parens(showExpr(n))
+      case PAccess(exp, PFullPerm()) => "acc" <> parens(showExpr(exp))
+      case PAccess(exp, perm) => "acc" <> parens(showExpr(exp) <> "," <+> showExpr(perm))
+      case PPredicateAccess(exp, perm) => exp match {
+        case n: PInvoke if perm == PFullPerm() => showExpr(n)
+        case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
+        case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
@@ -437,6 +439,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
         }
+      }
+
+      case expr: PPermission => expr match {
+        case PFullPerm() => "write"
+        case PNoPerm() => "none"
+        case PFractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
+        case PWildcardPerm() => "_"
       }
     }
   }

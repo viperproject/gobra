@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct{
+	val int;
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(&x.val, true/2) && x.val == 42
+func boolDivisor(x *cell) {}
+
+//:: ExpectedOutput(type_error)
+requires acc(&x.val, 1/true) && x.val == 42
+func boolDividend(x *cell) {}

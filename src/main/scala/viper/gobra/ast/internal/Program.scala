@@ -210,6 +210,8 @@ case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
+
+
 case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -236,6 +238,7 @@ object Accessible {
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }
+  case class PredExpr(op: PredExprInstance) extends Accessible
 }
 
 sealed trait PredicateAccess extends Node
@@ -337,7 +340,10 @@ case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vect
   override val typ: Type = PredT(proxyT.args.zip(args).filter(_._2.isEmpty).map(_._1), Addressability.rValue)
 }
 
-case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends PredicateAccess
+case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends Node
+
+case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
+case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
 
 
 /* ** Option type expressions */

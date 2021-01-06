@@ -9,12 +9,9 @@ package viper.gobra.translator.encodings.preds
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.Names
-import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class DefuncComponentImpl extends DefuncComponent {
-
-  import viper.gobra.translator.util.{ViperUtil => VU}
 
   private type Token = String
 
@@ -64,8 +61,8 @@ class DefuncComponentImpl extends DefuncComponent {
       encounteredIds += (S -> (encounteredIds.getOrElse(S, Set.empty) + newId))
       val appliedArgTypes = computeAppliedTs(predTs, pattern) map ctx.typeEncoding.typ(ctx)
       appliedArgs += ((S, newId: BigInt) -> appliedArgTypes)
-      patterns += ((S, newId: BigInt) -> pattern)
-      applications += ((S, newId: BigInt) -> ((args: Vector[vpr.Exp]) => ctx.predicate.proxyBodyAccess(predicate, args)()(ctx)))
+//      patterns += ((S, newId: BigInt) -> pattern)
+//      applications += ((S, newId: BigInt) -> ((args: Vector[vpr.Exp]) => ctx.predicate.proxyBodyAccess(predicate, args)()(ctx)))
 
       newId
     })
@@ -77,36 +74,36 @@ class DefuncComponentImpl extends DefuncComponent {
   private var encounteredIds: Map[Token, Set[BigInt]] = Map.empty
   /** maps predicate token together with predicate identifier to applied args of predicate instance. */
   private var appliedArgs: Map[(Token, BigInt), Vector[vpr.Type]] = Map.empty
-  /** maps predicate token together with predicate identifier to the pattern of applied arguments. */
-  private var patterns: Map[(Token, BigInt), Vector[Boolean]] = Map.empty
-  /** maps predicate token together with predicate identifier to the application of the predicate instance. */
-  private var applications: Map[(Token, BigInt), Vector[vpr.Exp] => vpr.Exp] = Map.empty
+//  /** maps predicate token together with predicate identifier to the pattern of applied arguments. */
+//  private var patterns: Map[(Token, BigInt), Vector[Boolean]] = Map.empty
+//  /** maps predicate token together with predicate identifier to the application of the predicate instance. */
+//  private var applications: Map[(Token, BigInt), Vector[vpr.Exp] => vpr.Exp] = Map.empty
 
 
-  /** function id_S(p: pred_S): Int */
-  private def idFunc(S: Token): vpr.DomainFunc = {
-    vpr.DomainFunc(
-      name = s"${domainName(S)}_id",
-      formalArgs = Seq(vpr.LocalVarDecl("p", domainType(S))()),
-      typ = vpr.Int
-    )(domainName = domainName(S))
-  }
-  private def idFuncApp(S: Token, arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
-    vpr.DomainFuncApp(func = idFunc(S), Seq(arg), Map.empty)(pos, info, errT)
-  }
-
-  /** function arg_S_ID_'idx'(p: pred_S): T° where T° is the type of the 'idx'-th applied argument of ID. */
-  private def argFunc(S: Token, id: BigInt, idx: Int): vpr.DomainFunc = {
-    require(appliedArgs contains (S, id))
-    vpr.DomainFunc(
-      name = s"${domainName(S)}_arg_${id}_$idx",
-      formalArgs = Seq(vpr.LocalVarDecl("p", domainType(S))()),
-      typ = appliedArgs(S, id)(idx)
-    )(domainName = domainName(S))
-  }
-  private def argFuncApp(S: Token, id: BigInt, idx: Int, arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
-    vpr.DomainFuncApp(func = argFunc(S, id, idx), Seq(arg), Map.empty)(pos, info, errT)
-  }
+//  /** function id_S(p: pred_S): Int */
+//  private def idFunc(S: Token): vpr.DomainFunc = {
+//    vpr.DomainFunc(
+//      name = s"${domainName(S)}_id",
+//      formalArgs = Seq(vpr.LocalVarDecl("p", domainType(S))()),
+//      typ = vpr.Int
+//    )(domainName = domainName(S))
+//  }
+//  private def idFuncApp(S: Token, arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+//    vpr.DomainFuncApp(func = idFunc(S), Seq(arg), Map.empty)(pos, info, errT)
+//  }
+//
+//  /** function arg_S_ID_'idx'(p: pred_S): T° where T° is the type of the 'idx'-th applied argument of ID. */
+//  private def argFunc(S: Token, id: BigInt, idx: Int): vpr.DomainFunc = {
+//    require(appliedArgs contains (S, id))
+//    vpr.DomainFunc(
+//      name = s"${domainName(S)}_arg_${id}_$idx",
+//      formalArgs = Seq(vpr.LocalVarDecl("p", domainType(S))()),
+//      typ = appliedArgs(S, id)(idx)
+//    )(domainName = domainName(S))
+//  }
+//  private def argFuncApp(S: Token, id: BigInt, idx: Int, arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+//    vpr.DomainFuncApp(func = argFunc(S, id, idx), Seq(arg), Map.empty)(pos, info, errT)
+//  }
 
   /** function make_S_ID(x1: T°1, ..., xm: T°m): pred_S where T°1, ..., T°m are the types of the applied arguments of ID. */
   private def makeFunc(S: Token, id: BigInt): vpr.DomainFunc = {
@@ -143,19 +140,20 @@ class DefuncComponentImpl extends DefuncComponent {
     * Generates
     *
     * domain pred_S {
-    *   id_S(p: pred_S): Int
+    *   // REMOVED // id_S(p: pred_S): Int
     *
     *   // For every encountered ID with applied argument types T°1, ..., T°m
     *   function make_S_ID(x1: T°1, ..., xm: T°m): pred_S
-    *   function arg_S_ID_1(p: pred_S): T°1
-    *   ...
-    *   function arg_S_ID_m(p: pred_S): T°m
     *
-    *   axiom {
-    *     forall x1: T°1, ..., xm: T°m :: {make_S_ID(x1, ..., xm)}
-    *       let p == (make_S_ID(x1, ..., xm)) in
-    *         id_S(p) == ID && arg_S_ID_1(p) == x1 && .. && arg_S_ID_m(p) == xm
-    *   }
+    *   // REMOVED // function arg_S_ID_1(p: pred_S): T°1
+    *   // REMOVED // ...
+    *   // REMOVED // function arg_S_ID_m(p: pred_S): T°m
+    *
+    *   // REMOVED // axiom {
+    *   // REMOVED //   forall x1: T°1, ..., xm: T°m :: {make_S_ID(x1, ..., xm)}
+    *   // REMOVED //     let p == (make_S_ID(x1, ..., xm)) in
+    *   // REMOVED //       id_S(p) == ID && arg_S_ID_1(p) == x1 && .. && arg_S_ID_m(p) == xm
+    *   // REMOVED // }
     * }
     */
   private def genDomain(S: Token): vpr.Domain = {
@@ -163,29 +161,29 @@ class DefuncComponentImpl extends DefuncComponent {
     val ids = encounteredIds.getOrElse(S, Set.empty)
 
     var funcs: List[vpr.DomainFunc] = List.empty
-    var axioms: List[vpr.DomainAxiom] = List.empty
-    funcs ::= idFunc(S)
+    val axioms: List[vpr.DomainAxiom] = List.empty
+//    funcs ::= idFunc(S)
     for (id <- ids) {
-      val innerArgTypes = appliedArgs(S, id)
-      val xsDecl = innerArgTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }; val xs = xsDecl map (_.localVar)
-      val pDecl = vpr.LocalVarDecl("p", domainType(S))(); val p = pDecl.localVar
+//      val innerArgTypes = appliedArgs(S, id)
+//      val xsDecl = innerArgTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }; val xs = xsDecl map (_.localVar)
+//      val pDecl = vpr.LocalVarDecl("p", domainType(S))(); val p = pDecl.localVar
 
       // generate make and arg functions
       funcs ::= makeFunc(S, id)
-      innerArgTypes.indices foreach (idx => funcs ::= argFunc(S, id, idx))
+//      innerArgTypes.indices foreach (idx => funcs ::= argFunc(S, id, idx))
 
-      // generate axiom
-      axioms ::= {
-        val makeApp = makeFuncApp(S, id, xs)()
-        val idEq = vpr.EqCmp(idFuncApp(S, p)(), vpr.IntLit(id)())()
-        val argEqs = xs.zipWithIndex map { case (x, idx) => vpr.EqCmp(argFuncApp(S, id, idx, p)(), x)() }
-        val body = vpr.Let(pDecl, makeApp, VU.bigAnd(idEq +: argEqs)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))()
-
-        vpr.AnonymousDomainAxiom(
-          if (innerArgTypes.isEmpty) body
-          else vpr.Forall(xsDecl, Seq(vpr.Trigger(Seq(makeApp))()), body)()
-        )(domainName = domainName(S))
-      }
+//      // generate axiom
+//      axioms ::= {
+//        val makeApp = makeFuncApp(S, id, xs)()
+//        val idEq = vpr.EqCmp(idFuncApp(S, p)(), vpr.IntLit(id)())()
+//        val argEqs = xs.zipWithIndex map { case (x, idx) => vpr.EqCmp(argFuncApp(S, id, idx, p)(), x)() }
+//        val body = vpr.Let(pDecl, makeApp, VU.bigAnd(idEq +: argEqs)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos))()
+//
+//        vpr.AnonymousDomainAxiom(
+//          if (innerArgTypes.isEmpty) body
+//          else vpr.Forall(xsDecl, Seq(vpr.Trigger(Seq(makeApp))()), body)()
+//        )(domainName = domainName(S))
+//      }
     }
 
     vpr.Domain(
@@ -198,60 +196,61 @@ class DefuncComponentImpl extends DefuncComponent {
 
   /**
     * Generates
+    * predicate eval_S(p: pred_S, y1: T1, ..., yn: Tn)
     *
-    * predicate eval_S(p: pred_S, y1: T1, ..., yn: Tn) {
-    *   // For every encountered ID with applied argument types T°1, ..., T°m
-    *   id_S(p) == ID ? 'application'(e1, ..., ek)
-    *      // where application is the body of the predicate corresponding to ID
-    *   ...
-    *   eval_S_unknown(p, y1, ..., yn)
-    * }
+    * // REMOVED // predicate eval_S(p: pred_S, y1: T1, ..., yn: Tn) {
+    * // REMOVED //   // For every encountered ID with applied argument types T°1, ..., T°m
+    * // REMOVED //   id_S(p) == ID ? 'application'(e1, ..., ek)
+    * // REMOVED //      // where application is the body of the predicate corresponding to ID
+    * // REMOVED //   ...
+    * // REMOVED //   eval_S_unknown(p, y1, ..., yn)
+    * // REMOVED // }
     *
-    * predicate eval_S_unknown(p: pred_S, y1: T1, ..., yn: Tn)
+    * // REMOVED // predicate eval_S_unknown(p: pred_S, y1: T1, ..., yn: Tn)
     */
   private def genEval(S: Token): Vector[vpr.Predicate] = {
 
-    val pDecl = vpr.LocalVarDecl("p", domainType(S))(); val p = pDecl.localVar
-    val ysDecl = kindArgs(S).zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"y$idx", t)() }; val ys = ysDecl map (_.localVar)
-    val formalsDecl = pDecl +: ysDecl; val formals = formalsDecl map (_.localVar)
-    val ids = encounteredIds.getOrElse(S, Set.empty)
+    val pDecl = vpr.LocalVarDecl("p", domainType(S))() //; val p = pDecl.localVar
+    val ysDecl = kindArgs(S).zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"y$idx", t)() } //; val ys = ysDecl map (_.localVar)
+    val formalsDecl = pDecl +: ysDecl //; val formals = formalsDecl map (_.localVar)
+//    val ids = encounteredIds.getOrElse(S, Set.empty)
 
-    val bodies = ids map { id =>
-      val innerArgTypes = appliedArgs(S, id)
-      val pattern = patterns(S, id)
-      val xs = innerArgTypes.indices.toVector map (idx => argFuncApp(S, id, idx, p)())
-
-      val args = pattern.foldLeft((ys, xs, Vector.empty[vpr.Exp])){
-        case ((next +: outer, inner, res), true) => (outer, inner, res :+ next)
-        case ((outer, next +: inner, res), false) => (outer, inner, res :+ next)
-        case _ => Violation.violation("This case should never be reached")
-      }._3
-
-      applications(S, id)(args)
-    }
-
-    val unknownPred = vpr.Predicate(
-      name = s"${evalName(S)}_unknown",
-      formalArgs = formalsDecl,
-      body = None
-    )()
-    val unkownPredInstance: vpr.Exp = vpr.PredicateAccess(formals, unknownPred.name)()
-
-
-    val body = {
-      (ids zip bodies).foldRight(unkownPredInstance){
-        case ((id, thn), els) =>
-          val cond = vpr.EqCmp(idFuncApp(S, p)(), vpr.IntLit(id)())()
-          vpr.CondExp(cond, thn, els)()
-      }
-    }
+//    val bodies = ids map { id =>
+//      val innerArgTypes = appliedArgs(S, id)
+//      val pattern = patterns(S, id)
+//      val xs = innerArgTypes.indices.toVector map (idx => argFuncApp(S, id, idx, p)())
+//
+//      val args = pattern.foldLeft((ys, xs, Vector.empty[vpr.Exp])){
+//        case ((next +: outer, inner, res), true) => (outer, inner, res :+ next)
+//        case ((outer, next +: inner, res), false) => (outer, inner, res :+ next)
+//        case _ => Violation.violation("This case should never be reached")
+//      }._3
+//
+//      applications(S, id)(args)
+//    }
+//
+//    val unknownPred = vpr.Predicate(
+//      name = s"${evalName(S)}_unknown",
+//      formalArgs = formalsDecl,
+//      body = None
+//    )()
+//    val unkownPredInstance: vpr.Exp = vpr.PredicateAccess(formals, unknownPred.name)()
+//
+//
+//    val body = {
+//      (ids zip bodies).foldRight(unkownPredInstance){
+//        case ((id, thn), els) =>
+//          val cond = vpr.EqCmp(idFuncApp(S, p)(), vpr.IntLit(id)())()
+//          vpr.CondExp(cond, thn, els)()
+//      }
+//    }
 
     val evalPred = vpr.Predicate(
       name = evalName(S),
       formalArgs = formalsDecl,
-      body = Some(body)
+      body = None
     )()
 
-    Vector(evalPred, unknownPred)
+    Vector(evalPred)
   }
 }

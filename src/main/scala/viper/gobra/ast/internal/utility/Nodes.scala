@@ -49,6 +49,8 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
+        case PredExprFold(base, args, p) => Seq(base) ++ args ++ Seq(p)
+        case PredExprUnfold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
       }
       case a: Assignee => Seq(a.op)
@@ -64,8 +66,8 @@ object Nodes {
         case FPredicateAccess(pred, args) => Seq(pred) ++ args
         case MPredicateAccess(recv, pred, args) => Seq(recv, pred) ++ args
         case MemoryPredicateAccess(arg) => Seq(arg)
-        case PredExprInstance(base, args) => Seq(base) ++ args
       }
+      case PredExprInstance(base, args) => Seq(base) ++ args
       case e: Expr => e match {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args

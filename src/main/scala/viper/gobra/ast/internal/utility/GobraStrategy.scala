@@ -50,6 +50,8 @@ object GobraStrategy {
       case (_: Exhale, Seq(ass: Assertion)) => Exhale(ass)(meta)
       case (_: Fold, Seq(acc: Access)) => Fold(acc)(meta)
       case (_: Unfold, Seq(acc: Access)) => Unfold(acc)(meta)
+      case (_: PredExprFold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprFold(base, args, p)(meta)
+      case (_: PredExprUnfold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprUnfold(base, args, p)(meta)
       case (s: SafeTypeAssertion, Seq(resTarget: LocalVar, successTarget: LocalVar, expr: Expr)) => SafeTypeAssertion(resTarget, successTarget, expr, s.typ)(meta)
         // Assertions
       case (_: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
@@ -58,6 +60,7 @@ object GobraStrategy {
       case (_: Access, Seq(acc: Accessible, perm: Permission)) => Access(acc, perm)(meta)
       case (_: Accessible.Address, Seq(d: Deref)) => Accessible.Address(d)
       case (_: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
+      case (_: Accessible.PredExpr, Seq(p: PredExprInstance)) => Accessible.PredExpr(p)
       case (_: FPredicateAccess, Seq(pred: FPredicateProxy, args: Vector[Expr@unchecked])) => FPredicateAccess(pred, args)(meta)
       case (_: MPredicateAccess, Seq(recv: Expr, pred: MPredicateProxy, args: Vector[Expr@unchecked])) => MPredicateAccess(recv, pred, args)(meta)
       case (_: MemoryPredicateAccess, Seq(arg: Expr)) => MemoryPredicateAccess(arg)(meta)

@@ -9,10 +9,13 @@ package viper.gobra.translator.encodings.preds
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{DefaultErrorBackTranslator, FoldError, Source, UnfoldError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.{errors => vprerr}
 
 class PredEncoding extends LeafTypeEncoding {
 
@@ -69,13 +72,104 @@ class PredEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.assertion(ctx)) {
-      case n@ in.Access(in.Accessible.Predicate(in.PredExprInstance(p :: ctx.Pred(ts), args)), perm) =>
+      case n@ in.Access(in.Accessible.PredExpr(in.PredExprInstance(p :: ctx.Pred(ts), args)), perm) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vArgs <- sequence(args map goE)
-          vBase <- ctx.expr.translate(p)(ctx)
-          vPerm <- ctx.expr.translate(perm)(ctx)
+          vBase <- goE(p)
+          vPerm <- goE(perm)
         } yield vpr.PredicateAccessPredicate(defunc.instance(vBase, ts, vArgs)(pos, info, errT)(ctx), vPerm)(pos, info, errT) : vpr.Exp
+    }
+  }
+
+  /**
+    * Encodes statements.
+    * This includes make-statements.
+    *
+    * The default implements:
+    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    *
+    * [unfold acc(Q{d1, ..., dk}(e1, ..., en), p)] ->
+    *   exhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
+    *   inhale acc(Q(a1, ..., ak), [p])
+    *   unfold acc(Q(a1, ..., ak), [p])
+    *
+    * [fold acc(Q{d1, ..., dk}(e1, ..., en), p)] ->
+    *   fold acc(Q(a1, ..., ak), [p])
+    *   exhale acc(Q(a1, ..., ak), [p])
+    *   inhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
+    */
+  override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    def mergeArgs[A](ctrArgs: Vector[Option[A]], instanceArgs: Vector[A]): Vector[A] = {
+      ctrArgs.foldLeft((instanceArgs, Vector.empty[A])){
+        case ((ys, res), Some(e)) => (ys,      res :+ e)
+        case ((ys, res), None)    => (ys.tail, res :+ ys.head)
+      }._2
+    }
+
+    default(super.statement(ctx)){
+      case n@ in.PredExprFold(in.PredicateConstructor(q, qT, ctrArgs) :: ctx.Pred(ctrTs), accArgs, perm) =>
+        val (pos, info, errT) = n.vprMeta
+        seqn(
+          for {
+            // [d1], ..., [dk]
+            vCtrArgs <- sequence(ctrArgs map (a => option(a map goE)))
+            // [e1], ..., [en]
+            vAccArgs <- sequence(accArgs map goE)
+            // a1, ..., ak
+            vQArgs = mergeArgs(vCtrArgs, vAccArgs)
+            vPerm <- goE(perm)
+            // acc(Q(a1, ..., ak), [p])
+            qAcc = vpr.PredicateAccessPredicate(ctx.predicate.proxyAccess(q, vQArgs)(pos, info, errT), vPerm)(pos, info, errT)
+            // fold acc(Q(a1, ..., ak), [p])
+            fold = vpr.Fold(qAcc)(pos, info, errT)
+            _ <- write(fold)
+            _ <- errorT{
+              case e@ vprerr.FoldFailed(Source(info), reason, _) if e causedBy fold =>
+                FoldError(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason) // we might want to change the message
+            }
+            // exhale acc(Q(a1, ..., ak), [p])
+            _ <- write(vpr.Exhale(qAcc)(pos, info, errT))
+            // [Q{d1, ..., dk}]
+            ctr = defunc.construct(q, qT.args, vCtrArgs)(pos, info, errT)(ctx)
+            // eval_S([Q{d1, ..., dk}], [e1], ..., [en])
+            eval = defunc.instance(ctr, ctrTs, vAccArgs)(pos, info, errT)(ctx)
+            // inhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
+          } yield vpr.Inhale(vpr.PredicateAccessPredicate(eval, vPerm)(pos, info, errT))(pos, info, errT)
+        )
+
+      case n@ in.PredExprUnfold(in.PredicateConstructor(q, qT, ctrArgs) :: ctx.Pred(ctrTs), accArgs, perm) =>
+        val (pos, info, errT) = n.vprMeta
+        seqn(
+          for {
+            // [d1], ..., [dk]
+            vCtrArgs <- sequence(ctrArgs map (a => option(a map goE)))
+            // [e1], ..., [en]
+            vAccArgs <- sequence(accArgs map goE)
+            // a1, ..., ak
+            vQArgs = mergeArgs(vCtrArgs, vAccArgs)
+            vPerm <- goE(perm)
+            // [Q{d1, ..., dk}]
+            ctr = defunc.construct(q, qT.args, vCtrArgs)(pos, info, errT)(ctx)
+            // eval_S([Q{d1, ..., dk}], [e1], ..., [en])
+            eval = defunc.instance(ctr, ctrTs, vAccArgs)(pos, info, errT)(ctx)
+            // exhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
+            exhale = vpr.Exhale(vpr.PredicateAccessPredicate(eval, vPerm)(pos, info, errT))(pos, info, errT)
+            _ <- write(exhale)
+            _ <- errorT{
+              case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy exhale =>
+                UnfoldError(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason) // we might want to change the message
+            }
+            // acc(Q(a1, ..., ak), [p])
+            qAcc = vpr.PredicateAccessPredicate(ctx.predicate.proxyAccess(q, vQArgs)(pos, info, errT), vPerm)(pos, info, errT)
+            // inhale acc(Q(a1, ..., ak), [p])
+            _ <- write(vpr.Inhale(qAcc)(pos, info, errT))
+            // unfold acc(Q(a1, ..., ak), [p])
+          } yield vpr.Unfold(qAcc)(pos, info, errT)
+        )
     }
   }
 }

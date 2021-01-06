@@ -1010,7 +1010,6 @@ object Desugar {
               // TODO: change comment here
               // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
-              println("Bla Bla Bla")
               for {
                 c <- compositeLitD(ctx)(c)
                 v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)

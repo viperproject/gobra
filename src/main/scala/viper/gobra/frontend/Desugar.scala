@@ -1136,64 +1136,49 @@ object Desugar {
             unit(freshExclusiveVar(typ)(src))
 
           case PMake(t, args) =>
-            // TODO: maybe abstract this further (the common parts)
             def assertIsNonNegative(x: in.Expr): in.Stmt =
               in.Assert(in.ExprAssertion(in.AtLeastCmp(x, in.IntLit(0)(src))(src))(src))(src)
+
             def assertAtMost(left: in.Expr, right: in.Expr): in.Stmt =
               in.Assert(in.ExprAssertion(in.AtMostCmp(left, right)(src))(src))(src)
 
-            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src) // TODO: should it be shared by default?
+            def elemD(t: Type): in.Type = typeD(t, Addressability.defaultValue)(src)
+
+            // TODO: is the exclusive OK by default?
+            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
             val target = freshExclusiveVar(resT)(src)
 
             for {
               _ <- declare(target)
-
               argsD <- sequence(args map go)
+
+              // if any of the arguments is negative at runtime, then a panic occurs
+              _ <- write(argsD map assertIsNonNegative: _*)
 
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
 
-              // TODO: simplify this or move to a function
-              // If arg0 is negative at runtime, then a panic occurs
-              // _ <- if (arg0.isDefined) {write(assertIsNonNegative(arg0.get))} else write()
-              // this one may be better
-              _ <- sequence(arg0.toVector.map(x => write(assertIsNonNegative(x))))
               // if n and m are available at runtime, then n must be at most m otherwise it panics
-              _ <- if (resT.isInstanceOf[SliceT] && arg0.isDefined && arg1.isDefined) {
-                write(assertAtMost(arg0.get, arg1.get))
-              } else write()
-
-                // TODO: change type to Writer[Stmt]
-              internalMake: in.MakeStmt = info.symbType(t) match {
-                case SliceT(elem) =>
-                  // TODO: parse args accordingly and add corresponging checks to arguments
-                  // TODO: write a seqn around all writes of statements that I do
-                  // violation("A length must be provided when making a slice")
-                  in.MakeSlice(target, typeD(elem, Addressability.defaultValue)(src), arg0.get, arg1)(src) // TODO: defaultValue makes sense here?
-
-                case ChannelT(elem, ChannelModus.Bi) =>
-                  // TODO: implement when channels are added to the language
-                  in.MakeChannel(target, typeD(elem, Addressability.defaultValue)(src), arg0)(src) // TODO: defaultValue makes sense here?
-
-                case MapT(key, elem) =>
-                  // TODO: implement when maps are added to the language
-                  in.MakeMap(target, typeD(key, Addressability.defaultValue)(src), typeD(elem, Addressability.defaultValue)(src), arg0)(src) // TODO: defaultValue makes sense here?
+              assertIfHas2Args = Option.when(resT.isInstanceOf[SliceT] && arg0.isDefined && arg1.isDefined){
+                assertAtMost(arg0.get, arg1.get)
               }
+              _ <- write(assertIfHas2Args.toVector: _*)
 
-
-              // TODO: check that the size of the argument list is adequate for each type here and generate the corresponding res
-              _ <- write(internalMake)
+              make: in.MakeStmt = info.symbType(t) match {
+                case SliceT(elem) => in.MakeSlice(target, elemD(elem), arg0.get, arg1)(src)
+                case ChannelT(elem, ChannelModus.Bi) => in.MakeChannel(target, elemD(elem), arg0)(src)
+                case MapT(key, elem) => in.MakeMap(target, elemD(key), elemD(elem), arg0)(src)
+              }
+              _ <- write(make)
             } yield target
 
           case PNew(t) =>
-            // TODO: clean code
-            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
-            val targetT = in.PointerT(resT.withAddressability(Addressability.Shared), Addressability.reference)
+            val allocatedType = typeD(info.symbType(t), Addressability.Exclusive)(src)
+            val targetT = in.PointerT(allocatedType.withAddressability(Addressability.Shared), Addressability.reference)
             val target = freshExclusiveVar(targetT)(src)
-
             for {
               _ <- declare(target)
-              zero = DfltVal(resT)(src)
+              zero = DfltVal(allocatedType)(src)
               _ <- write(in.New(target, zero)(src))
             } yield target
 
@@ -1548,11 +1533,6 @@ object Desugar {
 
     def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
       require(typ.addressability == Addressability.exclusiveVariable)
-      in.LocalVar(nm.fresh, typ)(info)
-    }
-
-    def freshSharedVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
-      require(typ.addressability == Addressability.Shared)
       in.LocalVar(nm.fresh, typ)(info)
     }
 

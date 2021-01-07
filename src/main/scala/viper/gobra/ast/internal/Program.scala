@@ -175,7 +175,6 @@ case class MakeSlice(override val target: LocalVar, typeParam: Type, lenArg: Exp
 case class MakeChannel(override val target: LocalVar, typeParam: Type, bufferSizeArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 case class MakeMap(override val target: LocalVar, keyTypeParam: Type, valueTypeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
-// TODO: doc
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {

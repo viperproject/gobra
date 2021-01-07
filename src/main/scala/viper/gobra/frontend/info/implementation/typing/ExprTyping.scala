@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
@@ -279,33 +279,27 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: PNew => noMessages
 
-    case m@PMake(typ, args) => typ match {
-      // TODO: check argument types
-      // TODO: refactor
-      case _: PSliceType =>
-        // TODO: check that len and cap of UntypedConst type are within bounds of integer
-        error(m, s"too many arguments to make($typ)", args.length > 2) ++
-          error(m, s"missing len argument to make($typ)", args.isEmpty) ++
-          (if (args.nonEmpty)
-            error(m, s"non-integer len argument in make($typ)", !Vector(IntT(config.typeBounds.Int), IntT(config.typeBounds.UntypedConst)).contains(exprType(args(0))))
-          else noMessages) ++
-          (if (args.length == 2) {
-            val maybeCapLessThanLen = for {
-              len <- intConstantEval(args(0))
-              cap <- intConstantEval(args(1))
-            } yield error(m, s"len larger than cap in make($typ)", len > cap)
-            maybeCapLessThanLen.getOrElse(noMessages) ++
-              error(m, s"non-integer cap argument in make($typ)", !Vector(IntT(config.typeBounds.Int), IntT(config.typeBounds.UntypedConst)).contains(exprType(args(1))))
-          } else noMessages)
-        // also compare len and cap if they are statically known
-      case _: PBiChannelType =>
-        // TODO: check args
-        noMessages
-      case _: PMapType =>
-        // TODO: check args
-        noMessages
-      case _ => error(typ, s"cannot make type $typ")
-    }
+    case m@PMake(typ, args) =>
+      args.flatMap { arg =>
+        val constEval = intConstantEval(arg)
+        val isConstExpr = constEval.isDefined
+        error(m, s"arguments to make must be non-negative", isConstExpr && constEval.get < 0)
+      } ++ (typ match {
+        case _: PSliceType =>
+          error(m, s"too many arguments to make($typ)", args.length > 2) ++
+            error(m, s"missing len argument to make($typ)", args.isEmpty) ++
+            check(args){
+              case args if args.length == 2 =>
+                val maybeLen = intConstantEval(args(0))
+                val maybeCap = intConstantEval(args(1))
+                error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
+            }
+
+        case _: PBiChannelType | _: PMapType =>
+          error(m, s"too many arguments passed to make($typ)", args.length > 1)
+
+        case _ => error(typ, s"cannot make type $typ")
+      })
 
     case PBlankIdentifier() => noMessages
 
@@ -432,6 +426,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _ => None
       }
+
+      case _: PMake => Some(IntT(config.typeBounds.Int))
+
       case _ => None
     }
   }

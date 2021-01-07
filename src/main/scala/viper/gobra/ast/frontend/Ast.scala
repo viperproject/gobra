@@ -472,11 +472,20 @@ sealed trait PActualExprProofAnnotation extends PActualExpression {
 case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualExprProofAnnotation
 
 /**
-  * TODO: doc
+  * Represents Go's built-in "make(`T`, `size` ...IntegerType)" function that allocates and initializes
+  * an object of type `T` and returns it. The documentation (https://golang.org/pkg/builtin/#new) gives
+  * the following possible cases:
+  * - Slice: the size specifies the length of the slice. an optional second parameter specifies the maximum capacity
+  * - Map: an empty map is allocated with enough space to hold the number of elements specified by the optional size parameter
+  * - Channel: the channel's buffer is initialized with the specified buffer capacity. If 0, or the size is omitted, the channel is
+  * unbuffered.
   */
 case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpression
-// case class PMake(args: Vector[PExpressionOrType]) extends PActualExpression
 
+/**
+  * Represents Go's built-in "new(`T`)" function that allocates memory for a variable of type T
+  * initialized with the zero value of T and returns a pointer it. (https://golang.org/pkg/builtin/#new)
+  */
 case class PNew(typ: PType) extends PActualExpression
 
 /**

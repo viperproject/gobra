@@ -1007,14 +1007,12 @@ object Desugar {
           }
 
           case PReference(exp) => exp match {
-              // TODO: change comment here
-              // The reference of a literal is desugared to a new call
+            // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
               for {
                 c <- compositeLitD(ctx)(c)
                 v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- declare(v)
-                // TODO: change here to not use New, it will produce wrong results in the pretty printer! or else print the expression that is created
                 _ <- write(in.New(v, c)(src))
               } yield v
 
@@ -1146,9 +1144,7 @@ object Desugar {
 
             val resT = typeD(info.symbType(t), Addressability.Exclusive)(src) // TODO: should it be shared by default?
             val target = freshExclusiveVar(resT)(src)
-            val res = target // TODO: remove this var
 
-            // TODO: write a seqn around all writes of statements that I do
             for {
               _ <- declare(target)
 
@@ -1171,22 +1167,13 @@ object Desugar {
                 write(assertAtMost(arg0.get, arg1.get))
               } else write()
 
-                // TODO: change type to Writer[Expr]
+                // TODO: change type to Writer[Stmt]
               internalMake: in.MakeStmt = info.symbType(t) match {
                 case SliceT(elem) =>
-                  // TODO: parse args accordingly and add corresponging checks
-                  in.MakeSlice(target, typeD(elem, Addressability.defaultValue)(src), arg0.get, arg1)(src) // TODO: defaultValue makes sense here?
-                  // in.Slice
-                  // val length: BigInt = arg1.orElse(arg0).get
-                  // according to go spec, this is equivalent to
-                  // make([]int, 50, 100)
-                  // new([100]int)[0:50]
-                  // in.SliceLit
-
-                  // TODO: allocate an array and return a view to that
-                  // Possible simplification: assume that n and m must be constants
+                  // TODO: parse args accordingly and add corresponging checks to arguments
+                  // TODO: write a seqn around all writes of statements that I do
                   // violation("A length must be provided when making a slice")
-                  // TODO: maybe axiomatize this?? there exists a slice that has length .. adn capacity .. and for all elements, it is 0
+                  in.MakeSlice(target, typeD(elem, Addressability.defaultValue)(src), arg0.get, arg1)(src) // TODO: defaultValue makes sense here?
 
                 case ChannelT(elem, ChannelModus.Bi) =>
                   // TODO: implement when channels are added to the language
@@ -1199,12 +1186,8 @@ object Desugar {
 
 
               // TODO: check that the size of the argument list is adequate for each type here and generate the corresponding res
-              // TODO: maybe replace info.symbType with something from an internal type
-              // zeroExp: Writer[in.Expr] = info.symbType(t) match {
-              // zeroExp <- valueFromMake(info.symbType(t), arg0, arg1)
-              // _ <- write(in.Make(target, zeroExp)(src)) // TODO: desugar in the correct statement specialized to that type
-              _ <- write(internalMake) // TODO: desugar in the correct statement specialized to that type
-            } yield res
+              _ <- write(internalMake)
+            } yield target
 
           case PNew(t) =>
             // TODO: clean code
@@ -1221,71 +1204,6 @@ object Desugar {
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
-    }
-
-    // TODO: doc
-    // TODO: maybe change sig to in.Type?
-    // TODO: maybe change sig to Writer[in.Type]?
-    // TODO: remove
-    // false for booleans, 0 for numeric types, "" for strings, and nil for pointers, functions, interfaces, slices, channels, and maps. This initialization is done recursively, so for instance each element of an array of structs will have its fields zeroed if no value is specified.
-    def zeroValue(typ: Type)(src: Source.Parser.Info): in.Expr = {
-      typ match {
-        case IntT(kind) => in.IntLit(0, kind)(src)
-
-        case BooleanT => in.BoolLit(b = false)(src)
-
-        case ArrayT(length, elem) =>
-          in.ArrayLit(length, typeD(elem, Addressability.Exclusive)(src) /* what should be de defult addressability? TODO: move this away from here */,
-          BigInt(0).until(length).map(x => (x, zeroValue(elem)(src))).toMap)(src)
-
-        case x@(
-          _: PointerT
-          | _: FunctionT
-          | _: ChannelT
-          | _: SliceT
-          | _: InterfaceT
-          | _: MapT
-          ) => in.NilLit(typeD(x, Addressability.Exclusive)(src))(src)
-
-        // TODO: what to do in defined types and structs?
-          // TODO: test with creating struct and with creating defined type, ensure that the values
-          //  of the fields are the expected ones
-
-        case StructT(clauses, decl, ctx) => ???
-      }
-    }
-
-    // TODO: doc
-    // TODO: maybe change sig to Writer[in.Expr]
-    // TODO: remove
-    def valueFromMake(typ: Type, arg0: Option[in.Expr], arg1: Option[in.Expr]): Writer[in.Expr] = {
-      typ match {
-        case SliceT(elem) =>
-          // in.Slice
-          // val length: BigInt = arg1.orElse(arg0).get
-          // according to go spec, this is equivalent to
-          // make([]int, 50, 100)
-          // new([100]int)[0:50]
-          // in.SliceLit
-
-          // TODO: allocate an array and return a view to that
-          // Possible simplification: assume that n and m must be constants
-          // violation("A length must be provided when making a slice")
-          // TODO: maybe axiomatize this?? there exists a slice that has length .. adn capacity .. and for all elements, it is 0
-          ???
-
-        case ChannelT(elem, ChannelModus.Bi) =>
-          // TODO: implement when channels are added to the language
-          ???
-
-        case MapT(key, elem) =>
-          // TODO: implement when maps are added to the language
-          ???
-
-        case _ => violation(???, ???); ???
-      }
-
-      // TODO: violation if arg1 == None and arg2 != None ???
     }
 
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {
@@ -1375,12 +1293,6 @@ object Desugar {
     def underlyingType(t: Type.Type): Type.Type = t match {
       case Type.DeclaredT(d, context) => underlyingType(context.symbType(d.right))
       case _ => t
-    }
-
-    def getDefaultValue(t: in.Type, args: PExpression): in.Expr = {
-      t match {
-        case _ => ???
-      }
     }
 
     sealed trait CompositeKind

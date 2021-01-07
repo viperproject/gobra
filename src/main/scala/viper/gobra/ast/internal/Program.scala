@@ -166,19 +166,14 @@ object Assignee {
   case class Field(op: FieldRef) extends Assignee
   case class Index(op : IndexedExp) extends Assignee
 }
-// TODO: make the arguments of this and New more similar, maybe pass the expression
-// TODO: one kind of node for type supported by make; create a selaed trait for them
-// TODO: remove this one, changes in the pretty printer
-case class Make(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait MakeStmt extends Stmt {
   val target: LocalVar
 }
 
-// TODO: add args to make, the expressions are the arguments or are they even needed like in New?
-case class MakeSlice(override val target: LocalVar, typeParam: Type, lenArg: Expr, capArg: Option[Expr]/*, expr: Expr*/)(val info: Source.Parser.Info) extends MakeStmt
-case class MakeChannel(override val target: LocalVar, typeParam: Type, bufferSizeArg: Option[Expr]/*expr: Expr*/)(val info: Source.Parser.Info) extends MakeStmt
-case class MakeMap(override val target: LocalVar, keyTypeParam: Type, valueTypeParam: Type, initialSpaceArg: Option[Expr]/*expr: Expr*/)(val info: Source.Parser.Info) extends MakeStmt
+case class MakeSlice(override val target: LocalVar, typeParam: Type, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeChannel(override val target: LocalVar, typeParam: Type, bufferSizeArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeMap(override val target: LocalVar, keyTypeParam: Type, valueTypeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
 // TODO: doc
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
@@ -197,8 +192,6 @@ object CompositeObject {
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject
   case class Multiset(op : MultisetLit) extends CompositeObject
-  // TODO: add case for Map when they are added to the language
-  // TODO: should a channel also be implemented as a CompositeObject?
 }
 
 /**

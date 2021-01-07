@@ -190,10 +190,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
-      // TODO: improve, printOptionally the comma between arguments
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
-      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector)) // TODO: improve case it is empty
-    // case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+
+    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> bufferSizeArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+
+    case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
+        showType(valueTypeParam) <> initialSpaceArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
@@ -520,12 +525,15 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
-      // TODO: change this to reflect internal node
-    // case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
-      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector)) // TODO: improve case it is empty
-    // case MakeChannel(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
-    // case MakeMap(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+
+    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> bufferSizeArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+
+    case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
+        showType(valueTypeParam) <> initialSpaceArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

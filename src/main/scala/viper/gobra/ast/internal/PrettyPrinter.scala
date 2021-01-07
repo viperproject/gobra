@@ -194,11 +194,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
     case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
-      parens(showType(typeParam) <> bufferSizeArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+      parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
-        showType(valueTypeParam) <> initialSpaceArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+        showType(valueTypeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
@@ -529,11 +529,11 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
     case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
-      parens(showType(typeParam) <> bufferSizeArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+      parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
-        showType(valueTypeParam) <> initialSpaceArg.map(comma <+> showExpr(_)).getOrElse(emptyDoc))
+        showType(valueTypeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

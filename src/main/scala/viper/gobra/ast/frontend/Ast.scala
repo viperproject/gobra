@@ -473,7 +473,7 @@ case class PUnfolding(pred: PPredicateAccess, op: PExpression) extends PActualEx
 
 /**
   * Represents Go's built-in "make(`T`, `size` ...IntegerType)" function that allocates and initializes
-  * an object of type `T` and returns it. The documentation (https://golang.org/pkg/builtin/#new) gives
+  * an object of type `T` and returns it. The documentation (https://golang.org/pkg/builtin/#make) gives
   * the following possible cases:
   * - Slice: the size specifies the length of the slice. an optional second parameter specifies the maximum capacity
   * - Map: an empty map is allocated with enough space to hold the number of elements specified by the optional size parameter

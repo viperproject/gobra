@@ -1153,10 +1153,6 @@ object Desugar {
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
 
-              // TODO: move these checks for each of the cases
-              // TODO: maybe remove all these checks
-              _ = Violation.violation(arg0.isDefined || arg1.isEmpty, "Second argument to make function can only be provided if the first argument is also provided")
-
               // TODO: simplify this or move to a function
               // If arg0 is negative at runtime, then a panic occurs
               // _ <- if (arg0.isDefined) {write(assertIsNonNegative(arg0.get))} else write()

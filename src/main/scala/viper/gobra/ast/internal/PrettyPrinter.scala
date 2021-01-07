@@ -188,9 +188,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
-    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
-    case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+      // TODO: improve, printOptionally the comma between arguments
+    case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
+      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector)) // TODO: improve case it is empty
+    // case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
@@ -515,9 +518,14 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
-    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showType(expr.typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
-    case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+      // TODO: change this to reflect internal node
+    // case Make(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+    case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
+      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector)) // TODO: improve case it is empty
+    // case MakeChannel(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
+    // case MakeMap(target, expr) => showVar(target) <+> "=" <+> "make" <> parens(showType(expr.typ))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

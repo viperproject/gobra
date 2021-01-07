@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.internal.{Lit, LocalVar}
+import viper.gobra.ast.internal.{DfltVal, Lit, LocalVar}
 import viper.gobra.frontend.info.base.Type.ChannelModus
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -1151,11 +1151,13 @@ object Desugar {
             // TODO: write a seqn around all writes of statements that I do
             for {
               _ <- declare(target)
-              typ <- goTExpr(t)
 
               argsD <- sequence(args map go)
+
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
+
+              // TODO: move these checks for each of the cases
               // TODO: maybe remove all these checks
               _ = Violation.violation(arg0.isDefined || arg1.isEmpty, "Second argument to make function can only be provided if the first argument is also provided")
 
@@ -1169,41 +1171,52 @@ object Desugar {
                 write(assertAtMost(arg0.get, arg1.get))
               } else write()
 
-              // TODO: check that the size of the argument list is adequate for each type here and generate the corresponding res
-              // TODO: maybe replace info.symbType with something from an internal type
-              zeroExp: in.Expr = info.symbType(t) match {
+                // TODO: change type to Writer[Expr]
+              internalMake: in.MakeStmt = info.symbType(t) match {
                 case SliceT(elem) =>
+                  // TODO: parse args accordingly and add corresponging checks
+                  in.MakeSlice(target, typeD(elem, Addressability.defaultValue)(src), arg0.get, arg1)(src) // TODO: defaultValue makes sense here?
+                  // in.Slice
+                  // val length: BigInt = arg1.orElse(arg0).get
+                  // according to go spec, this is equivalent to
+                  // make([]int, 50, 100)
+                  // new([100]int)[0:50]
+                  // in.SliceLit
+
+                  // TODO: allocate an array and return a view to that
                   // Possible simplification: assume that n and m must be constants
                   // violation("A length must be provided when making a slice")
                   // TODO: maybe axiomatize this?? there exists a slice that has length .. adn capacity .. and for all elements, it is 0
-                  ???
 
                 case ChannelT(elem, ChannelModus.Bi) =>
                   // TODO: implement when channels are added to the language
-                  ???
+                  in.MakeChannel(target, typeD(elem, Addressability.defaultValue)(src), arg0)(src) // TODO: defaultValue makes sense here?
 
                 case MapT(key, elem) =>
                   // TODO: implement when maps are added to the language
-                  ???
-
-                case _ => violation(???, ???); ???
+                  in.MakeMap(target, typeD(key, Addressability.defaultValue)(src), typeD(elem, Addressability.defaultValue)(src), arg0)(src) // TODO: defaultValue makes sense here?
               }
 
-              _ <- write(in.Make(target, zeroExp)(src))
+
+              // TODO: check that the size of the argument list is adequate for each type here and generate the corresponding res
+              // TODO: maybe replace info.symbType with something from an internal type
+              // zeroExp: Writer[in.Expr] = info.symbType(t) match {
+              // zeroExp <- valueFromMake(info.symbType(t), arg0, arg1)
+              // _ <- write(in.Make(target, zeroExp)(src)) // TODO: desugar in the correct statement specialized to that type
+              _ <- write(internalMake) // TODO: desugar in the correct statement specialized to that type
             } yield res
 
           case PNew(t) =>
-            // TODO: remove unneeded variables
-            val resT = typeD(info.symbType(t), Addressability.Shared)(src)
-            val targetT = in.PointerT(resT, Addressability.Exclusive)
+            // TODO: clean code
+            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
+            val targetT = in.PointerT(resT.withAddressability(Addressability.Shared), Addressability.reference)
             val target = freshExclusiveVar(targetT)(src)
-            val res = target
 
             for {
               _ <- declare(target)
-              zero = zeroValue(info.symbType(t))(src)
+              zero = DfltVal(resT)(src)
               _ <- write(in.New(target, zero)(src))
-            } yield res
+            } yield target
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
@@ -1211,13 +1224,19 @@ object Desugar {
     }
 
     // TODO: doc
-    // TODO: maybe change sig
+    // TODO: maybe change sig to in.Type?
+    // TODO: maybe change sig to Writer[in.Type]?
+    // TODO: remove
     // false for booleans, 0 for numeric types, "" for strings, and nil for pointers, functions, interfaces, slices, channels, and maps. This initialization is done recursively, so for instance each element of an array of structs will have its fields zeroed if no value is specified.
     def zeroValue(typ: Type)(src: Source.Parser.Info): in.Expr = {
       typ match {
         case IntT(kind) => in.IntLit(0, kind)(src)
 
         case BooleanT => in.BoolLit(b = false)(src)
+
+        case ArrayT(length, elem) =>
+          in.ArrayLit(length, typeD(elem, Addressability.Exclusive)(src) /* what should be de defult addressability? TODO: move this away from here */,
+          BigInt(0).until(length).map(x => (x, zeroValue(elem)(src))).toMap)(src)
 
         case x@(
           _: PointerT
@@ -1226,7 +1245,7 @@ object Desugar {
           | _: SliceT
           | _: InterfaceT
           | _: MapT
-          ) => in.NilLit(typeD(x, Addressability.Shared)(src))(src)
+          ) => in.NilLit(typeD(x, Addressability.Exclusive)(src))(src)
 
         // TODO: what to do in defined types and structs?
           // TODO: test with creating struct and with creating defined type, ensure that the values
@@ -1237,16 +1256,36 @@ object Desugar {
     }
 
     // TODO: doc
-    // TODO: maybe change sig
+    // TODO: maybe change sig to Writer[in.Expr]
     // TODO: remove
-    def valueFromMake(typ: Type, arg1: Option[in.Expr], arg2: Option[in.Expr]): in.Expr = {
-      // TODO: violation if arg1 == None and arg2 != None
+    def valueFromMake(typ: Type, arg0: Option[in.Expr], arg1: Option[in.Expr]): Writer[in.Expr] = {
       typ match {
-        case SliceT(elem) => ???
-        case ChannelT(elem, ChannelModus.Bi) => ???
-        case SliceT(elem) => ???
-        case _ => violation(???)
+        case SliceT(elem) =>
+          // in.Slice
+          // val length: BigInt = arg1.orElse(arg0).get
+          // according to go spec, this is equivalent to
+          // make([]int, 50, 100)
+          // new([100]int)[0:50]
+          // in.SliceLit
+
+          // TODO: allocate an array and return a view to that
+          // Possible simplification: assume that n and m must be constants
+          // violation("A length must be provided when making a slice")
+          // TODO: maybe axiomatize this?? there exists a slice that has length .. adn capacity .. and for all elements, it is 0
+          ???
+
+        case ChannelT(elem, ChannelModus.Bi) =>
+          // TODO: implement when channels are added to the language
+          ???
+
+        case MapT(key, elem) =>
+          // TODO: implement when maps are added to the language
+          ???
+
+        case _ => violation(???, ???); ???
       }
+
+      // TODO: violation if arg1 == None and arg2 != None ???
     }
 
     def applyMemberPathD(base: in.Expr, path: Vector[MemberPath])(pinfo: Source.Parser.Info): in.Expr = {

@@ -394,6 +394,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case x: PExpression => showExpr(x)
         case x: PType => showType(x)
       })
+        // TODO: should this be modified to show the expression instead of type (or maybe do something else)? or else justify why something else will not be shown here (composite objects not used anymore/deprecated??)/
       case PNew(typ) => "new" <> parens(showType(typ))
       case PBlankIdentifier() => "_"
     }

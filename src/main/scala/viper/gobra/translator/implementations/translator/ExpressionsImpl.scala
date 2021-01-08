@@ -55,9 +55,9 @@ class ExpressionsImpl extends Expressions {
 
       case unfold: in.Unfolding =>
         for {
-          a <- ctx.predicate.predicateAccess(unfold.op, unfold.acc.p)(ctx)
+          a <- ctx.ass.translate(unfold.acc)(ctx)
           e <- goE(unfold.in)
-        } yield vpr.Unfolding(a, e)(pos, info, errT)
+        } yield vpr.Unfolding(a.asInstanceOf[vpr.PredicateAccessPredicate], e)(pos, info, errT)
 
       case in.Old(op, _) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
 

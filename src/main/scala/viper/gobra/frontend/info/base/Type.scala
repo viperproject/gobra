@@ -6,6 +6,7 @@
 
 package viper.gobra.frontend.info.base
 
+
 import viper.gobra.ast.frontend.{PImport, PInterfaceType, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds

@@ -213,6 +213,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   })
 
   def showComposite(c: CompositeObject): Doc = showLit(c.op)
@@ -281,6 +283,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
     case Accessible.Address(der) => showExpr(der)
     case Accessible.Predicate(op) => showPredicateAcc(op)
+    case Accessible.PredExpr(PredExprInstance(base, args)) => showExpr(base) <> parens(showExprList(args))
   })
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
@@ -348,6 +351,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case ToInterface(exp, _) => "toInterface" <> parens(showExpr(exp))
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
+
+    case PredicateConstructor(pred, _, args) =>
+      showProxy(pred) <> braces(showList(args){
+        case Some(e) => showExpr(e)
+        case None => "_"
+      })
 
     case BoolTExpr() => "bool"
     case IntTExpr(kind) => kind.name
@@ -440,6 +449,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DefinedT(name, _) => name
     case PointerT(t, _) => "*" <> showType(t)
     case TupleT(ts, _) => parens(showTypeList(ts))
+    case PredT(args, _) => "pred" <> parens(showTypeList(args))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case _: InterfaceT => "interface" <> parens("...")
     case SortT => "sort"
@@ -538,5 +548,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   }
 }

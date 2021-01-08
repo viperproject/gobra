@@ -27,7 +27,7 @@ func accessOutsideLen() {
 }
 
 requires length > 0 && capacity >= length
-ensures forall i int :: (0 <= i && i < length) ==> ret[i] == 0
+ensures forall i int :: (0 <= i && i < length) ==> acc(&ret[i]) && ret[i] == 0
 ensures len(ret) == length && cap(ret) == capacity
 func Ok1(length int, capacity int) (ret []int) {
 	ret := make([]int, length, capacity)

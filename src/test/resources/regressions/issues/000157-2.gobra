@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	var x interface{} = 42
+    // In a previous version, the following comparison would fail
+	if x == nil {
+		assert false
+	}
+}

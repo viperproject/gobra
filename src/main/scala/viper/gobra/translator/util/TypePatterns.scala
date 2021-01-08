@@ -168,6 +168,13 @@ object TypePatterns {
       }
     }
 
+    object Pred {
+      def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
+        case t : in.PredT => Some(t.args)
+        case _ => None
+      }
+    }
+
   }
 
 

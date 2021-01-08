@@ -73,6 +73,9 @@ object Names {
   // sequences
   def emptySequenceFunc: String = "sequenceEmpty"
 
+  // predicate
+  def predDomain: String = "Pred"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"

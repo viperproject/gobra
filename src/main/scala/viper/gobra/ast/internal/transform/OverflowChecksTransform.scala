@@ -119,7 +119,7 @@ object OverflowChecksTransform extends InternalTransform {
     case m@MakeChannel(_, _, optArg) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
-    case m@MakeMap(_, _, _, optArg) =>
+    case m@MakeMap(_, _, optArg) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added

@@ -1149,9 +1149,9 @@ object Desugar {
               arg1 = argsD.lift(1)
 
               make: in.MakeStmt = info.symbType(t) match {
-                case SliceT(elem) => in.MakeSlice(target, elemD(elem), arg0.get, arg1)(src)
-                case ChannelT(elem, ChannelModus.Bi) => in.MakeChannel(target, elemD(elem), arg0)(src)
-                case MapT(key, elem) => in.MakeMap(target, elemD(key), elemD(elem), arg0)(src)
+                case s@SliceT(_) => in.MakeSlice(target, elemD(s), arg0.get, arg1)(src)
+                case c@ChannelT(_, ChannelModus.Bi) => in.MakeChannel(target, elemD(c), arg0)(src)
+                case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
               }
               _ <- write(make)
             } yield target

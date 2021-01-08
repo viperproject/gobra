@@ -196,9 +196,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
-    case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
-      showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
-        showType(valueTypeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+    case MakeMap(target, typeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
@@ -526,14 +525,13 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
-      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+      parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
     case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
-    case MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
-      showVar(target) <+> "=" <+> "make" <> parens("map" <> brackets(showType(keyTypeParam)) <>
-        showType(valueTypeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+    case MakeMap(target, typeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

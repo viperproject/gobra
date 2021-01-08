@@ -169,12 +169,16 @@ object Assignee {
 
 sealed trait MakeStmt extends Stmt {
   val target: LocalVar
+  val typeParam: Type
 }
 
-// TODO: add assert that typeParam is of the expected type
-case class MakeSlice(override val target: LocalVar, typeParam: Type, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
-case class MakeChannel(override val target: LocalVar, typeParam: Type, bufferSizeArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
-case class MakeMap(override val target: LocalVar, keyTypeParam: Type, valueTypeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeSlice(override val target: LocalVar, override val typeParam: Type, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt {
+  assert(typeParam.isInstanceOf[SliceT])
+}
+
+// TODO: add asserts to ensure that typeParam is of the intended type when channels and maps are implemented
+case class MakeChannel(override val target: LocalVar, override val typeParam: Type, bufferSizeArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeMap(override val target: LocalVar, override val typeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 

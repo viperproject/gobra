@@ -188,7 +188,6 @@ trait TypeEncoding extends Generator {
     *
     * The default implements:
     * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
-    * [v: T = make(expr)] -> var z T;  inhale [z == expr]; [v = z] // TODO: change
     */
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
@@ -204,24 +203,6 @@ trait TypeEncoding extends Generator {
           ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, newStmt)
         } yield ass
       )
-
-    case makeStmt@in.MakeSlice(target, typeParam, lenArg, capArg) =>
-      val (pos, info, errT) = makeStmt.vprMeta
-      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(makeStmt.info)
-      seqn(
-        for {
-          _ <- local(ctx.typeEncoding.variable(ctx)(z))
-          eq <- ctx.typeEncoding.equal(ctx)(z, ???, makeStmt)
-          _ <- write(vpr.Inhale(eq)(pos, info, errT))
-          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, makeStmt)
-        } yield ass
-      )
-
-    case makeStmt@in.MakeChannel(target, typeParam, bufferSizeArg) =>
-      ???
-
-    case makeStmt@in.MakeMap(target, keyTypeParam, valueTypeParam, initialSpaceArg) =>
-      ???
   }
 
 

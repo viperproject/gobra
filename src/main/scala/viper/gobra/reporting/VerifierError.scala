@@ -236,6 +236,11 @@ case class GoCallPreconditionError(node: Source.Verifier.Info) extends Verificat
   override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of the callee."
 }
 
+case class MakePreconditionError(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "make_precondition_error"
+  override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of make." // TODO: improve error message
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

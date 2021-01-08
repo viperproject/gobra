@@ -1136,12 +1136,6 @@ object Desugar {
             unit(freshExclusiveVar(typ)(src))
 
           case PMake(t, args) =>
-            def assertIsNonNegative(x: in.Expr): in.Stmt =
-              in.Assert(in.ExprAssertion(in.AtLeastCmp(x, in.IntLit(0)(src))(src))(src))(src)
-
-            def assertAtMost(left: in.Expr, right: in.Expr): in.Stmt =
-              in.Assert(in.ExprAssertion(in.AtMostCmp(left, right)(src))(src))(src)
-
             def elemD(t: Type): in.Type = typeD(t, Addressability.defaultValue)(src)
 
             // TODO: is the exclusive OK by default?
@@ -1151,18 +1145,8 @@ object Desugar {
             for {
               _ <- declare(target)
               argsD <- sequence(args map go)
-
-              // if any of the arguments is negative at runtime, then a panic occurs
-              _ <- write(argsD map assertIsNonNegative: _*)
-
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
-
-              // if n and m are available at runtime, then n must be at most m otherwise it panics
-              assertIfHas2Args = Option.when(resT.isInstanceOf[SliceT] && arg0.isDefined && arg1.isDefined){
-                assertAtMost(arg0.get, arg1.get)
-              }
-              _ <- write(assertIfHas2Args.toVector: _*)
 
               make: in.MakeStmt = info.symbType(t) match {
                 case SliceT(elem) => in.MakeSlice(target, elemD(elem), arg0.get, arg1)(src)

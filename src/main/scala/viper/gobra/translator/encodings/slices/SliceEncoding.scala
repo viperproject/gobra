@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.slices
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{MakePreconditionError, PreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -17,6 +17,7 @@ import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
 class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
@@ -142,6 +143,85 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       vLhs <- ctx.expr.translate(lhs)(ctx)
       vRhs <- ctx.expr.translate(rhs)(ctx)
     } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
+  }
+
+  /**
+    * Encodes the allocation of a new slice
+    *
+    *  [r := make([]T, len, cap)] ->
+    *    var a []T@
+    *    inhales cap(a) == [cap]
+    *    inhales len(a) == [len]
+    *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
+    *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
+    */
+  override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+    default(super.statement(ctx)) {
+      case makeStmt@in.MakeSlice(target, typeParam, lenArg, optCapArg) =>
+        val (pos, info, errT) = makeStmt.vprMeta
+        val slice = in.LocalVar(Names.freshName, in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive))(makeStmt.info)
+        val it = in.LocalVar(Names.freshName, in.IntT(Addressability.Exclusive))(makeStmt.info)
+        seqn(
+          for {
+            // var a []T@
+            _ <- local(ctx.typeEncoding.variable(ctx)(slice))
+
+            capArg = optCapArg.getOrElse(lenArg)
+            vprLength <- ctx.expr.translate(lenArg)(ctx)
+            vprCapacity <- ctx.expr.translate(capArg)(ctx)
+
+            // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
+            _ <- write(vpr.Inhale(vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprLength)(pos, info, errT))(pos, info, errT)) // 0 <= len
+            _ <- write(vpr.Inhale(vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprCapacity)(pos, info, errT))(pos, info, errT)) // 0 <= cap
+            _ <- write(vpr.Inhale(vpr.LeCmp(vprLength, vprCapacity)(pos, info, errT))(pos, info, errT)) // len <= cap
+            _ <- errorT {
+              case err.InhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(MakePreconditionError(info))
+            }
+
+            lenExpr = in.Length(slice)(makeStmt.info)
+            capExpr = in.Capacity(slice)(makeStmt.info)
+
+            // inhales cap(a) == [cap]
+            eqCap <- ctx.typeEncoding.equal(ctx)(capExpr, capArg, makeStmt)
+            _ <- write(vpr.Inhale(eqCap)(pos, info, errT))
+
+            // inhales len(a) == [len]
+            eqLen <- ctx.typeEncoding.equal(ctx)(lenExpr, lenArg, makeStmt)
+            _ <- write(vpr.Inhale(eqLen)(pos, info, errT))
+
+            // inhales forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
+            vprIt = ctx.typeEncoding.variable(ctx)(it)
+            footprint <- addressFootprint(ctx)(in.IndexedExp(slice, it)(makeStmt.info), in.FullPerm(slice.info))
+            footprintAssertion = vpr.Forall(
+              variables = Seq(vprIt),
+              triggers = Seq(), // TODO: add trigger
+              exp = vpr.Implies(boundaryCondition(vprIt.localVar, vprCapacity)(makeStmt), footprint)(pos, info, errT)
+            )(pos, info, errT)
+            _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
+
+            // inhales forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
+            eqValue <- ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, it)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Shared))(makeStmt.info), makeStmt)
+            eqValueAssertion = vpr.Forall(
+              variables = Seq(vprIt),
+              triggers = Seq(), // TODO: add trigger
+              exp = vpr.Implies(boundaryCondition(vprIt.localVar, vprLength)(makeStmt), eqValue)(pos, info, errT)
+            )(pos, info, errT)
+            _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
+
+            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), slice, makeStmt)
+          } yield ass
+        )
+    }
+  }
+
+  /** Returns: 0 <= 'base' && 'base' < 'length'. */
+  private def boundaryCondition(base: vpr.Exp, length: vpr.Exp)(src : in.Node) : vpr.Exp = {
+    val (pos, info, errT) = src.vprMeta
+
+    vpr.And(
+      vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), base)(pos, info, errT),
+      vpr.LtCmp(base, length)(pos, info, errT)
+    )(pos, info, errT)
   }
 
   /**

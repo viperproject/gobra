@@ -7,7 +7,8 @@
 package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, ChannelModus, ChannelT, FunctionT, SingleAuxType, Type}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.GhostBuiltInMember
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, SingleAuxType, Type}
 
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
@@ -56,12 +57,34 @@ object BuiltInMemberTag {
 
 
   /** Built-in Method Tags */
+  sealed trait ChannelInvariantMethodTag extends BuiltInMethodTag with GhostBuiltInMember
+  sealed trait SendPermMethodTag extends ChannelInvariantMethodTag
+  case object SendGivenPermMethodTag extends SendPermMethodTag {
+    override def identifier: String = "SendGivenPerm"
+    override def name: String = "SendGivenPermMethodTag"
+  }
+
+  case object SendGotPermMethodTag extends SendPermMethodTag {
+    override def identifier: String = "SendGotPerm"
+    override def name: String = "SendGotPermMethodTag"
+  }
+
+  sealed trait RecvPermMethodTag extends ChannelInvariantMethodTag
+  case object RecvGivenPermMethodTag extends RecvPermMethodTag {
+    override def identifier: String = "RecvGivenPerm"
+    override def name: String = "RecvGivenPermMethodTag"
+  }
+
+  case object RecvGotPermMethodTag extends RecvPermMethodTag {
+    override def identifier: String = "RecvGotPerm"
+    override def name: String = "RecvGotPermMethodTag"
+  }
 
   /**
     * this tag is special as it is only used in the desugarer to simplify the creation of a receive method for
     * the internal representation. Thus, this tag does not occur in the following partial functions.
     */
-  case class ReceiveMethodTag(messageType: Type) extends BuiltInMethodTag {
+  case object ReceiveMethodTag extends BuiltInMethodTag {
     override def ghost: Boolean = false
     override def identifier: String = "Receive"
     override def name: String = "ReceiveMethodTag"
@@ -90,6 +113,10 @@ object BuiltInMemberTag {
     * Returns a vector of tags belonging to built-in members that should be considered during name resolution
     */
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
+    SendGivenPermMethodTag,
+    SendGotPermMethodTag,
+    RecvGivenPermMethodTag,
+    RecvGotPermMethodTag,
     SendChannelMPredTag,
     RecvChannelMPredTag,
     ClosedMPredTag
@@ -105,6 +132,9 @@ object BuiltInMemberTag {
   }
 
   def singleAuxTypes(tag: BuiltInSingleAuxTypeTag): SingleAuxType = tag match {
+    case _: SendPermMethodTag => sendChannelInvariantType
+    case RecvGivenPermMethodTag => recvChannelInvariantType(false)
+    case RecvGotPermMethodTag => recvChannelInvariantType(true)
     case SendChannelMPredTag => sendAndBiChannelType
     case RecvChannelMPredTag => recvAndBiChannelType
     case ClosedMPredTag => recvAndBiChannelType
@@ -121,6 +151,23 @@ object BuiltInMemberTag {
       case (n, _) => error(n, s"type error: unsupported built-in member ${tag.identifier} (tag: ${tag.name})")
     },
     PartialFunction.empty)
+
+  private lazy val sendChannelInvariantType: SingleAuxType = SingleAuxType(
+    {
+      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => noMessages
+      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or sending channel type but got $ts")
+    },
+    {
+      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => FunctionT(Vector(), BooleanT) // TODO pred(T)
+    })
+  private def recvChannelInvariantType(messageDependant: Boolean): SingleAuxType = SingleAuxType(
+    {
+      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => noMessages
+      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or receiving channel type but got $ts")
+    },
+    {
+      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => FunctionT(Vector(), BooleanT) // TODO messageDependant ? pred(T) : pred()
+    })
 
   private lazy val sendAndBiChannelType: SingleAuxType = SingleAuxType(
     {

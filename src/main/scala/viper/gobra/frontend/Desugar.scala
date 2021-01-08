@@ -128,15 +128,15 @@ object Desugar {
       in.MethodProxy(id.name, name)(meta(id))
     }
 
-    private var builtInMethods: Map[(BuiltInMethodTag, in.Type), in.MethodMember] = Map.empty
-    def methodProxy(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodProxy = {
-      def genAndStore(tag: BuiltInMethodTag, recv: in.Type): in.MethodMember = {
-        val meth = generateBuiltInMethod(tag, recv)(src)
-        builtInMethods += (tag, recv) -> meth
+    private var builtInMethods: Map[(BuiltInMethodTag, in.Type, Vector[in.Type]), in.MethodMember] = Map.empty
+    def methodProxy(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type])(src: Meta): in.MethodProxy = {
+      def genAndStore(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type]): in.MethodMember = {
+        val meth = generateBuiltInMethod(tag, recv, returnTypes)(src)
+        builtInMethods += (tag, recv, returnTypes) -> meth
         meth
       }
 
-      val meth = builtInMethods.getOrElse((tag, recv), genAndStore(tag, recv))
+      val meth = builtInMethods.getOrElse((tag, recv, returnTypes), genAndStore(tag, recv, returnTypes))
       meth.name
     }
 
@@ -856,8 +856,13 @@ object Desugar {
               scAccess = in.Access(sendChannelPred, in.WildcardPerm(src))(src)
               dAssert = in.Assert(scAccess)(src)
 
-              // TODO add "exhale [c].SendGivenPerm()([m])" and "inhale [c].SendGotPerm()([m])"
-            } yield in.Seqn(Vector(dAssert))(src)
+              dExhale = in.Exhale(
+                channelInvariantAccess(BuiltInMemberTag.SendGivenPermMethodTag, dchannel, Vector(dmsg))(src))(src)
+
+              dInhale = in.Inhale(
+                channelInvariantAccess(BuiltInMemberTag.SendGotPermMethodTag, dchannel, Vector(dmsg))(src))(src)
+
+            } yield in.Seqn(Vector(dAssert, dExhale, dInhale))(src)
 
           case _ => ???
         }
@@ -904,7 +909,8 @@ object Desugar {
             */
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.channelElement))(src)
           val successTarget = freshExclusiveVar(lefts(1).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
-          val recvMethodProxy = methodProxy(BuiltInMemberTag.ReceiveMethodTag(n.messageType), n.typ)(src)
+          // val msgT = typeD(n.messageType, Addressability.outParameter)(src)
+          val recvMethodProxy = methodProxy(BuiltInMemberTag.ReceiveMethodTag, n.typ, Vector(resTarget.typ, successTarget.typ))(src)
           val recvMethodCall = in.MethodCall(Vector(resTarget, successTarget), n.channel, recvMethodProxy, Vector())(src)
           val mAssign = singleAss(lefts(0), resTarget)(src)
           val okAssign = singleAss(lefts(1), successTarget)(src)
@@ -2091,43 +2097,75 @@ object Desugar {
       case t => violation(s"no function generation defined for tag $t")
     }
 
-    def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodMember = tag match {
-      case ReceiveMethodTag(msgType: Type) =>
+    def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type])(src: Meta): in.MethodMember = {
+      def generateChannelInvariantMethod(tag: ChannelInvariantMethodTag, recv: in.Type, returnType: in.Type): in.PureMethod = {
         /**
-          * The contract for `func (c: channel[T]).Receive() (res: T, ok: BooleanT)` looks as follows:
-          * requires acc([c].RecvChannel(), wildcard)
-          * requires [c].RecvGivenPerm()()
-          * ensures [c].RecvChannel()
-          * ensures ok ==> [c].RecvGotPerm()(resTarget)
-          * ensures not(ok) ==> [c].Closed() && res == Dflt[T]
+          * requires acc(c.[chanPredicateTag](), _)
+          * pure func (c chan<-T).[tag.identifier] (res [returnType])
+          *
+          * where
+          *   - chanPredicateTag is either SendChannel or RecvChannel
+          *   - returnType is either pred(T) or pred()
           */
         val recvParam = in.Parameter.In("c", recv)(src)
-        val resT = typeD(msgType, Addressability.outParameter)(src)
-        val resParam = in.Parameter.Out("res", resT)(src)
-        val okT = typeD(BooleanT, Addressability.outParameter)(src)
-        val okParam = in.Parameter.Out("ok", okT)(src)
-        val recvChannelProxy = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, recv)(src)
-        val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, recvChannelProxy, Vector())(src))
+        val resParam = in.Parameter.Out("res", returnType)(src)
+        val chanPredicateTag = tag match {
+          case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
+          case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
+        }
+        val chanPredicateProxy = mpredicateProxy(chanPredicateTag, recv)(src)
+        val chanPredicate = in.Accessible.Predicate(in.MPredicateAccess(recvParam, chanPredicateProxy, Vector())(src))
         val pres: Vector[in.Assertion] = Vector(
-          in.Access(recvChannelPred, in.WildcardPerm(src))(src),
-          in.ExprAssertion(in.BoolLit(true)(src))(src) // TODO replace by [c].RecvGivenPerm()()
+          in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, recv)(src)
-        val closedPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, closedProxy, Vector())(src))
-        val posts: Vector[in.Assertion] = Vector(
-          in.Access(recvChannelPred, in.FullPerm(src))(src),
-          in.Implication(okParam, in.ExprAssertion(in.BoolLit(true)(src))(src) /* TODO replace by [c].RecvGotPerm()(resTarget) */)(src),
-          in.Implication(
-            in.Negation(okParam)(src),
-            in.SepAnd(
-              in.Access(closedPred, in.FullPerm(src))(src),
-              in.ExprAssertion(in.EqCmp(resParam, in.DfltVal(resParam.typ)(src))(src))(src)
+        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, Vector(returnType)))(src)
+        in.PureMethod(recvParam, proxy, Vector(), Vector(resParam), pres, Vector(), None)(src)
+      }
+
+      tag match {
+        case tag: ChannelInvariantMethodTag if returnTypes.length == 1 =>
+          generateChannelInvariantMethod(tag, recv, returnTypes.head)
+
+        case ReceiveMethodTag if returnTypes.length == 2 =>
+          /**
+            * requires acc([c].RecvChannel(), wildcard)
+            * requires [c].RecvGivenPerm()()
+            * ensures [c].RecvChannel()
+            * ensures ok ==> [c].RecvGotPerm()(res)
+            * ensures not(ok) ==> [c].Closed() && res == Dflt[T]
+            * func (c: channel[T]).Receive() (res: T, ok: BooleanT)
+            */
+          val recvParam = in.Parameter.In("c", recv)(src)
+          val resT = returnTypes.head.withAddressability(Addressability.outParameter)
+          val resParam = in.Parameter.Out("res", resT)(src)
+          val okT = returnTypes(1).withAddressability(Addressability.outParameter)
+          val okParam = in.Parameter.Out("ok", okT)(src)
+          val recvChannelProxy = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, recv)(src)
+          val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, recvChannelProxy, Vector())(src))
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(recvChannelPred, in.WildcardPerm(src))(src),
+            channelInvariantAccess(BuiltInMemberTag.RecvGivenPermMethodTag, recvParam, Vector())(src)
+          )
+          val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, recv)(src)
+          val closedPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, closedProxy, Vector())(src))
+          val posts: Vector[in.Assertion] = Vector(
+            in.Access(recvChannelPred, in.FullPerm(src))(src),
+            in.Implication(
+              okParam,
+              channelInvariantAccess(BuiltInMemberTag.RecvGotPermMethodTag, recvParam, Vector(resParam))(src)
+            )(src),
+            in.Implication(
+              in.Negation(okParam)(src),
+              in.SepAnd(
+                in.Access(closedPred, in.FullPerm(src))(src),
+                in.ExprAssertion(in.EqCmp(resParam, in.DfltVal(resParam.typ)(src))(src))(src)
+              )(src)
             )(src)
-          )(src)
-        )
-        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
-        in.Method(recvParam, proxy, Vector(), Vector(resParam, okParam), pres, posts, None)(src)
-      case t => violation(s"no method generation defined for tag $t")
+          )
+          val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, returnTypes))(src)
+          in.Method(recvParam, proxy, Vector(), Vector(resParam, okParam), pres, posts, None)(src)
+        case t => violation(s"no method generation defined for tag $t")
+      }
     }
 
     def generateBuiltInFPredicate(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicate = tag match {
@@ -2137,9 +2175,24 @@ object Desugar {
     def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = tag match {
       case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
         val recvParam = in.Parameter.In("c", recv)(src)
-        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, Vector()))(src)
         in.MPredicate(recvParam, proxy, Vector(), None)(src)
       case t => violation(s"no mpredicate generation defined for tag $t")
+    }
+
+    def channelInvariantAccess(tag: ChannelInvariantMethodTag, channel: in.Expr, args: Vector[in.Expr])(src: Meta): in.Access = {
+      (tag, args) match {
+        case (SendGivenPermMethodTag, Vector(_)) =>
+        case (SendGotPermMethodTag, Vector(_)) =>
+        case (RecvGivenPermMethodTag, Vector()) =>
+        case (RecvGotPermMethodTag, Vector(_)) =>
+        case (tag, args) => violation(s"unexpected tag ${tag.name} or number of arguments $args")
+      }
+      val predTypeArgs = args.map(_.typ)
+      val predReturnT = in.PredT(predTypeArgs, Addressability.outParameter)
+      val proxy = methodProxy(tag, channel.typ, Vector(predReturnT))(src)
+      val permExpr = in.PureMethodCall(channel, proxy, Vector(), predReturnT)(src)
+      in.Access(in.Accessible.PredExpr(in.PredExprInstance(permExpr, args)(src)), in.FullPerm(src))(src)
     }
 
     //    private def origin(n: PNode): in.Origin = {
@@ -2233,9 +2286,9 @@ object Desugar {
         .replace(")", "_")
         .replace(",", "_")
     }
-    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type): String = {
-      val recvTypeString = sanitizeType(recv)
-      s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$recvTypeString"
+    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type, returnTypes: Vector[in.Type]): String = {
+      val typeString = (recv +: returnTypes).map(sanitizeType).mkString("_")
+      s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$typeString"
     }
     def builtInAuxType(tag: BuiltInAuxTypeTag, args: Vector[in.Type]): String = {
       val argsTypeString = args.map(sanitizeType).mkString("_")

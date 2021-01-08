@@ -383,7 +383,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface)
+  }
 
+  /** Returns the type that is implied by the context if the numeric expression is an untyped
+    * constant expression.
+    */
+  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
     violation(
       intExprType(expr) == UNTYPED_INT_CONST,
       s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
@@ -401,7 +407,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             Some(DEFAULT_INTEGER_TYPE)
           } else {
             val idenType = idType(iden)
-            Some(defaultTypeIfInterface(idenType))
+            Some(idenType)
           }
 
         case PAssignmentWithOp(_, _, pAssignee) => Some(exprType(pAssignee))
@@ -412,7 +418,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case PBlankIdentifier() =>
               // if no type is specified, integer constants have the default type
               Some(DEFAULT_INTEGER_TYPE)
-            case x => Some(defaultTypeIfInterface(exprType(x)))
+            case x => Some(exprType(x))
           }
 
         // if no type is specified, integer expressions default to unbounded integer in const declarations;
@@ -420,7 +426,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PConstDecl(typ, _, _) => typ map typeSymbType orElse Some(UNTYPED_INT_CONST)
 
         // if no type is specified, integer expressions have default type in var declarations
-        case PVarDecl(typ, _, _, _) => typ map (x => defaultTypeIfInterface(typeSymbType(x)))
+        case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
 
         case n: PInvoke => resolve(n) match {
           case Some(ap.FunctionCall(callee, args)) =>

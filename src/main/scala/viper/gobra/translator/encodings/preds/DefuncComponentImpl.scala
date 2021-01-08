@@ -130,7 +130,7 @@ class DefuncComponentImpl extends DefuncComponent {
   /** Returns the predicate instance of predicate expression 'base' with type pred('baseTs') with arguments 'args'. */
   override def instance(base: vpr.Exp, baseTs: Vector[in.Type], args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.PredicateAccess = {
     val S = embedPredType(baseTs)(ctx)
-    vpr.PredicateAccess(args, evalName(S))(pos, info, errT)
+    vpr.PredicateAccess(base +: args, evalName(S))(pos, info, errT)
   }
 
 

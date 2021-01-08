@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--overflow --int32)
+package main
+
+func main() {
+	// Previous versions would cause the following declaration and assignments to crash Gobra
+	var k int64 = 64 // here, k would get type int64
+	k, y := 1, 0     // however, the literal "1" would default to "int", leading to a type error (int is
+	// not assignable to int64)
+
+	// The following two lines suffer from the exact same problem as the previous ones
+	// but it uses a short variable declaration instead
+	l := int64(2)
+	l, z := 1, 19
+	l, m := 4294967296+1, 19 // this would cause an overflow if the first term of the RHS is assigned int type
+}

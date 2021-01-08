@@ -50,6 +50,7 @@ object Comparability {
     case TypeHead.MSetHD => Kind.Recursive
     case TypeHead.OptionHD => Kind.Recursive
     case _: TypeHead.TupleHD => Kind.Recursive
+    case _: TypeHead.PredHD => Kind.Comparable
   }
 
   /** Returns whether the type is comparable. If none is returned, then comparability depends on the dynamic value. */

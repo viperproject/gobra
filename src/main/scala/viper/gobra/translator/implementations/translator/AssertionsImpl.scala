@@ -14,6 +14,7 @@ import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFo
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 
@@ -26,6 +27,9 @@ class AssertionsImpl extends Assertions {
 
   override def translate(ass: in.Assertion)(ctx: Context): CodeWriter[vpr.Exp] = {
 
+    val typEncodingOptRes = ctx.typeEncoding.assertion(ctx).lift(ass)
+    if (typEncodingOptRes.isDefined) return typEncodingOptRes.get
+
     val (pos, info, errT) = ass.vprMeta
 
     def goA(a: in.Assertion): CodeWriter[vpr.Exp] = translate(a)(ctx)
@@ -37,11 +41,10 @@ class AssertionsImpl extends Assertions {
       case in.Implication(l, r) => for {vl <- goE(l); vr <- goA(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
       case acc: in.Access =>
         acc.e match {
-          case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(op, acc.p)(ctx)
+          case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
+          case n => Violation.violation(s"node $n should have been handled by an type encoding.")
         }
-
-
 
       case in.SepForall(vars, triggers, body) =>
         val newVars = vars map ctx.typeEncoding.variable(ctx)
@@ -54,6 +57,8 @@ class AssertionsImpl extends Assertions {
           triggeredForall = desugaredForall.map(_.autoTrigger)
           reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
         } yield reducedForall
+
+      case _ => Violation.violation(s"Assertion $ass did not match with any implemented case.")
     }
 
     ret

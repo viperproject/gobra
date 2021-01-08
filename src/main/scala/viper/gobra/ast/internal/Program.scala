@@ -211,6 +211,8 @@ case class Fold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
+
+
 case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   require(acc.e.isInstanceOf[Accessible.Predicate])
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
@@ -246,6 +248,7 @@ object Accessible {
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }
+  case class PredExpr(op: PredExprInstance) extends Accessible
 }
 
 sealed trait PredicateAccess extends Node
@@ -298,7 +301,7 @@ case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
 
-/* Type related expressions */
+/* ** Type related expressions */
 
 case class TypeAssertion(exp: Expr, arg: Type)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = arg.withAddressability(Addressability.rValue)
@@ -341,7 +344,16 @@ case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends
 
 
 
+/* ** Higher-order predicate expressions */
 
+case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vector[Option[Expr]])(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = PredT(proxyT.args.zip(args).filter(_._2.isEmpty).map(_._1), Addressability.rValue)
+}
+
+case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends Node
+
+case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
+case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
 
 
 /* ** Option type expressions */
@@ -790,7 +802,7 @@ case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val i
 }
 
 case class Tuple(args: Vector[Expr])(val info: Source.Parser.Info) extends Expr {
-  lazy val typ = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
+  lazy val typ: Type = TupleT(args map (_.typ), Addressability.literal) // TODO: remove redundant typ information of other nodes
 }
 
 sealed trait CompositeLit extends Lit
@@ -808,7 +820,6 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 }
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
-
 
 
 sealed trait Declaration extends Node
@@ -1038,6 +1049,16 @@ case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type
     TupleT(ts.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
 }
 
+case class PredT(args: Vector[Type], addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case PredT(otherTs, _) => args.zip(otherTs).forall{ case (l,r) => l.equalsWithoutMod(r) }
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): PredT =
+    PredT(args.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
+}
+
 
 // TODO: Maybe remove name
 case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType {
@@ -1076,8 +1097,10 @@ case class ChannelT(elem: Type, modus: ChannelModus, addressability: Addressabil
 sealed trait Proxy extends Node
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
-case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends Proxy
-case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+
+sealed trait PredicateProxy extends Proxy
+case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
+case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy
 
 
 

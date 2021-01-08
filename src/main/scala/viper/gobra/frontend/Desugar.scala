@@ -1138,7 +1138,7 @@ object Desugar {
           case PMake(t, args) =>
             def elemD(t: Type): in.Type = typeD(t, Addressability.defaultValue)(src)
 
-            // TODO: is the exclusive OK by default?
+            // the target arguments must be always exclusive, that is an invariant of the desugarer
             val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
             val target = freshExclusiveVar(resT)(src)
 

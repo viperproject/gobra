@@ -9,7 +9,8 @@ package viper.gobra.translator.encodings.slices
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{MakePreconditionError, PreconditionError, Source}
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{MakePreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -150,36 +151,46 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * Encodes the allocation of a new slice
     *
     *  [r := make([]T, len, cap)] ->
-    *    var a []T@
+    *    asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
+    *    var a [ []T ]
     *    inhales cap(a) == [cap]
     *    inhales len(a) == [len]
     *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
     *    inhales forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
+    *    r := a
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)) {
       case makeStmt@in.MakeSlice(target, typeParam, lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val slice = in.LocalVar(Names.freshName, in.SliceT(typeParam.withAddressability(Shared), Addressability.Shared))(makeStmt.info)
+        val slice = in.LocalVar(Names.freshName, in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive))(makeStmt.info)
+        val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
+        val typ = ctx.typeEncoding.typ(ctx)(typeParam.withAddressability(Addressability.Shared))
         seqn(
           for {
-            // var a []T@
-            _ <- local(ctx.typeEncoding.variable(ctx)(slice))
+            // var a [ []T ]
+            _ <- local(vprSlice)
 
             capArg = optCapArg.getOrElse(lenArg)
             vprLength <- ctx.expr.translate(lenArg)(ctx)
             vprCapacity <- ctx.expr.translate(capArg)(ctx)
 
             // Perform additional runtime checks of conditions that must be true when make is invoked, otherwise the program panics (according to the go spec)
-            _ <- write(vpr.Exhale(vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprLength)(pos, info, errT))(pos, info, errT)) // 0 <= len
-            _ <- write(vpr.Exhale(vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprCapacity)(pos, info, errT))(pos, info, errT)) // 0 <= cap
-            _ <- write(vpr.Exhale(vpr.LeCmp(vprLength, vprCapacity)(pos, info, errT))(pos, info, errT)) // len <= cap
+            // asserts 0 <= [len] && 0 <= [cap] && [len] <= [cap]
+            runtimeChecks = vu.bigAnd(Vector(
+              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprLength)(pos, info, errT), // 0 <= len
+              vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprCapacity)(pos, info, errT), // 0 <= cap
+              vpr.LeCmp(vprLength, vprCapacity)(pos, info, errT) // len <= cap
+            ))(pos, info, errT)
+
+            exhale = vpr.Exhale(runtimeChecks)(pos, info, errT)
+            _ <- write(exhale)
             _ <- errorT {
-              case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(MakePreconditionError(info))
+              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => MakePreconditionError(info)
             }
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]
-            footprintAssertion <- addressFootprint(ctx)(slice, in.FullPerm(slice.info))
+            footprintAssertion <- getCellPerms(ctx)(slice, in.FullPerm(slice.info))
             _ <- write(vpr.Inhale(footprintAssertion)(pos, info, errT))
 
             lenExpr = in.Length(slice)(makeStmt.info)
@@ -196,7 +207,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [len] ==> [ a[i] == dfltVal(T) ]
             eqValueAssertion <- boundedQuant(
               length = vprLength,
-              trigger = _ => Seq(), // TODO: add trigger
+              trigger = (idx: vpr.LocalVar) =>
+                Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx, typ)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
                 ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, x)(makeStmt.info), in.DfltVal(typeParam)(makeStmt.info), makeStmt)
             )(makeStmt)(ctx)
@@ -210,38 +222,23 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
 
   /**
-    * Encodes the permissions for all addresses of a shared type,
-    * i.e. all permissions involved in converting the shared location to an exclusive r-value.
-    * An encoding for type T should be defined at all shared locations of type T.
-    *
-    * Footprint[loc: []T] -> forall idx :: {???} 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
-    *
-    * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
+    * Obtains permission to all cells of a slice
+    * getCellPerms[loc: []T] -> forall idx :: {loc(a, idx) 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
-    case (loc :: ctx.Slice(t) / Shared, perm) =>
+  def getCellPerms(ctx: Context)(expr: in.Location, perm: in.Permission): CodeWriter[vpr.Exp] = expr match {
+    case (loc :: ctx.Slice(t) / Exclusive) =>
       val (pos, info, errT) = loc.vprMeta
 
-      val fieldAccWriter = for {
-        vprPerm <- ctx.typeEncoding.expr(ctx)(perm)
-        l <- ctx.expr.translate(loc)(ctx).map(_.asInstanceOf[vpr.FieldAccess])
-      } yield vpr.FieldAccessPredicate(l, vprPerm)(pos, info, errT)
-
       val cap = in.Capacity(loc)(loc.info)
-      val vprCap = ctx.expr.translate(cap)(ctx)
+      val vprCap = ctx.expr.translate(cap)(ctx).res
+      val vprLoc = ctx.expr.translate(loc)(ctx).res
       val trigger = (idx: vpr.LocalVar) =>
-        // TODO: add trigger
-        Seq()
+        Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx, ctx.typeEncoding.typ(ctx)(t.withAddressability(Shared)))(pos, info, errT)))(pos, info, errT))
       val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info), perm)
-      val cellPermsWriter = boundedQuant(vprCap.res, trigger, body)(loc)(ctx).map(forall =>
+      boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
       )
-
-      for {
-        fieldAcc <- fieldAccWriter
-        cellPerms <- cellPermsWriter
-      } yield vpr.And(fieldAcc, cellPerms)(pos, info, errT)
   }
 
   /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */

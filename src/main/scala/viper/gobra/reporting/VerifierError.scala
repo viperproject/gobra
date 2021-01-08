@@ -179,6 +179,10 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Expression may cause integer overflow"
 }
 
+case class MakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "make_precondition_error"
+  override def localMessage: String = s"The provided length might not be smaller or equal to the provided capacity, or either length or capacity might be negative"
+}
 
 sealed trait VerificationErrorReason {
   def id: String
@@ -234,11 +238,6 @@ case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends Ve
 case class GoCallPreconditionError(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "go_call_precondition_error"
   override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of the callee."
-}
-
-case class MakePreconditionError(node: Source.Verifier.Info) extends VerificationErrorReason {
-  override def id: String = "make_precondition_error"
-  override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of make." // TODO: improve error message
 }
 
 sealed trait VerificationErrorClarification {

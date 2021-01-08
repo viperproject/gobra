@@ -9,9 +9,10 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
-import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
+import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.internal.{Lit, LocalVar}
+import viper.gobra.ast.internal.{FunctionProxy, Lit, LocalVar, MPredicateProxy, MethodProxy}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
@@ -92,14 +93,29 @@ object Desugar {
     def addProxy(from: PIdnNode, to: in.Proxy): Unit =
       proxies += abstraction(from) -> to
 
+    def getBuiltInMembers: Iterable[in.Member] =
+      builtInFunctions.values ++ builtInMethods.values ++ builtInFPreds.values ++ builtInMPreds.values
+
     def functionProxyD(decl: PFunctionDecl): in.FunctionProxy = {
       val name = idName(decl.id)
       in.FunctionProxy(name)(meta(decl))
     }
 
-    def functionProxyD(id: PIdnUse): in.FunctionProxy = {
+    def functionProxy(id: PIdnUse): in.FunctionProxy = {
       val name = idName(id)
       in.FunctionProxy(name)(meta(id))
+    }
+
+    private var builtInFunctions: Map[(BuiltInFunctionTag, Vector[in.Type]), in.FunctionMember] = Map.empty
+    def functionProxy(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionProxy = {
+      def genAndStore(tag: BuiltInFunctionTag, args: Vector[in.Type]): in.FunctionMember = {
+        val fn = generateBuiltInFunction(tag, args)(src)
+        builtInFunctions += (tag, args) -> fn
+        fn
+      }
+
+      val fn = builtInFunctions.getOrElse((tag, args), genAndStore(tag, args))
+      fn.name
     }
 
     def methodProxyD(decl: PMethodDecl): in.MethodProxy = {
@@ -112,14 +128,38 @@ object Desugar {
       in.MethodProxy(id.name, name)(meta(id))
     }
 
+    private var builtInMethods: Map[(BuiltInMethodTag, in.Type), in.MethodMember] = Map.empty
+    def methodProxy(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodProxy = {
+      def genAndStore(tag: BuiltInMethodTag, recv: in.Type): in.MethodMember = {
+        val meth = generateBuiltInMethod(tag, recv)(src)
+        builtInMethods += (tag, recv) -> meth
+        meth
+      }
+
+      val meth = builtInMethods.getOrElse((tag, recv), genAndStore(tag, recv))
+      meth.name
+    }
+
     def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
       val name = idName(decl.id)
       in.FPredicateProxy(name)(meta(decl))
     }
 
-    def fpredicateProxyD(id: PIdnUse): in.FPredicateProxy = {
+    def fpredicateProxy(id: PIdnUse): in.FPredicateProxy = {
       val name = idName(id)
       in.FPredicateProxy(name)(meta(id))
+    }
+
+    private var builtInFPreds: Map[(BuiltInFPredicateTag, Vector[in.Type]), in.FPredicate] = Map.empty
+    def fpredicateProxy(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicateProxy = {
+      def genAndStore(tag: BuiltInFPredicateTag, args: Vector[in.Type]): in.FPredicate = {
+        val fpred = generateBuiltInFPredicate(tag, args)(src)
+        builtInFPreds += (tag, args) -> fpred
+        fpred
+      }
+
+      val fpred = builtInFPreds.getOrElse((tag, args), genAndStore(tag, args))
+      fpred.name
     }
 
     def mpredicateProxyD(decl: PMPredicateDecl): in.MPredicateProxy = {
@@ -130,6 +170,18 @@ object Desugar {
     def mpredicateProxy(id: PIdnUse): in.MPredicateProxy = {
       val name = idName(id)
       in.MPredicateProxy(id.name, name)(meta(id))
+    }
+
+    private var builtInMPreds: Map[(BuiltInMPredicateTag, in.Type), in.MPredicate] = Map.empty
+    def mpredicateProxy(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicateProxy = {
+      def genAndStore(tag: BuiltInMPredicateTag, recv: in.Type): in.MPredicate = {
+        val mpred = generateBuiltInMPredicate(tag, recv)(src)
+        builtInMPreds += (tag, recv) -> mpred
+        mpred
+      }
+
+      val mpred = builtInMPreds.getOrElse((tag, recv), genAndStore(tag, recv))
+      mpred.name
     }
 
     class FunctionContext(
@@ -171,14 +223,22 @@ object Desugar {
         case _ => Vector.empty
       }
 
-      consideredDecls.foreach{
+      consideredDecls.foreach {
         case NoGhost(x: PTypeDef) => desugarAllTypeDefVariants(x)
         case _ =>
       }
 
+      val builtInMembers = getBuiltInMembers.toVector
+      builtInMembers.foreach {
+        case m: in.MethodMember => definedMethods += m.name -> m
+        case f: in.FunctionMember => definedFunctions += f.name -> f
+        case fp: in.FPredicate => definedFPredicates += fp.name -> fp
+        case mp: in.MPredicate => definedMPredicates += mp.name -> mp
+      }
+
       val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
 
-      in.Program(types.toVector, dMembers, table)(meta(p))
+      in.Program(types.toVector, builtInMembers ++ dMembers, table)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
@@ -776,6 +836,29 @@ object Desugar {
               case _ => unexpectedExprError(exp)
             }
 
+          case PSendStmt(channel, msg) =>
+            /** instead of properly encoding channels, we desugar them to already existing internal nodes
+              * [ c: channel[T] <- m: T ] ->
+              *   assert acc(SendChannel([c], wildcard)
+              *   exhale [c].SendGivenPerm()([m])
+              *   inhale [c].SendGotPerm()([m])
+              *
+              * Note: using an assertion instead of exhale & inhale (to model pre- and postcondition) allows us to
+              * assert a wildcard permission amount. Otherwise, a ghost perm argument would be required such that the
+              * same permission amount can be exhaled and inhaled.
+              */
+            for {
+              dchannel <- goE(channel)
+              dmsg <- goE(msg)
+
+              sendChannelProxy = mpredicateProxy(BuiltInMemberTag.SendChannelMPredTag, dchannel.typ)(src)
+              sendChannelPred = in.Accessible.Predicate(in.MPredicateAccess(dchannel, sendChannelProxy, Vector())(src))
+              scAccess = in.Access(sendChannelPred, in.WildcardPerm(src))(src)
+              dAssert = in.Assert(scAccess)(src)
+
+              // TODO add "exhale [c].SendGivenPerm()([m])" and "inhale [c].SendGotPerm()([m])"
+            } yield in.Seqn(Vector(dAssert))(src)
+
           case _ => ???
         }
       }
@@ -808,6 +891,28 @@ object Desugar {
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
             )
+          )(src)
+
+        case n: in.Receive if lefts.size == 2 =>
+          /** instead of properly encoding channels, we desugar them to already existing internal nodes
+            * [ m: T, ok: Bool = <- c: channel[T] ] ->
+            *   var resTarget: T
+            *   var successTarget: Bool
+            *   resTarget, successTarget := [c].Receive()
+            *   [m] := resTarget
+            *   [ok] := successTarget
+            */
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.channelElement))(src)
+          val successTarget = freshExclusiveVar(lefts(1).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val recvMethodProxy = methodProxy(BuiltInMemberTag.ReceiveMethodTag(n.messageType), n.typ)(src)
+          val recvMethodCall = in.MethodCall(Vector(resTarget, successTarget), n.channel, recvMethodProxy, Vector())(src)
+          val mAssign = singleAss(lefts(0), resTarget)(src)
+          val okAssign = singleAss(lefts(1), successTarget)(src)
+          // TODO the resulting Viper file looks a bit weird as the method call happens before the associated comment
+          val stmts = in.Seqn(Vector(recvMethodCall, mAssign, okAssign))(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector(stmts)
           )(src)
 
 
@@ -849,7 +954,7 @@ object Desugar {
 
               base match {
                 case base: ap.Function =>
-                  val fproxy = functionProxyD(base.id)
+                  val fproxy = functionProxy(base.id)
 
                   if (base.symb.isPure) {
                     for {
@@ -1135,6 +1240,9 @@ object Desugar {
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
             unit(freshExclusiveVar(typ)(src))
 
+          case PReceive(op) =>
+            for { dop <- go(op) } yield in.Receive(dop, info.typ(op).asInstanceOf[ChannelT].elem)(src)
+
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
@@ -1195,9 +1303,21 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
-        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
+        case nil: PNilLit => nilD(ctx)(nil)
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
+      }
+    }
+
+    def nilD(ctx: FunctionContext)(nil: PNilLit): Writer[in.Expr] = {
+
+      val src: Meta = meta(nil)
+      def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
+
+      info.nilType(nil) match {
+          // handle special case of channels as they are encoded as integers and thus has to use their default value
+        case Some(t: ChannelT) => single(in.DfltVal(typeD(t, Addressability.literal)(src)))
+        case _ => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
       }
     }
 
@@ -1393,7 +1513,7 @@ object Desugar {
       mPred
     }
 
-    def registerMPredicate(decl: PFPredicateDecl): in.FPredicate = {
+    def registerFPredicate(decl: PFPredicateDecl): in.FPredicate = {
       val fPredProxy = fpredicateProxyD(decl)
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
@@ -1416,7 +1536,7 @@ object Desugar {
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
-      case Type.ChannelT(_, _) => ???
+      case Type.ChannelT(_, _) => in.IntT(addrMod) // in.ChannelT(typeD(elem, Addressability.channelElement)(src), modus, addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -1882,7 +2002,7 @@ object Desugar {
 
       p.predicate match {
         case b: ap.Predicate =>
-          val fproxy = fpredicateProxyD(b.id)
+          val fproxy = fpredicateProxy(b.id)
           unit(in.FPredicateAccess(fproxy, dArgs)(src))
 
         case b: ap.ReceivedPredicate =>
@@ -1894,6 +2014,21 @@ object Desugar {
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxy(b.id)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+
+        case b: ap.BuiltInPredicate =>
+          val fproxy = fpredicateProxy(b.id)
+          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+
+        case b: ap.BuiltInReceivedPredicate =>
+          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ)(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+
+        case b: ap.BuiltInPredicateExpr =>
+          val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ)(src)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
       }
     }
@@ -1945,6 +2080,68 @@ object Desugar {
       for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
     }
 
+    def generateBuiltInFunction(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionMember = tag match {
+      case HavocFunctionTag(returnType: Type) if args.isEmpty =>
+        val returnT = typeD(returnType, Addressability.outParameter)(src)
+        val returnParam = in.Parameter.Out("v", returnT)(src)
+        // include returnT in the proxy name as there should be one havoc function per return type:
+        val proxyName = nm.builtInAuxType(tag, Vector(returnT))
+        val proxy = FunctionProxy(proxyName)(src)
+        in.Function(proxy, Vector(), Vector(returnParam), Vector(), Vector(), None)(src)
+      case t => violation(s"no function generation defined for tag $t")
+    }
+
+    def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodMember = tag match {
+      case ReceiveMethodTag(msgType: Type) =>
+        /**
+          * The contract for `func (c: channel[T]).Receive() (res: T, ok: BooleanT)` looks as follows:
+          * requires acc([c].RecvChannel(), wildcard)
+          * requires [c].RecvGivenPerm()()
+          * ensures [c].RecvChannel()
+          * ensures ok ==> [c].RecvGotPerm()(resTarget)
+          * ensures not(ok) ==> [c].Closed() && res == Dflt[T]
+          */
+        val recvParam = in.Parameter.In("c", recv)(src)
+        val resT = typeD(msgType, Addressability.outParameter)(src)
+        val resParam = in.Parameter.Out("res", resT)(src)
+        val okT = typeD(BooleanT, Addressability.outParameter)(src)
+        val okParam = in.Parameter.Out("ok", okT)(src)
+        val recvChannelProxy = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, recv)(src)
+        val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, recvChannelProxy, Vector())(src))
+        val pres: Vector[in.Assertion] = Vector(
+          in.Access(recvChannelPred, in.WildcardPerm(src))(src),
+          in.ExprAssertion(in.BoolLit(true)(src))(src) // TODO replace by [c].RecvGivenPerm()()
+        )
+        val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, recv)(src)
+        val closedPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, closedProxy, Vector())(src))
+        val posts: Vector[in.Assertion] = Vector(
+          in.Access(recvChannelPred, in.FullPerm(src))(src),
+          in.Implication(okParam, in.ExprAssertion(in.BoolLit(true)(src))(src) /* TODO replace by [c].RecvGotPerm()(resTarget) */)(src),
+          in.Implication(
+            in.Negation(okParam)(src),
+            in.SepAnd(
+              in.Access(closedPred, in.FullPerm(src))(src),
+              in.ExprAssertion(in.EqCmp(resParam, in.DfltVal(resParam.typ)(src))(src))(src)
+            )(src)
+          )(src)
+        )
+        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+        in.Method(recvParam, proxy, Vector(), Vector(resParam, okParam), pres, posts, None)(src)
+      case t => violation(s"no method generation defined for tag $t")
+    }
+
+    def generateBuiltInFPredicate(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicate = tag match {
+      case t => violation(s"no fpredicate generation defined for tag $t")
+    }
+
+    def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = tag match {
+      case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
+        val recvParam = in.Parameter.In("c", recv)(src)
+        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+        in.MPredicate(recvParam, proxy, Vector(), None)(src)
+      case t => violation(s"no mpredicate generation defined for tag $t")
+    }
+
     //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get
 //      val finish = pom.positions.getFinish(n).get
@@ -1992,6 +2189,7 @@ object Desugar {
     private val STRUCT_PREFIX = "X"
     private val INTERFACE_PREFIX = "Y"
     private val GLOBAL_PREFIX = "G"
+    private val BUILTIN_PREFIX = "B"
 
     private var counter = 0
 
@@ -2025,6 +2223,23 @@ object Desugar {
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
+    }
+    private def sanitizeType(typ: in.Type): String = {
+      val rawTypeString = typ.toString
+      // rawTypeString can contain parentheses and commata but Viper seems to handle them. Nevertheless, we will
+      // escape them in the following
+      rawTypeString
+        .replace("(", "_")
+        .replace(")", "_")
+        .replace(",", "_")
+    }
+    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type): String = {
+      val recvTypeString = sanitizeType(recv)
+      s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$recvTypeString"
+    }
+    def builtInAuxType(tag: BuiltInAuxTypeTag, args: Vector[in.Type]): String = {
+      val argsTypeString = args.map(sanitizeType).mkString("_")
+      s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$argsTypeString"
     }
 
     def inverse(n: String): String = n.substring(0, n.indexOf('_'))

@@ -39,6 +39,12 @@ object AstPattern {
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
   case class MethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
 
+  sealed trait BuiltInFunctionKind extends FunctionKind
+
+  case class BuiltInFunction(id: PIdnUse, symb: st.BuiltInFunction) extends BuiltInFunctionKind with Symbolic
+  case class BuiltInReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInFunctionKind with Symbolic
+  case class BuiltInMethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInFunctionKind with Symbolic
+
   sealed trait Assertion extends Pattern
 
   case class PredicateCall(predicate: PredicateKind, args: Vector[PExpression]) extends Assertion
@@ -49,4 +55,10 @@ object AstPattern {
   case class ReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
   case class PredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
 
+  sealed trait BuiltInPredicateKind extends PredicateKind
+
+  case class BuiltInPredicate(id: PIdnUse, symb: st.BuiltInFPredicate) extends BuiltInPredicateKind with Symbolic
+  case class BuiltInReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
+  case class BuiltInPredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
+  
 }

@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.SymbolTable.{MethodLike, Regular, UnknownEntity, lookup}
+import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
 import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
@@ -98,13 +98,13 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     }
   }
 
-  override def tryAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  override def tryAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
     val res = addressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res
   }
 
-  override def tryNonAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  override def tryNonAddressableMethodLikeLookup(typ: Type.Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
     val res = nonAddressableMethodSet(typ).lookupWithPath(id.name)
     res.foreach { case (ml, _) => registerExternallyAccessedEntity(ml) }
     res

@@ -167,7 +167,14 @@ object TypePatterns {
         case _ => None
       }
     }
-
+    /*
+    object Channel {
+      def unapply(arg : in.Type) : Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.ChannelT => Some(t.elem)
+        case _ => None
+      }
+    }
+    */
   }
 
 

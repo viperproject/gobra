@@ -500,8 +500,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
     case channelType: PChannelType => channelType match {
       case PBiChannelType(elem)   => "chan" <+> showType(elem)
-      case PSendChannelType(elem) => "<-" <> "chan" <+> showType(elem)
-      case PRecvChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      case PSendChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      case PRecvChannelType(elem) => "<-" <> "chan" <+> showType(elem)
     }
     case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
     case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)

@@ -7,6 +7,8 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.BuiltInMemberTag
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInFPredicateTag}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -117,8 +119,24 @@ trait NameResolution { this: TypeInfoImpl =>
   private[resolution] lazy val sequentialDefenv: Chain[Environment] =
     chain(defenvin, defenvout)
 
+  private def initialEnv(n: PPackage): Vector[(String, Entity)] = {
+    val members = BuiltInMemberTag.builtInMembers()
+    members.flatMap(m => {
+      val entity = m match {
+        case tag: BuiltInFunctionTag => Some(BuiltInFunction(tag, n, this))
+        case _: BuiltInMethodTag => None
+        case tag: BuiltInFPredicateTag => Some(BuiltInFPredicate(tag, n, this))
+        case tag: BuiltInMPredicateTag => Some(BuiltInMPredicate(tag, n, this))
+      }
+      entity match {
+        case Some(e) => Some((m.identifier, e))
+        case _ => None
+      }
+    })
+  }
+
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
-    case n: PPackage => addShallowDefToEnv(rootenv())(n)
+    case n: PPackage => addShallowDefToEnv(rootenv(initialEnv(n):_*))(n)
     case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)

@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// channel direction can not implicitly be converted from Send or Recv to Bi:
+
+requires sendChan.SendChannel()
+//:: ExpectedOutput(type_error)
+requires sendChan.RecvChannel()
+func doSend(sendChan chan<- int) {
+    //:: ExpectedOutput(type_error)
+    doBoth(sendChan)
+}
+
+//:: ExpectedOutput(type_error)
+requires recvChan.SendChannel()
+requires recvChan.RecvChannel()
+func doRecv(recvChan <-chan int) {
+    //:: ExpectedOutput(type_error)
+    doBoth(recvChan)
+}
+
+requires c.SendChannel() && c.RecvChannel()
+func doBoth(c chan int)

@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -126,5 +127,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
+
+    case BuiltInMethod(tag, _, _) => BuiltInMemberTag.singleAuxTypes(tag)
   }
 }

@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.Type.{AuxTypeLike, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -46,8 +46,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.Predicate) => noMessages
-        // TODO: supporting packages results in further options: global variable
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
+        // TODO: fully supporting packages results in further options: global variable
+        // built-in members
+        case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
+          case t: SingleAuxType => t.messages(n, exprType(p.recv))
+          case t => error(n, s"expected a SingleAuxType for built-in method but got $t")
+        }
+        case Some(p: ap.BuiltInReceivedPredicate) => memberType(p.symb) match {
+          case t: SingleAuxType => t.messages(n, exprType(p.recv))
+          case t => error(n, s"expected a SingleAuxType for built-in mpredicate but got $t")
+        }
+        case Some(p: ap.BuiltInMethodExpr) => memberType(p.symb) match {
+          case t: SingleAuxType => t.messages(n, symbType(p.typ))
+          case t => error(n, s"expected a SingleAuxType for built-in method but got $t")
+        }
+        case Some(p: ap.BuiltInPredicateExpr) => memberType(p.symb) match {
+          case t: SingleAuxType => t.messages(n, symbType(p.typ))
+          case t => error(n, s"expected a SingleAuxType for built-in mpredicate but got $t")
+        }
+
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -91,7 +109,38 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
-        // TODO: supporting packages results in further options: global variable
+        // TODO: fully supporting packages results in further options: global variable
+
+        // built-in members
+        case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
+          case t: SingleAuxType =>
+            val recvType = exprType(p.recv)
+            if (t.typing.isDefinedAt(recvType)) t.typing(recvType)
+            else violation(s"expected SingleAuxType to be defined for $recvType")
+          case t => violation(s"a built-in method should be typed to a SingleAuxType, but got $t")
+        }
+        case Some(p: ap.BuiltInReceivedPredicate) => memberType(p.symb) match {
+          case t: SingleAuxType =>
+            val recvType = exprType(p.recv)
+            if (t.typing.isDefinedAt(recvType)) t.typing(recvType)
+            else violation(s"expected SingleAuxType to be defined for $recvType")
+          case t => violation(s"a built-in mpredicate should be typed to a SingleAuxType, but got $t")
+        }
+        case Some(p: ap.BuiltInMethodExpr) => memberType(p.symb) match {
+          case t: SingleAuxType =>
+            val recvType = typeSymbType(p.typ)
+            if (t.typing.isDefinedAt(recvType)) extentFunctionType(t.typing(recvType), recvType)
+            else violation(s"expected SingleAuxType to be defined for $recvType")
+          case t => violation(s"a built-in method should be typed to a SingleAuxType, but got $t")
+        }
+        case Some(p: ap.BuiltInPredicateExpr) => memberType(p.symb) match {
+          case t: SingleAuxType =>
+            val recvType = typeSymbType(p.typ)
+            if (t.typing.isDefinedAt(recvType)) extentFunctionType(t.typing(recvType), recvType)
+            else violation(s"expected SingleAuxType to be defined for $recvType")
+          case t => violation(s"a built-in mpredicate should be typed to a SingleAuxType, but got $t")
+        }
+
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
       }
 
@@ -147,19 +196,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+          case t: AuxTypeLike =>
+            t.messagesFn(n, n.args map exprType)
           case t => error(n, s"type error: got $t but expected function type")
         }
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
         val pureReceiverMsgs = p.predicate match {
-          case _: ap.Predicate | _: ap.PredicateExpr => noMessages
+          case _: ap.Predicate | _: ap.PredicateExpr | _: ap.BuiltInPredicate | _: ap.BuiltInPredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
+          case brp: ap.BuiltInReceivedPredicate => isPureExpr(brp.recv)
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
         val argAssignMsgs = exprType(callee) match {
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+          case t: AuxTypeLike =>
+            t.messagesFn(n, n.args map exprType)
           case t => error(n, s"type error: got $t but expected function type")
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
@@ -303,6 +357,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
+          case t: AuxTypeLike =>
+            val argTypes = n.args map exprType
+            if (t.typingFn.isDefinedAt(argTypes)) t.typingFn(argTypes)
+            else violation(s"expected typing function in AuxType to be defined for $argTypes")
           case t => violation(s"expected function type but got $t") //(error(n, s""))
         }
       case p => violation(s"expected conversion, function call, or predicate call, but got $p")

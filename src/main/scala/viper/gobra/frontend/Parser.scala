@@ -772,7 +772,8 @@ object Parser {
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
     lazy val selection: PackratParser[PDot] =
-      primaryExp ~ ("." ~> idnUse) ^^ PDot
+      primaryExp ~ ("." ~> idnUse) ^^ PDot |
+      typ ~ ("." ~> idnUse) ^^ PDot
 
     lazy val idBasedSelection: Parser[PDot] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ {
@@ -868,8 +869,8 @@ object Parser {
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
 
     lazy val channelType: Parser[PChannelType] =
-      ("chan" ~> "<-") ~> typ ^^ PRecvChannelType |
-        ("<-" ~> "chan") ~> typ ^^ PSendChannelType |
+      ("chan" ~> "<-") ~> typ ^^ PSendChannelType |
+        ("<-" ~> "chan") ~> typ ^^ PRecvChannelType |
         "chan" ~> typ ^^ PBiChannelType
 
     lazy val functionType: Parser[PFunctionType] =

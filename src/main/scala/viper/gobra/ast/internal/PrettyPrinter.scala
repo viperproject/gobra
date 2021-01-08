@@ -9,6 +9,7 @@ package viper.gobra.ast.internal
 import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.frontend.info.base.Type.ChannelModus
 import viper.gobra.theory.Addressability
 import viper.silver.ast.{Position => GobraPosition}
 
@@ -333,6 +334,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
+    // case Receive(channel) => "<-" <+> showExpr(channel)
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
@@ -442,6 +444,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case TupleT(ts, _) => parens(showTypeList(ts))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case _: InterfaceT => "interface" <> parens("...")
+    // case ChannelT(elem, ChannelModus.Bi, _) => "chan" <+> showType(elem)
+    // case ChannelT(elem, ChannelModus.Send, _) => "chan<-" <+> showType(elem)
+    // case ChannelT(elem, ChannelModus.Recv, _) => "<-chan" <+> showType(elem)
     case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
@@ -538,5 +543,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    // case Send(channel, msg) => showExpr(channel) <+> "<-" <+> showExpr(msg)
   }
 }

@@ -24,6 +24,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: MultipleEntity => LocalMessages(error(id, s"got duplicate identifier $id"))
       case ErrorMsgEntity(msg) => LocalMessages(msg) // use provided error message instead of creating an own one
       case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
+      case _: BuiltInEntity => LocalMessages(noMessages) // built-in entities are assumed to be well-formed
       case entity: ActualRegular => wellDefActualRegular(entity, id)
       case entity: GhostRegular => wellDefGhostRegular(entity, id)
     }

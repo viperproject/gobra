@@ -191,7 +191,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
-      parens("[]" <> showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+      parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
     case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))

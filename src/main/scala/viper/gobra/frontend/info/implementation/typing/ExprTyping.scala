@@ -281,13 +281,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case m@PMake(typ, args) =>
       args.flatMap { arg =>
-        exprType(arg) match {
-          case IntT(config.typeBounds.Int) | IntT(config.typeBounds.UntypedConst) =>
-            val constEval = intConstantEval(arg)
-            val isConstExpr = constEval.isDefined
-            error(arg, s"arguments to make must be non-negative", isConstExpr && constEval.get < 0)
-          case _ => error(arg, s"argument $arg is not of int type.")
-        }
+        assignableTo.errors(exprType(arg), IntT(config.typeBounds.Int))(arg) ++
+          error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
       } ++ (typ match {
         case _: PSliceType =>
           error(m, s"too many arguments to make($typ)", args.length > 2) ++

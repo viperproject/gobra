@@ -181,7 +181,7 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
 
 case class MakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
-  override def localMessage: String = s"The provided length might not be smaller or equal to the provided capacity, or either length or capacity might be negative"
+  override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
 }
 
 sealed trait VerificationErrorReason {

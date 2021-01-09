@@ -12,7 +12,6 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.ast.internal.{DfltVal, Lit, LocalVar}
-import viper.gobra.frontend.info.base.Type.ChannelModus
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
@@ -1136,7 +1135,7 @@ object Desugar {
             unit(freshExclusiveVar(typ)(src))
 
           case PMake(t, args) =>
-            def elemD(t: Type): in.Type = typeD(t, Addressability.defaultValue)(src)
+            def elemD(t: Type): in.Type = typeD(t, Addressability.make)(src)
 
             // the target arguments must be always exclusive, that is an invariant of the desugarer
             val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
@@ -1150,7 +1149,7 @@ object Desugar {
 
               make: in.MakeStmt = info.symbType(t) match {
                 case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
-                case c@ChannelT(_, ChannelModus.Bi) => in.MakeChannel(target, elemD(c), arg0)(src)
+                case c@ChannelT(_, _) => in.MakeChannel(target, elemD(c), arg0)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
               }
               _ <- write(make)

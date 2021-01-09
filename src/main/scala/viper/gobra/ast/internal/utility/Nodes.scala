@@ -39,6 +39,9 @@ object Nodes {
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
+        case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
+        case MakeChannel(target, _, bufferSizeArg) => target +: bufferSizeArg.toSeq
+        case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args

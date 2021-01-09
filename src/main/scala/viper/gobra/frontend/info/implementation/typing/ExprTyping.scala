@@ -292,7 +292,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
             }
 
-        case _: PBiChannelType | _: PMapType =>
+        case _: PChannelType | _: PMapType =>
           error(m, s"too many arguments passed to make($typ)", args.length > 1)
 
         case _ => error(typ, s"cannot make type $typ")

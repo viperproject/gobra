@@ -192,7 +192,7 @@ trait TypeEncoding extends Generator {
 
   /**
     * Encodes statements.
-    * This includes new-statements and make-statements.
+    * This includes new-statements.
     *
     * The default implements:
     * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]

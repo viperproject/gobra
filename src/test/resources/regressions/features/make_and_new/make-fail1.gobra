@@ -40,12 +40,6 @@ func main() {
 	//:: ExpectedOutput(type_error)
 	c3 := make(chan int, 123412342134123512351234213412432141432412)
 
-	// only bidirectional channels can be created with make
-	//:: ExpectedOutput(type_error)
-	c4a := make(chan<- int)
-	//:: ExpectedOutput(type_error)
-	c4b := make(<-chan int)
-
 	// make for channels expects at most 1 additional argument besides the type
 	//:: ExpectedOutput(type_error)
 	c5 := make(chan int, 10, 20)

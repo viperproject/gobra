@@ -128,15 +128,15 @@ object Desugar {
       in.MethodProxy(id.name, name)(meta(id))
     }
 
-    private var builtInMethods: Map[(BuiltInMethodTag, in.Type, Vector[in.Type]), in.MethodMember] = Map.empty
-    def methodProxy(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type])(src: Meta): in.MethodProxy = {
-      def genAndStore(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type]): in.MethodMember = {
-        val meth = generateBuiltInMethod(tag, recv, returnTypes)(src)
-        builtInMethods += (tag, recv, returnTypes) -> meth
+    private var builtInMethods: Map[(BuiltInMethodTag, in.Type), in.MethodMember] = Map.empty
+    def methodProxy(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodProxy = {
+      def genAndStore(tag: BuiltInMethodTag, recv: in.Type): in.MethodMember = {
+        val meth = generateBuiltInMethod(tag, recv)(src)
+        builtInMethods += (tag, recv) -> meth
         meth
       }
 
-      val meth = builtInMethods.getOrElse((tag, recv, returnTypes), genAndStore(tag, recv, returnTypes))
+      val meth = builtInMethods.getOrElse((tag, recv), genAndStore(tag, recv))
       meth.name
     }
 
@@ -907,10 +907,9 @@ object Desugar {
             *   [m] := resTarget
             *   [ok] := successTarget
             */
-          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.channelElement))(src)
-          val successTarget = freshExclusiveVar(lefts(1).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
-          // val msgT = typeD(n.messageType, Addressability.outParameter)(src)
-          val recvMethodProxy = methodProxy(BuiltInMemberTag.ReceiveMethodTag, n.typ, Vector(resTarget.typ, successTarget.typ))(src)
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
+          val recvMethodProxy = methodProxy(BuiltInMemberTag.ReceiveMethodTag, n.channel.typ)(src)
           val recvMethodCall = in.MethodCall(Vector(resTarget, successTarget), n.channel, recvMethodProxy, Vector())(src)
           val mAssign = singleAss(lefts(0), resTarget)(src)
           val okAssign = singleAss(lefts(1), successTarget)(src)
@@ -1247,7 +1246,7 @@ object Desugar {
             unit(freshExclusiveVar(typ)(src))
 
           case PReceive(op) =>
-            for { dop <- go(op) } yield in.Receive(dop, info.typ(op).asInstanceOf[ChannelT].elem)(src)
+            for { dop <- go(op) } yield in.Receive(dop)(src)
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
@@ -1309,21 +1308,9 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
-        case nil: PNilLit => nilD(ctx)(nil)
+        case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
-      }
-    }
-
-    def nilD(ctx: FunctionContext)(nil: PNilLit): Writer[in.Expr] = {
-
-      val src: Meta = meta(nil)
-      def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
-
-      info.nilType(nil) match {
-          // handle special case of channels as they are encoded as integers and thus has to use their default value
-        case Some(t: ChannelT) => single(in.DfltVal(typeD(t, Addressability.literal)(src)))
-        case _ => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
       }
     }
 
@@ -1542,7 +1529,7 @@ object Desugar {
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
-      case Type.ChannelT(_, _) => in.IntT(addrMod) // in.ChannelT(typeD(elem, Addressability.channelElement)(src), modus, addrMod)
+      case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -2097,8 +2084,8 @@ object Desugar {
       case t => violation(s"no function generation defined for tag $t")
     }
 
-    def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type, returnTypes: Vector[in.Type])(src: Meta): in.MethodMember = {
-      def generateChannelInvariantMethod(tag: ChannelInvariantMethodTag, recv: in.Type, returnType: in.Type): in.PureMethod = {
+    def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodMember = {
+      def generateChannelInvariantMethod(tag: ChannelInvariantMethodTag, recv: in.ChannelT): in.PureMethod = {
         /**
           * requires acc(c.[chanPredicateTag](), _)
           * pure func (c chan<-T).[tag.identifier] (res [returnType])
@@ -2108,7 +2095,7 @@ object Desugar {
           *   - returnType is either pred(T) or pred()
           */
         val recvParam = in.Parameter.In("c", recv)(src)
-        val resParam = in.Parameter.Out("res", returnType)(src)
+        val resParam = in.Parameter.Out("res", recv.elem)(src)
         val chanPredicateTag = tag match {
           case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
           case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
@@ -2118,15 +2105,15 @@ object Desugar {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, Vector(returnType)))(src)
+        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
         in.PureMethod(recvParam, proxy, Vector(), Vector(resParam), pres, Vector(), None)(src)
       }
 
-      tag match {
-        case tag: ChannelInvariantMethodTag if returnTypes.length == 1 =>
-          generateChannelInvariantMethod(tag, recv, returnTypes.head)
+      (tag, recv) match {
+        case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
+          generateChannelInvariantMethod(tag, recv)
 
-        case ReceiveMethodTag if returnTypes.length == 2 =>
+        case (ReceiveMethodTag, recv: in.ChannelT) =>
           /**
             * requires acc([c].RecvChannel(), wildcard)
             * requires [c].RecvGivenPerm()()
@@ -2136,9 +2123,9 @@ object Desugar {
             * func (c: channel[T]).Receive() (res: T, ok: BooleanT)
             */
           val recvParam = in.Parameter.In("c", recv)(src)
-          val resT = returnTypes.head.withAddressability(Addressability.outParameter)
+          val resT = recv.elem.withAddressability(Addressability.outParameter)
           val resParam = in.Parameter.Out("res", resT)(src)
-          val okT = returnTypes(1).withAddressability(Addressability.outParameter)
+          val okT = in.BoolT(Addressability.outParameter)
           val okParam = in.Parameter.Out("ok", okT)(src)
           val recvChannelProxy = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, recv)(src)
           val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(recvParam, recvChannelProxy, Vector())(src))
@@ -2162,7 +2149,7 @@ object Desugar {
               )(src)
             )(src)
           )
-          val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, returnTypes))(src)
+          val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
           in.Method(recvParam, proxy, Vector(), Vector(resParam, okParam), pres, posts, None)(src)
         case t => violation(s"no method generation defined for tag $t")
       }
@@ -2175,7 +2162,7 @@ object Desugar {
     def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = tag match {
       case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
         val recvParam = in.Parameter.In("c", recv)(src)
-        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv, Vector()))(src)
+        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
         in.MPredicate(recvParam, proxy, Vector(), None)(src)
       case t => violation(s"no mpredicate generation defined for tag $t")
     }
@@ -2190,7 +2177,7 @@ object Desugar {
       }
       val predTypeArgs = args.map(_.typ)
       val predReturnT = in.PredT(predTypeArgs, Addressability.outParameter)
-      val proxy = methodProxy(tag, channel.typ, Vector(predReturnT))(src)
+      val proxy = methodProxy(tag, channel.typ)(src)
       val permExpr = in.PureMethodCall(channel, proxy, Vector(), predReturnT)(src)
       in.Access(in.Accessible.PredExpr(in.PredExprInstance(permExpr, args)(src)), in.FullPerm(src))(src)
     }
@@ -2286,13 +2273,13 @@ object Desugar {
         .replace(")", "_")
         .replace(",", "_")
     }
-    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type, returnTypes: Vector[in.Type]): String = {
-      val typeString = (recv +: returnTypes).map(sanitizeType).mkString("_")
+    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type): String = {
+      val typeString = sanitizeType(recv)
       s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$typeString"
     }
-    def builtInAuxType(tag: BuiltInAuxTypeTag, args: Vector[in.Type]): String = {
-      val argsTypeString = args.map(sanitizeType).mkString("_")
-      s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$argsTypeString"
+    def builtInAuxType(tag: BuiltInAuxTypeTag, dependantTypes: Vector[in.Type]): String = {
+      val typeString = dependantTypes.map(sanitizeType).mkString("_")
+      s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }
 
     def inverse(n: String): String = n.substring(0, n.indexOf('_'))

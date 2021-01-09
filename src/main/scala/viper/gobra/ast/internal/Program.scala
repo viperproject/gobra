@@ -225,8 +225,12 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   * receive operation was successful. Thus, receiving a zero value from a closed or empty channel can be
   * distinguish from a zero value sent with a successful channel send operation
   */
-//case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr)(val info: Source.Parser.Info) extends Stmt
-
+/*
+case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr)(val info: Source.Parser.Info) extends Stmt {
+  require(channel.typ.isInstanceOf[ChannelT])
+  def channelType: ChannelT = channel.typ.asInstanceOf[ChannelT]
+}
+*/
 
 sealed trait Assertion extends Node
 
@@ -762,15 +766,13 @@ case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) e
   override def typ: Type = newType
 }
 
-/*
+/**
+  * Represents a channel receive operation. Currently does not appear in the internal presentation as it will
+  * directly be desugared
+  */
 case class Receive(channel: Expr)(val info: Source.Parser.Info) extends Expr {
   require(channel.typ.isInstanceOf[ChannelT])
   override def typ: Type = channel.typ.asInstanceOf[ChannelT].elem
-}
-*/
-// temporary workaround as long as channels and their send and receive operations are directly handled in the desugarer:
-case class Receive(channel: Expr, messageType: b.Type)(val info: Source.Parser.Info) extends Expr {
-  override def typ: Type = channel.typ
 }
 
 sealed trait Lit extends Expr
@@ -1080,17 +1082,16 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
   override def withAddressability(newAddressability: Addressability): InterfaceT =
     InterfaceT(name, newAddressability)
 }
-/*
-case class ChannelT(elem: Type, modus: ChannelModus, addressability: Addressability) extends Type {
+
+case class ChannelT(elem: Type, addressability: Addressability) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case o: ChannelT => elem == o.elem && modus == o.modus
+    case o: ChannelT => elem == o.elem
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): ChannelT =
-    ChannelT(elem, modus, newAddressability)
+    ChannelT(elem, newAddressability)
 }
-*/
 
 
 

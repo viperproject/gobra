@@ -1,0 +1,61 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+	// making slices works as expected, given valid arguments
+	s1a := make([]int, 10)
+	s1b := make([]int, 10, 15)
+
+	//:: ExpectedOutput(type_error)
+	s2 := make([]int, 1, 0) // cap cannot be less than len
+
+	// arguments to make function must be of type int or and untyped const representable in
+	// an int type. the following two cases lead to an overflow
+	//:: ExpectedOutput(type_error)
+	s3a := make([]int, 123412342134123512351234213412432141432412)
+	//:: ExpectedOutput(type_error)
+	s3b := make([]int, 1, 123412342134123512351234213412432141432412)
+
+	// arguments passed to make cannot be negative
+	//:: ExpectedOutput(type_error)
+	s4a := make([]int, -2)
+	//:: ExpectedOutput(type_error)
+	s4a := make([]int, -2, -1)
+
+	// make for slices expects at most 2 additional arguments besides the type
+	//:: ExpectedOutput(type_error)
+	s5 := make([]int, 10, 20, 30)
+
+	// making channels is also supported, given valid arguments
+	c1a := make(chan int)
+	c1b := make(chan int, 10)
+
+	// the argument passed to make cannot be negative
+	//:: ExpectedOutput(type_error)
+	c2 := make(chan int, -1)
+
+	// once again, a constant argument to make must be representable as an int
+	//:: ExpectedOutput(type_error)
+	c3 := make(chan int, 123412342134123512351234213412432141432412)
+
+	// make for channels expects at most 1 additional argument besides the type
+	//:: ExpectedOutput(type_error)
+	c5 := make(chan int, 10, 20)
+
+	// maps can be created with make given valid arguments
+	m1a := make(map[int]int)
+	m1b := make(map[int]int, 10)
+
+	// like for slices and channels, make for maps only supports a non-negative value
+	// representable as an int
+	//:: ExpectedOutput(type_error)
+	m2a := make(map[int]int, -1)
+	//:: ExpectedOutput(type_error)
+	m2a := make(map[int]int, 123412342134123512351234213412432141432412)
+
+	// make for maps expects at most 1 additional argument besides the type
+	//:: ExpectedOutput(type_error)
+	m3 := make(map[int]int, 10, 20)
+}

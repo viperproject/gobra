@@ -97,29 +97,38 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(Vector(assertBounds, ass))(l.op.info)
 
     case f@FunctionCall(_, _, args) =>
-      val asserts = args map (expr => {
-        val info = createAnnotatedInfo(expr.info)
-        Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
-      })
-      Seqn(f +: asserts)(f.info)
+      Seqn(genOverflowChecksExprs(args) :+ f)(f.info)
 
     case m@MethodCall(_, recv, _, args) =>
-      val asserts = args map (expr => {
-        val info = createAnnotatedInfo(expr.info)
-        Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
-      })
-      val recvInfo = createAnnotatedInfo(recv.info)
-      val recvAssert = Assert(assertionExprInBounds(recv, recv.typ)(recvInfo))(recvInfo)
-      Seqn(m +: recvAssert +: asserts)(m.info)
+      Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
-    case m@Make(_, typ) =>
-      val info = createAnnotatedInfo(typ.info)
-      val assertBounds = Assert(assertionExprInBounds(typ.op, typ.op.typ)(info))(info)
-      Seqn(Vector(assertBounds, m))(m.info)
+    case m@New(_, expr) =>
+      Seqn(genOverflowChecksExprs(Vector(expr)) :+ m)(m.info)
+
+    case f@GoFunctionCall(_, args) =>
+      Seqn(genOverflowChecksExprs(args) :+ f)(f.info)
+
+    case m@GoMethodCall(recv, _, args) =>
+      Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
+
+    case m@MakeSlice(_, _, arg1, optArg2) =>
+      Seqn(genOverflowChecksExprs(arg1 +: optArg2.toVector) :+ m)(m.info)
+
+    case m@MakeChannel(_, _, optArg) =>
+      Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
+
+    case m@MakeMap(_, _, optArg) =>
+      Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold | _: SafeTypeAssertion) => x
   }
+
+  private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =
+    exprs map (expr => {
+      val info = createAnnotatedInfo(expr.info)
+      Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
+    })
 
   // Checks if expr and its subexpressions are within bounds given by their type
   private def assertionExprInBounds(expr: Expr, typ: Type)(info: Source.Parser.Info): Assertion = {

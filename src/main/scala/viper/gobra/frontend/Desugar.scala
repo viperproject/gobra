@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.internal.{FunctionProxy, Lit, LocalVar, MPredicateProxy, MethodProxy}
+import viper.gobra.ast.internal.{DfltVal, FunctionProxy, Lit, LocalVar, MPredicateProxy, MethodProxy}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -1116,14 +1116,13 @@ object Desugar {
           }
 
           case PReference(exp) => exp match {
-              // The reference of a literal is desugared to a make call
+            // The reference of a literal is desugared to a new call
             case c: PCompositeLit =>
               for {
                 c <- compositeLitD(ctx)(c)
-                co = compositeLitToObject(c)
                 v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- declare(v)
-                _ <- write(in.Make(v, co)(src))
+                _ <- write(in.New(v, c)(src))
               } yield v
 
             case _ => addressableD(ctx)(exp) map (a => in.Ref(a, in.PointerT(a.op.typ, Addressability.reference))(src))
@@ -1247,6 +1246,37 @@ object Desugar {
 
           case PReceive(op) =>
             for { dop <- go(op) } yield in.Receive(dop)(src)
+
+          case PMake(t, args) =>
+            def elemD(t: Type): in.Type = typeD(t, Addressability.make)(src)
+
+            // the target arguments must be always exclusive, that is an invariant of the desugarer
+            val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
+            val target = freshExclusiveVar(resT)(src)
+
+            for {
+              _ <- declare(target)
+              argsD <- sequence(args map go)
+              arg0 = argsD.lift(0)
+              arg1 = argsD.lift(1)
+
+              make: in.MakeStmt = info.symbType(t) match {
+                case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case c@ChannelT(_, _) => in.MakeChannel(target, elemD(c), arg0)(src)
+                case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
+              }
+              _ <- write(make)
+            } yield target
+
+          case PNew(t) =>
+            val allocatedType = typeD(info.symbType(t), Addressability.Exclusive)(src)
+            val targetT = in.PointerT(allocatedType.withAddressability(Addressability.Shared), Addressability.reference)
+            val target = freshExclusiveVar(targetT)(src)
+            for {
+              _ <- declare(target)
+              zero = DfltVal(allocatedType)(src)
+              _ <- write(in.New(target, zero)(src))
+            } yield target
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }

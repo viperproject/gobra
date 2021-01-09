@@ -168,7 +168,17 @@ object Assignee {
   case class Index(op : IndexedExp) extends Assignee
 }
 
-case class Make(target: LocalVar, typ: CompositeObject)(val info: Source.Parser.Info) extends Stmt
+sealed trait MakeStmt extends Stmt {
+  val target: LocalVar
+  val typeParam: Type
+}
+
+case class MakeSlice(override val target: LocalVar, override val typeParam: SliceT, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+// TODO: change type of typeParam when ChannelT and MapT is implemented
+case class MakeChannel(override val target: LocalVar, override val typeParam: Type, bufferSizeArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeMap(override val target: LocalVar, override val typeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+
+case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {
   def op: CompositeLit
@@ -779,8 +789,8 @@ sealed trait Lit extends Expr
 
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class IntLit(v: BigInt)(val info: Source.Parser.Info) extends Lit {
-  override def typ: Type = IntT(Addressability.literal)
+case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = IntT(Addressability.literal, kind)
 }
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
@@ -329,6 +329,29 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case _: PNew => noMessages
+
+    case m@PMake(typ, args) =>
+      args.flatMap { arg =>
+        assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
+          error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
+      } ++ (typ match {
+        case _: PSliceType =>
+          error(m, s"too many arguments to make($typ)", args.length > 2) ++
+            error(m, s"missing len argument to make($typ)", args.isEmpty) ++
+            check(args){
+              case args if args.length == 2 =>
+                val maybeLen = intConstantEval(args(0))
+                val maybeCap = intConstantEval(args(1))
+                error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
+            }
+
+        case _: PChannelType | _: PMapType =>
+          error(m, s"too many arguments passed to make($typ)", args.length > 1)
+
+        case _ => error(typ, s"cannot make type $typ")
+      })
+
     case PBlankIdentifier() => noMessages
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
@@ -427,6 +450,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case b: PBlankIdentifier => getBlankIdType(b)
 
+    case PNew(typ) => PointerT(typeSymbType(typ))
+
+    case PMake(typ, _) => typeSymbType(typ)
+
     case e => violation(s"unexpected expression $e")
   }
 
@@ -485,6 +512,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         // if no type is specified, integer expressions have default type in var declarations
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
+
+        case _: PMake => Some(INT_TYPE)
 
         case n: PInvoke => resolve(n) match {
           case Some(ap.FunctionCall(callee, args)) =>

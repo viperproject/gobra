@@ -303,7 +303,7 @@ object Parser {
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
-      "len", "cap",
+      "len", "cap", "make", "new",
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
@@ -714,10 +714,21 @@ object Parser {
         dereference |
         receiveExp |
         unfolding |
+        make |
+        newExp |
         len |
         cap |
         ghostUnaryExp |
         primaryExp
+
+    lazy val make : Parser[PMake] =
+      "make" ~> ("(" ~> typ ~ expSequence <~ ")") ^^ PMake
+
+    lazy val expSequence: Parser[Vector[PExpression]] =
+      ("," ~> rep1sep(expression, ",") <~ ",".?).? ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val newExp : Parser[PNew] =
+      "new" ~> ("(" ~> typ <~ ")") ^^ PNew
 
     lazy val len : Parser[PLength] =
       "len" ~> ("(" ~> expression <~ ")") ^^ PLength

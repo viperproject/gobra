@@ -113,5 +113,6 @@ object Addressability {
 
   def unfolding(bodyAddressability: Addressability): Addressability = bodyAddressability
   val old: Addressability = rValue
+  val make: Addressability = Exclusive
 
 }

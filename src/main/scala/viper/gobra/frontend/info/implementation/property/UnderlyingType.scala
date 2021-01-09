@@ -134,6 +134,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case _: MapT => true
       case _: ChannelT => true
       case _: FunctionT => true
+      case _: InterfaceT => true
       case _ => false
     }
   }

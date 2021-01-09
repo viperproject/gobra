@@ -103,9 +103,7 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
     case m@New(_, expr) =>
-      val info = createAnnotatedInfo(expr.info)
-      val assertBounds = Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
-      Seqn(Vector(assertBounds, m))(m.info)
+      Seqn(genOverflowChecksExprs(Vector(expr)) :+ m)(m.info)
 
     case f@GoFunctionCall(_, args) =>
       Seqn(genOverflowChecksExprs(args) :+ f)(f.info)

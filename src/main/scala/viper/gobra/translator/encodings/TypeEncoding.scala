@@ -192,23 +192,23 @@ trait TypeEncoding extends Generator {
 
   /**
     * Encodes statements.
-    * This includes make-statements.
+    * This includes new-statements.
     *
     * The default implements:
-    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
     */
   def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
-    case make@ in.Make(target, in.CompositeObject(lit :: t)) if typ(ctx).isDefinedAt(t) =>
-      val (pos, info, errT) = make.vprMeta
-      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(make.info)
-      val zDeref = in.Deref(z)(make.info)
+    case newStmt@in.New(target, expr) if typ(ctx).isDefinedAt(expr.typ) =>
+      val (pos, info, errT) = newStmt.vprMeta
+      val z = in.LocalVar(Names.freshName, target.typ.withAddressability(Exclusive))(newStmt.info)
+      val zDeref = in.Deref(z)(newStmt.info)
       seqn(
         for {
           _ <- local(ctx.typeEncoding.variable(ctx)(z))
           footprint <- addressFootprint(ctx)(zDeref, in.FullPerm(zDeref.info))
-          eq <- ctx.typeEncoding.equal(ctx)(zDeref, lit, make)
+          eq <- ctx.typeEncoding.equal(ctx)(zDeref, expr, newStmt)
           _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
-          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, make)
+          ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, newStmt)
         } yield ass
       )
   }

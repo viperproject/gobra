@@ -188,7 +188,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
-    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+
+    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
+
+    case MakeMap(target, typeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)
@@ -393,7 +403,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showLit(l: Lit): Doc = l match {
-    case IntLit(v) => v.toString
+    case IntLit(v, _) => v.toString
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 
@@ -522,7 +532,17 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
-    case Make(target, typ) => showVar(target) <+> "=" <+> "new" <> brackets(showCompositeObject(typ))
+    case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
+
+    case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
+
+    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+      parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
+
+    case MakeMap(target, typeParam, initialSpaceArg) =>
+      showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)

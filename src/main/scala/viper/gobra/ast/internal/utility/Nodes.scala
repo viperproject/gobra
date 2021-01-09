@@ -38,7 +38,10 @@ object Nodes {
         case Seqn(stmts) => stmts
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
-        case Make(target, typ) => Seq(target, typ)
+        case New(target, typ) => Seq(target, typ)
+        case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
+        case MakeChannel(target, _, bufferSizeArg) => target +: bufferSizeArg.toSeq
+        case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
@@ -128,7 +131,7 @@ object Nodes {
           case _: WildcardPerm => Seq()
         }
         case l: Lit => l match {
-          case IntLit(_) => Seq()
+          case IntLit(_, _) => Seq()
           case BoolLit(_) => Seq()
           case NilLit(_) => Seq()
           case ArrayLit(_, _, elems) => elems.values.toSeq

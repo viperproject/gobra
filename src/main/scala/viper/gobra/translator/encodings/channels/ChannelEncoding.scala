@@ -2,7 +2,9 @@ package viper.gobra.translator.encodings.channels
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -40,21 +42,47 @@ class ChannelEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Encodes statements.
-    * This includes make-statements.
+    * Encodes allocation of a new channel.
     *
-    * The default implements:
-    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
-    *
-    *
-    *
+    * [r := make(chan T, bufferSize)] ->
+    *   assert 0 <= [bufferSize]
+    *   var a [ chan T ]
+    *   inhale [a].isChannel([bufferSize])
+    *   r := a
     *
     */
-  /*
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)){
+      case makeStmt@in.MakeChannel(target, in.ChannelT(typeParam, _), optBufferSizeArg, isChannelPred) =>
+        val (pos, info, errT) = makeStmt.vprMeta
+        val a = in.LocalVar(Names.freshName, in.ChannelT(typeParam.withAddressability(Addressability.channelElement), Addressability.Exclusive))(makeStmt.info)
+        val vprA = ctx.typeEncoding.variable(ctx)(a)
+        val bufferSizeArg = optBufferSizeArg.getOrElse(in.IntLit(0)(makeStmt.info)) // create an unbuffered channel by default
+        seqn(
+          for {
+            // var a [ []T ]
+            _ <- local(vprA)
 
+            vprBufferSize <- ctx.expr.translate(bufferSizeArg)(ctx)
+
+            // assert 0 <= [bufferSize]
+            vprIsBufferSizePositive = vpr.GeCmp(vpr.IntLit(0)(pos, info, errT), vprBufferSize)(pos, info, errT)
+            vprAssert = vpr.Assert(vprIsBufferSizePositive)(pos, info, errT)
+            _ <- write(vprAssert)
+
+            // inhale [a].isChannel([bufferSize])
+            isChannelInst = in.Access(
+              in.Accessible.Predicate(in.MPredicateAccess(a, isChannelPred, Vector(bufferSizeArg))(makeStmt.info)),
+              in.FullPerm(makeStmt.info)
+            )(makeStmt.info)
+            vprIsChannelInst <- ctx.ass.translate(isChannelInst)(ctx)
+            vprInhale = vpr.Inhale(vprIsChannelInst)(pos, info, errT)
+            _ <- write(vprInhale)
+
+            // r := a
+            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), a, makeStmt)
+          } yield ass
+        )
     }
   }
-  */
 }

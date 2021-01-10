@@ -69,7 +69,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def builtInReceiverPredicateSet(recv: Type): AdvancedMemberSet[TypeMember] = {
     // filter out all mpredicates that are not defined for this receiver type
-    val definedMPreds = builtInReceiverPredicateSets.filter(p => BuiltInMemberTag.singleAuxTypes(p.tag).typing.isDefinedAt(recv))
+    val definedMPreds = builtInReceiverPredicateSets.filter(p => BuiltInMemberTag.singleAuxTypes(p.tag)(config).typing.isDefinedAt(recv))
     AdvancedMemberSet.init(definedMPreds)
   }
 

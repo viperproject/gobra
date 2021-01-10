@@ -193,7 +193,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
-    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+    case MakeChannel(target, typeParam, bufferSizeArg, _) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, typeParam, initialSpaceArg) =>
@@ -539,7 +539,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
-    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+    case MakeChannel(target, typeParam, bufferSizeArg, _) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, typeParam, initialSpaceArg) =>

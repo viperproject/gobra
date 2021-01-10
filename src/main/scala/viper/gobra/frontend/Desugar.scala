@@ -1262,7 +1262,10 @@ object Desugar {
 
               make: in.MakeStmt = info.symbType(t) match {
                 case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
-                case c@ChannelT(_, _) => in.MakeChannel(target, elemD(c), arg0)(src)
+                case c@ChannelT(_, _) =>
+                  val channelType = elemD(c).asInstanceOf[in.ChannelT]
+                  val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType)(src)
+                  in.MakeChannel(target, channelType, arg0, isChannelProxy)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
               }
               _ <- write(make)
@@ -2189,12 +2192,18 @@ object Desugar {
       case t => violation(s"no fpredicate generation defined for tag $t")
     }
 
-    def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = tag match {
-      case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
-        val recvParam = in.Parameter.In("c", recv)(src)
-        val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
-        in.MPredicate(recvParam, proxy, Vector(), None)(src)
-      case t => violation(s"no mpredicate generation defined for tag $t")
+    def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = {
+      val recvParam = in.Parameter.In("c", recv)(src)
+      val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+
+      tag match {
+        case IsChannelMPredTag =>
+          val bufferSizeParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
+          in.MPredicate(recvParam, proxy, Vector(bufferSizeParam), None)(src)
+        case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
+          in.MPredicate(recvParam, proxy, Vector(), None)(src)
+        case t => violation(s"no mpredicate generation defined for tag $t")
+      }
     }
 
     def channelInvariantAccess(tag: ChannelInvariantMethodTag, channel: in.Expr, args: Vector[in.Expr])(src: Meta): in.Access = {

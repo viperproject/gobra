@@ -7,8 +7,9 @@
 package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
+import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.BuiltInMemberTag.GhostBuiltInMember
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, SingleAuxType, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, SingleAuxType, Type}
 
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
@@ -93,6 +94,11 @@ object BuiltInMemberTag {
 
   /** Built-in MPredicate Tags */
 
+  case object IsChannelMPredTag extends BuiltInMPredicateTag {
+    override def identifier: String = "IsChannel"
+    override def name: String = "IsChannelMPredTag"
+  }
+
   case object SendChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "SendChannel"
     override def name: String = "SendChannelMPredTag"
@@ -122,16 +128,24 @@ object BuiltInMemberTag {
     ClosedMPredTag
   )
 
-  def types(tag: BuiltInMemberTag): AuxTypeLike = tag match {
-    case t: BuiltInAuxTypeTag => auxTypes(t)
-    case t: BuiltInSingleAuxTypeTag => singleAuxTypes(t)
+  def types(tag: BuiltInMemberTag)(config: Config): AuxTypeLike = tag match {
+    case t: BuiltInAuxTypeTag => auxTypes(t)(config)
+    case t: BuiltInSingleAuxTypeTag => singleAuxTypes(t)(config)
   }
 
-  def auxTypes(tag: BuiltInAuxTypeTag): AuxType = tag match {
+  def auxTypes(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
     case _ => unknownTagAuxType(tag)
   }
 
-  def singleAuxTypes(tag: BuiltInSingleAuxTypeTag): SingleAuxType = tag match {
+  def singleAuxTypes(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
+    case IsChannelMPredTag => SingleAuxType(
+      {
+        case (_, _: ChannelT) => noMessages
+        case (n, ts) => error(n, s"type error: expected a single argument of channel type but got $ts")
+      },
+      {
+        case _: ChannelT => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT)
+      })
     case _: SendPermMethodTag => sendChannelInvariantType
     case RecvGivenPermMethodTag => recvChannelInvariantType(false)
     case RecvGotPermMethodTag => recvChannelInvariantType(true)

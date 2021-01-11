@@ -22,7 +22,6 @@ import viper.gobra.util.TypeBounds
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
-import viper.gobra.frontend.info.base.{Type => b}
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
@@ -228,19 +227,15 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
-// case class Send(channel: Expr, expr: Expr)(val info: Source.Parser.Info) extends Stmt
+case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**
   * Channel receive operation that does not only return the received message but also a boolean result whether
   * receive operation was successful. Thus, receiving a zero value from a closed or empty channel can be
   * distinguish from a zero value sent with a successful channel send operation
   */
-/*
-case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr)(val info: Source.Parser.Info) extends Stmt {
-  require(channel.typ.isInstanceOf[ChannelT])
-  def channelType: ChannelT = channel.typ.asInstanceOf[ChannelT]
-}
-*/
+case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
+
 
 sealed trait Assertion extends Node
 
@@ -780,7 +775,7 @@ case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) e
   * Represents a channel receive operation. Currently does not appear in the internal presentation as it will
   * directly be desugared
   */
-case class Receive(channel: Expr)(val info: Source.Parser.Info) extends Expr {
+case class Receive(channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy)(val info: Source.Parser.Info) extends Expr {
   require(channel.typ.isInstanceOf[ChannelT])
   override def typ: Type = channel.typ.asInstanceOf[ChannelT].elem
 }

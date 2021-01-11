@@ -8,8 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.BuiltInMemberTag.GhostBuiltInMember
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, SingleAuxType, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, SingleAuxType}
 
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
@@ -43,15 +42,6 @@ object BuiltInMemberTag {
     override def name: String = "CloseFunctionTag"
   }
 
-  /**
-    * this tag is special as it is only used in the desugarer to simplify the creation of a havoc function for
-    * the internal representation. Thus, this tag does not occur in the following partial functions.
-    */
-  case class HavocFunctionTag(returnType: Type) extends BuiltInFunctionTag with GhostBuiltInMember {
-    override def identifier: String = "Havoc"
-    override def name: String = "HavocFunctionTag"
-  }
-
 
   /** Built-in FPredicate Tags */
 
@@ -79,16 +69,6 @@ object BuiltInMemberTag {
   case object RecvGotPermMethodTag extends RecvPermMethodTag {
     override def identifier: String = "RecvGotPerm"
     override def name: String = "RecvGotPermMethodTag"
-  }
-
-  /**
-    * this tag is special as it is only used in the desugarer to simplify the creation of a receive method for
-    * the internal representation. Thus, this tag does not occur in the following partial functions.
-    */
-  case object ReceiveMethodTag extends BuiltInMethodTag {
-    override def ghost: Boolean = false
-    override def identifier: String = "Receive"
-    override def name: String = "ReceiveMethodTag"
   }
 
 
@@ -119,10 +99,15 @@ object BuiltInMemberTag {
     * Returns a vector of tags belonging to built-in members that should be considered during name resolution
     */
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
+    // functions
+    // fpredicates
+    // methods
     SendGivenPermMethodTag,
     SendGotPermMethodTag,
     RecvGivenPermMethodTag,
     RecvGotPermMethodTag,
+    // mpredicates
+    IsChannelMPredTag,
     SendChannelMPredTag,
     RecvChannelMPredTag,
     ClosedMPredTag

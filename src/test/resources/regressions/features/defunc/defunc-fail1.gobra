@@ -24,7 +24,7 @@ func error2(ghost inv pred()) {
 	// y := unfolding accPred(&x) in x
 	fold accPred!<&x!>()
 	//:: ExpectedOutput(type_error)
-	y = unfolding accPred!<&x!>() in x
+	y := unfolding accPred!<&x!>() in x
 }
 
 pred eq(x *int, y *int) {

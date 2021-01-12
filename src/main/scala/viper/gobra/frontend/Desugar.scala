@@ -2120,6 +2120,16 @@ object Desugar {
     }
 
     def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodMember = {
+      def builtInMPredAccessible(tag: BuiltInMPredicateTag, recv: in.Expr, args: Vector[in.Expr])(src: Meta): in.Accessible.Predicate = {
+        val proxy = mpredicateProxy(tag, recv.typ)(src)
+        in.Accessible.Predicate(in.MPredicateAccess(recv, proxy, args)(src))
+      }
+
+      def builtInPureMethodCall(tag: BuiltInMethodTag, recv: in.Expr, args: Vector[in.Expr], retType: in.Type)(src: Meta): in.PureMethodCall = {
+        val proxy = methodProxy(tag, recv.typ)(src)
+        in.PureMethodCall(recv, proxy, args, retType)(src)
+      }
+
       def generateChannelInvariantMethod(tag: ChannelInvariantMethodTag, recv: in.ChannelT): in.PureMethod = {
         /**
           * requires acc(c.[chanPredicateTag](), _)
@@ -2130,13 +2140,16 @@ object Desugar {
           *   - returnType is either pred(T) or pred()
           */
         val recvParam = in.Parameter.In("c", recv)(src)
-        val resParam = in.Parameter.Out("res", recv.elem)(src)
+        val resType = tag match {
+          case RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
+          case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
+        }
+        val resParam = in.Parameter.Out("res", resType)(src)
         val chanPredicateTag = tag match {
           case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
           case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
         }
-        val chanPredicateProxy = mpredicateProxy(chanPredicateTag, recv)(src)
-        val chanPredicate = in.Accessible.Predicate(in.MPredicateAccess(recvParam, chanPredicateProxy, Vector())(src))
+        val chanPredicate = builtInMPredAccessible(chanPredicateTag, recvParam, Vector())(src)
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
@@ -2147,6 +2160,69 @@ object Desugar {
       (tag, recv) match {
         case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
           generateChannelInvariantMethod(tag, recv)
+        case (InitChannelMethodTag, recv: in.ChannelT) =>
+        /**
+          * requires c.IsChannel(k)
+          * requires k > 0 ==> (b == pred_true{} && c == pred_true{})
+          * requires a == d && b == c
+          * ensures c.SendChannel() && c.RecvChannel()
+          * ensures c.SendGivenPerm() == a && c.SendGotPerm() == b
+          * ensures c.RecvGivenPerm() == c && c.RecvGotPerm() == d
+          * pure func (c chan<-T).Init(k int, a pred(T), b pred(), c pred(), d pred(T))
+          *
+          * note that b is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
+          * as soon as we can, the third precondition can be changed to `[v] ((a(v) && c()) ==> (b(v) && d(v)))`
+          */
+          val recvParam = in.Parameter.In("c", recv)(src)
+          val kParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
+          val predTType = in.PredT(Vector(recv.elem), Addressability.inParameter) // pred(T)
+          val predType = in.PredT(Vector(), Addressability.inParameter) // pred()
+          val aParam = in.Parameter.In("a", predTType)(src)
+          val bParam = in.Parameter.In("b", predType)(src)
+          val cParam = in.Parameter.In("c", predType)(src)
+          val dParam = in.Parameter.In("d", predTType)(src)
+          val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector(kParam))(src)
+          val predTrueProxy = fpredicateProxy(BuiltInMemberTag.PredTrueFPredTag, Vector())(src)
+          val predTrueConstr = in.PredicateConstructor(predTrueProxy, predType, Vector())(src) // pred_true{}
+          val bufferedImpl = in.Implication(
+            in.GreaterCmp(kParam, in.IntLit(0)(src))(src),
+            in.SepAnd(
+              in.ExprAssertion(in.EqCmp(bParam, predTrueConstr)(src))(src),
+              in.ExprAssertion(in.EqCmp(cParam, predTrueConstr)(src))(src)
+            )(src)
+          )(src)
+          val trivialPermExchange = in.And(
+            in.EqCmp(aParam, dParam)(src),
+            in.EqCmp(bParam, cParam)(src)
+          )(src)
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(isChannelInst, in.FullPerm(src))(src),
+            bufferedImpl,
+            in.ExprAssertion(trivialPermExchange)(src)
+          )
+          val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)
+          val recvChannelInst = builtInMPredAccessible(BuiltInMemberTag.RecvChannelMPredTag, recvParam, Vector())(src)
+          val sendAndRecvChannel = in.SepAnd(
+            in.Access(sendChannelInst, in.FullPerm(src))(src),
+            in.Access(recvChannelInst, in.FullPerm(src))(src)
+          )(src)
+          val sendGivenPermCall = builtInPureMethodCall(BuiltInMemberTag.SendGivenPermMethodTag, recvParam, Vector(), predTType)(src)
+          val sendGivenPermEq = in.EqCmp(sendGivenPermCall, aParam)(src)
+          val sendGotPermCall = builtInPureMethodCall(BuiltInMemberTag.SendGotPermMethodTag, recvParam, Vector(), predType)(src)
+          val sendGotPermEq = in.EqCmp(sendGotPermCall, bParam)(src)
+          val sendChannelInvEq = in.And(sendGivenPermEq, sendGotPermEq)(src)
+          val recvGivenPermCall = builtInPureMethodCall(BuiltInMemberTag.RecvGivenPermMethodTag, recvParam, Vector(), predType)(src)
+          val recvGivenPermEq = in.EqCmp(recvGivenPermCall, cParam)(src)
+          val recvGotPermCall = builtInPureMethodCall(BuiltInMemberTag.RecvGotPermMethodTag, recvParam, Vector(), predTType)(src)
+          val recvGotPermEq = in.EqCmp(recvGotPermCall, dParam)(src)
+          val recvChannelInvEq = in.And(recvGivenPermEq, recvGotPermEq)(src)
+          val posts: Vector[in.Assertion] = Vector(
+            sendAndRecvChannel,
+            in.ExprAssertion(sendChannelInvEq)(src),
+            in.ExprAssertion(recvChannelInvEq)(src),
+          )
+          val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+          in.PureMethod(recvParam, proxy, Vector(kParam, aParam, bParam, cParam, dParam), Vector(), pres, posts, None)(src)
         case t => violation(s"no method generation defined for tag $t")
       }
     }

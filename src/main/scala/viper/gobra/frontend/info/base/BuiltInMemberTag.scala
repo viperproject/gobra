@@ -45,6 +45,10 @@ object BuiltInMemberTag {
 
   /** Built-in FPredicate Tags */
 
+  case object PredTrueFPredTag extends BuiltInFPredicateTag {
+    override def identifier: String = "Pred_True"
+    override def name: String = "PredTrueFPredTag"
+  }
 
 
   /** Built-in Method Tags */
@@ -69,6 +73,11 @@ object BuiltInMemberTag {
   case object RecvGotPermMethodTag extends RecvPermMethodTag {
     override def identifier: String = "RecvGotPerm"
     override def name: String = "RecvGotPermMethodTag"
+  }
+
+  case object InitChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
+    override def identifier: String = "Init"
+    override def name: String = "InitChannelMethodTag"
   }
 
 
@@ -101,6 +110,7 @@ object BuiltInMemberTag {
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
     // functions
     // fpredicates
+    PredTrueFPredTag,
     // methods
     SendGivenPermMethodTag,
     SendGotPermMethodTag,
@@ -119,21 +129,46 @@ object BuiltInMemberTag {
   }
 
   def auxTypes(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
+    // functions
+    // fpredicates
+    case PredTrueFPredTag => AuxType(
+      {
+        case (_, _) => noMessages // it is well-defined for arbitrary arguments
+      },
+      {
+        case args => FunctionT(args, AssertionT)
+      })
     case _ => unknownTagAuxType(tag)
   }
 
   def singleAuxTypes(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
+    // methods
+    case _: SendPermMethodTag => sendChannelInvariantType
+    case RecvGivenPermMethodTag => recvChannelInvariantType(false)
+    case RecvGotPermMethodTag => recvChannelInvariantType(true)
+    case InitChannelMethodTag => SingleAuxType(
+      {
+        case (_, _: ChannelT) => noMessages
+        case (n, ts) => error(n, s"type error: expected an argument of channel type but got $ts")
+      },
+      {
+        case _: ChannelT =>
+          val bufferSizeArgType = IntT(config.typeBounds.Int)
+          val sendGivenPermArgType = BooleanT // TODO pred(T)
+          val sendGotPermArgType = BooleanT // TODO pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
+          val recvGivenPermArgType = BooleanT // TODO pred()
+          val recvGotPermArgType = BooleanT // TODO pred(T)
+          FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), AssertionT)
+      })
+    // mpredicates
     case IsChannelMPredTag => SingleAuxType(
       {
         case (_, _: ChannelT) => noMessages
-        case (n, ts) => error(n, s"type error: expected a single argument of channel type but got $ts")
+        case (n, ts) => error(n, s"type error: expected an argument of channel type but got $ts")
       },
       {
         case _: ChannelT => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT)
       })
-    case _: SendPermMethodTag => sendChannelInvariantType
-    case RecvGivenPermMethodTag => recvChannelInvariantType(false)
-    case RecvGotPermMethodTag => recvChannelInvariantType(true)
     case SendChannelMPredTag => sendAndBiChannelType
     case RecvChannelMPredTag => recvAndBiChannelType
     case ClosedMPredTag => recvAndBiChannelType

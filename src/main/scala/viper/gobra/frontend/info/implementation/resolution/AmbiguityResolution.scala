@@ -104,12 +104,6 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
     case b: PBlankIdentifier => Some(ap.BlankIdentifier(b))
 
-      /*
-    case p: PFPredConstructor =>
-      println("Hello")
-      Some(ap.PredExprInstance())
-       */
-
       // unknown pattern
     case _ => None
   }

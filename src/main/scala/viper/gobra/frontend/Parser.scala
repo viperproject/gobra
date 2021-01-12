@@ -758,11 +758,11 @@ object Parser {
       "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
-      predExprInstance |
-        fpredConstruct |
-        // TODO: mpredConstruct
-        conversion |
+      conversion |
         call |
+        predExprInstance |
+        // TODO: mpredConstruct
+        fpredConstruct |
         selection |
         indexedExp |
         sliceExp |
@@ -771,17 +771,16 @@ object Parser {
         ghostPrimaryExp |
         operand
 
-    /*
-    lazy val predicateExp: Parser[PExpression] =
-       namedOperand | // parameter
-        call | // pureFunc(e1, ..., en)
-        predConstruct
-    */
-
     // TODO: change delimiter to { and implement required ambiguity resolution, current: !< X, ..., Z !>
-    // declaredPred<d1, ..., dn>
-    lazy val fpredConstruct: Parser[PFPredConstructor] =
-      (idnUse ~ predConstructArgs) ^^ { p => PFPredConstructor(p._1, p._2) }
+    // declaredPred!<d1, ..., dn!>
+    lazy val fpredConstruct: Parser[PPredConstructor] =
+      (idnUse ~ predConstructArgs) ^^ { p => PPredConstructor(PFPredBase(p._1), p._2) }
+
+    lazy val mpredConstruct: Parser[PPredConstructor] =
+      ???
+
+    lazy val predConstruct: Parser[PPredConstructor] =
+      fpredConstruct | mpredConstruct
 
     lazy val predConstructArgs: Parser[Vector[Option[PExpression]]] =
       ("!<" ~> (rep1sep(predConstructArg, ",") <~ ",".?).? <~ "!>") ^^ (opt => opt.getOrElse(Vector.empty))
@@ -789,7 +788,7 @@ object Parser {
     lazy val predConstructArg: Parser[Option[PExpression]] =
       (expression ^^ Some[PExpression]) | ("_" ^^^ None)
 
-    // TODO: add support for mpred
+    // TODO: add support for mpred, change fpredConstruct to predConstruct
     lazy val predExprInstance: Parser[PExpression] =
       fpredConstruct ~ callArguments ^^ PInvoke
 

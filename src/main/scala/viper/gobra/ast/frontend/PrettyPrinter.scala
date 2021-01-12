@@ -47,6 +47,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
+    case n: PPredCtrBase => showPredCtrBase(n)
     case PPos(_) => emptyDoc
   }
 
@@ -398,8 +399,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBlankIdentifier() => "_"
       // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
       // partially applied predicates
-      case PFPredConstructor(predId, args) => showId(predId) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
-      // TODO: add remaining nodes
+      case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
@@ -477,6 +477,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showKeyedElement(n: PKeyedElement): Doc = n match {
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
+  }
+
+  def showPredCtrBase(base: PPredCtrBase): Doc = base match {
+    case PFPredBase(id) => showId(id)
+    case PMPredBase(id, expr) => showExprOrType(expr) <> "." <> showId(id)
   }
 
   // types

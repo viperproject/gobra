@@ -1039,7 +1039,6 @@ object Desugar {
                   Violation.violation(s"desugarer: conversion $n is not supported")
                 }
               case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
-                // TODO: probably requires case predicate expr instance
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
             }
 
@@ -1166,12 +1165,12 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PFPredConstructor(id, args) =>
+          case PPredConstructor(base, args) =>
             for {
               dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               // TODO: implement case for mpredicate
-              proxy = fpredicateProxyD(id)
-              idT = typeD(info.typ(id), Addressability.rValue)(src) // todo: maybe select other addressability
+              proxy = fpredicateProxyD(base.id)
+              idT = typeD(info.typ(base.id), Addressability.rValue)(src) // todo: maybe select other addressability
               _ = Violation.violation(idT.isInstanceOf[in.PredT], "") // todo: error message
             } yield in.PredicateConstructor(proxy, idT.asInstanceOf[in.PredT], dArgs)(src)
 
@@ -1667,7 +1666,7 @@ object Desugar {
               e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-              _ = println(s"Predicate Expression fold: $exp, assertion: $e") // TODO: Invariants must be checked at the type checker!
+              // TODO: Invariants must be checked at the type checker!
             } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
 
             case _ => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
@@ -1678,7 +1677,7 @@ object Desugar {
               e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-              _ = println(s"Predicate Expression Unfold: $exp, assertion: $e") // TODO: Invariants must be checked at the type checker!
+              // TODO: Invariants must be checked at the type checker!
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
@@ -1927,15 +1926,6 @@ object Desugar {
       val src: Meta = meta(n)
 
       info.resolve(n) match {
-          /*
-        case Some(ap.PredicateCall(ap.PredExprInstance(), args)) =>
-          println(s"n: $n")
-          for {
-            base <- exprD(ctx)(n.base.asInstanceOf[PExpression]) //TODO: add the required checks
-            dArgs <- sequence(args map exprD(ctx))
-          } yield in.PredExprInstance(base, dArgs) (src)
-           */
-
         case Some(p: ap.PredicateCall) =>
           for {
             predAcc <- predicateCallAccD(ctx)(p)(src)
@@ -1943,7 +1933,6 @@ object Desugar {
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
         case Some(_: ap.PredExprInstance) =>
-          // println(s"Pred: $p")
           for {
             base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
             args <- sequence(n.args.map(exprD(ctx)(_)))
@@ -1974,9 +1963,6 @@ object Desugar {
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxy(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
-
-        //case b: ap.PredExprInstance =>
-        //  unit(in.PredExprInstance(???, dArgs)(src))
       }
     }
 
@@ -1991,8 +1977,6 @@ object Desugar {
       info.resolve(acc) match {
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
-
-        // case Some(p: ap.PredExprInstance) =>
 
         case _ =>
           val argT = info.typ(acc)

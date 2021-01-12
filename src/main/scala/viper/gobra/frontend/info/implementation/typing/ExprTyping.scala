@@ -159,7 +159,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           // case _: ap.PredExprInstance => noMessages // TODO: check whether it is ok?
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
         }
-        // println(s"callee: $callee")
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
         val argAssignMsgs = exprType(callee) match {
           case PredT(args) => // TODO: add special assignment
@@ -307,21 +306,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case p@PFPredConstructor(id, _) =>
-      idType(id) match {
+    case p@PPredConstructor(base, _) =>
+      idType(base.id) match {
         case PredT(args) =>
           if(p.args.isEmpty && args.isEmpty) {
             noMessages
           } else {
-            // TODO: refactor
-            val nonePositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
-            val givenArgs = p.args.zipWithIndex.filterNot(x => nonePositions.contains(x._2)).map(_._1.get)
-            val expectedGivenArgs = args.zipWithIndex.filterNot(x => nonePositions.contains(x._2)).map(_._1)
+            // TODO: refactor, pattern match on base, add tests for base
+            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+            val expectedGivenArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
             multiAssignableTo.errors(givenArgs map exprType, expectedGivenArgs)(p) ++ p.args.flatMap(x => if (x.isEmpty) noMessages else isExpr(x.get).out)
           }
-        case t =>
-          println(s"p: $p, id type: ${idType(id)}")
-          error(p, s"type error: got $t but expected predicate type")
+        case t => error(p, s"type error: got $t but expected predicate type")
       }
 
 
@@ -432,11 +429,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PMake(typ, _) => typeSymbType(typ)
 
-    case PFPredConstructor(id, args) =>
-      val idT = idType(id)
-      violation(idT.isInstanceOf[PredT], s"expected base of predicate type, got $id of type $idT")
-      // TODO violation(...) types do not match
-      PredT(idT.asInstanceOf[PredT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
+    case PPredConstructor(base, args) =>
+      base match {
+        case PFPredBase(id) =>
+          val idT = idType(id)
+          violation(idT.isInstanceOf[PredT], s"expected base of predicate type, got ${base.id} of type $idT")
+          // TODO violation(...) types do not match -> checks are in well defidedness
+          PredT(idT.asInstanceOf[PredT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
+        case PMPredBase(id, recv) => ???
+      }
 
     case e => violation(s"unexpected expression $e")
   }

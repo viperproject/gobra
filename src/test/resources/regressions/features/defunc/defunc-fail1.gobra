@@ -34,6 +34,8 @@ pred eq(x *int, y *int) {
 // error: all folds have predicate expression instances are ill-defined; they all have wrong
 // numbers of arguments
 func error3() {
+	x@ := 1
+	y@ := 2
 	//:: ExpectedOutput(type_error)
 	fold eq!<&x, &x, &x!>()
 	//:: ExpectedOutput(type_error)

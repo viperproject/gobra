@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+func foldTest() {
+	x@ := 1
+	y@ := 2
+	// partial application works as expected
+	fold eq!<&x, _!>(&x)
+	fold eq!<_, &y!>(&y)
+	fold eq!<_, _!>(&x, &x)
+	fold eq!<&x, &x!>()
+
+	// should fail because &x and &y are different 
+	//:: ExpectedOutput(fold_error)
+	fold eq!<&x, _!>(&y)
+}

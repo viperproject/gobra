@@ -594,7 +594,7 @@ case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
 
-case class PPredType(args: Vector[PType]) extends PTypeLit with PScope
+case class PPredType(args: Vector[PType]) extends PTypeLit
 
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],

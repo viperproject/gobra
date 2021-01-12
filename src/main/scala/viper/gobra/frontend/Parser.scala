@@ -760,9 +760,7 @@ object Parser {
     lazy val primaryExp: Parser[PExpression] =
       conversion |
         call |
-        predExprInstance |
-        // TODO: mpredConstruct
-        fpredConstruct |
+        predConstruct |
         selection |
         indexedExp |
         sliceExp |
@@ -777,7 +775,9 @@ object Parser {
       (idnUse ~ predConstructArgs) ^^ { p => PPredConstructor(PFPredBase(p._1), p._2) }
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
-      ???
+      (expression <~ ".") ~ idnUse ~ predConstructArgs ^^ {
+        case recv ~ id ~ args => PPredConstructor(PMPredBase(id, recv), args)
+      }
 
     lazy val predConstruct: Parser[PPredConstructor] =
       fpredConstruct | mpredConstruct
@@ -787,10 +787,6 @@ object Parser {
 
     lazy val predConstructArg: Parser[Option[PExpression]] =
       (expression ^^ Some[PExpression]) | ("_" ^^^ None)
-
-    // TODO: add support for mpred, change fpredConstruct to predConstruct
-    lazy val predExprInstance: Parser[PExpression] =
-      fpredConstruct ~ callArguments ^^ PInvoke
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {

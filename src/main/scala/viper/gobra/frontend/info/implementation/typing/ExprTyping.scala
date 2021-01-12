@@ -263,7 +263,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
-    case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
+    case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op) ++
+      error(
+        n.pred,
+        s"unfolding predicate expression instance ${n.pred} not supported",
+        resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
@@ -514,6 +518,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
               case _ => None
             }
+
+          case Some(_: ap.PredExprInstance) => ??? // TODO
 
           case _ => None
         }

@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred accPred(x *int) {
+	acc(x)
+}
+
+// error: folds and unfolds of predicate expression instances must
+// be of the form `predConstruct(a1, ..., ak)`
+func error1(ghost inv pred()) {
+	//:: ExpectedOutput(type_error)
+	unfold inv()
+	//:: ExpectedOutput(type_error)
+	fold inv()
+}
+
+// error: predicate expression instances not supported in "unfolding"
+// expressions
+func error2(ghost inv pred()) {
+	x@ := 1
+	fold accPred(&x)
+	// y := unfolding accPred(&x) in x
+	fold accPred!<&x!>()
+	//:: ExpectedOutput(type_error)
+	y = unfolding accPred!<&x!>() in x
+}

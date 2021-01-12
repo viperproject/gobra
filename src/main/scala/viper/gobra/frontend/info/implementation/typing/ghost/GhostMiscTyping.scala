@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, PredT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 

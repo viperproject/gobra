@@ -155,8 +155,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
         val pureReceiverMsgs = p.predicate match {
-          case _: ap.Predicate | _: ap.PredicateExpr => noMessages
-          // case _: ap.PredExprInstance => noMessages // TODO: check whether it is ok?
+          case _: ap.Predicate => noMessages
+          case _: ap.PredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
@@ -169,7 +169,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
       case (Left(callee), Some(_:ap.PredExprInstance)) =>
-        // TODO: needs checks to see if whether the passed arguments make sense
         exprType(callee) match {
           case PredT(args) =>
             if (n.args.isEmpty && args.isEmpty) noMessages
@@ -306,20 +305,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case p@PPredConstructor(base, _) =>
-      idType(base.id) match {
-        case PredT(args) =>
-          if(p.args.isEmpty && args.isEmpty) {
-            noMessages
-          } else {
-            // TODO: refactor, pattern match on base, add tests for base
-            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
-            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
-            val expectedGivenArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
-            multiAssignableTo.errors(givenArgs map exprType, expectedGivenArgs)(p) ++ p.args.flatMap(x => if (x.isEmpty) noMessages else isExpr(x.get).out)
-          }
-        case t => error(p, s"type error: got $t but expected predicate type")
-      }
+    case p@PPredConstructor(base, _) => base match {
+      case PFPredBase(id) =>
+        idType(id) match {
+          case PredT(args) =>
+            if(p.args.isEmpty && args.isEmpty) {
+              noMessages
+            } else {
+              val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+              val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+              val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
+              multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+                p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+            }
+          case t => error(p, s"expected base of predicate type, got $id of type $t", !t.isInstanceOf[PredT])
+        }
+      case PMPredBase(_, _) => ???
+    }
 
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
@@ -433,10 +435,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       base match {
         case PFPredBase(id) =>
           val idT = idType(id)
-          violation(idT.isInstanceOf[PredT], s"expected base of predicate type, got ${base.id} of type $idT")
-          // TODO violation(...) types do not match -> checks are in well defidedness
           PredT(idT.asInstanceOf[PredT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
-        case PMPredBase(id, recv) => ???
+        case PMPredBase(_, _) => ???
       }
 
     case e => violation(s"unexpected expression $e")

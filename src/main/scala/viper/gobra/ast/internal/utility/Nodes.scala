@@ -153,6 +153,7 @@ object Nodes {
         case FPredicateProxy(_) => Seq()
         case MPredicateProxy(_, _) => Seq()
       }
+        // TODO: add new nodes here
     }
 //    n match {
 //      case t: Typed => subnodesWithType ++ Seq(t.typ)

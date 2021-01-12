@@ -165,6 +165,7 @@ object GobraStrategy {
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
+        // TODO: add new nodes here
     }
 
     node.asInstanceOf[N]

@@ -758,7 +758,10 @@ object Parser {
       "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
-      conversion |
+      predExprInstance |
+        fpredConstruct |
+        // TODO: mpredConstruct
+        conversion |
         call |
         selection |
         indexedExp |
@@ -767,6 +770,28 @@ object Parser {
         typeAssertion |
         ghostPrimaryExp |
         operand
+
+    /*
+    lazy val predicateExp: Parser[PExpression] =
+       namedOperand | // parameter
+        call | // pureFunc(e1, ..., en)
+        predConstruct
+    */
+
+    // TODO: change delimiter to { and implement required ambiguity resolution, current: !< X, ..., Z !>
+    // declaredPred<d1, ..., dn>
+    lazy val fpredConstruct: Parser[PFPredConstructor] =
+      (idnUse ~ predConstructArgs) ^^ { p => PFPredConstructor(p._1, p._2) }
+
+    lazy val predConstructArgs: Parser[Vector[Option[PExpression]]] =
+      ("!<" ~> (rep1sep(predConstructArg, ",") <~ ",".?).? <~ "!>") ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val predConstructArg: Parser[Option[PExpression]] =
+      (expression ^^ Some[PExpression]) | ("_" ^^^ None)
+
+    // TODO: add support for mpred
+    lazy val predExprInstance: Parser[PExpression] =
+      fpredConstruct ~ callArguments ^^ PInvoke
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
@@ -861,7 +886,7 @@ object Parser {
 
     lazy val typeLit: Parser[PTypeLit] =
       pointerType | sliceType | arrayType | mapType |
-        channelType | functionType | structType | interfaceType
+        channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
       sequenceType | setType | multisetType | optionType
@@ -882,6 +907,12 @@ object Parser {
 
     lazy val functionType: Parser[PFunctionType] =
       "func" ~> signature ^^ PFunctionType.tupled
+
+    lazy val predType: Parser[PPredType] =
+      "pred" ~> predTypeParams ^^ PPredType
+
+    lazy val predTypeParams: Parser[Vector[PType]] =
+      "(" ~> (rep1sep(typ, ",") <~ ",".?).? <~ ")" ^^ (_.toVector.flatten)
 
     lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType

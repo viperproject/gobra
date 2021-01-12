@@ -488,6 +488,19 @@ case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpressio
   */
 case class PNew(typ: PType) extends PActualExpression
 
+/* TODO: implement this (in Program)
+sealed trait PPredCtrBase extends Node
+case class FPredBase(id: IdUse) extends PredCtrBase
+case class PPredicateConstrucotr(id: PPredicateCtrBase, ...)
+ */
+
+// TODO: doc
+// TODO: check if types of the params are the correct ones
+case class PFPredConstructor(predId: PIdnUse, args: Vector[Option[PExpression]]) extends PActualExpression
+// TODO: does it also make sense to leave the receiver unnaplied?
+// TODO: implement everything related to this node after having everything done for PFPredConstructor, implement shared trait PPredConstructor
+case class PMPredConstructor(predId: PIdnUse, receiver: Option[PReceiver], args: Vector[Option[PExpression]]) extends PActualExpression
+
 /**
   * Types
   */
@@ -586,6 +599,9 @@ case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
 
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
+
+// TODO: what is PScope? should this be an instance of that
+case class PPredType(args: Vector[PType]) extends PTypeLit with PScope
 
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],

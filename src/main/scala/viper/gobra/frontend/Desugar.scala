@@ -166,8 +166,8 @@ object Desugar {
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
-        case x: PMPredicateDecl => Vector(mpredicateD(x))
-        case x: PFPredicateDecl => Vector(fpredicateD(x))
+        case x: PMPredicateDecl => Vector(registerMPredicate(x))
+        case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case _ => Vector.empty
       }
 
@@ -1039,6 +1039,7 @@ object Desugar {
                   Violation.violation(s"desugarer: conversion $n is not supported")
                 }
               case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
+                // TODO: probably requires case predicate expr instance
               case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
             }
 
@@ -1164,6 +1165,15 @@ object Desugar {
               zero = DfltVal(allocatedType)(src)
               _ <- write(in.New(target, zero)(src))
             } yield target
+
+          case PFPredConstructor(id, args) =>
+            for {
+              dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+              // TODO: implement case for mpredicate
+              proxy = fpredicateProxyD(id)
+              idT = typeD(info.typ(id), Addressability.rValue)(src) // todo: maybe select other addressability
+              _ = Violation.violation(idT.isInstanceOf[in.PredT], "") // todo: error message
+            } yield in.PredicateConstructor(proxy, idT.asInstanceOf[in.PredT], dArgs)(src)
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
@@ -1423,7 +1433,7 @@ object Desugar {
       mPred
     }
 
-    def registerMPredicate(decl: PFPredicateDecl): in.FPredicate = {
+    def registerFPredicate(decl: PFPredicateDecl): in.FPredicate = {
       val fPredProxy = fpredicateProxyD(decl)
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
@@ -1456,6 +1466,8 @@ object Desugar {
 
         val structName = nm.struct(t)
         registerType(in.StructT(structName, inFields, addrMod))
+
+      case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.Exclusive)(src)), Addressability.Exclusive) // TODO: introduce a specific field in Addressability
 
       case Type.FunctionT(_, _) => ???
       case t: Type.InterfaceT =>
@@ -1649,8 +1661,27 @@ object Desugar {
         case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
         case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
-        case PFold(exp)   => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
-        case PUnfold(exp) => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
+        case PFold(exp)   =>
+          info.resolve(exp.pred) match {
+            case Some(_: ap.PredExprInstance) => for {
+              e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
+              access = e.asInstanceOf[in.Access]
+              predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
+              _ = println(s"Predicate Expression fold: $exp, assertion: $e") // TODO: Invariants must be checked at the type checker!
+            } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+
+            case _ => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
+          }
+        case PUnfold(exp) =>
+          info.resolve(exp.pred) match {
+            case Some(_: ap.PredExprInstance) => for {
+              e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
+              access = e.asInstanceOf[in.Access]
+              predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
+              _ = println(s"Predicate Expression Unfold: $exp, assertion: $e") // TODO: Invariants must be checked at the type checker!
+            } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+            case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -1896,11 +1927,29 @@ object Desugar {
       val src: Meta = meta(n)
 
       info.resolve(n) match {
+          /*
+        case Some(ap.PredicateCall(ap.PredExprInstance(), args)) =>
+          println(s"n: $n")
+          for {
+            base <- exprD(ctx)(n.base.asInstanceOf[PExpression]) //TODO: add the required checks
+            dArgs <- sequence(args map exprD(ctx))
+          } yield in.PredExprInstance(base, dArgs) (src)
+           */
+
         case Some(p: ap.PredicateCall) =>
           for {
             predAcc <- predicateCallAccD(ctx)(p)(src)
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
+
+        case Some(_: ap.PredExprInstance) =>
+          // println(s"Pred: $p")
+          for {
+            base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
+            args <- sequence(n.args.map(exprD(ctx)(_)))
+            predExprInstance = in.PredExprInstance(base, args)(src)
+            p <- permissionD(ctx)(perm)
+          } yield in.Access(in.Accessible.PredExpr(predExprInstance), p)(src)
 
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
@@ -1925,6 +1974,9 @@ object Desugar {
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxy(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+
+        //case b: ap.PredExprInstance =>
+        //  unit(in.PredExprInstance(???, dArgs)(src))
       }
     }
 
@@ -1939,6 +1991,8 @@ object Desugar {
       info.resolve(acc) match {
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
+
+        // case Some(p: ap.PredExprInstance) =>
 
         case _ =>
           val argT = info.typ(acc)

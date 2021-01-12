@@ -1664,7 +1664,7 @@ object Desugar {
         case PFold(exp)   =>
           info.resolve(exp.pred) match {
             case Some(_: ap.PredExprInstance) => for {
-              // the type system guarantee that a pred expr instance in a Fold is in format predName{p1,...,pn}(a1, ...., am)
+              // the type system guarantees that a pred expr instance in a Fold is in format predName{p1,...,pn}(a1, ...., am)
               e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
@@ -1675,7 +1675,7 @@ object Desugar {
         case PUnfold(exp) =>
           info.resolve(exp.pred) match {
             case Some(_: ap.PredExprInstance) => for {
-              // the type system guarantee that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
+              // the type system guarantees that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
               e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]

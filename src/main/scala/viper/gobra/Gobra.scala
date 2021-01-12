@@ -192,6 +192,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     val verifier = createVerifier()
     val resultFuture = verifier.verify(config)(executor)
     val result = Await.result(resultFuture, Duration.Inf)
+    executor.terminate()
 
     result match {
       case VerifierResult.Success =>

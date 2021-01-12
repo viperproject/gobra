@@ -6,11 +6,14 @@
 
 package viper.gobra.util
 
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
+import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 
-trait GobraExecutionContext extends ExecutionContext
+trait GobraExecutionContext extends ExecutionContext {
+  /** terminate executor */
+  def terminate(timeoutMSec: Long = 1000): Unit
+}
 
 object DefaultGobraExecutionContext {
   val minimalThreadPoolSize: Int = 1
@@ -21,21 +24,26 @@ class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultGob
   // this is quite redundant to the code in ViperServer but since Gobra should not have a dependency on ViperServer,
   // there is no other way than to duplicate the code
   protected lazy val threadStackSize: Long = 128L * 1024L * 1024L // 128M seems to consistently be recommended by Silicon and Carbon
-  protected lazy val service: ExecutorService = Executors.newFixedThreadPool(
-    threadPoolSize, new ThreadFactory() {
 
-      import java.util.concurrent.atomic.AtomicInteger
+  protected val service: ExecutorService = Executors.newFixedThreadPool(threadPoolSize, new ThreadFactory() {
 
-      private val mCount = new AtomicInteger(1)
-      override def newThread(runnable: Runnable): Thread = {
-        val threadName = s"$threadNamePrefix-${mCount.getAndIncrement()}"
-        new Thread(null, runnable, threadName, threadStackSize)
-      }
-    })
+    import java.util.concurrent.atomic.AtomicInteger
+
+    private val mCount = new AtomicInteger(1)
+    override def newThread(runnable: Runnable): Thread = {
+      val threadName = s"$threadNamePrefix-${mCount.getAndIncrement()}"
+      new Thread(null, runnable, threadName, threadStackSize)
+    }
+  })
 
   private lazy val context: ExecutionContextExecutorService = ExecutionContext.fromExecutorService(service)
 
   override def execute(runnable: Runnable): Unit = context.execute(runnable)
 
   override def reportFailure(cause: Throwable): Unit = context.reportFailure(cause)
+
+  override def terminate(timeoutMSec: Long = 1000): Unit = {
+    service.shutdown()
+    service.awaitTermination(timeoutMSec, TimeUnit.MILLISECONDS)
+  }
 }

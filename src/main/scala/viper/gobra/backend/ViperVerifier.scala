@@ -13,11 +13,15 @@ import viper.silver.reporter.Reporter
 import scala.concurrent.Future
 
 object ViperVerifierConfig {
-  object EmptyConfig extends ViperVerifierConfig {val partialCommandLine: List[String] = Nil}
-  case class Config(partialCommandLine: List[String]) extends ViperVerifierConfig
+  case class EmptyConfig(backend: ViperBackend) extends ViperVerifierConfig {
+    override val partialCommandLine: List[String] = Nil
+  }
+  case class Config(backend: ViperBackend, partialCommandLine: List[String]) extends ViperVerifierConfig
 }
 
 trait ViperVerifierConfig {
+  // the backend that should be used by ViperServer
+  val backend: ViperBackend
   val partialCommandLine: List[String]
 }
 

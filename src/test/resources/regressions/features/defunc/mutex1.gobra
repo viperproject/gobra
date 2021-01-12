@@ -4,10 +4,10 @@
 // These examples were designed and proposed by Linard Arquint
 package pkg
 
-/* Mutex definition */
+// Mutex definition
 type Mutex struct {
-    state int32
-    stema uint32
+	state int32
+	stema uint32
 }
 
 pred lock(m *Mutex)
@@ -28,40 +28,40 @@ requires acc(lock(m), _) && unlock(m) && m.LockInv()()
 ensures lock(m)
 func (m *Mutex) Unlock()
 
-/* Examples */
+// Examples
 pred mutexInvariant(x *int) {
-    acc(x)
+	acc(x)
 }
 
 // For now, requires parentheses surrounding exp!<...!>
 requires acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
 ensures acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
-func foo(pmutex *Mutex, x *int){
-  pmutex.Lock()
-  unfold mutexInvariant!<x!>()
-  *x = *x + 1
-  fold mutexInvariant!<x!>()
-  pmutex.Unlock()
+func foo(pmutex *Mutex, x *int) {
+	pmutex.Lock()
+	unfold mutexInvariant!<x!>()
+	*x = *x + 1
+	fold mutexInvariant!<x!>()
+	pmutex.Unlock()
 }
 
 func ex1() {
-  var x@ int = 0
-  var px *int = &x
-  var mutex@ = Mutex{}
-  var pmutex *Mutex = &mutex
-  fold mutexInvariant!<px!>()
-  pmutex.Share(mutexInvariant!<px!>)
-  foo(pmutex, px)
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = Mutex{}
+	var pmutex *Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.Share(mutexInvariant!<px!>)
+	foo(pmutex, px)
 }
 
 func ex2() {
-  var x@ int = 0
-  var px *int = &x
-  var mutex@ = Mutex{}
-  var pmutex *Mutex = &mutex
-  fold mutexInvariant!<px!>()
-  pmutex.Share(mutexInvariant!<px!>)
-  go foo(pmutex, px)
-  go foo(pmutex, px)
-  go foo(pmutex, px)
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = Mutex{}
+	var pmutex *Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.Share(mutexInvariant!<px!>)
+	go foo(pmutex, px)
+	go foo(pmutex, px)
+	go foo(pmutex, px)
 }

@@ -488,8 +488,6 @@ case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpressio
   */
 case class PNew(typ: PType) extends PActualExpression
 
-// TODO: doc
-// TODO: check if types of the params are the correct ones in the type system
 sealed trait PPredCtrBase extends PNode {
   val id: PIdnUse
 }
@@ -596,7 +594,6 @@ case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
 
-// TODO: what is PScope? should this be an instance of that
 case class PPredType(args: Vector[PType]) extends PTypeLit with PScope
 
 case class PInterfaceType(

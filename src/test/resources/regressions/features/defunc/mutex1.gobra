@@ -1,0 +1,67 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// These examples were designed and proposed by Linard Arquint
+package pkg
+
+/* Mutex definition */
+type Mutex struct {
+    state int32
+    stema uint32
+}
+
+pred lock(m *Mutex)
+pred unlock(m *Mutex)
+
+requires acc(lock(m), _)
+pure func (m *Mutex) LockInv() pred()
+
+requires inv() && acc(m) && *m == Mutex{}
+ensures lock(m) && m.LockInv() == inv
+func (m *Mutex) Share(ghost inv pred())
+
+requires acc(lock(m), _)
+ensures lock(m) && unlock(m) && m.LockInv()()
+func (m *Mutex) Lock()
+
+requires acc(lock(m), _) && unlock(m) && m.LockInv()()
+ensures lock(m)
+func (m *Mutex) Unlock()
+
+/* Examples */
+pred mutexInvariant(x *int) {
+    acc(x)
+}
+
+// For now, requires parentheses surrounding exp!<...!>
+requires acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
+ensures acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
+func foo(pmutex *Mutex, x *int){
+  pmutex.Lock()
+  unfold mutexInvariant!<x!>()
+  *x = *x + 1
+  fold mutexInvariant!<x!>()
+  pmutex.Unlock()
+}
+
+func ex1() {
+  var x@ int = 0
+  var px *int = &x
+  var mutex@ = Mutex{}
+  var pmutex *Mutex = &mutex
+  fold mutexInvariant!<px!>()
+  pmutex.Share(mutexInvariant!<px!>)
+  foo(pmutex, px)
+}
+
+func ex2() {
+  var x@ int = 0
+  var px *int = &x
+  var mutex@ = Mutex{}
+  var pmutex *Mutex = &mutex
+  fold mutexInvariant!<px!>()
+  pmutex.Share(mutexInvariant!<px!>)
+  go foo(pmutex, px)
+  go foo(pmutex, px)
+  go foo(pmutex, px)
+}

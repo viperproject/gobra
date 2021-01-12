@@ -26,3 +26,20 @@ func error2(ghost inv pred()) {
 	//:: ExpectedOutput(type_error)
 	y = unfolding accPred!<&x!>() in x
 }
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+// error: all folds have predicate expression instances are ill-defined; they all have wrong
+// numbers of arguments
+func error3() {
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, &x, &x!>()
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x!>(&x)
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, _!>()
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, _!>(&x, &y)
+}

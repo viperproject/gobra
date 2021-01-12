@@ -313,12 +313,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFPredBase(id) =>
         idType(id) match {
           case PredT(args) =>
-            if(p.args.isEmpty && args.isEmpty) {
+            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+            val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
+            if(givenArgs.isEmpty && expectedArgs.isEmpty) {
               noMessages
             } else {
-              val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
-              val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
-              val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
               multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
                 p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
             }

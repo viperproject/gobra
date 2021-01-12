@@ -1165,14 +1165,15 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PPredConstructor(base, args) =>
-            for {
-              dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              // TODO: implement case for mpredicate
-              proxy = fpredicateProxyD(base.id)
-              idT = typeD(info.typ(base.id), Addressability.rValue)(src) // todo: maybe select other addressability
-              _ = Violation.violation(idT.isInstanceOf[in.PredT], "") // todo: error message
-            } yield in.PredicateConstructor(proxy, idT.asInstanceOf[in.PredT], dArgs)(src)
+          case PPredConstructor(base, args) => base match {
+            case PFPredBase(id) =>
+              val proxy = fpredicateProxyD(id)
+              val idT = typeD(info.typ(id), Addressability.rValue)(src).asInstanceOf[in.PredT]
+              for {
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+            case PMPredBase(id, recv) => ???
+          }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
@@ -1466,7 +1467,7 @@ object Desugar {
         val structName = nm.struct(t)
         registerType(in.StructT(structName, inFields, addrMod))
 
-      case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.Exclusive)(src)), Addressability.Exclusive) // TODO: introduce a specific field in Addressability
+      case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
       case Type.FunctionT(_, _) => ???
       case t: Type.InterfaceT =>
@@ -1663,10 +1664,10 @@ object Desugar {
         case PFold(exp)   =>
           info.resolve(exp.pred) match {
             case Some(_: ap.PredExprInstance) => for {
-              e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
+              e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-              // TODO: Invariants must be checked at the type checker!
+              // TODO: does the type system guarantee that a fold of a pred expr is in format acc(predName<p1,...,pn>(a1, ...., am), p)?
             } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
 
             case _ => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
@@ -1674,10 +1675,9 @@ object Desugar {
         case PUnfold(exp) =>
           info.resolve(exp.pred) match {
             case Some(_: ap.PredExprInstance) => for {
-              e <- goA(exp) // the type system guarantees that it is in format (maybe add violation) acc(predName<p1,...,pn>(a1, ...., am), p)
+              e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
-              // TODO: Invariants must be checked at the type checker!
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }

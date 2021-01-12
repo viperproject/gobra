@@ -358,7 +358,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(callee), Some(_: ap.PredicateCall)) =>
         exprType(callee) match {
           case PredT(_) => AssertionT
-          case t => violation(s"expected function or predicate type but got $t") //(error(n, s""))
+          case t => violation(s"expected function or predicate type but got $t")
         }
       case (Left(callee), Some(_: ap.PredExprInstance)) =>
         exprType(callee) match {

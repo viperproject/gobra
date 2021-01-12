@@ -89,11 +89,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           resolve(e) match {
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
-            case _ =>
-              exprType(e) match {
-                case PredT(_) => Some(ap.PredExprInstance())
-                case _ => ??? // TODO
-              }
+            case Some(_) if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance())
+            case _ => None
           }
       }
 

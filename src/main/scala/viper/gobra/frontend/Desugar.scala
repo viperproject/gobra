@@ -1692,7 +1692,7 @@ object Desugar {
         case PUnfold(exp) =>
           info.resolve(exp.pred) match {
             case Some(_: ap.PredExprInstance) => for {
-              // the well-defidedness checks guarantees that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
+              // the well-definedness checks guarantees that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
               e <- goA(exp)
               access = e.asInstanceOf[in.Access]
               predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]

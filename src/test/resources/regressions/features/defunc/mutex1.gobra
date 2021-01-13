@@ -34,8 +34,8 @@ pred mutexInvariant(x *int) {
 }
 
 // For now, requires parentheses surrounding exp!<...!>
-requires acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
-ensures acc(lock(pmutex), _) && pmutex.LockInv() == (mutexInvariant!<x!>)
+requires acc(lock(pmutex), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+ensures acc(lock(pmutex), _) && pmutex.LockInv() == mutexInvariant!<x!>;
 func foo(pmutex *Mutex, x *int) {
 	pmutex.Lock()
 	unfold mutexInvariant!<x!>()

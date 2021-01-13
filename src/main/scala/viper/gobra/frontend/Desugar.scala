@@ -11,7 +11,6 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.internal.{DfltVal, Lit, LocalVar, MPredicateProxy, MethodProxy}
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -277,7 +276,7 @@ object Desugar {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
-        val intLit: Lit = gVar.typ match {
+        val intLit: in.Lit = gVar.typ match {
           case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
@@ -880,7 +879,7 @@ object Desugar {
       }
     }
 
-    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
       switchCase match {
         case PExprSwitchCase(left, body) => for {
           acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
@@ -1286,7 +1285,7 @@ object Desugar {
             val target = freshExclusiveVar(targetT)(src)
             for {
               _ <- declare(target)
-              zero = DfltVal(allocatedType)(src)
+              zero = in.DfltVal(allocatedType)(src)
               _ <- write(in.New(target, zero)(src))
             } yield target
 
@@ -2115,72 +2114,95 @@ object Desugar {
       for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
     }
 
-    def generateBuiltInFunction(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionMember = tag match {
-      case t => violation(s"no function generation defined for tag $t")
+    def generateBuiltInFunction(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionMember = {
+      val proxy = in.FunctionProxy(nm.builtInAuxType(tag, args))(src)
+
+      (tag, args) match {
+        case (CloseFunctionTag, Vector(channelT, permissionAmountT, predicateT)) =>
+          /**
+            * requires acc(c.SendChannel(), p) && c.ClosureDebt(P, 1-p) && P()
+            * ensures c.Closed()
+            * func close(c chan T, ghost p perm, P pred())
+            */
+          val channelParam = in.Parameter.In("c", channelT)(src)
+          val permissionAmountParam = in.Parameter.In("p", permissionAmountT)(src)
+          val predicateParam = in.Parameter.In("P", predicateT)(src)
+          val args = Vector(channelParam, permissionAmountParam, predicateParam)
+          val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, channelParam, Vector())(src)
+          val closureDebtArgs = Vector(
+            predicateParam,
+            in.Sub(in.IntLit(1)(src), permissionAmountParam)(src)
+          )
+          val closureDebtInst = builtInMPredAccessible(BuiltInMemberTag.ClosureDebtMPredTag, channelParam, closureDebtArgs)(src)
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(sendChannelInst, permissionAmountParam)(src),
+            in.Access(closureDebtInst, in.FullPerm(src))(src),
+            in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
+          )
+          val closedInst = builtInMPredAccessible(BuiltInMemberTag.ClosedMPredTag, channelParam, Vector())(src)
+          val posts: Vector[in.Assertion] = Vector(
+            in.Access(closedInst, in.FullPerm(src))(src)
+          )
+          in.Function(proxy, args, Vector(), pres, posts, None)(src)
+        case _ => violation(s"no function generation defined for tag $tag and arguments $args")
+      }
     }
 
     def generateBuiltInMethod(tag: BuiltInMethodTag, recv: in.Type)(src: Meta): in.MethodMember = {
-      def builtInMPredAccessible(tag: BuiltInMPredicateTag, recv: in.Expr, args: Vector[in.Expr])(src: Meta): in.Accessible.Predicate = {
-        val proxy = mpredicateProxy(tag, recv.typ)(src)
-        in.Accessible.Predicate(in.MPredicateAccess(recv, proxy, args)(src))
-      }
+      val proxy = in.MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
 
       def builtInPureMethodCall(tag: BuiltInMethodTag, recv: in.Expr, args: Vector[in.Expr], retType: in.Type)(src: Meta): in.PureMethodCall = {
-        val proxy = methodProxy(tag, recv.typ)(src)
-        in.PureMethodCall(recv, proxy, args, retType)(src)
+        val method = methodProxy(tag, recv.typ)(src)
+        in.PureMethodCall(recv, method, args, retType)(src)
       }
 
-      def generateChannelInvariantMethod(tag: ChannelInvariantMethodTag, recv: in.ChannelT): in.PureMethod = {
+      (tag, recv) match {
+        case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
           * requires acc(c.[chanPredicateTag](), _)
-          * pure func (c chan<-T).[tag.identifier] (res [returnType])
+          * pure func (c chan T).[tag.identifier] (res [returnType])
           *
           * where
           *   - chanPredicateTag is either SendChannel or RecvChannel
           *   - returnType is either pred(T) or pred()
           */
-        val recvParam = in.Parameter.In("c", recv)(src)
-        val resType = tag match {
-          case RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
-          case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
-        }
-        val resParam = in.Parameter.Out("res", resType)(src)
-        val chanPredicateTag = tag match {
-          case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
-          case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
-        }
-        val chanPredicate = builtInMPredAccessible(chanPredicateTag, recvParam, Vector())(src)
-        val pres: Vector[in.Assertion] = Vector(
-          in.Access(chanPredicate, in.WildcardPerm(src))(src)
-        )
-        val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
-        in.PureMethod(recvParam, proxy, Vector(), Vector(resParam), pres, Vector(), None)(src)
-      }
+          val recvParam = in.Parameter.In("c", recv)(src)
+          val resType = tag match {
+            case RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
+            case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
+          }
+          val resParam = in.Parameter.Out("res", resType)(src)
+          val chanPredicateTag = tag match {
+            case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
+            case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
+          }
+          val chanPredicate = builtInMPredAccessible(chanPredicateTag, recvParam, Vector())(src)
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(chanPredicate, in.WildcardPerm(src))(src)
+          )
+          in.PureMethod(recvParam, proxy, Vector(), Vector(resParam), pres, Vector(), None)(src)
 
-      (tag, recv) match {
-        case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
-          generateChannelInvariantMethod(tag, recv)
         case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**
           * requires c.IsChannel(k)
-          * requires k > 0 ==> (b == pred_true{} && c == pred_true{})
-          * requires a == d && b == c
+          * requires k > 0 ==> (B == pred_true{} && C == pred_true{})
+          * requires A == D && B == C
           * ensures c.SendChannel() && c.RecvChannel()
-          * ensures c.SendGivenPerm() == a && c.SendGotPerm() == b
-          * ensures c.RecvGivenPerm() == c && c.RecvGotPerm() == d
-          * pure func (c chan<-T).Init(k int, a pred(T), b pred(), c pred(), d pred(T))
+          * ensures c.SendGivenPerm() == A && c.SendGotPerm() == B
+          * ensures c.RecvGivenPerm() == C && c.RecvGotPerm() == D
+          * ghost func (c chan T).Init(k int, A pred(T), B pred(), C pred(), D pred(T))
           *
-          * note that b is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
-          * as soon as we can, the third precondition can be changed to `[v] ((a(v) && c()) ==> (b(v) && d(v)))`
+          * note that B is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
+          * as soon as we can, the third precondition can be changed to `[v] ((A(v) && C()) ==> (B(v) && D(v)))`
           */
           val recvParam = in.Parameter.In("c", recv)(src)
           val kParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
           val predTType = in.PredT(Vector(recv.elem), Addressability.inParameter) // pred(T)
           val predType = in.PredT(Vector(), Addressability.inParameter) // pred()
-          val aParam = in.Parameter.In("a", predTType)(src)
-          val bParam = in.Parameter.In("b", predType)(src)
-          val cParam = in.Parameter.In("c", predType)(src)
-          val dParam = in.Parameter.In("d", predTType)(src)
+          val aParam = in.Parameter.In("A", predTType)(src)
+          val bParam = in.Parameter.In("B", predType)(src)
+          val cParam = in.Parameter.In("C", predType)(src)
+          val dParam = in.Parameter.In("D", predTType)(src)
           val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector(kParam))(src)
           val predTrueProxy = fpredicateProxy(BuiltInMemberTag.PredTrueFPredTag, Vector())(src)
           val predTrueConstr = in.PredicateConstructor(predTrueProxy, predType, Vector())(src) // pred_true{}
@@ -2221,28 +2243,115 @@ object Desugar {
             in.ExprAssertion(sendChannelInvEq)(src),
             in.ExprAssertion(recvChannelInvEq)(src),
           )
-          val proxy = MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
-          in.PureMethod(recvParam, proxy, Vector(kParam, aParam, bParam, cParam, dParam), Vector(), pres, posts, None)(src)
-        case t => violation(s"no method generation defined for tag $t")
+          in.Method(recvParam, proxy, Vector(kParam, aParam, bParam, cParam, dParam), Vector(), pres, posts, None)(src)
+
+        case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
+        /**
+          * requires acc(c.SendChannel(), p) && P()
+          * ensures c.ClosureDebt(P, p) && c.Token(P)
+          * ghost func (c chan T) CreateDebt(p perm, P pred())
+          */
+          val recvParam = in.Parameter.In("c", recv)(src)
+          val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+          val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+          val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(sendChannelInst, permissionAmountParam)(src),
+            in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
+          )
+          val closureDebtArgs = Vector(predicateParam, permissionAmountParam)
+          val closureDebtInst = builtInMPredAccessible(BuiltInMemberTag.ClosureDebtMPredTag, recvParam, closureDebtArgs)(src)
+          val tokenInst = builtInMPredAccessible(BuiltInMemberTag.TokenMPredTag, recvParam, Vector(predicateParam))(src)
+          val posts: Vector[in.Assertion] = Vector(
+            in.Access(closureDebtInst, in.FullPerm(src))(src),
+            in.Access(tokenInst, in.FullPerm(src))(src),
+          )
+          in.Method(recvParam, proxy, Vector(permissionAmountParam, predicateParam), Vector(), pres, posts, None)(src)
+
+        case (RedeemChannelMethodTag, recv: in.ChannelT) =>
+        /**
+          * requires c.Token(P) && acc(c.Closed(), _)
+          * ensures c.Closed() && P()
+          * ghost func (c chan T) Redeem(P pred())
+          *
+          * note that c.Closed() is duplicable and thus full permission can be ensured
+          */
+          val recvParam = in.Parameter.In("c", recv)(src)
+          val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+          val tokenInst = builtInMPredAccessible(BuiltInMemberTag.TokenMPredTag, recvParam, Vector(predicateParam))(src)
+          val closedInst = builtInMPredAccessible(BuiltInMemberTag.ClosedMPredTag, recvParam, Vector())(src)
+          val pres: Vector[in.Assertion] = Vector(
+            in.Access(tokenInst, in.FullPerm(src))(src),
+            in.Access(closedInst, in.WildcardPerm(src))(src)
+          )
+          val posts: Vector[in.Assertion] = Vector(
+            in.Access(closedInst, in.FullPerm(src))(src),
+            in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
+          )
+          in.Method(recvParam, proxy, Vector(predicateParam), Vector(), pres, posts, None)(src)
+
+        case _ => violation(s"no method generation defined for tag $tag and receiver $recv")
       }
     }
 
-    def generateBuiltInFPredicate(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicate = tag match {
-      case t => violation(s"no fpredicate generation defined for tag $t")
+    def generateBuiltInFPredicate(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicate = {
+      val proxy = in.FPredicateProxy(nm.builtInAuxType(tag, args))(src)
+
+      (tag, args) match {
+        case (PredTrueFPredTag, args) =>
+        /**
+          * pred PredTrue([args]) {
+          *   true
+          * }
+          */
+          val params = args.zipWithIndex.map {
+            case (arg, idx) => in.Parameter.In(s"arg$idx", arg.withAddressability(Addressability.inParameter))(src)
+          }
+          val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(true)(src))(src))
+          in.FPredicate(proxy, params, body)(src)
+        case _ => violation(s"no fpredicate generation defined for tag $tag and arguments $args")
+      }
     }
 
     def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = {
       val recvParam = in.Parameter.In("c", recv)(src)
-      val proxy = MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
+      val proxy = in.MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
 
       tag match {
         case IsChannelMPredTag =>
+          /**
+            * pred (c chan T) IsChannel(k Int)
+            */
           val bufferSizeParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
           in.MPredicate(recvParam, proxy, Vector(bufferSizeParam), None)(src)
         case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
+          /**
+            * pred (c chan T) [tag.identifier]()
+            */
           in.MPredicate(recvParam, proxy, Vector(), None)(src)
-        case t => violation(s"no mpredicate generation defined for tag $t")
+        case ClosureDebtMPredTag =>
+        /**
+          * pred (c chan T) ClosureDebt(P pred(), p perm)
+          */
+          val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+          val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+          in.MPredicate(recvParam, proxy, Vector(predicateParam, permissionAmountParam), None)(src)
+        case TokenMPredTag =>
+        /**
+          * pred (c chan T) Token(P pred())
+          */
+          val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
+          in.MPredicate(recvParam, proxy, Vector(predicateParam), None)(src)
+        case _ => violation(s"no mpredicate generation defined for tag $tag and receiver $recv")
       }
+    }
+
+    /**
+      * Creates an accessible predicate for a built-in mpredicate
+      */
+    private def builtInMPredAccessible(tag: BuiltInMPredicateTag, recv: in.Expr, args: Vector[in.Expr])(src: Meta): in.Accessible.Predicate = {
+      val proxy = mpredicateProxy(tag, recv.typ)(src)
+      in.Accessible.Predicate(in.MPredicateAccess(recv, proxy, args)(src))
     }
 
     //    private def origin(n: PNode): in.Origin = {

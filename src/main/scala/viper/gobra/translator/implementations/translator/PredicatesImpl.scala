@@ -83,7 +83,7 @@ class PredicatesImpl extends Predicates {
     * [acc(  p(as), perm] -> p(Argument[as], Permission[perm])
     * [acc(e.p(as), perm] -> p(Argument[e], Argument[as], Permission[perm])
     */
-  override def predicateAccess(ctx: Context): (in.PredicateAccess, in.Permission) ==> CodeWriter[vpr.PredicateAccessPredicate] = {
+  override def predicateAccess(ctx: Context): (in.PredicateAccess, in.Expr) ==> CodeWriter[vpr.PredicateAccessPredicate] = {
     case (acc@ in.FPredicateAccess(pred, args), perm) =>
       val (pos, info, errT) = acc.vprMeta
       for {

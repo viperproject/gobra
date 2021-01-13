@@ -6,9 +6,12 @@
 
 package viper.gobra.frontend.info.base
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
+import org.bitbucket.inkytonik.kiama.==>
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import viper.gobra.ast.frontend.PExpression
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, SingleAuxType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, PermissionT, SingleAuxType, Type, VoidType}
+
 
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
@@ -80,6 +83,16 @@ object BuiltInMemberTag {
     override def name: String = "InitChannelMethodTag"
   }
 
+  case object CreateDebtChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
+    override def identifier: String = "CreateDebt"
+    override def name: String = "CreateDebtChannelMethodTag"
+  }
+
+  case object RedeemChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
+    override def identifier: String = "Redeem"
+    override def name: String = "RedeemChannelMethodTag"
+  }
+
 
   /** Built-in MPredicate Tags */
 
@@ -103,12 +116,23 @@ object BuiltInMemberTag {
     override def name: String = "ClosedMPredTag"
   }
 
+  case object ClosureDebtMPredTag extends BuiltInMPredicateTag {
+    override def identifier: String = "ClosureDebt"
+    override def name: String = "ClosureDebtMPredTag"
+  }
+
+  case object TokenMPredTag extends BuiltInMPredicateTag {
+    override def identifier: String = "Token"
+    override def name: String = "TokenMPredTag"
+  }
+
 
   /**
     * Returns a vector of tags belonging to built-in members that should be considered during name resolution
     */
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
     // functions
+    CloseFunctionTag,
     // fpredicates
     PredTrueFPredTag,
     // methods
@@ -116,11 +140,16 @@ object BuiltInMemberTag {
     SendGotPermMethodTag,
     RecvGivenPermMethodTag,
     RecvGotPermMethodTag,
+    InitChannelMethodTag,
+    CreateDebtChannelMethodTag,
+    RedeemChannelMethodTag,
     // mpredicates
     IsChannelMPredTag,
     SendChannelMPredTag,
     RecvChannelMPredTag,
-    ClosedMPredTag
+    ClosedMPredTag,
+    ClosureDebtMPredTag,
+    TokenMPredTag
   )
 
   def types(tag: BuiltInMemberTag)(config: Config): AuxTypeLike = tag match {
@@ -130,6 +159,14 @@ object BuiltInMemberTag {
 
   def auxTypes(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
     // functions
+    case CloseFunctionTag => AuxType(
+      {
+        case (_, Vector(c: ChannelT, PermissionT, BooleanT /* TODO pred() */)) if sendAndBiDirections.contains(c.mod) => noMessages
+        case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, pred, and pred() types but got $ts")
+      },
+      {
+        case ts@Vector(c: ChannelT, PermissionT, BooleanT /* TODO pred() */) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
+      })
     // fpredicates
     case PredTrueFPredTag => AuxType(
       {
@@ -143,35 +180,41 @@ object BuiltInMemberTag {
 
   def singleAuxTypes(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
     // methods
-    case _: SendPermMethodTag => sendChannelInvariantType
-    case RecvGivenPermMethodTag => recvChannelInvariantType(false)
-    case RecvGotPermMethodTag => recvChannelInvariantType(true)
-    case InitChannelMethodTag => SingleAuxType(
-      {
-        case (_, _: ChannelT) => noMessages
-        case (n, ts) => error(n, s"type error: expected an argument of channel type but got $ts")
-      },
-      {
-        case _: ChannelT =>
-          val bufferSizeArgType = IntT(config.typeBounds.Int)
-          val sendGivenPermArgType = BooleanT // TODO pred(T)
-          val sendGotPermArgType = BooleanT // TODO pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
-          val recvGivenPermArgType = BooleanT // TODO pred()
-          val recvGotPermArgType = BooleanT // TODO pred(T)
-          FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), AssertionT)
-      })
+    case _: SendPermMethodTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred(T)
+    case RecvGivenPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred()
+    case RecvGotPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred(T)
+    case InitChannelMethodTag => channelReceiverType(allDirections, _ => {
+      val bufferSizeArgType = IntT(config.typeBounds.Int)
+      val sendGivenPermArgType = BooleanT // TODO pred(T)
+      val sendGotPermArgType = BooleanT // TODO pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
+      val recvGivenPermArgType = BooleanT // TODO pred()
+      val recvGotPermArgType = BooleanT // TODO pred(T)
+      FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
+    })
+    case CreateDebtChannelMethodTag => channelReceiverType(allDirections, _ => {
+      val amountArgType = PermissionT
+      val predArgType = BooleanT // TODO pred()
+      FunctionT(Vector(amountArgType, predArgType), VoidType)
+    })
+    case RedeemChannelMethodTag => channelReceiverType(allDirections, _ => {
+      val predArgType = BooleanT // TODO pred()
+      FunctionT(Vector(predArgType), VoidType)
+    })
+
     // mpredicates
-    case IsChannelMPredTag => SingleAuxType(
-      {
-        case (_, _: ChannelT) => noMessages
-        case (n, ts) => error(n, s"type error: expected an argument of channel type but got $ts")
-      },
-      {
-        case _: ChannelT => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT)
-      })
-    case SendChannelMPredTag => sendAndBiChannelType
-    case RecvChannelMPredTag => recvAndBiChannelType
-    case ClosedMPredTag => recvAndBiChannelType
+    case IsChannelMPredTag => channelReceiverType(allDirections, _ => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT))
+    case SendChannelMPredTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+    case RecvChannelMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+    case ClosedMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+    case ClosureDebtMPredTag => channelReceiverType(allDirections, _ => {
+      val predArgType = BooleanT // TODO pred()
+      val amountArgType = PermissionT
+      FunctionT(Vector(predArgType, amountArgType), VoidType)
+    })
+    case TokenMPredTag => channelReceiverType(allDirections, _ => {
+      val predArgType = BooleanT // TODO pred()
+      FunctionT(Vector(predArgType), VoidType)
+    })
     case _ => unknownTagSingleAuxType(tag)
   }
 
@@ -186,37 +229,24 @@ object BuiltInMemberTag {
     },
     PartialFunction.empty)
 
-  private lazy val sendChannelInvariantType: SingleAuxType = SingleAuxType(
-    {
-      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => noMessages
-      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or sending channel type but got $ts")
-    },
-    {
-      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => FunctionT(Vector(), BooleanT) // TODO pred(T)
-    })
-  private def recvChannelInvariantType(messageDependant: Boolean): SingleAuxType = SingleAuxType(
-    {
-      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => noMessages
-      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or receiving channel type but got $ts")
-    },
-    {
-      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => FunctionT(Vector(), BooleanT) // TODO messageDependant ? pred(T) : pred()
-    })
+  private lazy val allDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Send, ChannelModus.Recv)
+  private lazy val sendAndBiDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Send)
+  private lazy val recvAndBiDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Recv)
 
-  private lazy val sendAndBiChannelType: SingleAuxType = SingleAuxType(
+  /**
+    * Simplifies creation of SingleAuxType specialized to a channel being the (method or mpredicate) receiver
+    */
+  private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): SingleAuxType = SingleAuxType(
+    channelReceiverMessages(permittedModi),
+    channelReceiverTyping(permittedModi, typing)
+  )
+  private def channelReceiverMessages(permittedModi: Set[ChannelModus]): (PExpression, Type) => Messages =
     {
-      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => noMessages
-      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or sending channel type but got $ts")
-    },
+      case (_, c: ChannelT) if permittedModi.contains(c.mod) => noMessages
+      case (n, ts) => error(n, s"type error: expected a single argument of channel type (permitted channel modi: $permittedModi) but got $ts")
+    }
+  private def channelReceiverTyping(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): Type ==> FunctionT =
     {
-      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Send => FunctionT(Vector(), AssertionT)
-    })
-  private lazy val recvAndBiChannelType: SingleAuxType = SingleAuxType(
-    {
-      case (_, c: ChannelT) if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => noMessages
-      case (n, ts) => error(n, s"type error: expected a single argument of bidirectional or receiving channel type but got $ts")
-    },
-    {
-      case c: ChannelT if c.mod == ChannelModus.Bi || c.mod == ChannelModus.Recv => FunctionT(Vector(), AssertionT)
-    })
+      case c: ChannelT if permittedModi.contains(c.mod) => typing(c)
+    }
 }

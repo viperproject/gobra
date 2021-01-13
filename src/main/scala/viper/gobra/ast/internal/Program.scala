@@ -245,7 +245,9 @@ case class ExprAssertion(exp: Expr)(val info: Source.Parser.Info) extends Assert
 
 case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
-case class Access(e: Accessible, p: Permission)(val info: Source.Parser.Info) extends Assertion
+case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends Assertion {
+  require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
+}
 
 sealed trait Accessible extends Node {
   def op: Node

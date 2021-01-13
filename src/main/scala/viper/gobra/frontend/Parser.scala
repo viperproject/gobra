@@ -772,7 +772,9 @@ object Parser {
     // TODO: change delimiter to { and implement required ambiguity resolution, current: !< X, ..., Z !>
     // declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
-      (idnUse ~ predConstructArgs) ^^ { p => PPredConstructor(PFPredBase(p._1), p._2) }
+      (idnUse ~ predConstructArgs) ^^ { 
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
+      }
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
       (expression <~ ".") ~ idnUse ~ predConstructArgs ^^ {
@@ -1270,5 +1272,4 @@ object Parser {
 
 
 }
-
 

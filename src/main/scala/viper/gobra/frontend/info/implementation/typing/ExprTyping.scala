@@ -430,10 +430,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       base match {
         case PFPredBase(id) =>
           val idT = idType(id)
-          PredT(idT.asInstanceOf[FunctionT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
-        case p:PMPredBase =>
+          PredT(idT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
+        case p: PMPredBase =>
           val idT = idType(p.id)
-          PredT(idT.asInstanceOf[FunctionT].args.tail diff args.filter(_.isDefined).map(x => exprType(x.get)))
+          PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
       }
 
     case e => violation(s"unexpected expression $e")

@@ -47,7 +47,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
-    case n: PPredCtrBase => showPredCtrBase(n)
+    case n: PPredConstructorBase => showPredCtrBase(n)
     case PPos(_) => emptyDoc
   }
 
@@ -479,7 +479,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
   }
 
-  def showPredCtrBase(base: PPredCtrBase): Doc = base match {
+  def showPredCtrBase(base: PPredConstructorBase): Doc = base match {
     case PFPredBase(id) => showId(id)
     case PMPredBase(expr) => showExprOrType(expr)
   }

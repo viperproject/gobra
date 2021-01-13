@@ -117,9 +117,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   /** extends a function type by adding a type as the first argument type **/
   def extendFunctionType(functionT: FunctionT, base: Type): Type = FunctionT(base +: functionT.args, functionT.result)
 
-  /** extends a predicate type by adding a type as the first argument type **/
-  def extendPredicateType(predT: PredT, base: Type): Type = PredT(base +: predT.args)
-
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 
     case MethodImpl(PMethodDecl(_, _, args, result, _, _), _, context) => FunctionT(args map context.typ, context.typ(result))

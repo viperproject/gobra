@@ -10,7 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PExpression
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, BooleanT, ChannelModus, ChannelT, FunctionT, IntT, PermissionT, SingleAuxType, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, ChannelModus, ChannelT, FunctionT, IntT, PermissionT, PredT, SingleAuxType, Type, VoidType}
+import viper.gobra.util.Violation
 
 
 object BuiltInMemberTag {
@@ -49,7 +50,7 @@ object BuiltInMemberTag {
   /** Built-in FPredicate Tags */
 
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
-    override def identifier: String = "Pred_True"
+    override def identifier: String = "PredTrue"
     override def name: String = "PredTrueFPredTag"
   }
 
@@ -161,11 +162,11 @@ object BuiltInMemberTag {
     // functions
     case CloseFunctionTag => AuxType(
       {
-        case (_, Vector(c: ChannelT, PermissionT, BooleanT /* TODO pred() */)) if sendAndBiDirections.contains(c.mod) => noMessages
+        case (_, Vector(c: ChannelT, PermissionT, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
         case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, pred, and pred() types but got $ts")
       },
       {
-        case ts@Vector(c: ChannelT, PermissionT, BooleanT /* TODO pred() */) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
+        case ts@Vector(c: ChannelT, PermissionT, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
       })
     // fpredicates
     case PredTrueFPredTag => AuxType(
@@ -180,24 +181,25 @@ object BuiltInMemberTag {
 
   def singleAuxTypes(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
     // methods
-    case _: SendPermMethodTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred(T)
-    case RecvGivenPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred()
-    case RecvGotPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), BooleanT)) // TODO pred(T)
-    case InitChannelMethodTag => channelReceiverType(allDirections, _ => {
+    case SendGivenPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
+    case SendGotPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
+    case RecvGivenPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), PredT(Vector())))
+    case RecvGotPermMethodTag => channelReceiverType(recvAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
+    case InitChannelMethodTag => channelReceiverType(allDirections, c => {
       val bufferSizeArgType = IntT(config.typeBounds.Int)
-      val sendGivenPermArgType = BooleanT // TODO pred(T)
-      val sendGotPermArgType = BooleanT // TODO pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
-      val recvGivenPermArgType = BooleanT // TODO pred()
-      val recvGotPermArgType = BooleanT // TODO pred(T)
+      val sendGivenPermArgType = PredT(Vector(c.elem))
+      val sendGotPermArgType = PredT(Vector()) // pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
+      val recvGivenPermArgType = PredT(Vector())
+      val recvGotPermArgType = PredT(Vector(c.elem))
       FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
     })
     case CreateDebtChannelMethodTag => channelReceiverType(allDirections, _ => {
       val amountArgType = PermissionT
-      val predArgType = BooleanT // TODO pred()
+      val predArgType = PredT(Vector())
       FunctionT(Vector(amountArgType, predArgType), VoidType)
     })
     case RedeemChannelMethodTag => channelReceiverType(allDirections, _ => {
-      val predArgType = BooleanT // TODO pred()
+      val predArgType = PredT(Vector())
       FunctionT(Vector(predArgType), VoidType)
     })
 
@@ -207,13 +209,13 @@ object BuiltInMemberTag {
     case RecvChannelMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
     case ClosedMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
     case ClosureDebtMPredTag => channelReceiverType(allDirections, _ => {
-      val predArgType = BooleanT // TODO pred()
+      val predArgType = PredT(Vector())
       val amountArgType = PermissionT
-      FunctionT(Vector(predArgType, amountArgType), VoidType)
+      FunctionT(Vector(predArgType, amountArgType), AssertionT)
     })
     case TokenMPredTag => channelReceiverType(allDirections, _ => {
-      val predArgType = BooleanT // TODO pred()
-      FunctionT(Vector(predArgType), VoidType)
+      val predArgType = PredT(Vector())
+      FunctionT(Vector(predArgType), AssertionT)
     })
     case _ => unknownTagSingleAuxType(tag)
   }
@@ -249,4 +251,37 @@ object BuiltInMemberTag {
     {
       case c: ChannelT if permittedModi.contains(c.mod) => typing(c)
     }
+
+  /**
+    * Returns a vector of flags indicating whether an argument is ghost
+    */
+  def ghostArgs(tag: BuiltInAuxTypeTag): Vector[Boolean] = tag match {
+    // functions
+    case CloseFunctionTag => Vector(false, true, true)
+    // fpredicates
+    case PredTrueFPredTag => Vector() // TODO this stops us from having PredTrue with arbitrary (number of) arguments
+    case t => Violation.violation(s"ghost type not defined for $t")
+  }
+
+  /**
+    * Returns a vector of flags indicating whether an argument is ghost
+    */
+  def ghostArgs(tag: BuiltInSingleAuxTypeTag, recv: Type): Vector[Boolean] = (tag, recv) match {
+    // methods
+    case (SendGivenPermMethodTag, _) => Vector()
+    case (SendGotPermMethodTag, _) => Vector()
+    case (RecvGivenPermMethodTag, _) => Vector()
+    case (RecvGotPermMethodTag, _) => Vector()
+    case (InitChannelMethodTag, _) => Vector(true, true, true, true, true)
+    case (CreateDebtChannelMethodTag, _) => Vector(true, true)
+    case (RedeemChannelMethodTag, _) => Vector(true)
+    // mpredicates
+    case (IsChannelMPredTag, _) => Vector(true)
+    case (SendChannelMPredTag, _) => Vector()
+    case (RecvChannelMPredTag, _) => Vector()
+    case (ClosedMPredTag, _) => Vector()
+    case (ClosureDebtMPredTag, _) => Vector(true, true)
+    case (TokenMPredTag, _) => Vector(true)
+    case t => Violation.violation(s"ghost type not defined for $t")
+  }
 }

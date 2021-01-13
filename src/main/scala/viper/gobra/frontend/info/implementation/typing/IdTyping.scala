@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{error, noMessages}
 import org.bitbucket.inkytonik.kiama.util.Entity
 import viper.gobra.ast.frontend.{PIdnNode, _}
+import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -151,6 +152,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
+
+    case BuiltInFunction(tag, _, _) => BuiltInMemberTag.auxTypes(tag)(config)
 
     case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)

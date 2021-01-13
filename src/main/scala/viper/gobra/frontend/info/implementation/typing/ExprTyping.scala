@@ -378,6 +378,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
                 p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
             }
+          case auxT: AuxType =>
+            // contextual information would be necessary to predict the constructor's return type (i.e. to find type of unapplied arguments)
+            // right now we only support fully applied arguments for built-in predicates
+            val givenArgs = p.args.flatten
+            if (givenArgs.length != p.args.length) {
+              error(p, s"partial application is not supported for built-in predicates")
+            } else {
+              val givenArgTypes = givenArgs map exprType
+              val msgs = auxT.messages(p, givenArgTypes)
+              if (msgs.nonEmpty) {
+                msgs
+              } else {
+                // the typing function should be defined for these arguments as `msgs` is empty
+                auxT.typing(givenArgTypes) match {
+                  case FunctionT(args, AssertionT) =>
+                    if (givenArgs.isEmpty && args.isEmpty) {
+                      noMessages
+                    } else {
+                      multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
+                        p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+                    }
+                  case t => error(p, s"expected function type for resolved AuxType but got $t")
+                }
+              }
+            }
           case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
         }
     }
@@ -489,12 +514,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PPredConstructor(base, args) =>
       base match {
         case PFPredBase(id) =>
-          val idT = idType(id)
-          PredT(idT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
+          idType(id) match {
+            case FunctionT(fnArgs, AssertionT) =>
+              PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
+            case _: AuxType =>
+              PredT(Vector()) // because partial application is not supported yet for built-in predicates
+            case t => violation(s"expected function or aux type for base of a predicate constructor but got $t")
+          }
         case p: PMPredBase =>
-          val idT = idType(p.id)
-          PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+          idType(p.id) match {
+            case FunctionT(fnArgs, AssertionT) =>
+              // ignore first entry of fnArgs as this corresponds to the receiver (which cannot be unapplied)
+              PredT(fnArgs.tail.zip(args).collect{ case (typ, None) => typ })
+            case _: AuxType =>
+              PredT(Vector()) // because partial application is not supported yet for built-in predicates
+            case t => violation(s"expected function or aux type for base of a predicate constructor but got $t")
+          }
       }
+
 
     case e => violation(s"unexpected expression $e")
   }

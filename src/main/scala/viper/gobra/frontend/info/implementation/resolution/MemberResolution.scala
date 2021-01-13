@@ -11,7 +11,7 @@ import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMPredicateTag
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.{PackageResolver, Parser}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
@@ -50,8 +50,22 @@ trait MemberResolution { this: TypeInfoImpl =>
       .transform((_, ms) => AdvancedMemberSet.init(ms))
   }
 
+  private lazy val builtInReceiverMethodSets: Vector[BuiltInMethodLike] = {
+    BuiltInMemberTag.builtInMembers() flatMap {
+      case tag: BuiltInMethodTag => Some(BuiltInMethod(tag, tree.root, this))
+      case _ => None
+    }
+  }
+
+  def builtInReceiverMethodSet(recv: Type): AdvancedMemberSet[TypeMember] = {
+    // filter out all methods that are not defined for this receiver type
+    val definedMethods = builtInReceiverMethodSets.filter(p => BuiltInMemberTag.singleAuxTypes(p.tag)(config).typing.isDefinedAt(recv))
+    AdvancedMemberSet.init(definedMethods)
+  }
+
   def receiverMethodSet(recv: Type): AdvancedMemberSet[TypeMember] =
-    receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty)
+    receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
+      builtInReceiverMethodSet(recv)
 
   private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations

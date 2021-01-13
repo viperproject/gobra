@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
 import viper.gobra.util.Violation
 
@@ -98,6 +99,9 @@ trait GhostAssignability {
       case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)
       case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
       case Some(_: ap.PredicateKind) => GhostType.isGhost
+      case Some(p: ap.BuiltInFunction) => GhostType.ghostTuple(BuiltInMemberTag.ghostArgs(p.symb.tag))
+      case Some(p: ap.BuiltInReceivedMethod) => GhostType.ghostTuple(BuiltInMemberTag.ghostArgs(p.symb.tag, exprType(p.recv)))
+      case Some(p: ap.BuiltInMethodExpr) => GhostType.ghostTuple(false +: BuiltInMemberTag.ghostArgs(p.symb.tag, typeSymbType(p.typ)))
       case _ => GhostType.notGhost // conservative choice
     }
   }

@@ -49,6 +49,11 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
           case (l, r) => identicalTypes(l, r)
         } && identicalTypes(lr, rr)
 
+      case (PredT(larg), PredT(rarg)) =>
+        larg.size == rarg.size && larg.zip(rarg).forall {
+          case (l, r) => identicalTypes(l, r)
+        }
+
       case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk, rk) && identicalTypes(le, re)
 
       case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm

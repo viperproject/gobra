@@ -115,7 +115,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
   /** extends a function type by adding a type as the first argument type **/
-  def extentFunctionType(functionT: FunctionT, base: Type): Type = FunctionT(base +: functionT.args, functionT.result)
+  def extendFunctionType(functionT: FunctionT, base: Type): Type = FunctionT(base +: functionT.args, functionT.result)
 
   private[typing] def actualMemberType(typeMember: ActualTypeMember): Type = typeMember match {
 

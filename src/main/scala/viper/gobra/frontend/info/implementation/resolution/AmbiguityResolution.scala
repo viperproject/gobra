@@ -10,7 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.SymbolTable.isDefinedInScope
-import viper.gobra.frontend.info.base.Type.ImportT
+import viper.gobra.frontend.info.base.Type.{ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
@@ -89,6 +89,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
           resolve(e) match {
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
             case Some(p: ap.PredicateKind) => Some(ap.PredicateCall(p, n.args))
+            case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args))
             case _ => None
           }
       }

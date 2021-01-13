@@ -127,7 +127,7 @@ object Desugar {
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
     }
 
-    def mpredicateProxy(id: PIdnUse): in.MPredicateProxy = {
+    def mpredicateProxyD(id: PIdnUse): in.MPredicateProxy = {
       val name = idName(id)
       in.MPredicateProxy(id.name, name)(meta(id))
     }
@@ -166,8 +166,8 @@ object Desugar {
         case NoGhost(x: PConstDecl) => constDeclD(x)
         case NoGhost(x: PMethodDecl) => Vector(registerMethod(x))
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
-        case x: PMPredicateDecl => Vector(mpredicateD(x))
-        case x: PFPredicateDecl => Vector(fpredicateD(x))
+        case x: PMPredicateDecl => Vector(registerMPredicate(x))
+        case x: PFPredicateDecl => Vector(registerFPredicate(x))
         case _ => Vector.empty
       }
 
@@ -1165,6 +1165,33 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
+          case PPredConstructor(base, args) => base match {
+            case PFPredBase(id) =>
+              val proxy = fpredicateProxyD(id)
+              val idT = info.typ(id) match {
+                case FunctionT(args, AssertionT) =>
+                  in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
+              for {
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+
+            case p@PMPredBase(_) =>
+              val proxy = mpredicateProxyD(p.id)
+              val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
+              val idT = info.typ(p.id) match {
+                case FunctionT(args, AssertionT) =>
+                  in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
+
+              for {
+                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+              } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+          }
+
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
@@ -1423,7 +1450,7 @@ object Desugar {
       mPred
     }
 
-    def registerMPredicate(decl: PFPredicateDecl): in.FPredicate = {
+    def registerFPredicate(decl: PFPredicateDecl): in.FPredicate = {
       val fPredProxy = fpredicateProxyD(decl)
       val fPred = fpredicateD(decl)
       definedFPredicates += fPredProxy -> fPred
@@ -1456,6 +1483,8 @@ object Desugar {
 
         val structName = nm.struct(t)
         registerType(in.StructT(structName, inFields, addrMod))
+
+      case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
       case Type.FunctionT(_, _) => ???
       case t: Type.InterfaceT =>
@@ -1649,8 +1678,27 @@ object Desugar {
         case PAssume(exp) => for {e <- goA(exp)} yield in.Assume(e)(src)
         case PInhale(exp) => for {e <- goA(exp)} yield in.Inhale(e)(src)
         case PExhale(exp) => for {e <- goA(exp)} yield in.Exhale(e)(src)
-        case PFold(exp)   => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
-        case PUnfold(exp) => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
+        case PFold(exp)   =>
+          info.resolve(exp.pred) match {
+            case Some(_: ap.PredExprInstance) => for {
+              // the well-definedness checks guarantees that a pred expr instance in a Fold is in format predName{p1,...,pn}(a1, ...., am)
+              e <- goA(exp)
+              access = e.asInstanceOf[in.Access]
+              predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
+            } yield in.PredExprFold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+
+            case _ => for {e <- goA(exp)} yield in.Fold(e.asInstanceOf[in.Access])(src)
+          }
+        case PUnfold(exp) =>
+          info.resolve(exp.pred) match {
+            case Some(_: ap.PredExprInstance) => for {
+              // the well-definedness checks guarantees that a pred expr instance in an Unfold is in format predName{p1,...,pn}(a1, ...., am)
+              e <- goA(exp)
+              access = e.asInstanceOf[in.Access]
+              predExpInstance = access.e.op.asInstanceOf[in.PredExprInstance]
+            } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
+            case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -1902,6 +1950,14 @@ object Desugar {
             p <- permissionD(ctx)(perm)
           } yield in.Access(in.Accessible.Predicate(predAcc), p)(src)
 
+        case Some(_: ap.PredExprInstance) =>
+          for {
+            base <- exprD(ctx)(n.base.asInstanceOf[PExpression])
+            args <- sequence(n.args.map(exprD(ctx)(_)))
+            predExprInstance = in.PredExprInstance(base, args)(src)
+            p <- permissionD(ctx)(perm)
+          } yield in.Access(in.Accessible.PredExpr(predExprInstance), p)(src)
+
         case _ => exprD(ctx)(n) map (in.ExprAssertion(_)(src)) // a boolean expression
       }
     }
@@ -1918,12 +1974,12 @@ object Desugar {
         case b: ap.ReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
-          val proxy = mpredicateProxy(b.id)
+          val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
 
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
-          val proxy = mpredicateProxy(b.id)
+          val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
       }
     }

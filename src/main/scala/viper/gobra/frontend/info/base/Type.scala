@@ -68,6 +68,8 @@ object Type {
 
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 
+  case class PredT(args: Vector[Type]) extends Type
+
   // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType) extends Type {
     lazy val isEmpty: Boolean = {

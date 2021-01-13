@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -20,7 +21,17 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PExhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
     case PAssume(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
     case PInhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case PFold(_) => noMessages
-    case PUnfold(_) => noMessages
+    case PFold(acc) => wellDefFoldable(acc)
+    case PUnfold(acc) => wellDefFoldable(acc)
   }
+
+  private def wellDefFoldable(acc: PPredicateAccess): Messages =
+    resolve(acc.pred) match {
+      case Some(_: ap.PredExprInstance) =>
+        error(
+          acc,
+          s"expected a predicate constructor, but got ${acc.pred.base}",
+          !acc.pred.base.isInstanceOf[PPredConstructor])
+      case _ => noMessages
+    }
 }

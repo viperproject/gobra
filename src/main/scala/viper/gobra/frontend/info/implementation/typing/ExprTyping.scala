@@ -78,12 +78,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.ReceivedPredicate) => memberType(p.symb)
 
         case Some(p: ap.MethodExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
+          case f: FunctionT => extendFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a method should be typed to a function type, but got $t")
         }
 
         case Some(p: ap.PredicateExpr) => memberType(p.symb) match {
-          case f: FunctionT => extentFunctionType(f, typeSymbType(p.typ))
+          case f: FunctionT => extendFunctionType(f, typeSymbType(p.typ))
           case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
 
@@ -155,7 +155,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
         val pureReceiverMsgs = p.predicate match {
-          case _: ap.Predicate | _: ap.PredicateExpr => noMessages
+          case _: ap.Predicate => noMessages
+          case _: ap.PredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
@@ -167,6 +168,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
+      case (Left(callee), Some(_:ap.PredExprInstance)) =>
+        exprType(callee) match {
+          case PredT(args) =>
+            if (n.args.isEmpty && args.isEmpty) noMessages
+            else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+        }
 
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
@@ -244,21 +251,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PNegation(e) => isExpr(e).out ++ assignableTo.errors(exprType(e), BooleanT)(n)
 
-
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            val intKind = config.typeBounds.UntypedConst
-            assignableTo.errors(l, IntT(intKind))(n) ++ assignableTo.errors(r, IntT(intKind))(n)
+            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
-    case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op)
+    case n: PUnfolding => isExpr(n.op).out ++ isPureExpr(n.op) ++
+      error(
+        n.pred,
+        s"unfolding predicate expression instance ${n.pred} not supported",
+        resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
@@ -300,6 +309,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
+    case p@PPredConstructor(base, _) => base match {
+      case base@(_: PFPredBase | _:PMPredBase) =>
+        idType(base.id) match {
+          case FunctionT(args, AssertionT) =>
+            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+            val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
+            if(givenArgs.isEmpty && expectedArgs.isEmpty) {
+              noMessages
+            } else {
+              multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+                p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+            }
+          case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
+        }
+    }
+
+
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
@@ -331,12 +358,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
+      case (Left(callee), Some(_: ap.PredExprInstance)) =>
+        // a PInvoke on a predicate expression instance must fully apply the predicate arguments
+        AssertionT
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
           case t => violation(s"expected function type but got $t") //(error(n, s""))
         }
-      case p => violation(s"expected conversion, function call, or predicate call, but got $p")
+      case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
     case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
@@ -378,9 +408,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PLength => IntT(config.typeBounds.Int)
+    case _: PLength => INT_TYPE
 
-    case _: PCapacity => IntT(config.typeBounds.Int)
+    case _: PCapacity => INT_TYPE
 
     case exprNum: PNumExpression =>
       val typ = intExprType(exprNum)
@@ -395,6 +425,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PNew(typ) => PointerT(typeSymbType(typ))
 
     case PMake(typ, _) => typeSymbType(typ)
+
+    case PPredConstructor(base, args) =>
+      base match {
+        case PFPredBase(id) =>
+          val idT = idType(id)
+          PredT(idT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
+        case p: PMPredBase =>
+          val idT = idType(p.id)
+          PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+      }
 
     case e => violation(s"unexpected expression $e")
   }
@@ -471,6 +511,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
               case _ => None
             }
+
+          case Some(_: ap.PredExprInstance) => ??? // TODO
 
           case _ => None
         }

@@ -488,6 +488,16 @@ case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpressio
   */
 case class PNew(typ: PType) extends PActualExpression
 
+sealed trait PPredConstructorBase extends PNode {
+  val id: PIdnUse
+}
+case class PFPredBase(override val id: PIdnUse) extends PPredConstructorBase
+case class PMPredBase(recvWithId: PDot) extends PPredConstructorBase {
+  override val id: PIdnUse = recvWithId.id
+  val recv: PExpressionOrType = recvWithId.base
+}
+case class PPredConstructor(id: PPredConstructorBase, args: Vector[Option[PExpression]]) extends PActualExpression
+
 /**
   * Types
   */
@@ -586,6 +596,8 @@ case class PMethodReceivePointer(typ: PNamedOperand) extends PMethodRecvType
 
 
 case class PFunctionType(args: Vector[PParameter], result: PResult) extends PTypeLit with PScope
+
+case class PPredType(args: Vector[PType]) extends PTypeLit
 
 case class PInterfaceType(
                            embedded: Vector[PInterfaceName],

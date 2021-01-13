@@ -48,5 +48,5 @@ object AstPattern {
   case class Predicate(id: PIdnUse, symb: st.FPredicate) extends PredicateKind with Symbolic
   case class ReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
   case class PredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
-
+  case class PredExprInstance(base: PExpression, args: Vector[PExpression]) extends PredicateKind
 }

@@ -127,7 +127,7 @@ object Desugar {
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
     }
 
-    def mpredicateProxy(id: PIdnUse): in.MPredicateProxy = {
+    def mpredicateProxyD(id: PIdnUse): in.MPredicateProxy = {
       val name = idName(id)
       in.MPredicateProxy(id.name, name)(meta(id))
     }
@@ -1176,7 +1176,20 @@ object Desugar {
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
-            case PMPredBase(id, recv) => ???
+
+            case p@PMPredBase(_) =>
+              val proxy = mpredicateProxyD(p.id)
+              val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
+              val idT = info.typ(p.id) match {
+                case FunctionT(args, AssertionT) =>
+                  in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
+
+              for {
+                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+              } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
           }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -1961,12 +1974,12 @@ object Desugar {
         case b: ap.ReceivedPredicate =>
           val dRecv = pureExprD(ctx)(b.recv)
           val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
-          val proxy = mpredicateProxy(b.id)
+          val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
 
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
-          val proxy = mpredicateProxy(b.id)
+          val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
       }
     }

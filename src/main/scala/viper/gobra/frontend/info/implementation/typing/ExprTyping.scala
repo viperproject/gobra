@@ -310,8 +310,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBlankIdentifier() => noMessages
 
     case p@PPredConstructor(base, _) => base match {
-      case PFPredBase(id) =>
-        idType(id) match {
+      case base@(_: PFPredBase | _:PMPredBase) =>
+        idType(base.id) match {
           case FunctionT(args, AssertionT) =>
             val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
             val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
@@ -322,9 +322,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
                 p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
             }
-          case t => error(p, s"expected base of function type, got $id of type $t", !t.isInstanceOf[FunctionT])
+          case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
         }
-      case PMPredBase(_, _) => ???
     }
 
 
@@ -432,7 +431,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PFPredBase(id) =>
           val idT = idType(id)
           PredT(idT.asInstanceOf[FunctionT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
-        case PMPredBase(_, _) => ???
+        case p:PMPredBase =>
+          val idT = idType(p.id)
+          PredT(idT.asInstanceOf[FunctionT].args.tail diff args.filter(_.isDefined).map(x => exprType(x.get)))
       }
 
     case e => violation(s"unexpected expression $e")

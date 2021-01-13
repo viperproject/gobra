@@ -45,3 +45,23 @@ func error3() {
 	//:: ExpectedOutput(type_error)
 	fold eq!<&x, _!>(&x, &y)
 }
+
+type Singleton struct {
+    x int
+}
+
+type Empty struct {
+}
+
+pred (s *Singleton)isVal(val int) {
+	acc(s) && s.x == val
+}
+
+func error4() {
+	s@ := Singleton{0}
+	fold (&s).isVal!<0!>()
+	e@ := Empty{}
+	// error: isVal expects a Singleton receiver
+	//:: ExpectedOutput(type_error)
+	fold (&e).isVal!<0!>()
+}

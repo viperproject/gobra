@@ -481,7 +481,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPredCtrBase(base: PPredCtrBase): Doc = base match {
     case PFPredBase(id) => showId(id)
-    case PMPredBase(id, expr) => showExprOrType(expr) <> "." <> showId(id)
+    case PMPredBase(expr) => showExprOrType(expr)
   }
 
   // types

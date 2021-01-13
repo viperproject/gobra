@@ -769,8 +769,8 @@ object Parser {
         ghostPrimaryExp |
         operand
 
-    // TODO: change delimiter to { and implement required ambiguity resolution, current: !< X, ..., Z !>
-    // declaredPred!<d1, ..., dn!>
+    // TODO: change delimiters to { and } and implement required ambiguity resolution
+    // current format: declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
       (idnUse ~ predConstructArgs) ^^ {
         case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 

@@ -6,10 +6,10 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
+import org.bitbucket.inkytonik.kiama.util.Messaging.{noMessages}
 import viper.gobra.ast.frontend.PIdnNode
 import viper.gobra.frontend.info.base.SymbolTable.{BoundVariable, GhostRegular, Predicate}
-import viper.gobra.frontend.info.base.Type.{PredT, Type}
+import viper.gobra.frontend.info.base.Type.{AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
@@ -26,7 +26,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
   private[typing] def ghostEntityType(entity: GhostRegular, id: PIdnNode): Type = entity match {
 
     case x: BoundVariable => typeSymbType(x.decl.typ)
-    case predicate: Predicate => PredT(predicate.args map predicate.context.typ)
+    case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case _ => violation("untypable")
   }
 }

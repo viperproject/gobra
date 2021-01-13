@@ -83,8 +83,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
         case Some(p: ap.PredicateExpr) => memberType(p.symb) match {
-          case e: PredT => extendPredicateType(e, typeSymbType(p.typ))
-          case t => violation(s"a predicate should be typed to a predicate type, but got $t")
+          case f: FunctionT => extendFunctionType(f, typeSymbType(p.typ))
+          case t => violation(s"a predicate should be typed to a function type, but got $t")
         }
 
         // imported members, we simply assume that they are wellformed (and were checked in the other package's context)
@@ -94,7 +94,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
-        case Some(p: ap.Predicate) => PredT(p.symb.args map p.symb.context.typ)
+        case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
         // TODO: supporting packages results in further options: global variable
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
@@ -161,10 +161,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
         val argAssignMsgs = exprType(callee) match {
-          case PredT(args) => // TODO: add special assignment
+          case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t => error(n, s"type error: got $t but expected predicate type")
+          case t => error(n, s"type error: got $t but expected function type")
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
@@ -312,7 +312,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case p@PPredConstructor(base, _) => base match {
       case PFPredBase(id) =>
         idType(id) match {
-          case PredT(args) =>
+          case FunctionT(args, AssertionT) =>
             val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
             val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
             val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
@@ -322,7 +322,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
                 p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
             }
-          case t => error(p, s"expected base of predicate type, got $id of type $t", !t.isInstanceOf[PredT])
+          case t => error(p, s"expected base of function type, got $id of type $t", !t.isInstanceOf[FunctionT])
         }
       case PMPredBase(_, _) => ???
     }
@@ -359,18 +359,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
-      case (Left(callee), Some(_: ap.PredicateCall)) =>
-        exprType(callee) match {
-          case PredT(_) => AssertionT
-          case t => violation(s"expected function or predicate type but got $t")
-        }
       case (Left(callee), Some(_: ap.PredExprInstance)) =>
-        exprType(callee) match {
-          case PredT(_) =>
-            // a PInvoke on a predicate expression must fully apply the predicate arguments
-            PredT(Vector())
-        }
-      case (Left(callee), Some(_: ap.FunctionCall)) =>
+        // a PInvoke on a predicate expression instance must fully apply the predicate arguments
+        AssertionT
+      case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
           case t => violation(s"expected function type but got $t") //(error(n, s""))
@@ -439,7 +431,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       base match {
         case PFPredBase(id) =>
           val idT = idType(id)
-          PredT(idT.asInstanceOf[PredT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
+          PredT(idT.asInstanceOf[FunctionT].args diff args.filter(_.isDefined).map(x => exprType(x.get)))
         case PMPredBase(_, _) => ???
       }
 

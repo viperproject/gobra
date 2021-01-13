@@ -82,7 +82,7 @@ trait Enclosing { this: TypeInfoImpl =>
           case i: PInvoke => (exprOrType(i.base), resolve(i)) match {
             case (Right(target), Some(_: ap.Conversion)) => Some(symbType(target))
             case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
-            case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.PredT].args(p.args.indexOf(n)))
+            case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
           }
             // no not
           case PIndexedExp(base, `n`) => Some(typ(base).asInstanceOf[Type.MapT].key)

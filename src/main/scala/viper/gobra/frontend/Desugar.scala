@@ -1168,7 +1168,11 @@ object Desugar {
           case PPredConstructor(base, args) => base match {
             case PFPredBase(id) =>
               val proxy = fpredicateProxyD(id)
-              val idT = typeD(info.typ(id), Addressability.rValue)(src).asInstanceOf[in.PredT]
+              val idT = info.typ(id) match {
+                case FunctionT(args, AssertionT) =>
+                  in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               } yield in.PredicateConstructor(proxy, idT, dArgs)(src)

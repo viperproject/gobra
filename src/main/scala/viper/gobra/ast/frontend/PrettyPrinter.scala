@@ -47,6 +47,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
+    case n: PPredConstructorBase => showPredCtrBase(n)
     case PPos(_) => emptyDoc
   }
 
@@ -396,6 +397,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       })
       case PNew(typ) => "new" <> parens(showType(typ))
       case PBlankIdentifier() => "_"
+      // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
+      // partially applied predicates
+      case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
@@ -475,6 +479,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
   }
 
+  def showPredCtrBase(base: PPredConstructorBase): Doc = base match {
+    case PFPredBase(id) => showId(id)
+    case PMPredBase(expr) => showExprOrType(expr)
+  }
+
   // types
 
   def showType(typ: PType): Doc = typ match {
@@ -510,6 +519,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
     case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
+    case PPredType(args) => "pred" <> parens(showTypeList(args))
     case PInterfaceType(embedded, mspec, pspec) =>
       "interface" <+> block(
         ssep(embedded map showInterfaceClause, line) <>

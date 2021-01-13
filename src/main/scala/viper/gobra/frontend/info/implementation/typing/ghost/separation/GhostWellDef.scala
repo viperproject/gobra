@@ -103,6 +103,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PLiteral
        | _: PReference
        | _: PBlankIdentifier
+       | _: PPredConstructor
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
@@ -113,6 +114,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       case (Right(_), Some(_: ap.Conversion)) =>  error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
       case (Left(callee), Some(p: ap.FunctionCall)) => ghostAssignableToCallExpr(p.args: _*)(callee)
       case (Left(_), Some(_: ap.PredicateCall)) => noMessages
+      case (Left(_), Some(_: ap.PredExprInstance)) => noMessages
       case _ => violation("expected conversion, function call, or predicate call")
     }
 

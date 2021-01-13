@@ -1,0 +1,67 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred accPred(x *int) {
+	acc(x)
+}
+
+// error: folds and unfolds of predicate expression instances must
+// be of the form `predConstruct(a1, ..., ak)`
+func error1(ghost inv pred()) {
+	//:: ExpectedOutput(type_error)
+	unfold inv()
+	//:: ExpectedOutput(type_error)
+	fold inv()
+}
+
+// error: predicate expression instances not supported in "unfolding"
+// expressions
+func error2(ghost inv pred()) {
+	x@ := 1
+	fold accPred(&x)
+	// y := unfolding accPred(&x) in x
+	fold accPred!<&x!>()
+	//:: ExpectedOutput(type_error)
+	y := unfolding accPred!<&x!>() in x
+}
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+// error: all folds have predicate expression instances are ill-defined; they all have wrong
+// numbers of arguments
+func error3() {
+	x@ := 1
+	y@ := 2
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, &x, &x!>()
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x!>(&x)
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, _!>()
+	//:: ExpectedOutput(type_error)
+	fold eq!<&x, _!>(&x, &y)
+}
+
+type Singleton struct {
+    x int
+}
+
+type Empty struct {
+}
+
+pred (s *Singleton)isVal(val int) {
+	acc(s) && s.x == val
+}
+
+func error4() {
+	s@ := Singleton{0}
+	fold (&s).isVal!<0!>()
+	e@ := Empty{}
+	// error: isVal expects a Singleton receiver
+	//:: ExpectedOutput(type_error)
+	fold (&e).isVal!<0!>()
+}

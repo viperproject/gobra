@@ -763,6 +763,7 @@ object Parser {
     lazy val primaryExp: Parser[PExpression] =
       conversion |
         call |
+        predConstruct |
         selection |
         indexedExp |
         sliceExp |
@@ -770,6 +771,27 @@ object Parser {
         typeAssertion |
         ghostPrimaryExp |
         operand
+
+    // TODO: change delimiters to { and } and implement required ambiguity resolution
+    // current format: declaredPred!<d1, ..., dn!>
+    lazy val fpredConstruct: Parser[PPredConstructor] =
+      (idnUse ~ predConstructArgs) ^^ {
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
+      }
+
+    lazy val mpredConstruct: Parser[PPredConstructor] =
+      selection ~ predConstructArgs ^^ {
+        case recvWithId ~ args => PPredConstructor(PMPredBase(recvWithId).at(recvWithId), args)
+      }
+
+    lazy val predConstruct: Parser[PPredConstructor] =
+      mpredConstruct | fpredConstruct
+
+    lazy val predConstructArgs: Parser[Vector[Option[PExpression]]] =
+      ("!<" ~> (rep1sep(predConstructArg, ",") <~ ",".?).? <~ "!>") ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val predConstructArg: Parser[Option[PExpression]] =
+      (expression ^^ Some[PExpression]) | ("_" ^^^ None)
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
@@ -865,7 +887,7 @@ object Parser {
 
     lazy val typeLit: Parser[PTypeLit] =
       pointerType | sliceType | arrayType | mapType |
-        channelType | functionType | structType | interfaceType
+        channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
       sequenceType | setType | multisetType | optionType
@@ -886,6 +908,12 @@ object Parser {
 
     lazy val functionType: Parser[PFunctionType] =
       "func" ~> signature ^^ PFunctionType.tupled
+
+    lazy val predType: Parser[PPredType] =
+      "pred" ~> predTypeParams ^^ PPredType
+
+    lazy val predTypeParams: Parser[Vector[PType]] =
+      "(" ~> (rep1sep(typ, ",") <~ ",".?).? <~ ")" ^^ (_.toVector.flatten)
 
     lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
@@ -1248,5 +1276,4 @@ object Parser {
 
 
 }
-
 

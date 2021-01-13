@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+func foldTest() {
+	x@ := 1
+	y@ := 2
+	// partial application works as expected
+	fold eq!<&x, _!>(&x)
+	fold eq!<_, &y!>(&y)
+	fold eq!<_, _!>(&x, &x)
+	fold eq!<&x, &x!>()
+
+	// should fail because &x and &y are different 
+	//:: ExpectedOutput(fold_error)
+	fold eq!<&x, _!>(&y)
+}
+
+type Pair struct {
+    x int
+    y int
+}
+
+pred (p *Pair) pairSum(sum int) {
+	acc(p) && p.x + p.y < sum
+}
+
+func foldPairSum() {
+	x@ := Pair{1, 1}
+	// predicate expression instances with mpredicate bases are also supported
+	fold (&x).pairSum!<3!>()
+	unfold (&x).pairSum!<3!>()
+
+	// the following should fail because p.x + p.y == 2
+	//:: ExpectedOutput(fold_error)
+	fold (&x).pairSum!<2!>()
+}
+
+type Singleton struct {
+    x int
+}
+
+pred (s *Singleton) lessThan(bound int) {
+	acc(s) && s.x <= bound
+}
+
+requires x >= 0
+func foldSingletonLessThan(x int) {
+	s@ := Singleton{}
+	fold (&s).lessThan!<x!>()
+}
+
+// error: x may be less than the value of the singleton
+func foldSingletonLessThanError(x int) {
+	s@ := Singleton{0}
+	//:: ExpectedOutput(fold_error)
+	fold (&s).lessThan!<x!>()
+}

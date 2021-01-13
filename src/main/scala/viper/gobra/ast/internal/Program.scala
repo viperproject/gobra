@@ -363,8 +363,8 @@ case class PredicateConstructor(proxy: PredicateProxy, proxyT: PredT, args: Vect
 
 case class PredExprInstance(base: Expr, args: Vector[Expr])(val info: Source.Parser.Info) extends Node
 
-case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
-case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Permission)(val info: Source.Parser.Info) extends Stmt
+case class PredExprFold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
+case class PredExprUnfold(base: PredicateConstructor, args: Vector[Expr], p: Expr)(val info: Source.Parser.Info) extends Stmt
 
 
 /* ** Option type expressions */

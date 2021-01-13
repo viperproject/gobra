@@ -63,7 +63,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
-      case _ => error(n, s"expected reference, dereference, or field selection, but got ${n.pred}")
+      case Some(_: ap.PredExprInstance) => noMessages
+      case _ => error(n, s"expected reference, dereference, field selection, or predicate expression instance, but got ${n.pred}")
     }
 
     case PTypeOf(e) => isExpr(e).out

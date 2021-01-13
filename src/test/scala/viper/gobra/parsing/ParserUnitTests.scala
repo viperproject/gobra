@@ -2496,7 +2496,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a mpredicate constructor") {
     frontend.parseExpOrFail("p.mutexInvariant!<x!>") should matchPattern {
-      case PPredConstructor(PMPredBase(PIdnUse("mutexInvariant"), PNamedOperand(PIdnUse("p"))), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
+      case PPredConstructor(PMPredBase(PDot( PNamedOperand(PIdnUse("p")), PIdnUse("mutexInvariant"))), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
     }
   }
   /* ** Stubs, mocks and other test setup */

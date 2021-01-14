@@ -11,6 +11,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend.PExpression
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, ChannelModus, ChannelT, FunctionT, IntT, PredT, SingleAuxType, Type, VoidType}
+import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 
@@ -265,35 +266,61 @@ object BuiltInMemberTag {
     }
 
   /**
-    * Returns a vector of flags indicating whether an argument is ghost
+    * Returns ghost typing for arguments
     */
-  def ghostArgs(tag: BuiltInAuxTypeTag): Vector[Boolean] = tag match {
+  def argGhostTyping(tag: BuiltInAuxTypeTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
     // functions
-    case CloseFunctionTag => Vector(false, true, true /* true */, true)
+    case (CloseFunctionTag, _) => GhostType.ghostTuple(Vector(false, true, true /* true */, true))
     // fpredicates
-    case PredTrueFPredTag => Vector() // TODO this stops us from having PredTrue with arbitrary (number of) arguments
-    case t => Violation.violation(s"ghost type not defined for $t")
+
+    // fallback:
+    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) => ghostArgs(types(tag)(config).typing(args).args.length)
+    case t => Violation.violation(s"argGhostTyping not defined for $t")
   }
 
   /**
-    * Returns a vector of flags indicating whether an argument is ghost
+    * Returns ghost typing for arguments
     */
-  def ghostArgs(tag: BuiltInSingleAuxTypeTag, recv: Type): Vector[Boolean] = (tag, recv) match {
+  def argGhostTyping(tag: BuiltInSingleAuxTypeTag, recv: Type)(config: Config): GhostType = (tag, recv) match {
     // methods
-    case (SendGivenPermMethodTag, _) => Vector()
-    case (SendGotPermMethodTag, _) => Vector()
-    case (RecvGivenPermMethodTag, _) => Vector()
-    case (RecvGotPermMethodTag, _) => Vector()
-    case (InitChannelMethodTag, _) => Vector(true, true, true, true, true)
-    case (CreateDebtChannelMethodTag, _) => Vector(true, true /* true */, true)
-    case (RedeemChannelMethodTag, _) => Vector(true)
     // mpredicates
-    case (IsChannelMPredTag, _) => Vector(true)
-    case (SendChannelMPredTag, _) => Vector()
-    case (RecvChannelMPredTag, _) => Vector()
-    case (ClosedMPredTag, _) => Vector()
-    case (ClosureDebtMPredTag, _) => Vector(true, true /* true */, true)
-    case (TokenMPredTag, _) => Vector(true)
-    case t => Violation.violation(s"ghost type not defined for $t")
+
+    // fallback:
+    case (t, r) if t.ghost && types(tag)(config).typing.isDefinedAt(r) => ghostArgs(types(tag)(config).typing(r).args.length)
+    case t => Violation.violation(s"argGhostTyping not defined for $t")
+  }
+
+  private def ghostArgs(arity: Int): GhostType = GhostType.ghostTuple(Vector.fill(arity)(true))
+
+  /**
+    * Returns ghost typing for return parameters
+    */
+  def returnGhostTyping(tag: BuiltInAuxTypeTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
+    // functions
+    // fpredicates
+
+    // fallback:
+    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) =>
+      types(tag)(config).typing(args).result match {
+        case VoidType => ghostArgs(0)
+        case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
+      }
+    case t => Violation.violation(s"returnGhostTyping not defined for $t")
+  }
+
+  /**
+    * Returns ghost typing for return parameters
+    */
+  def returnGhostTyping(tag: BuiltInSingleAuxTypeTag, recv: Type)(config: Config): GhostType = (tag, recv) match {
+    // methods
+    // mpredicates
+
+    // fallback:
+    case (t, r) if t.ghost && types(tag)(config).typing.isDefinedAt(r) =>
+      types(tag)(config).typing(r).result match {
+        case VoidType => ghostArgs(0)
+        case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
+      }
+    case t => Violation.violation(s"returnGhostTyping not defined for $t")
   }
 }

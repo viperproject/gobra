@@ -33,7 +33,9 @@ object AstPattern {
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
   case class BlankIdentifier(decl: PBlankIdentifier) extends Expr
 
-  sealed trait FunctionKind extends Expr
+  sealed trait FunctionKind extends Expr {
+    def id: PIdnUse
+  }
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
@@ -41,7 +43,6 @@ object AstPattern {
 
   sealed trait BuiltInFunctionKind extends FunctionKind
   sealed trait BuiltInMethodKind extends BuiltInFunctionKind with Symbolic {
-    def id: PIdnUse
     def path: Vector[MemberPath]
     def symb: st.BuiltInMethod
   }

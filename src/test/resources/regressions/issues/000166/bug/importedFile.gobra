@@ -5,7 +5,9 @@ package bug
 
 pred Test() { true }
 
-pure func f() bool {
+
+ensures ret == true
+pure func f() (ret bool) {
     return true
 }
 

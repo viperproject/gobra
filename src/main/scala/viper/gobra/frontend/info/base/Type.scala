@@ -141,41 +141,17 @@ object Type {
     }
   }
 
-
-  sealed trait AuxTypeLike extends Type {
-    def messagesFn: (PExpression, Vector[Type]) => Messages
-    def typingFn: Vector[Type] ==> Type
-  }
-
   /**
     * Parameteric type for built-in members.
     * `messages` maps from types of arguments to error messages.
     * The partial function `typing` maps from types of arguments to the return type.
     * It should be defined for all argument types for which no error message was returned by `messages`
     */
-  case class AuxType(messages: (PExpression, Vector[Type]) => Messages, typing: Vector[Type] ==> Type) extends AuxTypeLike {
-    override def messagesFn: (PExpression, Vector[Type]) => Messages = messages
-    override def typingFn: Vector[Type] ==> Type = typing
-  }
+  case class AuxType(messages: (PExpression, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
 
   /**
     * Parameteric type for built-in mpredicates and methods which are only parametric in their receiver type
     * Applying `typing` to the receiver type results in a typle of types for the remaining arguments and the return type
     */
-  case class SingleAuxType(messages: (PExpression, Type) => Messages, typing: Type ==> FunctionT) extends AuxTypeLike {
-    override def messagesFn: (PExpression, Vector[Type]) => Messages = {
-      case (n, t +: _) => messages(n, t)
-      case (n, _) => error(n, s"expected at least one argument, i.e. the receiver, but got an empty list")
-    }
-    override def typingFn: Vector[Type] ==> Type = {
-      case t +: ts => {
-        val funT = typing(t)
-        val argsMatch = funT.args.length == ts.length &&
-          funT.args.zip(ts).forall { case (t1, t2) => t1 == t2 }
-        violation(argsMatch, s"expected the argument types ${ts.toString()} but got ${funT.args.toString}")
-        funT.result
-      }
-      case _ => violation(s"expected at least one argument, i.e. the receiver, but got an empty list")
-    }
-  }
+  case class SingleAuxType(messages: (PExpression, Type) => Messages, typing: Type ==> FunctionT) extends Type
 }

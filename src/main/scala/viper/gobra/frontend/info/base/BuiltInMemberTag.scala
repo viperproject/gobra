@@ -10,7 +10,8 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PExpression
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, AuxTypeLike, ChannelModus, ChannelT, FunctionT, IntT, PermissionT, PredT, SingleAuxType, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, ChannelModus, ChannelT, FunctionT, IntT, PredT, SingleAuxType, Type, VoidType}
+import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 
 
@@ -32,9 +33,13 @@ object BuiltInMemberTag {
   sealed trait BuiltInAuxTypeTag extends BuiltInMemberTag
   sealed trait BuiltInSingleAuxTypeTag extends BuiltInMemberTag
 
-  sealed trait BuiltInFunctionTag extends BuiltInAuxTypeTag
+  sealed trait BuiltInFunctionTag extends BuiltInAuxTypeTag {
+    def isPure: Boolean
+  }
   sealed trait BuiltInFPredicateTag extends BuiltInAuxTypeTag with GhostBuiltInMember
-  sealed trait BuiltInMethodTag extends BuiltInSingleAuxTypeTag
+  sealed trait BuiltInMethodTag extends BuiltInSingleAuxTypeTag {
+    def isPure: Boolean
+  }
   sealed trait BuiltInMPredicateTag extends BuiltInSingleAuxTypeTag with GhostBuiltInMember
 
 
@@ -44,6 +49,7 @@ object BuiltInMemberTag {
     override def ghost: Boolean = false
     override def identifier: String = "close"
     override def name: String = "CloseFunctionTag"
+    override def isPure: Boolean = false
   }
 
 
@@ -61,37 +67,44 @@ object BuiltInMemberTag {
   case object SendGivenPermMethodTag extends SendPermMethodTag {
     override def identifier: String = "SendGivenPerm"
     override def name: String = "SendGivenPermMethodTag"
+    override def isPure: Boolean = true
   }
 
   case object SendGotPermMethodTag extends SendPermMethodTag {
     override def identifier: String = "SendGotPerm"
     override def name: String = "SendGotPermMethodTag"
+    override def isPure: Boolean = true
   }
 
   sealed trait RecvPermMethodTag extends ChannelInvariantMethodTag
   case object RecvGivenPermMethodTag extends RecvPermMethodTag {
     override def identifier: String = "RecvGivenPerm"
     override def name: String = "RecvGivenPermMethodTag"
+    override def isPure: Boolean = true
   }
 
   case object RecvGotPermMethodTag extends RecvPermMethodTag {
     override def identifier: String = "RecvGotPerm"
     override def name: String = "RecvGotPermMethodTag"
+    override def isPure: Boolean = true
   }
 
   case object InitChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "Init"
     override def name: String = "InitChannelMethodTag"
+    override def isPure: Boolean = false
   }
 
   case object CreateDebtChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "CreateDebt"
     override def name: String = "CreateDebtChannelMethodTag"
+    override def isPure: Boolean = false
   }
 
   case object RedeemChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "Redeem"
     override def name: String = "RedeemChannelMethodTag"
+    override def isPure: Boolean = false
   }
 
 
@@ -153,20 +166,15 @@ object BuiltInMemberTag {
     TokenMPredTag
   )
 
-  def types(tag: BuiltInMemberTag)(config: Config): AuxTypeLike = tag match {
-    case t: BuiltInAuxTypeTag => auxTypes(t)(config)
-    case t: BuiltInSingleAuxTypeTag => singleAuxTypes(t)(config)
-  }
-
-  def auxTypes(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
+  def types(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
     // functions
     case CloseFunctionTag => AuxType(
       {
-        case (_, Vector(c: ChannelT, PermissionT, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
+        case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
         case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, pred, and pred() types but got $ts")
       },
       {
-        case ts@Vector(c: ChannelT, PermissionT, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
+        case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
       })
     // fpredicates
     case PredTrueFPredTag => AuxType(
@@ -179,7 +187,7 @@ object BuiltInMemberTag {
     case _ => unknownTagAuxType(tag)
   }
 
-  def singleAuxTypes(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
+  def types(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
     // methods
     case SendGivenPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
     case SendGotPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
@@ -194,9 +202,11 @@ object BuiltInMemberTag {
       FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
     })
     case CreateDebtChannelMethodTag => channelReceiverType(allDirections, _ => {
-      val amountArgType = PermissionT
+      val dividend = IntT(UnboundedInteger)
+      val divisor = IntT(UnboundedInteger)
+      // val amountArgType = PermissionT
       val predArgType = PredT(Vector())
-      FunctionT(Vector(amountArgType, predArgType), VoidType)
+      FunctionT(Vector(dividend, divisor /* amountArgType */, predArgType), VoidType)
     })
     case RedeemChannelMethodTag => channelReceiverType(allDirections, _ => {
       val predArgType = PredT(Vector())
@@ -210,8 +220,10 @@ object BuiltInMemberTag {
     case ClosedMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
     case ClosureDebtMPredTag => channelReceiverType(allDirections, _ => {
       val predArgType = PredT(Vector())
-      val amountArgType = PermissionT
-      FunctionT(Vector(predArgType, amountArgType), AssertionT)
+      val dividend = IntT(UnboundedInteger)
+      val divisor = IntT(UnboundedInteger)
+      // val amountArgType = PermissionT
+      FunctionT(Vector(predArgType, dividend, divisor /* amountArgType */), AssertionT)
     })
     case TokenMPredTag => channelReceiverType(allDirections, _ => {
       val predArgType = PredT(Vector())
@@ -257,7 +269,7 @@ object BuiltInMemberTag {
     */
   def ghostArgs(tag: BuiltInAuxTypeTag): Vector[Boolean] = tag match {
     // functions
-    case CloseFunctionTag => Vector(false, true, true)
+    case CloseFunctionTag => Vector(false, true, true /* true */, true)
     // fpredicates
     case PredTrueFPredTag => Vector() // TODO this stops us from having PredTrue with arbitrary (number of) arguments
     case t => Violation.violation(s"ghost type not defined for $t")
@@ -273,14 +285,14 @@ object BuiltInMemberTag {
     case (RecvGivenPermMethodTag, _) => Vector()
     case (RecvGotPermMethodTag, _) => Vector()
     case (InitChannelMethodTag, _) => Vector(true, true, true, true, true)
-    case (CreateDebtChannelMethodTag, _) => Vector(true, true)
+    case (CreateDebtChannelMethodTag, _) => Vector(true, true /* true */, true)
     case (RedeemChannelMethodTag, _) => Vector(true)
     // mpredicates
     case (IsChannelMPredTag, _) => Vector(true)
     case (SendChannelMPredTag, _) => Vector()
     case (RecvChannelMPredTag, _) => Vector()
     case (ClosedMPredTag, _) => Vector()
-    case (ClosureDebtMPredTag, _) => Vector(true, true)
+    case (ClosureDebtMPredTag, _) => Vector(true, true /* true */, true)
     case (TokenMPredTag, _) => Vector(true)
     case t => Violation.violation(s"ghost type not defined for $t")
   }

@@ -93,7 +93,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     * [(c : channel[T] <- (m : T)] ->
     *   assert acc(SendChannel([c], wildcard)
     *   exhale [c].SendGivenPerm()([m])
-    *   inhale [c].SendGotPerm()([m])
+    *   inhale [c].SendGotPerm()()
     * Note: using an assertion instead of exhale & inhale (to model pre- and postcondition) allows us to
     * assert a wildcard permission amount. Otherwise, a ghost perm argument would be required such that the
     * same permission amount can be exhaled and inhaled.
@@ -161,8 +161,8 @@ class ChannelEncoding extends LeafTypeEncoding {
 
             // TODO do we need to exhale permissions for the value sent?
 
-            // inhale [c].SendGotPerm()([m])
-            sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector(message))(stmt.info)
+            // inhale [c].SendGotPerm()()
+            sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector())(stmt.info)
             vprSendGotPermInst <- ctx.ass.translate(sendGotPermInst)(ctx)
             vprInhaleSendGotPermInst = vpr.Inhale(vprSendGotPermInst)(pos, info, errT)
           } yield vprInhaleSendGotPermInst

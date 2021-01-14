@@ -59,7 +59,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def builtInReceiverMethodSet(recv: Type): AdvancedMemberSet[TypeMember] = {
     // filter out all methods that are not defined for this receiver type
-    val definedMethods = builtInReceiverMethodSets.filter(p => BuiltInMemberTag.singleAuxTypes(p.tag)(config).typing.isDefinedAt(recv))
+    val definedMethods = builtInReceiverMethodSets.filter(p => BuiltInMemberTag.types(p.tag)(config).typing.isDefinedAt(recv))
     AdvancedMemberSet.init(definedMethods)
   }
 
@@ -83,7 +83,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def builtInReceiverPredicateSet(recv: Type): AdvancedMemberSet[TypeMember] = {
     // filter out all mpredicates that are not defined for this receiver type
-    val definedMPreds = builtInReceiverPredicateSets.filter(p => BuiltInMemberTag.singleAuxTypes(p.tag)(config).typing.isDefinedAt(recv))
+    val definedMPreds = builtInReceiverPredicateSets.filter(p => BuiltInMemberTag.types(p.tag)(config).typing.isDefinedAt(recv))
     AdvancedMemberSet.init(definedMPreds)
   }
 

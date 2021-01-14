@@ -128,6 +128,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
 
-    case BuiltInMethod(tag, _, _) => BuiltInMemberTag.singleAuxTypes(tag)(config)
+    case BuiltInMethod(tag, _, _) => BuiltInMemberTag.types(tag)(config)
   }
 }

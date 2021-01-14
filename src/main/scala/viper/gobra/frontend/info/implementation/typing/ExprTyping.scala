@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noM
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type.{AuxTypeLike, _}
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -199,9 +199,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t: AuxTypeLike =>
-            t.messagesFn(n, n.args map exprType)
-          case t => error(n, s"type error: got $t but expected function type")
+          case t: AuxType => t.messages(n, n.args map exprType)
+          case t => error(n, s"type error: got $t but expected function type or aux type")
         }
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
@@ -218,9 +217,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t: AuxTypeLike =>
-            t.messagesFn(n, n.args map exprType)
-          case t => error(n, s"type error: got $t but expected function type")
+          case t: AuxType => t.messages(n, n.args map exprType)
+          case t => error(n, s"type error: got $t but expected function type or aux type")
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
@@ -445,11 +443,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
-          case t: AuxTypeLike =>
+          case t: AuxType =>
             val argTypes = n.args map exprType
-            if (t.typingFn.isDefinedAt(argTypes)) t.typingFn(argTypes)
+            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes)
             else violation(s"expected typing function in AuxType to be defined for $argTypes")
-          case t => violation(s"expected function type but got $t") //(error(n, s""))
+          case t => violation(s"expected function type or aux type but got $t")
         }
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }

@@ -28,11 +28,11 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)
+      val d = new Desugarer(importedPackage.positions, typeInfo)(config)
       (d, d.packageD(importedPackage, tI.isUsed))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)
+    val mainDesugarer = new Desugarer(pkg.positions, info)(config)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
@@ -96,7 +96,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo)(config: Config) {
 
     // TODO: clean initialization
 
@@ -945,7 +945,80 @@ object Desugar {
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
+      def encodeBuiltIn(base: ap.BuiltInFunctionKind, ft: FunctionT): Writer[in.Expr] = {
+        // encode arguments
+        val dArgs = sequence(p.args map exprD(ctx)).map {
+          // go function chaining feature
+          case Vector(in.Tuple(targs)) if ft.args.size > 1 => targs
+          case dargs => dargs
+        }
+        // encode results
+        val resT = typeD(ft.result, Addressability.callResult)(src)
+        val targets = resT match {
+          case in.VoidT => Vector()
+          case _ => Vector(freshExclusiveVar(resT)(src))
+        }
+        val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+
+        base match {
+          case base: ap.BuiltInFunction =>
+            if (base.symb.isPure) {
+              for {
+                args <- dArgs
+                fproxy = functionProxy(base.symb.tag, args.map(_.typ))(src)
+              } yield in.PureFunctionCall(fproxy, args, resT)(src)
+            } else {
+              for {
+                args <- dArgs
+                _ <- declare(targets: _*)
+                fproxy = functionProxy(base.symb.tag, args.map(_.typ))(src)
+                _ <- write(in.FunctionCall(targets, fproxy, args)(src))
+              } yield res
+            }
+
+          case base: ap.BuiltInMethodKind =>
+            val dRecvWithArgs = base match {
+              case base: ap.BuiltInReceivedMethod =>
+                for {
+                  r <- exprD(ctx)(base.recv)
+                  args <- dArgs
+                } yield (applyMemberPathD(r, base.path)(src), args)
+              case base: ap.BuiltInMethodExpr =>
+                dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+            }
+            if (base.symb.isPure) {
+              for {
+                (recv, args) <- dRecvWithArgs
+                mproxy = methodProxy(base.symb.tag, recv.typ)(src)
+              } yield in.PureMethodCall(recv, mproxy, args, resT)(src)
+            } else {
+              for {
+                (recv, args) <- dRecvWithArgs
+                _ <- declare(targets: _*)
+                mproxy = methodProxy(base.symb.tag, recv.typ)(src)
+                _ <- write(in.MethodCall(targets, recv, mproxy, args)(src))
+              } yield res
+            }
+        }
+      }
+
       p.callee match {
+        case base: ap.BuiltInFunction =>
+          val auxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val argTypes = p.args.map(info.typ)
+          Violation.violation(auxType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
+          encodeBuiltIn(base, auxType.typing(argTypes))
+        case base: ap.BuiltInReceivedMethod =>
+          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val recvT = info.typ(base.recv)
+          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          encodeBuiltIn(base, singleAuxType.typing(recvT))
+        case base: ap.BuiltInMethodExpr =>
+          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val recvT = info.symbType(base.typ)
+          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          encodeBuiltIn(base, singleAuxType.typing(recvT))
+
         case base: ap.Symbolic =>
           base.symb match {
             case fsym: st.WithArguments with st.WithResult => // all patterns that have a callable symbol: function, received method, method expression
@@ -1017,7 +1090,7 @@ object Desugar {
                   }
               }
 
-            case sym => Violation.violation(s"expected symbol with arguments and result, but got $sym")
+            case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
           }
       }
     }
@@ -1289,19 +1362,29 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PPredConstructor(base, args) => base match {
-            case PFPredBase(id) =>
+          case PPredConstructor(base, args) => (base, info.regular(base.id)) match {
+            case (PFPredBase(id), _: st.FPredicate) =>
               val proxy = fpredicateProxy(id)
-              val idT = info.typ(id) match {
-                case FunctionT(args, AssertionT) =>
-                  in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+              val idT = info.typ(base.id) match {
+                case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                 case t => violation(s"desugarer: $t cannot be converted to a predicate type")
               }
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+            case (PFPredBase(_), st.BuiltInFPredicate(tag, _, _)) =>
+              for {
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                proxy = {
+                  // the type checker ensures that all arguments are applied
+                  val dAppliedArgs = dArgs.flatten
+                  violation(dAppliedArgs.length == dArgs.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
+                  fpredicateProxy(tag, dAppliedArgs.map(_.typ))(src)
+                }
+                idT = in.PredT(Vector(), Addressability.rValue) // all arguments are applied
+              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
 
-            case p@PMPredBase(_) =>
+            case (p@PMPredBase(_), _: st.MPredicate) =>
               val proxy = mpredicateProxyD(p.id)
               val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
               val idT = info.typ(p.id) match {
@@ -1309,11 +1392,26 @@ object Desugar {
                   in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                 case t => violation(s"desugarer: $t cannot be converted to a predicate type")
               }
-
               for {
                 dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+
+            case (p@PMPredBase(_), st.BuiltInMPredicate(tag, _, _)) =>
+              val recvT = info.typOfExprOrType(p.recv)
+              val recvTD = typeD(recvT, Addressability.rValue)(src)
+              val proxy = mpredicateProxy(tag, recvTD)(src)
+              val singleAuxType = BuiltInMemberTag.types(tag)(config)
+              Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"expected that tag $tag is defined for receiver $recvT")
+              val idT = singleAuxType.typing(recvT) match {
+                case FunctionT(args, AssertionT) =>
+                  in.PredT(recvTD +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
+              for {
+                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+            } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
           }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -2174,24 +2272,31 @@ object Desugar {
       val proxy = in.FunctionProxy(nm.builtInAuxType(tag, args))(src)
 
       (tag, args) match {
-        case (CloseFunctionTag, Vector(channelT, permissionAmountT, predicateT)) =>
+        case (CloseFunctionTag, Vector(channelT, dividendT, divisorT /* permissionAmountT */, predicateT)) =>
           /**
-            * requires acc(c.SendChannel(), p) && c.ClosureDebt(P, 1-p) && P()
+            * requires divisor > 0
+            * requires acc(c.SendChannel(), dividene/divisor /* p */) && c.ClosureDebt(P, divisor - dividend, divisor /* 1-p */) && P()
             * ensures c.Closed()
-            * func close(c chan T, ghost p perm, P pred())
+            * func close(c chan T, ghost dividend int, divisor int /* p perm */, P pred())
             */
           val channelParam = in.Parameter.In("c", channelT)(src)
-          val permissionAmountParam = in.Parameter.In("p", permissionAmountT)(src)
+          val dividendParam = in.Parameter.In("dividend", dividendT)(src)
+          val divisorParam = in.Parameter.In("divisor", divisorT)(src)
+          // val permissionAmountParam = in.Parameter.In("p", permissionAmountT)(src)
           val predicateParam = in.Parameter.In("P", predicateT)(src)
-          val args = Vector(channelParam, permissionAmountParam, predicateParam)
+          val args = Vector(channelParam, dividendParam, divisorParam /* permissionAmountParam */, predicateParam)
           val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, channelParam, Vector())(src)
           val closureDebtArgs = Vector(
             predicateParam,
-            in.Sub(in.IntLit(1)(src), permissionAmountParam)(src)
+            in.Sub(divisorParam, dividendParam)(src),
+            divisorParam
+            // in.Sub(in.IntLit(1)(src), permissionAmountParam)(src)
           )
           val closureDebtInst = builtInMPredAccessible(BuiltInMemberTag.ClosureDebtMPredTag, channelParam, closureDebtArgs)(src)
           val pres: Vector[in.Assertion] = Vector(
-            in.Access(sendChannelInst, permissionAmountParam)(src),
+            in.ExprAssertion(in.GreaterCmp(divisorParam, in.IntLit(0)(src))(src))(src),
+            in.Access(sendChannelInst, in.FractionalPerm(dividendParam, divisorParam)(src))(src),
+            // in.Access(sendChannelInst, permissionAmountParam)(src),
             in.Access(closureDebtInst, in.FullPerm(src))(src),
             in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
           )
@@ -2224,7 +2329,7 @@ object Desugar {
           */
           val recvParam = in.Parameter.In("c", recv)(src)
           val resType = tag match {
-            case RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
+            case SendGotPermMethodTag | RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
             case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
           }
           val resParam = in.Parameter.Out("res", resType)(src)
@@ -2303,26 +2408,30 @@ object Desugar {
 
         case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
-          * requires acc(c.SendChannel(), p) && P()
-          * ensures c.ClosureDebt(P, p) && c.Token(P)
-          * ghost func (c chan T) CreateDebt(p perm, P pred())
+          * requires divisor > 0
+          * requires acc(c.SendChannel(), dividend/divisor /* p */)
+          * ensures c.ClosureDebt(P, dividend, divisor /* p */) && c.Token(P)
+          * ghost func (c chan T) CreateDebt(dividend int, divisor int /* p perm */, P pred())
           */
           val recvParam = in.Parameter.In("c", recv)(src)
-          val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+          val dividendParam = in.Parameter.In("dividend", in.IntT(Addressability.inParameter))(src)
+          val divisorParam = in.Parameter.In("divisor", in.IntT(Addressability.inParameter))(src)
+          // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
           val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
           val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)
           val pres: Vector[in.Assertion] = Vector(
-            in.Access(sendChannelInst, permissionAmountParam)(src),
-            in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
+            in.ExprAssertion(in.GreaterCmp(divisorParam, in.IntLit(0)(src))(src))(src),
+            in.Access(sendChannelInst, in.FractionalPerm(dividendParam, divisorParam)(src))(src)
+            // in.Access(sendChannelInst, permissionAmountParam)(src)
           )
-          val closureDebtArgs = Vector(predicateParam, permissionAmountParam)
+          val closureDebtArgs = Vector(predicateParam, dividendParam, divisorParam /* permissionAmountParam */)
           val closureDebtInst = builtInMPredAccessible(BuiltInMemberTag.ClosureDebtMPredTag, recvParam, closureDebtArgs)(src)
           val tokenInst = builtInMPredAccessible(BuiltInMemberTag.TokenMPredTag, recvParam, Vector(predicateParam))(src)
           val posts: Vector[in.Assertion] = Vector(
             in.Access(closureDebtInst, in.FullPerm(src))(src),
             in.Access(tokenInst, in.FullPerm(src))(src),
           )
-          in.Method(recvParam, proxy, Vector(permissionAmountParam, predicateParam), Vector(), pres, posts, None)(src)
+          in.Method(recvParam, proxy, Vector(dividendParam, divisorParam /* permissionAmountParam */, predicateParam), Vector(), pres, posts, None)(src)
 
         case (RedeemChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -2387,11 +2496,13 @@ object Desugar {
           in.MPredicate(recvParam, proxy, Vector(), None)(src)
         case ClosureDebtMPredTag =>
         /**
-          * pred (c chan T) ClosureDebt(P pred(), p perm)
+          * pred (c chan T) ClosureDebt(P pred(), dividend int, divisor int /* p perm */)
           */
           val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
-          val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
-          in.MPredicate(recvParam, proxy, Vector(predicateParam, permissionAmountParam), None)(src)
+          val dividendParam = in.Parameter.In("dividend", in.IntT(Addressability.inParameter))(src)
+          val divisorParam = in.Parameter.In("divisor", in.IntT(Addressability.inParameter))(src)
+          // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+          in.MPredicate(recvParam, proxy, Vector(predicateParam, dividendParam, divisorParam /* permissionAmountParam */), None)(src)
         case TokenMPredTag =>
         /**
           * pred (c chan T) Token(P pred())

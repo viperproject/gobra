@@ -40,10 +40,15 @@ object AstPattern {
   case class MethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
 
   sealed trait BuiltInFunctionKind extends FunctionKind
+  sealed trait BuiltInMethodKind extends BuiltInFunctionKind with Symbolic {
+    def id: PIdnUse
+    def path: Vector[MemberPath]
+    def symb: st.BuiltInMethod
+  }
 
   case class BuiltInFunction(id: PIdnUse, symb: st.BuiltInFunction) extends BuiltInFunctionKind with Symbolic
-  case class BuiltInReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInFunctionKind with Symbolic
-  case class BuiltInMethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInFunctionKind with Symbolic
+  case class BuiltInReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind
+  case class BuiltInMethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMethod) extends BuiltInMethodKind
 
   sealed trait Assertion extends Pattern
 

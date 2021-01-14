@@ -236,8 +236,12 @@ object SymbolTable extends Environments[Entity] {
     def tag: BuiltInSingleAuxTypeTag
   }
 
-  case class BuiltInFunction(tag: BuiltInFunctionTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity
-  case class BuiltInMethod(tag: BuiltInMethodTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with BuiltInMethodLike with ActualTypeMember
+  case class BuiltInFunction(tag: BuiltInFunctionTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity {
+    def isPure: Boolean = tag.isPure
+  }
+  case class BuiltInMethod(tag: BuiltInMethodTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with BuiltInMethodLike with ActualTypeMember {
+    def isPure: Boolean = tag.isPure
+  }
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
 

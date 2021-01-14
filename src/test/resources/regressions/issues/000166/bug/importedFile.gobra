@@ -1,0 +1,14 @@
+package bug
+
+pred Test() { true }
+
+pure func f() bool {
+    return true
+}
+
+requires Test()
+func F1() {}
+
+
+requires f()
+func F2() {}

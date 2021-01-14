@@ -1,0 +1,11 @@
+package pkg
+
+// ##(-I src/test/resources/regressions/issues/000166/)
+
+import "bug"
+
+func main() {
+	//:: ExpectedOutput(precondition_error)
+	bug.F1()
+	bug.F2()
+}

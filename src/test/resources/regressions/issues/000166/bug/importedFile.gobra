@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bug
+
+pred Test() { true }
+
+
+ensures ret == true
+pure func f() (ret bool) {
+    return true
+}
+
+requires Test()
+func F1() {}
+
+
+requires f()
+func F2() {}

@@ -6,7 +6,6 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.ast.internal.transform.OverflowChecksTransform.OverflowCheckAnnotation
 import viper.gobra.reporting.Source.{AnnotatedOrigin, Synthesized}
 import viper.gobra.util.Violation.violation
 import viper.silver
@@ -91,13 +90,10 @@ object DefaultErrorBackTranslator {
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
     }
 
-    val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
-      case a@AssertionFalseError(info) if info.origin.isInstanceOf[AnnotatedOrigin] =>
-        info.origin.asInstanceOf[AnnotatedOrigin].annotation match {
-          case OverflowCheckAnnotation => OverflowErrorReason(info)
-          case _ => a
-        }
-      case x => x
+    val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = reason =>
+      reason.info.origin match {
+        case origin: AnnotatedOrigin if origin.reasonTransformer.isDefinedAt(reason) => origin.reasonTransformer(reason)
+        case _ => reason // leave reason untransformed
     }
 
     { case x => transformVerificationErrorReason(defaultReasonTransformerAux(x)) }
@@ -155,15 +151,11 @@ class DefaultErrorBackTranslator(
 
     val transformAnnotatedError: VerificationError => VerificationError = x => {
       x.info.origin match {
-        case origin: AnnotatedOrigin =>
+        case origin: AnnotatedOrigin if origin.errorTransformer.isDefinedAt(x) =>
           // errorMapper assigns a reason to every error. as such, at this point, every error should have one error reason
           violation(x.reasons.size == 1, "Error expected to have one and only one reason.")
-          origin.annotation match {
-            case OverflowCheckAnnotation =>
-              OverflowError(x.info) dueTo x.reasons.head
-            case _ => ???
-          }
-        case _ => x
+          origin.errorTransformer(x) dueTo x.reasons.head
+        case _ => x // leave untransformed
       }
     }
 

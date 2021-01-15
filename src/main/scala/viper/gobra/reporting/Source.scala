@@ -6,6 +6,7 @@
 
 package viper.gobra.reporting
 
+import org.bitbucket.inkytonik.kiama.==>
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
@@ -17,8 +18,9 @@ object Source {
 
   sealed abstract class AbstractOrigin(val pos: SourcePosition, val tag: String)
   case class Origin(override val pos: SourcePosition, override val tag: String) extends AbstractOrigin(pos, tag)
-  case class AnnotatedOrigin(origin: AbstractOrigin, annotation: Annotation) extends AbstractOrigin(origin.pos, origin.tag)
-  trait Annotation
+  case class AnnotatedOrigin(origin: AbstractOrigin, errorTransformer: ErrorTransformer, reasonTransformer: ReasonTransformer) extends AbstractOrigin(origin.pos, origin.tag)
+  type ErrorTransformer = VerificationError ==> VerificationError
+  type ReasonTransformer = VerificationErrorReason ==> VerificationErrorReason
 
   object Parser {
 
@@ -43,7 +45,8 @@ object Source {
       override def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo) =
         (vpr.TranslatedPosition(src.pos), Verifier.Info(pnode, node, src), vpr.NoTrafos)
 
-      def createAnnotatedInfo(annotation: Annotation): Single = Single(pnode, AnnotatedOrigin(src, annotation))
+      def createAnnotatedInfo(errorTransformer: ErrorTransformer, reasonTransformer: ReasonTransformer): Single =
+        Single(pnode, AnnotatedOrigin(src, errorTransformer, reasonTransformer))
     }
 
     object Single {

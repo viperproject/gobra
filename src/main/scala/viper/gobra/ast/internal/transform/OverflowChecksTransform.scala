@@ -7,7 +7,8 @@
 package viper.gobra.ast.internal.transform
 
 import viper.gobra.ast.internal._
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.{ErrorTransformer, ReasonTransformer}
+import viper.gobra.reporting.{AssertionFalseError, OverflowError, OverflowErrorReason, Source}
 import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
@@ -71,7 +72,7 @@ object OverflowChecksTransform extends InternalTransform {
   private def getPureBlockPosts(body: Expr, results: Vector[Parameter.Out]): Vector[Assertion] = {
     // relies on the current assumption that pure functions and methods must have exactly one result argument
     if (results.length != 1) violation("Pure functions and methods must have exactly one result argument")
-    Vector(assertionExprInBounds(body, results(0).typ)(createAnnotatedInfo(body.info)))
+    Vector(assertionExprInBounds(body, results(0).typ)(createOverflowInfo(body.info)))
   }
 
   private def stmtTransform(stmt: Stmt): Stmt = stmt match {
@@ -80,19 +81,19 @@ object OverflowChecksTransform extends InternalTransform {
     case s@Seqn(stmts) => Seqn(stmts map stmtTransform)(s.info)
 
     case i@If(cond, thn, els) =>
-      val condInfo = createAnnotatedInfo(cond.info)
+      val condInfo = createOverflowInfo(cond.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
       val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(i.info)
       Seqn(Vector(assertCond, ifStmt))(i.info)
 
     case w@While(cond, invs, body) =>
-      val condInfo = createAnnotatedInfo(cond.info)
+      val condInfo = createOverflowInfo(cond.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
       val whileStmt = While(cond, invs, stmtTransform(body))(w.info)
       Seqn(Vector(assertCond, whileStmt))(w.info)
 
     case ass@SingleAss(l, r) =>
-      val info = createAnnotatedInfo(r.info)
+      val info = createOverflowInfo(r.info)
       val assertBounds = Assert(assertionExprInBounds(r, l.op.typ)(info))(info)
       Seqn(Vector(assertBounds, ass))(l.op.info)
 
@@ -126,7 +127,7 @@ object OverflowChecksTransform extends InternalTransform {
 
   private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =
     exprs map (expr => {
-      val info = createAnnotatedInfo(expr.info)
+      val info = createOverflowInfo(expr.info)
       Assert(assertionExprInBounds(expr, expr.typ)(info))(info)
     })
 
@@ -171,12 +172,17 @@ object OverflowChecksTransform extends InternalTransform {
     Implication(assumptions, obligations)(info)
   }
 
-  // should this be moved to Source class?
-  case object OverflowCheckAnnotation extends Source.Annotation
-
-  private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
+  private def createOverflowInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {
-      case s: Single => s.createAnnotatedInfo(OverflowCheckAnnotation)
+      case s: Single =>
+        val errorTransformer: ErrorTransformer = {
+          case e => OverflowError(e.info)
+        }
+        val reasonTransformer: ReasonTransformer = {
+          case AssertionFalseError(info) =>
+            OverflowErrorReason(info)
+        }
+        s.createAnnotatedInfo(errorTransformer, reasonTransformer)
       case i => violation(s"l.op.info ($i) is expected to be a Single")
     }
 }

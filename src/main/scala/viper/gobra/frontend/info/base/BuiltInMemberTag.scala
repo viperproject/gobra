@@ -16,6 +16,19 @@ import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
 
 
+/**
+  * Module to add built-in functions, methods, fpredicates, and mpredicates to Gobra.
+  * First, a tag representing such a built-in member has to be declared.
+  * By adding it to the `builtInMembers()` functions, it will be considered during type-checking.
+  * In addition, `types(...)`, `argGhostTyping(...)`, and `returnGhostTyping(...)` functions have to be adapted
+  * accordingly to return the correct type and the ghost typing for its parameters and return parameters, respectively.
+  * Last but not least, the newly added member needs to be considered during desugaring. The desugarer automatically
+  * resolves function and methods calls to as well as instances of these built-in members. However, it will invoke
+  * `generateBuiltInFunction(...)`, `generateBuiltInMethod(...)`, `generateBuiltInFPredicate(...)`, and
+  * `generateBuiltInMPredicate(...)` (all reside in the Desugarer) with the specific arguments type with which the
+  * built-in member is used and expects that these functions return the associated member (expressed in the internal
+  * representation). Thus, an additional case has to be added to these functions when adding a new tag.
+  */
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
     /** identifier of this member as it appears in the program text */

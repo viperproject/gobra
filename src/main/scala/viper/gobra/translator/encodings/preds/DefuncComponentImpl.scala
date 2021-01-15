@@ -136,6 +136,28 @@ class DefuncComponentImpl extends DefuncComponent {
     encounteredTokens foreach (S => genEval(S) foreach col.addMember)
   }
 
+  /** Returns the default value of the predicate type with arguments 'ts' */
+  override def default(ts: Vector[in.Type])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    vpr.DomainFuncApp(func = genDefaultFunc(ts)(ctx), Seq.empty, Map.empty)(pos, info, errT)
+  }
+
+  /** Creates a domain function that returns a value of the predicate type with the 'ts' parameter list */
+  private def genDefaultFunc(ts: Vector[in.Type])(ctx: Context): vpr.DomainFunc = {
+    val S = embedPredType(ts)(ctx)
+    genDefaultFuncMap.getOrElse(S, {
+      val res = vpr.DomainFunc(
+        name = s"${domainName(S)}_default",
+        formalArgs = Seq.empty,
+        typ = domainType(S)
+      )(domainName = domainName(S))
+
+      genDefaultFuncMap += (S -> res)
+      res
+    })
+  }
+
+  private var genDefaultFuncMap: Map[Token, vpr.DomainFunc] = Map.empty
+
   /**
     * Generates
     *
@@ -170,6 +192,10 @@ class DefuncComponentImpl extends DefuncComponent {
 
       // generate make and arg functions
       funcs ::= makeFunc(S, id)
+
+      // adds the default value of the predicate type
+      funcs ++= genDefaultFuncMap.get(S)
+
 //      innerArgTypes.indices foreach (idx => funcs ::= argFunc(S, id, idx))
 
 //      // generate axiom

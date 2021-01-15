@@ -280,6 +280,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => false // Might change at some point
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
+        case (Left(_), Some(p: ap.PredExprInstance)) => !strong
         case _ => false
       }
 
@@ -329,7 +330,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       }
 
       case _: PAccess | _: PPredicateAccess => !strong
-      case _: PPredConstructor => true
+      case PPredConstructor(_, args) => args.flatten.forall(go)
 
       case n: PTypeAssertion => go(n.base)
       case n: PTypeOf => go(n.exp)

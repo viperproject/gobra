@@ -46,6 +46,7 @@ class PredEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     *
     * [Q{d1, ..., dk}: pred(S)] -> make_S_ID([d1], ..., [dk]) where ID is the ID for the pattern used in Q{d1, ..., dk}
+    * [dflt(Pred(ts)°)] -> default() where default is a 0-ary function in the domain with name domainName(embedPredType(ts))
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -57,6 +58,10 @@ class PredEncoding extends LeafTypeEncoding {
         for {
           vArgs <- sequence(args map (a => option(a map goE)))
         } yield defunc.construct(p, pTs.args, vArgs)(pos, info, errT)(ctx)
+
+      case (e: in.DfltVal) :: ctx.Pred(ts) / Exclusive =>
+        val (pos, info, errT) = e.vprMeta
+        unit(defunc.default(ts)(pos, info, errT)(ctx))
     }
   }
 

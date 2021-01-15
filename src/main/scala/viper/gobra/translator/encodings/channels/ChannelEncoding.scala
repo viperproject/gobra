@@ -124,7 +124,7 @@ class ChannelEncoding extends LeafTypeEncoding {
             vprBufferSize <- ctx.expr.translate(bufferSizeArg)(ctx)
 
             // assert 0 <= [bufferSize]
-            vprIsBufferSizePositive = vpr.GeCmp(vpr.IntLit(0)(pos, info, errT), vprBufferSize)(pos, info, errT)
+            vprIsBufferSizePositive = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprBufferSize)(pos, info, errT)
             vprAssert = vpr.Assert(vprIsBufferSizePositive)(pos, info, errT)
             _ <- write(vprAssert)
 

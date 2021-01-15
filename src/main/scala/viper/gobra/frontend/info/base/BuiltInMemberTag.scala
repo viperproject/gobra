@@ -172,7 +172,7 @@ object BuiltInMemberTag {
     case CloseFunctionTag => AuxType(
       {
         case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
-        case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, pred, and pred() types but got $ts")
+        case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
       },
       {
         case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)

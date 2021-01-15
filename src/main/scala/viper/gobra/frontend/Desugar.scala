@@ -2279,10 +2279,10 @@ object Desugar {
             * ensures c.Closed()
             * func close(c chan T, ghost dividend int, divisor int /* p perm */, P pred())
             */
-          val channelParam = in.Parameter.In("c", channelT)(src)
-          val dividendParam = in.Parameter.In("dividend", dividendT)(src)
-          val divisorParam = in.Parameter.In("divisor", divisorT)(src)
-          // val permissionAmountParam = in.Parameter.In("p", permissionAmountT)(src)
+          val channelParam = in.Parameter.In("c", channelT.withAddressability(Addressability.inParameter))(src)
+          val dividendParam = in.Parameter.In("dividend", dividendT.withAddressability(Addressability.inParameter))(src)
+          val divisorParam = in.Parameter.In("divisor", divisorT.withAddressability(Addressability.inParameter))(src)
+          // val permissionAmountParam = in.Parameter.In("p", permissionAmountT.withAddressability(Addressability.inParameter))(src)
           val predicateParam = in.Parameter.In("P", predicateT)(src)
           val args = Vector(channelParam, dividendParam, divisorParam /* permissionAmountParam */, predicateParam)
           val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, channelParam, Vector())(src)
@@ -2327,12 +2327,12 @@ object Desugar {
           *   - chanPredicateTag is either SendChannel or RecvChannel
           *   - returnType is either pred(T) or pred()
           */
-          val recvParam = in.Parameter.In("c", recv)(src)
+          val recvParam = in.Parameter.In("c", recv.withAddressability(Addressability.inParameter))(src)
           val resType = tag match {
             case SendGotPermMethodTag | RecvGivenPermMethodTag => in.PredT(Vector(), Addressability.outParameter) // pred()
             case _ => in.PredT(Vector(recv.elem), Addressability.outParameter) // pred(T)
           }
-          val resParam = in.Parameter.Out("res", resType)(src)
+          val resParam = in.Parameter.Out("res", resType.withAddressability(Addressability.outParameter))(src)
           val chanPredicateTag = tag match {
             case _: SendPermMethodTag => BuiltInMemberTag.SendChannelMPredTag
             case _: RecvPermMethodTag => BuiltInMemberTag.RecvChannelMPredTag
@@ -2356,7 +2356,7 @@ object Desugar {
           * note that B is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
           * as soon as we can, the third precondition can be changed to `[v] ((A(v) && C()) ==> (B(v) && D(v)))`
           */
-          val recvParam = in.Parameter.In("c", recv)(src)
+          val recvParam = in.Parameter.In("c", recv.withAddressability(Addressability.inParameter))(src)
           val kParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
           val predTType = in.PredT(Vector(recv.elem), Addressability.inParameter) // pred(T)
           val predType = in.PredT(Vector(), Addressability.inParameter) // pred()
@@ -2413,7 +2413,7 @@ object Desugar {
           * ensures c.ClosureDebt(P, dividend, divisor /* p */) && c.Token(P)
           * ghost func (c chan T) CreateDebt(dividend int, divisor int /* p perm */, P pred())
           */
-          val recvParam = in.Parameter.In("c", recv)(src)
+          val recvParam = in.Parameter.In("c", recv.withAddressability(Addressability.inParameter))(src)
           val dividendParam = in.Parameter.In("dividend", in.IntT(Addressability.inParameter))(src)
           val divisorParam = in.Parameter.In("divisor", in.IntT(Addressability.inParameter))(src)
           // val permissionAmountParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
@@ -2441,7 +2441,7 @@ object Desugar {
           *
           * note that c.Closed() is duplicable and thus full permission can be ensured
           */
-          val recvParam = in.Parameter.In("c", recv)(src)
+          val recvParam = in.Parameter.In("c", recv.withAddressability(Addressability.inParameter))(src)
           val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
           val tokenInst = builtInMPredAccessible(BuiltInMemberTag.TokenMPredTag, recvParam, Vector(predicateParam))(src)
           val closedInst = builtInMPredAccessible(BuiltInMemberTag.ClosedMPredTag, recvParam, Vector())(src)
@@ -2479,7 +2479,7 @@ object Desugar {
     }
 
     def generateBuiltInMPredicate(tag: BuiltInMPredicateTag, recv: in.Type)(src: Meta): in.MPredicate = {
-      val recvParam = in.Parameter.In("c", recv)(src)
+      val recvParam = in.Parameter.In("c", recv.withAddressability(Addressability.inParameter))(src)
       val proxy = in.MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, recv))(src)
 
       tag match {
@@ -2603,21 +2603,33 @@ object Desugar {
       case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
     }
-    private def sanitizeType(typ: in.Type): String = {
-      val rawTypeString = typ.toString
-      // rawTypeString can contain parentheses and commata but Viper seems to handle them. Nevertheless, we will
-      // escape them in the following
-      rawTypeString
-        .replace("(", "_")
-        .replace(")", "_")
-        .replace(",", "_")
+    private def stringifyType(typ: in.Type): String = typ match {
+      case _: in.BoolT => "Bool"
+      case in.IntT(_, kind) => s"Int${kind.name}"
+      case in.VoidT => ""
+      case _: in.PermissionT => "Permission"
+      case in.SortT => "Sort"
+      case in.ArrayT(len, elemT, _) => s"Array$len${stringifyType(elemT)}"
+      case in.SliceT(elemT, _) => s"Slice${stringifyType(elemT)}"
+      case in.SequenceT(elemT, _) => s"Sequence${stringifyType(elemT)}"
+      case in.SetT(elemT, _) => s"Set${stringifyType(elemT)}"
+      case in.MultisetT(elemT, _) => s"Multiset${stringifyType(elemT)}"
+      case in.OptionT(elemT, _) => s"Option${stringifyType(elemT)}"
+      case in.DefinedT(name, _) => s"Defined$name"
+      case in.PointerT(t, _) => s"Pointer${stringifyType(t)}"
+      case in.TupleT(ts, _) => s"Tuple${ts.map(stringifyType).mkString("")}"
+      case in.PredT(ts, _) => s"Pred${ts.map(stringifyType).mkString("")}"
+      case in.StructT(name, fields, _) => s"Struct$name${fields.map(_.typ).map(stringifyType).mkString("")}"
+      case in.InterfaceT(name, _) => s"Interface$name"
+      case in.ChannelT(elemT, _) => s"Channel${stringifyType(elemT)}"
+      case t => Violation.violation(s"cannot stringify type $t")
     }
     def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type): String = {
-      val typeString = sanitizeType(recv)
+      val typeString = stringifyType(recv)
       s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$typeString"
     }
     def builtInAuxType(tag: BuiltInAuxTypeTag, dependantTypes: Vector[in.Type]): String = {
-      val typeString = dependantTypes.map(sanitizeType).mkString("_")
+      val typeString = dependantTypes.map(stringifyType).mkString("_")
       s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }
 

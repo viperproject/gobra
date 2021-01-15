@@ -29,7 +29,7 @@ object Desugar {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
       val d = new Desugarer(importedPackage.positions, typeInfo)(config)
-      (d, d.packageD(importedPackage, tI.isUsed))
+      (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
     val mainDesugarer = new Desugarer(pkg.positions, info)(config)

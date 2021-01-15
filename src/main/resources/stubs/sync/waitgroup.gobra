@@ -1,0 +1,70 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+package sync
+
+// Definition according to https://github.com/golang/go/blob/master/src/sync/waitgroup.go
+type WaitGroup struct {
+	// noCopy noCopy
+	state1 [3]uint32
+}
+
+pred (wg *WaitGroup) WaitGroupP()
+pred (wg *WaitGroup) UnitDebt(p pred())
+pred (wg *WaitGroup) Token(p pred())
+
+
+// TODO: to be removed when channels are added to the language, use the new keyword PredTrue instead
+pred pred_true() {
+	true
+}
+
+ghost
+requires acc(g.WaitGroupP(), _)
+pure func (g *WaitGroup) WaitMode() bool
+
+ghost
+requires acc(g) && *g == WaitGroup{}
+ensures g.WaitGroupP() && !g.WaitMode()
+func (g *WaitGroup) Init()
+
+ghost
+requires g.WaitGroupP()
+ensures g.WaitGroupP() && !g.WaitMode()
+func (g *WaitGroup) UnsetWaitMode()
+
+ghost
+requires g.WaitGroupP() && g.UnitDebt(P)
+ensures g.WaitGroupP() && g.UnitDebt(P) && g.WaitMode()
+func (g *WaitGroup) SetWaitMode(ghost P pred())
+
+ghost
+requires P() && g.UnitDebt(pred_true!<!>)
+ensures g.UnitDebt(P) && g.Token(P)
+func (g *WaitGroup) DebtRedistribution(P pred())
+
+// The arguments `dividend` and `divisor` are the two components of a permission dividend/divisor.
+// This is a workaround for the lack of support for the perm type at the moment
+requires divisor > 0
+requires n > 0 ==> dividend > 0 && acc(g.WaitGroupP(), dividend/divisor)
+requires (n > 0 && g.WaitMode()) ==> (len(P) > 0 && g.UnitDebt(P[0]))
+requires n < 0 ==> len(P) >= -n
+requires forall i int :: 0 <= i && i < -n ==> P[i]() && acc(g.UnitDebt(P[i]))
+ensures n > 0 ==> acc(g.WaitGroupP(), dividend/divisor)
+ensures n > 0 ==> g.WaitMode() == old(g.WaitMode())
+ensures (n > 0 && g.WaitMode()) ==> g.UnitDebt(P[0])
+ensures n > 0 ==> acc(g.UnitDebt(pred_true!<!>), n/1)
+func (g *WaitGroup) Add(n int, ghost dividend int, ghost divisor int, ghost P seq[pred()])
+
+requires P() && g.UnitDebt(P)
+func (g *WaitGroup) Done(ghost P pred())
+
+// `dividend > 0 && divisor > 0` implies that the permission p in Martin's proposal is greater than 0
+requires dividend > 0 && divisor > 0 && acc(g.WaitGroupP(), dividend/divisor) && g.WaitMode()
+requires forall P pred() :: P in Ps ==> acc(g.Token(P))
+ensures forall P pred() :: P in Ps ==> P()
+ensures acc(g.WaitGroupP(), dividend/divisor) && g.WaitMode()
+func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost Ps set[pred()])

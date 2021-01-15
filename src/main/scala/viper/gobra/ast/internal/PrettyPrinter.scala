@@ -97,6 +97,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Expr => showExpr(n)
     case n: Addressable => showAddressable(n)
     case n: Proxy => showProxy(n)
+    case n: PredExprInstance => showPredExprInstance(n)
   }
 
   // program
@@ -239,6 +240,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MPredicateProxy(name, _) => name
   })
 
+  def showPredExprInstance(n: PredExprInstance): Doc =
+    updatePositionStore(n) <> showExpr(n.base) <> parens(showExprList(n.args))
+
   def showBlockDecl(x: BlockDeclaration): Doc = x match {
     case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
   }
@@ -301,7 +305,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPredicateAcc(access: PredicateAccess): Doc = access match {
     case FPredicateAccess(pred, args) => pred.name <> parens(showExprList(args))
-    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> pred.name <> parens(showExprList(args))
+    case MPredicateAccess(recv, pred, args) => showExpr(recv) <> "." <> pred.name <> parens(showExprList(args))
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
@@ -332,7 +336,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       func.name <> parens(showExprList(args))
 
     case PureMethodCall(recv, meth, args, _) =>
-      showExpr(recv) <> meth.name <> parens(showExprList(args))
+      showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
 
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))

@@ -18,9 +18,14 @@ object Source {
 
   sealed abstract class AbstractOrigin(val pos: SourcePosition, val tag: String)
   case class Origin(override val pos: SourcePosition, override val tag: String) extends AbstractOrigin(pos, tag)
-  case class AnnotatedOrigin(origin: AbstractOrigin, errorTransformer: ErrorTransformer, reasonTransformer: ReasonTransformer) extends AbstractOrigin(origin.pos, origin.tag)
   type ErrorTransformer = VerificationError ==> VerificationError
   type ReasonTransformer = VerificationErrorReason ==> VerificationErrorReason
+  case class AnnotatedOrigin(override val pos: SourcePosition, override val tag: String, errorTransformer: ErrorTransformer, reasonTransformer: ReasonTransformer) extends AbstractOrigin(pos, tag)
+
+  object AnnotatedOrigin {
+    def apply(origin: AbstractOrigin, errorTransformer: ErrorTransformer, reasonTransformer: ReasonTransformer): AnnotatedOrigin =
+      AnnotatedOrigin(origin.pos, origin.tag, errorTransformer, reasonTransformer)
+  }
 
   object Parser {
 

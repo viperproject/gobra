@@ -45,6 +45,10 @@ func foo(pc *chan *int) {
     if (ok) {
         unfold sendInvariant!<_!>(res)
         assert *res == 42
+        // we should have write access and thus can write to it
+        *res = 0
+        // before being able to fold again, we have to revert the value:
+        *res = 42
         // send pointer and permission back:
         fold sendInvariant!<_!>(res)
         *pc <- res

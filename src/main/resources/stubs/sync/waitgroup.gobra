@@ -13,8 +13,9 @@ type WaitGroup struct {
 }
 
 pred (wg *WaitGroup) WaitGroupP()
+pred (wg *WaitGroup) WaitGroupStarted()
 pred (wg *WaitGroup) UnitDebt(p pred())
-pred (wg *WaitGroup) Token(p pred())
+pred (wg *WaitGroup) Token(t pred())
 
 
 // TODO: to be removed when channels are added to the language, use the new keyword PredTrue instead
@@ -34,29 +35,42 @@ func (g *WaitGroup) Init()
 ghost
 requires g.WaitGroupP()
 ensures g.WaitGroupP() && !g.WaitMode()
-func (g *WaitGroup) UnsetWaitMode()
+func (g *WaitGroup) Restart()
+
+// The arguments `dividend` and `divisor` are the two components of a permission dividend/divisor.
+// This is a workaround for the lack of support for the perm type at the moment
+ghost
+requires dividend > 0 && divisor > 0 // p > 0
+requires acc(g.WaitGroupP(), dividend/divisor)
+requires !g.WaitMode() && g.UnitDebt(P)
+// shouldn't it ensure the same permission for the Waitgroup as the one that is required in the pre-condition?
+ensures g.WaitGroupP() && g.UnitDebt(P) && acc(g.WaitGroupStarted(), dividend/divisor)
+func (g *WaitGroup) Start(ghost dividend int, ghost divisor int, ghost P pred())
 
 ghost
-requires g.WaitGroupP() && g.UnitDebt(P)
-ensures g.WaitGroupP() && g.UnitDebt(P) && g.WaitMode()
-func (g *WaitGroup) SetWaitMode(ghost P pred())
+requires divisorP > 0 && divisorQ > 0
+requires dividendP >= 0 && dividendQ >= 0
+requires dividendP * divisorQ + dividendQ * divisorP == divisorP * divisorQ // p + q == 1
+requires acc(g.WaitGroupP(), dividendP/divisorP)
+requires acc(g.WaitGroupStarted(), dividendQ/divisorQ)
+ensures g.WaitGroupP() && g.WaitMode()
+func (g *WaitGroup) SetWaitMode(ghost dividendP int, ghost divisorP int, ghost dividendQ int, ghost divisorQ int)
 
 ghost
 requires P() && g.UnitDebt(pred_true!<!>)
 ensures g.UnitDebt(P) && g.Token(P)
 func (g *WaitGroup) DebtRedistribution(P pred())
 
-// The arguments `dividend` and `divisor` are the two components of a permission dividend/divisor.
-// This is a workaround for the lack of support for the perm type at the moment
-requires divisor > 0
-requires n > 0 ==> dividend > 0 && acc(g.WaitGroupP(), dividend/divisor)
-requires (n > 0 && g.WaitMode()) ==> (len(P) > 0 && g.UnitDebt(P[0]))
+requires dividend >= 0 && divisor > 0
+requires n > 0 && dividend > 0 ==> acc(g.WaitGroupP(), dividend/divisor) && !g.WaitMode()
+requires (n > 0 && dividend == 0) ==> (len(P) > 0 && g.UnitDebt(P[0]))
 requires n < 0 ==> len(P) >= -n
 requires forall i int :: 0 <= i && i < -n ==> P[i]() && acc(g.UnitDebt(P[i]))
-ensures n > 0 ==> acc(g.WaitGroupP(), dividend/divisor)
-ensures n > 0 ==> g.WaitMode() == old(g.WaitMode())
-ensures (n > 0 && g.WaitMode()) ==> g.UnitDebt(P[0])
+ensures (n > 0 && dividend > 0) ==> acc(g.WaitGroupP(), dividend/divisor)
+ensures (n > 0 && dividend == 0) ==> g.UnitDebt(P[0])
 ensures n > 0 ==> acc(g.UnitDebt(pred_true!<!>), n/1)
+// ensures n > 0 ==> g.WaitMode() == old(g.WaitMode())
+// ensures (n > 0 && g.WaitMode()) ==> g.UnitDebt(P[0])
 func (g *WaitGroup) Add(n int, ghost dividend int, ghost divisor int, ghost P seq[pred()])
 
 requires P() && g.UnitDebt(P)
@@ -66,5 +80,5 @@ func (g *WaitGroup) Done(ghost P pred())
 requires dividend > 0 && divisor > 0 && acc(g.WaitGroupP(), dividend/divisor) && g.WaitMode()
 requires forall P pred() :: P in Ps ==> acc(g.Token(P))
 ensures forall P pred() :: P in Ps ==> P()
-ensures acc(g.WaitGroupP(), dividend/divisor) && g.WaitMode()
+ensures acc(g.WaitGroupP(), dividend/divisor)//  && g.WaitMode()
 func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost Ps set[pred()])

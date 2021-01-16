@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred vIsOne(v int) {
+    v == 1
+}
+
+func sendWithoutInitializingInvariant() {
+  c := make(chan int)
+  // c.Init is not invoked here
+  var v int = 42
+  //:: ExpectedOutput(assert_error:permission_error)
+  c <- v
+  // c <- 42
+}
+
+func sendWithoutFoldingInvariant() {
+  c := make(chan int)
+  c.Init(0, vIsOne!<_!>, PredTrue!<!>, PredTrue!<!>, vIsOne!<_!>)
+  // invariant is not folded
+  var v int = 1
+  //:: ExpectedOutput(exhale_error:permission_error)
+  c <- v
+  // c <- 1
+}

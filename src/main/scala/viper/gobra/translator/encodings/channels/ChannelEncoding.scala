@@ -8,7 +8,8 @@ package viper.gobra.translator.encodings.channels
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{InsufficientPermissionError, PreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -16,6 +17,7 @@ import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.{ast => vpr}
+import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
 
 class ChannelEncoding extends LeafTypeEncoding {
 
@@ -165,8 +167,6 @@ class ChannelEncoding extends LeafTypeEncoding {
             vprExhaleSendGivenPermInst = vpr.Exhale(vprSendGivenPermInst)(pos, info, errT)
             _ <- write(vprExhaleSendGivenPermInst)
 
-            // TODO do we need to exhale permissions for the value sent?
-
             // inhale [c].SendGotPerm()()
             sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector())(stmt.info)
             vprSendGotPermInst <- ctx.ass.translate(sendGotPermInst)(ctx)
@@ -188,6 +188,12 @@ class ChannelEncoding extends LeafTypeEncoding {
             vprRecvChannelWildcard <- ctx.ass.translate(recvChannelWildcard)(ctx)
             vprExhaleRecvChannelWildcard = vpr.Exhale(vprRecvChannelWildcard)(pos, info, errT)
              _ <- write(vprExhaleRecvChannelWildcard)
+            _ <- errorT {
+              case e@vprerr.ExhaleFailed(Source(info), _, _) if e causedBy vprExhaleRecvChannelWildcard =>
+                // TODO: receiver name should correspond to the receiver in the original Gobra program and not in the
+                // internal representation
+                PreconditionError(info) dueTo InsufficientPermissionError(info, recvChannelWildcard.toString)
+            }
 
             // exhale [c].RecvGivenPerm()()
             recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(stmt.info)

@@ -6,6 +6,7 @@
 
 package viper.gobra.reporting
 
+import viper.gobra.reporting.Source.Verifier
 import viper.silver.ast.SourcePosition
 
 sealed trait VerifierError {
@@ -191,9 +192,13 @@ sealed trait VerificationErrorReason {
   def info: Source.Verifier.Info
 }
 
-case class InsufficientPermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {
+case class InsufficientPermissionError(info: Source.Verifier.Info, tag: String) extends VerificationErrorReason {
   override def id: String = "permission_error"
-  override def message: String = s"permission to ${info.origin.tag.trim} might not suffice"
+  override def message: String = s"permission to ${tag.trim} might not suffice"
+}
+
+object InsufficientPermissionError {
+  def apply(info: Verifier.Info): InsufficientPermissionError = new InsufficientPermissionError(info, info.origin.tag)
 }
 
 case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {

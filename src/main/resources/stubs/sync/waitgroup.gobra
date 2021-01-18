@@ -35,7 +35,7 @@ func (g *WaitGroup) Init()
 ghost
 requires g.WaitGroupP()
 ensures g.WaitGroupP() && !g.WaitMode()
-func (g *WaitGroup) Restart()
+func (g *WaitGroup) UnsetWaitMode()
 
 // The arguments `dividend` and `divisor` are the two components of a permission dividend/divisor.
 // This is a workaround for the lack of support for the perm type at the moment
@@ -43,13 +43,12 @@ ghost
 requires dividend > 0 && divisor > 0 // p > 0
 requires acc(g.WaitGroupP(), dividend/divisor)
 requires !g.WaitMode() && g.UnitDebt(P)
-// shouldn't it ensure the same permission for the Waitgroup as the one that is required in the pre-condition?
-ensures g.WaitGroupP() && g.UnitDebt(P) && acc(g.WaitGroupStarted(), dividend/divisor)
+ensures g.UnitDebt(P) && acc(g.WaitGroupStarted(), dividend/divisor)
 func (g *WaitGroup) Start(ghost dividend int, ghost divisor int, ghost P pred())
 
 ghost
-requires divisorP > 0 && divisorQ > 0
-requires dividendP >= 0 && dividendQ >= 0
+requires dividendP >= 0 && divisorP > 0 // p >= 0
+requires dividendQ > 0 && divisorQ > 0 // q > 0
 requires dividendP * divisorQ + dividendQ * divisorP == divisorP * divisorQ // p + q == 1
 requires acc(g.WaitGroupP(), dividendP/divisorP)
 requires acc(g.WaitGroupStarted(), dividendQ/divisorQ)
@@ -59,7 +58,7 @@ func (g *WaitGroup) SetWaitMode(ghost dividendP int, ghost divisorP int, ghost d
 ghost
 requires P() && g.UnitDebt(pred_true!<!>)
 ensures g.UnitDebt(P) && g.Token(P)
-func (g *WaitGroup) DebtRedistribution(P pred())
+func (g *WaitGroup) DebtRedistribution(ghost P pred())
 
 requires dividend >= 0 && divisor > 0
 requires n > 0 && dividend > 0 ==> acc(g.WaitGroupP(), dividend/divisor) && !g.WaitMode()
@@ -69,7 +68,7 @@ requires forall i int :: 0 <= i && i < -n ==> P[i]() && acc(g.UnitDebt(P[i]))
 ensures (n > 0 && dividend > 0) ==> acc(g.WaitGroupP(), dividend/divisor)
 ensures (n > 0 && dividend == 0) ==> g.UnitDebt(P[0])
 ensures n > 0 ==> acc(g.UnitDebt(pred_true!<!>), n/1)
-// ensures n > 0 ==> g.WaitMode() == old(g.WaitMode())
+// ensures n > 0 && dividend > 0 ==> !g.WaitMode()
 // ensures (n > 0 && g.WaitMode()) ==> g.UnitDebt(P[0])
 func (g *WaitGroup) Add(n int, ghost dividend int, ghost divisor int, ghost P seq[pred()])
 

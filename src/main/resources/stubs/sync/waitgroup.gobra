@@ -55,29 +55,68 @@ requires acc(g.WaitGroupStarted(), dividendQ/divisorQ)
 ensures g.WaitGroupP() && g.WaitMode()
 func (g *WaitGroup) SetWaitMode(ghost dividendP int, ghost divisorP int, ghost dividendQ int, ghost divisorQ int)
 
+// Simplified version of the debt redistribution rule. The most general version cannot be written in Gobra
+// without support for magic wands
 ghost
-requires P() && g.UnitDebt(pred_true!<!>)
-ensures g.UnitDebt(P) && g.Token(P)
-func (g *WaitGroup) DebtRedistribution(ghost P pred())
-
-requires dividend >= 0 && divisor > 0
-requires n > 0 && dividend > 0 ==> acc(g.WaitGroupP(), dividend/divisor) && !g.WaitMode()
-requires (n > 0 && dividend == 0) ==> (len(P) > 0 && g.UnitDebt(P[0]))
-requires n < 0 ==> len(P) >= -n
-requires forall i int :: 0 <= i && i < -n ==> P[i]() && acc(g.UnitDebt(P[i]))
-ensures (n > 0 && dividend > 0) ==> acc(g.WaitGroupP(), dividend/divisor)
-ensures (n > 0 && dividend == 0) ==> g.UnitDebt(P[0])
-ensures n > 0 ==> acc(g.UnitDebt(pred_true!<!>), n/1)
-// ensures n > 0 && dividend > 0 ==> !g.WaitMode()
-// ensures (n > 0 && g.WaitMode()) ==> g.UnitDebt(P[0])
-func (g *WaitGroup) Add(n int, ghost dividend int, ghost divisor int, ghost P seq[pred()])
-
 requires P() && g.UnitDebt(P)
-func (g *WaitGroup) Done(ghost P pred())
+ensures g.UnitDebt(pred_true!<!>)
+// the `W` at the end ensures that there are no name clashes with similarly named rules for channels
+func (g *WaitGroup) DebtRedistributionW(ghost P pred())
+
+// Simplified version of the debt redistribution rule used in past versions
+// ghost
+// requires P() && g.UnitDebt(pred_true!<!>)
+// ensures g.UnitDebt(P) && g.Token(P)
+// func (g *WaitGroup) DebtRedistribution(ghost P pred())
+
+requires dividend >= 0 && divisor > 0 // p >= 0
+requires n > 0 && dividend > 0 ==> acc(g.WaitGroupP(), dividend/divisor) && !g.WaitMode()
+requires (n > 0 && dividend == 0) ==> g.UnitDebt(P)
+requires n < 0 ==> acc(g.UnitDebt(pred_true!<!>), -n/1) // TODO: is "n < 0 ==>"" required here
+ensures (n > 0 && dividend > 0) ==> acc(g.WaitGroupP(), dividend/divisor)
+ensures (n > 0 && dividend == 0) ==> g.UnitDebt(P)
+ensures n > 0 ==> acc(g.UnitDebt(pred_true!<!>), n/1)
+func (g *WaitGroup) Add(n int, ghost dividend int, ghost divisor int, ghost P pred())
+
+requires g.UnitDebt(pred_true!<!>)
+func (g *WaitGroup) Done()
 
 // `dividend > 0 && divisor > 0` implies that the permission p in Martin's proposal is greater than 0
-requires dividend > 0 && divisor > 0 && acc(g.WaitGroupP(), dividend/divisor) && g.WaitMode()
-requires forall P pred() :: P in Ps ==> acc(g.Token(P))
-ensures forall P pred() :: P in Ps ==> P()
-ensures acc(g.WaitGroupP(), dividend/divisor)//  && g.WaitMode()
-func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost Ps set[pred()])
+requires dividend > 0 && divisor > 0 // p > 0
+requires acc(g.WaitGroupP(), dividend/divisor)
+requires g.WaitMode()
+requires acc(g.Token(P))
+ensures P()
+ensures acc(g.WaitGroupP(), dividend/divisor)
+func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost P pred())
+
+pred CollectFractions(ghost P seq[pred()], ghost dividends seq[int], ghost divisors seq[int]) {
+	len(P) == len(dividends) && len(dividends) == len(divisors) &&
+	forall i int :: 0 <= i && i < len(P) ==> dividends[i] >= 0 && divisors[i] > 0 && acc(P[i](), dividends[i]/divisors[i])
+}
+
+// Special case of the debt redistribution rule
+ghost
+requires len(P) == len(dividendsP) && len(P) == len(divisorsP) // len(P) == len(p)
+requires len(Q) == len(dividendsQ) && len(Q) == len(divisorsQ) // len(Q) == len(q)
+requires g.UnitDebt(CollectFractions!<P ++ Q, dividendsP ++ dividendsQ, divisorsP ++ divisorsQ!>)
+requires g.UnitDebt(pred_true!<!>)
+ensures g.UnitDebt(CollectFractions!<P, dividendsP, divisorsP!>) && g.UnitDebt(CollectFractions!<Q, dividendsQ, divisorsQ!>)
+func (g *WaitGroup) SplitSequence(ghost P seq[pred()], ghost Q seq[pred()], ghost dividendsP seq[int], ghost divisorsP seq[int], ghost dividendsQ seq[int], ghost divisorsQ seq[int])
+
+// Problem: Collect(P, [x1, ..., xn], [y1, ..., yn]) does not imply Collect(P, [x1', ..., xn'], [y1', ..., yn']) even if for all i, xi / yi == xi' / yi'. This will not be a problem once we add
+// the Perm type to Gobra. Meanwhile, a new viewshift is required for this case.
+
+// Special case of the debt redistribution rule
+ghost
+requires len(P) == len(dividendsP) && len(P) == len(divisorsP) // |P| == |p|
+requires len(P) == len(dividendsQ) && len(P) == len(divisorsQ) // |Q| == |q|
+requires len(P) == len(dividendsR) && len(P) == len(divisorsR) // |R| == |r|
+requires forall i int :: 0 <= i && i < len(P) ==> dividendsP[i] >= 0 && divisorsP[i] > 0
+requires forall i int :: 0 <= i && i < len(P) ==> dividendsQ[i] >= 0 && divisorsQ[i] > 0
+requires g.UnitDebt(CollectFractions!<P, dividendsR, divisorsR!>)
+requires g.UnitDebt(pred_true!<!>)
+requires forall i int :: 0 <= i && i < len(P) ==> divisorsR[i] * (dividendsP[i] * divisorsQ[i] + dividendsQ[i] * divisorsP[i]) == divisorsP[i] * divisorsQ[i] * dividendsR[i] // p[i] + q[i] == r[i]
+ensures g.UnitDebt(CollectFractions!<P, dividendsP, divisorsP!>)
+ensures g.UnitDebt(CollectFractions!<P, dividendsQ, divisorsQ!>)
+func (g *WaitGroup) SplitFractions(ghost P seq[pred()], ghost dividendsP seq[int], ghost divisorsP seq[int], ghost dividendsQ seq[int], ghost divisorsQ seq[int], ghost dividendsR seq[int], ghost divisorsR seq[int])

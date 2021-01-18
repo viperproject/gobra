@@ -7,5 +7,5 @@ package pkg
 
 import "pkg2"
 
-requires t.fPred(y)
+requires t.mpred(y)
 pure func f(t* pkg2.T, y int) int

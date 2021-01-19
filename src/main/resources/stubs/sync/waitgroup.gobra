@@ -61,7 +61,8 @@ requires P() && g.UnitDebt(P)
 ensures g.UnitDebt(pred_true!<!>)
 func (g *WaitGroup) PayDebt(ghost P pred())
 
-// Simplified version of the debt redistribution rule. This is the only rule that generates a Token
+// Simplified version of the debt redistribution rule, instantiated with P == { pred_true!<!> } and Q == { R }.
+// This is the only rule that generates a Token.
 ghost
 requires R() && g.UnitDebt(pred_true!<!>)
 ensures g.UnitDebt(R) && g.Token(R)

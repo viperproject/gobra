@@ -20,67 +20,88 @@ func spawnThreads(n int) {
 	// { wg.WaitGroupP() && !wg.WaitMode() }
 	wg.Add(1, 1, 1, sync.pred_true!<!>)
 	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) }
-
-	fold sync.pred_true() // TODO: is this necessary?
 	fold sync.pred_true!<!>()
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && pred_true!<!>() }
 	wg.GenerateToken(sync.pred_true!<!>)
-
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) }
 	wg.Start(1, 2, sync.pred_true!<!>)
-
-	fold sync.pred_true() // TODO: is this necessary?
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) }
 	fold sync.pred_true!<!>()
-	
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) && pred_true!<!>() }
 	go worker(-1, wg, sync.pred_true!<!>) // spawns first worker
-	// { acc(wg.WaitGroupP(), 1/2) && acc(g.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) }
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(pred_true!<!>) }
 
-
-	// delete: assume P1 * ... * Pn
-	// delete: {WaitGroup(&wg) && P1 * ... * Pn}
-
-	// delete: ghost var preds set[pred()] = set[pred()]{ sync.pred_true!<!> }
-
-	// { acc(wg.WaitGroupP(), 1) && !wg.WaitMode() }
-	// delete: wg.Add(1, 1, 1, seq[pred()] { }) //sync.pred_true!<!> }) // gets UnitDebt(&wg, true)
-	// remove?: wg.Add(1, 1, 1, sync.pred_true!<!>)
-	// { acc(wg.WaitGroupP(), 1) && acc(g.UnitDebt(pred_true!<!>), 1)}
-
-	invariant acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() //&& wg.UnitDebt(sync.pred_true!<!>)
+	invariant acc(wg.WaitGroupP(), 1/2)
+	invariant acc(wg.WaitGroupStarted(), 1/2)
+	invariant !wg.WaitMode()
 	invariant acc(wg.Token(sync.pred_true!<!>), (i + 1)/1)
 	for i := 0; i < n; i++ {
-		// remove:inv: WaitGroug(&wg) && (forall i <= j < n :: Pj) && (forall 0<=j<i :: Token(wg, Pj))
-		// remove: wg.Add(1, 1, 1, seq[pred()] { sync.pred_true!<!> }) // gets UnitDebt(&wg, true)
-		// { wg.WaitGroupP() && !wg.WaitMode() && i < n} // Update state
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(pred_true!<!>), i + 1) &&
+		//   i < n
+		// }
 		wg.Add(1, 1, 2, sync.pred_true!<!>)
-		// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && i < n }
-		fold sync.pred_true() // TODO: is this necessary?
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(pred_true!<!>), i + 1) &&
+		//   i < n &&
+		//   g.UnitDebt(pred_true!<!>)
+		// }
 		fold sync.pred_true!<!>()
+		// { same as above plus pred_true!<!>() }
 		wg.GenerateToken(sync.pred_true!<!>)
-
-
-		fold sync.pred_true() // TODO: is this necessary?
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(pred_true!<!>), i + 2) && // permission increased by 1
+		//   i < n &&
+		//   wg.UnitDebt(pred_true!<!>)
+		// }
 		fold sync.pred_true!<!>()
-		// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && i < n && pred_true!<!>() }
+		// { same as above plus pred_true!<!>() }
 		go worker(i, wg, sync.pred_true!<!>)
-		// { wg.WaitGroupP() && !wg.WaitMode() }
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(pred_true!<!>), i + 2) && // this reverts to i + 1 when i is incremented in the end of the iteration
+		//   i < n
+		// }
 	}
 
-	// remove: {WaitGroug(&wg) && forall 0 < i < n :: Token(wg, Pi)}
-
-	//  1. enable waitmode
-	//  2. Merge tokens
-
-	// apply set wait mode assuming that there is a typo in the definition and assuming that a non-full permission is enough to call setWaitMode
-	// {WaitGroug(&wg) && WaitMode(&wg) && forall 0 < i < n :: Token(wg, Pi)}
-
-	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(sync.pred_true!<!>) && i >= n }
+	// {
+	//   acc(wg.WaitGroupP(), 1/2) &&
+	//   acc(wg.WaitGroupStarted(), 1/2) &&
+	//   !wg.WaitMode() &&
+	//   acc(wg.Token(pred_true!<!>), n + 1) // slightly simplified
+	// }
 	wg.SetWaitMode(1, 2, 1, 2)
+	// {
+	//   wg.WaitGroupP() &&
+	//   wg.WaitMode() &&
+	//   acc(wg.Token(pred_true!<!>), n + 1)
+	// }
 
+	// This example is simple and we do not need to perform any token redistribution before calling wait. This is not
+	// true in general
 	wg.Wait(1, 1, sync.pred_true!<!>)
-	  // {P0 && … && Pn}
+	// {
+	//   wg.WaitGroupP() &&
+	//   pred_true!<!>()
+	// }
 }
 
 requires P() && wg.UnitDebt(P)
 func worker(id int, wg *sync.WaitGroup, ghost P pred()) {
+	// { P() && wg.UnitDebt(P) }
 	wg.PayDebt(P)
+	// { wg.UnitDebt(pred_true!<!>) }
 	wg.Done()
+	// { }
 }

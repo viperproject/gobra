@@ -450,6 +450,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * @param triggers The sequence of triggers to be tested for validity.
     * @return True if `triggers` is a valid sequence of triggers.
     */
-  private def validTriggers(vars: Vector[PBoundVariable], triggers : Vector[PTrigger]) : Messages =
-    triggers.flatMap(validTrigger(vars, _))
+  private def validTriggers(vars: Vector[PBoundVariable], triggers : Vector[PTrigger]) : Messages = {
+    // TODO: As a temporary workaround, the validity checks for triggers are disabled because they are too restrictive.
+    //       We should either extend the validity checks or, somehow, defer that task to Viper
+    // triggers.flatMap(validTrigger(vars, _))
+    noMessages
+  }
 }

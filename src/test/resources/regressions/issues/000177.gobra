@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pure func f(p int, q int) bool {
+	return true
+}
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+func test(p int, s []int) {
+	assert forall i int :: { f(p+1, s[i]) } 0 <= i && i < len(s) ==> f(p+1, s[i])
+}

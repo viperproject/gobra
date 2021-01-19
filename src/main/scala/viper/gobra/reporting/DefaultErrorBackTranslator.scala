@@ -82,7 +82,8 @@ object DefaultErrorBackTranslator {
       //      case vprrea.EpsilonAsParam(offendingNode) =>
       //      case vprrea.ReceiverNull(offendingNode) =>
       //      case vprrea.DivisionByZero(offendingNode) =>
-      //      case vprrea.NegativePermission(offendingNode) =>
+      case vprrea.NegativePermission(Source(info)) =>
+        NegativePermissionError(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>

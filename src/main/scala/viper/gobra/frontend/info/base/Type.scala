@@ -7,11 +7,10 @@
 package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import viper.gobra.ast.frontend.{PExpression, PImport, PInterfaceType, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
-import viper.gobra.util.Violation.violation
 
 import scala.collection.immutable.ListMap
 
@@ -145,13 +144,9 @@ object Type {
     * Parameteric type for built-in members.
     * `messages` maps from types of arguments to error messages.
     * The partial function `typing` maps from types of arguments to the return type.
-    * It should be defined for all argument types for which no error message was returned by `messages`
+    * It should be defined for all argument types for which no error message was returned by `messages`.
+    * Note that Vector[Type] represents the types of arguments for functions and fpredicates but is a singleton
+    * vector storing the receiver's type for methods and mpredicates.
     */
-  case class AuxType(messages: (PExpression, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
-
-  /**
-    * Parameteric type for built-in mpredicates and methods which are only parametric in their receiver type
-    * Applying `typing` to the receiver type results in a typle of types for the remaining arguments and the return type
-    */
-  case class SingleAuxType(messages: (PExpression, Type) => Messages, typing: Type ==> FunctionT) extends Type
+  case class AbstractType(messages: (PExpression, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
 }

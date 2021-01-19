@@ -180,7 +180,7 @@ object Desugar {
       val inArgs = args.map(_.withAddressability(Addressability.inParameter))
 
       def create(): in.BuiltInMethod = {
-        val proxy = in.MethodProxy(tag.identifier, nm.builtInSingleAuxType(tag, inRecv))(src)
+        val proxy = in.MethodProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
         in.BuiltInMethod(inRecv, tag, proxy, inArgs)(src)
       }
 
@@ -191,7 +191,7 @@ object Desugar {
       val inArgs = args.map(_.withAddressability(Addressability.inParameter))
 
       def create(): in.BuiltInFunction = {
-        val proxy = in.FunctionProxy(nm.builtInAuxType(tag, inArgs))(src)
+        val proxy = in.FunctionProxy(nm.builtInMember(tag, inArgs))(src)
         in.BuiltInFunction(tag, proxy, inArgs)(src)
       }
 
@@ -203,7 +203,7 @@ object Desugar {
       val inArgs = args.map(_.withAddressability(Addressability.inParameter))
 
       def create(): in.BuiltInFPredicate = {
-        val proxy = in.FPredicateProxy(nm.builtInAuxType(tag, inArgs))(src)
+        val proxy = in.FPredicateProxy(nm.builtInMember(tag, inArgs))(src)
         in.BuiltInFPredicate(tag, proxy, inArgs)(src)
       }
 
@@ -216,7 +216,7 @@ object Desugar {
       val inArgs = args.map(_.withAddressability(Addressability.inParameter))
 
       def create(): in.BuiltInMPredicate = {
-        val proxy = in.MPredicateProxy(tag.identifier, nm.builtInSingleAuxType(tag, inRecv))(src)
+        val proxy = in.MPredicateProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
         in.BuiltInMPredicate(inRecv, tag, proxy, inArgs)(src)
       }
 
@@ -969,20 +969,20 @@ object Desugar {
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = f match {
         case base: ap.BuiltInFunction =>
-          val auxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
           val argTypes = p.args.map(info.typ)
-          Violation.violation(auxType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
-          auxType.typing(argTypes)
+          Violation.violation(abstractType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
+          abstractType.typing(argTypes)
         case base: ap.BuiltInReceivedMethod =>
-          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
           val recvT = info.typ(base.recv)
-          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          singleAuxType.typing(recvT)
+          Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          abstractType.typing(Vector(recvT))
         case base: ap.BuiltInMethodExpr =>
-          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
           val recvT = info.symbType(base.typ)
-          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          singleAuxType.typing(recvT)
+          Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          abstractType.typing(Vector(recvT))
       }
 
       def encodeArgs(): Writer[Vector[in.Expr]] = {
@@ -1424,9 +1424,9 @@ object Desugar {
             case (p@PMPredBase(_), st.BuiltInMPredicate(tag, _, _)) =>
               val recvT = info.typOfExprOrType(p.recv)
               val recvTD = typeD(recvT, Addressability.rValue)(src)
-              val singleAuxType = BuiltInMemberTag.types(tag)(config)
-              Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"expected that tag $tag is defined for receiver $recvT")
-              val (idT, proxy) = singleAuxType.typing(recvT) match {
+              val abstractType = BuiltInMemberTag.types(tag)(config)
+              Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"expected that tag $tag is defined for receiver $recvT")
+              val (idT, proxy) = abstractType.typing(Vector(recvT)) match {
                 case FunctionT(args, AssertionT) =>
                   val argsT = args.map(typeD(_, Addressability.rValue)(src))
                   (in.PredT(recvTD +: argsT, Addressability.rValue),
@@ -2397,11 +2397,7 @@ object Desugar {
       case in.ChannelT(elemT, _) => s"Channel${stringifyType(elemT)}"
       case t => Violation.violation(s"cannot stringify type $t")
     }
-    def builtInSingleAuxType(tag: BuiltInSingleAuxTypeTag, recv: in.Type): String = {
-      val typeString = stringifyType(recv)
-      s"${tag.identifier}_$BUILTIN_PREFIX$METHOD_PREFIX$typeString"
-    }
-    def builtInAuxType(tag: BuiltInAuxTypeTag, dependantTypes: Vector[in.Type]): String = {
+    def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {
       val typeString = dependantTypes.map(stringifyType).mkString("_")
       s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }

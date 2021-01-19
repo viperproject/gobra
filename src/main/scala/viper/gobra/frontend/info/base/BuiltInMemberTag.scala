@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PExpression
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AssertionT, AuxType, ChannelModus, ChannelT, FunctionT, IntT, PredT, SingleAuxType, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, AbstractType, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
@@ -42,17 +42,14 @@ object BuiltInMemberTag {
     override def ghost: Boolean = true
   }
 
-  sealed trait BuiltInAuxTypeTag extends BuiltInMemberTag
-  sealed trait BuiltInSingleAuxTypeTag extends BuiltInMemberTag
-
-  sealed trait BuiltInFunctionTag extends BuiltInAuxTypeTag {
+  sealed trait BuiltInFunctionTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInFPredicateTag extends BuiltInAuxTypeTag with GhostBuiltInMember
-  sealed trait BuiltInMethodTag extends BuiltInSingleAuxTypeTag {
+  sealed trait BuiltInFPredicateTag extends GhostBuiltInMember
+  sealed trait BuiltInMethodTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInMPredicateTag extends BuiltInSingleAuxTypeTag with GhostBuiltInMember
+  sealed trait BuiltInMPredicateTag extends GhostBuiltInMember
 
 
   /** Built-in Function Tags */
@@ -178,9 +175,9 @@ object BuiltInMemberTag {
     TokenMPredTag
   )
 
-  def types(tag: BuiltInAuxTypeTag)(config: Config): AuxType = tag match {
+  def types(tag: BuiltInMemberTag)(config: Config): AbstractType = tag match {
     // functions
-    case CloseFunctionTag => AuxType(
+    case CloseFunctionTag => AbstractType(
       {
         case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
         case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
@@ -188,21 +185,19 @@ object BuiltInMemberTag {
       {
         case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
       })
+
     // fpredicates
-    case PredTrueFPredTag => AuxType(
+    case PredTrueFPredTag => AbstractType(
       {
         case (_, _) => noMessages // it is well-defined for arbitrary arguments
       },
       {
         case args => FunctionT(args, AssertionT)
       })
-    case _ => unknownTagAuxType(tag)
-  }
 
-  def types(tag: BuiltInSingleAuxTypeTag)(config: Config): SingleAuxType = tag match {
     // methods
     case SendGivenPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
-    case SendGotPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
+    case SendGotPermMethodTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
     case RecvGivenPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), PredT(Vector())))
     case RecvGotPermMethodTag => channelReceiverType(recvAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
     case InitChannelMethodTag => channelReceiverType(allDirections, c => {
@@ -241,15 +236,11 @@ object BuiltInMemberTag {
       val predArgType = PredT(Vector())
       FunctionT(Vector(predArgType), AssertionT)
     })
-    case _ => unknownTagSingleAuxType(tag)
+
+    case _ => unknownTagType(tag)
   }
 
-  private def unknownTagAuxType(tag: BuiltInAuxTypeTag): AuxType = AuxType(
-    {
-      case (n, _) => error(n, s"type error: unsupported built-in member ${tag.identifier} (tag: ${tag.name})")
-    },
-    PartialFunction.empty)
-  private def unknownTagSingleAuxType(tag: BuiltInSingleAuxTypeTag): SingleAuxType = SingleAuxType(
+  private def unknownTagType(tag: BuiltInMemberTag): AbstractType = AbstractType(
     {
       case (n, _) => error(n, s"type error: unsupported built-in member ${tag.identifier} (tag: ${tag.name})")
     },
@@ -262,42 +253,35 @@ object BuiltInMemberTag {
   /**
     * Simplifies creation of SingleAuxType specialized to a channel being the (method or mpredicate) receiver
     */
-  private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): SingleAuxType = SingleAuxType(
+  private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): AbstractType = AbstractType(
     channelReceiverMessages(permittedModi),
     channelReceiverTyping(permittedModi, typing)
   )
-  private def channelReceiverMessages(permittedModi: Set[ChannelModus]): (PExpression, Type) => Messages =
+  private def channelReceiverMessages(permittedModi: Set[ChannelModus]): (PExpression, Vector[Type]) => Messages =
     {
-      case (_, c: ChannelT) if permittedModi.contains(c.mod) => noMessages
+      case (_, Vector(c: ChannelT)) if permittedModi.contains(c.mod) => noMessages
       case (n, ts) => error(n, s"type error: expected a single argument of channel type (permitted channel modi: $permittedModi) but got $ts")
     }
-  private def channelReceiverTyping(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): Type ==> FunctionT =
+  private def channelReceiverTyping(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): Vector[Type] ==> FunctionT =
     {
-      case c: ChannelT if permittedModi.contains(c.mod) => typing(c)
+      case Vector(c: ChannelT) if permittedModi.contains(c.mod) => typing(c)
     }
 
   /**
     * Returns ghost typing for arguments
     */
-  def argGhostTyping(tag: BuiltInAuxTypeTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
+  def argGhostTyping(tag: BuiltInMemberTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
     // functions
     case (CloseFunctionTag, _) => GhostType.ghostTuple(Vector(false, true, true /* true */, true))
+
     // fpredicates
 
-    // fallback:
-    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) => ghostArgs(types(tag)(config).typing(args).args.length)
-    case t => Violation.violation(s"argGhostTyping not defined for $t")
-  }
-
-  /**
-    * Returns ghost typing for arguments
-    */
-  def argGhostTyping(tag: BuiltInSingleAuxTypeTag, recv: Type)(config: Config): GhostType = (tag, recv) match {
     // methods
+
     // mpredicates
 
     // fallback:
-    case (t, r) if t.ghost && types(tag)(config).typing.isDefinedAt(r) => ghostArgs(types(tag)(config).typing(r).args.length)
+    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) => ghostArgs(types(tag)(config).typing(args).args.length)
     case t => Violation.violation(s"argGhostTyping not defined for $t")
   }
 
@@ -306,29 +290,18 @@ object BuiltInMemberTag {
   /**
     * Returns ghost typing for return parameters
     */
-  def returnGhostTyping(tag: BuiltInAuxTypeTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
+  def returnGhostTyping(tag: BuiltInMemberTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
     // functions
+
     // fpredicates
+
+    // methods
+
+    // mpredicates
 
     // fallback:
     case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) =>
       types(tag)(config).typing(args).result match {
-        case VoidType => ghostArgs(0)
-        case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
-      }
-    case t => Violation.violation(s"returnGhostTyping not defined for $t")
-  }
-
-  /**
-    * Returns ghost typing for return parameters
-    */
-  def returnGhostTyping(tag: BuiltInSingleAuxTypeTag, recv: Type)(config: Config): GhostType = (tag, recv) match {
-    // methods
-    // mpredicates
-
-    // fallback:
-    case (t, r) if t.ghost && types(tag)(config).typing.isDefinedAt(r) =>
-      types(tag)(config).typing(r).result match {
         case VoidType => ghostArgs(0)
         case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
       }

@@ -103,8 +103,8 @@ trait GhostAssignability {
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
       case p: ap.BuiltInFunction => BuiltInMemberTag.argGhostTyping(p.symb.tag, call.args.map(typ))(config)
-      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.argGhostTyping(p.symb.tag, typ(p.recv))(config)
-      case p: ap.BuiltInMethodExpr => GhostType.ghostTuple(false +: BuiltInMemberTag.argGhostTyping(p.symb.tag, typeSymbType(p.typ))(config).toTuple)
+      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.argGhostTyping(p.symb.tag, Vector(typ(p.recv)))(config)
+      case p: ap.BuiltInMethodExpr => GhostType.ghostTuple(false +: BuiltInMemberTag.argGhostTyping(p.symb.tag, Vector(typeSymbType(p.typ)))(config).toTuple)
       case _ => GhostType.notGhost // conservative choice
     }
   }
@@ -121,8 +121,8 @@ trait GhostAssignability {
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.context)
       case _: ap.PredicateKind => GhostType.isGhost
       case p: ap.BuiltInFunction => BuiltInMemberTag.returnGhostTyping(p.symb.tag, call.args.map(typ))(config)
-      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.returnGhostTyping(p.symb.tag, typ(p.recv))(config)
-      case p: ap.BuiltInMethodExpr => BuiltInMemberTag.returnGhostTyping(p.symb.tag, typeSymbType(p.typ))(config)
+      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.returnGhostTyping(p.symb.tag, Vector(typ(p.recv)))(config)
+      case p: ap.BuiltInMethodExpr => BuiltInMemberTag.returnGhostTyping(p.symb.tag, Vector(typeSymbType(p.typ)))(config)
       case _ => GhostType.isGhost // conservative choice
     }
   }

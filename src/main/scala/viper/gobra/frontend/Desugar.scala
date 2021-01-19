@@ -967,153 +967,149 @@ object Desugar {
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
-      def encodeBuiltIn(base: ap.BuiltInFunctionKind, ft: FunctionT): Writer[in.Expr] = {
-        // encode arguments
-        val dArgs = sequence(p.args map exprD(ctx)).map {
+      def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = f match {
+        case base: ap.BuiltInFunction =>
+          val auxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val argTypes = p.args.map(info.typ)
+          Violation.violation(auxType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
+          auxType.typing(argTypes)
+        case base: ap.BuiltInReceivedMethod =>
+          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val recvT = info.typ(base.recv)
+          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          singleAuxType.typing(recvT)
+        case base: ap.BuiltInMethodExpr =>
+          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
+          val recvT = info.symbType(base.typ)
+          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
+          singleAuxType.typing(recvT)
+      }
+
+      def encodeArgs(): Writer[Vector[in.Expr]] = {
+        val parameterCount = p.callee match {
+          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+          case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
+          case base: ap.Symbolic => base.symb match {
+            case fsym: st.WithArguments => fsym.args.length
+          }
+        }
+        sequence(p.args map exprD(ctx)).map {
           // go function chaining feature
-          case Vector(in.Tuple(targs)) if ft.args.size > 1 => targs
+          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
           case dargs => dargs
         }
-        // encode results
-        val resT = typeD(ft.result, Addressability.callResult)(src)
-        val targets = resT match {
-          case in.VoidT => Vector()
-          case _ => Vector(freshExclusiveVar(resT)(src))
-        }
-        val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+      }
 
-        base match {
-          case base: ap.BuiltInFunction =>
-            if (base.symb.isPure) {
+      def encodeResults(): (in.Type, Vector[in.LocalVar]) = p.callee match {
+        // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+        case f: ap.BuiltInFunctionKind =>
+          val ft = getBuiltInFuncType(f)
+          val resT = typeD(ft.result, Addressability.callResult)(src)
+          val targets = resT match {
+            case in.VoidT => Vector()
+            case _ => Vector(freshExclusiveVar(resT)(src))
+          }
+          (resT, targets)
+        case base: ap.Symbolic => base.symb match {
+          case fsym: st.WithResult =>
+            val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
+            val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
+            (resT, targets)
+        }
+      }
+
+      def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
+        case ap.Function(id, _) => functionProxy(id)
+        case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
+      }
+      def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
+        case ap.ReceivedMethod(_, id, _, _) => methodProxy(id)
+        case ap.MethodExpr(_, id, _, _) => methodProxy(id)
+        case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
+      }
+
+      def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
+        // implicitly convert arguments:
+        p.callee match {
+          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+          case f: ap.BuiltInFunctionKind => arguments(getBuiltInFuncType(f), args)
+          case base: ap.Symbolic => base.symb match {
+            case fsym: st.WithArguments => arguments(fsym, args)
+          }
+        }
+      }
+
+      // encode arguments
+      val dArgs = encodeArgs()
+      // encode results
+      val (resT, targets) = encodeResults()
+      val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+
+      val isPure = p.callee match {
+        case base: ap.Symbolic => base.symb match {
+          case f: st.Function => f.isPure
+          case m: st.Method => m.isPure
+          case f: st.BuiltInFunction => f.isPure
+          case m: st.BuiltInMethod => m.isPure
+        }
+      }
+
+      p.callee match {
+        case base: ap.FunctionKind => base match {
+          case _: ap.Function | _: ap.BuiltInFunction =>
+            if (isPure) {
               for {
                 args <- dArgs
-                fproxy = functionProxy(base.symb.tag, args.map(_.typ))(src)
-              } yield in.PureFunctionCall(fproxy, args, resT)(src)
+                convertedArgs = convertArgs(args)
+                fproxy = getFunctionProxy(base, convertedArgs)
+              } yield in.PureFunctionCall(fproxy, convertedArgs, resT)(src)
             } else {
               for {
                 args <- dArgs
                 _ <- declare(targets: _*)
-                fproxy = functionProxy(base.symb.tag, args.map(_.typ))(src)
-                _ <- write(in.FunctionCall(targets, fproxy, args)(src))
+                convertedArgs = convertArgs(args)
+                fproxy = getFunctionProxy(base, convertedArgs)
+                _ <- write(in.FunctionCall(targets, fproxy, convertedArgs)(src))
               } yield res
             }
-
-          case base: ap.BuiltInMethodKind =>
+          case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
             val dRecvWithArgs = base match {
+              case base: ap.ReceivedMethod =>
+                for {
+                  r <- exprD(ctx)(base.recv)
+                  args <- dArgs
+                } yield (applyMemberPathD(r, base.path)(src), args)
+              case base: ap.MethodExpr =>
+                // first argument is the receiver, the remaining arguments are the rest
+                dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
               case base: ap.BuiltInReceivedMethod =>
                 for {
                   r <- exprD(ctx)(base.recv)
                   args <- dArgs
                 } yield (applyMemberPathD(r, base.path)(src), args)
               case base: ap.BuiltInMethodExpr =>
+                // first argument is the receiver, the remaining arguments are the rest
                 dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
             }
-            if (base.symb.isPure) {
+
+            if (isPure) {
               for {
                 (recv, args) <- dRecvWithArgs
-                mproxy = methodProxy(base.symb.tag, recv.typ, args.map(_.typ))(src)
-              } yield in.PureMethodCall(recv, mproxy, args, resT)(src)
+                convertedArgs = convertArgs(args)
+                mproxy = getMethodProxy(base, recv, convertedArgs)
+              } yield in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src)
             } else {
               for {
                 (recv, args) <- dRecvWithArgs
                 _ <- declare(targets: _*)
-                mproxy = methodProxy(base.symb.tag, recv.typ, args.map(_.typ))(src)
-                _ <- write(in.MethodCall(targets, recv, mproxy, args)(src))
+                convertedArgs = convertArgs(args)
+                mproxy = getMethodProxy(base, recv, convertedArgs)
+                _ <- write(in.MethodCall(targets, recv, mproxy, convertedArgs)(src))
               } yield res
             }
-        }
-      }
-
-      p.callee match {
-        case base: ap.BuiltInFunction =>
-          val auxType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val argTypes = p.args.map(info.typ)
-          Violation.violation(auxType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
-          encodeBuiltIn(base, auxType.typing(argTypes))
-        case base: ap.BuiltInReceivedMethod =>
-          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val recvT = info.typ(base.recv)
-          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          encodeBuiltIn(base, singleAuxType.typing(recvT))
-        case base: ap.BuiltInMethodExpr =>
-          val singleAuxType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val recvT = info.symbType(base.typ)
-          Violation.violation(singleAuxType.typing.isDefinedAt(recvT), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          encodeBuiltIn(base, singleAuxType.typing(recvT))
-
-        case base: ap.Symbolic =>
-          base.symb match {
-            case fsym: st.WithArguments with st.WithResult => // all patterns that have a callable symbol: function, received method, method expression
-              // encode arguments
-              val dArgs = sequence(p.args map exprD(ctx)).map {
-                // go function chaining feature
-                case Vector(in.Tuple(targs)) if fsym.args.size > 1 => targs
-                case dargs => dargs
-              }
-
-              // encode result
-              val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
-              val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
-              val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
-
-              base match {
-                case base: ap.Function =>
-                  val fproxy = functionProxy(base.id)
-
-                  if (base.symb.isPure) {
-                    for {
-                      args <- dArgs
-                    } yield in.PureFunctionCall(fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      args <- dArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.FunctionCall(targets, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-
-                case base: ap.ReceivedMethod =>
-                  val fproxy = methodProxy(base.id)
-
-                  val dRecv = for {
-                    r <- exprD(ctx)(base.recv)
-                  } yield applyMemberPathD(r, base.path)(src)
-
-                  if (base.symb.isPure) {
-                    for {
-                      recv <- dRecv
-                      args <- dArgs
-                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      recv <- dRecv
-                      args <- dArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-
-                case base: ap.MethodExpr =>
-                  val fproxy = methodProxy(base.id)
-
-                  // first argument is the receiver, the remaining arguments are the rest
-                  val dRecvWithArgs = dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
-
-                  if (base.symb.isPure) {
-                    for {
-                      (recv, args) <- dRecvWithArgs
-                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      (recv, args) <- dRecvWithArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-              }
-
-            case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
           }
+          case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
+        }
       }
     }
 
@@ -1136,6 +1132,12 @@ object Desugar {
     def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {
       val c = args zip symb.args
       val assignments = c.map{ case (from, pTo) => (from, typeD(symb.context.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
+      assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
+    }
+
+    def arguments(ft: FunctionT, args: Vector[in.Expr]): Vector[in.Expr] = {
+      val c = args zip ft.args
+      val assignments = c.map{ case (from, pTo) => (from, typeD(pTo, Addressability.inParameter)(from.info)) }
       assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
     }
 

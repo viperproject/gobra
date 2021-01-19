@@ -43,6 +43,10 @@ class ProgramsImpl extends Programs {
 
       _ = program.members collect {
         case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx)
+        case m: in.BuiltInMethod => ctx.builtInMembers.method(m)(ctx)
+        case f: in.BuiltInFunction => ctx.builtInMembers.function(f)(ctx)
+        case p: in.BuiltInMPredicate => ctx.builtInMembers.mpredicate(p)(ctx)
+        case p: in.BuiltInFPredicate => ctx.builtInMembers.fpredicate(p)(ctx)
       }
 
       col = {

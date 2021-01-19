@@ -15,6 +15,7 @@ package viper.gobra.ast.internal
   * - extend translator
   */
 
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
@@ -31,22 +32,34 @@ case class Program(
 
 class LookupTable(
                  definedTypes: Map[(String, Addressability), Type],
-                 definedMethods: Map[MethodProxy, MethodMember],
-                 definedFunctions: Map[FunctionProxy, FunctionMember],
-                 definedMPredicates: Map[MPredicateProxy, MPredicate],
-                 definedFPredicates: Map[FPredicateProxy, FPredicate]
+                 definedMethods: Map[MethodProxy, MethodLikeMember],
+                 definedFunctions: Map[FunctionProxy, FunctionLikeMember],
+                 definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
+                 definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember]
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
-  def lookup(m: MethodProxy): MethodMember = definedMethods(m)
-  def lookup(f: FunctionProxy): FunctionMember = definedFunctions(f)
-  def lookup(m: MPredicateProxy): MPredicate = definedMPredicates(m)
-  def lookup(f: FPredicateProxy): FPredicate = definedFPredicates(f)
+  def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
+  def lookup(f: FunctionProxy): FunctionLikeMember = definedFunctions(f)
+  def lookup(m: MPredicateProxy): MPredicateLikeMember = definedMPredicates(m)
+  def lookup(f: FPredicateProxy): FPredicateLikeMember = definedFPredicates(f)
+  def getMethods: Iterable[MethodLikeMember] = definedMethods.values
+  def getFunctions: Iterable[FunctionLikeMember] = definedFunctions.values
+  def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
+  def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 }
 
 sealed trait Member extends Node
+sealed trait BuiltInMember extends Member {
+  def tag: BuiltInMemberTag
+  def name: Proxy
+  def argsT: Vector[Type]
+}
 
-sealed trait MethodMember extends Member {
+sealed trait MethodLikeMember extends Member {
   def name: MethodProxy
+}
+
+sealed trait MethodMember extends MethodLikeMember {
   def receiver: Parameter.In
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
@@ -54,7 +67,11 @@ sealed trait MethodMember extends Member {
   def posts: Vector[Assertion]
 }
 
-sealed trait FunctionMember extends Member {
+sealed trait FunctionLikeMember extends Member {
+  def name: FunctionProxy
+}
+
+sealed trait FunctionMember extends FunctionLikeMember {
   def name: FunctionProxy
   def args: Vector[Parameter.In]
   def results: Vector[Parameter.Out]
@@ -93,6 +110,16 @@ case class PureMethod(
   require(results.size <= 1)
 }
 
+case class BuiltInMethod(
+                          receiverT: Type,
+                          override val tag: BuiltInMethodTag,
+                          override val name: MethodProxy,
+                          override val argsT: Vector[Type]
+                        )(val info: Source.Parser.Info) extends BuiltInMember with MethodLikeMember {
+  require(receiverT.addressability == Addressability.Exclusive)
+  require(argsT.forall(_.addressability == Addressability.Exclusive))
+}
+
 case class Function(
                      override val name: FunctionProxy,
                      override val args: Vector[Parameter.In],
@@ -113,18 +140,52 @@ case class PureFunction(
   require(results.size <= 1)
 }
 
+case class BuiltInFunction(
+                          override val tag: BuiltInFunctionTag,
+                          override val name: FunctionProxy,
+                          override val argsT: Vector[Type]
+                        )(val info: Source.Parser.Info) extends BuiltInMember with FunctionLikeMember {
+  require(argsT.forall(_.addressability == Addressability.Exclusive))
+}
+
+sealed trait FPredicateLikeMember extends Member {
+  def name: FPredicateProxy
+}
+
 case class FPredicate(
-                     name: FPredicateProxy,
+                     override val name: FPredicateProxy,
                      args: Vector[Parameter.In],
                      body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends Member
+                     )(val info: Source.Parser.Info) extends FPredicateLikeMember
+
+case class BuiltInFPredicate(
+                            override val tag: BuiltInFPredicateTag,
+                            override val name: FPredicateProxy,
+                            override val argsT: Vector[Type]
+                            )(val info: Source.Parser.Info) extends BuiltInMember with FPredicateLikeMember {
+  require(argsT.forall(_.addressability == Addressability.Exclusive))
+}
+
+sealed trait MPredicateLikeMember extends Member {
+  def name: MPredicateProxy
+}
 
 case class MPredicate(
                      receiver: Parameter.In,
-                     name: MPredicateProxy,
+                     override val name: MPredicateProxy,
                      args: Vector[Parameter.In],
                      body: Option[Assertion]
-                     )(val info: Source.Parser.Info) extends Member
+                     )(val info: Source.Parser.Info) extends MPredicateLikeMember
+
+case class BuiltInMPredicate(
+                            receiverT: Type,
+                            override val tag: BuiltInMPredicateTag,
+                            override val name: MPredicateProxy,
+                            override val argsT: Vector[Type]
+                            )(val info: Source.Parser.Info) extends BuiltInMember with MPredicateLikeMember {
+  require(receiverT.addressability == Addressability.Exclusive)
+  require(argsT.forall(_.addressability == Addressability.Exclusive))
+}
 
 
 
@@ -232,7 +293,7 @@ case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGiv
 /**
   * Channel receive operation that does not only return the received message but also a boolean result whether
   * receive operation was successful. Thus, receiving a zero value from a closed or empty channel can be
-  * distinguish from a zero value sent with a successful channel send operation
+  * distinguished from a zero value sent with a successful channel send operation
   */
 case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
 
@@ -773,10 +834,6 @@ case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) e
   override def typ: Type = newType
 }
 
-/**
-  * Represents a channel receive operation. Currently does not appear in the internal presentation as it will
-  * directly be desugared
-  */
 case class Receive(channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy)(val info: Source.Parser.Info) extends Expr {
   require(channel.typ.isInstanceOf[ChannelT])
   override def typ: Type = channel.typ.asInstanceOf[ChannelT].elem

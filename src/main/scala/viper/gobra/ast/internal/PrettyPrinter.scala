@@ -123,6 +123,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
+    case n: BuiltInMember => showBuiltInMember(n)
   })
 
   def showFunction(f: Function): Doc = f match {
@@ -161,6 +162,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showGlobalConstDecl(globalConst: GlobalConstDecl): Doc = {
     "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
+  }
+
+  def showBuiltInMember(member: BuiltInMember): Doc = {
+    // return arguments, contracts, and potential bodies are not known to the internal representation
+    def makeRecv(receiverT: Type): Parameter.In = Parameter.In("recv", receiverT)(member.info)
+    val args: Vector[Parameter.In] = member.argsT.zipWithIndex.map {
+      case (argT, idx) => Parameter.In(s"arg$idx", argT)(member.info)
+    }
+    member match {
+      case BuiltInMethod(receiverT, tag, name, _) =>
+        (if (tag.isPure) "pure" <> space else emptyDoc) <> "func" <+> parens(showVarDecl(makeRecv(receiverT))) <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInFunction(tag, name, _) =>
+        (if (tag.isPure) "pure" <> space else emptyDoc) <> "func" <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInFPredicate(_, name, _) =>
+        "pred" <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInMPredicate(receiverT, _, name, _) =>
+        "pred" <+> parens(showVarDecl(makeRecv(receiverT))) <+> name.name <> parens(showFormalArgList(args))
+    }
   }
 
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {

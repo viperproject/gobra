@@ -114,8 +114,8 @@ class PredicatesImpl extends Predicates {
   /** Returns the body of proxy(args) */
   override def proxyBodyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
     val vP = proxy match {
-      case proxy: in.FPredicateProxy => fpredicate(ctx.table.lookup(proxy))(ctx).res
-      case proxy: in.MPredicateProxy => mpredicate(ctx.table.lookup(proxy))(ctx).res
+      case proxy: in.FPredicateProxy => fpredicate(ctx.lookup(proxy))(ctx).res
+      case proxy: in.MPredicateProxy => mpredicate(ctx.lookup(proxy))(ctx).res
     }
     vpr.utility.Expressions.instantiateVariables(vP.body.get, vP.formalArgs, args, Set.empty)
   }

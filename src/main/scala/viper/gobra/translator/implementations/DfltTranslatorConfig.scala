@@ -39,6 +39,7 @@ class DfltTranslatorConfig(
   val method : Methods = new MethodsImpl,
   val pureMethod : PureMethods = new PureMethodsImpl,
   val predicate : Predicates = new PredicatesImpl,
+  val builtInMembers : BuiltInMembers = new BuiltInMembersImpl,
   val stmt : Statements = new StatementsImpl
 ) extends TranslatorConfig {
 

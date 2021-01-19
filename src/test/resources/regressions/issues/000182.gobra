@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Tree struct {
+    root *node
+}
+
+type node struct {
+    value int
+    left *node
+    right *node
+}
+
+pred (t *Tree) tree() {
+    acc(&t.root) && (t.root != nil ==> t.root.tree())
+}
+
+pred (n *node) tree() {
+    acc(&n.value) && acc(&n.left) && acc(&n.right) &&
+    (n.left != nil ==> n.left.tree()) &&
+    (n.right != nil ==> n.right.tree()) &&
+    (n.left != nil ==> forall i int :: (0 <= i && i + 1 < len(n.left.orderedValues()) ==> (n.left.orderedValues())[i] < n.value)) &&
+    (n.right != nil ==> forall i int :: (0 <= i && i + 1 < len(n.right.orderedValues()) ==> (n.right.orderedValues())[i] > n.value))
+}
+
+ghost
+requires n.tree()
+pure func (n *node) orderedValues() (res seq[int]) {
+    return unfolding n.tree() in ((n.left == nil) ? seq[int] { } : n.left.orderedValues()) ++ seq[int] { n.value } ++ ((n.right == nil) ? seq[int] { } : n.right.orderedValues())
+}
+
+ensures t.tree()
+func NewTree() (t *Tree) {
+    t := new(Tree)
+    fold t.tree()
+    return t
+}

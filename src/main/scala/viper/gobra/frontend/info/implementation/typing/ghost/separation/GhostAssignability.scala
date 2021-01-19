@@ -11,7 +11,6 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.implementation.property.{AssignMode, NonStrictAssignModi}
 import viper.gobra.util.Violation
 
@@ -102,9 +101,9 @@ trait GhostAssignability {
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.context)
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
-      case p: ap.BuiltInFunction => BuiltInMemberTag.argGhostTyping(p.symb.tag, call.args.map(typ))(config)
-      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.argGhostTyping(p.symb.tag, Vector(typ(p.recv)))(config)
-      case p: ap.BuiltInMethodExpr => GhostType.ghostTuple(false +: BuiltInMemberTag.argGhostTyping(p.symb.tag, Vector(typeSymbType(p.typ)))(config).toTuple)
+      case ap.BuiltInFunction(_, symb) => symb.tag.argGhostTyping(call.args.map(typ))(config)
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.argGhostTyping(Vector(typ(recv)))(config)
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: symb.tag.argGhostTyping(Vector(typeSymbType(typ)))(config).toTuple)
       case _ => GhostType.notGhost // conservative choice
     }
   }
@@ -120,9 +119,9 @@ trait GhostAssignability {
       case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.context)
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.context)
       case _: ap.PredicateKind => GhostType.isGhost
-      case p: ap.BuiltInFunction => BuiltInMemberTag.returnGhostTyping(p.symb.tag, call.args.map(typ))(config)
-      case p: ap.BuiltInReceivedMethod => BuiltInMemberTag.returnGhostTyping(p.symb.tag, Vector(typ(p.recv)))(config)
-      case p: ap.BuiltInMethodExpr => BuiltInMemberTag.returnGhostTyping(p.symb.tag, Vector(typeSymbType(p.typ)))(config)
+      case ap.BuiltInFunction(_, symb) => symb.tag.returnGhostTyping(call.args.map(typ))(config)
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.returnGhostTyping(Vector(typ(recv)))(config)
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => symb.tag.returnGhostTyping(Vector(typeSymbType(typ)))(config)
       case _ => GhostType.isGhost // conservative choice
     }
   }

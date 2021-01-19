@@ -368,7 +368,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
-    case Receive(channel, _, _) => "<-" <+> showExpr(channel)
+    case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))

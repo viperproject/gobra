@@ -834,7 +834,7 @@ case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) e
   override def typ: Type = newType
 }
 
-case class Receive(channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy)(val info: Source.Parser.Info) extends Expr {
+case class Receive(channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Expr {
   require(channel.typ.isInstanceOf[ChannelT])
   override def typ: Type = channel.typ.asInstanceOf[ChannelT].elem
 }

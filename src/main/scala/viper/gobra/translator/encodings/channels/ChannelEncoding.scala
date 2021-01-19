@@ -42,6 +42,9 @@ class ChannelEncoding extends LeafTypeEncoding {
     *   exhale [c].RecvGivenPerm()()
     *   var res [ T ]
     *   inhale [c].RecvChannel()
+    *   // if a non-zero value is received, this implies that the channel is not closed and thus the invariant holds:
+    *   // if a zero value is received, no knowledge about the channel's close state is gained
+    *   inhale res != Dflt[T] ==> [c].RecvGotPerm()(res)
     *   res
     */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
@@ -52,7 +55,7 @@ class ChannelEncoding extends LeafTypeEncoding {
       case (lit: in.NilLit) :: ctx.Channel(t) =>
         unit(withSrc(vpr.IntLit(0), lit))
 
-      case exp@in.Receive(channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm) =>
+      case exp@in.Receive(channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm) =>
         val (pos, info, errT) = exp.vprMeta
         val res = in.LocalVar(Names.freshName, typeParam.withAddressability(Addressability.Exclusive))(exp.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
@@ -78,6 +81,14 @@ class ChannelEncoding extends LeafTypeEncoding {
           vprRecvChannelFull <- ctx.ass.translate(recvChannelFull)(ctx)
           vprInhaleRecvChannelFull = vpr.Inhale(vprRecvChannelFull)(pos, info, errT)
           _ <- write(vprInhaleRecvChannelFull)
+
+          // inhale res != Dflt[T] ==> [c].RecvGotPerm()(res)
+          isNotZero = in.UneqCmp(res, in.DfltVal(res.typ)(exp.info))(exp.info)
+          recvGotPermInst = getChannelInvariantAccess(channel, recvGotPerm, Vector(res))(exp.info)
+          notZeroImpl = in.Implication(isNotZero, recvGotPermInst)(exp.info)
+          vprNotZeroImpl <- ctx.ass.translate(notZeroImpl)(ctx)
+          vprInhaleNotZeroImpl = vpr.Inhale(vprNotZeroImpl)(pos, info, errT)
+          _ <- write(vprInhaleNotZeroImpl)
 
           // res
           vprResRead <- ctx.typeEncoding.expr(ctx)(res)
@@ -124,7 +135,7 @@ class ChannelEncoding extends LeafTypeEncoding {
         val bufferSizeArg = optBufferSizeArg.getOrElse(in.IntLit(0)(makeStmt.info)) // create an unbuffered channel by default
         seqn(
           for {
-            // var a [ []T ]
+            // var a [ chan T ]
             _ <- local(vprA)
 
             vprBufferSize <- ctx.expr.translate(bufferSizeArg)(ctx)
@@ -164,8 +175,6 @@ class ChannelEncoding extends LeafTypeEncoding {
             vprSendGivenPermInst <- ctx.ass.translate(sendGivenPermInst)(ctx)
             vprExhaleSendGivenPermInst = vpr.Exhale(vprSendGivenPermInst)(pos, info, errT)
             _ <- write(vprExhaleSendGivenPermInst)
-
-            // TODO do we need to exhale permissions for the value sent?
 
             // inhale [c].SendGotPerm()()
             sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector())(stmt.info)

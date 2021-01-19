@@ -935,7 +935,7 @@ object Desugar {
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           val recvChannelProxy = n.recvChannel
           val recvGivenPermProxy = n.recvGivenPerm
-          val recvGotPermProxy = methodProxy(BuiltInMemberTag.RecvGotPermMethodTag, n.channel.typ, Vector())(src)
+          val recvGotPermProxy = n.recvGotPerm
           val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, n.channel.typ, Vector())(src)
           in.Block(
             Vector(resTarget, successTarget),
@@ -967,22 +967,18 @@ object Desugar {
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
-      def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = f match {
-        case base: ap.BuiltInFunction =>
-          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val argTypes = p.args.map(info.typ)
-          Violation.violation(abstractType.typing.isDefinedAt(argTypes), s"cannot type built-in member ${base.symb.tag} as it is not defined for arguments $argTypes")
-          abstractType.typing(argTypes)
-        case base: ap.BuiltInReceivedMethod =>
-          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val recvT = info.typ(base.recv)
-          Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          abstractType.typing(Vector(recvT))
-        case base: ap.BuiltInMethodExpr =>
-          val abstractType = BuiltInMemberTag.types(base.symb.tag)(config)
-          val recvT = info.symbType(base.typ)
-          Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"cannot type built-in member ${base.symb.tag} as it is not defined for receiver $recvT")
-          abstractType.typing(Vector(recvT))
+      def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
+        val abstractType = f.symb.tag.typ(config)
+        val argsForTyping = f match {
+          case _: ap.BuiltInFunction =>
+            p.args.map(info.typ)
+          case base: ap.BuiltInReceivedMethod =>
+            Vector(info.typ(base.recv))
+          case base: ap.BuiltInMethodExpr =>
+            Vector(info.symbType(base.typ))
+        }
+        Violation.violation(abstractType.typing.isDefinedAt(argsForTyping), s"cannot type built-in member ${f.symb.tag} as it is not defined for arguments $argsForTyping")
+        abstractType.typing(argsForTyping)
       }
 
       def encodeArgs(): Writer[Vector[in.Expr]] = {
@@ -1350,7 +1346,8 @@ object Desugar {
               dop <- go(op)
               recvChannel = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, dop.typ, Vector())(src)
               recvGivenPerm = methodProxy(BuiltInMemberTag.RecvGivenPermMethodTag, dop.typ, Vector())(src)
-            } yield in.Receive(dop, recvChannel, recvGivenPerm)(src)
+              recvGotPerm = methodProxy(BuiltInMemberTag.RecvGotPermMethodTag, dop.typ, Vector())(src)
+            } yield in.Receive(dop, recvChannel, recvGivenPerm, recvGotPerm)(src)
 
           case PMake(t, args) =>
             def elemD(t: Type): in.Type = typeD(t, Addressability.make)(src)
@@ -1424,7 +1421,7 @@ object Desugar {
             case (p@PMPredBase(_), st.BuiltInMPredicate(tag, _, _)) =>
               val recvT = info.typOfExprOrType(p.recv)
               val recvTD = typeD(recvT, Addressability.rValue)(src)
-              val abstractType = BuiltInMemberTag.types(tag)(config)
+              val abstractType = tag.typ(config)
               Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"expected that tag $tag is defined for receiver $recvT")
               val (idT, proxy) = abstractType.typing(Vector(recvT)) match {
                 case FunctionT(args, AssertionT) =>
@@ -2390,9 +2387,10 @@ object Desugar {
       case in.OptionT(elemT, _) => s"Option${stringifyType(elemT)}"
       case in.DefinedT(name, _) => s"Defined$name"
       case in.PointerT(t, _) => s"Pointer${stringifyType(t)}"
-      case in.TupleT(ts, _) => s"Tuple${ts.map(stringifyType).mkString("")}"
-      case in.PredT(ts, _) => s"Pred${ts.map(stringifyType).mkString("")}"
-      case in.StructT(name, fields, _) => s"Struct$name${fields.map(_.typ).map(stringifyType).mkString("")}"
+      // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
+      case in.TupleT(ts, _) => s"Tuple$$${ts.map(stringifyType).mkString("")}$$"
+      case in.PredT(ts, _) => s"Pred$$${ts.map(stringifyType).mkString("")}$$"
+      case in.StructT(name, fields, _) => s"Struct$name$$${fields.map(_.typ).map(stringifyType).mkString("")}$$"
       case in.InterfaceT(name, _) => s"Interface$name"
       case in.ChannelT(elemT, _) => s"Channel${stringifyType(elemT)}"
       case t => Violation.violation(s"cannot stringify type $t")

@@ -18,14 +18,12 @@ import viper.gobra.util.Violation
 
 /**
   * Module to add built-in functions, methods, fpredicates, and mpredicates to Gobra.
-  * First, a tag representing such a built-in member has to be declared.
-  * By adding it to the `builtInMembers()` functions, it will be considered during type-checking.
-  * In addition, `types(...)`, `argGhostTyping(...)`, and `returnGhostTyping(...)` functions have to be adapted
-  * accordingly to return the correct type and the ghost typing for its parameters and return parameters, respectively.
-  * Last but not least, the newly added member needs to be considered during encoding. The desugarer automatically
-  * resolves function and methods calls to as well as instances of these built-in members. However, an additional
-  * case has to be added to BuiltInMembersImpl that maps a built-in member (the tag and its specific use) to a generated
-  * member in the interal representation which is then encoded.
+  * Two steps have to be performed for adding a new built-in member:
+  * (1) add a tag representing that built-in member and
+  * (2) add an additional case to BuiltInMembersImpl that maps that built-in member (the tag and its specific use) to
+  * a generated member in the internal representation which is then encoded.
+  * The desugarer automatically resolves function and methods calls to as well as instances of these built-in members.
+  * Thus, no changes in the desugarer should be necessary.
   */
 object BuiltInMemberTag {
   sealed trait BuiltInMemberTag {
@@ -33,13 +31,40 @@ object BuiltInMemberTag {
     def identifier: String
     /** debug name for printing */
     def name: String
+    /** flag whether the entire member is ghost */
     def ghost: Boolean
+
+    /** abstract type for this tag */
+    def typ(config: Config): AbstractType
+
+    /** ghost typing for arguments */
+    def argGhostTyping(args: Vector[Type])(config: Config): GhostType
+
+    /** ghost typing for return values */
+    def returnGhostTyping(args: Vector[Type])(config: Config): GhostType
   }
 
   sealed trait ActualBuiltInMember extends BuiltInMemberTag
 
   sealed trait GhostBuiltInMember extends BuiltInMemberTag {
     override def ghost: Boolean = true
+
+    override def argGhostTyping(args: Vector[Type])(config: Config): GhostType =
+      if (typ(config).typing.isDefinedAt(args)) {
+        ghostArgs(typ(config).typing(args).args.length)
+      } else {
+        Violation.violation(s"argGhostTyping not defined for $name")
+      }
+
+    def returnGhostTyping(args: Vector[Type])(config: Config): GhostType =
+      if (typ(config).typing.isDefinedAt(args)) {
+        typ(config).typing(args).result match {
+          case VoidType => ghostArgs(0)
+          case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
+        }
+      } else {
+        Violation.violation(s"returnGhostTyping not defined for $name")
+      }
   }
 
   sealed trait BuiltInFunctionTag extends BuiltInMemberTag {
@@ -54,11 +79,22 @@ object BuiltInMemberTag {
 
   /** Built-in Function Tags */
 
-  case object CloseFunctionTag extends BuiltInFunctionTag {
-    override def ghost: Boolean = false
+  case object CloseFunctionTag extends BuiltInFunctionTag with GhostBuiltInMember {
     override def identifier: String = "close"
     override def name: String = "CloseFunctionTag"
     override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = AbstractType(
+      {
+        case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
+        case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
+      },
+      {
+        case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
+      })
+
+    override def argGhostTyping(args: Vector[Type])(config: Config): GhostType =
+      GhostType.ghostTuple(Vector(false, true, true /* true */, true))
   }
 
 
@@ -67,6 +103,14 @@ object BuiltInMemberTag {
   case object PredTrueFPredTag extends BuiltInFPredicateTag {
     override def identifier: String = "PredTrue"
     override def name: String = "PredTrueFPredTag"
+
+    override def typ(config: Config): AbstractType = AbstractType(
+      {
+        case (_, _) => noMessages // it is well-defined for arbitrary arguments
+      },
+      {
+        case args => FunctionT(args, AssertionT)
+      })
   }
 
 
@@ -77,12 +121,18 @@ object BuiltInMemberTag {
     override def identifier: String = "SendGivenPerm"
     override def name: String = "SendGivenPermMethodTag"
     override def isPure: Boolean = true
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
   }
 
   case object SendGotPermMethodTag extends SendPermMethodTag {
     override def identifier: String = "SendGotPerm"
     override def name: String = "SendGotPermMethodTag"
     override def isPure: Boolean = true
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
   }
 
   sealed trait RecvPermMethodTag extends ChannelInvariantMethodTag
@@ -90,30 +140,58 @@ object BuiltInMemberTag {
     override def identifier: String = "RecvGivenPerm"
     override def name: String = "RecvGivenPermMethodTag"
     override def isPure: Boolean = true
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), PredT(Vector())))
   }
 
   case object RecvGotPermMethodTag extends RecvPermMethodTag {
     override def identifier: String = "RecvGotPerm"
     override def name: String = "RecvGotPermMethodTag"
     override def isPure: Boolean = true
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(recvAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
   }
 
   case object InitChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "Init"
     override def name: String = "InitChannelMethodTag"
     override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = channelReceiverType(allDirections, c => {
+      val bufferSizeArgType = IntT(config.typeBounds.Int)
+      val sendGivenPermArgType = PredT(Vector(c.elem))
+      val sendGotPermArgType = PredT(Vector()) // pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
+      val recvGivenPermArgType = PredT(Vector())
+      val recvGotPermArgType = PredT(Vector(c.elem))
+      FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
+    })
   }
 
   case object CreateDebtChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "CreateDebt"
     override def name: String = "CreateDebtChannelMethodTag"
     override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = channelReceiverType(allDirections, _ => {
+      val dividend = IntT(UnboundedInteger)
+      val divisor = IntT(UnboundedInteger)
+      // val amountArgType = PermissionT
+      val predArgType = PredT(Vector())
+      FunctionT(Vector(dividend, divisor /* amountArgType */, predArgType), VoidType)
+    })
   }
 
   case object RedeemChannelMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
     override def identifier: String = "Redeem"
     override def name: String = "RedeemChannelMethodTag"
     override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = channelReceiverType(allDirections, _ => {
+      val predArgType = PredT(Vector())
+      FunctionT(Vector(predArgType), VoidType)
+    })
   }
 
 
@@ -122,31 +200,56 @@ object BuiltInMemberTag {
   case object IsChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "IsChannel"
     override def name: String = "IsChannelMPredTag"
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(allDirections, _ => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT))
   }
 
   case object SendChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "SendChannel"
     override def name: String = "SendChannelMPredTag"
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), AssertionT))
   }
 
   case object RecvChannelMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "RecvChannel"
     override def name: String = "RecvChannelMPredTag"
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
   }
 
   case object ClosedMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "Closed"
     override def name: String = "ClosedMPredTag"
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
   }
 
   case object ClosureDebtMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "ClosureDebt"
     override def name: String = "ClosureDebtMPredTag"
+
+    override def typ(config: Config): AbstractType = channelReceiverType(allDirections, _ => {
+      val predArgType = PredT(Vector())
+      val dividend = IntT(UnboundedInteger)
+      val divisor = IntT(UnboundedInteger)
+      // val amountArgType = PermissionT
+      FunctionT(Vector(predArgType, dividend, divisor /* amountArgType */), AssertionT)
+    })
   }
 
   case object TokenMPredTag extends BuiltInMPredicateTag {
     override def identifier: String = "Token"
     override def name: String = "TokenMPredTag"
+
+    override def typ(config: Config): AbstractType = channelReceiverType(allDirections, _ => {
+      val predArgType = PredT(Vector())
+      FunctionT(Vector(predArgType), AssertionT)
+    })
   }
 
 
@@ -175,83 +278,13 @@ object BuiltInMemberTag {
     TokenMPredTag
   )
 
-  def types(tag: BuiltInMemberTag)(config: Config): AbstractType = tag match {
-    // functions
-    case CloseFunctionTag => AbstractType(
-      {
-        case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
-        case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
-      },
-      {
-        case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger)/* PermissionT */, PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
-      })
-
-    // fpredicates
-    case PredTrueFPredTag => AbstractType(
-      {
-        case (_, _) => noMessages // it is well-defined for arbitrary arguments
-      },
-      {
-        case args => FunctionT(args, AssertionT)
-      })
-
-    // methods
-    case SendGivenPermMethodTag => channelReceiverType(sendAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
-    case SendGotPermMethodTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), PredT(Vector()))) // we restrict it to pred()
-    case RecvGivenPermMethodTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), PredT(Vector())))
-    case RecvGotPermMethodTag => channelReceiverType(recvAndBiDirections, c => FunctionT(Vector(), PredT(Vector(c.elem))))
-    case InitChannelMethodTag => channelReceiverType(allDirections, c => {
-      val bufferSizeArgType = IntT(config.typeBounds.Int)
-      val sendGivenPermArgType = PredT(Vector(c.elem))
-      val sendGotPermArgType = PredT(Vector()) // pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
-      val recvGivenPermArgType = PredT(Vector())
-      val recvGotPermArgType = PredT(Vector(c.elem))
-      FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
-    })
-    case CreateDebtChannelMethodTag => channelReceiverType(allDirections, _ => {
-      val dividend = IntT(UnboundedInteger)
-      val divisor = IntT(UnboundedInteger)
-      // val amountArgType = PermissionT
-      val predArgType = PredT(Vector())
-      FunctionT(Vector(dividend, divisor /* amountArgType */, predArgType), VoidType)
-    })
-    case RedeemChannelMethodTag => channelReceiverType(allDirections, _ => {
-      val predArgType = PredT(Vector())
-      FunctionT(Vector(predArgType), VoidType)
-    })
-
-    // mpredicates
-    case IsChannelMPredTag => channelReceiverType(allDirections, _ => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT))
-    case SendChannelMPredTag => channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), AssertionT))
-    case RecvChannelMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
-    case ClosedMPredTag => channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
-    case ClosureDebtMPredTag => channelReceiverType(allDirections, _ => {
-      val predArgType = PredT(Vector())
-      val dividend = IntT(UnboundedInteger)
-      val divisor = IntT(UnboundedInteger)
-      // val amountArgType = PermissionT
-      FunctionT(Vector(predArgType, dividend, divisor /* amountArgType */), AssertionT)
-    })
-    case TokenMPredTag => channelReceiverType(allDirections, _ => {
-      val predArgType = PredT(Vector())
-      FunctionT(Vector(predArgType), AssertionT)
-    })
-
-    case _ => unknownTagType(tag)
-  }
-
-  private def unknownTagType(tag: BuiltInMemberTag): AbstractType = AbstractType(
-    {
-      case (n, _) => error(n, s"type error: unsupported built-in member ${tag.identifier} (tag: ${tag.name})")
-    },
-    PartialFunction.empty)
 
   private lazy val allDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Send, ChannelModus.Recv)
   private lazy val sendAndBiDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Send)
   private lazy val recvAndBiDirections: Set[ChannelModus] = Set(ChannelModus.Bi, ChannelModus.Recv)
 
   /**
-    * Simplifies creation of SingleAuxType specialized to a channel being the (method or mpredicate) receiver
+    * Simplifies creation of an AbstracType specialized to a channel being the (method or mpredicate) receiver
     */
   private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): AbstractType = AbstractType(
     channelReceiverMessages(permittedModi),
@@ -267,44 +300,5 @@ object BuiltInMemberTag {
       case Vector(c: ChannelT) if permittedModi.contains(c.mod) => typing(c)
     }
 
-  /**
-    * Returns ghost typing for arguments
-    */
-  def argGhostTyping(tag: BuiltInMemberTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
-    // functions
-    case (CloseFunctionTag, _) => GhostType.ghostTuple(Vector(false, true, true /* true */, true))
-
-    // fpredicates
-
-    // methods
-
-    // mpredicates
-
-    // fallback:
-    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) => ghostArgs(types(tag)(config).typing(args).args.length)
-    case t => Violation.violation(s"argGhostTyping not defined for $t")
-  }
-
   private def ghostArgs(arity: Int): GhostType = GhostType.ghostTuple(Vector.fill(arity)(true))
-
-  /**
-    * Returns ghost typing for return parameters
-    */
-  def returnGhostTyping(tag: BuiltInMemberTag, args: Vector[Type])(config: Config): GhostType = (tag, args) match {
-    // functions
-
-    // fpredicates
-
-    // methods
-
-    // mpredicates
-
-    // fallback:
-    case (t, args) if t.ghost && types(tag)(config).typing.isDefinedAt(args) =>
-      types(tag)(config).typing(args).result match {
-        case VoidType => ghostArgs(0)
-        case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
-      }
-    case t => Violation.violation(s"returnGhostTyping not defined for $t")
-  }
 }

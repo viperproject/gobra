@@ -59,14 +59,13 @@ func (g *WaitGroup) SetWaitMode(ghost dividendP int, ghost divisorP int, ghost d
 ghost
 requires P() && g.UnitDebt(P)
 ensures g.UnitDebt(pred_true!<!>)
-// the `W` at the end ensures that there are no name clashes with similarly named rules for channels
-func (g *WaitGroup) PayDebtW(ghost P pred())
+func (g *WaitGroup) PayDebt(ghost P pred())
 
 // Simplified version of the debt redistribution rule. This is the only rule that generates a Token
 ghost
 requires R() && g.UnitDebt(pred_true!<!>)
 ensures g.UnitDebt(R) && g.Token(R)
-func (g *WaitGroup) GenerateTokenW(ghost R pred())
+func (g *WaitGroup) GenerateToken(ghost R pred())
 
 requires dividend >= 0 && divisor > 0 // p >= 0
 requires n > 0 && dividend > 0 ==> acc(g.WaitGroupP(), dividend/divisor) && !g.WaitMode()

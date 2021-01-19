@@ -1,0 +1,86 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+package pkg
+
+import "sync"
+
+// TODO: remove all occurrences of sync.pred_true when PredTrue is added to the language
+
+/* Generates n + 1 threads that execute the `worker` function */
+requires n >= 0
+func spawnThreads(n int) {
+	// {}
+	var wg *sync.WaitGroup = &sync.WaitGroup{}
+	// { acc(wg) && *wg == WaitGroup{} }
+	wg.Init()
+	// { wg.WaitGroupP() && !wg.WaitMode() }
+	wg.Add(1, 1, 1, sync.pred_true!<!>)
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) }
+
+	fold sync.pred_true() // TODO: is this necessary?
+	fold sync.pred_true!<!>()
+	wg.GenerateToken(sync.pred_true!<!>)
+
+	wg.Start(1, 2, sync.pred_true!<!>)
+
+	fold sync.pred_true() // TODO: is this necessary?
+	fold sync.pred_true!<!>()
+	
+	go worker(-1, wg, sync.pred_true!<!>) // spawns first worker
+	// { acc(wg.WaitGroupP(), 1/2) && acc(g.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) }
+
+
+	// delete: assume P1 * ... * Pn
+	// delete: {WaitGroup(&wg) && P1 * ... * Pn}
+
+	// delete: ghost var preds set[pred()] = set[pred()]{ sync.pred_true!<!> }
+
+	// { acc(wg.WaitGroupP(), 1) && !wg.WaitMode() }
+	// delete: wg.Add(1, 1, 1, seq[pred()] { }) //sync.pred_true!<!> }) // gets UnitDebt(&wg, true)
+	// remove?: wg.Add(1, 1, 1, sync.pred_true!<!>)
+	// { acc(wg.WaitGroupP(), 1) && acc(g.UnitDebt(pred_true!<!>), 1)}
+
+	invariant acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() //&& wg.UnitDebt(sync.pred_true!<!>)
+	invariant acc(wg.Token(sync.pred_true!<!>), (i + 1)/1)
+	for i := 0; i < n; i++ {
+		// remove:inv: WaitGroug(&wg) && (forall i <= j < n :: Pj) && (forall 0<=j<i :: Token(wg, Pj))
+		// remove: wg.Add(1, 1, 1, seq[pred()] { sync.pred_true!<!> }) // gets UnitDebt(&wg, true)
+		// { wg.WaitGroupP() && !wg.WaitMode() && i < n} // Update state
+		wg.Add(1, 1, 2, sync.pred_true!<!>)
+		// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && i < n }
+		fold sync.pred_true() // TODO: is this necessary?
+		fold sync.pred_true!<!>()
+		wg.GenerateToken(sync.pred_true!<!>)
+
+
+		fold sync.pred_true() // TODO: is this necessary?
+		fold sync.pred_true!<!>()
+		// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && i < n && pred_true!<!>() }
+		go worker(i, wg, sync.pred_true!<!>)
+		// { wg.WaitGroupP() && !wg.WaitMode() }
+	}
+
+	// remove: {WaitGroug(&wg) && forall 0 < i < n :: Token(wg, Pi)}
+
+	//  1. enable waitmode
+	//  2. Merge tokens
+
+	// apply set wait mode assuming that there is a typo in the definition and assuming that a non-full permission is enough to call setWaitMode
+	// {WaitGroug(&wg) && WaitMode(&wg) && forall 0 < i < n :: Token(wg, Pi)}
+
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(sync.pred_true!<!>) && i >= n }
+	wg.SetWaitMode(1, 2, 1, 2)
+
+	wg.Wait(1, 1, sync.pred_true!<!>)
+	  // {P0 && … && Pn}
+}
+
+requires P() && wg.UnitDebt(P)
+func worker(id int, wg *sync.WaitGroup, ghost P pred()) {
+	wg.PayDebt(P)
+	wg.Done()
+}

@@ -492,7 +492,7 @@ sealed trait PPredConstructorBase extends PNode {
   val id: PIdnUse
 }
 case class PFPredBase(override val id: PIdnUse) extends PPredConstructorBase
-case class PMPredBase(recvWithId: PDot) extends PPredConstructorBase {
+case class PDottedBase(recvWithId: PDot) extends PPredConstructorBase {
   override val id: PIdnUse = recvWithId.id
   val recv: PExpressionOrType = recvWithId.base
 }

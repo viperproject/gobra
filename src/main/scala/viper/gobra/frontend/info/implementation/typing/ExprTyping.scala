@@ -310,7 +310,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBlankIdentifier() => noMessages
 
     case p@PPredConstructor(base, _) => base match {
-      case base@(_: PFPredBase | _:PMPredBase) =>
+      case base@(_: PFPredBase | _:PDottedBase) =>
         idType(base.id) match {
           case FunctionT(args, AssertionT) =>
             val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
@@ -431,9 +431,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PFPredBase(id) =>
           val idT = idType(id)
           PredT(idT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
-        case p: PMPredBase =>
-          val idT = idType(p.id)
-          PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+        case p: PDottedBase => resolve(p.recvWithId) match {
+          case Some(_: ap.Predicate) =>
+            val recvWithIdT = exprOrTypeType(p.recvWithId)
+            PredT(recvWithIdT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
+          case Some(_: ap.PredicateExpr) => ??? // Predicate expressions are not supported at the moment
+          case _ =>
+            val idT = idType(p.id)
+            PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+        }
       }
 
     case e => violation(s"unexpected expression $e")

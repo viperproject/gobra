@@ -52,12 +52,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PAccess =>
       resolve(n.exp) match {
         case Some(_: ap.PredicateCall) => noMessages
+        case Some(_: ap.PredExprInstance) => noMessages
         case _ =>
           val argT = exprType(n.exp)
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
             case Single(Type.NilType | _: Type.PointerT) => noMessages
-            case _ => error(n, s"expected expression with pointer type, but got $argT")
+            case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }
 

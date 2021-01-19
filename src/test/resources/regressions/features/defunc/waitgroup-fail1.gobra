@@ -12,6 +12,6 @@ func problemWithCollect() {
 	fold acc(sync.pred_true!<!>(), 1/2)
 	fold sync.CollectFractions(seq[pred()]{ sync.pred_true!<!>}, seq[int]{1}, seq[int]{2})
 	assert sync.CollectFractions(seq[pred()]{ sync.pred_true!<!>}, seq[int]{1}, seq[int]{2})
-	//:: ExpectedOutput(assert_error:assertion_error)
+	//:: ExpectedOutput(assert_error:permission_error)
 	assert sync.CollectFractions(seq[pred()]{ sync.pred_true!<!>}, seq[int]{2}, seq[int]{4})
 }

@@ -1165,10 +1165,10 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PPredConstructor(base, args) => base match {
-            case PFPredBase(id) =>
-              val proxy = fpredicateProxyD(id)
-              val idT = info.typ(id) match {
+          case PPredConstructor(base, args) =>
+            def handleFPredBase(p: PPredConstructorBase): Writer[in.Expr] = {
+              val proxy = fpredicateProxyD(p.id)
+              val idT = info.typ(p.id) match {
                 case FunctionT(args, AssertionT) =>
                   in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
                 case t => violation(s"desugarer: $t cannot be converted to a predicate type")
@@ -1176,21 +1176,27 @@ object Desugar {
               for {
                 dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
               } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+            }
 
-            case p@PMPredBase(_) =>
-              val proxy = mpredicateProxyD(p.id)
-              val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
-              val idT = info.typ(p.id) match {
-                case FunctionT(args, AssertionT) =>
-                  in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+            base match {
+              case p@PFPredBase(_) => handleFPredBase(p)
+              case p@PDottedBase(recvWithId) => info.resolve(recvWithId) match {
+                case Some(_: ap.ReceivedPredicate) =>
+                  val proxy = mpredicateProxyD(p.id)
+                  val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
+                  val idT = info.typ(p.id) match {
+                    case FunctionT(args, AssertionT) =>
+                      in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                    case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                  }
+                  for {
+                    dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                    dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                  } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+
+                case _ => handleFPredBase(p)
               }
-
-              for {
-                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
-          }
+            }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
@@ -1996,6 +2002,12 @@ object Desugar {
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
 
+        case Some(p: ap.PredExprInstance) =>
+          for {
+            base <- goE(p.base)
+            predInstArgs <- sequence(p.args map goE)
+          } yield in.Accessible.PredExpr(in.PredExprInstance(base, predInstArgs)(src))
+
         case _ =>
           val argT = info.typ(acc)
           underlyingType(argT) match {
@@ -2008,7 +2020,7 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
-            case _ => Violation.violation(s"expected pointer type, but got $argT")
+            case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")
           }
       }
 

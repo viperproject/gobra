@@ -310,7 +310,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBlankIdentifier() => noMessages
 
     case p@PPredConstructor(base, _) => base match {
-      case base@(_: PFPredBase | _:PDottedBase) =>
+      case base@(_: PFPredBase | _: PDottedBase) =>
         idType(base.id) match {
           case FunctionT(args, AssertionT) =>
             val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)

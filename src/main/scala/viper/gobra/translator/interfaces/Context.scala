@@ -6,7 +6,7 @@
 
 package viper.gobra.translator.interfaces
 
-import viper.gobra.ast.internal.LookupTable
+import viper.gobra.ast.internal.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, FPredicate, FunctionMember, LookupTable, MPredicate, MethodMember}
 import viper.gobra.translator.interfaces.components._
 import viper.gobra.translator.interfaces.translator._
 import viper.silver.{ast => vpr}
@@ -37,15 +37,28 @@ trait Context {
   def method: Methods
   def pureMethod: PureMethods
   def predicate: Predicates
+  def builtInMembers: BuiltInMembers
   def stmt: Statements
 
   // lookup
   def table: LookupTable
   def lookup(t: in.DefinedT): in.Type = table.lookup(t)
-  def lookup(f: in.FunctionProxy): in.FunctionMember = table.lookup(f)
-  def lookup(m: in.MethodProxy): in.MethodMember = table.lookup(m)
-  def lookup(p: in.MPredicateProxy): in.MPredicate = table.lookup(p)
-  def lookup(p: in.FPredicateProxy): in.FPredicate = table.lookup(p)
+  def lookup(f: in.FunctionProxy): in.FunctionMember = table.lookup(f) match {
+    case fm: FunctionMember => fm
+    case bf: BuiltInFunction => builtInMembers.function(bf)(this)
+  }
+  def lookup(m: in.MethodProxy): in.MethodMember = table.lookup(m) match {
+    case mm: MethodMember => mm
+    case bm: BuiltInMethod => builtInMembers.method(bm)(this)
+  }
+  def lookup(p: in.MPredicateProxy): in.MPredicate = table.lookup(p) match {
+    case mp: MPredicate => mp
+    case bmp: BuiltInMPredicate => builtInMembers.mpredicate(bmp)(this)
+  }
+  def lookup(p: in.FPredicateProxy): in.FPredicate = table.lookup(p) match {
+    case fp: FPredicate => fp
+    case bfp: BuiltInFPredicate => builtInMembers.fpredicate(bfp)(this)
+  }
 
   // mapping
 
@@ -72,6 +85,7 @@ trait Context {
           methodN: Methods = method,
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
+          builtInMembersN: BuiltInMembers = builtInMembers,
           stmtN: Statements = stmt
          ): Context
 
@@ -99,6 +113,7 @@ trait Context {
     method.finalize(col)
     pureMethod.finalize(col)
     predicate.finalize(col)
+    builtInMembers.finalize(col)
     stmt.finalize(col)
   }
 }

@@ -38,7 +38,7 @@ class PureMethodsImpl extends PureMethods {
     val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
 
     val fixResultvar = (x: vpr.Exp) => {
-      x.transform { case v: vpr.LocalVar if v.name == vResults.head.localVar.name => vpr.Result(resultType)() }
+      x.transform { case v: vpr.LocalVar if v.name == meth.results.head.id => vpr.Result(resultType)() }
     }
 
     for {

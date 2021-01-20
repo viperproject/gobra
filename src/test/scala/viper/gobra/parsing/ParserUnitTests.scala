@@ -2499,6 +2499,92 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PPredConstructor(PDottedBase(PDot( PNamedOperand(PIdnUse("p")), PIdnUse("mutexInvariant"))), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
     }
   }
+
+  /* ** Parser tests related to channels */
+  test("Parser: should parse channel send statement") {
+    frontend.parseStmtOrFail("c <- v") should matchPattern {
+      case PSendStmt(PNamedOperand(PIdnUse("c")), PNamedOperand(PIdnUse("v"))) =>
+    }
+  }
+
+  test("Parser: should parse channel send statement with an int literal") {
+    frontend.parseStmtOrFail("c <- 5") should matchPattern {
+      case PSendStmt(PNamedOperand(PIdnUse("c")), PIntLit(lit)) if lit == 5 =>
+    }
+  }
+
+  // note that <- (channel send) might cause ambiguities with < - (smaller than a negative number)
+  test("Parser: should not parse '<-' in an expression") {
+    frontend.parseExp("c <- 5") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: should parse '< -' in an expression") {
+    val equivalences = Set(
+      "c < -5",
+      "c < - 5",
+      "c< -5",
+      "c <  -5"
+    )
+    // try to parse it as an expression
+    equivalences.foreach(testcase => {
+      frontend.parseExpOrFail(testcase) should matchPattern {
+        case PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero), PIntLit(five))) if zero == 0 && five == 5 =>
+      }
+    })
+    // try to parse it as a statement
+    equivalences.foreach(testcase => {
+      frontend.parseStmtOrFail(testcase) should matchPattern {
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero), PIntLit(five)))) if zero == 0 && five == 5 =>
+      }
+    })
+  }
+
+  test("Parser: whitespace requirement for '< -' should not affect PLess not followed by a minus sign") {
+    val equivalences1 = Set(
+      "c<+5",
+      "c <+5",
+      "c < +5",
+      "c < + 5",
+      "c< +5",
+      "c <  +5"
+    )
+    // try to parse it as an expression
+    equivalences1.foreach(testcase => {
+      frontend.parseExpOrFail(testcase) should matchPattern {
+        case PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero), PIntLit(five))) if zero == 0 && five == 5 =>
+      }
+    })
+    // try to parse it as a statement
+    equivalences1.foreach(testcase => {
+      frontend.parseStmtOrFail(testcase) should matchPattern {
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero), PIntLit(five)))) if zero == 0 && five == 5 =>
+      }
+    })
+    // it works without plus sign as well:
+    val equivalences2 = Set(
+      "c<5",
+      "c < 5",
+      "c <5",
+      "c <  5",
+      "c  < 5"
+    )
+    // try to parse it as an expression
+    equivalences2.foreach(testcase => {
+      frontend.parseExpOrFail(testcase) should matchPattern {
+        case PLess(PNamedOperand(PIdnUse("c")), PIntLit(five)) if five == 5 =>
+      }
+    })
+    // try to parse it as a statement
+    equivalences2.foreach(testcase => {
+      frontend.parseStmtOrFail(testcase) should matchPattern {
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PIntLit(five))) if five == 5 =>
+      }
+    })
+  }
+
+
   /* ** Stubs, mocks and other test setup */
 
   class TestFrontend {

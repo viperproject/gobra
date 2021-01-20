@@ -9,8 +9,8 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, FunctionT, Type, BooleanT}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -32,6 +32,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case MPredicateSpec(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
+    case BuiltInMPredicate(tag, _, _) => tag.typ(config)
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {

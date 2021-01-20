@@ -46,6 +46,8 @@ object Names {
     val ts = t.toString()
       .replace('[', '_')
       .replace("]", "")
+      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
+      .replace(" ", "")
 
     s"val$$_$ts"
   }
@@ -79,4 +81,7 @@ object Names {
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"
+
+  // built-in members
+  def builtInMember: String = "built_in"
 }

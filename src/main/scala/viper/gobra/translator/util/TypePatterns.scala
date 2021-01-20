@@ -168,13 +168,19 @@ object TypePatterns {
       }
     }
 
+    object Channel {
+      def unapply(arg : in.Type) : Option[in.Type] = underlyingType(arg)(ctx) match {
+        case t : in.ChannelT => Some(t.elem)
+        case _ => None
+      }
+    }
+
     object Pred {
       def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.PredT => Some(t.args)
         case _ => None
       }
     }
-
   }
 
 

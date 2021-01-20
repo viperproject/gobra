@@ -179,7 +179,7 @@ trait TypeEncoding extends Generator {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     */
-  def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes whether a value is comparable or not.

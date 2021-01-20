@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend.PType
-import viper.gobra.frontend.info.base.SymbolTable._
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMethodLike, _}
 
 class AdvancedMemberSet[M <: TypeMember] private(
                                 private val internal: Map[String, (M, Vector[MemberPath], Int)]
@@ -84,6 +84,7 @@ object AdvancedMemberSet {
         case MPredicateSpec(p, _) => p.id.name
         case Field(m, _, _)      => m.id.name
         case Embbed(m, _, _)     => m.id.name
+        case ml: BuiltInMethodLike => ml.tag.identifier
       }
 
       extractMemberName(tm) -> tm

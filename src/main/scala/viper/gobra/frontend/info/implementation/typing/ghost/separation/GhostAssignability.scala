@@ -18,20 +18,23 @@ trait GhostAssignability {
   this: TypeInfoImpl =>
 
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
-  private[separation] def ghostAssignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
+  private[separation] def ghostAssignableToCallExpr(call: ap.FunctionCall): Messages = {
 
-    val isPure = resolve(callee) match {
-      case Some(p: ap.Function) => p.symb.isPure
-      case Some(p: ap.MethodExpr) => p.symb.isPure
-      case Some(p: ap.ReceivedMethod) => p.symb.isPure
+    val isPure = call.callee match {
+      case p: ap.Function => p.symb.isPure
+      case p: ap.MethodExpr => p.symb.isPure
+      case p: ap.ReceivedMethod => p.symb.isPure
+      case p: ap.BuiltInFunction => p.symb.isPure
+      case p: ap.BuiltInMethodExpr => p.symb.isPure
+      case p: ap.BuiltInReceivedMethod => p.symb.isPure
       case _ => false
     }
     if (isPure) {return noMessages}
 
-    val argTyping = calleeArgGhostTyping(callee).toTuple
+    val argTyping = calleeArgGhostTyping(call).toTuple
     generalGhostAssignableTo[PExpression, Boolean](ghostExprTyping){
-      case (g, l) => error(callee, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
-    }(right: _*)(argTyping: _*)
+      case (g, l) => error(call.callee.id, "ghost error: ghost cannot be assigned to non-ghost", g && !l)
+    }(call.args: _*)(argTyping: _*)
   }
 
   /** conservative ghost separation assignment check */
@@ -89,30 +92,36 @@ trait GhostAssignability {
 
 
   /** ghost type of the arguments of a callee */
-  private[separation] def calleeArgGhostTyping(callee: PExpression): GhostType = {
+  private[separation] def calleeArgGhostTyping(call: ap.FunctionCall): GhostType = {
     def argTyping(args: Vector[PParameter], context: ExternalTypeInfo): GhostType =
       GhostType.ghostTuple(args.map(context.isParamGhost))
 
-    resolve(callee) match {
-      case Some(p: ap.Function) => argTyping(p.symb.args, p.symb.context)
-      case Some(p: ap.ReceivedMethod) => argTyping(p.symb.args, p.symb.context)
-      case Some(p: ap.MethodExpr) => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
-      case Some(_: ap.PredicateKind) => GhostType.isGhost
+    call.callee match {
+      case p: ap.Function => argTyping(p.symb.args, p.symb.context)
+      case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.context)
+      case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.context).toTuple)
+      case _: ap.PredicateKind => GhostType.isGhost
+      case ap.BuiltInFunction(_, symb) => symb.tag.argGhostTyping(call.args.map(typ))(config)
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.argGhostTyping(Vector(typ(recv)))(config)
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: symb.tag.argGhostTyping(Vector(typeSymbType(typ)))(config).toTuple)
       case _ => GhostType.notGhost // conservative choice
     }
   }
 
   /** ghost type of the result of a callee */
-  private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = {
+  private[separation] def calleeReturnGhostTyping(call: ap.FunctionCall): GhostType = {
     def resultTyping(result: PResult, context: ExternalTypeInfo): GhostType = {
       GhostType.ghostTuple(result.outs.map(context.isParamGhost))
     }
 
-    resolve(callee) match {
-      case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.context)
-      case Some(_: ap.PredicateKind) => GhostType.isGhost
+    call.callee match {
+      case p: ap.Function => resultTyping(p.symb.result, p.symb.context)
+      case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.context)
+      case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.context)
+      case _: ap.PredicateKind => GhostType.isGhost
+      case ap.BuiltInFunction(_, symb) => symb.tag.returnGhostTyping(call.args.map(typ))(config)
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.returnGhostTyping(Vector(typ(recv)))(config)
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => symb.tag.returnGhostTyping(Vector(typeSymbType(typ)))(config)
       case _ => GhostType.isGhost // conservative choice
     }
   }

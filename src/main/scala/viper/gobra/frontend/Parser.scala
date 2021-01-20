@@ -282,8 +282,9 @@ object Parser {
 
     lazy val rewriter = new PRewriter(pom.positions)
 
+    val singleWhitespaceChar: String = """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)"""
     override val whitespace: Parser[String] =
-      """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*""".r
+      s"$singleWhitespaceChar*".r
 
     //    """(\s|(//.*\s*\n)|/\*(?s:(.*)?)\*/)*""".r
     // The above regex matches the same whitespace strings as this one:
@@ -670,7 +671,9 @@ object Parser {
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
       precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
         precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
-        precedence4 ~ ("<" ~> precedence4P1) ^^ PLess |
+        // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
+        precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
+        precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<=" ~> precedence4P1) ^^ PAtMost |
         precedence4 ~ (">" ~> precedence4P1) ^^ PGreater |
         precedence4 ~ (">=" ~> precedence4P1) ^^ PAtLeast |
@@ -802,7 +805,8 @@ object Parser {
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
     lazy val selection: PackratParser[PDot] =
-      primaryExp ~ ("." ~> idnUse) ^^ PDot
+      primaryExp ~ ("." ~> idnUse) ^^ PDot |
+      typ ~ ("." ~> idnUse) ^^ PDot
 
     lazy val idBasedSelection: Parser[PDot] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ {
@@ -898,8 +902,8 @@ object Parser {
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
 
     lazy val channelType: Parser[PChannelType] =
-      ("chan" ~> "<-") ~> typ ^^ PRecvChannelType |
-        ("<-" ~> "chan") ~> typ ^^ PSendChannelType |
+      ("chan" ~> "<-") ~> typ ^^ PSendChannelType |
+        ("<-" ~> "chan") ~> typ ^^ PRecvChannelType |
         "chan" ~> typ ^^ PBiChannelType
 
     lazy val functionType: Parser[PFunctionType] =

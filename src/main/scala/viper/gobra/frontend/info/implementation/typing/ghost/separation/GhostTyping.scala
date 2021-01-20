@@ -50,7 +50,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
-        case (Left(callee), Some(_: ap.FunctionCall)) => calleeReturnGhostTyping(callee)
+        case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
@@ -153,7 +153,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   override def expectedArgGhostTyping(n: PInvoke): GhostType = {
     (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(_: ap.Conversion)) => GhostType.notGhost
-      case (Left(callee), Some(_: ap.FunctionCall)) => calleeArgGhostTyping(callee)
+      case (Left(_), Some(call: ap.FunctionCall)) => calleeArgGhostTyping(call)
       case (Left(_), Some(_: ap.PredicateCall)) => GhostType.isGhost
       case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
     }

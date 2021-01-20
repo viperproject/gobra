@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred sendInvariant(v int) {
+    v == 42
+}
+
+// tests whether some information about the channel's state can be extracted from the single return form of receive:
+requires c.RecvChannel()
+requires c.RecvGivenPerm() == PredTrue!<!>;
+requires c.RecvGotPerm() == sendInvariant!<_!>;
+func testSingleReceive(c chan int) {
+  fold PredTrue!<!>()
+  res := <- c // single return form of receive
+  if (res != 0) {
+    // non-zero value should imply the invariant:
+    assert sendInvariant!<_!>(res)
+    unfold sendInvariant!<_!>(res)
+    assert res == 42
+  } else {
+    // channel is in theory closed since the invariant tells us that a zero-value cannot be received
+    // however this cannot be proved with the current version of Gobra:
+    // assert c.Closed()
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+  }
+}

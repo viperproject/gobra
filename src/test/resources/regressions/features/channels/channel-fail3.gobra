@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func SendChannelPredicateNotDeclaredForRecvChannel() {
+    var c <-chan int
+    //:: ExpectedOutput(type_error)
+    inhale c.SendChannel()
+}
+
+func RecvChannelPredicateNotDeclaredForSendChannel() {
+    var c chan<- int
+    //:: ExpectedOutput(type_error)
+    inhale c.RecvChannel()
+    //:: ExpectedOutput(type_error)
+    inhale c.Closed()
+}
+
+func ChannelBuiltInsNotDeclaredForNonChannelTypes() {
+    var b bool
+    var i int
+
+    //:: ExpectedOutput(type_error)
+    inhale b.SendChannel()
+    //:: ExpectedOutput(type_error)
+    inhale b.RecvChannel()
+    //:: ExpectedOutput(type_error)
+    inhale b.Closed()
+
+    //:: ExpectedOutput(type_error)
+    inhale i.SendChannel()
+    //:: ExpectedOutput(type_error)
+    inhale i.RecvChannel()
+    //:: ExpectedOutput(type_error)
+    inhale i.Closed()
+}
+
+

@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func uninitializedChannelIsNil() {
+    var c1 chan int
+    var c2 chan<- int
+    var c3 <-chan int
+    assert c1 == nil
+    assert c2 == nil
+    assert c3 == nil
+    assert c1 == c2
+    assert c1 == c3
+}

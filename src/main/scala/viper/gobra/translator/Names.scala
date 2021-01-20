@@ -46,6 +46,8 @@ object Names {
     val ts = t.toString()
       .replace('[', '_')
       .replace("]", "")
+      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
+      .replace(" ", "")
 
     s"val$$_$ts"
   }

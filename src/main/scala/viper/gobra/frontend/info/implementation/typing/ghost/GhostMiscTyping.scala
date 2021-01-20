@@ -29,8 +29,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
-    case MPredicateImpl(decl, _) => FunctionT(decl.args map miscType, AssertionT)
-    case MPredicateSpec(decl, _) => FunctionT(decl.args map miscType, AssertionT)
+    case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
+    case MPredicateSpec(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
     case BuiltInMPredicate(tag, _, _) => tag.typ(config)
   }

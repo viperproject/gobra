@@ -25,7 +25,9 @@ func (c *Accum) Init() {
 }
 
 // TODO: change names of vars and types
-requires len(s) > 0
+// requires len(s) > 0
+/* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
+requires s != nil
 func parallelSum(s []int) {
 	// { }
 	count@ := 0

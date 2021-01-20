@@ -981,43 +981,11 @@ object Desugar {
         abstractType.typing(argsForTyping)
       }
 
-      def encodeArgs(): Writer[Vector[in.Expr]] = {
-        val parameterCount = p.callee match {
-          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
-          case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
-          case base: ap.Symbolic => base.symb match {
-            case fsym: st.WithArguments => fsym.args.length
-          }
-        }
-        sequence(p.args map exprD(ctx)).map {
-          // go function chaining feature
-          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
-          case dargs => dargs
-        }
-      }
-
-      def encodeResults(): (in.Type, Vector[in.LocalVar]) = p.callee match {
-        // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
-        case f: ap.BuiltInFunctionKind =>
-          val ft = getBuiltInFuncType(f)
-          val resT = typeD(ft.result, Addressability.callResult)(src)
-          val targets = resT match {
-            case in.VoidT => Vector()
-            case _ => Vector(freshExclusiveVar(resT)(src))
-          }
-          (resT, targets)
-        case base: ap.Symbolic => base.symb match {
-          case fsym: st.WithResult =>
-            val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
-            val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
-            (resT, targets)
-        }
-      }
-
       def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
         case ap.Function(id, _) => functionProxy(id)
         case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
       }
+
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
         case ap.ReceivedMethod(_, id, _, _) => methodProxy(id)
         case ap.MethodExpr(_, id, _, _) => methodProxy(id)
@@ -1036,9 +1004,38 @@ object Desugar {
       }
 
       // encode arguments
-      val dArgs = encodeArgs()
+      val dArgs = {
+        val parameterCount = p.callee match {
+          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+          case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
+          case base: ap.Symbolic => base.symb match {
+            case fsym: st.WithArguments => fsym.args.length
+          }
+        }
+        sequence(p.args map exprD(ctx)).map {
+          // go function chaining feature
+          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
+          case dargs => dargs
+        }
+      }
       // encode results
-      val (resT, targets) = encodeResults()
+      val (resT, targets) = p.callee match {
+        // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+        case f: ap.BuiltInFunctionKind =>
+          val ft = getBuiltInFuncType(f)
+          val resT = typeD(ft.result, Addressability.callResult)(src)
+          val targets = resT match {
+            case in.VoidT => Vector()
+            case _ => Vector(freshExclusiveVar(resT)(src))
+          }
+          (resT, targets)
+        case base: ap.Symbolic => base.symb match {
+          case fsym: st.WithResult =>
+            val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
+            val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
+            (resT, targets)
+        }
+      }
       val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
 
       val isPure = p.callee match {
@@ -1383,57 +1380,53 @@ object Desugar {
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PPredConstructor(base, args) => (base, info.regular(base.id)) match {
-            case (PFPredBase(id), _: st.FPredicate) =>
-              val proxy = fpredicateProxy(id)
-              val idT = info.typ(base.id) match {
-                case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-              }
-              for {
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
-            case (PFPredBase(_), st.BuiltInFPredicate(tag, _, _)) =>
-              for {
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-                proxy = {
-                  // the type checker ensures that all arguments are applied
-                  val dAppliedArgs = dArgs.flatten
-                  violation(dAppliedArgs.length == dArgs.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
-                  fpredicateProxy(tag, dAppliedArgs.map(_.typ))(src)
+          case PPredConstructor(base, args) =>
+            def getFPredProxy(args: Vector[Option[in.Expr]]) = info.regular(base.id) match {
+              case _: st.FPredicate => fpredicateProxy(base.id)
+              case st.BuiltInFPredicate(tag, _, _) =>
+                // the type checker ensures that all arguments are applied
+                val appliedArgs = args.flatten
+                violation(appliedArgs.length == args.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
+                fpredicateProxy(tag, appliedArgs.map(_.typ))(src)
+            }
+            def getMPredProxy(recvT: in.Type, argsT: Vector[in.Type]) = info.regular(base.id) match {
+              case _: st.MPredicate => mpredicateProxyD(base.id)
+              case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
+            }
+            base match {
+              case PFPredBase(id) =>
+                val idT = info.typ(id) match {
+                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                  case _: AbstractType =>
+                    // the type checker ensures that all arguments are applied
+                    in.PredT(Vector(), Addressability.rValue) // all arguments are applied
+                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
                 }
-                idT = in.PredT(Vector(), Addressability.rValue) // all arguments are applied
-              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+                for {
+                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                  proxy = getFPredProxy(dArgs)
+                } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
 
-            case (p@PMPredBase(_), _: st.MPredicate) =>
-              val proxy = mpredicateProxyD(p.id)
-              val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
-              val idT = info.typ(p.id) match {
-                case FunctionT(args, AssertionT) =>
-                  in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-              }
-              for {
-                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
-
-            case (p@PMPredBase(_), st.BuiltInMPredicate(tag, _, _)) =>
-              val recvT = info.typOfExprOrType(p.recv)
-              val recvTD = typeD(recvT, Addressability.rValue)(src)
-              val abstractType = tag.typ(config)
-              Violation.violation(abstractType.typing.isDefinedAt(Vector(recvT)), s"expected that tag $tag is defined for receiver $recvT")
-              val (idT, proxy) = abstractType.typing(Vector(recvT)) match {
-                case FunctionT(args, AssertionT) =>
-                  val argsT = args.map(typeD(_, Addressability.rValue)(src))
-                  (in.PredT(recvTD +: argsT, Addressability.rValue),
-                    mpredicateProxy(tag, recvTD, argsT)(src))
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-              }
-              for {
-                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-            } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+              case p@PMPredBase(_) =>
+                val recvTyp = info.typOfExprOrType(p.recv)
+                val recvT = typeD(recvTyp, Addressability.rValue)(src)
+                val argsTyp = info.typ(p.id) match {
+                  case FunctionT(args, AssertionT) => args
+                  case at: AbstractType =>
+                    Violation.violation(at.typing.isDefinedAt(Vector(recvTyp)), s"expected that built-in mpredicate ${p.recvWithId} is defined for receiver $recvT")
+                    at.typing(Vector(recvTyp)) match {
+                      case FunctionT(args, AssertionT) => args
+                      case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                    }
+                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                }
+                val argsT = argsTyp.map(typeD(_, Addressability.rValue)(src))
+                val proxy = getMPredProxy(recvT, argsT)
+                val idT = in.PredT(recvT +: argsT, Addressability.rValue)
+                for {
+                  dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
           }
 
           case e => Violation.violation(s"desugarer: $e is not supported")

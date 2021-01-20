@@ -45,24 +45,26 @@ func parallelSum(s []int) {
 
 	n := len(s)
 
-	// TODO: what is the best time to call w.Start?
-
-	assert acc(w.WaitGroupStarted(), 0/1)
-	// invariant acc(w.WaitGroupP(), _) &&  acc(c, _) // && acc(c.m, _)
-	// invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum!>;
-	invariant acc(w.WaitGroupP()) //, (n + 1 - i)/(n + 1))
-	invariant !w.WaitMode() // && acc(w.UnitDebt(sync.pred_true!<!>), i/1)
+	invariant i >= 0
+	invariant i == 0 ==> w.WaitGroupP()
+	invariant i > 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	// Martin suggested the following line instead of the previous one, with the goal of
+	// deleting the invariant `i >= 0`. However, that is insufficient to prove the loop invariant
+	// invariant i != 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	invariant !w.WaitMode()
 	invariant acc(c, _)
 	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum!>;
 	for i := 0; i < n; i++ {
 		// { w.WaitGroupP() && !w.WaitMode() }
-		w.Add(1, 1, 1, sync.pred_true!<!>)
+		w.Add(1, 1, 2, sync.pred_true!<!>)
+		ghost if i == 0 {
+			w.Start(1, 2, sync.pred_true!<!>)
+		}
 		// { w.WaitGroupP() && !w.WaitMode() && }
 		go worker(w, c, s[i] /*, 1, n+1*/)
 	}
 
-	// w.Start(1, 2, sync.pred_true!<!>)
-	// w.SetWaitMode(1, 2, 1, 2)
+	// w.SetWaitMode(1, 2, 1, 2) // failing!
 	/*
 	fold sync.pred_true!<!>()
 	w.GenerateToken(sync.pred_true!<!>)

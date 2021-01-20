@@ -281,7 +281,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => false // Might change at some point
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
-        case (Left(_), Some(p: ap.PredExprInstance)) => !strong
+        case (Left(_), Some(_: ap.PredicateCall)) => !strong
+        case (Left(_), Some(_: ap.PredExprInstance)) => !strong
         case _ => false
       }
 

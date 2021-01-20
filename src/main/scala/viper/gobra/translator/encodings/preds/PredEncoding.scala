@@ -46,7 +46,7 @@ class PredEncoding extends LeafTypeEncoding {
     * (1) exclusive operations on T, which includes literals and default values
     *
     * [Q{d1, ..., dk}: pred(S)] -> make_S_ID([d1], ..., [dk]) where ID is the ID for the pattern used in Q{d1, ..., dk}
-    * [dflt(Pred(ts)°)] -> default() where default is a 0-ary function in the domain with name domainName(embedPredType(ts))
+    * [dflt(Pred(ts)°)] -> default() where default is a 0-ary function in the domain
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 

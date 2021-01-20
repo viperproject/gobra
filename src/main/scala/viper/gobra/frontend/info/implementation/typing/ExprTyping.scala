@@ -309,23 +309,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case p@PPredConstructor(base, _) => base match {
-      case base@(_: PFPredBase | _: PDottedBase) =>
-        idType(base.id) match {
-          case FunctionT(args, AssertionT) =>
-            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
-            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
-            val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
-            if(givenArgs.isEmpty && expectedArgs.isEmpty) {
-              noMessages
-            } else {
-              multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
-                p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
-            }
-          case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
-        }
-    }
+    case p@PPredConstructor(base, _) => {
+      def wellTypedApp(base: PPredConstructorBase): Messages = predConstructorBaseType(base) match {
+        case FunctionT(args, AssertionT) =>
+          val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+          val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+          val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
+          if (givenArgs.isEmpty && expectedArgs.isEmpty) {
+            noMessages
+          } else {
+            multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+              p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+          }
+        case t => error(p, s"expected base of function type, got ${base.id} of type $t")
+      }
 
+      def validBase(base: PPredConstructorBase): Messages = base match {
+        case PFPredBase(_) => noMessages
+        case base: PDottedBase => resolve(base.recvWithId) match {
+          case Some(_: ap.PredicateExpr) =>
+            error(base, s"predicate expressions are not valid bases of predicate constructors")
+          case Some(_: ap.Predicate | _: ap.ReceivedPredicate) => noMessages
+          case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
+        }
+      }
+
+      validBase(base) ++ wellTypedApp(base)
+    }
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
@@ -435,14 +445,21 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case Some(_: ap.Predicate) =>
             val recvWithIdT = exprOrTypeType(p.recvWithId)
             PredT(recvWithIdT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
-          case Some(_: ap.PredicateExpr) => ??? // Predicate expressions are not supported at the moment
-          case _ =>
-            val idT = idType(p.id)
-            PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+          case Some(_: ap.ReceivedPredicate) =>
+            val recvWithIdT = exprOrTypeType(p.recvWithId)
+            PredT(recvWithIdT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+          case Some(_: ap.PredicateExpr) =>
+            violation("predicate expressions are not supported in predicate constructors")
+          case _ => violation(s"unexpected base $base for predicate constructor")
         }
       }
 
     case e => violation(s"unexpected expression $e")
+  }
+
+  private def predConstructorBaseType(base: PPredConstructorBase): Type = base match {
+    case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)
+    case PFPredBase(id) => idType(id)
   }
 
   /** Returns a non-interface type that is implied by the context if the numeric expression is an untyped

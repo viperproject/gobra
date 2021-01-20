@@ -1194,7 +1194,7 @@ object Desugar {
                     dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
                   } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
 
-                case _ => handleFPredBase(p)
+                case Some(_: ap.Predicate) => handleFPredBase(p)
               }
             }
 

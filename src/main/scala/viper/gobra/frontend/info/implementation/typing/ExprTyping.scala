@@ -51,8 +51,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.Predicate) => noMessages
-        // TODO: supporting packages results in further options: global variable
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression or an imported member, but got $n")
+        // TODO: fully supporting packages results in further options: global variable
+        // built-in members
+        case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
+          case t: AbstractType => t.messages(n, Vector(exprType(p.recv)))
+          case t => error(n, s"expected an AbstractType for built-in method but got $t")
+        }
+        case Some(p: ap.BuiltInReceivedPredicate) => memberType(p.symb) match {
+          case t: AbstractType => t.messages(n, Vector(exprType(p.recv)))
+          case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
+        }
+        case Some(p: ap.BuiltInMethodExpr) => memberType(p.symb) match {
+          case t: AbstractType => t.messages(n, Vector(symbType(p.typ)))
+          case t => error(n, s"expected an AbstractType for built-in method but got $t")
+        }
+        case Some(p: ap.BuiltInPredicateExpr) => memberType(p.symb) match {
+          case t: AbstractType => t.messages(n, Vector(symbType(p.typ)))
+          case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
+        }
+
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -96,7 +114,38 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
 
-        // TODO: supporting packages results in further options: global variable
+        // TODO: fully supporting packages results in further options: global variable
+
+        // built-in members
+        case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
+          case t: AbstractType =>
+            val recvType = exprType(p.recv)
+            if (t.typing.isDefinedAt(Vector(recvType))) t.typing(Vector(recvType))
+            else violation(s"expected AbstractType to be defined for $recvType")
+          case t => violation(s"a built-in method should be typed to a AbstractType, but got $t")
+        }
+        case Some(p: ap.BuiltInReceivedPredicate) => memberType(p.symb) match {
+          case t: AbstractType =>
+            val recvType = exprType(p.recv)
+            if (t.typing.isDefinedAt(Vector(recvType))) t.typing(Vector(recvType))
+            else violation(s"expected AbstractType to be defined for $recvType")
+          case t => violation(s"a built-in mpredicate should be typed to a AbstractType, but got $t")
+        }
+        case Some(p: ap.BuiltInMethodExpr) => memberType(p.symb) match {
+          case t: AbstractType =>
+            val recvType = typeSymbType(p.typ)
+            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)), recvType)
+            else violation(s"expected AbstractType to be defined for $recvType")
+          case t => violation(s"a built-in method should be typed to a AbstractType, but got $t")
+        }
+        case Some(p: ap.BuiltInPredicateExpr) => memberType(p.symb) match {
+          case t: AbstractType =>
+            val recvType = typeSymbType(p.typ)
+            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)), recvType)
+            else violation(s"expected AbstractType to be defined for $recvType")
+          case t => violation(s"a built-in mpredicate should be typed to a AbstractType, but got $t")
+        }
+
         case p => violation(s"expected field selection, method or predicate with a receiver, method expression, or predicate expression pattern, but got $p")
       }
 
@@ -150,21 +199,26 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t => error(n, s"type error: got $t but expected function type")
+          case t: AbstractType => t.messages(n, n.args map exprType)
+          case t => error(n, s"type error: got $t but expected function type or AbstractType")
         }
 
       case (Left(callee), Some(p: ap.PredicateCall)) => // TODO: Maybe move case to other file
         val pureReceiverMsgs = p.predicate match {
           case _: ap.Predicate => noMessages
           case _: ap.PredicateExpr => noMessages
+          case _: ap.BuiltInPredicate => noMessages
+          case _: ap.BuiltInPredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
+          case brp: ap.BuiltInReceivedPredicate => isPureExpr(brp.recv)
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
         val argAssignMsgs = exprType(callee) match {
           case FunctionT(args, _) => // TODO: add special assignment
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
-          case t => error(n, s"type error: got $t but expected function type")
+          case t: AbstractType => t.messages(n, n.args map exprType)
+          case t => error(n, s"type error: got $t but expected function type or AbstractType")
         }
         pureReceiverMsgs ++ pureArgsMsgs ++ argAssignMsgs
 
@@ -322,6 +376,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
                 p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
             }
+          case abstractT: AbstractType =>
+            // contextual information would be necessary to predict the constructor's return type (i.e. to find type of unapplied arguments)
+            // right now we only support fully applied arguments for built-in predicates
+            val givenArgs = p.args.flatten
+            if (givenArgs.length != p.args.length) {
+              error(p, s"partial application is not supported for built-in predicates")
+            } else {
+              val givenArgTypes = givenArgs map exprType
+              val msgs = abstractT.messages(p, givenArgTypes)
+              if (msgs.nonEmpty) {
+                msgs
+              } else {
+                // the typing function should be defined for these arguments as `msgs` is empty
+                abstractT.typing(givenArgTypes) match {
+                  case FunctionT(args, AssertionT) =>
+                    if (givenArgs.isEmpty && args.isEmpty) {
+                      noMessages
+                    } else {
+                      multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
+                        p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+                    }
+                  case t => error(p, s"expected function type for resolved AbstractType but got $t")
+                }
+              }
+            }
           case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
         }
     }
@@ -358,13 +437,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
       case (Right(_), Some(p: ap.Conversion)) => typeSymbType(p.typ)
-      case (Left(callee), Some(_: ap.PredExprInstance)) =>
+      case (Left(_), Some(_: ap.PredExprInstance)) =>
         // a PInvoke on a predicate expression instance must fully apply the predicate arguments
         AssertionT
       case (Left(callee), Some(_: ap.FunctionCall | _: ap.PredicateCall)) =>
         exprType(callee) match {
           case FunctionT(_, res) => res
-          case t => violation(s"expected function type but got $t") //(error(n, s""))
+          case t: AbstractType =>
+            val argTypes = n.args map exprType
+            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes)
+            else violation(s"expected typing function in AbstractType to be defined for $argTypes")
+          case t => violation(s"expected function type or AbstractType but got $t")
         }
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
@@ -429,12 +512,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PPredConstructor(base, args) =>
       base match {
         case PFPredBase(id) =>
-          val idT = idType(id)
-          PredT(idT.asInstanceOf[FunctionT].args.zip(args).collect{ case (typ, None) => typ })
+          idType(id) match {
+            case FunctionT(fnArgs, AssertionT) =>
+              PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
+            case _: AbstractType =>
+              PredT(Vector()) // because partial application is not supported yet for built-in predicates
+            case t => violation(s"expected function or AbstractType for base of a predicate constructor but got $t")
+          }
         case p: PMPredBase =>
-          val idT = idType(p.id)
-          PredT(idT.asInstanceOf[FunctionT].args.tail.zip(args).collect{ case (typ, None) => typ })
+          idType(p.id) match {
+            case FunctionT(fnArgs, AssertionT) =>
+              // ignore first entry of fnArgs as this corresponds to the receiver (which cannot be unapplied)
+              PredT(fnArgs.tail.zip(args).collect{ case (typ, None) => typ })
+            case _: AbstractType =>
+              PredT(Vector()) // because partial application is not supported yet for built-in predicates
+            case t => violation(s"expected function or AbstractType for base of a predicate constructor but got $t")
+          }
       }
+
 
     case e => violation(s"unexpected expression $e")
   }

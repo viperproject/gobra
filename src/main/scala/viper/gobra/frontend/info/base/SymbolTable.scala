@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Entity, Environments}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
 
 
 object SymbolTable extends Environments[Entity] {
@@ -218,5 +219,28 @@ object SymbolTable extends Environments[Entity] {
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
+
+
+  /**
+    * entities for built-in members
+    */
+  sealed trait BuiltInEntity extends Regular {
+    def tag: BuiltInMemberTag
+  }
+  sealed trait BuiltInActualEntity extends BuiltInEntity with ActualRegular {
+    override def ghost: Boolean = tag.ghost
+  }
+  sealed trait BuiltInGhostEntity extends BuiltInEntity with GhostRegular
+
+  sealed trait BuiltInMethodLike extends BuiltInEntity with TypeMember
+
+  case class BuiltInFunction(tag: BuiltInFunctionTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity {
+    def isPure: Boolean = tag.isPure
+  }
+  case class BuiltInMethod(tag: BuiltInMethodTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInActualEntity with BuiltInMethodLike with ActualTypeMember {
+    def isPure: Boolean = tag.isPure
+  }
+  case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
+  case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
 
 }

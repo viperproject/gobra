@@ -33,5 +33,6 @@ trait TranslatorConfig {
   def method: Methods
   def pureMethod: PureMethods
   def predicate: Predicates
+  def builtInMembers: BuiltInMembers
   def stmt: Statements
 }

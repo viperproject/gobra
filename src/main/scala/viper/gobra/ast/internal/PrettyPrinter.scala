@@ -123,6 +123,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
+    case n: BuiltInMember => showBuiltInMember(n)
   })
 
   def showFunction(f: Function): Doc = f match {
@@ -163,6 +164,24 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     "const" <+> showVarDecl(globalConst.left) <+> "=" <+> showLit(globalConst.right)
   }
 
+  def showBuiltInMember(member: BuiltInMember): Doc = {
+    // return arguments, contracts, and potential bodies are not known to the internal representation
+    def makeRecv(receiverT: Type): Parameter.In = Parameter.In("recv", receiverT)(member.info)
+    val args: Vector[Parameter.In] = member.argsT.zipWithIndex.map {
+      case (argT, idx) => Parameter.In(s"arg$idx", argT)(member.info)
+    }
+    member match {
+      case BuiltInMethod(receiverT, tag, name, _) =>
+        (if (tag.isPure) "pure" <> space else emptyDoc) <> "func" <+> parens(showVarDecl(makeRecv(receiverT))) <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInFunction(tag, name, _) =>
+        (if (tag.isPure) "pure" <> space else emptyDoc) <> "func" <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInFPredicate(_, name, _) =>
+        "pred" <+> name.name <> parens(showFormalArgList(args))
+      case BuiltInMPredicate(receiverT, _, name, _) =>
+        "pred" <+> parens(showVarDecl(makeRecv(receiverT))) <+> name.name <> parens(showFormalArgList(args))
+    }
+  }
+
   def showField(field: Field): Doc = updatePositionStore(field) <> (field match {
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
@@ -193,7 +212,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
-    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+    case MakeChannel(target, typeParam, bufferSizeArg, _) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, typeParam, initialSpaceArg) =>
@@ -223,6 +242,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
+    case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   })
@@ -346,6 +368,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
+    case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
     case OptionNone(t) => "none" <> brackets(showType(t))
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
@@ -462,6 +485,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredT(args, _) => "pred" <> parens(showTypeList(args))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case _: InterfaceT => "interface" <> parens("...")
+    case ChannelT(elem, _) => "chan" <+> showType(elem)
     case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
@@ -537,7 +561,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case MakeSlice(target, typeParam, lenArg, capArg) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> comma <+> showExprList(lenArg +: capArg.toVector))
 
-    case MakeChannel(target, typeParam, bufferSizeArg) => showVar(target) <+> "=" <+> "make" <>
+    case MakeChannel(target, typeParam, bufferSizeArg, _) => showVar(target) <+> "=" <+> "make" <>
       parens(showType(typeParam) <> opt(bufferSizeArg)(comma <+> showExpr(_)))
 
     case MakeMap(target, typeParam, initialSpaceArg) =>
@@ -568,6 +592,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
+    case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   }

@@ -126,5 +126,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
     case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
+
+    case BuiltInMethod(tag, _, _) => tag.typ(config)
   }
 }

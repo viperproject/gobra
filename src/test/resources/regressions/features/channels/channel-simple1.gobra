@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// "sendChan.SendChannel()" should be equivalent to "(chan<- int).SendChannel(sendChan)"
+requires sendChan.SendChannel()
+func sendChannelPred1(sendChan chan<- int) {
+    assert (chan<- int).SendChannel(sendChan)
+    // the received predicate should be the same one as the predicate expression, i.e. the precondition should
+    // be satisfiable
+    sendChannelPred2(sendChan)
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+requires (chan<- int).SendChannel(sendChan)
+ensures sendChan.SendChannel()
+func sendChannelPred2(sendChan chan<- int) {
+
+}

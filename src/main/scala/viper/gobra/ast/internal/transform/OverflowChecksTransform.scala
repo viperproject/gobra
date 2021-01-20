@@ -114,7 +114,7 @@ object OverflowChecksTransform extends InternalTransform {
     case m@MakeSlice(_, _, arg1, optArg2) =>
       Seqn(genOverflowChecksExprs(arg1 +: optArg2.toVector) :+ m)(m.info)
 
-    case m@MakeChannel(_, _, optArg) =>
+    case m@MakeChannel(_, _, optArg, _) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
     case m@MakeMap(_, _, optArg) =>

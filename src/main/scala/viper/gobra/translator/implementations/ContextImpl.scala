@@ -33,6 +33,7 @@ case class ContextImpl(
                         method: Methods,
                         pureMethod: PureMethods,
                         predicate: Predicates,
+                        builtInMembers: BuiltInMembers,
                         stmt: Statements,
                         table: LookupTable
                       ) extends Context {
@@ -58,6 +59,7 @@ case class ContextImpl(
       conf.method,
       conf.pureMethod,
       conf.predicate,
+      conf.builtInMembers,
       conf.stmt,
       table
     )
@@ -84,6 +86,7 @@ case class ContextImpl(
                    methodN: Methods = method,
                    pureMethodN: PureMethods = pureMethod,
                    predicateN: Predicates = predicate,
+                   builtInMembersN: BuiltInMembers = builtInMembers,
                    stmtN: Statements = stmt,
                  ): Context = copy(
     fieldN,
@@ -105,6 +108,7 @@ case class ContextImpl(
     methodN,
     pureMethodN,
     predicateN,
+    builtInMembersN,
     stmtN
   )
 

@@ -80,7 +80,7 @@ trait LeafTypeEncoding extends TypeEncoding {
     *
     * Footprint[loc: T@, perm] -> acc([loc], [perm])
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
     case (loc :: t / Shared, p) if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
       for {

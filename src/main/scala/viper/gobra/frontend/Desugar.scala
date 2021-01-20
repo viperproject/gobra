@@ -9,14 +9,18 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
-import viper.gobra.frontend.info.base.{Type, SymbolTable => st}
+import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.ast.internal.{DfltVal, Lit, LocalVar}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
+import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, Violation}
+
+import scala.collection.Iterable
+import scala.reflect.ClassTag
 
 object Desugar {
 
@@ -25,11 +29,11 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)
+      val d = new Desugarer(importedPackage.positions, typeInfo)(config)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)
+    val mainDesugarer = new Desugarer(pkg.positions, info)(config)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
@@ -41,15 +45,52 @@ object Desugar {
     val importedPrograms = imported.map(_._2)
     val types = mainProgram.types ++ importedPrograms.flatMap(_.types)
     val members = mainProgram.members ++ importedPrograms.flatMap(_.members)
+    val (table, builtInMembers) = combineLookupTable(mainDesugarer +: importedDesugarers.toSeq)
+    in.Program(types, builtInMembers.toVector ++ members, table)(mainProgram.info)
+  }
+
+  /**
+    * Combines the lookup tables of multiple desugarers incl. taking built-in members into account.
+    * As a by-product, all built-in members that are used in all desugarers will be returned.
+    */
+  private def combineLookupTable(desugarers: Iterable[Desugarer]): (in.LookupTable, Iterable[in.Member]) = {
+    // note that the same built-in member might exist in multiple tables. Thus, we need to deduplicate.
+    // however, a sanity check is performed that filtered built-in members are actually equal
+    def combineTableFieldForBuiltInMember[M <: in.BuiltInMember : ClassTag,P <: in.Proxy](getProxy: M => P): Map[P, M] = {
+      // apply `f` to every desugarer and filter the resulting maps to only contain values of type `M`
+      val res: Iterable[Map[_, M]] = desugarers.map(_.builtInMembers).map(memberMap => memberMap.collect {
+        case (tag, m: M) => (tag, m) // note that checking for type `M` here works only because of `: ClassTag`
+      })
+      // combine maps and group by key to get a list of values per key:
+      val duplicateMap = res.flatMap(_.toSeq).groupMap(_._1)(_._2)
+      // sanity check that all values for a particular key are equal:
+      val deduplicatedMap = duplicateMap map {
+        // the first case should never occur since every key has to have at least one value coming from any input map
+        case (key, values) if values.isEmpty => violation(s"found a built-in member key ($key) for which no member exists")
+        case (key, values) =>
+          val set = values.toSet // deduplicate by converting values to a set
+          violation(set.size == 1, s"built-in member is not unique, found ${set.mkString(",")} for key $key")
+          val member: M = set.head
+          (getProxy(member), member) // use proxy as key
+      }
+      deduplicatedMap
+    }
+
     def combineTableField[X,Y](f: Desugarer => Map[X,Y]): Map[X,Y] =
-      f(mainDesugarer) ++ importedDesugarers.flatMap(f)
+      desugarers.flatMap(f).toMap
+
+    val builtInMethods = combineTableFieldForBuiltInMember((m: in.BuiltInMethod) => m.name)
+    val builtInFunctions = combineTableFieldForBuiltInMember((m: in.BuiltInFunction) => m.name)
+    val builtInMPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
+    val builtInFPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
     val table = new in.LookupTable(
       combineTableField(_.definedTypes),
-      combineTableField(_.definedMethods),
-      combineTableField(_.definedFunctions),
-      combineTableField(_.definedMPredicates),
-      combineTableField(_.definedFPredicates))
-    in.Program(types, members, table)(mainProgram.info)
+      combineTableField(_.definedMethods) ++ builtInMethods,
+      combineTableField(_.definedFunctions) ++ builtInFunctions,
+      combineTableField(_.definedMPredicates) ++ builtInMPredicates,
+      combineTableField(_.definedFPredicates) ++ builtInFPredicates)
+    val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
+    (table, builtInMembers)
   }
 
   object NoGhost {
@@ -59,7 +100,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo)(config: Config) {
 
     // TODO: clean initialization
 
@@ -97,7 +138,7 @@ object Desugar {
       in.FunctionProxy(name)(meta(decl))
     }
 
-    def functionProxyD(id: PIdnUse): in.FunctionProxy = {
+    def functionProxy(id: PIdnUse): in.FunctionProxy = {
       val name = idName(id)
       in.FunctionProxy(name)(meta(id))
     }
@@ -117,7 +158,7 @@ object Desugar {
       in.FPredicateProxy(name)(meta(decl))
     }
 
-    def fpredicateProxyD(id: PIdnUse): in.FPredicateProxy = {
+    def fpredicateProxy(id: PIdnUse): in.FPredicateProxy = {
       val name = idName(id)
       in.FPredicateProxy(name)(meta(id))
     }
@@ -131,6 +172,72 @@ object Desugar {
       val name = idName(id)
       in.MPredicateProxy(id.name, name)(meta(id))
     }
+
+
+    // proxies to built-in members
+    def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
+      val inRecv = recv.withAddressability(Addressability.inParameter)
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+
+      def create(): in.BuiltInMethod = {
+        val proxy = in.MethodProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
+        in.BuiltInMethod(inRecv, tag, proxy, inArgs)(src)
+      }
+
+      memberProxy(tag, inArgs, create).name
+    }
+
+    def functionProxy(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionProxy = {
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+
+      def create(): in.BuiltInFunction = {
+        val proxy = in.FunctionProxy(nm.builtInMember(tag, inArgs))(src)
+        in.BuiltInFunction(tag, proxy, inArgs)(src)
+      }
+
+      memberProxy(tag, inArgs, create).name
+    }
+
+    var builtInFPredicates: Map[(BuiltInFPredicateTag, Vector[in.Type]), in.BuiltInFPredicate] = Map.empty
+    def fpredicateProxy(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicateProxy = {
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+
+      def create(): in.BuiltInFPredicate = {
+        val proxy = in.FPredicateProxy(nm.builtInMember(tag, inArgs))(src)
+        in.BuiltInFPredicate(tag, proxy, inArgs)(src)
+      }
+
+      memberProxy(tag, inArgs, create).name
+    }
+
+    var builtInMPredicates: Map[(BuiltInMPredicateTag, Vector[in.Type]), in.BuiltInMPredicate] = Map.empty
+    def mpredicateProxy(tag: BuiltInMPredicateTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MPredicateProxy = {
+      val inRecv = recv.withAddressability(Addressability.inParameter)
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+
+      def create(): in.BuiltInMPredicate = {
+        val proxy = in.MPredicateProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
+        in.BuiltInMPredicate(inRecv, tag, proxy, inArgs)(src)
+      }
+
+      memberProxy(tag, Vector(inRecv), create).name
+    }
+
+
+    var builtInMembers: Map[(BuiltInMemberTag, Vector[in.Type]), in.BuiltInMember] = Map.empty
+    def memberProxy[M <: in.BuiltInMember](tag: BuiltInMemberTag, args: Vector[in.Type], createMember: () => M): M = {
+      def genAndStore(): M = {
+        val member = createMember()
+        builtInMembers += (tag, args) -> member
+        member
+      }
+
+      val filteredMembers: Map[(BuiltInMemberTag, Vector[in.Type]), M] = builtInMembers.collect {
+        case ((t, as), m: M@unchecked) => (t, as) -> m
+      }
+      filteredMembers.getOrElse((tag, args), genAndStore())
+    }
+
 
     class FunctionContext(
                            val ret: Vector[in.Expr] => Meta => in.Stmt,
@@ -171,11 +278,15 @@ object Desugar {
         case _ => Vector.empty
       }
 
-      consideredDecls.foreach{
+      consideredDecls.foreach {
         case NoGhost(x: PTypeDef) => desugarAllTypeDefVariants(x)
         case _ =>
       }
 
+      // built-in members are not (yet) added to the program's members or the lookup table
+      // instead, they remain only accessible via this desugarer's getter function.
+      // The `combine` function will treat all built-in members across packages (i.e. desugarers) and update the
+      // program's members and lookup table accordingly
       val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
 
       in.Program(types.toVector, dMembers, table)(meta(p))
@@ -187,7 +298,7 @@ object Desugar {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
-        val intLit: Lit = gVar.typ match {
+        val intLit: in.Lit = gVar.typ match {
           case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
@@ -776,12 +887,21 @@ object Desugar {
               case _ => unexpectedExprError(exp)
             }
 
+          case PSendStmt(channel, msg) =>
+            for {
+              dchannel <- goE(channel)
+              dmsg <- goE(msg)
+              sendChannelProxy = mpredicateProxy(BuiltInMemberTag.SendChannelMPredTag, dchannel.typ, Vector())(src)
+              sendGivenPermProxy = methodProxy(BuiltInMemberTag.SendGivenPermMethodTag, dchannel.typ, Vector())(src)
+              sendGotPermProxy = methodProxy(BuiltInMemberTag.SendGotPermMethodTag, dchannel.typ, Vector())(src)
+            } yield in.Send(dchannel, dmsg, sendChannelProxy, sendGivenPermProxy, sendGotPermProxy)(src)
+
           case _ => ???
         }
       }
     }
 
-    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
       switchCase match {
         case PExprSwitchCase(left, body) => for {
           acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
@@ -810,6 +930,22 @@ object Desugar {
             )
           )(src)
 
+        case n: in.Receive if lefts.size == 2 =>
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
+          val recvChannelProxy = n.recvChannel
+          val recvGivenPermProxy = n.recvGivenPerm
+          val recvGotPermProxy = n.recvGotPerm
+          val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, n.channel.typ, Vector())(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector(
+              in.SafeReceive(resTarget, successTarget, n.channel, recvChannelProxy, recvGivenPermProxy, recvGotPermProxy, closedProxy)(n.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
+
 
         case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
       }
@@ -831,80 +967,142 @@ object Desugar {
     }
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
-      p.callee match {
-        case base: ap.Symbolic =>
-          base.symb match {
-            case fsym: st.WithArguments with st.WithResult => // all patterns that have a callable symbol: function, received method, method expression
-              // encode arguments
-              val dArgs = sequence(p.args map exprD(ctx)).map {
-                // go function chaining feature
-                case Vector(in.Tuple(targs)) if fsym.args.size > 1 => targs
-                case dargs => dargs
-              }
+      def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
+        val abstractType = f.symb.tag.typ(config)
+        val argsForTyping = f match {
+          case _: ap.BuiltInFunction =>
+            p.args.map(info.typ)
+          case base: ap.BuiltInReceivedMethod =>
+            Vector(info.typ(base.recv))
+          case base: ap.BuiltInMethodExpr =>
+            Vector(info.symbType(base.typ))
+        }
+        Violation.violation(abstractType.typing.isDefinedAt(argsForTyping), s"cannot type built-in member ${f.symb.tag} as it is not defined for arguments $argsForTyping")
+        abstractType.typing(argsForTyping)
+      }
 
-              // encode result
-              val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
-              val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
-              val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+      def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
+        case ap.Function(id, _) => functionProxy(id)
+        case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
+      }
 
-              base match {
-                case base: ap.Function =>
-                  val fproxy = functionProxyD(base.id)
+      def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
+        case ap.ReceivedMethod(_, id, _, _) => methodProxy(id)
+        case ap.MethodExpr(_, id, _, _) => methodProxy(id)
+        case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
+      }
 
-                  if (base.symb.isPure) {
-                    for {
-                      args <- dArgs
-                    } yield in.PureFunctionCall(fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      args <- dArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.FunctionCall(targets, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-
-                case base: ap.ReceivedMethod =>
-                  val fproxy = methodProxy(base.id)
-
-                  val dRecv = for {
-                    r <- exprD(ctx)(base.recv)
-                  } yield applyMemberPathD(r, base.path)(src)
-
-                  if (base.symb.isPure) {
-                    for {
-                      recv <- dRecv
-                      args <- dArgs
-                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      recv <- dRecv
-                      args <- dArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-
-                case base: ap.MethodExpr =>
-                  val fproxy = methodProxy(base.id)
-
-                  // first argument is the receiver, the remaining arguments are the rest
-                  val dRecvWithArgs = dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
-
-                  if (base.symb.isPure) {
-                    for {
-                      (recv, args) <- dRecvWithArgs
-                    } yield in.PureMethodCall(recv, fproxy, arguments(base.symb, args), resT)(src)
-                  } else {
-                    for {
-                      (recv, args) <- dRecvWithArgs
-                      _ <- declare(targets: _*)
-                      _ <- write(in.MethodCall(targets, recv, fproxy, arguments(base.symb, args))(src))
-                    } yield res
-                  }
-              }
-
-            case sym => Violation.violation(s"expected symbol with arguments and result, but got $sym")
+      def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
+        // implicitly convert arguments:
+        p.callee match {
+          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+          case f: ap.BuiltInFunctionKind => arguments(getBuiltInFuncType(f), args)
+          case base: ap.Symbolic => base.symb match {
+            case fsym: st.WithArguments => arguments(fsym, args)
           }
+        }
+      }
+
+      // encode arguments
+      val dArgs = {
+        val parameterCount = p.callee match {
+          // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+          case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
+          case base: ap.Symbolic => base.symb match {
+            case fsym: st.WithArguments => fsym.args.length
+          }
+        }
+        sequence(p.args map exprD(ctx)).map {
+          // go function chaining feature
+          case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
+          case dargs => dargs
+        }
+      }
+      // encode results
+      val (resT, targets) = p.callee match {
+        // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
+        case f: ap.BuiltInFunctionKind =>
+          val ft = getBuiltInFuncType(f)
+          val resT = typeD(ft.result, Addressability.callResult)(src)
+          val targets = resT match {
+            case in.VoidT => Vector()
+            case _ => Vector(freshExclusiveVar(resT)(src))
+          }
+          (resT, targets)
+        case base: ap.Symbolic => base.symb match {
+          case fsym: st.WithResult =>
+            val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
+            val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
+            (resT, targets)
+        }
+      }
+      val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
+
+      val isPure = p.callee match {
+        case base: ap.Symbolic => base.symb match {
+          case f: st.Function => f.isPure
+          case m: st.Method => m.isPure
+          case f: st.BuiltInFunction => f.isPure
+          case m: st.BuiltInMethod => m.isPure
+        }
+      }
+
+      p.callee match {
+        case base: ap.FunctionKind => base match {
+          case _: ap.Function | _: ap.BuiltInFunction =>
+            if (isPure) {
+              for {
+                args <- dArgs
+                convertedArgs = convertArgs(args)
+                fproxy = getFunctionProxy(base, convertedArgs)
+              } yield in.PureFunctionCall(fproxy, convertedArgs, resT)(src)
+            } else {
+              for {
+                args <- dArgs
+                _ <- declare(targets: _*)
+                convertedArgs = convertArgs(args)
+                fproxy = getFunctionProxy(base, convertedArgs)
+                _ <- write(in.FunctionCall(targets, fproxy, convertedArgs)(src))
+              } yield res
+            }
+          case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
+            val dRecvWithArgs = base match {
+              case base: ap.ReceivedMethod =>
+                for {
+                  r <- exprD(ctx)(base.recv)
+                  args <- dArgs
+                } yield (applyMemberPathD(r, base.path)(src), args)
+              case base: ap.MethodExpr =>
+                // first argument is the receiver, the remaining arguments are the rest
+                dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+              case base: ap.BuiltInReceivedMethod =>
+                for {
+                  r <- exprD(ctx)(base.recv)
+                  args <- dArgs
+                } yield (applyMemberPathD(r, base.path)(src), args)
+              case base: ap.BuiltInMethodExpr =>
+                // first argument is the receiver, the remaining arguments are the rest
+                dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+            }
+
+            if (isPure) {
+              for {
+                (recv, args) <- dRecvWithArgs
+                convertedArgs = convertArgs(args)
+                mproxy = getMethodProxy(base, recv, convertedArgs)
+              } yield in.PureMethodCall(recv, mproxy, convertedArgs, resT)(src)
+            } else {
+              for {
+                (recv, args) <- dRecvWithArgs
+                _ <- declare(targets: _*)
+                convertedArgs = convertArgs(args)
+                mproxy = getMethodProxy(base, recv, convertedArgs)
+                _ <- write(in.MethodCall(targets, recv, mproxy, convertedArgs)(src))
+              } yield res
+            }
+          }
+          case sym => Violation.violation(s"expected symbol with arguments and result or a built-in entity, but got $sym")
+        }
       }
     }
 
@@ -927,6 +1125,12 @@ object Desugar {
     def arguments(symb: st.WithArguments, args: Vector[in.Expr]): Vector[in.Expr] = {
       val c = args zip symb.args
       val assignments = c.map{ case (from, pTo) => (from, typeD(symb.context.symbType(pTo.typ), Addressability.inParameter)(from.info)) }
+      assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
+    }
+
+    def arguments(ft: FunctionT, args: Vector[in.Expr]): Vector[in.Expr] = {
+      val c = args zip ft.args
+      val assignments = c.map{ case (from, pTo) => (from, typeD(pTo, Addressability.inParameter)(from.info)) }
       assignments.map{ case (from, to) => implicitConversion(from.typ, to, from) }
     }
 
@@ -1134,6 +1338,14 @@ object Desugar {
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
             unit(freshExclusiveVar(typ)(src))
 
+          case PReceive(op) =>
+            for {
+              dop <- go(op)
+              recvChannel = mpredicateProxy(BuiltInMemberTag.RecvChannelMPredTag, dop.typ, Vector())(src)
+              recvGivenPerm = methodProxy(BuiltInMemberTag.RecvGivenPermMethodTag, dop.typ, Vector())(src)
+              recvGotPerm = methodProxy(BuiltInMemberTag.RecvGotPermMethodTag, dop.typ, Vector())(src)
+            } yield in.Receive(dop, recvChannel, recvGivenPerm, recvGotPerm)(src)
+
           case PMake(t, args) =>
             def elemD(t: Type): in.Type = typeD(t, Addressability.make)(src)
 
@@ -1149,7 +1361,10 @@ object Desugar {
 
               make: in.MakeStmt = info.symbType(t) match {
                 case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
-                case c@ChannelT(_, _) => in.MakeChannel(target, elemD(c), arg0)(src)
+                case c@ChannelT(_, _) =>
+                  val channelType = elemD(c).asInstanceOf[in.ChannelT]
+                  val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector(in.IntT(Addressability.inParameter)))(src)
+                  in.MakeChannel(target, channelType, arg0, isChannelProxy)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
               }
               _ <- write(make)
@@ -1161,35 +1376,57 @@ object Desugar {
             val target = freshExclusiveVar(targetT)(src)
             for {
               _ <- declare(target)
-              zero = DfltVal(allocatedType)(src)
+              zero = in.DfltVal(allocatedType)(src)
               _ <- write(in.New(target, zero)(src))
             } yield target
 
-          case PPredConstructor(base, args) => base match {
-            case PFPredBase(id) =>
-              val proxy = fpredicateProxyD(id)
-              val idT = info.typ(id) match {
-                case FunctionT(args, AssertionT) =>
-                  in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-              }
-              for {
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+          case PPredConstructor(base, args) =>
+            def getFPredProxy(args: Vector[Option[in.Expr]]) = info.regular(base.id) match {
+              case _: st.FPredicate => fpredicateProxy(base.id)
+              case st.BuiltInFPredicate(tag, _, _) =>
+                // the type checker ensures that all arguments are applied
+                val appliedArgs = args.flatten
+                violation(appliedArgs.length == args.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
+                fpredicateProxy(tag, appliedArgs.map(_.typ))(src)
+            }
+            def getMPredProxy(recvT: in.Type, argsT: Vector[in.Type]) = info.regular(base.id) match {
+              case _: st.MPredicate => mpredicateProxyD(base.id)
+              case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
+            }
+            base match {
+              case PFPredBase(id) =>
+                val idT = info.typ(id) match {
+                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                  case _: AbstractType =>
+                    // the type checker ensures that all arguments are applied
+                    in.PredT(Vector(), Addressability.rValue) // all arguments are applied
+                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                }
+                for {
+                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                  proxy = getFPredProxy(dArgs)
+                } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
 
-            case p@PMPredBase(_) =>
-              val proxy = mpredicateProxyD(p.id)
-              val recvT = typeD(info.typOfExprOrType(p.recv), Addressability.rValue)(src)
-              val idT = info.typ(p.id) match {
-                case FunctionT(args, AssertionT) =>
-                  in.PredT(recvT +: args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-              }
-
-              for {
-                dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
-                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-              } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+              case p@PMPredBase(_) =>
+                val recvTyp = info.typOfExprOrType(p.recv)
+                val recvT = typeD(recvTyp, Addressability.rValue)(src)
+                val argsTyp = info.typ(p.id) match {
+                  case FunctionT(args, AssertionT) => args
+                  case at: AbstractType =>
+                    Violation.violation(at.typing.isDefinedAt(Vector(recvTyp)), s"expected that built-in mpredicate ${p.recvWithId} is defined for receiver $recvT")
+                    at.typing(Vector(recvTyp)) match {
+                      case FunctionT(args, AssertionT) => args
+                      case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                    }
+                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+                }
+                val argsT = argsTyp.map(typeD(_, Addressability.rValue)(src))
+                val proxy = getMPredProxy(recvT, argsT)
+                val idT = in.PredT(recvT +: argsT, Addressability.rValue)
+                for {
+                  dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
+                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
           }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -1473,7 +1710,7 @@ object Desugar {
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
-      case Type.ChannelT(_, _) => ???
+      case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
@@ -1968,7 +2205,7 @@ object Desugar {
 
       p.predicate match {
         case b: ap.Predicate =>
-          val fproxy = fpredicateProxyD(b.id)
+          val fproxy = fpredicateProxy(b.id)
           unit(in.FPredicateAccess(fproxy, dArgs)(src))
 
         case b: ap.ReceivedPredicate =>
@@ -1980,6 +2217,21 @@ object Desugar {
         case b: ap.PredicateExpr =>
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxyD(b.id)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+
+        case b: ap.BuiltInPredicate =>
+          val fproxy = fpredicateProxy(b.id)
+          unit(in.FPredicateAccess(fproxy, dArgs)(src))
+
+        case b: ap.BuiltInReceivedPredicate =>
+          val dRecv = pureExprD(ctx)(b.recv)
+          val dRecvWithPath = applyMemberPathD(dRecv, b.path)(src)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
+          unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs)(src))
+
+        case b: ap.BuiltInPredicateExpr =>
+          val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
+          val proxy = mpredicateProxy(b.symb.tag, dRecvWithPath.typ, dArgs.map(_.typ))(src)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
       }
     }
@@ -2031,6 +2283,7 @@ object Desugar {
       for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
     }
 
+
     //    private def origin(n: PNode): in.Origin = {
 //      val start = pom.positions.getStart(n).get
 //      val finish = pom.positions.getFinish(n).get
@@ -2078,6 +2331,7 @@ object Desugar {
     private val STRUCT_PREFIX = "X"
     private val INTERFACE_PREFIX = "Y"
     private val GLOBAL_PREFIX = "G"
+    private val BUILTIN_PREFIX = "B"
 
     private var counter = 0
 
@@ -2111,6 +2365,32 @@ object Desugar {
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
+    }
+    private def stringifyType(typ: in.Type): String = typ match {
+      case _: in.BoolT => "Bool"
+      case in.IntT(_, kind) => s"Int${kind.name}"
+      case in.VoidT => ""
+      case _: in.PermissionT => "Permission"
+      case in.SortT => "Sort"
+      case in.ArrayT(len, elemT, _) => s"Array$len${stringifyType(elemT)}"
+      case in.SliceT(elemT, _) => s"Slice${stringifyType(elemT)}"
+      case in.SequenceT(elemT, _) => s"Sequence${stringifyType(elemT)}"
+      case in.SetT(elemT, _) => s"Set${stringifyType(elemT)}"
+      case in.MultisetT(elemT, _) => s"Multiset${stringifyType(elemT)}"
+      case in.OptionT(elemT, _) => s"Option${stringifyType(elemT)}"
+      case in.DefinedT(name, _) => s"Defined$name"
+      case in.PointerT(t, _) => s"Pointer${stringifyType(t)}"
+      // we use a dollar sign to mark the beginning and end of the type list to avoid that `Tuple(Tuple(X), Y)` and `Tuple(Tuple(X, Y))` map to the same name:
+      case in.TupleT(ts, _) => s"Tuple$$${ts.map(stringifyType).mkString("")}$$"
+      case in.PredT(ts, _) => s"Pred$$${ts.map(stringifyType).mkString("")}$$"
+      case in.StructT(name, fields, _) => s"Struct$name$$${fields.map(_.typ).map(stringifyType).mkString("")}$$"
+      case in.InterfaceT(name, _) => s"Interface$name"
+      case in.ChannelT(elemT, _) => s"Channel${stringifyType(elemT)}"
+      case t => Violation.violation(s"cannot stringify type $t")
+    }
+    def builtInMember(tag: BuiltInMemberTag, dependantTypes: Vector[in.Type]): String = {
+      val typeString = dependantTypes.map(stringifyType).mkString("_")
+      s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }
 
     def inverse(n: String): String = n.substring(0, n.indexOf('_'))

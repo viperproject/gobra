@@ -358,6 +358,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PFractionalPerm(left, right) => go(left) && go(right)
         case _ => true
       }
+
+      case PPredConstructor(_, args) => args.flatten.forall(go)
     }
   }
 

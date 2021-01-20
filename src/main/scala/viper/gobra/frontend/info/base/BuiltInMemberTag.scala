@@ -57,11 +57,15 @@ object BuiltInMemberTag {
         Violation.violation(s"argGhostTyping not defined for $name")
       }
 
+    /**
+      * Returns 0 ghost results for functions returning `void` and 1 ghost result otherwise.
+      * Members having multiple ghost results have to overwrite this function.
+      */
     def returnGhostTyping(args: Vector[Type])(config: Config): GhostType =
       if (typ(config).typing.isDefinedAt(args)) {
         typ(config).typing(args).result match {
           case VoidType => ghostArgs(0)
-          case _ => ghostArgs(1) // multi return parameters are not used yet by any built-in member
+          case _ => ghostArgs(1) // as a default, we pick a single ghost result.
         }
       } else {
         Violation.violation(s"returnGhostTyping not defined for $name")

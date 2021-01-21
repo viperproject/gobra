@@ -5,8 +5,6 @@ package pkg
 
 import "sync"
 
-// TODO: remove all occurrences of sync.pred_true when PredTrue is added to the language
-
 /* Generates n + 1 threads that execute the `worker` function */
 requires n >= 0
 func spawnThreads(n int) {
@@ -15,59 +13,59 @@ func spawnThreads(n int) {
 	// { acc(wg) && *wg == WaitGroup{} }
 	wg.Init()
 	// { wg.WaitGroupP() && !wg.WaitMode() }
-	wg.Add(1, 1, 1, sync.pred_true!<!>)
-	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) }
-	fold sync.pred_true!<!>()
-	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && pred_true!<!>() }
-	wg.GenerateToken(sync.pred_true!<!>)
-	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) }
-	wg.Start(1, 2, sync.pred_true!<!>)
-	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) }
-	fold sync.pred_true!<!>()
-	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(pred_true!<!>) && wg.Token(pred_true!<!>) && pred_true!<!>() }
-	go worker(-1, wg, sync.pred_true!<!>) // spawns first worker
-	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(pred_true!<!>) }
+	wg.Add(1, 1, 1, PredTrue!<!>)
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) }
+	fold PredTrue!<!>()
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && PredTrue!<!>() }
+	wg.GenerateToken(PredTrue!<!>)
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
+	wg.Start(1, 2, PredTrue!<!>)
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
+	fold PredTrue!<!>()
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) && PredTrue!<!>() }
+	go worker(-1, wg, PredTrue!<!>) // spawns first worker
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(PredTrue!<!>) }
 
 	invariant acc(wg.WaitGroupP(), 1/2)
 	invariant acc(wg.WaitGroupStarted(), 1/2)
 	invariant !wg.WaitMode()
-	invariant acc(wg.Token(sync.pred_true!<!>), (i + 1)/1)
+	invariant acc(wg.Token(PredTrue!<!>), (i + 1)/1)
 	for i := 0; i < n; i++ {
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&
 		//   acc(wg.WaitGroupStarted(), 1/2) &&
 		//   !wg.WaitMode() &&
-		//   acc(wg.Token(pred_true!<!>), i + 1) &&
+		//   acc(wg.Token(PredTrue!<!>), i + 1) &&
 		//   i < n
 		// }
-		wg.Add(1, 1, 2, sync.pred_true!<!>)
+		wg.Add(1, 1, 2, PredTrue!<!>)
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&
 		//   acc(wg.WaitGroupStarted(), 1/2) &&
 		//   !wg.WaitMode() &&
-		//   acc(wg.Token(pred_true!<!>), i + 1) &&
+		//   acc(wg.Token(PredTrue!<!>), i + 1) &&
 		//   i < n &&
-		//   g.UnitDebt(pred_true!<!>)
+		//   g.UnitDebt(PredTrue!<!>)
 		// }
-		fold sync.pred_true!<!>()
-		// { same as above plus pred_true!<!>() }
-		wg.GenerateToken(sync.pred_true!<!>)
+		fold PredTrue!<!>()
+		// { same as above plus PredTrue!<!>() }
+		wg.GenerateToken(PredTrue!<!>)
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&
 		//   acc(wg.WaitGroupStarted(), 1/2) &&
 		//   !wg.WaitMode() &&
-		//   acc(wg.Token(pred_true!<!>), i + 2) && // permission increased by 1
+		//   acc(wg.Token(PredTrue!<!>), i + 2) && // permission increased by 1
 		//   i < n &&
-		//   wg.UnitDebt(pred_true!<!>)
+		//   wg.UnitDebt(PredTrue!<!>)
 		// }
-		fold sync.pred_true!<!>()
-		// { same as above plus pred_true!<!>() }
-		go worker(i, wg, sync.pred_true!<!>)
+		fold PredTrue!<!>()
+		// { same as above plus PredTrue!<!>() }
+		go worker(i, wg, PredTrue!<!>)
 		// {
 		//   acc(wg.WaitGroupP(), 1/2) &&
 		//   acc(wg.WaitGroupStarted(), 1/2) &&
 		//   !wg.WaitMode() &&
-		//   acc(wg.Token(pred_true!<!>), i + 2) && // this reverts to i + 1 when i is incremented in the end of the iteration
+		//   acc(wg.Token(PredTrue!<!>), i + 2) && // this reverts to i + 1 when i is incremented in the end of the iteration
 		//   i < n
 		// }
 	}
@@ -76,21 +74,21 @@ func spawnThreads(n int) {
 	//   acc(wg.WaitGroupP(), 1/2) &&
 	//   acc(wg.WaitGroupStarted(), 1/2) &&
 	//   !wg.WaitMode() &&
-	//   acc(wg.Token(pred_true!<!>), n + 1) // slightly simplified
+	//   acc(wg.Token(PredTrue!<!>), n + 1) // slightly simplified
 	// }
 	wg.SetWaitMode(1, 2, 1, 2)
 	// {
 	//   wg.WaitGroupP() &&
 	//   wg.WaitMode() &&
-	//   acc(wg.Token(pred_true!<!>), n + 1)
+	//   acc(wg.Token(PredTrue!<!>), n + 1)
 	// }
 
 	// This example is simple and we do not need to perform any token redistribution before calling wait. This is not
 	// true in general
-	wg.Wait(1, 1, sync.pred_true!<!>)
+	wg.Wait(1, 1, PredTrue!<!>)
 	// {
 	//   wg.WaitGroupP() &&
-	//   pred_true!<!>()
+	//   PredTrue!<!>()
 	// }
 }
 
@@ -98,7 +96,7 @@ requires P() && wg.UnitDebt(P)
 func worker(id int, wg *sync.WaitGroup, ghost P pred()) {
 	// { P() && wg.UnitDebt(P) }
 	wg.PayDebt(P)
-	// { wg.UnitDebt(pred_true!<!>) }
+	// { wg.UnitDebt(PredTrue!<!>) }
 	wg.Done()
 	// { }
 }

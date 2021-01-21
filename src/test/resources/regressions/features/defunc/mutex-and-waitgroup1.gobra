@@ -56,9 +56,9 @@ func parallelSum(s []int) {
 	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum!>;
 	for i := 0; i < n; i++ {
 		// { w.WaitGroupP() && !w.WaitMode() }
-		w.Add(1, 1, 2, sync.pred_true!<!>)
+		w.Add(1, 1, 2, PredTrue!<!>)
 		ghost if i == 0 {
-			w.Start(1, 2, sync.pred_true!<!>)
+			w.Start(1, 2, PredTrue!<!>)
 		}
 		// { w.WaitGroupP() && !w.WaitMode() && }
 		go worker(w, c, s[i] /*, 1, n+1*/)
@@ -66,9 +66,9 @@ func parallelSum(s []int) {
 
 	// w.SetWaitMode(1, 2, 1, 2) // failing!
 	/*
-	fold sync.pred_true!<!>()
-	w.GenerateToken(sync.pred_true!<!>)
-	w.Wait(1, 1, sync.pred_true!<!>)
+	fold PredTrue!<!>()
+	w.GenerateToken(PredTrue!<!>)
+	w.Wait(1, 1, PredTrue!<!>)
 	*/
 	// Goal: prove that the value sum protected by the mutex has the sum of all elems of the array
 }
@@ -78,7 +78,7 @@ func parallelSum(s []int) {
 requires acc(accum, _)
 // requires acc(accum.m, _)
 requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum!>;
-requires w.UnitDebt(sync.pred_true!<!>)
+requires w.UnitDebt(PredTrue!<!>)
 func worker(w *sync.WaitGroup, accum *Accum, val int/*, ghost dividend int, ghost divisor int*/) {
 	// { ? && m.LockInv() == AccInv!<accum.sum!> && acc(m.LockP(), _)}
 	accum.m.Lock()

@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(-I src/test/resources/regressions/features/defunc/includes)
+package pkg
+
+import "preds"
+
+// tests importing predicates from other packages
+requires preds.PredExample!<1!>()
+requires preds.PredExample!<_!>(2)
+requires preds.PredExample(3)
+func m()

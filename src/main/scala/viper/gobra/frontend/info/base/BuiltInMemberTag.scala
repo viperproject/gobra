@@ -8,9 +8,9 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.PExpression
+import viper.gobra.ast.frontend.PNode
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AssertionT, AbstractType, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AbstractType, AssertionT, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
@@ -295,7 +295,7 @@ object BuiltInMemberTag {
     channelReceiverMessages(permittedModi),
     channelReceiverTyping(permittedModi, typing)
   )
-  private def channelReceiverMessages(permittedModi: Set[ChannelModus]): (PExpression, Vector[Type]) => Messages =
+  private def channelReceiverMessages(permittedModi: Set[ChannelModus]): (PNode, Vector[Type]) => Messages =
     {
       case (_, Vector(c: ChannelT)) if permittedModi.contains(c.mod) => noMessages
       case (n, ts) => error(n, s"type error: expected a single argument of channel type (permitted channel modi: $permittedModi) but got $ts")

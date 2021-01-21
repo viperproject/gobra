@@ -6,13 +6,14 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
 import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.ast.frontend.{AstPattern => ap}
 
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -20,12 +21,25 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PBoundVariable(_, _) => noMessages
     case PTrigger(exprs) => exprs.flatMap(isPureExpr)
     case PExplicitGhostParameter(_) => noMessages
+    case p: PPredConstructorBase => p match {
+      case PFPredBase(_) => noMessages
+      case base: PDottedBase => wellDefExpr(base.recvWithId).out ++ (resolve(base.recvWithId) match {
+        case Some(_: ap.Predicate | _: ap.ReceivedPredicate) => noMessages
+        case Some(_: ap.PredicateExpr) =>
+          error(base, s"predicate expressions are not valid bases of predicate constructors")
+        case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
+      })
+    }
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
     case PBoundVariable(_, typ) => typeSymbType(typ)
     case PTrigger(_) => BooleanT
     case PExplicitGhostParameter(param) => miscType(param)
+    case b: PPredConstructorBase => b match {
+      case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)
+      case PFPredBase(id) => idType(id)
+    }
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {

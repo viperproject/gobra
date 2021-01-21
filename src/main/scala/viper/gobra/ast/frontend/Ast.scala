@@ -488,7 +488,7 @@ case class PMake(typ: PType, args: Vector[PExpression]) extends PActualExpressio
   */
 case class PNew(typ: PType) extends PActualExpression
 
-sealed trait PPredConstructorBase extends PNode {
+sealed trait PPredConstructorBase extends PNode with PGhostMisc {
   val id: PIdnUse
 }
 case class PFPredBase(override val id: PIdnUse) extends PPredConstructorBase

@@ -1381,6 +1381,19 @@ object Desugar {
             } yield target
 
           case PPredConstructor(base, args) =>
+            def handleFPredicate(base: PPredConstructorBase) = {
+              val idT = info.typ(base) match {
+                case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                case _: AbstractType =>
+                  // the type checker ensures that all arguments are applied
+                  in.PredT(Vector(), Addressability.rValue) // all arguments are applied
+                case t => violation(s"desugarer: $t cannot be converted to a predicate type")
+              }
+              for {
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                proxy = getFPredProxy(dArgs)
+              } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+            }
             def getFPredProxy(args: Vector[Option[in.Expr]]) = info.regular(base.id) match {
               case _: st.FPredicate => fpredicateProxy(base.id)
               case st.BuiltInFPredicate(tag, _, _) =>
@@ -1394,18 +1407,7 @@ object Desugar {
               case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
             }
             base match {
-              case PFPredBase(id) =>
-                val idT = info.typ(id) match {
-                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                  case _: AbstractType =>
-                    // the type checker ensures that all arguments are applied
-                    in.PredT(Vector(), Addressability.rValue) // all arguments are applied
-                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-                }
-                for {
-                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-                  proxy = getFPredProxy(dArgs)
-                } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+              case b: PFPredBase => handleFPredicate(b)
 
               case p@PDottedBase(recvWithId) => info.resolve(recvWithId) match {
                 case Some(_: ap.ReceivedPredicate) =>
@@ -1429,18 +1431,7 @@ object Desugar {
                     dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
                   } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
 
-                case Some(_: ap.Predicate) =>
-                  val idT = info.typ(p.recvWithId) match {
-                    case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                    case _: AbstractType =>
-                      // the type checker ensures that all arguments are applied
-                      in.PredT(Vector(), Addressability.rValue) // all arguments are applied
-                    case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-                  }
-                  for {
-                    dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-                    proxy = getFPredProxy(dArgs)
-                  } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+                case Some(_: ap.Predicate) => handleFPredicate(p)
               }
           }
 

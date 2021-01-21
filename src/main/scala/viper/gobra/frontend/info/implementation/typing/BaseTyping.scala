@@ -56,6 +56,10 @@ trait BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => wellDefExprAndType.valid(n)
     case e: PExpression => wellDefExpr.valid(e)
     case t: PType => wellDefType.valid(t)
+    // skip well-definedness checks for defined identifiers. This enables the parent node, e.g. the declaration
+    // statement, to perform the necessary checks as the parent is not skipped due to an unsafe message from the
+    // identifier well-definedness check. See issue #185
+    case _: PIdnDef | i: PIdnUnk if isDef(i) => true
     case i: PIdnNode => wellDefID.valid(i)
     case o: PMisc => wellDefMisc.valid(o)
     case s: PSpecification => wellDefSpec.valid(s)

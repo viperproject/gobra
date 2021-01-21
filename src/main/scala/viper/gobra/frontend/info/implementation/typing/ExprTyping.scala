@@ -660,26 +660,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => None
           }
 
-        case const: PPredConstructor =>
-          // `expr` cannot be `const.id` and thus, it must be one of the arguments
-          val index = const.args.indexWhere { _.exists(y => y.eq(expr)) }
-          violation(index >= 0, s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $const")
-          /* TODO: remove
-          const.id match {
-            case PFPredBase(id) => ???
-            case PDottedBase(recvWithId) =>
-              typ(recvWithId) match {
-
-              }
-          }
-           */
-          typ(const.id) match {
-            case FunctionT(args, AssertionT) => Some(args(index))
-            case _: AbstractType =>
-              // here too, resolving the abstract type would cause a cycle in kiama
-              None
-          }
-          None
+      case const: PPredConstructor =>
+        // `expr` cannot be `const.id` and thus, it must be one of the arguments
+        val index = const.args.indexWhere { _.exists(y => y.eq(expr)) }
+        violation(index >= 0, s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $const")
+        typ(const.id) match {
+          case FunctionT(args, AssertionT) => Some(args(index))
+          case _: AbstractType =>
+            // here too, resolving the abstract type would cause a cycle in kiama
+            None
+          case UnknownType =>
+            // TODO: this is a bit of a hack. at some points, the type of const.id may be unknown. This happens, for example,
+            //  when a PDottedBase refers to a non existing field. For some reason, that fails to be detected in the well
+            //  definedness checker of the PPredConstructorBase (e.g. the last fold of the function `error4` in
+            //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
+            //  crashes Gobra without this case).
+            None
+        }
 
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)

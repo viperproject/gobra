@@ -117,8 +117,8 @@ func (g *WaitGroup) SplitSequence(ghost P seq[pred()], ghost Q seq[pred()], ghos
 // Special case of the debt redistribution rule
 ghost
 requires len(P) == len(dividendsP) && len(P) == len(divisorsP) // |P| == |p|
-requires len(P) == len(dividendsQ) && len(P) == len(divisorsQ) // |Q| == |q|
-requires len(P) == len(dividendsR) && len(P) == len(divisorsR) // |R| == |r|
+requires len(P) == len(dividendsQ) && len(P) == len(divisorsQ) // |p| == |q|
+requires len(P) == len(dividendsR) && len(P) == len(divisorsR) // |q| == |r|
 requires forall i int :: 0 <= i && i < len(P) ==> dividendsP[i] >= 0 && divisorsP[i] > 0
 requires forall i int :: 0 <= i && i < len(P) ==> dividendsQ[i] >= 0 && divisorsQ[i] > 0
 requires g.UnitDebt(CollectFractions!<P, dividendsR, divisorsR!>)

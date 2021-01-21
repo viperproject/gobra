@@ -59,7 +59,8 @@ trait BaseTyping { this: TypeInfoImpl =>
     // skip well-definedness checks for defined identifiers. This enables the parent node, e.g. the declaration
     // statement, to perform the necessary checks as the parent is not skipped due to an unsafe message from the
     // identifier well-definedness check. See issue #185
-    case _: PIdnDef | i: PIdnUnk if isDef(i) => true
+    case _: PIdnDef => true
+    case i: PIdnUnk if isDef(i) => true
     case i: PIdnNode => wellDefID.valid(i)
     case o: PMisc => wellDefMisc.valid(o)
     case s: PSpecification => wellDefSpec.valid(s)

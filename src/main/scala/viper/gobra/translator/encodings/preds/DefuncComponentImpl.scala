@@ -141,7 +141,7 @@ class DefuncComponentImpl extends DefuncComponent {
     vpr.DomainFuncApp(func = genDefaultFunc(ts)(ctx), Seq.empty, Map.empty)(pos, info, errT)
   }
 
-  /** Creates a domain function that returns a value of the predicate type with the 'ts' parameter list */
+  /** Creates a domain function that returns the default value of the predicate type with the 'ts' parameter list */
   private def genDefaultFunc(ts: Vector[in.Type])(ctx: Context): vpr.DomainFunc = {
     val S = embedPredType(ts)(ctx)
     genDefaultFuncMap.getOrElse(S, {

@@ -281,17 +281,19 @@ func (n *node) getMinimum(ghost lowerBound, upperBound option[int]) (res int) {
     fold n.tree()
     return res
 }
+
 /*
 ghost
 requires !(value in s)
 requires forall i int :: (0 <= i && i + 1 < len(s) ==> s[i] < s[i + 1]) // sorted
 ensures value in res
 ensures len(res) == len(s) + 1
-ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // sorted
+ensures forall i int :: (0 <= i && i + 1 < len(res) ==> res[i] < res[i + 1]) // sorted; this postcondition does not hold
 pure func insertIntoSortedSeq(ghost s seq[int], value int) (res seq[int]) {
     return len(s) == 0 ? seq[int]{ value } : (value < s[0] ? (seq[int]{ value } ++ s) : (s[:1] ++ insertIntoSortedSeq(s[1:], value)))
 }
 */
+
 func main() {
     value0 := 2
     value1 := 5
@@ -350,7 +352,8 @@ func client2(t *Tree, value int) {
         // assert newValues == insertIntoSortedSeq(oldValues, value)
     }
 }
-/*
+
+/* helper functions for printing the tree when this example is executed
 // prints tree
 func (t *Tree) print() {
   if (t.root == nil) { fmt.Println("empty") } else {

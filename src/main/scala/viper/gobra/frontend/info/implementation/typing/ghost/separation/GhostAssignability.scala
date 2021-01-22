@@ -104,14 +104,14 @@ trait GhostAssignability {
 
   /** ghost type of the result of a callee */
   private[separation] def calleeReturnGhostTyping(callee: PExpression): GhostType = {
-    def resultTyping(result: PResult, context: ExternalTypeInfo): GhostType = {
-      GhostType.ghostTuple(result.outs.map(context.isParamGhost))
+    def resultTyping(result: PResult, isMemberGhost: Boolean, context: ExternalTypeInfo): GhostType = {
+      GhostType.ghostTuple(result.outs.map(p => isMemberGhost || context.isParamGhost(p)))
     }
 
     resolve(callee) match {
-      case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.context)
-      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.context)
+      case Some(p: ap.Function) => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case Some(p: ap.ReceivedMethod) => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
+      case Some(p: ap.MethodExpr) => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case Some(_: ap.PredicateKind) => GhostType.isGhost
       case _ => GhostType.isGhost // conservative choice
     }

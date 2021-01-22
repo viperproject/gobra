@@ -11,6 +11,7 @@ import viper.gobra.frontend.info.base.SymbolTable.Regular
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 import viper.gobra.util.Violation
 
 trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
@@ -24,15 +25,38 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
 
   /** returns true iff statement is classified as ghost */
-  private[separation] lazy val ghostStmtClassification: PStatement => Boolean =
+  private[separation] lazy val ghostStmtClassification: PStatement => Boolean = {
+    def varDeclClassification(left: Vector[PIdnNode], right: Vector[PExpression]): Boolean = {
+      if (right.isEmpty) left.forall(ghostIdClassification)
+      else StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Single =>
+          left.map(Some(_)).zipAll(right.map(Some(_)), None, None).forall {
+            case (Some(l), Some(r)) => ghostIdClassification(l) || ghostExprClassification(r)
+            case (Some(l), _) => ghostIdClassification(l)
+            case (_, Some(r)) => ghostExprClassification(r)
+          }
+
+        case AssignMode.Multi =>
+          // right should be a singleton vector
+          val isRightGhost = right.exists(ghostExprClassification)
+          left.forall(l => isRightGhost || ghostIdClassification(l))
+
+        case AssignMode.Error => Violation.violation("expected single or multi assignment mode")
+      }
+
+
+    }
+
     attr[PStatement, Boolean] {
       case _: PGhostStatement => true
       case s if enclosingGhostContext(s) => true
       case PAssignment(_, left) => left.forall(ghostExprClassification)
       case PAssignmentWithOp(_, _, left) => ghostExprClassification(left)
-      case PShortVarDecl(_, left, _) => left.forall(ghostIdClassification)
+      case PShortVarDecl(right, left, _) => varDeclClassification(left, right)
+      case PVarDecl(_, right, left, _) => varDeclClassification(left, right)
       case _ => false
     }
+  }
 
   /** returns true iff expression is classified as ghost */
   private[separation] lazy val ghostExprClassification: PExpression => Boolean =

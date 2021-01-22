@@ -70,11 +70,13 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PShortVarDecl(right, left, _) =>
       StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
-          val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isIdGhost(p._2)).unzip
+          val (aRight, aLeft) = right.zip(left).filterNot(p => classifier.isIdGhost(p._2) || classifier.isExprGhost(p._1)).unzip
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))
 
         case AssignMode.Multi =>
-          val aLeft = left.filter(!classifier.isIdGhost(_))
+          // right should be a singleton vector
+          val isRightGhost = right.exists(classifier.isExprGhost)
+          val aLeft = left.filterNot(classifier.isIdGhost(_) || isRightGhost)
           if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(right, aLeft, aLeft.map(_ => false)))
 
         case AssignMode.Error => errorMsg
@@ -92,14 +94,14 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   override def showExpr(expr: PExpression): Doc = expr match {
 
     // invokes of ghost functions and methods should not be printed
-    case n: PInvoke if classifier.isExprGhost(n) => emptyDoc
+    case n: PInvoke if classifier.isExprGhost(n) => ghostToken
     case n: PInvoke =>
       val gt = classifier.expectedArgGhostTyping(n)
       val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
       super.showExpr(n.copy(args = aArgs))
 
     case e: PActualExprProofAnnotation => showExpr(e.op)
-    case e if classifier.isExprGhost(e) => emptyDoc
+    case e if classifier.isExprGhost(e) => ghostToken
     case e => super.showExpr(e)
   }
 

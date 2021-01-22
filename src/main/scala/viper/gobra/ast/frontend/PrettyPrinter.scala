@@ -187,7 +187,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PAssignment(right, left) => showExprList(left) <+> "=" <+> showExprList(right)
       case PAssignmentWithOp(right, op, left) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
       case PIfStmt(ifs, els) =>
-        ssep(ifs map showIfClause, line) <>
+        ssep(ifs map showIfClause, space <> "else" <> space) <>
           opt(els)(space <> "else" <+> showStmt(_) <> line)
       case PExprSwitchStmt(pre, _, cases, dflt) =>
         "switch" <> showPreStmt(pre) <+> block(

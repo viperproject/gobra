@@ -50,8 +50,8 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
           PBodyParameterInfo(Vector()),
           PBlock(Vector(
             PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
-            PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("test1")), Vector(false)),
-            PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("test2")), Vector(false))
+            PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1")), Vector(false)),
+            PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t2")), Vector(false))
           ))
         )))
       val inputProgram = PProgram(
@@ -63,6 +63,66 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("main"), _, _, _, Some((_, b))))) if b.nonEmptyStmts == Vector() =>
       }
     })
+  }
+
+  test("Ghost Erasure: calls to (pure) ghost functions with multiple return values should be removed") {
+    // ghost (pure) func test() (res1 bool, res2 int) {
+    //    return true, 42
+    // }
+    // func main() {
+    //     test()
+    //     var t1, t2 = test()
+    //     t3, t4 := test()
+    // }
+    val modes: Set[Boolean] = Set(false, true)
+    modes.foreach(isPure => {
+      val testFunc = PExplicitGhostMember(PFunctionDecl(
+        PIdnDef("test"),
+        Vector(),
+        PResult(Vector(
+          PNamedParameter(PIdnDef("res1"), PBoolType()),
+          PNamedParameter(PIdnDef("res2"), PIntType()))),
+        PFunctionSpec(Vector(), Vector(), isPure),
+        Some((
+          PBodyParameterInfo(Vector()),
+          PBlock(Vector(PReturn(Vector(PBoolLit(true), PIntLit(42))))))
+        )))
+      val inputMainFunc = PFunctionDecl(
+        PIdnDef("main"),
+        Vector(),
+        PResult(Vector()),
+        PFunctionSpec(Vector(), Vector(), false),
+        Some((
+          PBodyParameterInfo(Vector()),
+          PBlock(Vector(
+            PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
+            PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1"), PIdnDef("t2")), Vector(false, false)),
+            PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t3"), PIdnUnk("t4")), Vector(false, false))
+          ))
+        )))
+      val inputProgram = PProgram(
+        PPackageClause(PPkgDef("pkg")),
+        Vector(),
+        Vector(testFunc, inputMainFunc)
+      )
+      frontend.ghostLessProg(inputProgram) should matchPattern {
+        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("main"), _, _, _, Some((_, b))))) if b.nonEmptyStmts == Vector() =>
+      }
+    })
+  }
+
+  test("if else if else should correctly be erased") {
+    // if true {} else if (false) {} else {}
+    val input = PIfStmt(Vector(
+      PIfClause(None, PBoolLit(true), PBlock(Vector())),
+      PIfClause(None, PBoolLit(false), PBlock(Vector()))),
+      Some(PBlock(Vector())))
+    frontend.ghostLessStmt(input)() should matchPattern {
+      case PIfStmt(Vector(
+        PIfClause(None, PBoolLit(true), b1),
+        PIfClause(None, PBoolLit(false), b2)),
+        Some(b3)) if b1.nonEmptyStmts == Vector() && b2.nonEmptyStmts == Vector() && b3.nonEmptyStmts == Vector() =>
+    }
   }
 
 

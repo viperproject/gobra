@@ -71,7 +71,11 @@ object PackageResolver {
     includeDirs.map(FileResource)
   }
 
-  private lazy val getStubResources: Vector[InputResource] = {
+  // getStubResources must be a def instead of a val because it may be called multiple times, one for each call to resolve.
+  // If this was a val, the return value would consist of the same values in every call. This is not desirable when one
+  // of the resources has a jar URI scheme. In such a case, the obtained BaseJarResource would be effectively shared and any
+  // modification to its state would affect any other methods that called resolve.
+  private def getStubResources: Vector[InputResource] = {
     // get path to stubs
     stubDirectories.flatMap(stubDir => {
       val nullableResourceUri = getClass.getClassLoader.getResource(stubDir).toURI

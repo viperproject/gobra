@@ -71,10 +71,10 @@ object PackageResolver {
     includeDirs.map(FileResource)
   }
 
-  // getStubResources must be a def instead of a val because it may be called multiple times, one for each call to resolve.
-  // If this was a val, the return value would consist of the same values in every call. This is not desirable when one
-  // of the resources has a jar URI scheme. In such a case, the obtained BaseJarResource would be effectively shared and any
-  // modification to its state would affect any other methods that called resolve.
+  // getStubResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
+  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
+  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
+  // the underlying FileSystem.
   private def getStubResources: Vector[InputResource] = {
     // get path to stubs
     stubDirectories.flatMap(stubDir => {

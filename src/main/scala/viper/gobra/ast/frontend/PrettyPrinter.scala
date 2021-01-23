@@ -34,7 +34,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
     case n: PPackageNode => showPackageId(n)
-    case n :PFieldDecl => showFieldDecl(n)
+    case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)

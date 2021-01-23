@@ -23,12 +23,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PExplicitGhostParameter(_) => noMessages
     case p: PPredConstructorBase => p match {
       case PFPredBase(_) => noMessages
-      case base: PDottedBase => wellDefExpr(base.recvWithId).out ++ (resolve(base.recvWithId) match {
+      case base: PDottedBase => resolve(base.recvWithId) match {
         case Some(_: ap.Predicate | _: ap.ReceivedPredicate) => noMessages
         case Some(_: ap.PredicateExpr) =>
           error(base, s"predicate expressions are not valid bases of predicate constructors")
         case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
-      })
+      }
     }
   }
 

@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred inv1(v int32) {
+	v == 42
+}
+
+requires inv1(42)
+func test0()
+
+// Example provided by Linard
+requires inv1!<_!>(42)
+func test1()
+
+// Gobra infers adequate type for each argument, despite being equal expressions
+pred inv2(a int, b uint32)
+requires inv2!<_, _!>(42, 42)
+func test2()
+
+// Gobra figures out the correct type of 42 here: int for the
+// first precondition and uint32 for the second
+requires inv2!<_, 42!>(42)
+requires inv2!<42, _!>(42)
+func test3()
+
+type T struct {
+	t int64
+}
+
+pred (r T) inv3()
+
+// used to crash in previous versions of Gobra
+requires (T{42}).inv3!<!>();
+func test4()
+
+// Gobra finds the cases where an overflow occurs in a predicate expression instance
+//:: ExpectedOutput(type_error)
+requires inv1!<_!>(213412341234124214231432142134123)
+func test5()
+//:: ExpectedOutput(type_error)
+requires inv1!<213412341234124214231432142134123!>()
+func test6()

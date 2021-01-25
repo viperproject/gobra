@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PExpression, PImport, PInterfaceType, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
@@ -148,5 +148,5 @@ object Type {
     * Note that Vector[Type] represents the types of arguments for functions and fpredicates but is a singleton
     * vector storing the receiver's type for methods and mpredicates.
     */
-  case class AbstractType(messages: (PExpression, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
+  case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
 }

@@ -363,48 +363,50 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case p@PPredConstructor(base, _) => base match {
-      case base@(_: PFPredBase | _:PMPredBase) =>
-        idType(base.id) match {
-          case FunctionT(args, AssertionT) =>
-            val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
-            val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
-            val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
-            if(givenArgs.isEmpty && expectedArgs.isEmpty) {
-              noMessages
+    case p@PPredConstructor(base, _) => {
+      def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
+        case FunctionT(args, AssertionT) =>
+          val unappliedPositions = p.args.zipWithIndex.filter(_._1.isEmpty).map(_._2)
+          val givenArgs = p.args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1.get)
+          val expectedArgs = args.zipWithIndex.filterNot(x => unappliedPositions.contains(x._2)).map(_._1)
+          if (givenArgs.isEmpty && expectedArgs.isEmpty) {
+            noMessages
+          } else {
+            multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
+              p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+          }
+
+        case abstractT: AbstractType =>
+          // contextual information would be necessary to predict the constructor's return type (i.e. to find type of unapplied arguments)
+          // right now we only support fully applied arguments for built-in predicates
+          val givenArgs = p.args.flatten
+          if (givenArgs.length != p.args.length) {
+            error(p, s"partial application is not supported for built-in predicates")
+          } else {
+            val givenArgTypes = givenArgs map exprType
+            val msgs = abstractT.messages(p, givenArgTypes)
+            if (msgs.nonEmpty) {
+              msgs
             } else {
-              multiAssignableTo.errors(givenArgs map exprType, expectedArgs)(p) ++
-                p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
-            }
-          case abstractT: AbstractType =>
-            // contextual information would be necessary to predict the constructor's return type (i.e. to find type of unapplied arguments)
-            // right now we only support fully applied arguments for built-in predicates
-            val givenArgs = p.args.flatten
-            if (givenArgs.length != p.args.length) {
-              error(p, s"partial application is not supported for built-in predicates")
-            } else {
-              val givenArgTypes = givenArgs map exprType
-              val msgs = abstractT.messages(p, givenArgTypes)
-              if (msgs.nonEmpty) {
-                msgs
-              } else {
-                // the typing function should be defined for these arguments as `msgs` is empty
-                abstractT.typing(givenArgTypes) match {
-                  case FunctionT(args, AssertionT) =>
-                    if (givenArgs.isEmpty && args.isEmpty) {
-                      noMessages
-                    } else {
-                      multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
-                        p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
-                    }
-                  case t => error(p, s"expected function type for resolved AbstractType but got $t")
-                }
+              // the typing function should be defined for these arguments as `msgs` is empty
+              abstractT.typing(givenArgTypes) match {
+                case FunctionT(args, AssertionT) =>
+                  if (givenArgs.isEmpty && args.isEmpty) {
+                    noMessages
+                  } else {
+                    multiAssignableTo.errors(givenArgs map exprType, args)(p) ++
+                      p.args.flatMap(x => x.map(isExpr(_).out).getOrElse(noMessages))
+                  }
+                case t => error(p, s"expected function type for resolved AbstractType but got $t")
               }
             }
-          case t => error(p, s"expected base of function type, got ${base.id} of type $t", !t.isInstanceOf[FunctionT])
-        }
-    }
+          }
 
+        case t => error(p, s"expected base of function type, got ${base.id} of type $t")
+      }
+
+      wellDefMisc(base).out ++ wellTypedApp(base)
+    }
 
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
@@ -510,6 +512,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PMake(typ, _) => typeSymbType(typ)
 
     case PPredConstructor(base, args) =>
+      val errorMessage: Any => String =
+        t => s"expected function or AbstractType for base of a predicate constructor but got $t"
+
       base match {
         case PFPredBase(id) =>
           idType(id) match {
@@ -517,19 +522,33 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
             case _: AbstractType =>
               PredT(Vector()) // because partial application is not supported yet for built-in predicates
-            case t => violation(s"expected function or AbstractType for base of a predicate constructor but got $t")
+            case t => violation(errorMessage(t))
           }
-        case p: PMPredBase =>
-          idType(p.id) match {
-            case FunctionT(fnArgs, AssertionT) =>
-              // ignore first entry of fnArgs as this corresponds to the receiver (which cannot be unapplied)
-              PredT(fnArgs.tail.zip(args).collect{ case (typ, None) => typ })
-            case _: AbstractType =>
-              PredT(Vector()) // because partial application is not supported yet for built-in predicates
-            case t => violation(s"expected function or AbstractType for base of a predicate constructor but got $t")
-          }
-      }
 
+        case p: PDottedBase => resolve(p.recvWithId) match {
+          case Some(_: ap.Predicate | _: ap.ReceivedPredicate) =>
+            val recvWithIdT = exprOrTypeType(p.recvWithId)
+            recvWithIdT match {
+              case FunctionT(fnArgs, AssertionT) =>
+                PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
+              case _: AbstractType =>
+                PredT(Vector()) // because partial application is not supported yet for built-in predicates
+              case t => violation(errorMessage(t))
+            }
+
+          case Some(_: ap.PredicateExpr) =>
+            val recvWithIdT = exprOrTypeType(p.recvWithId)
+            recvWithIdT match {
+              case FunctionT(fnArgs, AssertionT) =>
+                PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
+              case _: AbstractType =>
+                PredT(Vector()) // because partial application is not supported yet for built-in predicates
+              case t => violation(errorMessage(t))
+            }
+
+          case _ => violation(s"unexpected base $base for predicate constructor")
+        }
+      }
 
     case e => violation(s"unexpected expression $e")
   }
@@ -592,24 +611,78 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _: PMake => Some(INT_TYPE)
 
-        case n: PInvoke => resolve(n) match {
-          case Some(ap.FunctionCall(callee, args)) =>
-            val index = args.indexOf(expr)
-            callee match {
-              case f: ap.Function => Some(typeSymbType(f.symb.args(index).typ))
-              case _ => None
-            }
+        case n: PInvoke =>
+          // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
+          // then p can either occur as the base or as an argument of `inv`. However, a numeric expression is not a valid base of a
+          // PInvoke and thus, `expr` can onlu appear in `n` as an argument
+          lazy val errorMessage = s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $n"
+          resolve(n) match {
+            case Some(ap.FunctionCall(_, args)) =>
+              val index = args.indexWhere(_.eq(expr))
+              violation(index >= 0, errorMessage)
+              typOfExprOrType(n.base) match {
+                case FunctionT(fArgs, _) => Some(fArgs(index))
+                case t: AbstractType =>
+                  /* the abstract type cannot be resolved without creating a loop in kiama because we need to know the
+                     types of all arguments in order to resolve it and we need to resolve it in order to find the type
+                     of one of its arguments.
+                  val messages = t.messages(n.base, args map typ)
+                  if(messages.isEmpty) {
+                    t.typing(args map typ) match {
+                      case FunctionT(fArgs, _) => Some(fArgs(index))
+                    }
+                  } else {
+                    violation(messages.toString())
+                  }
+                  */
+                  None
+              }
 
-          case Some(ap.PredicateCall(pred, args)) =>
-            val index = args.indexOf(expr)
-            pred match {
-              case p: ap.Predicate => Some(typeSymbType(p.symb.args(index).typ))
-              case _ => None
-            }
+            case Some(ap.PredicateCall(_, args)) =>
+              val index = args.indexWhere(_.eq(expr))
+              violation(index >= 0, errorMessage)
+              typOfExprOrType(n.base) match {
+                case FunctionT(fArgs, AssertionT) => Some(fArgs(index))
+                case _: AbstractType =>
+                  /* the abstract type cannot be resolved without creating a loop in kiama for the same reason as above
+                  val messages = t.messages(n.base, args map typ)
+                  if(messages.isEmpty) {
+                    t.typing(args map typ) match {
+                      case FunctionT(fArgs, _) => Some(fArgs(index))
+                    }
+                  } else {
+                    violation(messages.toString())
+                  }
+                  */
+                  None
+              }
 
-          case Some(_: ap.PredExprInstance) => ??? // TODO
+            case Some(ap.PredExprInstance(base, args)) =>
+              val index = args.indexWhere(_.eq(expr))
+              violation(index >= 0, errorMessage)
+              typ(base) match {
+                case PredT(fArgs) => Some(fArgs(index))
+                case t => violation(s"predicate expression instance has base $base with unsupported type $t")
+              }
+            case _ => None
+          }
 
-          case _ => None
+      case const: PPredConstructor =>
+        // `expr` cannot be `const.id` and thus, it must be one of the arguments
+        val index = const.args.indexWhere { _.exists(y => y.eq(expr)) }
+        violation(index >= 0, s"violation of assumption: a numeric expression $expr does not occur as an argument of its parent $const")
+        typ(const.id) match {
+          case FunctionT(args, AssertionT) => Some(args(index))
+          case _: AbstractType =>
+            // here too, resolving the abstract type would cause a cycle in kiama
+            None
+          case UnknownType =>
+            // TODO: this is a bit of a hack. at some points, the type of const.id may be unknown. This happens, for example,
+            //  when a PDottedBase refers to a non existing field. For some reason, that fails to be detected in the well
+            //  definedness checker of the PPredConstructorBase (e.g. the last fold of the function `error4` in
+            //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
+            //  crashes Gobra without this case).
+            None
         }
 
         // expr has the default type if it appears in any other kind of statement

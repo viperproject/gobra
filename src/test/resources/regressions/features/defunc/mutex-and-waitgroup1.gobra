@@ -1,0 +1,93 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "sync"
+
+type Accum struct {
+	sum *int
+	m *sync.Mutex
+}
+
+pred AccInv(x *int) {
+	acc(x)
+}
+
+// TODO: debug this
+// requires acc(c) && acc(c.sum) && acc(c.m) && *(c.m) == sync.Mutex{}
+requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
+requires c.sum != nil
+ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv!<c.sum!>)
+func (c *Accum) Init() {
+	fold AccInv!<c.sum!>()
+	c.m.SetInv(AccInv!<c.sum!>)
+}
+
+// TODO: change names of vars and types
+// requires len(s) > 0
+/* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
+requires s != nil
+func parallelSum(s []int) {
+	// { }
+	count@ := 0
+	m := &sync.Mutex{}
+	c := &Accum{sum: &count, m: m}
+	// { acc(c) && acc(c.sum) && acc(c.m) }
+	c.Init()
+	// { acc(c) && c.m.LockP() && c.m.LockInv() == AccInv!<c.sum!> }
+	w := &sync.WaitGroup{}
+	w.Init()
+	// {
+	//    acc(c) && c.m.LockP() && c.m.LockInv() == AccInv!<c.sum!> &&
+	//    w.WaitGroupP && !w.WaitMode()
+	// }
+
+	n := len(s)
+
+	invariant i >= 0
+	invariant i == 0 ==> w.WaitGroupP()
+	invariant i > 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	// Martin suggested the following line instead of the previous one, with the goal of
+	// deleting the invariant `i >= 0`. However, that is insufficient to prove the loop invariant
+	// invariant i != 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	invariant !w.WaitMode()
+	invariant acc(c, _)
+	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum!>;
+	for i := 0; i < n; i++ {
+		// { w.WaitGroupP() && !w.WaitMode() }
+		w.Add(1, 1, 2, PredTrue!<!>)
+		ghost if i == 0 {
+			w.Start(1, 2, PredTrue!<!>)
+		}
+		// { w.WaitGroupP() && !w.WaitMode() && }
+		go worker(w, c, s[i] /*, 1, n+1*/)
+	}
+
+	// w.SetWaitMode(1, 2, 1, 2) // failing!
+	/*
+	fold PredTrue!<!>()
+	w.GenerateToken(PredTrue!<!>)
+	w.Wait(1, 1, PredTrue!<!>)
+	*/
+	// Goal: prove that the value sum protected by the mutex has the sum of all elems of the array
+}
+
+// requires dividend > 0 && divisor > 0 // p > 0
+// requires acc(w.WaitGroupP(), dividend/divisor)
+requires acc(accum, _)
+// requires acc(accum.m, _)
+requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum!>;
+requires w.UnitDebt(PredTrue!<!>)
+func worker(w *sync.WaitGroup, accum *Accum, val int/*, ghost dividend int, ghost divisor int*/) {
+	// { ? && m.LockInv() == AccInv!<accum.sum!> && acc(m.LockP(), _)}
+	accum.m.Lock()
+	// { ? && m.LockInv() == AccInv!<accum.sum!> && m.LockP() && m.UnlockP() && m.LockInv()() }
+	unfold AccInv!<accum.sum!>()
+	*(accum.sum) += val
+	fold AccInv!<accum.sum!>()
+	accum.m.Unlock()
+	w.Done()
+}
+
+//pure func easySum() // used only for verification

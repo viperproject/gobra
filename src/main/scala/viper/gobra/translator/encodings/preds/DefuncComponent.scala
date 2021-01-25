@@ -16,6 +16,9 @@ trait DefuncComponent extends Generator {
   /** Returns the predicate type with argument types 'ts'. */
   def typ(ts: Vector[in.Type])(ctx: Context): vpr.Type
 
+  /** Returns the default value of the predicate type with arguments 'ts' */
+  def default(ts: Vector[in.Type])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+
   /** Returns the predicate expression resulting from the construction on 'predicate' with arguments 'args'. */
   def construct(predicate: in.PredicateProxy, predTs: Vector[in.Type], args: Vector[Option[vpr.Exp]])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
     val pattern = computePattern(args)

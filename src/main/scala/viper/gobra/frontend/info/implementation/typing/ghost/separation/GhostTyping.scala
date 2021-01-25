@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost.separation
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.SymbolTable.{MultiLocalVariable, Regular, SingleLocalVariable}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -26,9 +26,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
   /** returns true iff statement is classified as ghost */
   private[separation] lazy val ghostStmtClassification: PStatement => Boolean = {
-    def varDeclClassification(left: Vector[PIdnNode], right: Vector[PExpression]): Boolean = {
-      if (right.isEmpty) left.forall(ghostIdClassification)
-      else StrictAssignModi(left.size, right.size) match {
+    def varDeclClassification(left: Vector[PIdnNode], right: Vector[PExpression]): Boolean =
+      StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
           left.map(Some(_)).zipAll(right.map(Some(_)), None, None).forall {
             case (Some(l), Some(r)) => ghostIdClassification(l) || ghostExprClassification(r)
@@ -41,11 +40,10 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
           val isRightGhost = right.exists(ghostExprClassification)
           left.forall(l => isRightGhost || ghostIdClassification(l))
 
+        case AssignMode.Error if right.isEmpty => left.forall(ghostIdClassification)
+
         case AssignMode.Error => Violation.violation("expected single or multi assignment mode")
       }
-
-
-    }
 
     attr[PStatement, Boolean] {
       case _: PGhostStatement => true
@@ -98,6 +96,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   /** returns true iff identifier is classified as ghost */
   private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
     id => entity(id) match {
+      case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprClassification)
+      case r: MultiLocalVariable => r.ghost || exprGhostTyping(r.exp).isIdxGhost(r.idx)
       case r: Regular => r.ghost
       case _ => Violation.violation("expected Regular Entity")
     }
@@ -110,7 +110,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   }
 
   /** returns true iff node is contained in ghost code */
-  private[separation] def enclosingGhostContext(n: PNode): Boolean = isEnclosingExplicitGhost(n)
+  private[separation] def enclosingGhostContext(n: PNode): Boolean = isEnclosingExplicitGhost(n) || isEnclosingPure(n)
 
   /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
   private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =

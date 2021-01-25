@@ -20,13 +20,13 @@ trait GhostAssignability {
   /** checks that ghost arguments are not assigned to non-ghost arguments  */
   private[separation] def ghostAssignableToCallExpr(right: PExpression*)(callee: PExpression): Messages = {
 
-    val isPure = resolve(callee) match {
-      case Some(p: ap.Function) => p.symb.isPure
-      case Some(p: ap.MethodExpr) => p.symb.isPure
-      case Some(p: ap.ReceivedMethod) => p.symb.isPure
+    val isPureOrGhost = resolve(callee) match {
+      case Some(p: ap.Function) => p.symb.isPure || p.symb.ghost
+      case Some(p: ap.MethodExpr) => p.symb.isPure || p.symb.ghost
+      case Some(p: ap.ReceivedMethod) => p.symb.isPure || p.symb.ghost
       case _ => false
     }
-    if (isPure) {return noMessages}
+    if (isPureOrGhost) {return noMessages}
 
     val argTyping = calleeArgGhostTyping(callee).toTuple
     generalGhostAssignableTo[PExpression, Boolean](ghostExprTyping){

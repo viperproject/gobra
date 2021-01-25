@@ -4,7 +4,12 @@
 package pkg
 
 func foo() {
-  // fails: mixing ghost and non-ghost code
+  m := mset[int] { }
   //:: ExpectedOutput(type_error)
-	m := mset[int] { }
+  test(m)
+}
+
+//:: ExpectedOutput(type_error)
+func test(m mset[int]) {
+
 }

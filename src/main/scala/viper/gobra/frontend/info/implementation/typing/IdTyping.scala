@@ -53,7 +53,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       }) else cyclicMsg
 
     case SingleLocalVariable(exp, opt, _, _, _) => unsafeMessage(! {
-      opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
+      // exp has to be well-def if it exists (independently on the existance of opt) as we need it for ghost typing
+      opt.forall(wellDefAndType.valid) && exp.forall(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
     case MultiLocalVariable(idx, exp, _, _, _) => unsafeMessage(! {

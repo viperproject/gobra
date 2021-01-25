@@ -156,6 +156,7 @@ object GobraStrategy {
       case (p: Parameter.In, Seq()) => Parameter.In(p.id, p.typ)(meta)
       case (p: Parameter.Out, Seq()) => Parameter.Out(p.id, p.typ)(meta)
       case (l: LocalVar, Seq()) => LocalVar(l.id, l.typ)(meta)
+      case (g: GlobalConst.Val, Seq()) => GlobalConst.Val(g.id, g.typ)(meta)
       case (_: Addressable.Var, Seq(v: LocalVar)) => Addressable.Var(v)
       case (_: Addressable.Pointer, Seq(v: Deref)) => Addressable.Pointer(v)
       case (_: Addressable.Field, Seq(v: FieldRef)) => Addressable.Field(v)

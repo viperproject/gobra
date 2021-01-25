@@ -111,7 +111,85 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     })
   }
 
-  test("if else if else should correctly be erased") {
+  test("Ghost Erasure: variable declarations with mixed ghost types should be correctly ghost erased") {
+    // func test() (ghost res1 bool, res2 int) {
+    //    return true, 42
+    // }
+    // func main() {
+    //     test()
+    //     var t1, t2 = test()
+    //     t3, t4 := test()
+    // }
+    val testFunc = PFunctionDecl(
+      PIdnDef("test"),
+      Vector(),
+      PResult(Vector(
+        PExplicitGhostParameter(PNamedParameter(PIdnDef("res1"), PBoolType())),
+        PNamedParameter(PIdnDef("res2"), PIntType()))),
+      PFunctionSpec(Vector(), Vector(), false),
+      Some((
+        PBodyParameterInfo(Vector()),
+        PBlock(Vector(PReturn(Vector(PBoolLit(true), PIntLit(42))))))
+      ))
+    val inputMainFunc = PFunctionDecl(
+      PIdnDef("main"),
+      Vector(),
+      PResult(Vector()),
+      PFunctionSpec(Vector(), Vector(), false),
+      Some((
+        PBodyParameterInfo(Vector()),
+        PBlock(Vector(
+          PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
+          PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1"), PIdnDef("t2")), Vector(false, false)),
+          PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t3"), PIdnUnk("t4")), Vector(false, false))
+        ))
+      )))
+    val inputProgram = PProgram(
+      PPackageClause(PPkgDef("pkg")),
+      Vector(),
+      Vector(testFunc, inputMainFunc)
+    )
+    // expected result
+    // func test() (res2 int) {
+    //    return 42
+    // }
+    // func main() {
+    //     test()
+    //     var t2 = test()
+    //     t4 := test()
+    // }
+    val outputFunctions = frontend.ghostLessProg(inputProgram) match {
+      case PProgram(_, _, functions) => functions
+    }
+    assert(outputFunctions.length == 2)
+    val outputTestFunc = outputFunctions collectFirst {
+      case p@PFunctionDecl(PIdnDef("test"), _, _, _, _) => p
+    }
+    assert(outputTestFunc.isDefined)
+    val outputTestStmts = outputTestFunc.flatMap(_.body.map(_._2.nonEmptyStmts))
+    assert(outputTestStmts.isDefined)
+
+    val outputMainFunc = outputFunctions collectFirst {
+      case p@PFunctionDecl(PIdnDef("main"), _, _, _, _) => p
+    }
+    assert(outputMainFunc.isDefined)
+    val outputMainStmts = outputMainFunc.flatMap(_.body.map(_._2.nonEmptyStmts))
+    assert(outputMainStmts.isDefined)
+
+    frontend.normalize(outputTestStmts.get) should matchPattern {
+      case Vector(PReturn(Vector(PIntLit(lit)))) if lit == 42 =>
+    }
+
+    frontend.normalize(outputMainStmts.get) should matchPattern {
+      case Vector(
+        PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
+        PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t2")), Vector(false)),
+        PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t4")), Vector(false))
+      ) =>
+    }
+  }
+
+  test("if ... else if ... else ... should correctly be erased") {
     // if true {} else if (false) {} else {}
     val input = PIfStmt(Vector(
       PIfClause(None, PBoolLit(true), PBlock(Vector())),
@@ -136,7 +214,7 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         PIdnDef("foo"),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), true),
+        PFunctionSpec(Vector(), Vector()),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )
@@ -169,19 +247,19 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
         case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("foo"), _, _, _, Some((_, b))))) => b
         case p => fail(s"Parsing succeeded but with an unexpected program $p")
       }
-      getSingleStmt(block.stmts)
+      normalize(block.stmts) match {
+        case Vector(stmt) => stmt
+        case stmts => fail(s"Parsing succeeded but with unexpected stmts $stmts")
+      }
     }
 
-    def getSingleStmt(stmts: Vector[PStatement]): PStatement = {
-      val nonEmptyStmts = stmts.filter(s => s match {
-        case _: PEmptyStmt => false
-        case _ => true
-      })
-      nonEmptyStmts match {
-        case Vector(PSeq(s)) => getSingleStmt(s)
-        case Vector(s) => s
-        case s => fail(s"Parsing succeeded but with unexpected stmts $s")
-      }
+    /**
+      * Normalizes statements by removing PSeq and PEmptyStatement
+      */
+    def normalize(stmts: Vector[PStatement]): Vector[PStatement] = stmts flatMap {
+      case _: PEmptyStmt => Vector()
+      case PSeq(s) => normalize(s)
+      case s => Vector(s)
     }
 
     def ghostLessExpr(expr: PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()): PExpression = {

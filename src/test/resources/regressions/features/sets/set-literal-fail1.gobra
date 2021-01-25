@@ -4,7 +4,12 @@
 package pkg
 
 func foo() {
-  // fails: `s` isn't ghost
-  //:: ExpectedOutput(type_error)
   s := set[int] { }
+  // fails: `s` is ghost so is the result of `in`
+  //:: ExpectedOutput(type_error)
+  test(5 in s)
+}
+
+func test(b bool) {
+
 }

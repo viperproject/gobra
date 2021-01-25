@@ -54,33 +54,14 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case PForStmt(pre, cond, post, _, body) =>
       super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
 
-    case PAssignment(right, left) =>
-      StrictAssignModi(left.size, right.size) match {
-        case AssignMode.Single =>
-          val (aRight, aLeft) = right.zip(left).filter(p => !classifier.isExprGhost(p._2)).unzip
-          if (aLeft.isEmpty) ghostToken else super.showStmt(PAssignment(aRight, aLeft))
+    case p@PAssignment(right, left) =>
+      showAssign[PAssignee](right, left, (r, l, _) => p.copy(right = r, left = l))
 
-        case AssignMode.Multi =>
-          val aLeft = left.filter(!classifier.isExprGhost(_))
-          if (aLeft.isEmpty) ghostToken else super.showStmt(PAssignment(right, aLeft))
+    case p@PVarDecl(_, right, left, _) =>
+      showAssign[PDefLikeId](right, left, (r, l, a) => p.copy(right = r, left = l, addressable = a))
 
-        case AssignMode.Error => errorMsg
-      }
-
-    case PShortVarDecl(right, left, _) =>
-      StrictAssignModi(left.size, right.size) match {
-        case AssignMode.Single =>
-          val (aRight, aLeft) = right.zip(left).filterNot(p => classifier.isIdGhost(p._2) || classifier.isExprGhost(p._1)).unzip
-          if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(aRight, aLeft, aLeft.map(_ => false)))
-
-        case AssignMode.Multi =>
-          // right should be a singleton vector
-          val isRightGhost = right.exists(classifier.isExprGhost)
-          val aLeft = left.filterNot(classifier.isIdGhost(_) || isRightGhost)
-          if (aLeft.isEmpty) ghostToken else super.showStmt(PShortVarDecl(right, aLeft, aLeft.map(_ => false)))
-
-        case AssignMode.Error => errorMsg
-      }
+    case p@PShortVarDecl(right, left, _) =>
+      showAssign[PUnkLikeId](right, left, (r, l, a) => p.copy(right = r, left = l, addressable = a))
 
     case n@ PReturn(right) =>
       val gt = classifier.expectedReturnGhostTyping(n)
@@ -91,14 +72,44 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
     case _ => super.showStmt(stmt)
   }
 
+  /**
+    * Filters and shows assignment, variable declaration, and short variable declaration statements by filtering their lhs and rhs
+    */
+  private def showAssign[N <: PNode](right: Vector[PExpression], left: Vector[N], copy: (Vector[PExpression], Vector[N], Vector[Boolean]) => PStatement): Doc = {
+    def isGhost(l: N): Boolean = l match {
+      case l: PIdnNode => classifier.isIdGhost(l)
+      case l: PExpression => classifier.isExprGhost(l)
+    }
+
+    def handleMultiOrEmptyRhs = {
+      val aLeft = left.filter(!isGhost(_))
+      if (aLeft.isEmpty) ghostToken else super.showStmt(copy(right, aLeft, aLeft.map(_ => false)))
+    }
+
+    StrictAssignModi(left.size, right.size) match {
+      case AssignMode.Single =>
+        val (aRight, aLeft) = right.zip(left).filter(p => !isGhost(p._2)).unzip
+        if (aLeft.isEmpty) ghostToken else super.showStmt(copy(aRight, aLeft, aLeft.map(_ => false)))
+
+      case AssignMode.Multi => handleMultiOrEmptyRhs
+
+      case AssignMode.Error if right.isEmpty => handleMultiOrEmptyRhs
+
+      case AssignMode.Error => errorMsg
+    }
+  }
+
   override def showExpr(expr: PExpression): Doc = expr match {
 
     // invokes of ghost functions and methods should not be printed
-    case n: PInvoke if classifier.isExprGhost(n) => ghostToken
-    case n: PInvoke =>
-      val gt = classifier.expectedArgGhostTyping(n)
-      val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
-      super.showExpr(n.copy(args = aArgs))
+    case n: PInvoke => n.base match {
+      case e: PExpression if classifier.isExprGhost(e) => ghostToken
+      case t: PType if classifier.isTypeGhost(t) => ghostToken
+      case _ =>
+        val gt = classifier.expectedArgGhostTyping(n)
+        val aArgs = n.args.zip(gt.toTuple).filter(!_._2).map(_._1)
+        super.showExpr(n.copy(args = aArgs))
+    }
 
     case e: PActualExprProofAnnotation => showExpr(e.op)
     case e if classifier.isExprGhost(e) => ghostToken

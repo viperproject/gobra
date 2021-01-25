@@ -5,6 +5,25 @@ package pkg
 
 import "sync"
 
+pred sumSlice(s []int, sum int) {
+	forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _) &&
+	sumSliceIndex(s, sum, 0)
+}
+
+pred sumSliceIndex(s []int, sum int, startIndex int) {
+	forall i int :: startIndex <= i && i < len(s) ==> acc(&s[i], _) &&
+	(startIndex >= len(s) ==> sum == 0) &&
+		((startIndex < len(s)) ==> sumSliceIndex(s, sum - s[startIndex], startIndex + 1))
+}
+
+func sumSliceTest() {
+	var s []int = []int{1, 2, 3, 4} 
+	// causing
+	// Receiver of sumSliceIndex_pkg_F(s_pkg_V2, sum_pkg_V2 - (ShArrayloc((sarray(s_pkg_V2): ShArray[Ref]), sadd((soffset(s_pkg_V2): Int), startIndex_pkg_V2)): Ref).val$_Int, startIndex_pkg_V2 + 1)
+	// [mutex-and-waitgroup1.gobra@16.30--16.83]  might not be injective. (of class viper.silver.verifier.reasons$ReceiverNotInjective)
+	fold sumSliceIndex(s, 10, 0)
+}
+	
 type Accum struct {
 	sum *int
 	m *sync.Mutex
@@ -25,6 +44,7 @@ func (c *Accum) Init() {
 }
 
 // TODO: change names of vars and types
+// TODO: define a specific predicate for the post condition
 /* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
 func ParallelSum(s []int) (res int) {
 	if len(s) == 0 {
@@ -41,7 +61,8 @@ func ParallelSum(s []int) (res int) {
 	w := &sync.WaitGroup{}
 	w.Init()
 	// {
-	//    acc(c) && c.m.LockP() && c.m.LockInv() == AccInv!<c.sum!> &&
+	//    acc(c) && c.m.LockP() &&
+	//    c.m.LockInv() == AccInv!<c.sum!> &&
 	//    w.WaitGroupP && !w.WaitMode()
 	// }
 
@@ -58,7 +79,7 @@ func ParallelSum(s []int) (res int) {
 	invariant acc(c, _)
 	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum!>;
 	for i := 0; i < n; i++ {
-		// { w.WaitGroupP() && !w.WaitMode() }
+		// { }
 		w.Add(1, 1, 2, PredTrue!<!>)
 		ghost if i == 0 {
 			w.Start(1, 2, PredTrue!<!>)
@@ -67,25 +88,23 @@ func ParallelSum(s []int) (res int) {
 			fold PredTrue!<!>()
 			w.GenerateToken(PredTrue!<!>)
 		}
-		// { w.WaitGroupP() && !w.WaitMode() && }
+		// { }
 		go worker(w, c, s[i] /*, 1, n+1*/)
 	}
 
 	w.SetWaitMode(1, 2, 1, 2)
-	// fold PredTrue!<!>()
-	// w.GenerateToken(PredTrue!<!>)
 	w.Wait(1, 1, PredTrue!<!>)
 	assert c.m.LockInv() == AccInv!<c.sum!>;
 	c.m.Lock()
 	unfold AccInv!<c.sum!>()
-	// assert acc(c.sum)
-	// Goal: prove that the value sum protected by the mutex has the sum of all elems of the array
 	res = *(c.sum) // TODO: maybe restructure the data in Accum to not have a pointer to int
 	fold AccInv!<c.sum!>()
 	c.m.Unlock()
 
-	simpleSum := SimpleSum(s)
-	assert res == simpleSum
+	// Main correctness criteria
+	// Goal: prove that, at this point, the value sum protected by the mutex has the sum of all elems of the array
+	//simpleSum := SimpleSum(s)
+	//assert res == simpleSum 
 
 	return res
 }
@@ -96,9 +115,9 @@ requires acc(accum, _)
 requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum!>;
 requires w.UnitDebt(PredTrue!<!>)
 func worker(w *sync.WaitGroup, accum *Accum, val int/*, ghost dividend int, ghost divisor int*/) {
-	// { ? && m.LockInv() == AccInv!<accum.sum!> && acc(m.LockP(), _)}
+	// { }
 	accum.m.Lock()
-	// { ? && m.LockInv() == AccInv!<accum.sum!> && m.LockP() && m.UnlockP() && m.LockInv()() }
+	// { }
 	unfold AccInv!<accum.sum!>()
 	*(accum.sum) += val
 	fold AccInv!<accum.sum!>()
@@ -106,14 +125,15 @@ func worker(w *sync.WaitGroup, accum *Accum, val int/*, ghost dividend int, ghos
 	w.Done()
 }
 
-requires acc(s)
-ensures acc(s)
+// TODO: define a specific predicate for sum of this
+/*
 func SimpleSum(s []int) (res int) {
 	res = 0
 	for i:=0; i<len(s); i++ {
 		res += s[i]
 	}
 }
+*/
 
 // TODO: suggestion by linard: similar example to the one above where the user defines the
 // number of chunks and a thread is created per chunk instead of per cell

@@ -88,7 +88,10 @@ object Desugar {
       combineTableField(_.definedMethods) ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
       combineTableField(_.definedMPredicates) ++ builtInMPredicates,
-      combineTableField(_.definedFPredicates) ++ builtInFPredicates)
+      combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
+      Map.empty,
+      Map.empty
+      )
     val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
     (table, builtInMembers)
   }
@@ -287,7 +290,15 @@ object Desugar {
       // instead, they remain only accessible via this desugarer's getter function.
       // The `combine` function will treat all built-in members across packages (i.e. desugarers) and update the
       // program's members and lookup table accordingly
-      val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
+      val table = new in.LookupTable(
+        definedTypes,
+        definedMethods,
+        definedFunctions,
+        definedMPredicates,
+        definedFPredicates,
+        Map.empty,
+        Map.empty
+      )
 
       in.Program(types.toVector, dMembers, table)(meta(p))
     }

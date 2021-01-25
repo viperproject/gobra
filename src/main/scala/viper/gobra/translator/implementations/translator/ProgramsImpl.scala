@@ -12,6 +12,8 @@ import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.translator.implementations.{CollectorImpl, ContextImpl}
 import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
+import viper.gobra.translator.util.ViperWriter.MemberWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 import viper.silver.ast.utility.AssumeRewriter
 
@@ -25,29 +27,30 @@ class ProgramsImpl extends Programs {
 
     val ctx = new ContextImpl(conf, program.table)
 
-    val progW = for {
-      methods <- sequence(program.members collect {
-        case f: in.Function => ctx.method.function(f)(ctx)
-        case m: in.Method => ctx.method.method(m)(ctx)
-      })
-
-      functions <- sequence(program.members collect {
-        case f: in.PureFunction => ctx.pureMethod.pureFunction(f)(ctx)
-        case m: in.PureMethod => ctx.pureMethod.pureMethod(m)(ctx)
-      })
-
-      predicates <- sequence(program.members collect {
-        case p: in.MPredicate => ctx.predicate.mpredicate(p)(ctx)
-        case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx)
-      })
-
-      _ = program.members collect {
-        case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx)
-        case m: in.BuiltInMethod => ctx.builtInMembers.method(m)(ctx)
-        case f: in.BuiltInFunction => ctx.builtInMembers.function(f)(ctx)
-        case p: in.BuiltInMPredicate => ctx.builtInMembers.mpredicate(p)(ctx)
-        case p: in.BuiltInFPredicate => ctx.builtInMembers.fpredicate(p)(ctx)
+    def goM(member: in.Member): MemberWriter[Vector[vpr.Member]] = {
+      val typeEncodingOpt = ctx.typeEncoding.member(ctx).lift(member)
+      if (typeEncodingOpt.isDefined) typeEncodingOpt.get
+      else {
+        member match {
+          case f: in.Function => ctx.method.function(f)(ctx).map(Vector(_))
+          case m: in.Method => ctx.method.method(m)(ctx).map(Vector(_))
+          case f: in.PureFunction => ctx.pureMethod.pureFunction(f)(ctx).map(Vector(_))
+          case m: in.PureMethod => ctx.pureMethod.pureMethod(m)(ctx).map(Vector(_))
+          case p: in.MPredicate => ctx.predicate.mpredicate(p)(ctx).map(Vector(_))
+          case p: in.FPredicate => ctx.predicate.fpredicate(p)(ctx).map(Vector(_))
+          case gc: in.GlobalConstDecl => ctx.fixpoint.create(gc)(ctx); unit(Vector.empty)
+          case m: in.BuiltInMethod => ctx.builtInMembers.method(m)(ctx); unit(Vector.empty)
+          case f: in.BuiltInFunction => ctx.builtInMembers.function(f)(ctx); unit(Vector.empty)
+          case p: in.BuiltInMPredicate => ctx.builtInMembers.mpredicate(p)(ctx); unit(Vector.empty)
+          case p: in.BuiltInFPredicate => ctx.builtInMembers.fpredicate(p)(ctx); unit(Vector.empty)
+          case p => Violation.violation(s"found unsupported member: $p")
+        }
       }
+    }
+
+    val progW = for {
+      memberss <- sequence(program.members map goM)
+      members = memberss.flatten
 
       col = {
         val c = new CollectorImpl()
@@ -55,13 +58,21 @@ class ProgramsImpl extends Programs {
         c
       }
 
+
+      domains = members collect { case x: vpr.Domain => x }
+      fields = members collect { case x: vpr.Field => x }
+      predicates = members.collect { case x: vpr.Predicate => x }
+      functions = members.collect { case x: vpr.Function => x }
+      methods = members collect { case x: vpr.Method => x }
+      extensions = members collect { case x: vpr.ExtensionMember => x }
+
       vProgram = vpr.Program(
-        domains = col.domains,
-        fields = col.fields,
+        domains = col.domains ++ domains,
+        fields = col.fields ++ fields,
         predicates = col.predicate ++ predicates,
         functions = col.functions ++ functions,
         methods = col.methods ++ methods,
-        extensions = col.extensions
+        extensions = col.extensions ++ extensions
       )(pos, info, errT)
 
     } yield vProgram

@@ -1,0 +1,28 @@
+package main
+
+
+type link struct {
+    value int
+    next *link
+}
+
+requires acc(self)
+ensures  acc(self)
+func prepend(self **link, value int) {
+  newLink@ := link{value, *self}
+  *self = &newLink
+}
+
+type pair struct{
+  fst, snd int
+}
+
+
+func update1(arr []pair, idx, fst, snd int) {
+  p := &arr[idx]
+  newVal := pair{fst, snd}
+  *p = newVal
+}
+
+
+

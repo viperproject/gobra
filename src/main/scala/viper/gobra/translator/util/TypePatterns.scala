@@ -148,8 +148,8 @@ object TypePatterns {
     }
 
     object Interface {
-      def unapply(arg: in.Type): Option[Unit] = underlyingType(arg)(ctx) match {
-        case _ : in.InterfaceT => Some(())
+      def unapply(arg: in.Type): Option[String] = underlyingType(arg)(ctx) match {
+        case t : in.InterfaceT => Some(t.name)
         case _ => None
       }
     }

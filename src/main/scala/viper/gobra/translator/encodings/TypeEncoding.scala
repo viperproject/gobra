@@ -46,6 +46,12 @@ trait TypeEncoding extends Generator {
       unit(ctx.fixpoint.get(v)(ctx))
   }
 
+
+  /**
+    * Encodes a member
+    */
+  def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = PartialFunction.empty
+
   /**
     * Returns extensions to the precondition for an in-parameter.
     */

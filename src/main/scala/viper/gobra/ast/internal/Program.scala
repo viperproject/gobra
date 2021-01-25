@@ -19,9 +19,9 @@ import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, Bu
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
-import viper.gobra.util.TypeBounds
+import viper.gobra.translator.Names
+import viper.gobra.util.{Algorithms, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
-import viper.gobra.util.Violation
 import viper.gobra.util.Violation.violation
 
 case class Program(
@@ -35,17 +35,25 @@ class LookupTable(
                  definedMethods: Map[MethodProxy, MethodLikeMember],
                  definedFunctions: Map[FunctionProxy, FunctionLikeMember],
                  definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
-                 definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember]
+                 definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
+                 memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
+                 val interfaceImplementations: Map[InterfaceT, Set[Type]] // empty interface does not have to be included
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
   def lookup(f: FunctionProxy): FunctionLikeMember = definedFunctions(f)
   def lookup(m: MPredicateProxy): MPredicateLikeMember = definedMPredicates(m)
   def lookup(f: FPredicateProxy): FPredicateLikeMember = definedFPredicates(f)
+
   def getMethods: Iterable[MethodLikeMember] = definedMethods.values
   def getFunctions: Iterable[FunctionLikeMember] = definedFunctions.values
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
+
+
+  def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
+  def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
+  def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
 }
 
 sealed trait Member extends Node
@@ -119,6 +127,29 @@ case class BuiltInMethod(
   require(receiverT.addressability == Addressability.Exclusive)
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
+
+case class MethodSubtypeProof(
+                               subProxy: MethodProxy,
+                               superT: InterfaceT,
+                               superProxy: MethodProxy,
+                               receiver: Parameter.In,
+                               args: Vector[Parameter.In],
+                               results: Vector[Parameter.Out],
+                               body: Option[Block]
+                             )(val info: Source.Parser.Info) extends Member
+
+case class PureMethodSubtypeProof(
+                               subProxy: MethodProxy,
+                               superT: InterfaceT,
+                               superProxy: MethodProxy,
+                               receiver: Parameter.In,
+                               args: Vector[Parameter.In],
+                               results: Vector[Parameter.Out],
+                               body: Option[Expr]
+                             )(val info: Source.Parser.Info) extends Member {
+  require(results.size <= 1)
+}
+
 
 case class Function(
                      override val name: FunctionProxy,
@@ -388,6 +419,10 @@ case class IsComparableType(exp: Expr)(val info: Source.Parser.Info) extends Exp
 }
 
 case class IsComparableInterface(exp: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = BoolT(Addressability.rValue)
+}
+
+case class isBehaviouralSubtype(subtype: Expr, supertype: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
 }
 
@@ -1145,6 +1180,8 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
 
   override def withAddressability(newAddressability: Addressability): InterfaceT =
     InterfaceT(name, newAddressability)
+
+  def isEmpty: Boolean = name == Names.emptyInterface
 }
 
 case class ChannelT(elem: Type, addressability: Addressability) extends Type {
@@ -1159,13 +1196,18 @@ case class ChannelT(elem: Type, addressability: Addressability) extends Type {
 
 
 
-sealed trait Proxy extends Node
+sealed trait Proxy extends Node {
+  def name: String
+}
+sealed trait MemberProxy extends Proxy {
+  def uniqueName: String
+}
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
-case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends Proxy
+case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
 
 sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
-case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy
+case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 
 

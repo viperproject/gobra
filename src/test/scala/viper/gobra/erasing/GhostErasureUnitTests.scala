@@ -1,7 +1,7 @@
 package viper.gobra.erasing
 
 import org.bitbucket.inkytonik.kiama.util.{Positions, StringSource}
-import org.scalatest.Inside
+import org.scalatest.{Assertion, Inside, Succeeded}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
@@ -22,174 +22,97 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Ghost Erasure: calls to (pure) ghost functions should be removed") {
-    // ghost (pure) func test() (res bool) {
-    //    return true
-    // }
-    // func main() {
-    //     test()
-    //     var t1 = test()
-    //     t2 := test()
-    // }
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(isPure => {
-      val testFunc = PExplicitGhostMember(PFunctionDecl(
-        PIdnDef("test"),
-        Vector(),
-        PResult(Vector(PNamedParameter(PIdnDef("res"), PBoolType()))),
-        PFunctionSpec(Vector(), Vector(), isPure),
-        Some((
-          PBodyParameterInfo(Vector()),
-          PBlock(Vector(PReturn(Vector(PBoolLit(true))))))
-        )))
-      val inputMainFunc = PFunctionDecl(
-        PIdnDef("main"),
-        Vector(),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), false),
-        Some((
-          PBodyParameterInfo(Vector()),
-          PBlock(Vector(
-            PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
-            PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1")), Vector(false)),
-            PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t2")), Vector(false))
-          ))
-        )))
-      val inputProgram = PProgram(
-        PPackageClause(PPkgDef("pkg")),
-        Vector(),
-        Vector(testFunc, inputMainFunc)
-      )
-      frontend.ghostLessProg(inputProgram) should matchPattern {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("main"), _, _, _, Some((_, b))))) if b.nonEmptyStmts == Vector() =>
-      }
+      val input = s"""
+        |package pkg
+        |ghost ${if (isPure) "pure" else ""} func test() (res bool) {
+        | return true
+        |}
+        |func main() {
+        | test()
+        | var t1 = test()
+        | t2 := test()
+        |}""".stripMargin
+      val expected = s"""
+        |package pkg
+        |func main() {
+        |}""".stripMargin
+      frontend.testProg(input, expected)
     })
   }
 
   test("Ghost Erasure: calls to (pure) ghost functions with multiple return values should be removed") {
-    // ghost (pure) func test() (res1 bool, res2 int) {
-    //    return true, 42
-    // }
-    // func main() {
-    //     test()
-    //     var t1, t2 = test()
-    //     t3, t4 := test()
-    // }
     val modes: Set[Boolean] = Set(false, true)
     modes.foreach(isPure => {
-      val testFunc = PExplicitGhostMember(PFunctionDecl(
-        PIdnDef("test"),
-        Vector(),
-        PResult(Vector(
-          PNamedParameter(PIdnDef("res1"), PBoolType()),
-          PNamedParameter(PIdnDef("res2"), PIntType()))),
-        PFunctionSpec(Vector(), Vector(), isPure),
-        Some((
-          PBodyParameterInfo(Vector()),
-          PBlock(Vector(PReturn(Vector(PBoolLit(true), PIntLit(42))))))
-        )))
-      val inputMainFunc = PFunctionDecl(
-        PIdnDef("main"),
-        Vector(),
-        PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), false),
-        Some((
-          PBodyParameterInfo(Vector()),
-          PBlock(Vector(
-            PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
-            PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1"), PIdnDef("t2")), Vector(false, false)),
-            PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t3"), PIdnUnk("t4")), Vector(false, false))
-          ))
-        )))
-      val inputProgram = PProgram(
-        PPackageClause(PPkgDef("pkg")),
-        Vector(),
-        Vector(testFunc, inputMainFunc)
-      )
-      frontend.ghostLessProg(inputProgram) should matchPattern {
-        case PProgram(_, _, Vector(PFunctionDecl(PIdnDef("main"), _, _, _, Some((_, b))))) if b.nonEmptyStmts == Vector() =>
-      }
+      val input = s"""
+        |package pkg
+        |ghost ${if (isPure) "pure" else ""} func test() (res1 bool, res2 int) {
+        | return true, 42
+        |}
+        |func main() {
+        | test()
+        | var t1, t2 = test()
+        | t3, t4 := test()
+        |}""".stripMargin
+      val expected = s"""
+        |package pkg
+        |func main() {
+        |}""".stripMargin
+      frontend.testProg(input, expected)
     })
   }
 
   test("Ghost Erasure: variable declarations with mixed ghost types should be correctly ghost erased") {
-    // func test() (ghost res1 bool, res2 int) {
-    //    return true, 42
-    // }
-    // func main() {
-    //     test()
-    //     var t1, t2 = test()
-    //     t3, t4 := test()
-    // }
-    val testFunc = PFunctionDecl(
-      PIdnDef("test"),
-      Vector(),
-      PResult(Vector(
-        PExplicitGhostParameter(PNamedParameter(PIdnDef("res1"), PBoolType())),
-        PNamedParameter(PIdnDef("res2"), PIntType()))),
-      PFunctionSpec(Vector(), Vector(), false),
-      Some((
-        PBodyParameterInfo(Vector()),
-        PBlock(Vector(PReturn(Vector(PBoolLit(true), PIntLit(42))))))
-      ))
-    val inputMainFunc = PFunctionDecl(
-      PIdnDef("main"),
-      Vector(),
-      PResult(Vector()),
-      PFunctionSpec(Vector(), Vector(), false),
-      Some((
-        PBodyParameterInfo(Vector()),
-        PBlock(Vector(
-          PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
-          PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t1"), PIdnDef("t2")), Vector(false, false)),
-          PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t3"), PIdnUnk("t4")), Vector(false, false))
-        ))
-      )))
-    val inputProgram = PProgram(
-      PPackageClause(PPkgDef("pkg")),
-      Vector(),
-      Vector(testFunc, inputMainFunc)
-    )
-    // expected result
-    // func test() (res2 int) {
-    //    return 42
-    // }
-    // func main() {
-    //     test()
-    //     var t2 = test()
-    //     t4 := test()
-    // }
-    val outputFunctions = frontend.ghostLessProg(inputProgram) match {
-      case PProgram(_, _, functions) => functions
-    }
-    assert(outputFunctions.length == 2)
-    val outputTestFunc = outputFunctions collectFirst {
-      case p@PFunctionDecl(PIdnDef("test"), _, _, _, _) => p
-    }
-    assert(outputTestFunc.isDefined)
-    val outputTestStmts = outputTestFunc.flatMap(_.body.map(_._2.nonEmptyStmts))
-    assert(outputTestStmts.isDefined)
-
-    val outputMainFunc = outputFunctions collectFirst {
-      case p@PFunctionDecl(PIdnDef("main"), _, _, _, _) => p
-    }
-    assert(outputMainFunc.isDefined)
-    val outputMainStmts = outputMainFunc.flatMap(_.body.map(_._2.nonEmptyStmts))
-    assert(outputMainStmts.isDefined)
-
-    frontend.normalize(outputTestStmts.get) should matchPattern {
-      case Vector(PReturn(Vector(PIntLit(lit)))) if lit == 42 =>
-    }
-
-    frontend.normalize(outputMainStmts.get) should matchPattern {
-      case Vector(
-        PExpressionStmt(PInvoke(PNamedOperand(PIdnUse("test")), Vector())),
-        PVarDecl(None, Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnDef("t2")), Vector(false)),
-        PShortVarDecl(Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector())), Vector(PIdnUnk("t4")), Vector(false))
-      ) =>
-    }
+    val input = s"""
+      |package pkg
+      |func test() (ghost res1 bool, res2 int) {
+      | return true, 42
+      |}
+      |func main() {
+      | test()
+      | var t1, t2 = test()
+      | t3, t4 := test()
+      |}""".stripMargin
+    val expected = s"""
+      |package pkg
+      |func test() (res2 int) {
+      | return 42
+      |}
+      |func main() {
+      | test()
+      | var t2 = test()
+      | t4 := test()
+      |}""".stripMargin
+    frontend.testProg(input, expected)
   }
 
-  test("if ... else if ... else ... should correctly be erased") {
+  test("Ghost Erasure: assignments with mixed ghost types should be correctly ghost erased") {
+    val input = s"""
+      |package pkg
+      |func test() (ghost res1 bool, res2 int) {
+      | return true, 42
+      |}
+      |func main() {
+      | t1, t2 := test()
+      | t1 = false
+      | t2 = 0
+      | t1, t2 = true, 42
+      |}""".stripMargin
+    val expected = s"""
+      |package pkg
+      |func test() (res2 int) {
+      | return 42
+      |}
+      |func main() {
+      | t2 := test()
+      | t2 = 0
+      | t2 = 42
+      |}""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: if ... else if ... else ... should correctly be erased") {
     // if true {} else if (false) {} else {}
     val input = PIfStmt(Vector(
       PIfClause(None, PBoolLit(true), PBlock(Vector())),
@@ -253,6 +176,15 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       }
     }
 
+    def ghostLessExpr(expr: PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()): PExpression = {
+      val stmt = PShortVarDecl(Vector(expr), Vector(PIdnUnk("n")), Vector(false))
+      val ghostLess = ghostLessStmt(stmt)(inArgs)
+      ghostLess match {
+        case PShortVarDecl(Vector(e), _, _) => e
+        case stmt => fail(s"Parsing succeeded but with unexpected stmt $stmt")
+      }
+    }
+
     /**
       * Normalizes statements by removing PSeq and PEmptyStatement
       */
@@ -262,13 +194,65 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       case s => Vector(s)
     }
 
-    def ghostLessExpr(expr: PExpression)(inArgs: Vector[(PParameter, Boolean)] = Vector()): PExpression = {
-      val stmt = PShortVarDecl(Vector(expr), Vector(PIdnUnk("n")), Vector(false))
-      val ghostLess = ghostLessStmt(stmt)(inArgs)
-      ghostLess match {
-        case PShortVarDecl(Vector(e), _, _) => e
-        case stmt => fail(s"Parsing succeeded but with unexpected stmt $stmt")
+    def testProg(inputProg: String, expectedErasedProg: String): Assertion = {
+      val config = Config(Vector())
+      val inputParseAst = Parser.parseProgram(StringSource(inputProg, "Input Program"))(config)
+      val ghostlessProg = inputParseAst match {
+        case Right(prog) => ghostLessProg(prog)
+        case Left(msgs) => fail(s"Parsing input program has failed with $msgs")
       }
+      val expectedParseAst = Parser.parseProgram(StringSource(expectedErasedProg, "Expected Program"))(config)
+      expectedParseAst match {
+        case Right(prog) => equal(ghostlessProg, prog)
+        case Left(msgs) => fail(s"Parsing expected erased program has failed with $msgs")
+      }
+    }
+
+    private def equal(actual: PProgram, expected: PProgram): Assertion = {
+      assert(actual.packageClause == expected.packageClause)
+      assert(actual.imports == expected.imports)
+      assert(actual.declarations.length == expected.declarations.length)
+      actual.declarations.zip(expected.declarations) map {
+        case (actualMember, expectedMember) => equal(actualMember, expectedMember)
+      }
+      Succeeded
+    }
+
+    @scala.annotation.tailrec
+    private def equal(actual: PMember, expected: PMember): Assertion = {
+      (actual, expected) match {
+        case (a: PConstDecl, e: PConstDecl) => assert(a == e)
+        case (a: PVarDecl, e: PVarDecl) => assert(a == e)
+        case (PFunctionDecl(aId, aArgs, aResult, aSpec, aBody), PFunctionDecl(eId, eArgs, eResult, eSpec, eBody)) =>
+          assert(aId == eId)
+          assert(aArgs == eArgs)
+          assert(aResult == eResult)
+          assert(aSpec == eSpec)
+          equal(aBody, eBody)
+        case (PMethodDecl(aId, aRecv, aArgs, aResult, aSpec, aBody), PMethodDecl(eId, eRecv, eArgs, eResult, eSpec, eBody)) =>
+          assert(aId == eId)
+          assert(aRecv == eRecv)
+          assert(aArgs == eArgs)
+          assert(aResult == eResult)
+          assert(aSpec == eSpec)
+          equal(aBody, eBody)
+        case (a: PTypeDecl, e: PTypeDecl) => assert(a == e)
+        case (PExplicitGhostMember(a), PExplicitGhostMember(e)) => equal(a, e)
+        case (a: PFPredicateDecl, e: PFPredicateDecl) => assert(a == e)
+        case (a: PMPredicateDecl, e: PMPredicateDecl) => assert(a == e)
+      }
+    }
+
+    private def equal(actual: Option[(PBodyParameterInfo, PBlock)], expected: Option[(PBodyParameterInfo, PBlock)]): Assertion = {
+      assert(actual.isDefined == expected.isDefined)
+      actual.zip(expected) foreach {
+        case ((aParamInfo, aBlock), (eParamInfo, eBlock)) =>
+          assert(aParamInfo == eParamInfo)
+          val aNormalizedBlock = normalize(aBlock.stmts)
+          val eNormalizedBlock = normalize(eBlock.stmts)
+          assert(aNormalizedBlock == eNormalizedBlock)
+      }
+      Succeeded
     }
   }
 }

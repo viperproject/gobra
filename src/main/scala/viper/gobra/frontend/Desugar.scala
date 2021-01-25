@@ -1430,6 +1430,15 @@ object Desugar {
                   handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
                     unit( in.PredicateConstructor(getFPredProxy(dArgs), baseT, dArgs)(src) )
                   })
+
+                case Some(_: ap.PredicateExpr) =>
+                  handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
+                    for {
+                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      proxy = getMPredProxy(dRecv.typ, baseT.args.tail) // args must include at least the receiver
+                      idT = in.PredT(baseT.args, Addressability.rValue)
+                    } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+                  })
               }
           }
 

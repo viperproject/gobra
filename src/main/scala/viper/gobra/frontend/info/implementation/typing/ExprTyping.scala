@@ -537,7 +537,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             }
 
           case Some(_: ap.PredicateExpr) =>
-            violation("predicate expressions are not supported in predicate constructors")
+            val recvWithIdT = exprOrTypeType(p.recvWithId)
+            recvWithIdT match {
+              case FunctionT(fnArgs, AssertionT) =>
+                PredT(fnArgs.zip(args).collect{ case (typ, None) => typ })
+              case _: AbstractType =>
+                PredT(Vector()) // because partial application is not supported yet for built-in predicates
+              case t => violation(errorMessage(t))
+            }
 
           case _ => violation(s"unexpected base $base for predicate constructor")
         }
@@ -636,7 +643,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
                 case FunctionT(fArgs, AssertionT) => Some(fArgs(index))
-                case t: AbstractType =>
+                case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama for the same reason as above
                   val messages = t.messages(n.base, args map typ)
                   if(messages.isEmpty) {

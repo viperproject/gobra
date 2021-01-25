@@ -28,8 +28,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       }
       case base: PDottedBase => resolve(base.recvWithId) match {
         case Some(_: ap.Predicate | _: ap.ReceivedPredicate) => noMessages
-        case Some(_: ap.PredicateExpr) =>
-          error(base, s"predicate expressions are not valid bases of predicate constructors")
+        case Some(_: ap.PredicateExpr) => noMessages
         case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
       }
     }

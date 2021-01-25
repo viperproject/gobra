@@ -22,7 +22,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case PTrigger(exprs) => exprs.flatMap(isPureExpr)
     case PExplicitGhostParameter(_) => noMessages
     case p: PPredConstructorBase => p match {
-      case PFPredBase(_) => noMessages
+      case PFPredBase(id) => entity(id) match {
+        case _: SymbolTable.FPredicate | _: SymbolTable.BuiltInFPredicate => noMessages
+        case _ => error(p, s"identifier $id does not identify a predicate")
+      }
       case base: PDottedBase => resolve(base.recvWithId) match {
         case Some(_: ap.Predicate | _: ap.ReceivedPredicate) => noMessages
         case Some(_: ap.PredicateExpr) =>

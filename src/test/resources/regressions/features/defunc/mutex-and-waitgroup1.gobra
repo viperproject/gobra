@@ -5,15 +5,6 @@ package pkg
 
 import "sync"
 
-pred sumSlice(s []int, sum int) {
-	sumSliceIndex(s, sum, 0)
-}
-
-pred sumSliceIndex(s []int, sum int, startIndex int) {
-	(startIndex >= len(s) ==> sum == 0) &&
-		((startIndex < len(s)) ==> (acc(&s[startIndex], _) && sumSliceIndex(s, sum - s[startIndex], startIndex + 1)))
-}
-
 type Accum struct {
 	sum *int
 	m *sync.Mutex
@@ -157,20 +148,4 @@ func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice []int, gho
 	fold locHasVal!<&seenSlice[pos],val!>()
 	w.PayDebt(locHasVal!<&seenSlice[pos],val!>)
 	w.Done()
-}
-
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
-ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
-ensures sumSlice(s, res)
-func SimpleSum(s []int) (res int) {
-	res = 0
-	fold sumSliceIndex(s, 0, len(s))
-	invariant -1 <= i && i < len(s)
-	invariant forall j int :: 0 <= j && j < len(s) ==> acc(&s[j], _)
-	invariant sumSliceIndex(s, res, i+1)
-	for i:=len(s)-1; i>=0; i-- {
-		res += *(&s[i])
-		fold sumSliceIndex(s, res, i)
-	}
-	fold sumSlice(s, res)
 }

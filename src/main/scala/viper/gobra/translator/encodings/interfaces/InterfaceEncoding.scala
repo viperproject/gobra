@@ -494,7 +494,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
         val defaultPredicate = vpr.Predicate(name = defaultName, formalArgs = recvDecl +: argDecls, body = None)()
         genPredicates ::= defaultPredicate
-        val default = vpr.PredicateAccess(recv +: args, predicate = default)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        val default = vpr.PredicateAccess(recv +: args, predicate = defaultPredicate)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
 
         val res = vpr.Predicate(
           name = name,

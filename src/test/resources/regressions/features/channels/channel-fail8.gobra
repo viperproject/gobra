@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// redeclaration of built-in member `PredTrue` (redeclarations with arbitrary parameters are forbidden as well):
+//:: ExpectedOutput(type_error)
+pred PredTrue(b bool) {
+    b
+}

@@ -81,4 +81,7 @@ object Names {
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"
+
+  // built-in members
+  def builtInMember: String = "built_in"
 }

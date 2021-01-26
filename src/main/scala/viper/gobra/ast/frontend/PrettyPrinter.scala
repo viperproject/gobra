@@ -34,7 +34,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
     case n: PPackageNode => showPackageId(n)
-    case n : PFieldDecl => showFieldDecl(n)
+    case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
     case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
@@ -47,7 +47,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
-    case n: PPredConstructorBase => showPredCtrBase(n)
     case PPos(_) => emptyDoc
   }
 
@@ -480,11 +479,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
   }
 
-  def showPredCtrBase(base: PPredConstructorBase): Doc = base match {
-    case PFPredBase(id) => showId(id)
-    case PMPredBase(expr) => showExprOrType(expr)
-  }
-
   // types
 
   def showType(typ: PType): Doc = typ match {
@@ -515,8 +509,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
     case channelType: PChannelType => channelType match {
       case PBiChannelType(elem)   => "chan" <+> showType(elem)
-      case PSendChannelType(elem) => "<-" <> "chan" <+> showType(elem)
-      case PRecvChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      case PSendChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      case PRecvChannelType(elem) => "<-" <> "chan" <+> showType(elem)
     }
     case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
     case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
@@ -581,6 +575,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
     case misc: PGhostMisc => misc match {
+      case PFPredBase(id) => showId(id)
+      case PDottedBase(expr) => showExprOrType(expr)
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
       case PExplicitGhostParameter(actual) => showParameter(actual)

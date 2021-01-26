@@ -48,10 +48,11 @@ object Addressability {
     * 2) For structs, the addressability of a field is the same as the addressability of the struct.
     *    This is a design decision to simplify the type system.
     * 3) Similarly, for arrays, the addressability of an index is the same as the addressability of the array.
-    * 4) Slices behave tha same as pointers to arrays. As such, elements of a slice are always shared.
+    * 4) Slices behave the same as pointers to arrays. As such, elements of a slice are always shared.
     * 5) For maps, by definition of Go, map keys and values can not be referenced or captured. Thus they are exclusive.
     * 6) Similarly, elements of mathematical data structures are not associated with an address and thus are exclusive.
-    * 7) For type definitions, the addressability modifier propagates through the type definition.
+    * 7) For channels, a sent message can only be received a single time and thus the channel's element type is exclusive.
+    * 8) For type definitions, the addressability modifier propagates through the type definition.
     *
     * Because of these definitions, the addressability of a nested type is determined by its outer type.
     * In our writing, we sometimes drop the addressability modifier of nested types,
@@ -64,6 +65,7 @@ object Addressability {
   val sliceElement: Addressability = arrayElement(pointerBase)
   val mapValue: Addressability = Exclusive
   val mathDataStructureElement: Addressability = Exclusive
+  val channelElement: Addressability = Exclusive
   def underlying(definedAddressability: Addressability): Addressability = definedAddressability
 
 

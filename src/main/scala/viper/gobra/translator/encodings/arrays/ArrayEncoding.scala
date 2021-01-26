@@ -247,7 +247,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     *
     * We do not use let because (at the moment) Viper does not accept quantified permissions with let expressions.
     */
-  override def addressFootprint(ctx: Context): (in.Location, in.Permission) ==> CodeWriter[vpr.Exp] = {
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
     case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
       val trigger = (idx: vpr.LocalVar) =>

@@ -10,6 +10,8 @@ import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.BuiltInMemberTag
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.{PackageResolver, Parser}
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info}
 import viper.gobra.frontend.info.base.SymbolTable._
@@ -38,7 +40,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   override def createMPredSpec(spec: PMPredicateSig): MPredicateSpec =
     defEntity(spec.id).asInstanceOf[MPredicateSpec]
 
-  private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
+  private lazy val receiverMethodSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations
       .collect {
         case m: PMethodDecl => createMethodImpl(m)
@@ -48,27 +50,55 @@ trait MemberResolution { this: TypeInfoImpl =>
       .transform((_, ms) => AdvancedMemberSet.init(ms))
   }
 
-  def receiverMethodSet(recv: Type): AdvancedMemberSet[MethodLike] =
-    receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty)
+  private lazy val builtInReceiverMethodSets: Vector[BuiltInMethodLike] = {
+    BuiltInMemberTag.builtInMembers() flatMap {
+      case tag: BuiltInMethodTag => Some(BuiltInMethod(tag, tree.root, this))
+      case _ => None
+    }
+  }
 
-  private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[MethodLike]] = {
+  def builtInReceiverMethodSet(recv: Type): AdvancedMemberSet[TypeMember] = {
+    // filter out all methods that are not defined for this receiver type
+    val definedMethods = builtInReceiverMethodSets.filter(p => p.tag.typ(config).typing.isDefinedAt(Vector(recv)))
+    AdvancedMemberSet.init(definedMethods)
+  }
+
+  def receiverMethodSet(recv: Type): AdvancedMemberSet[TypeMember] =
+    receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
+      builtInReceiverMethodSet(recv)
+
+  private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations
       .collect { case m: PMPredicateDecl => createMPredImpl(m) }
       .groupBy { m: MPredicateImpl => miscType(m.decl.receiver) }
       .transform((_, ms) => AdvancedMemberSet.init(ms))
   }
 
-  def receiverPredicateSet(recv: Type): AdvancedMemberSet[MethodLike] =
-    receiverPredicateSetMap.getOrElse(recv, AdvancedMemberSet.empty)
+  private lazy val builtInReceiverPredicateSets: Vector[BuiltInMethodLike] = {
+    BuiltInMemberTag.builtInMembers() flatMap {
+      case tag: BuiltInMPredicateTag => Some(BuiltInMPredicate(tag, tree.root, this))
+      case _ => None
+    }
+  }
 
-  lazy val receiverSet: Type => AdvancedMemberSet[MethodLike] =
-    attr[Type, AdvancedMemberSet[MethodLike]] (t => receiverMethodSet(t) union receiverPredicateSet(t))
+  def builtInReceiverPredicateSet(recv: Type): AdvancedMemberSet[TypeMember] = {
+    // filter out all mpredicates that are not defined for this receiver type
+    val definedMPreds = builtInReceiverPredicateSets.filter(p => p.tag.typ(config).typing.isDefinedAt(Vector(recv)))
+    AdvancedMemberSet.init(definedMPreds)
+  }
 
-  lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[MethodLike] =
-    attr[InterfaceT, AdvancedMemberSet[MethodLike]] {
+  def receiverPredicateSet(recv: Type): AdvancedMemberSet[TypeMember] =
+    receiverPredicateSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
+      builtInReceiverPredicateSet(recv)
+
+  lazy val receiverSet: Type => AdvancedMemberSet[TypeMember] =
+    attr[Type, AdvancedMemberSet[TypeMember]] (t => receiverMethodSet(t) union receiverPredicateSet(t))
+
+  lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
+    attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
       case InterfaceT(PInterfaceType(es, methSpecs, predSpecs)) =>
-        AdvancedMemberSet.init[MethodLike](methSpecs.map(m => createMethodSpec(m))) union
-          AdvancedMemberSet.init[MethodLike](predSpecs.map(m => createMPredSpec(m))) union
+        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => createMethodSpec(m))) union
+          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => createMPredSpec(m))) union
           AdvancedMemberSet.union {
             es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {
@@ -118,23 +148,23 @@ trait MemberResolution { this: TypeInfoImpl =>
   val structMemberSet: Type => AdvancedMemberSet[StructMember] =
     attr[Type, AdvancedMemberSet[StructMember]] { t => fieldSuffix(t) union pastPromotions(fieldSuffix)(t) }
 
-  private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[MethodLike] =
-    attr[Type, AdvancedMemberSet[MethodLike]] {
+  private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[TypeMember] =
+    attr[Type, AdvancedMemberSet[TypeMember]] {
       case t: InterfaceT => interfaceMethodSet(t)
       case pt@ PointerT(t) => receiverSet(pt) union receiverSet(t).ref
       case t => receiverSet(t) union receiverSet(PointerT(t)).deref
     }
 
-  val nonAddressableMethodSet: Type => AdvancedMemberSet[MethodLike] =
-    attr[Type, AdvancedMemberSet[MethodLike]] { t =>
+  val nonAddressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
+    attr[Type, AdvancedMemberSet[TypeMember]] { t =>
       pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
         case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
         case _ => receiverSet(t)
       })
     }
 
-  val addressableMethodSet: Type => AdvancedMemberSet[MethodLike] =
-    attr[Type, AdvancedMemberSet[MethodLike]] { t =>
+  val addressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
+    attr[Type, AdvancedMemberSet[TypeMember]] { t =>
       pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
         case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
         case _ => receiverSet(t) union receiverSet(PointerT(t)).deref
@@ -147,7 +177,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)
 
-  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  def tryMethodLikeLookup(e: PExpression, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
     // check whether e is well-defined:
     if (wellDefExpr(e).valid) {
       val typ = exprType(e)
@@ -157,7 +187,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     } else None
   }
 
-  def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = {
+  def tryMethodLikeLookup(e: Type, id: PIdnUse): Option[(TypeMember, Vector[MemberPath])] = {
     val context = getMethodReceiverContext(e)
     context.tryNonAddressableMethodLikeLookup(e, id)
   }
@@ -170,7 +200,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
   }
 
-  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(MethodLike, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
+  def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
 
   def tryPackageLookup(pkgImport: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(pkgImport: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {

@@ -1,0 +1,102 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "sync"
+
+/* Generates n + 1 threads that execute the `worker` function */
+requires n >= 0
+func spawnThreads(n int) {
+	// {}
+	var wg *sync.WaitGroup = &sync.WaitGroup{}
+	// { acc(wg) && *wg == WaitGroup{} }
+	wg.Init()
+	// { wg.WaitGroupP() && !wg.WaitMode() }
+	wg.Add(1, 1, 1, PredTrue!<!>)
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) }
+	fold PredTrue!<!>()
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && PredTrue!<!>() }
+	wg.GenerateToken(PredTrue!<!>)
+	// { wg.WaitGroupP() && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
+	wg.Start(1, 2, PredTrue!<!>)
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) }
+	fold PredTrue!<!>()
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.UnitDebt(PredTrue!<!>) && wg.Token(PredTrue!<!>) && PredTrue!<!>() }
+	go worker(-1, wg, PredTrue!<!>) // spawns first worker
+	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(PredTrue!<!>) }
+
+	invariant acc(wg.WaitGroupP(), 1/2)
+	invariant acc(wg.WaitGroupStarted(), 1/2)
+	invariant !wg.WaitMode()
+	invariant acc(wg.Token(PredTrue!<!>), (i + 1)/1)
+	for i := 0; i < n; i++ {
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(PredTrue!<!>), i + 1) &&
+		//   i < n
+		// }
+		wg.Add(1, 1, 2, PredTrue!<!>)
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(PredTrue!<!>), i + 1) &&
+		//   i < n &&
+		//   g.UnitDebt(PredTrue!<!>)
+		// }
+		fold PredTrue!<!>()
+		// { same as above plus PredTrue!<!>() }
+		wg.GenerateToken(PredTrue!<!>)
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(PredTrue!<!>), i + 2) && // permission increased by 1
+		//   i < n &&
+		//   wg.UnitDebt(PredTrue!<!>)
+		// }
+		fold PredTrue!<!>()
+		// { same as above plus PredTrue!<!>() }
+		go worker(i, wg, PredTrue!<!>)
+		// {
+		//   acc(wg.WaitGroupP(), 1/2) &&
+		//   acc(wg.WaitGroupStarted(), 1/2) &&
+		//   !wg.WaitMode() &&
+		//   acc(wg.Token(PredTrue!<!>), i + 2) && // this reverts to i + 1 when i is incremented in the end of the iteration
+		//   i < n
+		// }
+	}
+
+	// {
+	//   acc(wg.WaitGroupP(), 1/2) &&
+	//   acc(wg.WaitGroupStarted(), 1/2) &&
+	//   !wg.WaitMode() &&
+	//   acc(wg.Token(PredTrue!<!>), n + 1) // slightly simplified
+	// }
+	wg.SetWaitMode(1, 2, 1, 2)
+	// {
+	//   wg.WaitGroupP() &&
+	//   wg.WaitMode() &&
+	//   acc(wg.Token(PredTrue!<!>), n + 1)
+	// }
+
+	// This example is simple and we do not need to perform any token redistribution before calling wait. This is not
+	// true in general
+	wg.Wait(1, 1, PredTrue!<!>)
+	// {
+	//   wg.WaitGroupP() &&
+	//   PredTrue!<!>()
+	// }
+}
+
+requires P() && wg.UnitDebt(P)
+func worker(id int, wg *sync.WaitGroup, ghost P pred()) {
+	// { P() && wg.UnitDebt(P) }
+	wg.PayDebt(P)
+	// { wg.UnitDebt(PredTrue!<!>) }
+	wg.Done()
+	// { }
+}

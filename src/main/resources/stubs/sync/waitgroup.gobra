@@ -62,14 +62,12 @@ func (g *WaitGroup) PayDebt(ghost P pred())
 ghost
 requires g.UnitDebt(PredTrue!<!>)
 ensures g.UnitDebt(R) && g.Token(R)
-func (g *WaitGroup) GenerateToken(ghost R pred())
+func (g *WaitGroup) GenerateTokenAndDebt(ghost R pred())
 
-/* TODO: rename previous mehtod to GenerateTokenAndDebt
 ghost
 requires R()
 ensures g.Token(R)
 func (g *WaitGroup) GenerateToken(ghost R pred())
-*/
 
 // Simplified version of Add as proposed in page 8 of Martin's latest document (as of 21/01/2021)
 requires dividend >= 0 && divisor > 0 // p >= 0

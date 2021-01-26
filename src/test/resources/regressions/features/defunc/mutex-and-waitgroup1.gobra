@@ -17,15 +17,14 @@ pred sumSliceIndex(s []int, sum int, startIndex int) {
 type Accum struct {
 	sum *int
 	m *sync.Mutex
-	// TODO: add ghost slices that keep track of the counted nodes
 }
 
 pred AccInv(x *int, seenSlice []int) {
 	acc(x) && (forall i int :: 0 <= i && i < len(seenSlice) ==> (acc(&seenSlice[i], 1/2))) && Sum(seenSlice) == *x
 }
 
-// TODO: debug this
-// requires acc(c) && acc(c.sum) && acc(c.m) && *(c.m) == sync.Mutex{}
+// TODO: change `c.m.state == 0 && c.m.stema == 0` to *(c.m) == sync.Mutex{} after
+//       fixing issue #190
 requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
 requires *c.sum == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
@@ -37,8 +36,6 @@ func (c *Accum) Init(ghost seenSlice []int) {
 	c.m.SetInv(AccInv!<c.sum, seenSlice!>)
 }
 
-// TODO: change names of vars and types
-// TODO: define a specific predicate for the post condition
 /* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 ensures res == old(Sum(s))
@@ -47,7 +44,6 @@ func ParallelSum(s []int) (res int) {
 		return 0
 	}
 
-	// { len(s) > 0 }
 	count@ := 0
 	m := &sync.Mutex{}
 	c := &Accum{sum: &count, m: m}
@@ -55,9 +51,7 @@ func ParallelSum(s []int) (res int) {
 	c.Init(seenSlice)
 	w := &sync.WaitGroup{}
 	w.Init()
-
 	n := len(s)
-
 	ghost tokens := seq[pred()]{}
 
 	invariant 0 <= i && i <= n
@@ -76,16 +70,13 @@ func ParallelSum(s []int) (res int) {
 	invariant forall j int :: i <= j && j < n ==> acc(&seenSlice[j], 1/2)
 	invariant forall j int :: i <= j && j < n ==> seenSlice[j] == 0
 	for i := 0; i < n; i++ {
-		// { }
 		w.Add(1, 1, 2, PredTrue!<!>)
 		ghost if i == 0 {
 			w.Start(1, 2, PredTrue!<!>)
 		}
-		// fold locHasVal!<&seenSlice[i], s[i]!>()
 		tokens = tokens ++ seq[pred()]{ locHasVal!<&seenSlice[i], s[i]!> }
-		w.GenerateToken(tokens[i])
+		w.GenerateTokenAndDebt(tokens[i])
 		fold w.TokenById(tokens[i], i)
-		// { }
 		go worker(w, c, s[i], seenSlice, i)
 	}
 
@@ -101,19 +92,13 @@ func ParallelSum(s []int) (res int) {
 			unfold locHasVal!<&seenSlice[i],s[i]!>()
 		}
 	}
-	//assert c.m.LockInv() == AccInv!<c.sum, seenSlice!>;
+
 	c.m.Lock()
 	unfold AccInv!<c.sum, seenSlice!>()
-	res = *(c.sum) // TODO: maybe restructure the data in Accum to not have a pointer to int
+	res = *(c.sum)
 	fold AccInv!<c.sum, seenSlice!>()
 	c.m.Unlock()
-
 	sumExtensional(s, seenSlice)
-	// Main correctness criteria
-	// Goal: prove that, at this point, the value sum protected by the mutex has the sum of all elems of the array
-	//simpleSum := SimpleSum(s)
-	//assert res == simpleSum 
-
 	return res
 }
 
@@ -163,9 +148,7 @@ requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum, seen
 requires 0 <= pos && pos < len(seenSlice)
 requires w.UnitDebt(locHasVal!<&seenSlice[pos],val!>)
 func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice []int, ghost pos int) {
-	// { }
 	accum.m.Lock()
-	// { }
 	unfold AccInv!<accum.sum, seenSlice!>()
 	*(accum.sum) += val
 	update(seenSlice, pos, val)
@@ -191,8 +174,3 @@ func SimpleSum(s []int) (res int) {
 	}
 	fold sumSlice(s, res)
 }
-
-// TODO: suggestion by linard: similar example to the one above where the user defines the
-// number of chunks and a thread is created per chunk instead of per cell
-
-// TODO: Martin's example of worker threads

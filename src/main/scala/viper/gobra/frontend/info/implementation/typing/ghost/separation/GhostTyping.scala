@@ -30,9 +30,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
           left.map(Some(_)).zipAll(right.map(Some(_)), None, None).forall {
-            case (Some(l), Some(r)) => ghostIdClassification(l) || ghostExprClassification(r)
-            case (Some(l), _) => ghostIdClassification(l)
-            case (_, Some(r)) => ghostExprClassification(r)
+            case (l, r) => l.exists(ghostIdClassification) || r.exists(ghostExprClassification)
           }
 
         case AssignMode.Multi =>

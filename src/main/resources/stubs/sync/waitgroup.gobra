@@ -60,9 +60,16 @@ func (g *WaitGroup) PayDebt(ghost P pred())
 // Simplified version of the debt redistribution rule, instantiated with P == { PredTrue!<!> } and Q == { R }.
 // This is the only rule that generates a Token.
 ghost
-requires R() && g.UnitDebt(PredTrue!<!>)
+requires g.UnitDebt(PredTrue!<!>)
 ensures g.UnitDebt(R) && g.Token(R)
 func (g *WaitGroup) GenerateToken(ghost R pred())
+
+/* TODO: rename previous mehtod to GenerateTokenAndDebt
+ghost
+requires R()
+ensures g.Token(R)
+func (g *WaitGroup) GenerateToken(ghost R pred())
+*/
 
 // Simplified version of Add as proposed in page 8 of Martin's latest document (as of 21/01/2021)
 requires dividend >= 0 && divisor > 0 // p >= 0
@@ -83,10 +90,18 @@ func (g *WaitGroup) Done()
 requires dividend > 0 && divisor > 0 // p > 0
 requires acc(g.WaitGroupP(), dividend/divisor)
 requires g.WaitMode()
-requires g.Token(P)
-ensures P()
+requires forall i int :: 0 <= i && i < len(P) ==> g.TokenById(P[i], i) 
+ensures forall i int :: 0 <= i && i < len(P) ==> InjEval(P[i], i)
 ensures acc(g.WaitGroupP(), dividend/divisor)
-func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost P pred())
+func (g *WaitGroup) Wait(ghost dividend int, ghost divisor int, ghost P seq[pred()])
+
+pred (g *WaitGroup) TokenById(ghost P pred(), ghost i int) {
+	g.Token(P)
+}
+
+pred InjEval(ghost P pred(), ghost i int) {
+	P()
+}
 
 pred CollectFractions(ghost P seq[pred()], ghost dividends seq[int], ghost divisors seq[int]) {
 	len(P) == len(dividends) && len(dividends) == len(divisors) &&

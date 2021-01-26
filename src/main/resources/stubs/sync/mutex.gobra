@@ -1,0 +1,32 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+package sync
+
+type Mutex struct {
+	state int32
+	stema uint32
+}
+
+pred (m *Mutex) LockP()
+pred (m *Mutex) UnlockP()
+
+ghost
+requires acc(m.LockP(), _)
+pure func (m *Mutex) LockInv() pred()
+
+ghost
+requires inv() && acc(m) && *m == Mutex{}
+ensures m.LockP() && m.LockInv() == inv
+func (m *Mutex) SetInv(ghost inv pred())
+
+requires acc(m.LockP(), _)
+ensures m.LockP() && m.UnlockP() && m.LockInv()()
+func (m *Mutex) Lock()
+
+requires acc(m.LockP(), _) && m.UnlockP() && m.LockInv()()
+ensures m.LockP()
+func (m *Mutex) Unlock()

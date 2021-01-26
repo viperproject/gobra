@@ -781,7 +781,7 @@ object Parser {
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
       selection ~ predConstructArgs ^^ {
-        case recvWithId ~ args => PPredConstructor(PMPredBase(recvWithId).at(recvWithId), args)
+        case recvWithId ~ args => PPredConstructor(PDottedBase(recvWithId).at(recvWithId), args)
       }
 
     lazy val predConstruct: Parser[PPredConstructor] =

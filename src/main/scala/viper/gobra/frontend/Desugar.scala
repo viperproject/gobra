@@ -1392,6 +1392,21 @@ object Desugar {
             } yield target
 
           case PPredConstructor(base, args) =>
+            def handleBase(base: PPredConstructorBase, w: (in.PredT, Vector[Option[in.Expr]]) => Writer[in.Expr]) = {
+              for {
+                dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
+                idT = info.typ(base) match {
+                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
+                  case _: AbstractType =>
+                    violation(dArgs.length == dArgs.flatten.length, "non-applied arguments in abstract type")
+                    // The result can have arguments, namely the arguments that are provided.
+                    // The receiver type is not necessary, since this should already be partially applied by the typing of base
+                    in.PredT(dArgs.flatten.map(_.typ), Addressability.rValue)
+                }
+                res <- w(idT, dArgs)
+              } yield res
+            }
+
             def getFPredProxy(args: Vector[Option[in.Expr]]) = info.regular(base.id) match {
               case _: st.FPredicate => fpredicateProxy(base.id)
               case st.BuiltInFPredicate(tag, _, _) =>
@@ -1400,44 +1415,42 @@ object Desugar {
                 violation(appliedArgs.length == args.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
                 fpredicateProxy(tag, appliedArgs.map(_.typ))(src)
             }
+
             def getMPredProxy(recvT: in.Type, argsT: Vector[in.Type]) = info.regular(base.id) match {
               case _: st.MPredicate => mpredicateProxyD(base.id)
               case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
             }
-            base match {
-              case PFPredBase(id) =>
-                val idT = info.typ(id) match {
-                  case FunctionT(fnArgs, AssertionT) => in.PredT(fnArgs.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
-                  case _: AbstractType =>
-                    // the type checker ensures that all arguments are applied
-                    in.PredT(Vector(), Addressability.rValue) // all arguments are applied
-                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-                }
-                for {
-                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-                  proxy = getFPredProxy(dArgs)
-                } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
 
-              case p@PMPredBase(_) =>
-                val recvTyp = info.typOfExprOrType(p.recv)
-                val recvT = typeD(recvTyp, Addressability.rValue)(src)
-                val argsTyp = info.typ(p.id) match {
-                  case FunctionT(args, AssertionT) => args
-                  case at: AbstractType =>
-                    Violation.violation(at.typing.isDefinedAt(Vector(recvTyp)), s"expected that built-in mpredicate ${p.recvWithId} is defined for receiver $recvT")
-                    at.typing(Vector(recvTyp)) match {
-                      case FunctionT(args, AssertionT) => args
-                      case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-                    }
-                  case t => violation(s"desugarer: $t cannot be converted to a predicate type")
-                }
-                val argsT = argsTyp.map(typeD(_, Addressability.rValue)(src))
-                val proxy = getMPredProxy(recvT, argsT)
-                val idT = in.PredT(recvT +: argsT, Addressability.rValue)
-                for {
-                  dRecv <- exprAndTypeAsExpr(ctx)(p.recv)
-                  dArgs <- sequence(args.map { x => option(x.map(exprD(ctx)(_))) })
-                } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+            base match {
+              case b: PFPredBase =>
+                handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
+                  unit( in.PredicateConstructor(getFPredProxy(dArgs), baseT, dArgs)(src) )
+                })
+
+              case b@PDottedBase(recvWithId) => info.resolve(recvWithId) match {
+                case Some(_: ap.ReceivedPredicate) =>
+                  handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
+                    for {
+                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      proxy = getMPredProxy(dRecv.typ, baseT.args)
+                      idT = in.PredT(dRecv.typ +: baseT.args, Addressability.rValue)
+                    } yield in.PredicateConstructor(proxy, idT, Some(dRecv) +: dArgs)(src)
+                  })
+
+                case Some(_: ap.Predicate) =>
+                  handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
+                    unit( in.PredicateConstructor(getFPredProxy(dArgs), baseT, dArgs)(src) )
+                  })
+
+                case Some(_: ap.PredicateExpr) =>
+                  handleBase(b, { case (baseT: in.PredT, dArgs: Vector[Option[in.Expr]]) =>
+                    for {
+                      dRecv <- exprAndTypeAsExpr(ctx)(b.recv)
+                      proxy = getMPredProxy(dRecv.typ, baseT.args.tail) // args must include at least the receiver
+                      idT = in.PredT(baseT.args, Addressability.rValue)
+                    } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+                  })
+              }
           }
 
           case e => Violation.violation(s"desugarer: $e is not supported")
@@ -2259,6 +2272,12 @@ object Desugar {
         case Some(p: ap.PredicateCall) =>
           predicateCallAccD(ctx)(p)(src) map (x => in.Accessible.Predicate(x))
 
+        case Some(p: ap.PredExprInstance) =>
+          for {
+            base <- goE(p.base)
+            predInstArgs <- sequence(p.args map goE)
+          } yield in.Accessible.PredExpr(in.PredExprInstance(base, predInstArgs)(src))
+
         case _ =>
           val argT = info.typ(acc)
           underlyingType(argT) match {
@@ -2271,7 +2290,7 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
-            case _ => Violation.violation(s"expected pointer type, but got $argT")
+            case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")
           }
       }
 

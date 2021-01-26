@@ -1,0 +1,43 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Mutex struct {
+	state int32
+	stema uint32
+}
+
+pred (m Mutex) isZero() {
+	m.state == 0 && m.stema == 0
+}
+
+pred (m Mutex) isValue(vState int32, vStema uint32) {
+	m.state == vState && m.stema == vStema
+}
+
+func test1() {
+	m := Mutex{0, 0}
+	// predicate expressions are supported in predicate constructor
+	fold Mutex.isZero!<_!>(m)
+	fold Mutex.isZero!<m!>()
+}
+
+func test2() {
+	m := Mutex{1, 1}
+	// should fail, the predicate is not true for `m`
+	//:: ExpectedOutput(fold_error)
+	fold Mutex.isZero!<_!>(m)
+}
+
+func test3() {
+	m := Mutex{1, 1}
+	fold Mutex.isValue(m, 1, 1)
+}
+
+func test4() {
+	m := Mutex{1, 1}
+	// should fail, the predicate is not true for `m`
+	//:: ExpectedOutput(fold_error)
+	fold Mutex.isValue(m, 4, 0)
+}

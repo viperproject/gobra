@@ -71,7 +71,11 @@ object PackageResolver {
     includeDirs.map(FileResource)
   }
 
-  private lazy val getStubResources: Vector[InputResource] = {
+  // getStubResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
+  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
+  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
+  // the underlying FileSystem.
+  private def getStubResources: Vector[InputResource] = {
     // get path to stubs
     stubDirectories.flatMap(stubDir => {
       val nullableResourceUri = getClass.getClassLoader.getResource(stubDir).toURI

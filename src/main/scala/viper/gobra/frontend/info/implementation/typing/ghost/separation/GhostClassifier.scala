@@ -31,4 +31,6 @@ trait GhostClassifier {
   def expectedReturnGhostTyping(ret: PReturn): GhostType
 
   def expectedArgGhostTyping(invk: PInvoke): GhostType
+
+  def isExprPure(expr: PExpression): Boolean
 }

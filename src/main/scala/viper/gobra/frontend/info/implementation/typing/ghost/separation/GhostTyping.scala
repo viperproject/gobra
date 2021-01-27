@@ -30,13 +30,13 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
           left.map(Some(_)).zipAll(right.map(Some(_)), None, None).forall {
-            case (l, r) => l.exists(ghostIdClassification) || r.exists(ghostExprClassification)
+            case (l, r) => l.exists(ghostIdClassification) || r.exists(ghostExprResultClassification)
           }
 
         case AssignMode.Multi =>
           // right should be a singleton vector
-          val isRightGhost = right.exists(ghostExprClassification)
-          left.forall(l => isRightGhost || ghostIdClassification(l))
+          val isRightResultGhost = right.exists(ghostExprResultClassification)
+          left.forall(l => isRightResultGhost || ghostIdClassification(l))
 
         case AssignMode.Error if right.isEmpty => left.forall(ghostIdClassification)
 
@@ -54,11 +54,21 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
   }
 
-  /** returns true iff expression is classified as ghost */
+  /**
+    * returns true iff expression is classified as ghost, i.e. whether ghost erasure should remove an expression.
+    * note the difference to ghostExprResultClassification in particular for function calls:
+    * `ghostExprClassification` returns true iff callee is ghost. On the other hand, `ghostExprResultClassification` returns true iff the
+    * callee's result is ghost.
+    **/
   private[separation] lazy val ghostExprClassification: PExpression => Boolean =
     createGhostClassification[PExpression](e => ghostExprTyping(e).isGhost)
 
-  /** returns ghost typing of expression */
+  /**
+    * returns ghost typing of expression, i.e. whether ghost erasure should remove an expression.
+    * note the difference to ghostExprResultTyping in particular for function calls:
+    * `ghostExprTyping` returns the ghost typing of the callee. On the other hand, `ghostExprResultTyping` returns the
+    * ghost typing of the callee's results
+    */
   private[separation] lazy val ghostExprTyping: PExpression => GhostType = {
     import GhostType._
 
@@ -70,7 +80,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
-        case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
+        case (Left(_), Some(call: ap.FunctionCall)) => calleeGhostTyping(call)
         case (Left(_), Some(_: ap.PredicateCall)) => isGhost
         case _ => Violation.violation("expected conversion, function call, or predicate call")
       }
@@ -80,6 +90,26 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
       // catches ghost field reads, method calls, function calls since their id is ghost
       case exp => ghost(!noGhostPropagationFromChildren(exp))
+    }
+  }
+
+  /** returns true iff expression is classified as ghost */
+  private[separation] lazy val ghostExprResultClassification: PExpression => Boolean =
+    createGhostClassification[PExpression](e => ghostExprResultTyping(e).isGhost)
+
+  /** returns ghost typing of expression */
+  private[separation] lazy val ghostExprResultTyping: PExpression => GhostType = {
+    import GhostType._
+
+    createGhostTyping[PExpression]{
+      case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
+        case (Right(_), Some(_: ap.Conversion)) => notGhost // conversions cannot be ghost (for now)
+        case (Left(_), Some(call: ap.FunctionCall)) => calleeReturnGhostTyping(call)
+        case (Left(_), Some(_: ap.PredicateCall)) => isGhost
+        case _ => Violation.violation("expected conversion, function call, or predicate call")
+      }
+
+      case e => ghostExprTyping(e)
     }
   }
 
@@ -94,8 +124,8 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   /** returns true iff identifier is classified as ghost */
   private[separation] lazy val ghostIdClassification: PIdnNode => Boolean = createGhostClassification[PIdnNode]{
     id => entity(id) match {
-      case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprClassification)
-      case r: MultiLocalVariable => r.ghost || exprGhostTyping(r.exp).isIdxGhost(r.idx)
+      case r: SingleLocalVariable => r.ghost || r.exp.exists(ghostExprResultClassification)
+      case r: MultiLocalVariable => r.ghost || ghostExprResultTyping(r.exp).isIdxGhost(r.idx)
       case r: Regular => r.ghost
       case _ => Violation.violation("expected Regular Entity")
     }
@@ -108,7 +138,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
   }
 
   /** returns true iff node is contained in ghost code */
-  private[separation] def enclosingGhostContext(n: PNode): Boolean = isEnclosingExplicitGhost(n) || isEnclosingPure(n)
+  private[separation] def enclosingGhostContext(n: PNode): Boolean = isEnclosingExplicitGhost(n)
 
   /** returns true iff node does not contain ghost expression or id that is not contained in another statement */
   private[separation] lazy val noGhostPropagationFromChildren: PNode => Boolean =
@@ -127,11 +157,11 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
     }
 
   private[separation] def createGhostTyping[X <: PNode](typing: X => GhostType): X => GhostType =
-    createWellDefInference[X, GhostType](selfWellDefined)(typing) // TODO: could use wellGhostSeparation as safety condition
+    createWellDefInference[X, GhostType](wellGhostSeparated.valid)(typing)
       .andThen(_.getOrElse(Violation.violation("ghost typing on unsafe node")))
 
   private[separation] def createGhostClassification[X <: PNode](classification: X => Boolean): X => Boolean =
-    createWellDefInference[X, Boolean](selfWellDefined)(classification)
+    createWellDefInference[X, Boolean](wellGhostSeparated.valid)(classification)
       .andThen(_.getOrElse(Violation.violation("ghost classification on unsafe node")))
 
 
@@ -180,4 +210,6 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
       case p => Violation.violation(s"expected conversion, function call, or predicate call, but got $p")
     }
   }
+
+  override def isExprPure(expr: PExpression): Boolean = isPureExpr(expr).isEmpty
 }

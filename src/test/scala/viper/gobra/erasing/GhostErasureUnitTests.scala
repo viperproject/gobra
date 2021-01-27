@@ -132,6 +132,93 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Ghost Erasure: var decls of inferred ghost type from a pure function call should be erased") {
+    val input = s"""
+      |package pkg
+      |pure func test(ghost s seq[int]) (ghost res seq[int]) {
+      | return s
+      |}
+      |func main() {
+      | s := seq[int] { 1 }
+      | res := test(s)
+      |}""".stripMargin
+    val expected = s"""
+      |package pkg
+      |func test() {
+      | return
+      |}
+      |func main() {
+      | // no call to test() as it is pure
+      |}""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: var decls of inferred ghost type from function call should be erased but not the call itself") {
+    val input = s"""
+      |package pkg
+      |func test1() (ghost res int) {
+      | return 1
+      |}
+      |func test2() (res int) {
+      | return 2
+      |}
+      |func test3() (ghost res int) {
+      | return 3
+      |}
+      |func main() {
+      | res1, res2, res3 := test1(), test2(), test3()
+      | res1 = 41
+      | res2 = 42
+      | res3 = 43
+      | res1, res2, res3 = test1(), test2(), test3()
+      |}""".stripMargin
+    val expected = s"""
+      |package pkg
+      |func test1() {
+      | return
+      |}
+      |func test2() (res int) {
+      | return 2
+      |}
+      |func test3() {
+      | return
+      |}
+      |func main() {
+      | test1()
+      | res2 := test2()
+      | test3()
+      | res2 = 42
+      | test1()
+      | res2 = test2()
+      | test3()
+      |}""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
+  test("Ghost Erasure: var decls of inferred ghost type from function call should be erased but not the call itself for a multi assignment") {
+    val input = s"""
+      |package pkg
+      |func test() (ghost res1 bool, ghost res2 int) {
+      | return true, 1
+      |}
+      |func main() {
+      | res1, res2 := test()
+      | res1 = false
+      | res2 = 42
+      | res1, res2 = test()
+      |}""".stripMargin
+    val expected = s"""
+      |package pkg
+      |func test() {
+      | return
+      |}
+      |func main() {
+      | test()
+      | test()
+      |}""".stripMargin
+    frontend.testProg(input, expected)
+  }
+
 
   /* ** Stubs, mocks, and other test setup  */
 
@@ -159,6 +246,10 @@ class GhostErasureUnitTests extends AnyFunSuite with Matchers with Inside {
       val context = new Info.Context()
       val config = Config(Vector())
       val info = new TypeInfoImpl(tree, context)(config)
+      info.errors match {
+        case Vector(msgs) => fail(s"Type-checking failed: $msgs")
+        case _ =>
+      }
 
       val ghostLess = new GhostLessPrinter(info).format(pkg)
       // try to parse ghostLess string:

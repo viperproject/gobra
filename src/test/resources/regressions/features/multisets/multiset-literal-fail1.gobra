@@ -5,11 +5,10 @@ package pkg
 
 func foo() {
   m := mset[int] { }
-  //:: ExpectedOutput(type_error)
   test(m)
 }
 
 //:: ExpectedOutput(type_error)
-func test(m mset[int]) {
+func test(m mset[int]) { // parameter of ghost type is used without ghost keyword
 
 }

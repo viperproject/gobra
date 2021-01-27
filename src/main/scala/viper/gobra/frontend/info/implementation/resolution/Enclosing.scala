@@ -37,12 +37,6 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
 
-  lazy val isEnclosingPure: PNode => Boolean =
-    down(false){
-      case PFunctionDecl(_, _, _, spec, _) => spec.isPure
-      case PMethodDecl(_, _, _, _, spec, _) => spec.isPure
-    }
-
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
     typeSwitchConstraintsLookup(id)(id)
 

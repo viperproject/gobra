@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.SingleLocalVariable
+import viper.gobra.frontend.info.base.SymbolTable.{Function, Regular, SingleLocalVariable}
 import viper.gobra.util.Violation.violation
 
 trait GhostWellDef { this: TypeInfoImpl =>
@@ -145,11 +145,17 @@ trait GhostWellDef { this: TypeInfoImpl =>
   private lazy val idGhostSeparation: WellDefinedness[PIdnNode] = createWellDefWithValidityMessages {
     id =>
       entity(id) match {
-        case SingleLocalVariable(exp, _, _, _, _) =>
-          unsafeMessage(! {
-            // exp has to be well-def if it exists (independently on the existence of opt) as we need it for ghost typing
-            exp.forall(e => wellGhostSeparated.valid(e))
-          })
+        case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
+
+        case SingleLocalVariable(exp, _, _, _, _) => unsafeMessage(! {
+          // exp has to be well-def if it exists (independently on the existence of opt) as we need it for ghost typing
+          exp.forall(wellGhostSeparated.valid)
+        })
+
+        case Function(PFunctionDecl(_, args, r, _, _), _, _) => unsafeMessage(! {
+          args.forall(wellGhostSeparated.valid) && wellGhostSeparated.valid(r)
+        })
+
         case _ => LocalMessages(noMessages)
       }
   }

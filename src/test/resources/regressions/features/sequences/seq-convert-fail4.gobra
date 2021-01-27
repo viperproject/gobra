@@ -12,18 +12,18 @@ func foo() {
   test4(len(xs))
 }
 
-func test1(ghost s seq[int]) {
-
-}
-
-ghost func test2(s seq[int]) {
-
-}
-
-pure func test3(s seq[int]) int {
+func test1(ghost s seq[int]) (ghost res int) {
     return len(s)
 }
 
-func test4(n int) {
+ghost func test2(s seq[int]) int {
+    return len(s)
+}
 
+ghost func test3(ghost s seq[int]) int {
+    return len(s)
+}
+
+ghost pure func test4(s seq[int]) int {
+    return len(s)
 }

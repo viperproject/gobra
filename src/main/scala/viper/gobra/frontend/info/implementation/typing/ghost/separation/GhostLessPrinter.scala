@@ -83,13 +83,63 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
     def handleMultiOrEmptyRhs = {
       val aLeft = left.filter(!isGhost(_))
-      if (aLeft.isEmpty) ghostToken else super.showStmt(copy(right, aLeft, aLeft.map(_ => false)))
+      if (aLeft.isEmpty) {
+        // no variables are left on the left-hand side. However, non-ghost non-pure right-hand side expressions should be kept:
+        val nonGhostRhs = right
+          .filter(r => !classifier.isExprGhost(r))
+          .filter(r => !classifier.isExprPure(r))
+        if (nonGhostRhs.isEmpty) ghostToken
+        else {
+          // directly call showExpr instead of wrapping it in a PExpressionStmt or PSeq to avoid
+          // kiama's node-not-in-tree errors:
+          ssep(nonGhostRhs map showExpr, line)
+        }
+      } else super.showStmt(copy(right, aLeft, aLeft.map(_ => false)))
+    }
+
+    /** splits v into subvectors that each satisfy or not-satisfy `f` */
+    def multispan[T](v: Vector[T], f: T => Boolean): Vector[Vector[T]] = {
+      val res = v.span(f)
+      val remainder = if (res._2.isEmpty) Vector(res._2) else multispan(res._2, (e: T) => !f(e))
+      res._1 +: remainder
     }
 
     StrictAssignModi(left.size, right.size) match {
       case AssignMode.Single =>
-        val (aRight, aLeft) = right.zip(left).filter(p => !isGhost(p._2)).unzip
-        if (aLeft.isEmpty) ghostToken else super.showStmt(copy(aRight, aLeft, aLeft.map(_ => false)))
+        // we have to distinguish for each pair of elements from left and right whether they remain the original
+        // operation (i.e. by calling `copy`) or whether the left-hand side is dropped. In the latter case, the
+        // right-hand side has to remain if it's not pure.
+        val parts = right.zip(left) map {
+          case (r, l) if !isGhost(l) => (Some(r), Some(l)) // lhs is not ghost -> keep them as is
+          case (r, _) if !classifier.isExprGhost(r) && classifier.isExprPure(r) => (None, None) // lhs is ghost, rhs is not ghost but pure -> lhs and rhs can be erased
+          case (r, _) if !classifier.isExprGhost(r) => (Some(r), None) // lhs is ghost, rhs is not ghost and not pure -> keep only rhs
+          case _ => (None, None) // lhs and rhs are ghost -> lhs and rhs can be erased
+        } filter {
+          // filter parts of the assignment for which we neither keep the lhs nor rhs:
+          case (None, None) => false
+          case _ => true
+        }
+        // group parts by their structure to combine as many parts as possible into a single statement
+        val hasRhsAndLhs: ((Option[PExpression], Option[N])) => Boolean = {
+          case (Some(_), Some(_)) => true
+          case _ => false
+        }
+        val partsSubSequences = multispan[(Option[PExpression], Option[N])](parts, hasRhsAndLhs)
+            .filter(_.nonEmpty)
+        val docs = partsSubSequences flatMap (subsequence => {
+          val keepBoth = hasRhsAndLhs(subsequence.head)
+          val aRight = subsequence.flatMap(_._1)
+          if (keepBoth) {
+            val aLeft = subsequence.flatMap(_._2)
+            Vector(super.showStmt(copy(aRight, aLeft, aLeft.map(_ => false))))
+          } else {
+            // directly call showExpr instead of wrapping it in a PExpressionStmt or PSeq to avoid
+            // kiama's node-not-in-tree errors:
+            aRight map showExpr
+          }
+        })
+        // line-separate the created docs:
+        ssep(docs, line)
 
       case AssignMode.Multi => handleMultiOrEmptyRhs
 

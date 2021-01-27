@@ -94,7 +94,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       multiAssignableTo.errors(Vector(miscType(exp)), lefts map exprType)(n) ++
         lefts.flatMap(t => addressable.errors(t)(t))
 
-    case n@PGoStmt(exp) => wellDefAndExpr(exp).out ++ isExecutable.errors(exp)(n)
+    case n@PGoStmt(exp) => isExpr(exp).out ++ isExecutable.errors(exp)(n)
 
     case n: PSelectStmt =>
       n.aRec.flatMap(rec =>

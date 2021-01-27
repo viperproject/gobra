@@ -16,6 +16,7 @@ pred AccInv(x *int, seenSlice []int) {
 
 // TODO: change `c.m.state == 0 && c.m.stema == 0` to *(c.m) == sync.Mutex{} after
 //       fixing issue #190
+ghost
 requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
 requires *c.sum == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)

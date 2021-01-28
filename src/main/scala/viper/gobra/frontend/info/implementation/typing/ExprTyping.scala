@@ -415,7 +415,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     val typ = intExprType(num)
     if (typ == UNTYPED_INT_CONST) {
       val typCtx = getNonInterfaceTypeFromCtxt(num)
-      typCtx.map(assignableWithinBounds.errors(_, num)(num)).getOrElse(noMessages)
+      typCtx.map(underlyingType) match {
+        case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, num)(num)
+        case Some(t) => error(num, s"$num is not assignable to type $t")
+        case None => noMessages // no type inferred from context
+      }
     } else {
       assignableWithinBounds.errors(typ, num)(num)
     }
@@ -621,8 +625,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                case FunctionT(fArgs, _) => Some(fArgs(index))
-                case t: AbstractType =>
+                case FunctionT(fArgs, _) => fArgs.lift(index)
+                case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama because we need to know the
                      types of all arguments in order to resolve it and we need to resolve it in order to find the type
                      of one of its arguments.
@@ -642,7 +646,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                case FunctionT(fArgs, AssertionT) => Some(fArgs(index))
+                case FunctionT(fArgs, AssertionT) => fArgs.lift(index)
                 case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama for the same reason as above
                   val messages = t.messages(n.base, args map typ)
@@ -661,7 +665,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typ(base) match {
-                case PredT(fArgs) => Some(fArgs(index))
+                case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
             case _ => None

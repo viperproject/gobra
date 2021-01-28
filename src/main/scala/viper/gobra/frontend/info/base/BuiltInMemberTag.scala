@@ -123,6 +123,15 @@ object BuiltInMemberTag {
 
 
   /** Built-in Method Tags */
+  case object BufferSizeMethodTag extends BuiltInMethodTag with GhostBuiltInMember {
+    override def identifier: String = "BufferSize"
+    override def name: String = "BufferSizeMethodTag"
+    override def isPure: Boolean = true
+
+    override def typ(config: Config): AbstractType =
+      channelReceiverType(allDirections, _ => FunctionT(Vector(), IntT(config.typeBounds.Int)))
+  }
+
   sealed trait ChannelInvariantMethodTag extends BuiltInMethodTag with GhostBuiltInMember
   sealed trait SendPermMethodTag extends ChannelInvariantMethodTag
   case object SendGivenPermMethodTag extends SendPermMethodTag {
@@ -168,12 +177,15 @@ object BuiltInMemberTag {
     override def isPure: Boolean = false
 
     override def typ(config: Config): AbstractType = channelReceiverType(allDirections, c => {
-      val bufferSizeArgType = IntT(config.typeBounds.Int)
-      val sendGivenPermArgType = PredT(Vector(c.elem))
-      val sendGotPermArgType = PredT(Vector()) // pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
-      val recvGivenPermArgType = PredT(Vector())
-      val recvGotPermArgType = PredT(Vector(c.elem))
-      FunctionT(Vector(bufferSizeArgType, sendGivenPermArgType, sendGotPermArgType, recvGivenPermArgType, recvGotPermArgType), VoidType)
+      // init's signature is adapted to the heavy simplifications that are in place for the initial support for channels.
+      // in particular, the permission for SendGivenPerm and RecvGotPerm as well as SendGotPerm and RecvGivenPerm have
+      // to be equal. Thus, they get merge two parameters: The former pair is called `proPerm` as they describe the
+      // invariant that is exhaled at the sender's and inhaled at the receiver's side ("pro" because it "travels" in
+      // direction of the send operation). The latter pair is merged to `contraPerm` representing the invariant that
+      // "travels" in the opposite direction.
+      val proPermArgType = PredT(Vector(c.elem))
+      val contraPermArgType = PredT(Vector()) // pred() because we enforce that sendGotPermArgType == recvGivenPermArgType
+      FunctionT(Vector(proPermArgType, contraPermArgType), VoidType)
     })
   }
 
@@ -210,7 +222,7 @@ object BuiltInMemberTag {
     override def name: String = "IsChannelMPredTag"
 
     override def typ(config: Config): AbstractType =
-      channelReceiverType(allDirections, _ => FunctionT(Vector(IntT(config.typeBounds.Int)), AssertionT))
+      channelReceiverType(allDirections, _ => FunctionT(Vector(), AssertionT))
   }
 
   case object SendChannelMPredTag extends BuiltInMPredicateTag {
@@ -270,6 +282,7 @@ object BuiltInMemberTag {
     // fpredicates
     PredTrueFPredTag,
     // methods
+    BufferSizeMethodTag,
     SendGivenPermMethodTag,
     SendGotPermMethodTag,
     RecvGivenPermMethodTag,

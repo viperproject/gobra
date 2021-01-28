@@ -14,13 +14,13 @@ pred someLocation(p *int) {
 func main() {
   // make channel
   c := make(chan int)
-  assert c.IsChannel(0)
+  assert c.IsChannel()
+  assert c.BufferSize() == 0
 
   // set channel invariants
-  assert c.IsChannel(0)
-  assert 0 > 0 ==> PredTrue!<!> == PredTrue!<!> && PredTrue!<!> == PredTrue!<!>;
-  assert vIsOne!<_!> == vIsOne!<_!> && PredTrue!<!> == PredTrue!<!>;
-  c.Init(0, vIsOne!<_!>, PredTrue!<!>, PredTrue!<!>, vIsOne!<_!>)
+  assert c.IsChannel()
+  assert c.BufferSize() > 0 ==> PredTrue!<!> == PredTrue!<!>;
+  c.Init(vIsOne!<_!>, PredTrue!<!>)
   assert c.SendChannel() && c.RecvChannel()
   assert c.SendGivenPerm() == vIsOne!<_!> && c.SendGotPerm() == PredTrue!<!>;
   assert c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == vIsOne!<_!>;

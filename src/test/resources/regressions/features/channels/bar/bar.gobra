@@ -3,5 +3,5 @@
 
 package bar
 
-requires c.IsChannel(0)
+requires c.IsChannel() && c.BufferSize() == 0
 func useChannel(c chan<- int)

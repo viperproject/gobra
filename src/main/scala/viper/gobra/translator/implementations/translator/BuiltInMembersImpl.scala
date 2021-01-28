@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -190,6 +190,20 @@ class BuiltInMembersImpl extends BuiltInMembers {
   private def translateMethod(x: in.BuiltInMethod)(ctx: Context): in.MethodMember = {
     val src = x.info
     (x.tag, x.receiverT) match {
+      case (BufferSizeMethodTag, recv: in.ChannelT) =>
+      /**
+        * requires acc(c.IsChannel(), _)
+        * pure func (c chan T).BufferSize() (k Int)
+        */
+        assert(recv.addressability == Addressability.inParameter)
+        val recvParam = in.Parameter.In("c", recv)(src)
+        val kParam = in.Parameter.Out("k", in.IntT(Addressability.outParameter))(src)
+        val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
+        val pres: Vector[in.Assertion] = Vector(
+          in.Access(isChannelInst, in.WildcardPerm(src))(src),
+        )
+        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), None)(src)
+
       case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
           * requires acc(c.[chanPredicateTag](), _)
@@ -218,44 +232,34 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
       case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**
-          * requires c.IsChannel(k)
-          * requires k > 0 ==> (B == pred_true{} && C == pred_true{})
-          * requires A == D && B == C
+          * requires c.IsChannel()
+          * requires c.BufferSize() > 0 ==> (B == pred_true{})
           * ensures c.SendChannel() && c.RecvChannel()
           * ensures c.SendGivenPerm() == A && c.SendGotPerm() == B
-          * ensures c.RecvGivenPerm() == C && c.RecvGotPerm() == D
-          * ghost func (c chan T).Init(k int, A pred(T), B pred(), C pred(), D pred(T))
+          * ensures c.RecvGivenPerm() == B && c.RecvGotPerm() == A
+          * ghost func (c chan T).Init(A pred(T), B pred())
           *
           * note that B is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
           * as soon as we can, the third precondition can be changed to `[v] ((A(v) && C()) ==> (B(v) && D(v)))`
           */
         assert(recv.addressability == Addressability.inParameter)
         val recvParam = in.Parameter.In("c", recv)(src)
-        val kParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
         val predTType = in.PredT(Vector(recv.elem), Addressability.inParameter) // pred(T)
         val predType = in.PredT(Vector(), Addressability.inParameter) // pred()
         val aParam = in.Parameter.In("A", predTType)(src)
         val bParam = in.Parameter.In("B", predType)(src)
-        val cParam = in.Parameter.In("C", predType)(src)
-        val dParam = in.Parameter.In("D", predTType)(src)
-        val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector(kParam))(src)(ctx)
+        val isChannelInst = builtInMPredAccessible(BuiltInMemberTag.IsChannelMPredTag, recvParam, Vector())(src)(ctx)
+        val bufferSizeType = in.IntT(Addressability.inParameter)
+        val bufferSizeCall = builtInPureMethodCall(BuiltInMemberTag.BufferSizeMethodTag, recvParam, Vector(), bufferSizeType)(src)(ctx)
         val predTrueProxy = getOrGenerateFPredicate(BuiltInMemberTag.PredTrueFPredTag, Vector())(src)(ctx)
         val predTrueConstr = in.PredicateConstructor(predTrueProxy, predType, Vector())(src) // pred_true{}
         val bufferedImpl = in.Implication(
-          in.GreaterCmp(kParam, in.IntLit(0)(src))(src),
-          in.SepAnd(
-            in.ExprAssertion(in.EqCmp(bParam, predTrueConstr)(src))(src),
-            in.ExprAssertion(in.EqCmp(cParam, predTrueConstr)(src))(src)
-          )(src)
-        )(src)
-        val trivialPermExchange = in.And(
-          in.EqCmp(aParam, dParam)(src),
-          in.EqCmp(bParam, cParam)(src)
+          in.GreaterCmp(bufferSizeCall, in.IntLit(0)(src))(src),
+          in.ExprAssertion(in.EqCmp(bParam, predTrueConstr)(src))(src)
         )(src)
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.FullPerm(src))(src),
-          bufferedImpl,
-          in.ExprAssertion(trivialPermExchange)(src)
+          bufferedImpl
         )
         val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)(ctx)
         val recvChannelInst = builtInMPredAccessible(BuiltInMemberTag.RecvChannelMPredTag, recvParam, Vector())(src)(ctx)
@@ -269,16 +273,16 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val sendGotPermEq = in.EqCmp(sendGotPermCall, bParam)(src)
         val sendChannelInvEq = in.And(sendGivenPermEq, sendGotPermEq)(src)
         val recvGivenPermCall = builtInPureMethodCall(BuiltInMemberTag.RecvGivenPermMethodTag, recvParam, Vector(), predType)(src)(ctx)
-        val recvGivenPermEq = in.EqCmp(recvGivenPermCall, cParam)(src)
+        val recvGivenPermEq = in.EqCmp(recvGivenPermCall, bParam)(src)
         val recvGotPermCall = builtInPureMethodCall(BuiltInMemberTag.RecvGotPermMethodTag, recvParam, Vector(), predTType)(src)(ctx)
-        val recvGotPermEq = in.EqCmp(recvGotPermCall, dParam)(src)
+        val recvGotPermEq = in.EqCmp(recvGotPermCall, aParam)(src)
         val recvChannelInvEq = in.And(recvGivenPermEq, recvGotPermEq)(src)
         val posts: Vector[in.Assertion] = Vector(
           sendAndRecvChannel,
           in.ExprAssertion(sendChannelInvEq)(src),
           in.ExprAssertion(recvChannelInvEq)(src),
         )
-        in.Method(recvParam, x.name, Vector(kParam, aParam, bParam, cParam, dParam), Vector(), pres, posts, None)(src)
+        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, None)(src)
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -407,10 +411,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
     x.tag match {
       case IsChannelMPredTag =>
         /**
-          * pred (c chan T) IsChannel(k Int)
+          * pred (c chan T) IsChannel()
           */
-        val bufferSizeParam = in.Parameter.In("k", in.IntT(Addressability.inParameter))(src)
-        in.MPredicate(recvParam, x.name, Vector(bufferSizeParam), None)(src)
+        in.MPredicate(recvParam, x.name, Vector(), None)(src)
       case SendChannelMPredTag | RecvChannelMPredTag | ClosedMPredTag =>
         /**
           * pred (c chan T) [tag.identifier]()

@@ -10,7 +10,7 @@ import java.nio.file.Path
 
 import org.scalatest.DoNotDiscover
 import viper.gobra.frontend.{Config, PackageResolver}
-import viper.gobra.reporting.{VerifierError, VerifierResult}
+import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierResult}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.ast.{NoPosition, Position}
 import viper.silver.frontend.Frontend
@@ -54,7 +54,7 @@ trait GobraFrontendForTesting extends Frontend {
   override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
   override def reset(files: Seq[Path]): Unit =
-    config = Some(Config(files.map(_.toFile).toVector))
+    config = Some(Config(inputFiles = files.map(_.toFile).toVector, reporter = NoopReporter))
 
   def gobraResult: VerifierResult
 

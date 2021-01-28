@@ -6,6 +6,7 @@
 
 package viper.gobra
 
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
 import org.scalatest.DoNotDiscover
@@ -60,7 +61,7 @@ import scala.concurrent.duration.Duration
   *    "test:runMain org.scalatest.tools.Runner -o -s viper.gobra.DetailedBenchmarkTests"
   *    ```
   *    Note that this command takes the same JVM property arguments as used above.
-  *    Linard (26.1.2020): I was not able to execute the tests using the generated JAR. This might have changed since Scala 2.13.
+  *    Linard (26.1.2021): I was not able to execute the tests using the generated JAR. This might have changed since Scala 2.13.
   *
   * The warmup and the target must be disjoint (not in a sub-directory relation).
   *
@@ -81,6 +82,16 @@ class DetailedBenchmarkTests extends BenchmarkTests {
 
 
   class DetailedGobraFrontend extends GobraFrontendForTesting {
+    val gobra: Gobra = new Gobra // we only need the instance for merging in-file configs
+
+    override def reset(files: Seq[Path]): Unit = {
+      // call to super creates a "base" config that stores the files
+      super.reset(files)
+      // however, as we will directly invoke the individual steps of Gobra, we have to manually merge in-file configs
+      // such that the Gobra programs show the same behavior as when invoking `Gobra.verify`:
+      assert(config.isDefined)
+      config = Some(gobra.getAndMergeInFileConfig(config.get))
+    }
 
     private val parsing = InitialStep("parsing", () => {
       assert(config.isDefined)

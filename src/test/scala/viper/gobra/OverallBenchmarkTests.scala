@@ -53,7 +53,7 @@ import scala.concurrent.duration.Duration
   *    "test:runMain org.scalatest.tools.Runner -o -s viper.gobra.OverallBenchmarkTests"
   *    ```
   *    Note that this command takes the same JVM property arguments as used above.
-  *    Linard (26.1.2020): I was not able to execute the tests using the generated JAR. This might have changed since Scala 2.13.
+  *    Linard (26.1.2021): I was not able to execute the tests using the generated JAR. This might have changed since Scala 2.13.
   *
   * The warmup and the target must be disjoint (not in a sub-directory relation).
   *

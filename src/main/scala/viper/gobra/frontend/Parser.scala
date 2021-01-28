@@ -122,6 +122,14 @@ object Parser {
     })
   }
 
+  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    translateParseResult(pom)(parsers.parseAll(parsers.program, preprocessedSource))
+  }
+
   def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)

@@ -4,7 +4,12 @@
 package pkg
 
 func foo(b bool) {
-  // fails: cannot assign a ghost expression to a non-ghost variable
-  //:: ExpectedOutput(type_error)
   xs := seq[1 .. 4]
+  // fails: cannot assign a ghost expression to a non-ghost parameter
+  //:: ExpectedOutput(type_error)
+  test(1 in xs)
+}
+
+func test(b bool) {
+
 }

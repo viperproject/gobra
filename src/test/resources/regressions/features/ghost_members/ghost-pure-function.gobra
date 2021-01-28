@@ -1,0 +1,80 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  s := seq[int] { 1 }
+  res3 := test3(s)
+  res4 := test4(s)
+  res5 := test5(s)
+  ghost gRes5 := test5(s)
+  assert res5 == gRes5
+
+  // the following calls should all fails since res3 to res5 are ghost:
+  //:: ExpectedOutput(type_error)
+  isNonGhost(res3)
+  //:: ExpectedOutput(type_error)
+  isNonGhost(res4)
+  //:: ExpectedOutput(type_error)
+  isNonGhost(res5)
+  //:: ExpectedOutput(type_error)
+  isNonGhost(gRes5)
+}
+
+func bar() {
+    s := seq[int] { 1 }
+
+    // we declare variables as non-ghost:
+    var res3, res4, res5 int
+    ghost var gRes3, gRes4, gRes5 int
+
+    //:: ExpectedOutput(type_error)
+    res3 = test3(s) // fails as result is not assignable to actual variable
+    gRes3 = test3(s)
+    //:: ExpectedOutput(type_error)
+    res4 = test4(s) // fails as result is not assignable to actual variable
+    gRes4 = test4(s)
+    //:: ExpectedOutput(type_error)
+    res5 = test5(s) // fails as result is not assignable to actual variable
+    gRes5 = test5(s)
+
+    isNonGhost(res3)
+    isNonGhost(res4)
+    isNonGhost(res5)
+
+    //:: ExpectedOutput(type_error)
+    isNonGhost(gRes3)
+    //:: ExpectedOutput(type_error)
+    isNonGhost(gRes4)
+    //:: ExpectedOutput(type_error)
+    isNonGhost(gRes5)
+}
+
+//:: ExpectedOutput(type_error)
+pure func test1(s seq[int]) int { // parameter has to be ghost
+    return 1
+}
+
+//:: ExpectedOutput(type_error)
+pure func test2(ghost s seq[int]) int { // result has to be ghost
+    return len(s)
+}
+
+func test3(ghost s seq[int]) (ghost res int) {
+    return len(s)
+}
+
+// this function is fine as parameter and result are implicitly ghost
+ghost func test4(s seq[int]) int {
+    return len(s)
+}
+
+// this function is fine as parameter and result are implicitly ghost
+ghost pure func test5(s seq[int]) int {
+    return len(s)
+}
+
+// calling this function with an argument of ghost type leads to a type-error
+// thus, no type error at call site implies that the argument is non-ghost
+func isNonGhost(n int)

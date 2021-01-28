@@ -4,7 +4,12 @@
 package pkg
 
 func foo(ghost xs seq[int]) {
-  // fails: cannot assign ghost expression to actual variable
-  //:: ExpectedOutput(type_error)
   n := len(xs)
+  // fails: cannot assign ghost expression to actual parameter
+  //:: ExpectedOutput(type_error)
+  test(n)
+}
+
+func test(n int) {
+
 }

@@ -139,7 +139,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left, addressable) =>
-      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+      val rhs: Doc = if (right.isEmpty) "" else space <> "=" <+> showExprList(right)
+      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
 
   def showConstDecl(decl: PConstDecl): Doc = decl match {
@@ -185,7 +186,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PAssignment(right, left) => showExprList(left) <+> "=" <+> showExprList(right)
       case PAssignmentWithOp(right, op, left) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
       case PIfStmt(ifs, els) =>
-        ssep(ifs map showIfClause, line) <>
+        ssep(ifs map showIfClause, space <> "else" <> space) <>
           opt(els)(space <> "else" <+> showStmt(_) <> line)
       case PExprSwitchStmt(pre, _, cases, dflt) =>
         "switch" <> showPreStmt(pre) <+> block(

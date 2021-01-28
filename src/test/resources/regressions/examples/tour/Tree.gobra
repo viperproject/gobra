@@ -1,30 +1,41 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package trivial;
+package trivial
 
 type Tree struct {
-  Left  *Tree;
-  Value int;
-  Right *Tree;
-};
+  Left  *Tree
+  Value int
+  Right *Tree
+}
 
 pred tree(self *Tree) {
   acc(&self.Left) && acc(&self.Value) && acc(&self.Right) &&
   (self.Left != nil ==> tree(self.Left)) &&
   (self.Right != nil ==> tree(self.Right))
-};
+}
 
-requires self != nil ==> tree(self);
-ensures  self != nil ==> tree(self);
-func (self *Tree) Contains(v int) (res bool) {
-  if self == nil { res = false;
-  } else {
-    unfold tree(self);
-    if self.Value == v { res = true;
+requires self != nil ==> tree(self)
+pure func (self *Tree) Contains(v int) bool {
+  return self == nil || (unfolding tree(self) in self.Value == v ? true : (self.Left.Contains(v) || self.Right.Contains(v)))
+}
+
+requires self != nil ==> tree(self)
+ensures tree(res)
+ensures res.Contains(v)
+func (self *Tree) Insert(v int) (res *Tree) {
+    if self == nil {
+        res = &Tree{Value: v}
     } else {
-      res = (self.Left).Contains(v) || (self.Right).Contains(v);
-    };
-    fold tree(self);
-  };
-};
+        unfold tree(self)
+        // approximation for balancing the tree by choosing left or right depending on the evenness of
+        // the sum of v and self.value:
+        if (self.Value + v) % 2 == 0 {
+            self.Left = self.Left.Insert(v)
+        } else {
+            self.Right = self.Right.Insert(v)
+        }
+        res = self
+    }
+    fold tree(res)
+}

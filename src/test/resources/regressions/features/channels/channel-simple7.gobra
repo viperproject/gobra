@@ -10,7 +10,7 @@ pred sendInvariant(v *int) {
 func main() {
   var c@ = make(chan *int)
   var pc *chan *int = &c
-  (*pc).Init(0, sendInvariant!<_!>, PredTrue!<!>, PredTrue!<!>, sendInvariant!<_!>)
+  (*pc).Init(sendInvariant!<_!>, PredTrue!<!>)
   go foo(pc)
 
   var x@ int = 42

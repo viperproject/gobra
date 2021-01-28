@@ -9,7 +9,7 @@ pred vIsOne(v int) {
 
 func main() {
   c := make(chan int, 1) // make a buffered channel
-  c.Init(1, vIsOne!<_!>, PredTrue!<!>, PredTrue!<!>, vIsOne!<_!>)
+  c.Init(vIsOne!<_!>, PredTrue!<!>)
   go foo(1, c)
 
   fold PredTrue!<!>()

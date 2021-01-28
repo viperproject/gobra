@@ -1363,8 +1363,9 @@ object Desugar {
                 case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
                   val channelType = elemD(c).asInstanceOf[in.ChannelT]
-                  val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector(in.IntT(Addressability.inParameter)))(src)
-                  in.MakeChannel(target, channelType, arg0, isChannelProxy)(src)
+                  val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
+                  val bufferSizeProxy = methodProxy(BuiltInMemberTag.BufferSizeMethodTag, channelType, Vector())(src)
+                  in.MakeChannel(target, channelType, arg0, isChannelProxy, bufferSizeProxy)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
               }
               _ <- write(make)

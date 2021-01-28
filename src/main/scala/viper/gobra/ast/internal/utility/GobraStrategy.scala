@@ -37,7 +37,7 @@ object GobraStrategy {
       case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
       case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: MakeSlice, Seq(target: LocalVar, typeParam: SliceT, lenArg: Expr, capArg: Option[Expr@unchecked])) => MakeSlice(target, typeParam, lenArg, capArg)(meta)
-      case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel)(meta)
+      case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy, bufferSize: MethodProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel, bufferSize)(meta)
       case (_: MakeMap, Seq(target: LocalVar, typeParam: Type, initialSpaceArg: Option[Expr@unchecked])) => MakeMap(target, typeParam, initialSpaceArg)(meta)
       case (_: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (_: Assignee.Var, Seq(v: AssignableVar)) => Assignee.Var(v)

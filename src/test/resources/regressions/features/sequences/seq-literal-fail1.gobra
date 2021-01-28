@@ -4,7 +4,12 @@
 package pkg
 
 func foo() {
+  xs := seq[int] { }
   // ghost error
   //:: ExpectedOutput(type_error)
-  xs := seq[int] { }
+  test(0 in xs)
+}
+
+func test(b bool) {
+
 }

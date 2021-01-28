@@ -5,6 +5,8 @@
 
 package main
 
+// import "fmt"
+
 type Tree struct {
     root *node
 }
@@ -47,17 +49,11 @@ ensures n.sorted(oldLowerBound, oldUpperBound) && n.sorted(newLowerBound, newUpp
 ensures n.sortedValues(oldLowerBound, oldUpperBound) == n.sortedValues(newLowerBound, newUpperBound)
 func (n *node) convert(oldLowerBound, oldUpperBound, newLowerBound, newUpperBound option[int]) {
     unfold n.tree()
-    assert newLowerBound != none[int] ==> get(newLowerBound) < n.value
-    assert newUpperBound != none[int] ==> get(newUpperBound) > n.value
     if (n.left != nil) {
-        assert n.left.sorted(oldLowerBound, some(n.value))
         n.left.convert(oldLowerBound, some(n.value), newLowerBound, some(n.value))
-        assert n.left.sorted(newLowerBound, some(n.value))
     }
     if (n.right != nil) {
-        assert n.right.sorted(some(n.value), oldUpperBound)
         n.right.convert(some(n.value), oldUpperBound, some(n.value), newUpperBound)
-        assert n.right.sorted(some(n.value), newUpperBound)
     }
     fold n.tree()
 }
@@ -177,7 +173,6 @@ func (t *Tree) Delete(value int) {
     unfold t.tree()
     if (t.root != nil) {
         t.root = t.root.delete(value, none[int], none[int])
-        assert t.root != nil ==> t.root.sorted(none[int], none[int])
     }
     fold t.tree()
 }
@@ -191,14 +186,11 @@ func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res 
     unfold n.tree()
     if (value < n.value && n.left != nil) {
         n.left = n.left.delete(value, lowerBound, some(n.value))
-        assert n.left != nil ==> n.left.tree() && n.left.sorted(lowerBound, some(n.value))
         fold n.tree()
-        assert n.tree() && n.sorted(lowerBound, upperBound)
         res = n
     } else if (value > n.value && n.right != nil) {
         n.right = n.right.delete(value, some(n.value), upperBound)
         fold n.tree()
-        assert n.tree() && n.sorted(lowerBound, upperBound)
         res = n
     } else if (value == n.value) {
         // delete this node
@@ -208,26 +200,17 @@ func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res 
             // delete old node storing minimum
             var minValue int
             n.right, minValue = n.right.deleteMinimum(some(n.value), upperBound)
-            assert n.right != nil ==> !(minValue in n.right.sortedValues(some(minValue), upperBound))
-            assert n.right != nil ==> n.right.sorted(some(minValue), upperBound)
-            assert n.left != nil ==> n.left.sorted(lowerBound, some(n.value))
             ghost if (n.left != nil) {
                 n.left.convert(lowerBound, some(n.value), lowerBound, some(minValue))
             }
-            assert n.left != nil ==> n.left.sorted(lowerBound, some(minValue))
             // overwrite value that should be deleted:
             n.value = minValue
             fold n.tree()
-            assert n.tree() && n.sorted(lowerBound, upperBound)
-            assert !(value in n.sortedValues(lowerBound, upperBound))
             res = n
         } else if (n.left != nil) {
             // this node has a single child thus replace this node by its child:
             res = n.left
-            assert !(value in res.sortedValues(lowerBound, some(n.value)))
-            assert res.tree() && res.sorted(lowerBound, some(n.value))
             ghost res.convert(lowerBound, some(n.value), lowerBound, upperBound)
-            assert res.tree() && res.sorted(lowerBound, upperBound)
         } else if (n.right != nil) {
             // this node has a single child thus replace this node by its child:
             res = n.right
@@ -252,7 +235,6 @@ func (n *node) deleteMinimum(ghost lowerBound, upperBound option[int]) (res *nod
         // follow into left subtree as the minimum is the left most node
         n.left, minimum = n.left.deleteMinimum(lowerBound, some(n.value))
         fold n.tree()
-        assert n.tree() && n.sorted(some(minimum), upperBound)
         res = n
     } else if (n.right != nil) {
         // n.value is the minimum but it has a right subtree
@@ -301,7 +283,8 @@ func main() {
     t := client0(value0)
     client1(t, value1)
     client2(t, value2)
-    // t.print()
+    /*
+    t.print()
     t.Insert(0)
     t.Insert(100)
     t.Insert(50)
@@ -311,10 +294,11 @@ func main() {
     t.Insert(99)
     t.Insert(-1)
     t.Insert(45)
-    // t.print()
+    t.print()
     t.Delete(0)
-    // fmt.Println("----")
-    // t.print()
+    fmt.Println("----")
+    t.print()
+    */
 }
 
 ensures t.tree()

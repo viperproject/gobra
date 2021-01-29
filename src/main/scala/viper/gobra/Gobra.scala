@@ -102,7 +102,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * These in-file command options get combined for all files and passed to ScallopGobraConfig.
     * The current config merged with the newly created config is then returned
     */
-  private def getAndMergeInFileConfig(config: Config): Config = {
+  def getAndMergeInFileConfig(config: Config): Config = {
     val inFileConfigStrings = config.inputFiles.flatMap(file => {
       val bufferedSource = Source.fromFile(file)
       val content = bufferedSource.mkString

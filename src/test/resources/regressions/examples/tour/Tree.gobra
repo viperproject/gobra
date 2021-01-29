@@ -38,4 +38,5 @@ func (self *Tree) Insert(v int) (res *Tree) {
         res = self
     }
     fold tree(res)
+    return
 }

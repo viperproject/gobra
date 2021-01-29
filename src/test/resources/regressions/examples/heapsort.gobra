@@ -108,7 +108,7 @@ func heapify (s []int) {
   invariant forall n int :: start + 1 <= parent(n) && n < len(s) ==> s[n] <= s[parent(n)]
   for (0 <= start) {
     siftDown(s, start, len(s) - 1, false)
-    start := start - 1
+    start = start - 1
   }
 }
 

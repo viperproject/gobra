@@ -67,4 +67,5 @@ func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
       }
     }
   }
+  return
 }

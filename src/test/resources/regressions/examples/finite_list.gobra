@@ -85,4 +85,5 @@ func removeAllOccurrances(ptr *node, value int) (rPtr *node) {
     fold list(ptr)
     rPtr = ptr
   }
+  return
 }

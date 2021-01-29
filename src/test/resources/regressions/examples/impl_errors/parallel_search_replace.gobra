@@ -69,7 +69,7 @@ func SearchReplace(s []int, x, y int) {
   c := make(chan []int,4)
   var wg@ sync.WaitGroup
   ghost pr := messagePerm!<&wg,_,x,y!>;
-  c.Init(4,pr,PredTrue!<!>,PredTrue!<!>,pr)
+  c.Init(pr,PredTrue!<!>)
   wg.Init()
   ghost seqs := seq[seq[int]] {}
   ghost pseqs := seq[pred()] {}

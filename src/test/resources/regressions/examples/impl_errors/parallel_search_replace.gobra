@@ -60,7 +60,9 @@ ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 ensures forall i int :: {s[i]} 0 <= i && i < len(s) ==>
   s[i] == (old(s[i]) == x ? y : old(s[i]))
 func SearchReplace(s []int, x, y int) {
-  if(len(s) == 0) { return }
+  if(len(s) == 0) {
+    return
+  }
   workers := 8
   workRange := 1000
   assert workers > 0
@@ -75,7 +77,9 @@ func SearchReplace(s []int, x, y int) {
   ghost pseqs := seq[pred()] {}
   invariant acc(c.RecvChannel(),_)
   invariant c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == pr
-  for i := 0; i != workers; i++ { go worker(c,&wg,x,y) }
+  for i := 0; i != workers; i++ {
+    go worker(c,&wg,x,y)
+  }
   invariant acc(c.SendChannel()) && c.SendGivenPerm() == pr
   invariant acc(wg.WaitGroupP(),1/2) && !wg.WaitMode()
   invariant (offset == 0 ? acc(wg.WaitGroupP(),1/2) : acc(wg.WaitGroupStarted(),1/2))
@@ -95,14 +99,18 @@ func SearchReplace(s []int, x, y int) {
   invariant forall i int :: 0 <= i && i < len(pseqs) ==> wg.TokenById(pseqs[i],i)
   for offset := 0; offset != len(s); {
     nextOffset := offset + workRange;
-    if(nextOffset > len(s)) { nextOffset = len(s) }
+    if(nextOffset > len(s)) {
+      nextOffset = len(s)
+    }
     section := s[offset:nextOffset]
     assert forall i int :: {&section[i]} 0 <= i && i < len(s) ==>
       &section[i] == &s[i + offset]
     ghost s1 := toSeq(section)
     ghost wpr := replacedPerm!<s1,section,x,y!>;
     wg.Add(1,1,2,PredTrue!<!>)
-    ghost if(offset == 0) { wg.Start(1,2,PredTrue!<!>) }
+    ghost if(offset == 0) {
+      wg.Start(1,2,PredTrue!<!>)
+    }
     wg.GenerateTokenAndDebt(wpr)
     fold wg.TokenById(wpr,len(pseqs))
     seqs = seqs ++ seq[seq[int]]{ s1 }

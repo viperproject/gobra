@@ -27,6 +27,7 @@ trait GhostAssignability {
       case p: ap.BuiltInFunction => p.symb.isPure
       case p: ap.BuiltInMethodExpr => p.symb.isPure
       case p: ap.BuiltInReceivedMethod => p.symb.isPure
+      case p: ap.ImplicitlyReceivedInterfaceMethod => p.symb.isPure
       case _ => false
     }
     if (isPure) {return noMessages}
@@ -104,6 +105,7 @@ trait GhostAssignability {
       case ap.BuiltInFunction(_, symb) => symb.tag.argGhostTyping(call.args.map(typ))(config)
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.argGhostTyping(Vector(typ(recv)))(config)
       case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: symb.tag.argGhostTyping(Vector(typeSymbType(typ)))(config).toTuple)
+      case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }
   }
@@ -122,6 +124,7 @@ trait GhostAssignability {
       case ap.BuiltInFunction(_, symb) => symb.tag.returnGhostTyping(call.args.map(typ))(config)
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.returnGhostTyping(Vector(typ(recv)))(config)
       case ap.BuiltInMethodExpr(typ, _, _, symb) => symb.tag.returnGhostTyping(Vector(typeSymbType(typ)))(config)
+      case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }
   }

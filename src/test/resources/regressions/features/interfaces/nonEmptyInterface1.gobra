@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type stream interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure hasNext() bool
+
+    requires mem() && hasNext()
+    ensures  mem()
+    next() interface{}
+}
+
+func test1(x stream) {
+  a := x
+  b := x.hasNext()
+  c := x.next()
+  assert x.mem()
+}
+
+func dummy() {
+  assert 0 == 1
+}

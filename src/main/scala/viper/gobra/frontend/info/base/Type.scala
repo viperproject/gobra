@@ -72,7 +72,8 @@ object Type {
   case class PredT(args: Vector[Type]) extends Type
 
   // TODO: at least add type info
-  case class InterfaceT(decl: PInterfaceType) extends Type {
+  case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends Type {
+
     lazy val isEmpty: Boolean = {
       decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&
         decl.embedded.isEmpty

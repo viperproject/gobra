@@ -96,13 +96,14 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
-      case InterfaceT(PInterfaceType(es, methSpecs, predSpecs)) =>
+      case InterfaceT(PInterfaceType(es, methSpecs, predSpecs), ctxt) =>
         AdvancedMemberSet.init[TypeMember](methSpecs.map(m => createMethodSpec(m))) union
           AdvancedMemberSet.init[TypeMember](predSpecs.map(m => createMPredSpec(m))) union
           AdvancedMemberSet.union {
             es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {
-                case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t)
+                  // TODO: might break if there is a cycle
+                case NamedType(PTypeDef(t: PInterfaceType, _), _, _) => InterfaceT(t, ctxt)
               }
             ))
           }
@@ -121,6 +122,8 @@ trait MemberResolution { this: TypeInfoImpl =>
           val et = miscType(e.typ)
           (cont(et) union go(pastDeref = false)(et)).promote(createEmbbed(e))
         })
+
+      case s: InterfaceT if !pastDeref => cont(s)
 
       case _ => AdvancedMemberSet.empty
     }

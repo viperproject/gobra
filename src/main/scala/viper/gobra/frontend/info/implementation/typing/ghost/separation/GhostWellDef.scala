@@ -133,6 +133,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       error(f, s"ghost error: expected an actual type but found ${f.typ}",
         isTypeGhost(f.typ) && !enclosingGhostContext(f))
     })
+    case _: PInterfaceType => noMessages
     case n: PType => error(n, "ghost error: Found ghost child expression, but expected none", !noGhostPropagationFromChildren(n))
   }
 

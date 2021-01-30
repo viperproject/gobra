@@ -954,16 +954,16 @@ object Parser {
       }
 
     lazy val interfaceClause: Parser[PInterfaceClause] =
-      methodSpec | interfaceName
+      predicateSpec | methodSpec | interfaceName
 
     lazy val interfaceName: Parser[PInterfaceName] =
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      idnDef ~ signature ^^ { case id ~ sig => PMethodSig(id, sig._1, sig._2) }
+      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
-      idnDef ~ parameters ^^ PMPredicateSig
+      ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig
 
 
     lazy val namedType: Parser[PNamedType] =

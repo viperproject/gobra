@@ -552,8 +552,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
     case PInterfaceName(typ) => showType(typ)
-    case PMethodSig(id, args, result) => showId(id) <> parens(showParameterList(args)) <> showResult(result)
-    case PMPredicateSig(id, args) => "predicate"  <+> showId(id) <> parens(showParameterList(args))
+    case PMethodSig(id, args, result, spec, isGhost) =>
+      (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
+        showId(id) <> parens(showParameterList(args)) <> showResult(result)
+    case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
   }
 
   // ids

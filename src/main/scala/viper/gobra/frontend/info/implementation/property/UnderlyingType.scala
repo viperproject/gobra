@@ -93,7 +93,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val isInterfaceType: Property[Type] = createBinaryProperty("an interface type") { t =>
     underlyingType(t) match {
-      case InterfaceT(_) => true
+      case _: InterfaceT => true
       case _ => false
     }
   }

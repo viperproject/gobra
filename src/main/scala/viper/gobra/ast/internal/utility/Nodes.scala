@@ -144,6 +144,7 @@ object Nodes {
         case Parameter.In(_, _) => Seq()
         case Parameter.Out(_, _) => Seq()
         case LocalVar(_, _) => Seq()
+        case GlobalConst.Val(_, _) => Seq()
       }
       case Trigger(exprs) => exprs
       case a: Addressable => Seq(a.op)

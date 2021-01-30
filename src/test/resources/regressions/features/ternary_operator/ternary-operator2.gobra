@@ -4,6 +4,7 @@
 package pkg;
 
 func test() {
+  // int and bool are not mergeable:
   //:: ExpectedOutput(type_error)
-  v := 1 == 1 ? 5 : 6;
+  v := 1 == 1 ? 5 : true;
 };

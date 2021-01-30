@@ -84,9 +84,10 @@ object BuiltInMemberTag {
 
   /** Built-in Function Tags */
 
-  case object CloseFunctionTag extends BuiltInFunctionTag with GhostBuiltInMember {
+  case object CloseFunctionTag extends BuiltInFunctionTag {
     override def identifier: String = "close"
     override def name: String = "CloseFunctionTag"
+    override def ghost: Boolean = false
     override def isPure: Boolean = false
 
     override def typ(config: Config): AbstractType = AbstractType(
@@ -100,6 +101,8 @@ object BuiltInMemberTag {
 
     override def argGhostTyping(args: Vector[Type])(config: Config): GhostType =
       GhostType.ghostTuple(Vector(false, true, true /* true */, true))
+
+    override def returnGhostTyping(args: Vector[Type])(config: Config): GhostType = ghostArgs(0)
   }
 
 

@@ -4,7 +4,11 @@
 package pkg
 
 func foo() {
-  // fails: mixing ghost and non-ghost code
-  //:: ExpectedOutput(type_error)
-	m := mset[int] { }
+  m := mset[int] { }
+  test(m)
+}
+
+//:: ExpectedOutput(type_error)
+func test(m mset[int]) { // parameter of ghost type is used without ghost keyword
+
 }

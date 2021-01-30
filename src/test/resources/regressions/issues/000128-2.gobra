@@ -32,8 +32,9 @@ type T4 struct {
 // fst's type and snd's type have different underlying types (field names differ), leading to a type error
 func diffStructError1() {
   var fst T3 = T3{x: 1, z: 2}
+  var snd T2
   //:: ExpectedOutput(type_error)
-  var snd T2 = T2(fst)
+  snd = T2(fst)
   assert snd.x == 1 && snd.y == 2
 }
 
@@ -44,4 +45,24 @@ func diffStructError2() {
 	//:: ExpectedOutput(type_error)
 	var snd T4 = T4(fst)
 	assert snd.x == 1 && snd.y == 2
+}
+
+// the same type error as above should be detected when using a variable declaration without type
+func diffStructError3() {
+    var fst T1 = T1{x: 1, y: 2}
+	//:: ExpectedOutput(type_error)
+	var snd = T4(fst)
+	// the following assertion will fail as well as the type of `snd` cannot be inferred
+	//:: ExpectedOutput(type_error)
+	assert snd.x == 1
+}
+
+// the same type error as above should be detected when using a short variable declaration
+func diffStructError4() {
+    var fst T1 = T1{x: 1, y: 2}
+	//:: ExpectedOutput(type_error)
+	snd := T4(fst)
+	// the following assertion will fail as well as the type of `snd` cannot be inferred
+    //:: ExpectedOutput(type_error)
+	assert snd.x == 1
 }

@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// constants have arbitrary precision, thus this declaration is valid:
+const large = 21342134123412341234132452314213
+
+func main() {
+    // non-ghost and ghost code should behave the same in terms of overflows:
+    //:: ExpectedOutput(type_error)
+    tooLarge := large + 1 // overflow can statically be detected
+    //:: ExpectedOutput(type_error)
+    ghost gTooLarge := large + 1 // overflow can statically be detected
+}

@@ -2500,6 +2500,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+
+  /* ** Parser tests related to explicit ghost statements */
+
+  test("Parser: should be able to parse an exlicit short var decl") {
+    frontend.parseStmtOrFail("ghost res := test(s)") should matchPattern {
+      case PExplicitGhostStatement(PShortVarDecl(
+        Vector(PInvoke(PNamedOperand(PIdnUse("test")), Vector(PNamedOperand(PIdnUse("s"))))),
+        Vector(PIdnUnk("res")),
+        Vector(false))) =>
+    }
+  }
+
+
   /* ** Parser tests related to channels */
   test("Parser: should parse channel send statement") {
     frontend.parseStmtOrFail("c <- v") should matchPattern {

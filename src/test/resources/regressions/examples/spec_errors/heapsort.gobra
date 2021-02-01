@@ -16,28 +16,40 @@ pure func rightChild (i int) int {
 }
 
 ghost
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-ensures len(s) == len(xs)
-ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
-pure func toseq (s []int) (xs seq[int])
-
-ghost
-requires 0 <= a && a <= b && b <= len(xs)
-pure func heap (xs seq[int], a int, b int) bool {
-  return forall i int :: a <= parent(i) && i < b ==> xs[i] <= xs[parent(i)]
-}
-
-ghost
 pure func descendant (p int, q int) bool {
   return p == q || (p <= q && descendant(p, parent(q)))
 }
 
 ghost
-requires 0 <= p && p <= q && q < end && end <= len(xs)
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires 0 <= start && start <= end && end < len(s)
+pure func heap(s []int, start int, end int) bool {
+  return forall i int :: start <= parent(i) && i <= end ==> s[i] <= s[parent(i)]
+}
+
+ghost
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires 0 <= start && start <= end && end < len(s)
+pure func almostHeap(s []int, start, end, wrong int) bool {
+  return forall j int :: start <= j && j <= end && start <= parent(j) && wrong != parent(j) ==>
+    s[j] <= s[parent(j)]
+}
+
+ghost
+requires 0 <= pos && pos <= end
+requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n], _)
+requires end < len(s)
+pure func validParent(s []int, end, pos int) bool {
+  return (leftChild(pos) <= end ==> s[leftChild(pos)] <= s[pos]) && (rightChild(pos) <= end ==>  s[rightChild(pos)] <= s[pos])
+}
+
+ghost
+requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j], _)
+requires 0 <= p && p <= q && q <= end && end < len(xs)
 requires heap(xs, p, end)
 requires descendant(p, q)
 ensures res && xs[q] <= xs[p]
-pure func lemma_descendant_order (xs seq[int], p int, q int, end int) (res bool) {
+pure func lemma_descendant_order (xs []int, p int, q int, end int) (res bool) {
   return (p < q ==> descendant(p, parent(q)) && lemma_descendant_order(xs, p, parent(q), end))
 }
 
@@ -49,33 +61,39 @@ pure func lemma_descendant_zero (n int) (res bool) {
 }
 
 ghost
-requires 0 <= i && i < end && end <= len(xs)
+requires forall j int :: 0 <= j && j < len(xs) ==> acc(&xs[j], _)
+requires 0 <= i && i <= end && end < len(xs)
 requires heap(xs, 0, end)
 ensures res && xs[i] <= xs[0]
-pure func lemma_heap_top (xs seq[int], i int, end int) (res bool) {
+pure func lemma_heap_top (xs []int, i int, end int) (res bool) {
   return (lemma_descendant_zero(i) && lemma_descendant_order(xs, 0, i, end))
 }
 
 ghost
-requires 0 <= end && end <= len(xs)
-requires heap(xs, 0, end)
-ensures res && forall i int :: 0 <= i && i < end ==> xs[i] <= xs[0]
-pure func lemma_heap_top_all (xs seq[int], end int) (res bool) {
-  return (forall i int :: 0 <= i && i < end && lemma_heap_top(xs, i, end) ==> xs[i] <= xs[0])
+requires 0 <= end && end < len(s)
+requires forall j int :: (0 <= j && j < len(s)) ==> acc(&s[j], _)
+requires heap(s, 0, end)
+ensures res 
+pure func lemma_heap_top_all (s []int, end int) (res bool) {
+  return (forall i int :: 0 <= i && i <= end && lemma_heap_top(s, i, end) ==> s[i] <= s[0])
 }
 
-ghost
-requires 0 <= end && end <= len(s)
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-requires heap(toseq(s), 0, end)
-ensures res && forall i int :: 0 <= i && i < end ==> s[i] <= s[0]
-pure func lemma_heap_top_slice (s []int, end int) (res bool) {
-  return lemma_heap_top_all(toseq(s), end)
+requires acc(&s[i])
+requires i != j ==> acc(&s[j])
+ensures acc(&s[i])
+ensures i != j ==> acc(&s[j])
+ensures old(s[i]) == s[j]
+ensures old(s[j]) == s[i]
+func swap(s []int, i, j int) {
+    tmp := s[i]
+    s[i] = s[j]
+    s[j] = tmp
 }
 
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
 ensures forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
-ensures forall a, b int :: 0 <= a && a <= b && b < len(s) ==> s[a] <= s[b]
+//:: ExpectedOutput(postcondition_error)
+ensures forall a, b int :: 0 <= a && a <= b && b < len(s) ==> s[a] < s[b]
 func heapsort (s []int) {
   heapify(s)
   
@@ -84,19 +102,14 @@ func heapsort (s []int) {
   invariant -1 <= end && end < len(s)
   invariant 0 < len(s) ==> 0 <= end
   invariant forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
-  invariant forall n int :: 0 <= parent(n) && n < end + 1 ==> s[n] <= s[parent(n)]
+  invariant 0 < len(s) ==> heap(s, 0, end)
   invariant forall a, b int :: end < a && a <= b && b < len(s) ==> s[a] <= s[b]
-  //:: ExpectedOutput(invariant_preservation_error:assertion_error)
-  invariant end + 1 < len(s) ==> forall n int :: 0 <= n && n < end + 1 ==> s[n] <= s[end + 1]
-  for (0 < end) {
-    assert lemma_heap_top_slice(s, end + 1)
-    tmp := s[end]
-    s[end] = s[0]
-    s[0] = tmp
-    // last argument of siftDown is ghost and we seed a bug by setting it to false (instead of true)
-    // siftDown(s, 0, end, true)
-    siftDown(s, 0, end, false)
+  invariant end+1 < len(s) ==> forall n int :: 0 <= n && n <= end ==> s[n] <= s[end+1]
+  for 0 < end {
+    assert lemma_heap_top_all(s, end)
+    swap(s, 0, end)
     end = end - 1
+    siftDown(s, 0, end, true)
   }
 }
 
@@ -109,45 +122,42 @@ func heapify (s []int) {
   invariant -1 <= start && start <= parent(len(s) - 1)
   invariant forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
   invariant forall n int :: start + 1 <= parent(n) && n < len(s) ==> s[n] <= s[parent(n)]
-  for (0 <= start) {
-    siftDown(s, start, len(s) - 1, false)
+  for 0 <= start {
+    siftDown(s, start, len(s)-1, false)
     start = start - 1
   }
 }
 
-requires 0 <= start && start <= parent(end)
-requires 0 <= end && end < len(s)
+requires 0 <= start && start <= end
+requires end < len(s)
 requires forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
-requires forall n int :: start <= parent(n) && n < end && parent(n) != start ==> s[n] <= s[parent(n)]
-requires forall n int :: start <= parent(start) && start == parent(n) && n < end ==> s[n] <= s[parent(start)]
-requires preserve ==> forall i int :: 0 <= i && i < end ==> s[i] <= s[end]
+requires start < end ==> heap(s, start+1, end)
+requires preserve ==> forall i int :: 0 <= i && i <= end && end+1 < len(s) ==> s[i] <= s[end+1]
 ensures forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
-ensures forall n int :: start <= parent(n) && n < end ==> s[n] <= s[parent(n)]
-ensures forall n int :: end <= n && n < len(s) ==> s[n] == old(s[n])
-ensures preserve ==> forall i int :: 0 <= i && i < end ==> s[i] <= s[end]
+ensures heap(s, start, end)
+ensures forall n int :: end < n && n < len(s) ==> s[n] == old(s[n])
+ensures preserve ==> forall i int :: 0 <= i && i <= end && end+1 < len(s) ==> s[i] <= s[end+1]
 func siftDown (s []int, start int, end int, ghost preserve bool) {
   root := start
+  stop := false
   
-  invariant start <= root
+  invariant start <= root && root <= end
   invariant forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
-  invariant forall n int :: start <= parent(n) && n < end && parent(n) != root ==> s[n] <= s[parent(n)]
-  invariant forall n int :: start <= parent(root) && root == parent(n) && n < end ==> s[n] <= s[parent(root)]
-  invariant forall n int :: end <= n && n < len(s) ==> s[n] == old(s[n])
-  invariant preserve ==> forall i int :: 0 <= i && i < end ==> s[i] <= s[end]
-  for (leftChild(root) < end) {
+  invariant almostHeap(s, start, end, root)
+  invariant forall n int :: start <= parent(root) && root == parent(n) && n <= end ==> s[n] <= s[parent(root)]
+  invariant stop ==> validParent(s, end, root)
+  invariant forall n int :: end < n && n < len(s) ==> s[n] == old(s[n])
+  invariant preserve ==> forall i int :: 0 <= i && i <= end && end+1 < len(s) ==> s[i] <= s[end+1]
+  for !stop && leftChild(root) <= end {
     child := leftChild(root)
-    
-    if (child + 1 < end && s[child] < s[child + 1]) {
+    if (child + 1 <= end && s[child] < s[child + 1]) {
       child = child + 1
     }
-    
     if (s[root] < s[child]) {
-      tmp := s[root]
-      s[root] = s[child]
-      s[child] = tmp
+      swap(s, root, child)
       root = child
     } else {
-      root = end
+      stop = true
     }
   }
 }

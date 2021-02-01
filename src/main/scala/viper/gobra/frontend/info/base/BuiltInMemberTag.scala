@@ -179,8 +179,8 @@ object BuiltInMemberTag {
     override def typ(config: Config): AbstractType = channelReceiverType(allDirections, c => {
       // init's signature is adapted to the heavy simplifications that are in place for the initial support for channels.
       // in particular, the permission for SendGivenPerm and RecvGotPerm as well as SendGotPerm and RecvGivenPerm have
-      // to be equal. Thus, they get merge two parameters: The former pair is called `proPerm` as they describe the
-      // invariant that is exhaled at the sender's and inhaled at the receiver's side ("pro" because it "travels" in
+      // to be equal. Thus, they get merged into two parameters: The former pair is called `proPerm` as they describe
+      // the invariant that is exhaled at the sender's and inhaled at the receiver's side ("pro" because it "travels" in
       // direction of the send operation). The latter pair is merged to `contraPerm` representing the invariant that
       // "travels" in the opposite direction.
       val proPermArgType = PredT(Vector(c.elem))

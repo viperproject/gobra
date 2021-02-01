@@ -532,19 +532,22 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def predicateFamily(id: Int)(ctx: Context): Set[in.MPredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
   private def predicateFamilyTuple(ctx: Context): (Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]]) = {
     predicateFamilyTupleRes.getOrElse{
-      val nodes = ctx.table.interfaceImplementations
-        .flatMap{ case (itf, ts) => ts + itf }.toSet
-        .flatMap(t => ctx.table.members(t))
-        .collect{ case x: in.MPredicateProxy => x }
+      val itfNodes = for {
+        (itf, impls) <- ctx.table.interfaceImplementations.toSet
+        itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
+      } yield (itfProxy, impls)
+
+      val edges = for {
+        (itfProxy, impls) <- itfNodes
+        impl <- impls
+        implProxy = ctx.table.lookup(impl, itfProxy.name).collect{ case m: in.MPredicateProxy => m }
+          .getOrElse(Violation.violation(s"Did not find predicate ${itfProxy.name} for type $impl."))
+      } yield (itfProxy, implProxy)
+
+      val nodes = itfNodes.map(_._1) ++ edges.map(_._2)
 
       val res = Algorithms.unionFind[in.MPredicateProxy](nodes){ union =>
-        for {
-          (itf, impls) <- ctx.table.interfaceImplementations
-          itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
-          impl <- impls
-          implProxy = ctx.table.lookup(impl, itfProxy.name).collect{ case m: in.MPredicateProxy => m }
-            .getOrElse(Violation.violation(s"Did not find predicate ${itfProxy.name} for type $impl even though it implements ${itf.name}"))
-        } union(itfProxy, implProxy)
+        for ( (itfProxy, implProxy) <- edges ) union(itfProxy, implProxy)
       }
       predicateFamilyTupleRes = Some(res)
       res

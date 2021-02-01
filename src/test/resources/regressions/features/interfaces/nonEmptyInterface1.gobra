@@ -15,14 +15,8 @@ type stream interface {
     next() interface{}
 }
 
-func test1(x stream) {
-  a := x
-  b := x.hasNext()
-  c := x.next()
-  assert x.mem()
-}
-
 func dummy() {
+  //:: ExpectedOutput(assert_error:assertion_error)
   assert 0 == 1
 }
 

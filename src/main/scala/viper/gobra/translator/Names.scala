@@ -41,6 +41,7 @@ object Names {
   def toInterfaceFunc: String = "toInterface"
   def typeOfFunc: String = "typeOfInterface"
   def dynamicPredicate: String = "dynamic_pred"
+  def implicitThis: String = "thisItf"
 
   // pointer
   def pointerField(t : vpr.Type) : String = {

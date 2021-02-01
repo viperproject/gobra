@@ -1121,6 +1121,7 @@ object Parser {
     lazy val ghostMember: Parser[Vector[PGhostMember]] =
       fpredicateDecl ^^ (Vector(_)) |
         mpredicateDecl ^^ (Vector(_)) |
+        implementationProof ^^ (Vector(_)) |
       "ghost" ~ eos.? ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
         "ghost" ~ eos.? ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
@@ -1132,6 +1133,16 @@ object Parser {
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
       ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
+      }
+
+    lazy val implementationProof: Parser[PImplementationProof] =
+      (typ <~ "implements") ~ typ ~ ("{" ~> (methodImplementationProof <~ eos).* <~ "}").? ^^ {
+        case subT ~ superT ~ memberProofOpt => PImplementationProof(subT, superT, memberProofOpt.getOrElse(Vector.empty))
+      }
+
+    lazy val methodImplementationProof: Parser[PMethodImplementationProof] =
+      "pure".? ~ receiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
+        case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body)
       }
 
     lazy val predicateBody: Parser[Option[PExpression]] =

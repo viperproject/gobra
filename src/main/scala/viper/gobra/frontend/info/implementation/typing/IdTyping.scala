@@ -156,7 +156,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // case is relevant only for typing within an interface definition.
       // Thus, the receiver is supplied implicitly.
-    case MethodSpec(PMethodSig(_, args, result, _, _), _, context) =>
+    case MethodSpec(PMethodSig(_, args, result, _, _), _, _, context) =>
       FunctionT(args map context.typ, context.typ(result))
 
     case BuiltInFunction(tag, _, _) => tag.typ(config)

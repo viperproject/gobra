@@ -9,21 +9,25 @@ package viper.gobra.util
 object Algorithms {
 
   /** Simple Union-Find. `unionUse` takes the union functions and calls it on all edges. */
-  def unionFind[T](unionUse: ((T, T) => Unit) => Unit): (Map[T, Int], Map[Int, Set[T]]) = {
-    var idx = Map.empty[T, Int]
-    def getIdx(k: T): Int = idx.getOrElse(k, { val res = idx.size; idx += (k -> res); res })
+  def unionFind[T](nodes: Iterable[T])(unionUse: ((T, T) => Unit) => Unit): (Map[T, Int], Map[Int, Set[T]]) = {
+    val idx = nodes.zipWithIndex.toMap
     var id = Map.empty[Int, Int]
     def getId(k: Int): Int = id.getOrElse(k, { val res = id.size; id += (k -> res); res })
 
-    def find(e: T): Int = getId(getIdx(e))
-    def union(l: T, r: T): Unit = id += (getIdx(r) -> find(l))
+    def find(e: T): Int = getId(idx(e))
+    def union(l: T, r: T): Unit = {
+      val x = idx(r)
+      val y = find(l)
+      id += (x -> y)
+    }
 
     unionUse(union)
 
     (
-      idx.view.mapValues(id).toMap,
+      idx.view.mapValues(getId).toMap,
       idx.keySet.groupBy(find)
     )
   }
+
 
 }

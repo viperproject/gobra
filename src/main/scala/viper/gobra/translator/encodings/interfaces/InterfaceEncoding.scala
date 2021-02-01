@@ -477,16 +477,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val argDecls = argTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }
         val args = argDecls.map(_.localVar)
 
-        def clause(p: in.MPredicateProxy): (vpr.Exp, vpr.Exp) = {
+        def clause(p: in.MPredicateProxy): Option[(vpr.Exp, vpr.Exp)] = {
           val symb = ctx.lookup(p)
-          val typ = symb.receiver.typ
-          // typeOf(i) == T
-          val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
-          // Body[p(valueOf(i): [T], args)]
-          val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(typ))()(ctx) +: args
-          val vPred = ctx.predicate.mpredicate(symb)(ctx).res
-          val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
-          (lhs, rhs)
+          symb.body.map{ _ =>
+            val typ = symb.receiver.typ
+            // typeOf(i) == T
+            val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
+            // Body[p(valueOf(i): [T], args)]
+            val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(typ))()(ctx) +: args
+            val vPred = ctx.predicate.mpredicate(symb)(ctx).res
+            val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
+            (lhs, vpr.utility.Simplifier.simplify(rhs))
+          }
         }
 
         val name = s"${Names.dynamicPredicate}_${rep.name.name}"
@@ -494,16 +496,23 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
         val defaultPredicate = vpr.Predicate(name = defaultName, formalArgs = recvDecl +: argDecls, body = None)()
         genPredicates ::= defaultPredicate
-        val default = vpr.PredicateAccess(recv +: args, predicate = defaultPredicate)(vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+        val default = {
+          vpr.PredicateAccessPredicate(
+            vpr.PredicateAccess(recv +: args, defaultPredicate.name)(),
+            vpr.FullPerm()()
+          )()
+
+        }
 
         val res = vpr.Predicate(
           name = name,
           formalArgs = recvDecl +: argDecls,
           body = Some(
-            family.foldRight(default: vpr.Exp){
+            family.foldRight(default: vpr.Exp){ // default
               case (p, res) =>
-                val (lhs, rhs) = clause(p)
-                vpr.CondExp(lhs, rhs, res)()
+                clause(p)
+                  .map{ case (l, r) => vpr.CondExp(l, r, res)() }
+                  .getOrElse(res)
             }
           )
         )()
@@ -523,7 +532,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def predicateFamily(id: Int)(ctx: Context): Set[in.MPredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
   private def predicateFamilyTuple(ctx: Context): (Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]]) = {
     predicateFamilyTupleRes.getOrElse{
-      val res = Algorithms.unionFind[in.MPredicateProxy]{ union =>
+      val nodes = ctx.table.interfaceImplementations
+        .flatMap{ case (itf, ts) => ts + itf }.toSet
+        .flatMap(t => ctx.table.members(t))
+        .collect{ case x: in.MPredicateProxy => x }
+
+      val res = Algorithms.unionFind[in.MPredicateProxy](nodes){ union =>
         for {
           (itf, impls) <- ctx.table.interfaceImplementations
           itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
@@ -546,7 +560,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       dynValue <- goE(recv)
-      vRecv = if (!recv.typ.isInstanceOf[in.InterfaceT]) {
+      vRecv = if (!ctx.lookup(proxy).receiver.typ.isInstanceOf[in.InterfaceT]) {
         val typ = types.typeToExpr(recv.typ)(pos, info, errT)(ctx)
         boxInterface(dynValue, typ)(pos, info, errT)(ctx)
       } else dynValue
@@ -570,7 +584,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val impls = ctx.table.implementations(itfT)
     val cases = impls.map(impl => (impl, ctx.table.lookup(impl, p.name.name).get))
 
-    val recvDecl = vpr.LocalVarDecl("i", vprInterfaceType(ctx))()
+    val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))()
     val recv = recvDecl.localVar
 
     val argDecls = p.args map ctx.typeEncoding.variable(ctx)
@@ -695,15 +709,17 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
     val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(implProxy, itfProxy)) }.toMap
 
-    val changedFuncs = exp.transform{
-      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
-        call.copy(funcname = nameMap(call.funcname))(call.pos, call.info, call.typ, call.errT)
-    }
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
-    val changedFormals = vpr.utility.Expressions.instantiateVariables(changedFuncs, formalsOfExp, newRecv +: vArgs, Set.empty)
+    val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, formalsOfExp, newRecv +: vArgs, Set.empty)
+    val changedFuncs = changedFormals.transform{
+      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
+        val recv = vRecv // maybe check that receiver is the same as newRecv
+        call.copy(funcname = nameMap(call.funcname), args = recv +: call.args.tail)(call.pos, call.info, call.typ, call.errT)
+    }
+
 
     val (pos, info, errT) = src.vprMeta
-    changedFormals.withMeta(pos, info, errT)
+    changedFuncs.withMeta(pos, info, errT)
   }
 
   private def proofName(subProxy: in.MemberProxy, supperProxy: in.MemberProxy): String =

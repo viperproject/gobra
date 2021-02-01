@@ -36,7 +36,7 @@ class LookupTable(
                  definedFunctions: Map[FunctionProxy, FunctionLikeMember],
                  definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
                  definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
-                 memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
+                 val memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
                  val interfaceImplementations: Map[InterfaceT, Set[Type]] // empty interface does not have to be included
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)

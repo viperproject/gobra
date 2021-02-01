@@ -32,6 +32,8 @@ object Nodes {
       case PureFunction(name, args, results, pres, posts, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
+      case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
+      case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq()
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
@@ -87,6 +89,7 @@ object Nodes {
         case IsComparableType(exp) => Seq(exp)
         case IsComparableInterface(exp) => Seq(exp)
         case ToInterface(exp, _) => Seq(exp)
+        case isBehaviouralSubtype(left, right) => Seq(left, right)
         case BoolTExpr() => Seq()
         case IntTExpr(_) => Seq()
         case PermTExpr() => Seq()

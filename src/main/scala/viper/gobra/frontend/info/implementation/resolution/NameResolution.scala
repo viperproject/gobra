@@ -56,7 +56,7 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PTypeAlias => TypeAlias(decl, isGhost, this)
         case decl: PFunctionDecl => Function(decl, isGhost, this)
         case decl: PMethodDecl => MethodImpl(decl, isGhost, this)
-        case spec: PMethodSig => MethodSpec(spec, isGhost, this)
+        case tree.parent.pair(spec: PMethodSig, tdef: PInterfaceType) => MethodSpec(spec, tdef, isGhost, this)
 
         case decl: PFieldDecl => Field(decl, isGhost, this)
         case decl: PEmbeddedDecl => Embbed(decl, isGhost, this)
@@ -74,7 +74,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PFPredicateDecl => FPredicate(decl, this)
         case decl: PMPredicateDecl => MPredicateImpl(decl, this)
-        case decl: PMPredicateSig => MPredicateSpec(decl, this)
+        case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
       }
     }
 
@@ -184,6 +184,7 @@ trait NameResolution { this: TypeInfoImpl =>
           case PExplicitGhostMember(a) => actualMember(a)
           case p: PMPredicateDecl => Vector(p.id)
           case p: PFPredicateDecl => Vector(p.id)
+          case _: PImplementationProof => Vector.empty
         }
       }
 
@@ -242,6 +243,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, n: PDot) =>
         tryDotLookup(n.base, id).map(_._1).getOrElse(UnknownEntity())
+
+      case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PMethodImplementationProof, ip: PImplementationProof)) =>
+        tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference method of the super type
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 

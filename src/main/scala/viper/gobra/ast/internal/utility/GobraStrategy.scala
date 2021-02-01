@@ -29,6 +29,8 @@ object GobraStrategy {
       case (_: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, post, b)(meta)
       case (_: MPredicate, Seq(recv: Parameter.In, name: MPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, name, args, b)(meta)
       case (_: FPredicate, Seq(name: FPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => FPredicate(name, args, b)(meta)
+      case (n: MethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Block@unchecked])) => MethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
+      case (n: PureMethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Expr@unchecked])) => PureMethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (f: Field, Seq()) => Field(f.name, f.typ, f.ghost)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
@@ -99,6 +101,7 @@ object GobraStrategy {
       case (_: IsComparableInterface, Seq(exp: Expr)) => IsComparableInterface(exp)(meta)
       case (_: IsComparableType, Seq(exp: Expr)) => IsComparableType(exp)(meta)
       case (e: ToInterface, Seq(exp: Expr)) => ToInterface(exp, e.typ)(meta)
+      case (_: isBehaviouralSubtype, Seq(left: Expr, right: Expr)) => isBehaviouralSubtype(left, right)(meta)
       case (_: BoolTExpr, Seq()) => BoolTExpr()(meta)
       case (e: IntTExpr, Seq()) => IntTExpr(e.kind)(meta)
       case (_: PermTExpr, Seq()) => PermTExpr()(meta)

@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PBodyMember, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PMPredicateDecl, PMethodDecl, PReturn}
+import viper.gobra.ast.frontend.{PBlock, PWithBody, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PReturn}
 import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -23,6 +23,9 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case n@ PMPredicateDecl(_, receiver, _, body) =>
       body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n)) ++
         isClassType.errors(miscType(receiver))(member)
+
+    case ip: PImplementationProof =>
+      error(ip, s"${ip.subT} does not implement ${ip.superT}", !goImplements(symbType(ip.subT), symbType(ip.superT)))
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {
@@ -31,6 +34,12 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec)
+    } else noMessages
+  }
+
+  private[typing] def wellDefIfPureMethodImplementationProof(implProof: PMethodImplementationProof): Messages = {
+    if (implProof.isPure) {
+      isSinglePureReturnExpr(implProof) // all other checks are taken care of by super implementation
     } else noMessages
   }
 
@@ -46,7 +55,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     error(member, "For now, pure methods and pure functions must have exactly one result argument", member.result.outs.size != 1)
   }
 
-  private def isSinglePureReturnExpr(member: PBodyMember): Messages = {
+  private def isSinglePureReturnExpr(member: PWithBody): Messages = {
     member.body match {
       case Some((_, b: PBlock)) => isPureBlock(b)
       case None => noMessages

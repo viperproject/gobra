@@ -122,6 +122,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
+    case n: MethodSubtypeProof => showMethodSubtypeProof(n)
+    case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
   })
@@ -148,6 +150,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PureMethod(receiver, name, args, results, pres, posts, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block("return" <+> showExpr(b)))
+  }
+
+  def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
+    case MethodSubtypeProof(subProxy, superT, _, receiver, args, results, body) =>
+      "proof" <+> parens(showType(superT)) <+> parens(showVarDecl(receiver)) <+> subProxy.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        opt(body)(b => block(showStmt(b)))
+  }
+
+  def showPureMethodSubtypeProof(m: PureMethodSubtypeProof): Doc = m match {
+    case PureMethodSubtypeProof(subProxy, superT, _, receiver, args, results, body) =>
+      "proof" <+> parens(showType(superT)) <+> "pure" <+> parens(showVarDecl(receiver)) <+> subProxy.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
+        opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -382,6 +396,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
     case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
     case ToInterface(exp, _) => "toInterface" <> parens(showExpr(exp))
+    case isBehaviouralSubtype(left, right) => showExpr(left) <+> "<:" <+> showExpr(right)
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
 

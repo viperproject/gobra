@@ -9,11 +9,12 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.util.Violation
 
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -32,6 +33,13 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
       }
     }
+    case n: PMethodImplementationProof => // TODO: check that body has the right shape
+      wellDefIfPureMethodImplementationProof(n) ++ (
+        entity(n.id) match {
+          case _: MethodSpec => noMessages // TODO: check that the implementation proof has the right signature
+          case e => Violation.violation(s"expected a method signature of an interface, but got $e")
+        }
+      )
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -42,11 +50,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)
       case PFPredBase(id) => idType(id)
     }
+    case _: PMethodImplementationProof => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
-    case MPredicateSpec(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
+    case MPredicateSpec(decl, _, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
     case BuiltInMPredicate(tag, _, _) => tag.typ(config)
   }

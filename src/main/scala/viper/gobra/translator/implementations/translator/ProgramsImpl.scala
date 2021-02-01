@@ -89,6 +89,10 @@ class ProgramsImpl extends Programs {
       uncleanProg.copy(domains = cleanedDomains)(uncleanProg.pos, uncleanProg.info, uncleanProg.errT)
     }
 
+    /** If you want to enable Viper sanity checks, then comment-in this code: */
+//    val errors = progWithoutAssumes.checkTransitively
+//    if (errors.nonEmpty) Violation.violation(errors.toString)
+
     val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
 
     BackendVerifier.Task(

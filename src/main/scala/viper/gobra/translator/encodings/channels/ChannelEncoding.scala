@@ -26,7 +26,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx : Context) : in.Type ==> vpr.Type = {
-    case ctx.Channel(t) / m =>  m match {
+    case ctx.Channel(_) / m =>  m match {
       case Exclusive => vpr.Int // for now we simply map it to Viper Ints
       case Shared => vpr.Ref
     }
@@ -49,10 +49,10 @@ class ChannelEncoding extends LeafTypeEncoding {
     */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     default(super.expr(ctx)) {
-      case (exp : in.DfltVal) :: ctx.Channel(t) / Exclusive =>
+      case (exp : in.DfltVal) :: ctx.Channel(_) / Exclusive =>
         unit(withSrc(vpr.IntLit(0), exp))
 
-      case (lit: in.NilLit) :: ctx.Channel(t) =>
+      case (lit: in.NilLit) :: ctx.Channel(_) =>
         unit(withSrc(vpr.IntLit(0), lit))
 
       case exp@in.Receive(channel :: ctx.Channel(typeParam), recvChannel, recvGivenPerm, recvGotPerm) =>
@@ -104,7 +104,8 @@ class ChannelEncoding extends LeafTypeEncoding {
     * [r := make(chan T, bufferSize)] ->
     *   assert 0 <= [bufferSize]
     *   var a [ chan T ]
-    *   inhale [a].isChannel([bufferSize])
+    *   inhale [a].isChannel()
+    *   inhale [a].BufferSize() == [bufferSize]
     *   r := a
     *
     * [(c : channel[T] <- (m : T)] ->
@@ -128,7 +129,7 @@ class ChannelEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)){
-      case makeStmt@in.MakeChannel(target, in.ChannelT(typeParam, _), optBufferSizeArg, isChannelPred) =>
+      case makeStmt@in.MakeChannel(target, in.ChannelT(typeParam, _), optBufferSizeArg, isChannelPred, bufferSizeMProxy) =>
         val (pos, info, errT) = makeStmt.vprMeta
         val a = in.LocalVar(Names.freshName, in.ChannelT(typeParam.withAddressability(Addressability.channelElement), Addressability.Exclusive))(makeStmt.info)
         val vprA = ctx.typeEncoding.variable(ctx)(a)
@@ -145,14 +146,21 @@ class ChannelEncoding extends LeafTypeEncoding {
             vprAssert = vpr.Assert(vprIsBufferSizePositive)(pos, info, errT)
             _ <- write(vprAssert)
 
-            // inhale [a].isChannel([bufferSize])
+            // inhale [a].isChannel()
             isChannelInst = in.Access(
-              in.Accessible.Predicate(in.MPredicateAccess(a, isChannelPred, Vector(bufferSizeArg))(makeStmt.info)),
+              in.Accessible.Predicate(in.MPredicateAccess(a, isChannelPred, Vector())(makeStmt.info)),
               in.FullPerm(makeStmt.info)
             )(makeStmt.info)
             vprIsChannelInst <- ctx.ass.translate(isChannelInst)(ctx)
-            vprInhale = vpr.Inhale(vprIsChannelInst)(pos, info, errT)
-            _ <- write(vprInhale)
+            vprIsChannelInhale = vpr.Inhale(vprIsChannelInst)(pos, info, errT)
+            _ <- write(vprIsChannelInhale)
+
+            // inhale [a].BufferSize() == [bufferSize]
+            bufferSizeCall = in.PureMethodCall(a, bufferSizeMProxy, Vector(), in.IntT(Addressability.outParameter))(makeStmt.info)
+            bufferSizeEq = in.EqCmp(bufferSizeCall, bufferSizeArg)(makeStmt.info)
+            vprBufferSizeEq <- ctx.expr.translate(bufferSizeEq)(ctx)
+            vprBufferSizeInhale = vpr.Inhale(vprBufferSizeEq)(pos, info, errT)
+            _ <- write(vprBufferSizeInhale)
 
             // r := a
             ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), a, makeStmt)

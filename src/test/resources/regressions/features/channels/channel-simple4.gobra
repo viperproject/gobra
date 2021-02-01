@@ -10,6 +10,7 @@ import b "bar"
 // the occurrence in packages
 func main() {
     c := make(chan int)
-    assert c.IsChannel(0)
+    assert c.IsChannel()
+    assert c.BufferSize() == 0
     b.useChannel(c)
 }

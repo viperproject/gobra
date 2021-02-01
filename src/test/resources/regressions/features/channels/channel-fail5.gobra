@@ -11,18 +11,12 @@ pred customTrue() {
     true
 }
 
-func initWithWrongBufferSize() {
-  c := make(chan int, 1) // make a buffered channel
-  //:: ExpectedOutput(precondition_error:permission_error)
-  c.Init(0, vIsOne!<_!>, PredTrue!<!>, PredTrue!<!>, vIsOne!<_!>)
-}
-
 func initBufferedChannelWithWrongPredicates() {
   c0 := make(chan int, 0) // make an unbuffered channel
   // if it's an unbuffered channel one can use arbitrary predicate expressions as SendGotPerm and RecvGivenPerm
-  c0.Init(0, vIsOne!<_!>, customTrue!<!>, customTrue!<!>, vIsOne!<_!>)
+  c0.Init(vIsOne!<_!>, customTrue!<!>)
   c1 := make(chan int, 1) // make a buffered channel
   // however, this is not possible if the channel is buffered:
-  //:: ExpectedOutput(precondition_error:permission_error)
-  c1.Init(0, vIsOne!<_!>, customTrue!<!>, customTrue!<!>, vIsOne!<_!>)
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  c1.Init(vIsOne!<_!>, customTrue!<!>)
 }

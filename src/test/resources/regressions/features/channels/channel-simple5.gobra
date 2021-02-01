@@ -9,7 +9,7 @@ pred vIsOne(v int) {
 
 func main() {
   c := make(chan int)
-  c.Init(0, vIsOne!<_!>, PredTrue!<!>, PredTrue!<!>, vIsOne!<_!>)
+  c.Init(vIsOne!<_!>, PredTrue!<!>)
   go foo(1, c)
 
   fold PredTrue!<!>()

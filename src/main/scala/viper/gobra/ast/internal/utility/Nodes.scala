@@ -89,7 +89,7 @@ object Nodes {
         case IsComparableType(exp) => Seq(exp)
         case IsComparableInterface(exp) => Seq(exp)
         case ToInterface(exp, _) => Seq(exp)
-        case isBehaviouralSubtype(left, right) => Seq(left, right)
+        case IsBehaviouralSubtype(left, right) => Seq(left, right)
         case BoolTExpr() => Seq()
         case IntTExpr(_) => Seq()
         case PermTExpr() => Seq()

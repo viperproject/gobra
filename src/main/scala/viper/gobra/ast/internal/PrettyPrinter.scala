@@ -396,7 +396,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case TypeAssertion(exp, arg) => showExpr(exp) <> "." <> parens(showType(arg))
     case TypeOf(exp) => "typeOf" <> parens(showExpr(exp))
     case ToInterface(exp, _) => "toInterface" <> parens(showExpr(exp))
-    case isBehaviouralSubtype(left, right) => showExpr(left) <+> "<:" <+> showExpr(right)
+    case IsBehaviouralSubtype(left, right) => showExpr(left) <+> "<:" <+> showExpr(right)
     case IsComparableType(exp) => "isComparableType" <> parens(showExpr(exp))
     case IsComparableInterface(exp) => "isComparableInterface" <> parens(showExpr(exp))
 

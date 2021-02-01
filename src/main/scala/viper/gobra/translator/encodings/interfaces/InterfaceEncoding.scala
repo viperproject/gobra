@@ -160,7 +160,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, info, errT)(ctx)
         }
 
-      case n@ in.isBehaviouralSubtype(subtype, supertype) =>
+      case n@ in.IsBehaviouralSubtype(subtype, supertype) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vprSubtype <- goE(subtype)
@@ -621,7 +621,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /**
     * function proof_T_I_F(x: T, args)
-    *   requires PRE where PRE = [I_F.PRE][ this -> tuple2(x, TYPE(T)); I_P -> T_I_P_proof ]
+    *   requires PRE where PRE = [I_F.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
     * {
     *   [body]
     * }
@@ -654,8 +654,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /**
     * method proof_T_I_M(x: T, args) returns (results)
-    *   requires PRE where PRE = [I_M.PRE][ this -> tuple2(x, TYPE(T)); I_P -> T_I_P_proof ]
-    *   ensures  POST where POST = [I_M.POST][ this -> tuple2(x, TYPE(T)); I_P -> T_I_P_proof ]
+    *   requires PRE where PRE = [I_M.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    *   ensures  POST where POST = [I_M.POST][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
     * {
     *   [body]
     * }
@@ -693,7 +693,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
 
-  /** returns exp[ this -> tuple2(this, Type(this); I_P -> T_I_P_proof ] */
+  /**
+    * Instantiates a condition of a spec from an interface I for an implementation T.
+    * 1) The this reference (of type interface) is replaced with a this of type T that is put into an interface
+    * 2) Calls to pure methods of the interface are replaced with calls to the proof that T implements the pure method.
+    *
+    * returns exp[ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    * */
   private def instantiateInterfaceSpecForProof(
                          exp: vpr.Exp,
                          formalsOfExp: Vector[vpr.LocalVarDecl],

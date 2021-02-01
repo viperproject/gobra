@@ -422,7 +422,7 @@ case class IsComparableInterface(exp: Expr)(val info: Source.Parser.Info) extend
   override val typ: Type = BoolT(Addressability.rValue)
 }
 
-case class isBehaviouralSubtype(subtype: Expr, supertype: Expr)(val info: Source.Parser.Info) extends Expr {
+case class IsBehaviouralSubtype(subtype: Expr, supertype: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = BoolT(Addressability.rValue)
 }
 

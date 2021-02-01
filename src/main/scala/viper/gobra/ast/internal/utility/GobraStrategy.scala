@@ -101,7 +101,7 @@ object GobraStrategy {
       case (_: IsComparableInterface, Seq(exp: Expr)) => IsComparableInterface(exp)(meta)
       case (_: IsComparableType, Seq(exp: Expr)) => IsComparableType(exp)(meta)
       case (e: ToInterface, Seq(exp: Expr)) => ToInterface(exp, e.typ)(meta)
-      case (_: isBehaviouralSubtype, Seq(left: Expr, right: Expr)) => isBehaviouralSubtype(left, right)(meta)
+      case (_: IsBehaviouralSubtype, Seq(left: Expr, right: Expr)) => IsBehaviouralSubtype(left, right)(meta)
       case (_: BoolTExpr, Seq()) => BoolTExpr()(meta)
       case (e: IntTExpr, Seq()) => IntTExpr(e.kind)(meta)
       case (_: PermTExpr, Seq()) => PermTExpr()(meta)

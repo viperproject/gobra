@@ -193,9 +193,6 @@ class DefuncComponentImpl extends DefuncComponent {
       // generate make and arg functions
       funcs ::= makeFunc(S, id)
 
-      // adds the default value of the predicate type
-      funcs ++= genDefaultFuncMap.get(S)
-
 //      innerArgTypes.indices foreach (idx => funcs ::= argFunc(S, id, idx))
 
 //      // generate axiom
@@ -211,6 +208,9 @@ class DefuncComponentImpl extends DefuncComponent {
 //        )(domainName = domainName(S))
 //      }
     }
+
+    // adds the default value of the predicate type
+    funcs ++= genDefaultFuncMap.get(S)
 
     vpr.Domain(
       name = domainName(S),

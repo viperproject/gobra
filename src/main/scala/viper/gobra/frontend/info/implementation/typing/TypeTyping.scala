@@ -63,7 +63,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
       error(t, "invalid recursive struct", cyclicStructDef(t))
 
-    case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
+    case t: PInterfaceType => addressableMethodSet(InterfaceT(t, this)).errors(t)
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
@@ -115,7 +115,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PPredType(args) => PredT(args map typeSymbType)
 
-    case t: PInterfaceType => InterfaceT(t)
+    case t: PInterfaceType => InterfaceT(t, this)
 
     case n: PNamedOperand => idSymType(n.id)
 

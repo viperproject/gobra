@@ -79,9 +79,9 @@ object AdvancedMemberSet {
 
       def extractMemberName(tm: TypeMember): String = tm match {
         case MethodImpl(m, _, _) => m.id.name
-        case MethodSpec(m, _, _) => m.id.name
+        case n: MethodSpec => n.spec.id.name
         case MPredicateImpl(p, _) => p.id.name
-        case MPredicateSpec(p, _) => p.id.name
+        case n: MPredicateSpec => n.decl.id.name
         case Field(m, _, _)      => m.id.name
         case Embbed(m, _, _)     => m.id.name
         case ml: BuiltInMethodLike => ml.tag.identifier

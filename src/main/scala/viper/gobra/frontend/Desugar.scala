@@ -83,14 +83,35 @@ object Desugar {
     val builtInFunctions = combineTableFieldForBuiltInMember((m: in.BuiltInFunction) => m.name)
     val builtInMPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
     val builtInFPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
+
+    val combinedMethods = combineTableField(_.definedMethods)
+    val combinedMPredicates = combineTableField(_.definedMPredicates)
+    val combinedImplementations = combineTableField(_.interfaceImplementations)
+    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations)
     val table = new in.LookupTable(
       combineTableField(_.definedTypes),
-      combineTableField(_.definedMethods) ++ builtInMethods,
+      combinedMethods ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
-      combineTableField(_.definedMPredicates) ++ builtInMPredicates,
-      combineTableField(_.definedFPredicates) ++ builtInFPredicates)
+      combinedMPredicates ++ builtInMPredicates,
+      combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
+      combinedMemberProxies,
+      combinedImplementations
+      )
     val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
     (table, builtInMembers)
+  }
+
+  /** For now, the memberset is computed in an inefficient way. */
+  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]]): Map[in.Type, Set[in.MemberProxy]] = {
+    val keys = itfImpls.flatMap{ case (k, v) => v + k }.toSet
+    val pairs: Set[(in.Type, Set[in.MemberProxy])] = keys.map{ key =>
+      key -> decls.collect{
+        case m: in.Method if m.receiver.typ == key => m.name
+        case m: in.PureMethod if m.receiver.typ == key => m.name
+        case m: in.MPredicate if m.receiver.typ == key => m.name
+      }.toSet
+    }
+    pairs.toMap[in.Type, Set[in.MemberProxy]]
   }
 
   object NoGhost {
@@ -148,6 +169,11 @@ object Desugar {
       in.MethodProxy(decl.id.name, name)(meta(decl))
     }
 
+    def methodProxyD(decl: PMethodSig): in.MethodProxy = {
+      val name = idName(decl.id)
+      in.MethodProxy(decl.id.name, name)(meta(decl))
+    }
+
     def methodProxy(id: PIdnUse): in.MethodProxy = {
       val name = idName(id)
       in.MethodProxy(id.name, name)(meta(id))
@@ -164,6 +190,11 @@ object Desugar {
     }
 
     def mpredicateProxyD(decl: PMPredicateDecl): in.MPredicateProxy = {
+      val name = idName(decl.id)
+      in.MPredicateProxy(decl.id.name, name)(meta(decl))
+    }
+
+    def mpredicateProxyD(decl: PMPredicateSig): in.MPredicateProxy = {
       val name = idName(decl.id)
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
     }
@@ -275,6 +306,7 @@ object Desugar {
         case NoGhost(x: PFunctionDecl) => Vector(registerFunction(x))
         case x: PMPredicateDecl => Vector(registerMPredicate(x))
         case x: PFPredicateDecl => Vector(registerFPredicate(x))
+        case x: PImplementationProof => registerImplementationProof(x); Vector.empty
         case _ => Vector.empty
       }
 
@@ -287,9 +319,17 @@ object Desugar {
       // instead, they remain only accessible via this desugarer's getter function.
       // The `combine` function will treat all built-in members across packages (i.e. desugarers) and update the
       // program's members and lookup table accordingly
-      val table = new in.LookupTable(definedTypes, definedMethods, definedFunctions, definedMPredicates, definedFPredicates)
+      val table = new in.LookupTable(
+        definedTypes,
+        definedMethods,
+        definedFunctions,
+        definedMPredicates,
+        definedFPredicates,
+        computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations),
+        interfaceImplementations
+      )
 
-      in.Program(types.toVector, dMembers, table)(meta(p))
+      in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
     }
 
     def varDeclGD(decl: PVarDecl): Vector[in.GlobalVarDecl] = ???
@@ -861,6 +901,7 @@ object Desugar {
 
             exp match {
               case inv: PInvoke => info.resolve(inv) match {
+                // TODO: the whole thing should just be desugared as a call. The code below has multiple bugs.
                 case Some(p: ap.FunctionCall) => p.callee match {
                   case ap.Function(_, st.Function(decl, _, _)) =>
                     val func = functionProxyD(decl)
@@ -1065,6 +1106,26 @@ object Desugar {
                 _ <- write(in.FunctionCall(targets, fproxy, convertedArgs)(src))
               } yield res
             }
+
+          case iim: ap.ImplicitlyReceivedInterfaceMethod =>
+            if (isPure) {
+              for {
+                args <- dArgs
+                convertedArgs = convertArgs(args)
+                proxy = methodProxy(iim.id)
+                recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
+              } yield in.PureMethodCall(implicitThisD(recvType)(src), proxy, convertedArgs, resT)(src)
+            } else {
+              for {
+                args <- dArgs
+                _ <- declare(targets: _*)
+                convertedArgs = convertArgs(args)
+                proxy = methodProxy(iim.id)
+                recvType = typeD(iim.symb.itfType, Addressability.receiver)(src)
+                _ <- write(in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src))
+              } yield res
+            }
+
           case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
             val dRecvWithArgs = base match {
               case base: ap.ReceivedMethod =>
@@ -1572,6 +1633,11 @@ object Desugar {
       case _ => None
     }
 
+    def interfaceType(typ: in.Type): Option[in.InterfaceT] = underlyingType(typ) match {
+      case st: in.InterfaceT => Some(st)
+      case _ => None
+    }
+
     def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
       expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
@@ -1680,6 +1746,104 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
+
+
+    def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
+      Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
+
+      if (!registeredInterfaces.contains(dT.name)) {
+        registeredInterfaces += dT.name
+
+        val itfT = dT.withAddressability(Addressability.Exclusive)
+
+        t.decl.predSpec foreach { p =>
+          val src = meta(p)
+          val proxy = mpredicateProxyD(p)
+          val recv = implicitThisD(itfT)(src)
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val (args, _) = argsWithSubs.unzip
+
+          val mem = in.MPredicate(recv, proxy, args, None)(src)
+
+          definedMPredicates += (proxy -> mem)
+          additionalMembers ::= mem
+        }
+
+        t.decl.methSpecs foreach { m =>
+          val src = meta(m)
+          val proxy = methodProxyD(m)
+          val recv = implicitThisD(itfT)(src)
+          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val (args, _) = argsWithSubs.unzip
+          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+          val (returns, _) = returnsWithSubs.unzip
+          val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+          val pres = m.spec.pres map preconditionD(specCtx)
+          val posts = m.spec.posts map postconditionD(specCtx)
+
+          val mem = if (m.spec.isPure) {
+            in.PureMethod(recv, proxy, args, returns, pres, posts, None)(src)
+          } else {
+            in.Method(recv, proxy, args, returns, pres, posts, None)(src)
+          }
+
+          definedMethods += (proxy -> mem)
+          additionalMembers ::= mem
+        }
+      }
+    }
+    var registeredInterfaces: Set[String] = Set.empty
+
+    var additionalMembers: List[in.Member] = List.empty
+
+    def registerImplementationProof(decl: PImplementationProof): Unit = {
+      // TODO: 'interfaceImplementations' should be populated based on 'requiredImplements'
+
+      val src = meta(decl)
+      val subT = info.symbType(decl.subT)
+      val dSubT = typeD(subT, Addressability.Exclusive)(src)
+      val superT = info.symbType(decl.superT)
+      val dSuperT = interfaceType(typeD(superT, Addressability.Exclusive)(src)).get
+
+      interfaceImplementations += (dSuperT -> (interfaceImplementations.getOrElse(dSuperT, Set.empty) + dSubT))
+
+      decl.memberProofs foreach { mp =>
+
+        val subSymb = info.tryNonAddressableMethodLikeLookup(subT, mp.id).get._1.asInstanceOf[st.MethodImpl]
+        val subProxy = methodProxyD(subSymb.decl)
+        val superSymb = info.tryNonAddressableMethodLikeLookup(superT, mp.id).get._1.asInstanceOf[st.MethodSpec]
+        val superProxy = methodProxyD(superSymb.spec)
+
+        val src = meta(mp)
+        val recvWithSubs = receiverD(mp.receiver)
+        val (recv, _) = recvWithSubs
+        val argsWithSubs = mp.args.zipWithIndex map { case (p, i) => inParameterD(p, i) }
+        val (args, _) = argsWithSubs.unzip
+        val returnsWithSubs = mp.result.outs.zipWithIndex map { case (p, i) => outParameterD(p, i) }
+        val (returns, _) = returnsWithSubs.unzip
+
+        val ctx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+        val res = if (mp.isPure) {
+          val bodyOpt = mp.body.map {
+            case (_, b: PBlock) =>
+              b.nonEmptyStmts match {
+                case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
+                case s => Violation.violation(s"unexpected pure function body: $s")
+              }
+          }
+          in.PureMethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
+        } else {
+          val bodyOpt = mp.body.map { case (_, s) => blockD(ctx)(s).asInstanceOf[in.Block] }
+          in.MethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
+        }
+
+        additionalMembers ::= res
+      }
+    }
+
+    var interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = Map.empty
+
+
     def registerMethod(decl: PMethodDecl): in.MethodMember = {
       val method = methodD(decl)
       val methodProxy = methodProxyD(decl)
@@ -1738,9 +1902,12 @@ object Desugar {
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
       case Type.FunctionT(_, _) => ???
+
       case t: Type.InterfaceT =>
         val interfaceName = nm.interface(t)
-        registerType(in.InterfaceT(interfaceName, addrMod))
+        val res = registerType(in.InterfaceT(interfaceName, addrMod))
+        registerInterface(t, res)
+        res
 
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
 
@@ -1754,10 +1921,11 @@ object Desugar {
 
     def idName(id: PIdnNode, context: TypeInfo = info): String = context.regular(id) match {
       case f: st.Function => nm.function(id.name, f.context)
-      case m: st.MethodSpec => nm.spec(id.name, m.context)
       case m: st.MethodImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
+      case m: st.MethodSpec => nm.spec(id.name, m.itfType, m.context)
       case f: st.FPredicate => nm.function(id.name, f.context)
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
+      case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
@@ -2233,6 +2401,11 @@ object Desugar {
           val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
 
+        case b: ap.ImplicitlyReceivedInterfacePredicate =>
+          val proxy = mpredicateProxyD(b.id)
+          val recvType = typeD(b.symb.itfType, Addressability.receiver)(src)
+          unit(in.MPredicateAccess(implicitThisD(recvType)(src), proxy, dArgs)(src))
+
         case b: ap.BuiltInPredicate =>
           val fproxy = fpredicateProxy(b.id)
           unit(in.FPredicateAccess(fproxy, dArgs)(src))
@@ -2250,7 +2423,8 @@ object Desugar {
       }
     }
 
-
+    def implicitThisD(p: in.Type)(src: Source.Parser.Info): in.Parameter.In =
+      in.Parameter.In(nm.implicitThis, p.withAddressability(Addressability.receiver))(src)
 
     def accessibleD(ctx: FunctionContext)(acc: PExpression): Writer[in.Accessible] = {
 
@@ -2365,6 +2539,8 @@ object Desugar {
       }
     }
 
+    val implicitThis: String = Names.implicitThis
+
     private def name(postfix: String)(n: String, s: PScope, context: ExternalTypeInfo): String = {
       maybeRegister(s)
       // n has occur first in order that function inverse properly works
@@ -2381,7 +2557,8 @@ object Desugar {
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
     def field   (n: String, s: StructT): String = nameWithoutScope(s"$FIELD_PREFIX${struct(s)}")(n, s.context)
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
-    def spec    (n: String, context: ExternalTypeInfo): String = nameWithoutScope(METHODSPEC_PREFIX)(n, context)
+    def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
+      nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {
       case PMethodReceiveName(typ)    => nameWithoutScope(s"$METHOD_PREFIX${typ.name}")(n, context)
       case PMethodReceivePointer(typ) => nameWithoutScope(s"P$METHOD_PREFIX${typ.name}")(n, context)
@@ -2442,7 +2619,16 @@ object Desugar {
       if (s.isEmpty) {
         Names.emptyInterface
       } else {
-        Violation.violation("non-empty interfaces are not supported right now")
+        val pom = s.context.getTypeInfo.tree.originalRoot.positions
+        val start = pom.positions.getStart(s.decl).get
+        val finish = pom.positions.getFinish(s.decl).get
+        val pos = pom.translate(start, finish)
+        // replace characters that could be misinterpreted:
+        val interfaceName = pos.toString
+          .replace(".", "$")
+          .replace("@", "")
+          .replace("-", "_")
+        s"$INTERFACE_PREFIX$$$interfaceName"
       }
     }
   }

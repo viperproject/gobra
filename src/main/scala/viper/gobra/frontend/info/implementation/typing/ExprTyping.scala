@@ -211,6 +211,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _: ap.BuiltInPredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
           case brp: ap.BuiltInReceivedPredicate => isPureExpr(brp.recv)
+          case _: ap.ImplicitlyReceivedInterfacePredicate => noMessages
         }
         val pureArgsMsgs = p.args.flatMap(isPureExpr)
         val argAssignMsgs = exprType(callee) match {
@@ -530,7 +531,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           }
 
         case p: PDottedBase => resolve(p.recvWithId) match {
-          case Some(_: ap.Predicate | _: ap.ReceivedPredicate) =>
+          case Some(_: ap.Predicate | _: ap.ReceivedPredicate | _: ap.ImplicitlyReceivedInterfacePredicate) =>
             val recvWithIdT = exprOrTypeType(p.recvWithId)
             recvWithIdT match {
               case FunctionT(fnArgs, AssertionT) =>

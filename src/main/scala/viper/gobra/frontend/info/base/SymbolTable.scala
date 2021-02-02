@@ -159,11 +159,12 @@ object SymbolTable extends Environments[Entity] {
     override val result: PResult = decl.result
   }
 
-  case class MethodSpec(spec: PMethodSig, ghost: Boolean, context: ExternalTypeInfo) extends Method {
+  case class MethodSpec(spec: PMethodSig, itfDef: PInterfaceType, ghost: Boolean, context: ExternalTypeInfo) extends Method {
     override def rep: PNode = spec
-    override def isPure: Boolean = false // TODO: adapt later
+    override def isPure: Boolean = spec.spec.isPure
     override val args: Vector[PParameter] = spec.args
     override def result: PResult = spec.result
+    val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
   case class Import(decl: PImport, context: ExternalTypeInfo) extends ActualRegular with TypeEntity {
@@ -213,9 +214,10 @@ object SymbolTable extends Environments[Entity] {
     override val args: Vector[PParameter] = decl.args
   }
 
-  case class MPredicateSpec(decl: PMPredicateSig, context: ExternalTypeInfo) extends MPredicate {
+  case class MPredicateSpec(decl: PMPredicateSig, itfDef: PInterfaceType, context: ExternalTypeInfo) extends MPredicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+    val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember

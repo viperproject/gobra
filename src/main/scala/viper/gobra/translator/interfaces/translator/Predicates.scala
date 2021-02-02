@@ -8,6 +8,7 @@ package viper.gobra.translator.interfaces.translator
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
@@ -20,8 +21,5 @@ abstract class Predicates extends Generator {
   def predicateAccess(ctx: Context): (in.PredicateAccess, in.Expr) ==> CodeWriter[vpr.PredicateAccessPredicate]
 
   /** Returns proxy(args) */
-  def proxyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.PredicateAccess
-
-  /** Returns the body of proxy(args) */
-  def proxyBodyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp
+  def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]
 }

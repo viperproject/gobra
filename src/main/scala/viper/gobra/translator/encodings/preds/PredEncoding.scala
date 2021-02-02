@@ -125,10 +125,9 @@ class PredEncoding extends LeafTypeEncoding {
             // [e1], ..., [en]
             vAccArgs <- sequence(accArgs map goE)
             // a1, ..., ak
-            vQArgs = mergeArgs(vCtrArgs, vAccArgs)
-            vPerm <- goE(perm)
+            qArgs = mergeArgs(ctrArgs, accArgs)
             // acc(Q(a1, ..., ak), [p])
-            qAcc = vpr.PredicateAccessPredicate(ctx.predicate.proxyAccess(q, vQArgs)(pos, info, errT), vPerm)(pos, info, errT)
+            qAcc <- ctx.predicate.proxyAccess(q, qArgs, perm)(n.info)(ctx)
             // fold acc(Q(a1, ..., ak), [p])
             fold = vpr.Fold(qAcc)(pos, info, errT)
             _ <- write(fold)
@@ -143,6 +142,7 @@ class PredEncoding extends LeafTypeEncoding {
             // eval_S([Q{d1, ..., dk}], [e1], ..., [en])
             eval = defunc.instance(ctr, ctrTs, vAccArgs)(pos, info, errT)(ctx)
             // inhale acc(eval_S([Q{d1, ..., dk}], [e1], ..., [en]), [p])
+            vPerm <- goE(perm)
           } yield vpr.Inhale(vpr.PredicateAccessPredicate(eval, vPerm)(pos, info, errT))(pos, info, errT)
         )
 
@@ -155,7 +155,7 @@ class PredEncoding extends LeafTypeEncoding {
             // [e1], ..., [en]
             vAccArgs <- sequence(accArgs map goE)
             // a1, ..., ak
-            vQArgs = mergeArgs(vCtrArgs, vAccArgs)
+            qArgs = mergeArgs(ctrArgs, accArgs)
             vPerm <- goE(perm)
             // [Q{d1, ..., dk}]
             ctr = defunc.construct(q, qT.args, vCtrArgs)(pos, info, errT)(ctx)
@@ -169,7 +169,7 @@ class PredEncoding extends LeafTypeEncoding {
                 UnfoldError(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason) // we might want to change the message
             }
             // acc(Q(a1, ..., ak), [p])
-            qAcc = vpr.PredicateAccessPredicate(ctx.predicate.proxyAccess(q, vQArgs)(pos, info, errT), vPerm)(pos, info, errT)
+            qAcc <- ctx.predicate.proxyAccess(q, qArgs, perm)(n.info)(ctx)
             // inhale acc(Q(a1, ..., ak), [p])
             _ <- write(vpr.Inhale(qAcc)(pos, info, errT))
             // unfold acc(Q(a1, ..., ak), [p])

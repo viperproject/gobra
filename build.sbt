@@ -55,7 +55,7 @@ lazy val gobra = (project in file("."))
     // Assembly settings
     assembly / assemblyJarName := "gobra.jar",
     assembly / mainClass := Some("viper.gobra.GobraRunner"),
-    assembly / javaOptions += "-Xss128m", // TODO: does apparently nothing
+    // assembly / javaOptions += "-Xss128m", // TODO: does apparently nothing
 
 
     assembly / assemblyMergeStrategy := {

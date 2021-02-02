@@ -8,6 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
 import viper.gobra.translator.interfaces.translator.Predicates
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
@@ -103,20 +104,11 @@ class PredicatesImpl extends Predicates {
   }
 
   /** Returns proxy(args) */
-  override def proxyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.PredicateAccess = {
-    val name = proxy match {
-      case proxy: in.FPredicateProxy => proxy.name
-      case proxy: in.MPredicateProxy => proxy.uniqueName
+  override def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
+    val predicateInstance = proxy match {
+      case proxy: in.FPredicateProxy => in.Access(in.Accessible.Predicate(in.FPredicateAccess(proxy, args)(src)), perm)(src)
+      case proxy: in.MPredicateProxy => in.Access(in.Accessible.Predicate(in.MPredicateAccess(args.head, proxy, args.tail)(src)), perm)(src)
     }
-    vpr.PredicateAccess(args, name)(pos, info, errT)
-  }
-
-  /** Returns the body of proxy(args) */
-  override def proxyBodyAccess(proxy: in.PredicateProxy, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
-    val vP = proxy match {
-      case proxy: in.FPredicateProxy => fpredicate(ctx.lookup(proxy))(ctx).res
-      case proxy: in.MPredicateProxy => mpredicate(ctx.lookup(proxy))(ctx).res
-    }
-    vpr.utility.Expressions.instantiateVariables(vP.body.get, vP.formalArgs, args, Set.empty)
+    ctx.ass.translate(predicateInstance)(ctx).map(_.asInstanceOf[vpr.PredicateAccessPredicate])
   }
 }

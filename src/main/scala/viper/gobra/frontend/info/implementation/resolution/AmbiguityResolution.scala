@@ -58,6 +58,10 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         // built-in members
         case s: st.BuiltInFunction => Some(ap.BuiltInFunction(n.id, s))
         case s: st.BuiltInFPredicate => Some(ap.BuiltInPredicate(n.id, s))
+        // interface method and predicate when referenced inside of the interface definition
+        // (otherwise a receiver would be present)
+        case s: st.MethodSpec => Some(ap.ImplicitlyReceivedInterfaceMethod(n.id, s))
+        case s: st.MPredicateSpec => Some(ap.ImplicitlyReceivedInterfacePredicate(n.id, s))
         case _ => None
       }
 

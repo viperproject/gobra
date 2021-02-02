@@ -30,7 +30,7 @@ class PolymorphValueComponentImpl extends PolymorphValueComponent {
     val domainName = Names.polyValueDomain
     val typeVar = vpr.TypeVar("T")
     val typeVars = Vector(typeVar)
-    val typeVarMap = (typeVars zip typeVars).toMap
+    val typeVarMap = Map(typeVar -> typeVar)
 
     val xDecl = vpr.LocalVarDecl("x", typeVar)()
     val x = xDecl.localVar

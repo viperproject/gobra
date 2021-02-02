@@ -37,6 +37,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val isEnclosingExplicitGhost: PNode => Boolean =
     down(false){ case _: PGhostifier[_] => true }
 
+  lazy val enclosingInterface: PNode => PInterfaceType =
+    down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
+
   def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
     typeSwitchConstraintsLookup(id)(id)
 

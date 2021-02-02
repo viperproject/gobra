@@ -115,7 +115,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     externallyAccessedMembers.contains(m)
   }
 
-  private lazy val variablesMap: Map[(PScope, Option[Position]), Vector[PIdnNode]] = {
+  private lazy val variablesMap: Map[(Option[Position], PScope), Vector[PIdnNode]] = {
     val ids: Vector[PIdnNode] = tree.nodes collect {
       case id: PIdnDef              => id
       case id: PIdnUnk if isDef(id) => id
@@ -125,7 +125,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
       // having the position in the key ensures that the variables of two structurally equal scopes
       // occurring in different positions are not merged in a single Vector, avoiding duplicated entries
       // in the variables of a scope
-      val scope = enclosingIdScope(f); (scope, pos(scope))
+      val scope = enclosingIdScope(f); (pos(scope), scope)
     }
   }
 
@@ -133,7 +133,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     tree.root.positions.positions.getStart(scope)
 
   override def variables(s: PScope): Vector[PIdnNode] =
-    variablesMap.getOrElse((s, pos(s)), Vector.empty).sortWith(_.name < _.name)
+    variablesMap.getOrElse((pos(s), s), Vector.empty).sortWith(_.name < _.name)
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }

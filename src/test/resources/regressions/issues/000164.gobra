@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Singleton struct {
+	x int
+}
+
+pred (s *Singleton) lessThan(bound int) {
+	acc(s) && s.x <= bound
+}
+
+requires x >= 0
+func foldSingletonLessThan(x int) {
+	s@ := Singleton{}
+	fold (&s).lessThan!<x!>()
+}
+
+func foldSingletonLessThanError(x int) {
+	s@ := Singleton{}
+	// x may be less than the value of the singleton
+	//:: ExpectedOutput(fold_error)
+	fold (&s).lessThan!<x!>()
+}

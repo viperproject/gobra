@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
+import org.bitbucket.inkytonik.kiama.util.Position
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
@@ -114,17 +115,25 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     externallyAccessedMembers.contains(m)
   }
 
-  private lazy val variablesMap: Map[PScope, Vector[PIdnNode]] = {
+  private lazy val variablesMap: Map[(PScope, Option[Position]), Vector[PIdnNode]] = {
     val ids: Vector[PIdnNode] = tree.nodes collect {
       case id: PIdnDef              => id
       case id: PIdnUnk if isDef(id) => id
     }
 
-    ids.groupBy(enclosingIdScope)
+    ids.groupBy { f =>
+      // having the position in the key ensures that the variables of two structurally equal scopes
+      // occurring in different positions are not merged in a single Vector, avoiding duplicated entries
+      // in the variables of a scope
+      val scope = enclosingIdScope(f); (scope, pos(scope))
+    }
   }
 
+  private def pos(scope: PScope): Option[Position] =
+    tree.root.positions.positions.getStart(scope)
+
   override def variables(s: PScope): Vector[PIdnNode] =
-    variablesMap.getOrElse(s, Vector.empty).distinct.sortWith(_.name < _.name)
+    variablesMap.getOrElse((s, pos(s)), Vector.empty).sortWith(_.name < _.name)
 
   private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
     val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }

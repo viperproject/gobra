@@ -3,6 +3,7 @@
 
 // ported verified operations by Felix on a stack from Viper
 // function "code" implements Challenge 2 - Part A: All Nearest Smaller Values from VerifyThis at ETAPS 2019
+// note that verifying this file takes roughly 77s as part of CI (Z3 4.8.7) but verification does not terminate with Z3 4.8.8
 
 package main
 
@@ -84,16 +85,14 @@ pure func getOrZero(x *Stack) int {
 }
 
 ghost
-requires nz >= z && nz <= len(s)
+requires 1 <= z && z <= nz && nz < len(s)
 requires acc(stack(x), 1/4)
 requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
-requires 1 <= z && z <= len(s)
 requires stackInv(x, s, z)
-requires nz < len(s) ==> s[z] >= s[nz]
-requires nz < len(s) ==> forall k int :: { s[k] } z < k && k <= nz ==> s[nz] <= s[k]
+requires s[z] >= s[nz]
+requires forall k int :: { s[k] } z < k && k <= nz ==> s[nz] <= s[k]
 ensures acc(stack(x), 1/4)
 ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
-ensures 1 <= z && z <= len(s)
 ensures stackInv(x, s, nz)
 func convertStackInv(x *Stack, s []int, z, nz int) {
     // the following two assertions are needed such that the postconditions can be proved

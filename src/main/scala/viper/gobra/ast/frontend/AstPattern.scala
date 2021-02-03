@@ -39,6 +39,7 @@ object AstPattern {
 
   case class Function(id: PIdnUse, symb: st.Function) extends FunctionKind with Symbolic
   case class ReceivedMethod(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
+  case class ImplicitlyReceivedInterfaceMethod(id: PIdnUse, symb: st.MethodSpec) extends FunctionKind with Symbolic // for method references withing an interface definition
   case class MethodExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.Method) extends FunctionKind with Symbolic
 
   sealed trait BuiltInFunctionKind extends FunctionKind with Symbolic {
@@ -61,6 +62,7 @@ object AstPattern {
 
   case class Predicate(id: PIdnUse, symb: st.FPredicate) extends PredicateKind with Symbolic
   case class ReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
+  case class ImplicitlyReceivedInterfacePredicate(id: PIdnUse, symb: st.MPredicateSpec) extends PredicateKind with Symbolic // for predicate references within an interface definition
   case class PredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.MPredicate) extends PredicateKind with Symbolic
   case class PredExprInstance(base: PExpression, args: Vector[PExpression]) extends PredicateKind
 

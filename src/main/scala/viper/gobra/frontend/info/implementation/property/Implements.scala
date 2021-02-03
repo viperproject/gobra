@@ -14,10 +14,18 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 trait Implements { this: TypeInfoImpl =>
 
   def implements(l: Type, r: Type): Boolean = underlyingType(r) match {
-    case t: Type.InterfaceT if t.isEmpty => supportedSortForInterfaces(l)
+    case itf: Type.InterfaceT =>
+      if (goImplements(l, r)) { _requiredImplements ::= (l, itf); true } else false
     case _ => false
   }
 
+  private var _requiredImplements: List[(Type, Type.InterfaceT)] = List.empty
+  def requiredImplements: List[(Type, Type.InterfaceT)] = _requiredImplements
+
+  def goImplements(l: Type, r: Type): Boolean = underlyingType(r) match {
+    case _: Type.InterfaceT => supportedSortForInterfaces(l) // TODO: check that l implements all methods of itf
+    case _ => false
+  }
 
   /** Returns true if the type is supported for interfaces. All finite types are supported. */
   def supportedSortForInterfaces(t: Type): Boolean = {

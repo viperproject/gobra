@@ -98,6 +98,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case PMPredicateDecl(id, recv, args, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case ip: PImplementationProof =>
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <>
+          (if (ip.memberProofs.isEmpty) emptyDoc else block(ssep(ip.memberProofs map showMisc, line)))
     }
   }
 
@@ -553,8 +556,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
     case PInterfaceName(typ) => showType(typ)
-    case PMethodSig(id, args, result) => showId(id) <> parens(showParameterList(args)) <> showResult(result)
-    case PMPredicateSig(id, args) => "predicate"  <+> showId(id) <> parens(showParameterList(args))
+    case PMethodSig(id, args, result, spec, isGhost) =>
+      (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
+        showId(id) <> parens(showParameterList(args)) <> showResult(result)
+    case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
   }
 
   // ids
@@ -580,6 +585,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
       case PExplicitGhostParameter(actual) => showParameter(actual)
+      case mip: PMethodImplementationProof =>
+        (if (mip.isPure) "pure ": Doc else emptyDoc) <>
+          showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
+          opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
     }
   }
 

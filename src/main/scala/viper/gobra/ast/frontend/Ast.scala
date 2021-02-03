@@ -115,7 +115,7 @@ sealed trait PGhostifiable extends PNode
 sealed trait PMember extends PNode
 
 /** Member that can have a body */
-sealed trait PBodyMember extends PMember {
+sealed trait PWithBody extends PNode {
   def body: Option[(PBodyParameterInfo, PBlock)]
 }
 
@@ -139,7 +139,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PBodyMember with PGhostifiableMember
+                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -148,7 +148,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PScope with PCodeRootWithResult with PBodyMember with PGhostifiableMember
+                      ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 
@@ -609,9 +609,9 @@ sealed trait PInterfaceClause extends PNode
 
 case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
 
-// TODO: maybe change to misc
-case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult) extends PInterfaceClause with PScope
-
+// Felix: I see `isGhost` as part of the declaration and not as port of the specification.
+//        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
+case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PScope with PCodeRootWithResult
 
 /**
   * Identifiers
@@ -761,7 +761,18 @@ case class PMPredicateDecl(
                           body: Option[PExpression]
                           ) extends PGhostMember with PScope with PCodeRoot
 
-case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope
+case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
+
+case class PImplementationProof(subT: PType, superT: PType, memberProofs: Vector[PMethodImplementationProof]) extends PGhostMember
+
+case class PMethodImplementationProof(
+                                       id: PIdnUse, // references the method definition of the super type
+                                       receiver: PReceiver,
+                                       args: Vector[PParameter],
+                                       result: PResult,
+                                       isPure: Boolean,
+                                       body: Option[(PBodyParameterInfo, PBlock)]
+                                     ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
 
 /**
   * Ghost Statement

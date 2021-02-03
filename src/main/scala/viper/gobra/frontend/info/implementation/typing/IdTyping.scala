@@ -108,6 +108,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
 
+    case _: MethodSpec => LocalMessages(noMessages) // not typed
+
     case _: Import => LocalMessages(noMessages)
 
     case _: Wildcard => LocalMessages(noMessages) // not typed
@@ -152,6 +154,11 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case Function(PFunctionDecl(_, args, r, _, _), _, context) =>
       FunctionT(args map context.typ, context.typ(r))
 
+      // case is relevant only for typing within an interface definition.
+      // Thus, the receiver is supplied implicitly.
+    case MethodSpec(PMethodSig(_, args, result, _, _), _, _, context) =>
+      FunctionT(args map context.typ, context.typ(result))
+
     case BuiltInFunction(tag, _, _) => tag.typ(config)
 
     case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
@@ -180,7 +187,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Wildcard(decl, _) => getWildcardType(decl)
 
-    case _ => violation("untypable")
+    case e => violation(s"untypable: $e")
   }
 
   /**

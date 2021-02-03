@@ -17,12 +17,15 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.{Algorithms, Violation}
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
 class InterfaceEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import viper.gobra.translator.util.ViperWriter.MemberWriter
+  import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.gobra.translator.util.TypePatterns._
 
   private val poly: PolymorphValueComponent = new PolymorphValueComponentImpl
@@ -35,6 +38,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
     types.finalize(col)
     toInterfaceFunc.finalize(col)
     genMembers foreach col.addMember
+    typeOfWithSubtypeFactFuncMap.values foreach col.addMember
+    genPredicates foreach col.addMember
   }
 
   /**
@@ -43,7 +48,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Interface(_) / m =>
       m match {
-        case Exclusive => ctx.tuple.typ(Vector(poly.typ()(ctx), types.typ()(ctx)))
+        case Exclusive => vprInterfaceType(ctx)
         case Shared    => vpr.Ref: vpr.Type
       }
 
@@ -52,6 +57,27 @@ class InterfaceEncoding extends LeafTypeEncoding {
         case Exclusive => types.typ()(ctx)
         case Shared    => vpr.Ref
       }
+  }
+
+  private def vprInterfaceType(ctx: Context): vpr.Type = {
+    ctx.tuple.typ(Vector(poly.typ()(ctx), types.typ()(ctx)))
+  }
+
+  override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
+    case p: in.MPredicate if hasFamily(p.name)(ctx) =>
+      predicate(p)(ctx)
+
+    case p: in.PureMethod if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
+      function(p)(ctx)
+
+    case p: in.Method if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
+      ctx.method.method(p)(ctx).map(Vector(_))
+
+    case p: in.MethodSubtypeProof =>
+      methodProof(p)(ctx)
+
+    case p: in.PureMethodSubtypeProof =>
+      functionProof(p)(ctx)
   }
 
   /**
@@ -134,13 +160,20 @@ class InterfaceEncoding extends LeafTypeEncoding {
           } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, info, errT)(ctx)
         }
 
-      case n@ in.TypeAssertion(exp, t) =>
+      case n@ in.IsBehaviouralSubtype(subtype, supertype) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          vprSubtype <- goE(subtype)
+          vprSupertype <- goE(supertype)
+        } yield types.behavioralSubtype(vprSubtype, vprSupertype)(pos, info, errT)(ctx)
+
+      case n@ in.TypeAssertion(exp :: ctx.Interface(itf), t) =>
         val (pos, info, errT) = n.vprMeta
         val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
           TypeAssertionError(x).dueTo(DynamicValueNotASubtypeReason(x))
         for {
           arg <- goE(exp)
-          dynType = typeOf(arg)(pos, info, errT)(ctx)
+          dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
           staticType = types.typeToExpr(t)(pos, info, errT)(ctx)
           _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
           res = t match {
@@ -149,11 +182,11 @@ class InterfaceEncoding extends LeafTypeEncoding {
           }
         } yield res
 
-      case n@ in.TypeOf(exp) =>
+      case n@ in.TypeOf(exp :: ctx.Interface(itf)) =>
         val (pos, info, errT) = n.vprMeta
         for {
           arg <- goE(exp)
-        } yield typeOf(arg)(pos, info, errT)(ctx)
+        } yield typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
 
       case n@ in.IsComparableInterface(exp) =>
         val (pos, info, errT) = n.vprMeta
@@ -173,6 +206,29 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /**
+    * Encodes assertions.
+    *
+    * Constraints:
+    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
+    *
+    *
+    */
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    default(super.assertion(ctx)) {
+      case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          instance <- predicateInstance(recv, p, args)(n)(ctx)
+          perm <- goE(perm)
+        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+    }
+  }
+
+
+
+  /**
     * Encodes whether a value is comparable or not.
     *
     * isComp[ e: interface{...} ] -> isComparableInterface(e)
@@ -183,8 +239,17 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = exp.vprMeta
         for {
           vExp <- ctx.expr.translate(exp)(ctx)
-        } yield isComparabeInterface(vExp)(pos, info ,errT)(ctx)
+        } yield isComparabeInterface(vExp)(pos, info ,errT)(ctx): vpr.Exp
       }
+  }
+
+  /** returns dynamic type of an interface expression. */
+  private def typeOfWithSubtypeFact(arg: vpr.Exp, itfT: in.InterfaceT)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    if (itfT.isEmpty) {
+      typeOf(arg)(pos, info, errT)(ctx)
+    } else {
+      vpr.FuncApp(func = typeOfWithSubtypeFactFunc(itfT)(ctx), Seq(arg))(pos, info, errT)
+    }
   }
 
   /** returns dynamic type of an interface expression. */
@@ -225,7 +290,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     generatedComparableFunc.getOrElse{
       val domainName = "ComparableInterfaceDomain"
 
-      val vItfT = typ(ctx)(in.InterfaceT(Names.emptyInterface, Addressability.Exclusive))
+      val vItfT = vprInterfaceType(ctx)
       val iDecl = vpr.LocalVarDecl("i", vItfT)(); val i = iDecl.localVar
 
       val func = vpr.DomainFunc(
@@ -279,14 +344,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     default(super.statement(ctx)){
-      case n@ in.SafeTypeAssertion(resTarget, successTarget, expr, typ@ ctx.Interface(_)) =>
+      case n@ in.SafeTypeAssertion(resTarget, successTarget, expr :: ctx.Interface(itf), typ@ ctx.Interface(_)) =>
         val (pos, info, errT) = n.vprMeta
         val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
           TypeAssertionError(x).dueTo(SafeTypeAssertionsToInterfaceNotSucceedingReason(x))
         seqn(
           for {
             arg <- ctx.expr.translate(expr)(ctx)
-            dynType = typeOf(arg)(pos, info, errT)(ctx)
+            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
             vResTarget = ctx.typeEncoding.variable(ctx)(resTarget).localVar
@@ -297,13 +362,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
           ), Seq.empty)(pos, info, errT)
         )
 
-      case n@ in.SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
+      case n@ in.SafeTypeAssertion(resTarget, successTarget, expr :: ctx.Interface(itf), typ) =>
         val (pos, info, errT) = n.vprMeta
         types.genPreciseEqualityAxioms(typ)(ctx)
         seqn(
           for {
             arg <- ctx.expr.translate(expr)(ctx)
-            dynType = typeOf(arg)(pos, info, errT)(ctx)
+            dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
             staticType = types.typeToExpr(typ)(pos, info, errT)(ctx)
             vResTarget = ctx.typeEncoding.variable(ctx)(resTarget).localVar
             vSuccessTarget = ctx.typeEncoding.variable(ctx)(successTarget).localVar
@@ -332,7 +397,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val vX = ctx.typeEncoding.variable(ctx)(x)
 
       val isComp = ctx.typeEncoding.isComparable(ctx)(x).fold(vpr.BoolLit(_)(), pure(_)(ctx).res)
-      val emptyItfT = typ(ctx)(in.InterfaceT(Names.emptyInterface, Addressability.Exclusive))
+      val emptyItfT = vprInterfaceType(ctx)
       val vRes = vpr.Result(emptyItfT)()
 
       vpr.Function(
@@ -348,5 +413,326 @@ class InterfaceEncoding extends LeafTypeEncoding {
       )()
     }
   }
+
+  /**
+    * Generates:
+    *
+    * function typeOfFunc_I(itf: [itf{}]): Type
+    *   ensures result == typeOf(itf)
+    *   ensures behaviouralSubtype(result, [I])
+    */
+  private def typeOfWithSubtypeFactFunc(itfT: in.InterfaceT)(ctx: Context): vpr.Function = {
+    typeOfWithSubtypeFactFuncMap.getOrElse(itfT.name, {
+      val interfaceT = vprInterfaceType(ctx)
+      val resT = types.typ()(ctx)
+      val formal = vpr.LocalVarDecl("itf", interfaceT)()
+
+      val resFunc = vpr.Function(
+        name = s"${Names.typeOfFunc}_${itfT.name}",
+        formalArgs = Seq(formal),
+        typ = resT,
+        pres = Seq.empty,
+        posts = Seq(
+          vpr.EqCmp(vpr.Result(resT)(), typeOf(formal.localVar)()(ctx))(),
+          types.behavioralSubtype(vpr.Result(resT)(), types.typeToExpr(itfT)()(ctx))()(ctx)
+        ),
+        body = None
+      )()
+
+      typeOfWithSubtypeFactFuncMap += (itfT.name -> resFunc)
+      resFunc
+    })
+  }
+  private var typeOfWithSubtypeFactFuncMap: Map[String, vpr.Function] = Map.empty
+
+
+  private def predicate(p: in.MPredicate)(ctx: Context): MemberWriter[Vector[vpr.Predicate]] = {
+    val id = familyID(p.name)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+    genPredicate(id)(ctx)
+    ml.unit(Vector.empty)
+  }
+
+  /**
+    * Generates:
+    *
+    * predicate I_P(itf, args) {
+    *     typeOf(itf) == T ? BODY[T_P( valueOf(itf, T), args)] :
+    *     ...
+    *     I_P_unknown(itf, args)
+    * }
+    *
+    * predicate I_P_unknown(itf, args)
+    */
+  private def genPredicate(id: Int)(ctx: Context): vpr.Predicate = {
+    genPredicateMap.getOrElse(id, {
+      val res: vpr.Predicate = {
+        val family = predicateFamily(id)(ctx)
+
+        val recvDecl = vpr.LocalVarDecl("i", vprInterfaceType(ctx))()
+        val recv = recvDecl.localVar
+
+        val rep = ctx.lookup(family.head)
+        val inArgTypes = rep.args.map(_.typ)
+        val argTypes = inArgTypes.map(ctx.typeEncoding.typ(ctx))
+        val argDecls = argTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }
+        val args = argDecls.map(_.localVar)
+
+        def clause(p: in.MPredicateProxy): Option[(vpr.Exp, vpr.Exp)] = {
+          val symb = ctx.lookup(p)
+          symb.body.map{ _ =>
+            val typ = symb.receiver.typ
+            // typeOf(i) == T
+            val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
+            // Body[p(valueOf(i): [T], args)]
+            val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(typ))()(ctx) +: args
+            val vPred = ctx.predicate.mpredicate(symb)(ctx).res
+            val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
+            (lhs, vpr.utility.Simplifier.simplify(rhs))
+          }
+        }
+
+        val name = s"${Names.dynamicPredicate}_${rep.name.name}"
+        val defaultName = s"${name}_unknown"
+
+        val defaultPredicate = vpr.Predicate(name = defaultName, formalArgs = recvDecl +: argDecls, body = None)()
+        genPredicates ::= defaultPredicate
+        val default = {
+          vpr.PredicateAccessPredicate(
+            vpr.PredicateAccess(recv +: args, defaultPredicate.name)(),
+            vpr.FullPerm()()
+          )()
+
+        }
+
+        val res = vpr.Predicate(
+          name = name,
+          formalArgs = recvDecl +: argDecls,
+          body = Some(
+            family.foldRight(default: vpr.Exp){ // default
+              case (p, res) =>
+                clause(p)
+                  .map{ case (l, r) => vpr.CondExp(l, r, res)() }
+                  .getOrElse(res)
+            }
+          )
+        )()
+        genPredicates ::= res
+        res
+      }
+      genPredicateMap += (id -> res)
+      res
+    })
+  }
+  private var genPredicateMap: Map[Int, vpr.Predicate] = Map.empty
+  private var genPredicates: List[vpr.Predicate] = List.empty
+
+
+  private def hasFamily(p: in.MPredicateProxy)(ctx: Context): Boolean = familyID(p)(ctx).isDefined
+  private def familyID(p: in.MPredicateProxy)(ctx: Context): Option[Int] = predicateFamilyTuple(ctx)._1.get(p)
+  private def predicateFamily(id: Int)(ctx: Context): Set[in.MPredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
+  private def predicateFamilyTuple(ctx: Context): (Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]]) = {
+    predicateFamilyTupleRes.getOrElse{
+      val itfNodes = for {
+        (itf, impls) <- ctx.table.interfaceImplementations.toSet
+        itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
+      } yield (itfProxy, impls)
+
+      val edges = for {
+        (itfProxy, impls) <- itfNodes
+        impl <- impls
+        implProxy = ctx.table.lookup(impl, itfProxy.name).collect{ case m: in.MPredicateProxy => m }
+          .getOrElse(Violation.violation(s"Did not find predicate ${itfProxy.name} for type $impl."))
+      } yield (itfProxy, implProxy)
+
+      val nodes = itfNodes.map(_._1) ++ edges.map(_._2)
+
+      val res = Algorithms.unionFind[in.MPredicateProxy](nodes){ union =>
+        for ( (itfProxy, implProxy) <- edges ) union(itfProxy, implProxy)
+      }
+      predicateFamilyTupleRes = Some(res)
+      res
+    }
+  }
+  private var predicateFamilyTupleRes: Option[(Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]])] = None
+
+
+  private def predicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
+    val (pos, info, errT) = src.vprMeta
+    val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    for {
+      dynValue <- goE(recv)
+      vRecv = if (!ctx.lookup(proxy).receiver.typ.isInstanceOf[in.InterfaceT]) {
+        val typ = types.typeToExpr(recv.typ)(pos, info, errT)(ctx)
+        boxInterface(dynValue, typ)(pos, info, errT)(ctx)
+      } else dynValue
+      vArgs <- sequence(args map goE)
+    } yield vpr.PredicateAccess(vRecv +: vArgs, predicate = genPredicate(id)(ctx))(pos, info, errT)
+  }
+
+  /**
+    * Generates:
+    *
+    * function I_F(itf: I, args)
+    *   requires [PRE]
+    *   ensures typeOf(itf) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
+    */
+  private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
+    Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
+    Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
+    Violation.violation(p.body.isEmpty, s"expected no body, but got ${p.body}")
+
+    val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
+    val impls = ctx.table.implementations(itfT)
+    val cases = impls.map(impl => (impl, ctx.table.lookup(impl, p.name.name).get))
+
+    val recvDecl = vpr.LocalVarDecl(Names.implicitThis, vprInterfaceType(ctx))()
+    val recv = recvDecl.localVar
+
+    val argDecls = p.args map ctx.typeEncoding.variable(ctx)
+    val args = argDecls.map(_.localVar)
+
+    val resultType = ctx.typeEncoding.variable(ctx)(p.results.head).typ
+    val result = vpr.Result(resultType)()
+
+    def clause(impl: in.Type, proxy: in.MemberProxy): vpr.Exp = {
+      // typeOf(i) == T
+      val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(impl)()(ctx))()
+      // proof_T_I_F(valueOf(itf, T), args)
+      val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(impl))()(ctx) +: args
+      val call = vpr.FuncApp(funcname = proofName(proxy, p.name), fullArgs)(vpr.NoPosition, vpr.NoInfo, typ = resultType, vpr.NoTrafos)
+      // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
+      vpr.Implies(lhs, vpr.EqCmp(result, call)())()
+    }
+
+    for {
+      vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      func = vpr.Function(
+        name = p.name.uniqueName,
+        formalArgs = recvDecl +: argDecls,
+        typ = resultType,
+        pres = vPres,
+        posts = cases.toVector map { case (impl, implProxy) => clause(impl, implProxy) },
+        body = None
+      )()
+    } yield Vector(func)
+  }
+
+  /**
+    * function proof_T_I_F(x: T, args)
+    *   requires PRE where PRE = [I_F.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    * {
+    *   [body]
+    * }
+    */
+  private def functionProof(p: in.PureMethodSubtypeProof)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
+    Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
+
+    val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.PureMethod]
+    val vItfFun = ctx.pureMethod.pureMethod(itfSymb)(ctx).res
+
+    val body = p.body.getOrElse(in.PureMethodCall(p.receiver, p.subProxy, p.args, p.results.head.typ)(p.info))
+
+    val pureMethodDummy = ctx.pureMethod.pureMethod(in.PureMethod(
+      receiver = p.receiver,
+      name = in.MethodProxy(p.superProxy.name, proofName(p.subProxy, p.superProxy))(p.info),
+      args = p.args,
+      results = p.results,
+      pres = Vector.empty,
+      posts = Vector.empty,
+      body = Some(body)
+    )(p.info))(ctx)
+
+    val pres = vItfFun.pres.map { pre =>
+      instantiateInterfaceSpecForProof(pre, vItfFun.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+    }
+
+    val (pos, info, errT) = p.vprMeta
+    pureMethodDummy.map(res => Vector(res.copy(pres = pres)(pos, info, errT)))
+  }
+
+  /**
+    * method proof_T_I_M(x: T, args) returns (results)
+    *   requires PRE where PRE = [I_M.PRE][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    *   ensures  POST where POST = [I_M.POST][ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    * {
+    *   [body]
+    * }
+    */
+  private def methodProof(p: in.MethodSubtypeProof)(ctx: Context): MemberWriter[Vector[vpr.Method]] = {
+
+    val itfSymb = ctx.lookup(p.superProxy).asInstanceOf[in.Method]
+    val vItfMeth = ctx.method.method(itfSymb)(ctx).res
+
+    val body = p.body.getOrElse {
+      val targets = p.results.map(out => in.LocalVar(out.id, out.typ)(out.info))
+      val call = in.MethodCall(targets, p.receiver, p.subProxy, p.args)(p.info)
+      in.Block(Vector.empty, Vector(call))(p.info)
+    }
+
+    val methodDummy = ctx.method.method(in.Method(
+      receiver = p.receiver,
+      name = in.MethodProxy(p.superProxy.name, proofName(p.subProxy, p.superProxy))(p.info),
+      args = p.args,
+      results = p.results,
+      pres = Vector.empty,
+      posts = Vector.empty,
+      body = Some(body)
+    )(p.info))(ctx)
+
+    val pres = vItfMeth.pres.map { exp =>
+      instantiateInterfaceSpecForProof(exp, vItfMeth.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+    }
+    val posts = vItfMeth.posts.map { exp =>
+      instantiateInterfaceSpecForProof(exp, vItfMeth.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+    }
+
+    val (pos, info, errT) = p.vprMeta
+    methodDummy.map(res => Vector(res.copy(pres = pres, posts = posts)(pos, info, errT)))
+  }
+
+
+  /**
+    * Instantiates a condition of a spec from an interface I for an implementation T.
+    * 1) The this reference (of type interface) is replaced with a this of type T that is put into an interface
+    * 2) Calls to pure methods of the interface are replaced with calls to the proof that T implements the pure method.
+    *
+    * returns exp[ this -> tuple2(this, Type(this)); tuple2(this, Type(this)).I_F -> this.proof_T_implements_I_F ]
+    * */
+  private def instantiateInterfaceSpecForProof(
+                         exp: vpr.Exp,
+                         formalsOfExp: Vector[vpr.LocalVarDecl],
+                         recv: in.Parameter.In,
+                         ins: Vector[in.Parameter.In],
+                         itfT: in.InterfaceT
+                       )(src: in.Node)(ctx: Context): vpr.Exp = {
+    val impl = recv.typ
+    val vRecvDecls = ctx.typeEncoding.variable(ctx)(recv)
+    val vRecv = vRecvDecls.localVar
+
+    val vArgDecls = ins map ctx.typeEncoding.variable(ctx)
+    val vArgs = vArgDecls map (_.localVar)
+
+    val itfFuncs = ctx.table.members(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
+    val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))
+    val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(implProxy, itfProxy)) }.toMap
+
+    val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
+    val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, formalsOfExp, newRecv +: vArgs, Set.empty)
+    val changedFuncs = changedFormals.transform{
+      case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
+        val recv = vRecv // maybe check that receiver is the same as newRecv
+        call.copy(funcname = nameMap(call.funcname), args = recv +: call.args.tail)(call.pos, call.info, call.typ, call.errT)
+    }
+
+
+    val (pos, info, errT) = src.vprMeta
+    changedFuncs.withMeta(pos, info, errT)
+  }
+
+  private def proofName(subProxy: in.MemberProxy, supperProxy: in.MemberProxy): String =
+    s"${subProxy.uniqueName}_${supperProxy.uniqueName}_proof"
+
 
 }

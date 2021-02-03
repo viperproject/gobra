@@ -1,0 +1,87 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type stream interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure hasNext() bool
+
+    requires mem() && hasNext()
+    ensures  mem()
+    next() interface{}
+}
+
+func dummy() {
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert 0 == 1
+}
+
+pred testPA(x *counter) {
+  acc(&x.f)
+}
+
+pred testPB(x *counter) {
+  acc(&x.max)
+}
+
+
+pred testP(x *counter, i int) {
+  i > 42 ? testPA(x) : testPB(x)
+}
+
+
+// implementation
+
+type counter struct{ f, max int }
+
+requires acc(x, 1/2)
+pure func (x *counter) hasNext() bool {
+  return x.f < x.max
+}
+
+type myBox struct{ i int }
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == myBox
+ensures  y.(myBox) == myBox{old(x.f)}
+func (x *counter) next() (y interface{}) {
+  y = myBox{x.f}
+  x.f += 1
+  return
+}
+
+
+// implementation proof
+
+pred (x *counter) mem() {
+  acc(x)
+}
+
+(*counter) implements stream {
+
+  pure (x *counter) hasNext() bool {
+    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+  }
+
+  (x *counter) next() (res interface{}) {
+    unfold x.mem()
+    res = x.next()
+    fold x.mem()
+  }
+}
+
+
+// test code
+
+func code() {
+  x := &counter{0, 50}
+  var y stream = x
+  fold y.mem()
+  var z interface{} = y.next()
+}
+
+

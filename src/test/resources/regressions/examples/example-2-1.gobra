@@ -16,3 +16,12 @@ func incr (s []int, n int) {
     s[i] = s[i] + n
   }
 }
+
+func client () {
+  a@ := [4]int { 1, 2, 4, 8 }
+  incr(a[2:], 2)
+  
+  assert a[0] == 1 && a[1] == 2
+  assert a[2:][0] == a[2] && a[2:][1] == a[3]
+  assert a == [4]int { 1, 2, 6, 10 }
+}

@@ -492,10 +492,11 @@ object Desugar {
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
-          b.nonEmptyStmts match {
+          val res = b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case b => Violation.violation(s"unexpected pure function body: $b")
           }
+          implicitConversion(res.typ, returns.head.typ, res)
       }
 
       in.PureFunction(name, args, returns, pres, posts, bodyOpt)(fsrc)
@@ -659,10 +660,11 @@ object Desugar {
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
-          b.nonEmptyStmts match {
+          val res = b.nonEmptyStmts match {
             case Vector(PReturn(Vector(ret))) => pureExprD(ctx)(ret)
             case s => Violation.violation(s"unexpected pure function body: $s")
           }
+          implicitConversion(res.typ, returns.head.typ, res)
       }
 
       in.PureMethod(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)

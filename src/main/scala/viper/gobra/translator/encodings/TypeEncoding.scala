@@ -149,6 +149,9 @@ trait TypeEncoding extends Generator {
       } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
   }
 
+  /** Encodes equal operation with go semantics */
+  def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = equal(ctx)
+
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *

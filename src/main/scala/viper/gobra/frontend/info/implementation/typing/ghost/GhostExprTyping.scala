@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, MethodSpec, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -370,14 +370,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def isPureSeqUpdClause(clause : PSequenceUpdateClause) : Boolean =
     isPureExprAttr(clause.left) && isPureExprAttr(clause.right)
 
-  private def isPureId(id: PIdnNode): Boolean = entity(id) match {
-    case _: Constant => true
-    case _: Variable => true
-    case _: Field => true
-    case _: Embbed => true
-    case Function(decl, _, _) => decl.spec.isPure
-    case MethodImpl(decl, _, _) => decl.spec.isPure
-    case _ => false
+  private def isPureId(id: PIdnNode): Boolean = {
+    entity(id) match {
+      case _: Constant => true
+      case _: Variable => true
+      case _: Field => true
+      case _: Embbed => true
+      case Function(decl, _, _) => decl.spec.isPure
+      case MethodImpl(decl, _, _) => decl.spec.isPure
+      case n: MethodSpec => n.isPure
+      case _ => false
+    }
   }
 
   private lazy val isPureExprAttr: PExpression => Boolean =

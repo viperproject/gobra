@@ -34,7 +34,9 @@ func convertDaysFixed(totalDays int) (days, year int) {
 
 ensures days + (year - originYear) * 365 <= totalDays
 ensures totalDays <= days + (year - originYear) * 366
-ensures days <= 366
+// we forgot about leap years and thus wrote a postcondition that is too strong (seeded bug):
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures days <= 365
 func convertDaysFixedWithSomeInvariants(totalDays int) (days, year int) {
 
   days = totalDays

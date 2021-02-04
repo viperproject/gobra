@@ -31,6 +31,7 @@ func convertDaysBug(totalDays int) (days, year int) {
     //:: ExpectedOutput(assert_error:assertion_error)
     assert days < variant
   }
+  return
 }
 
 
@@ -54,6 +55,7 @@ func convertDaysFixed(totalDays int) (days, year int) {
 
     assert days < variant
   }
+  return
 }
 
 
@@ -81,4 +83,5 @@ func convertDaysFixedWithSomeInvariants(totalDays int) (days, year int) {
 
     assert days < variant
   }
+  return
 }

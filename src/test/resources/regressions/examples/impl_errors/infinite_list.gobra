@@ -56,4 +56,5 @@ func removeAllOccurrances(ptr *node, value int) (rPtr *node, removeCount int) {
     fold infList(ptr)
     rPtr = ptr
   }
+  return
 }

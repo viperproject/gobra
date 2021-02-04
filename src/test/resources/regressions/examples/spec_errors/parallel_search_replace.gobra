@@ -38,7 +38,7 @@ func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
   // invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>;
   //:: ExpectedOutput(invariant_preservation_error:permission_error)
   invariant ok ==> messagePerm!<wg,_,x,y!>(s)
-  for s, ok := <- c; ok; s, ok := <-c {
+  for s, ok := <- c; ok; s, ok = <-c {
     unfold messagePerm!<wg,_,x,y!>(s)
     ghost s0 := toSeq(s)
     invariant 0 <= i && i <= len(s)

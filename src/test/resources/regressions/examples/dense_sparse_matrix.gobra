@@ -135,7 +135,7 @@ func (dm *DenseMatrix)toSparse() (sm *SparseMatrix) {
         invariant 0 <= x && x < dm.lenX() && 0 <= y && y <= dm.lenY()
         invariant forall i, j int :: (0 <= i && i < x && 0 <= j && j < dm.lenY() ==> dm.lookup(i, j) == LookupL(sm, dm.lenX(), dm.lenY(), i, j))
         invariant forall j int :: (0 <= j && j < y ==> dm.lookup(x, j) == LookupL(sm, dm.lenX(), dm.lenY(), x, j))
-        for y := 0; y < dm.lenY(); y++ {
+        for y := 0; y < lenY; y++ {
             lenX, lenY := dm.lenX(), dm.lenY()
             unfold acc(denseMatrix(dm), 1/2)
             e := &Entry{row: x, column: y, value: (dm.values)[x][y]}
@@ -147,4 +147,5 @@ func (dm *DenseMatrix)toSparse() (sm *SparseMatrix) {
         // the following assert statement is necessary to preserve the outer loop's invariants:
         assert forall i, j int :: (0 <= i && i <= x && 0 <= j && j < dm.lenY() ==> dm.lookup(i, j) == LookupL(sm, dm.lenX(), dm.lenY(), i, j))
     }
+    return
 }

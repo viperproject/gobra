@@ -19,6 +19,8 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.reporting.{NotFoundError, VerifierError}
 
+import scala.annotation.tailrec
+
 
 trait MemberResolution { this: TypeInfoImpl =>
 
@@ -149,7 +151,10 @@ trait MemberResolution { this: TypeInfoImpl =>
   }
 
   val structMemberSet: Type => AdvancedMemberSet[StructMember] =
-    attr[Type, AdvancedMemberSet[StructMember]] { t => fieldSuffix(t) union pastPromotions(fieldSuffix)(t) }
+    attr[Type, AdvancedMemberSet[StructMember]] {
+      case Single(t) => fieldSuffix(t) union pastPromotions(fieldSuffix)(t)
+      case _ => AdvancedMemberSet.empty
+    }
 
   private val pastPromotionsMethodSuffix: Type => AdvancedMemberSet[TypeMember] =
     attr[Type, AdvancedMemberSet[TypeMember]] {
@@ -159,19 +164,23 @@ trait MemberResolution { this: TypeInfoImpl =>
     }
 
   val nonAddressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
-    attr[Type, AdvancedMemberSet[TypeMember]] { t =>
-      pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-        case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
-        case _ => receiverSet(t)
-      })
+    attr[Type, AdvancedMemberSet[TypeMember]] {
+      case Single(t) =>
+        pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
+          case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
+          case _ => receiverSet(t)
+        })
+      case _ => AdvancedMemberSet.empty
     }
 
   val addressableMethodSet: Type => AdvancedMemberSet[TypeMember] =
-    attr[Type, AdvancedMemberSet[TypeMember]] { t =>
-      pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
-        case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
-        case _ => receiverSet(t) union receiverSet(PointerT(t)).deref
-      })
+    attr[Type, AdvancedMemberSet[TypeMember]] {
+      case Single(t) =>
+        pastPromotions(pastPromotionsMethodSuffix)(t) union (t match {
+          case pt@ PointerT(st) => receiverSet(pt) union receiverSet(st).ref
+          case _ => receiverSet(t) union receiverSet(PointerT(t)).deref
+        })
+      case _ => AdvancedMemberSet.empty
     }
 
 
@@ -195,10 +204,11 @@ trait MemberResolution { this: TypeInfoImpl =>
     context.tryNonAddressableMethodLikeLookup(e, id)
   }
 
+  @tailrec
   private def getMethodReceiverContext(t: Type): ExternalTypeInfo = {
-    t match {
-      case ct: ContextualType => ct.context
-      case p: PointerT => getMethodReceiverContext(p.elem)
+    Single.unapply(t) match {
+      case Some(ct: ContextualType) => ct.context
+      case Some(p: PointerT) => getMethodReceiverContext(p.elem)
       case _ => this
     }
   }

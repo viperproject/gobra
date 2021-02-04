@@ -33,8 +33,8 @@ class ExpressionsImpl extends Expressions {
 
       case r: in.Ref => ctx.typeEncoding.reference(ctx)(r.ref.op)
 
-      case in.EqCmp(l, r) => ctx.typeEncoding.equal(ctx)(l, r, x)
-      case in.UneqCmp(l, r) => ctx.typeEncoding.equal(ctx)(l, r, x).map(vpr.Not(_)(pos, info, errT))
+      case in.EqCmp(l, r) => ctx.typeEncoding.goEqual(ctx)(l, r, x)
+      case in.UneqCmp(l, r) => ctx.typeEncoding.goEqual(ctx)(l, r, x).map(vpr.Not(_)(pos, info, errT))
 
       case in.PureFunctionCall(func, args, typ) =>
         val resultType = ctx.typeEncoding.typ(ctx)(typ)

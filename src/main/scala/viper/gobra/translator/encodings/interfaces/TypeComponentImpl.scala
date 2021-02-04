@@ -359,7 +359,7 @@ class TypeComponentImpl extends TypeComponent {
   }
 
   override def finalize(collector: Collector): Unit = {
-    if (genFuncs.nonEmpty) collector.addMember(genDomain)
+    collector.addMember(genDomain)
   }
 
 }

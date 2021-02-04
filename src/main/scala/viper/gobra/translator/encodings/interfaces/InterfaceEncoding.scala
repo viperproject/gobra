@@ -18,6 +18,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
+import viper.silver.ast.Exp
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
@@ -96,6 +97,22 @@ class InterfaceEncoding extends LeafTypeEncoding {
   override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.equal(ctx)) {
     case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
       val (pos, info, errT) = src.vprMeta
+      for {
+        vLhs <- ctx.expr.translate(lhs)(ctx)
+        vRhs <- ctx.expr.translate(rhs)(ctx)
+      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+
+    case (itf :: ctx.Interface(_), oth :: ctx.NotInterface(), src) =>
+      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
+
+    case (oth :: ctx.NotInterface(), itf :: ctx.Interface(_), src) =>
+      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
+  }
+
+  /** also checks that the compared interface is comparable. */
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[Exp] = default(super.goEqual(ctx)) {
+    case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
+      val (pos, info, errT) = src.vprMeta
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
         ComparisonError(x).dueTo(ComparisonOnIncomparableInterfaces(x))
       for {
@@ -108,13 +125,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           )(pos, info, errT),
           errorT
         )
-      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
-
-    case (itf :: ctx.Interface(_), oth :: ctx.NotInterface(), src) =>
-      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
-
-    case (oth :: ctx.NotInterface(), itf :: ctx.Interface(_), src) =>
-      equal(ctx)(itf, in.ToInterface(oth, itf.typ)(src.info), src)
+      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
   }
 
   /**
@@ -328,7 +339,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * This includes make-statements.
     *
     * The default implements:
-    * [v: *T = make(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
+    * [v: *T = new(lit)] -> var z (*T)°; inhale Footprint[*z] && [*z == lit]; [v = z]
     *
     * [x, ok = e.(T = interface{...})] ->
     *   assert behavioralSubtype(TYPE_OF([e]), [T])
@@ -481,6 +492,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
           val symb = ctx.lookup(p)
           symb.body.map{ _ =>
             val typ = symb.receiver.typ
+            // generate precise equality acioms to prove inequality
+            types.genPreciseEqualityAxioms(typ)(ctx)
             // typeOf(i) == T
             val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
             // Body[p(valueOf(i): [T], args)]
@@ -491,7 +504,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           }
         }
 
-        val name = s"${Names.dynamicPredicate}_${rep.name.name}"
+        val name = genPredicateName(id)
         val defaultName = s"${name}_unknown"
 
         val defaultPredicate = vpr.Predicate(name = defaultName, formalArgs = recvDecl +: argDecls, body = None)()
@@ -523,6 +536,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       res
     })
   }
+  private def genPredicateName(id: Int): String = s"${Names.dynamicPredicate}_$id"
   private var genPredicateMap: Map[Int, vpr.Predicate] = Map.empty
   private var genPredicates: List[vpr.Predicate] = List.empty
 
@@ -568,7 +582,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         boxInterface(dynValue, typ)(pos, info, errT)(ctx)
       } else dynValue
       vArgs <- sequence(args map goE)
-    } yield vpr.PredicateAccess(vRecv +: vArgs, predicate = genPredicate(id)(ctx))(pos, info, errT)
+    } yield vpr.PredicateAccess(vRecv +: vArgs, predicateName = genPredicateName(id))(pos, info, errT)
   }
 
   /**
@@ -713,6 +727,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     val vArgDecls = ins map ctx.typeEncoding.variable(ctx)
     val vArgs = vArgDecls map (_.localVar)
+
 
     val itfFuncs = ctx.table.members(itfT).collect{ case x: in.MethodProxy if ctx.lookup(x).isInstanceOf[in.PureMethod] => x }
     val matchingFuncs = itfFuncs.map(f => (f, ctx.table.lookup(impl, f.name).get))

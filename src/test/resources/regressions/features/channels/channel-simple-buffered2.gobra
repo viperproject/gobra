@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred someLocation(p *int) {
+    acc(p)
+}
+
+pred dummy(i int) {
+    true
+}
+
+func main() {
+  c := make(chan int, 1) // make a buffered channel
+  c.Init(dummy!<_!>, PredTrue!<!>)
+
+  var x@ int = 0
+  var p *int = &x
+  assert acc(p)
+  fold someLocation!<p!>()
+
+  // split someLocation{p}() into ClosureDebt and Token:
+  c.CreateDebt(1, 2 /* 1/2 */, someLocation!<p!>)
+
+  // start a separate thread to send a value back to us
+  go foo(c, p)
+
+  // receive will fail since other thread never sends something (however this cannot be proven right now)
+  fold PredTrue!<!>()
+  res, ok := <- c
+  if (!ok) {
+    // use Token from `DebtRedistribution` to regain access to p
+    c.Redeem(someLocation!<p!>)
+    unfold someLocation!<p!>()
+    // do something with p:
+    *p = 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+  }
+}
+
+requires acc(c.SendChannel(), 1/2)
+requires c.SendGivenPerm() == dummy!<_!>;
+requires c.SendGotPerm() == PredTrue!<!>;
+requires someLocation!<p!>()
+requires c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */)
+func foo(c chan int, p *int) {
+    unfold someLocation!<p!>()
+    *p = 1234
+    fold someLocation!<p!>()
+
+    // close channel
+    close(c, 1, 2 /* 1/2 */, someLocation!<p!>)
+    assert c.Closed()
+}

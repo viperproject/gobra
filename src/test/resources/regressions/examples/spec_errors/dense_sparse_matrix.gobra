@@ -147,7 +147,6 @@ func (dm *DenseMatrix)toSparse() (sm *SparseMatrix) {
             fold acc(denseMatrix(dm), 1/2)
         }
         // the following assert statement is necessary to preserve the outer loop's invariants:
-        //:: ExpectedOutput(assert_error:assertion_error)
         assert forall i, j int :: (0 <= i && i <= x && 0 <= j && j < dm.lenY() ==> dm.lookup(i, j) == LookupL(sm, dm.lenX(), dm.lenY(), i, j))
     }
 }

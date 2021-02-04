@@ -4,12 +4,12 @@
 package list
 
 type node struct {
-  value int
+  value interface{}
   next *node
 }
 
 pred list(ptr *node) {
-  acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
+  acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
 }
 
 
@@ -39,16 +39,16 @@ func reverse (ptr *node) (res *node) {
 
 
 requires list(ptr)
-pure func contains(ptr *node, value int) bool {
+pure func contains(ptr *node, value interface{}) bool {
     return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }
 
 
-requires list(ptr)
+requires list(ptr) && isComparable(value)
 ensures list(ptr)
 ensures idx >= 0
 ensures contains(ptr, value)
-func insert(ptr *node, value int) (ghost idx int) {
+func insert(ptr *node, value interface{}) (ghost idx int) {
   unfold list(ptr)
   if (ptr.next == nil) {
     newNode := &node{value: value}
@@ -68,7 +68,7 @@ requires list(ptr)
 //:: ExpectedOutput(postcondition_error:permission_error)
 ensures list(rPtr)
 ensures rPtr != nil ==> !contains(rPtr, value)
-func removeAllOccurrances(ptr *node, value int) (rPtr *node) {
+func removeAllOccurrances(ptr *node, value interface{}) (rPtr *node) {
   unfold list(ptr)
   if (ptr.next != nil) {
     newNext := removeAllOccurrances(ptr.next, value)

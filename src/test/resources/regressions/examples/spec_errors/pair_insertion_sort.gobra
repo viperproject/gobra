@@ -151,7 +151,8 @@ func sort (s []int, ghost xs seq[int]) (ghost ys seq[int]) {
   invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
   invariant ys == toseq(s)
   invariant ys[i:] == xs[i:]
-  invariant sorted(ys[:i])
+  // we forget to specify that ys up to index i is sorted (seeded bug):
+  // invariant sorted(ys[:i])
 	for i < len(s) - 1 {
     x := s[i]
     y := s[i + 1]
@@ -166,6 +167,7 @@ func sort (s []int, ghost xs seq[int]) (ghost ys seq[int]) {
     assert y == min(s[i], s[i + 1])
    
     var j int
+    //:: ExpectedOutput(precondition_error:assertion_error)
     ys, j = inner1(s, ys, i, x)
     ys, j = inner2(s, ys, i, j, y)
   

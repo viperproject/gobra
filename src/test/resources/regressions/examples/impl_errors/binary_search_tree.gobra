@@ -180,6 +180,7 @@ func (t *Tree) Delete(value int) {
 requires lowerBound != none[int] ==> get(lowerBound) < value
 requires upperBound != none[int] ==> get(upperBound) > value
 requires n.tree() && n.sorted(lowerBound, upperBound)
+//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures res != nil ==> res.tree() && res.sorted(lowerBound, upperBound)
 ensures res != nil ==> !(value in res.sortedValues(lowerBound, upperBound))
 func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res *node) {
@@ -203,8 +204,8 @@ func (n *node) delete(value int, ghost lowerBound, upperBound option[int]) (res 
             ghost if (n.left != nil) {
                 n.left.convert(lowerBound, some(n.value), lowerBound, some(minValue))
             }
-            // overwrite value that should be deleted:
-            n.value = minValue
+            // forget to overwrite value that should be deleted (seeded bug)
+            // n.value = minValue
             fold n.tree()
             res = n
         } else if (n.left != nil) {

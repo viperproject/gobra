@@ -142,6 +142,7 @@ func siftDown (s []int, start int, end int, ghost preserve bool) {
   
   invariant start <= root && root <= end
   invariant forall n int :: 0 <= n && n < len(s) ==> acc(&s[n])
+  //:: ExpectedOutput(invariant_preservation_error:assertion_error)
   invariant almostHeap(s, start, end, root)
   invariant forall n int :: start <= parent(root) && root == parent(n) && n <= end ==> s[n] <= s[parent(root)]
   invariant stop ==> validParent(s, end, root)
@@ -149,7 +150,7 @@ func siftDown (s []int, start int, end int, ghost preserve bool) {
   invariant preserve ==> forall i int :: 0 <= i && i <= end && end+1 < len(s) ==> s[i] <= s[end+1]
   for !stop && leftChild(root) <= end {
     child := leftChild(root)
-    if (child + 1 <= end && s[child] < s[child + 1]) {
+    if (child + 1 < end && s[child] < s[child + 1]) {
       child = child + 1
     }
     if (s[root] < s[child]) {

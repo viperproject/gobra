@@ -21,6 +21,7 @@ pure func (self *Tree) Contains(v int) bool {
 }
 
 requires self != nil ==> tree(self)
+//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures tree(res) && res.Contains(v)
 func (self *Tree) Insert(v int) (res *Tree) {
     if self == nil {
@@ -32,7 +33,8 @@ func (self *Tree) Insert(v int) (res *Tree) {
         if (self.Value + v) % 2 == 0 {
             self.Left = self.Left.Insert(v)
         } else {
-            self.Right = self.Right.Insert(v)
+            // forgot to insert v in the right subtree (seeded bug):
+            // self.Right = self.Right.Insert(v)
         }
         res = self
     }

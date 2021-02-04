@@ -39,6 +39,7 @@ pure func contains(ptr *node, value int) bool {
 requires infList(ptr)
 ensures infList(rPtr)
 ensures removeCount >= 0
+//:: ExpectedOutput(postcondition_error:assertion_error)
 ensures removeCount > 0 == old(contains(ptr, value))
 ensures !contains(rPtr, value)
 func removeAllOccurrances(ptr *node, value int) (rPtr *node, removeCount int) {
@@ -47,7 +48,8 @@ func removeAllOccurrances(ptr *node, value int) (rPtr *node, removeCount int) {
   if (ptr.value == value) {
     // remove this node as well
     rPtr = newNext
-    removeCount = removeCount + 1
+    // we forget to the increment removeCount (seeded bug):
+    // removeCount = removeCount + 1
   } else {
     // keep this node
     ptr.next = newNext

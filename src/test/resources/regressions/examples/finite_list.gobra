@@ -1,0 +1,89 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package list
+
+type node struct {
+  value interface{}
+  next *node
+}
+
+pred list(ptr *node) {
+  acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
+}
+
+
+requires ptr != nil ==> list(ptr)
+requires rev != nil ==> list(rev)
+ensures ptr == nil ==> res == rev
+ensures ptr != nil ==> res != nil
+ensures res != nil ==> list(res)
+func tail_reverse (ptr, rev *node) (res *node) {
+  if(ptr == nil) {
+    return rev
+  } else {
+    unfold list(ptr)
+    tmp := ptr
+    ptr = ptr.next
+    tmp.next = rev
+    fold list(tmp)
+    return tail_reverse(ptr,tmp)
+  }
+}
+
+requires list(ptr)
+ensures list(res)
+func reverse (ptr *node) (res *node) {
+  return tail_reverse(ptr,nil)
+}
+
+
+requires list(ptr)
+pure func contains(ptr *node, value interface{}) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+
+
+requires list(ptr) && isComparable(value)
+ensures list(ptr)
+ensures idx >= 0
+ensures contains(ptr, value)
+func insert(ptr *node, value interface{}) (ghost idx int) {
+  unfold list(ptr)
+  if (ptr.next == nil) {
+    newNode := &node{value: value}
+    fold list(newNode)
+    ptr.next = newNode
+    idx = 1
+  } else {
+    idx = insert(ptr.next, value) + 1
+  }
+  fold list(ptr)
+}
+
+
+requires list(ptr)
+ensures rPtr != nil ==> list(rPtr)
+ensures rPtr != nil ==> !contains(rPtr, value)
+func removeAllOccurrances(ptr *node, value interface{}) (rPtr *node) {
+  unfold list(ptr)
+  if (ptr.next != nil) {
+    newNext := removeAllOccurrances(ptr.next, value)
+    if (ptr.value == value) {
+        // remove this node as well
+        rPtr = newNext
+    } else {
+        // keep this node
+        ptr.next = newNext
+        fold list(ptr)
+        rPtr = ptr
+    }
+  } else if (ptr.value == value) {
+    rPtr = nil
+  } else {
+    // value not found
+    fold list(ptr)
+    rPtr = ptr
+  }
+  return
+}

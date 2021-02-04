@@ -41,10 +41,12 @@ func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
     ghost s0 := toSeq(s)
     invariant 0 <= i && i <= len(s)
     invariant forall j int :: 0 <= j && j < len(s) ==> acc(&s[j])
+    //:: ExpectedOutput(invariant_preservation_error:assertion_error)
     invariant forall j int :: {s[j]} 0 <= j && j < len(s) ==>
       s[j] == (s0[j] == x && j < i ? y : s0[j])
     for i := 0; i != len(s); i++ {
-      if(s[i] == x) { s[i] = y }
+      // we forget to perform the worker's task (seeded bug):
+      // if(s[i] == x) { s[i] = y }
     }
     fold replacedPerm!<s0,s,x,y!>()
     wg.PayDebt(replacedPerm!<s0,s,x,y!>)

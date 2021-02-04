@@ -123,7 +123,8 @@ func (n *node) contains(value int, ghost dividend int, ghost lowerBound, upperBo
 
 requires t.tree()
 ensures t.tree()
-ensures value in t.sortedValues()
+// seeded bug: postcondition is too weak:
+// ensures value in t.sortedValues()
 ensures len(t.sortedValues()) == old(len(t.sortedValues())) + (value in old(t.sortedValues()) ? 0 : 1)
 ensures forall i int :: (i in old(t.sortedValues()) ==> i in t.sortedValues())
 ensures value in old(t.sortedValues()) ==> old(t.sortedValues()) == t.sortedValues()
@@ -306,6 +307,7 @@ func client0(value int) (t *Tree) {
     t = NewTree()
     assert !t.Contains(value, 2)
     t.Insert(value)
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert t.sortedValues() == seq[int]{ value }
     t.Delete(value)
     assert !t.Contains(value, 2)
@@ -328,6 +330,7 @@ func client2(t *Tree, value int) {
     // insert a new value
     t.Insert(value)
     var newValues = t.sortedValues()
+    //:: ExpectedOutput(assert_error:assertion_error)
     assert t.Contains(value, 2)
     ghost if (value in oldValues) {
         assert oldValues == newValues

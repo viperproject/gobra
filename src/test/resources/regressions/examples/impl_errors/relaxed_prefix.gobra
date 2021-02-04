@@ -39,6 +39,7 @@ func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
   invariant !res ==> shift == 1 && 1 < i
   invariant shift == 0 ==> forall k int :: 0 <= k && k < i ==> pat[k] == s[k]
   invariant shift == 0 ==> pivot == -1
+  //:: ExpectedOutput(invariant_preservation_error:assertion_error)
   invariant shift == 1 ==> 0 <= pivot && pivot < i
   invariant shift == 1 ==> forall k int :: 0 <= k && k < pivot ==> pat[k] == s[k]
   invariant shift == 1 ==> pat[pivot] != s[pivot]
@@ -49,7 +50,8 @@ func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
     if (pat[i] != s[i - shift]) {
       if (shift == 0) {
         shift = 1
-        pivot = i
+        // we forget to assign i to pivot (seeded bug):
+        // pivot = i
       } else {
         res = false
       }

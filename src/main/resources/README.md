@@ -1,6 +1,10 @@
 # Resources
 This folder contains resources that are included in the Gobra jar file.
 
+## Built-Ins
+The `.gobra` files in the `builtin` folder form a package and thus need to have the same package clause and be located in the top-level directory (i.e. subdirectories are ignored).
+Members declared in these files will be available without any import in the file being verified and can be accessed without qualifier.
+
 ## Stubs
 The `.gobra` files contained in the `stubs` folder are particularly noteworthy:
 Gobra uses them when resolving package imports.

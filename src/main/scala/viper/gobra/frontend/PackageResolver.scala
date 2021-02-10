@@ -22,26 +22,36 @@ import scala.jdk.CollectionConverters._
 object PackageResolver {
 
   val extension = """gobra"""
+  /** directory containing the package of built-in members that are automatically unqualifiedly imported */
+  val builtInDirectory = "builtin"
   /** directory paths containing stubs relative to src/main/resources */
   val stubDirectories = Vector("stubs")
   val fileUriScheme = "file"
   val jarUriScheme = "jar"
 
+  trait AbstractImport
+  /** represents an implicit unqualified import that should resolve to the built-in package */
+  case object BuiltInImport extends AbstractImport
+  /** relative import path that should be resolved; an empty importPath results in looking for files in the current directory */
+  case class RegularImport(importPath: String) extends AbstractImport {
+    override def toString: String = importPath
+  }
+
   /**
     * Resolves a package name (i.e. import path) to specific input files
-    * @param importPath relative import path that should be resolved
+    * @param importTarget
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolve(importPath: String, includeDirs: Vector[File]): Either[String, Vector[InputResource]] = {
+  def resolve(importTarget: AbstractImport, includeDirs: Vector[File]): Either[String, Vector[InputResource]] = {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importPath, includeDirs)
+      pkgDir <- getLookupPath(importTarget, includeDirs)
       sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
-      _ <- checkPackageClauses(sourceFiles, importPath)
+      _ <- checkPackageClauses(sourceFiles, importTarget)
     } yield sourceFiles
   }
 
@@ -55,13 +65,14 @@ object PackageResolver {
     *         if no directory could be found or the directory contains input files having different package clauses
     */
   def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
+    val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(n.importPath, includeDirs)
+      pkgDir <- getLookupPath(importTarget, includeDirs)
       sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
-      pkgName <- checkPackageClauses(sourceFiles, n.importPath)
+      pkgName <- checkPackageClauses(sourceFiles, importTarget)
       // close all files as we do not need them anymore:
       _ = sourceFiles.foreach(_.close())
     } yield pkgName
@@ -71,28 +82,37 @@ object PackageResolver {
     includeDirs.map(FileResource)
   }
 
+  // getBuiltInResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
+  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
+  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
+  // the underlying FileSystem.
+  private def getBuiltInResource: Option[InputResource] = getResource(builtInDirectory)
+
   // getStubResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
   // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
   // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
   // the underlying FileSystem.
-  private def getStubResources: Vector[InputResource] = {
-    // get path to stubs
-    stubDirectories.flatMap(stubDir => {
-      val nullableResourceUri = getClass.getClassLoader.getResource(stubDir).toURI
-      for {
-        resourceUri <- Option.when(nullableResourceUri != null)(nullableResourceUri)
-        // when executing the tests, the resource URI points to regular files in the filesystem (i.e. the
-        // URI scheme is "file"). However, when directly running Gobra, files in the resource folder are contained in
-        // the jar file. As this is some kind of zip file, accessing the stubs as regular files is not possible.
-        // BaseJarResource provides an abstraction that internally uses an adhoc filesystem to enable file-like access
-        // to these resources.
-        resource <- resourceUri.getScheme match {
-          case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri).toFile))
-          case s if s == jarUriScheme => Some(BaseJarResource(resourceUri, stubDir))
-          case _ => None
-        }
-      } yield resource
-    })
+  private def getStubResources: Vector[InputResource] = stubDirectories.flatMap(getResource)
+
+  // getResource must be a def instead of a val because a new instance of `BaseJarResource` should be created for
+  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
+  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
+  // the underlying FileSystem.
+  private def getResource(path: String): Option[InputResource] = {
+    val nullableResourceUri = getClass.getClassLoader.getResource(path).toURI
+    for {
+      resourceUri <- Option.when(nullableResourceUri != null)(nullableResourceUri)
+      // when executing the tests, the resource URI points to regular files in the filesystem (i.e. the
+      // URI scheme is "file"). However, when directly running Gobra, files in the resource folder are contained in
+      // the jar file. As this is some kind of zip file, accessing the stubs as regular files is not possible.
+      // BaseJarResource provides an abstraction that internally uses an adhoc filesystem to enable file-like access
+      // to these resources.
+      resource <- resourceUri.getScheme match {
+        case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri).toFile))
+        case s if s == jarUriScheme => Some(BaseJarResource(resourceUri, path))
+        case _ => None
+      }
+    } yield resource
   }
 
   private def getGoPathResources: Vector[InputResource] = {
@@ -108,20 +128,24 @@ object PackageResolver {
   }
 
   /**
-    * Resolves importPath using includeDirs to a directory which exists and from which source files should be retrieved
+    * Resolves import target using includeDirs to a directory which exists and from which source files should be retrieved
     */
-  private def getLookupPath(importPath: String, includeDirs: Vector[File]): Either[String, InputResource] = {
-    val resources = getIncludeResources(includeDirs) ++ getStubResources ++ getGoPathResources
-    // the desired package should now be located in a subdirectory named after the package name:
-    val packageDirs = resources.map(_.resolve(importPath))
-    // take first one that exists:
-    val pkgDirOpt = packageDirs.collectFirst { case p if p.exists() => p }
-    // close all resources that we no longer need:
-    (resources ++ packageDirs).foreach {
-      case resource if !pkgDirOpt.contains(resource) => resource.close()
-      case _ =>
+  private def getLookupPath(importTarget: AbstractImport, includeDirs: Vector[File]): Either[String, InputResource] = {
+    importTarget match {
+      case BuiltInImport => getBuiltInResource.toRight(s"Loading builtin package has failed")
+      case RegularImport(importPath) =>
+        val resources = getIncludeResources(includeDirs) ++ getStubResources ++ getGoPathResources
+        // the desired package should now be located in a subdirectory named after the package name:
+        val packageDirs = resources.map(_.resolve(importPath))
+        // take first one that exists:
+        val pkgDirOpt = packageDirs.collectFirst { case p if p.exists() => p }
+        // close all resources that we no longer need:
+        (resources ++ packageDirs).foreach {
+          case resource if !pkgDirOpt.contains(resource) => resource.close()
+          case _ =>
+        }
+        pkgDirOpt.toRight(s"No existing directory found for import path '$importPath'")
     }
-    pkgDirOpt.toRight(s"No existing directory found for import path '$importPath'")
   }
 
   /**
@@ -144,7 +168,7 @@ object PackageResolver {
     * Looks up the package clauses for all files and checks whether they match.
     * Returns right with the package name used in the package clause if they do, otherwise returns left with an error message
     */
-  def checkPackageClauses(files: Vector[InputResource], importPath: String): Either[String, String] = {
+  def checkPackageClauses(files: Vector[InputResource], importTarget: AbstractImport): Either[String, String] = {
     // importPath is only used to create an error message that is similar to the error message of the official Go compiler
     def getPackageClauses(files: Vector[InputResource]): Either[String, Vector[(InputResource, String)]] = {
       val pkgClauses = files.map(f => {
@@ -163,7 +187,7 @@ object PackageResolver {
       if (differingClauses.isEmpty) Right(pkgClauses.head._2)
       else {
         val foundPackages = differingClauses.collect { case (f, clause) => s"$clause (${f})" }.mkString(", ")
-        Left(s"Found packages $foundPackages in $importPath")
+        Left(s"Found packages $foundPackages in $importTarget")
       }
     }
 

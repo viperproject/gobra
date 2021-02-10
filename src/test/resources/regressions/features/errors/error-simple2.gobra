@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// redeclare built-in interface error:
+type error interface {
+    Test() int
+}
+
+func foo(e error) int {
+    // this works since Go/Gobra will pick up the error interface declaration in this file
+    return e.Test()
+}

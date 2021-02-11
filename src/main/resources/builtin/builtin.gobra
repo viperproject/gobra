@@ -10,3 +10,10 @@ type error interface {
     // currently empty as Gobra does not yet support strings
     // Error() string
 }
+
+// The panic built-in function stops normal execution of the current
+// goroutine. Because Gobra does not support defer statements yet,
+// a panic is modeled as an unrecoverable error in the program and
+// a correct program must never call it.
+requires false
+func panic(v interface{})

@@ -1,0 +1,110 @@
+// Copyright 2011 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package time
+
+/*
+import (
+	// "errors"
+	// "sync"
+	// "syscall"
+)*/
+
+type Location struct {
+	// name string // TODO
+	// zone []zone // Leads to cycle in kiama
+	tx   []zoneTrans
+	// extend string // TODO
+	cacheStart int64
+	cacheEnd   int64
+	cacheZone  *zone
+}
+
+type zone struct {
+	// name   string // TODO
+	offset int
+	isDST  bool
+}
+
+type zoneTrans struct {
+	when         int64
+	index        uint8
+	isstd, isutc bool
+}
+
+// No support for global variables
+// var UTC *Location = &utcLoc
+//var utcLoc = Location{name: "UTC"}
+// var Local *Location = &localLoc
+// var localLoc Location
+// var localOnce sync.Once // TODO: no support for once
+
+// TODO: nees support for sync.Once; 
+// TODO: get is a reserved keyword
+//func (l *Location) get() *Location
+/*{
+	if l == nil {
+		return &utcLoc
+	}
+	if l == &localLoc {
+		localOnce.Do(initLocal)
+	}
+	return l
+}*/
+
+// TODO: Transitively requires synchronization through the call to get
+// pure func (l *Location) String() string {
+// 	return l.get().name
+//}
+
+/*
+func FixedZone(name string, offset int) *Location {
+	l := &Location{
+		name:       name,
+		zone:       []zone{{name, offset, false}},
+		tx:         []zoneTrans{{alpha, 0, false, false}},
+		cacheStart: alpha,
+		cacheEnd:   omega,
+	}
+	l.cacheZone = &l.zone[0]
+	return l
+}
+*/
+
+/*
+func LoadLocation(name string) (*Location, error) {
+	if name == "" || name == "UTC" {
+		return UTC, nil
+	}
+	if name == "Local" {
+		return Local, nil
+	}
+	if containsDotDot(name) || name[0] == '/' || name[0] == '\\' {
+		// No valid IANA Time Zone name contains a single dot,
+		// much less dot dot. Likewise, none begin with a slash.
+		return nil, errLocation
+	}
+	zoneinfoOnce.Do(func() {
+		env, _ := syscall.Getenv("ZONEINFO")
+		zoneinfo = &env
+	})
+	var firstErr error
+	if *zoneinfo != "" {
+		if zoneData, err := loadTzinfoFromDirOrZip(*zoneinfo, name); err == nil {
+			if z, err := LoadLocationFromTZData(name, zoneData); err == nil {
+				return z, nil
+			}
+			firstErr = err
+		} else if err != syscall.ENOENT {
+			firstErr = err
+		}
+	}
+	if z, err := loadLocation(name, zoneSources); err == nil {
+		return z, nil
+	} else if firstErr == nil {
+		firstErr = err
+	}
+	return nil, firstErr
+}
+*/

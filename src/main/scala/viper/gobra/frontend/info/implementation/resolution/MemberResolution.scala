@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.relation.Relation
 import org.bitbucket.inkytonik.kiama.util.Entity
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.PackageResolver.{AbstractImport, BuiltInImport, RegularImport}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.{PackageResolver, Parser}
@@ -215,13 +216,12 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryMethodLikeLookup(e: PType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = tryMethodLikeLookup(typeSymbType(e), id)
 
-  def tryPackageLookup(pkgImport: PImport, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
-    def parseAndTypeCheck(pkgImport: PImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val importPath = pkgImport.importPath
-      val pkgFiles = PackageResolver.resolve(importPath, config.includeDirs).getOrElse(Vector())
+  def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
+    def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
+      val pkgFiles = PackageResolver.resolve(importTarget, config.includeDirs).getOrElse(Vector())
       val res = for {
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
-          Left(Vector(NotFoundError(s"No source files for package '$importPath' found")))
+          Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))
           else Right(pkgFiles)
         parsedProgram <- Parser.parse(nonEmptyPkgFiles.map(_.path), specOnly = true)(config)
         // TODO maybe don't check whole file but only members that are actually used/imported
@@ -232,33 +232,33 @@ trait MemberResolution { this: TypeInfoImpl =>
         _ = pkgFiles.map(_.close())
       } yield info
       res.fold(
-        errs => context.addErrenousPackage(importPath, errs),
-        info => context.addPackage(importPath, info)
+        errs => context.addErrenousPackage(importTarget, errs),
+        info => context.addPackage(importTarget, info)
       )
       res
     }
 
-    def getTypeChecker(pkgImport: PImport): Either[Messages, ExternalTypeInfo] = {
+    def getTypeChecker(importTarget: AbstractImport, errNode: PNode): Either[Messages, ExternalTypeInfo] = {
       def createImportError(errs: Vector[VerifierError]): Messages = {
         // create an error message located at the import statement to indicate errors in the imported package
         // we distinguish between parse and type errors, cyclic imports, and packages whose source files could not be found
         val notFoundErr = errs.collectFirst { case e: NotFoundError => e }
         // alternativeErr is a function to compute the message only when needed
-        val alternativeErr = () => context.getImportCycle(pkgImport.importPath) match {
-          case Some(cycle) => message(pkgImport, s"Package '${pkgImport.importPath}' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(pkgImport, s"Package '${pkgImport.importPath}' contains errors")
+        val alternativeErr = () => context.getImportCycle(importTarget) match {
+          case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
+          case _ => message(errNode, s"Package '$importTarget' contains errors")
         }
-        notFoundErr.map(e => message(pkgImport, e.message))
+        notFoundErr.map(e => message(errNode, e.message))
           .getOrElse(alternativeErr())
       }
 
       // check if package was already parsed, otherwise do parsing and type checking:
-      val cachedInfo = context.getTypeInfo(pkgImport.importPath)
-      cachedInfo.getOrElse(parseAndTypeCheck(pkgImport)).left.map(createImportError)
+      val cachedInfo = context.getTypeInfo(importTarget)
+      cachedInfo.getOrElse(parseAndTypeCheck(importTarget)).left.map(createImportError)
     }
 
     val foreignPkgResult = for {
-      typeChecker <- getTypeChecker(pkgImport)
+      typeChecker <- getTypeChecker(importTarget, errNode)
       entity = typeChecker.externalRegular(id)
     } yield entity
     foreignPkgResult.fold(
@@ -279,7 +279,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
         else typeSymbType(typ) match {
-          case pkg: ImportT => tryPackageLookup(pkg.decl, id)
+          case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
           case _ => None
         }
     }
@@ -287,23 +287,34 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   lazy val tryUnqualifiedPackageLookup: PIdnUse => Entity =
     attr[PIdnUse, Entity] {
-      id => {
-        val transitiveParent = transitiveClosure(id, tree.parent(_))
-        val entities = for {
-          // get enclosing PProgram for this PIdnUse node
-          program <- transitiveParent(id).collectFirst { case p: PProgram => p }
-          // consider all unqualified imports for this program (not package)
-          unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
-          // perform a package lookup in each unqualifiedly imported package
-          results = unqualifiedImports.flatMap(ui => tryPackageLookup(ui, id))
-        } yield results
-        entities match {
-          case Some(Vector(elem)) => elem._1
-          case Some(v) if v.length > 1 => MultipleEntity()
-          case _ => UnknownEntity()
-        }
-      }
+      id =>
+        // Go is weird in the sense that it let's you redeclare built-in identifiers such as "error" but won't complain
+        // about the redeclaration. If the redeclaration happens in the same package, the redeclaration is
+        // used (instead of the built-in one). If the redeclaration happens in an imported package Go's behavior is not
+        // fully clear since "error" is not exported. However, we give higher precedence to the built-in one in Gobra
+        // to approximate Go's behavior.
+        tryUnqualifiedBuiltInPackageLookup(id).getOrElse(tryUnqualifiedRegularPackageLookup(id))
     }
+
+  def tryUnqualifiedBuiltInPackageLookup(id: PIdnUse): Option[Entity] =
+    tryPackageLookup(BuiltInImport, id, id).map(_._1)
+
+  def tryUnqualifiedRegularPackageLookup(id: PIdnUse): Entity = {
+    val transitiveParent = transitiveClosure(id, tree.parent(_))
+    val entities = for {
+      // get enclosing PProgram for this PIdnUse node
+      program <- transitiveParent(id).collectFirst { case p: PProgram => p }
+      // consider all unqualified imports for this program (not package)
+      unqualifiedImports = program.imports.collect { case ui: PUnqualifiedImport => ui }
+      // perform a package lookup in each unqualifiedly imported package
+      results = unqualifiedImports.flatMap(ui => tryPackageLookup(RegularImport(ui.importPath), id, ui))
+    } yield results
+    entities match {
+      case Some(Vector(elem)) => elem._1
+      case Some(v) if v.length > 1 => MultipleEntity()
+      case _ => UnknownEntity()
+    }
+  }
 
   def transitiveClosure[T](t : T, onestep : T => Vector[T]): Relation[T, T] = {
     // fromOneStep creates a new relation in which all links from t to the root are contained in

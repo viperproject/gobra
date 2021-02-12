@@ -1,0 +1,19 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+package builtin
+
+type error interface {
+    // currently empty as Gobra does not yet support strings
+    // Error() string
+}
+
+// The panic built-in function stops normal execution of the current
+// goroutine. Because Gobra does not support defer statements yet,
+// a panic is modeled as an unrecoverable error in the program and
+// a correct program must never call it.
+requires false
+func panic(v interface{})

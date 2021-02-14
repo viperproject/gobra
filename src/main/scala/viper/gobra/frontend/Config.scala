@@ -16,7 +16,7 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.PackageResolver.FileResource
+import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.TypeBounds
 
@@ -305,7 +305,7 @@ class ScallopGobraConfig(arguments: Seq[String])
           case Left(_) =>
             for {
               // look for files in the current directory, i.e. use an empty importPath
-              resolvedResources <- PackageResolver.resolve("", includeDirs)
+              resolvedResources <- PackageResolver.resolve(RegularImport(""), includeDirs)
               resolvedFiles = resolvedResources.flatMap({
                 case fileResource: FileResource => Some(fileResource.file)
                 case _ => None

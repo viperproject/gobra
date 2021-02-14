@@ -169,9 +169,9 @@ object Desugar {
       in.MethodProxy(decl.id.name, name)(meta(decl))
     }
 
-    def methodProxyD(decl: PMethodSig): in.MethodProxy = {
-      val name = idName(decl.id)
-      in.MethodProxy(decl.id.name, name)(meta(decl))
+    def methodProxyD(decl: PMethodSig, context: TypeInfo = info): in.MethodProxy = {
+      val name = idName(decl.id, context)
+      in.MethodProxy(decl.id.name, name)(meta(decl, context))
     }
 
     def methodProxy(id: PIdnUse): in.MethodProxy = {
@@ -194,9 +194,9 @@ object Desugar {
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
     }
 
-    def mpredicateProxyD(decl: PMPredicateSig): in.MPredicateProxy = {
-      val name = idName(decl.id)
-      in.MPredicateProxy(decl.id.name, name)(meta(decl))
+    def mpredicateProxyD(decl: PMPredicateSig, context: TypeInfo = info): in.MPredicateProxy = {
+      val name = idName(decl.id, context)
+      in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
     }
 
     def mpredicateProxyD(id: PIdnUse): in.MPredicateProxy = {
@@ -1759,10 +1759,10 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
 
         t.decl.predSpec foreach { p =>
-          val src = meta(p)
-          val proxy = mpredicateProxyD(p)
+          val src = meta(p, t.context.getTypeInfo)
+          val proxy = mpredicateProxyD(p, t.context.getTypeInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
           val (args, _) = argsWithSubs.unzip
 
           val mem = in.MPredicate(recv, proxy, args, None)(src)
@@ -1772,12 +1772,12 @@ object Desugar {
         }
 
         t.decl.methSpecs foreach { m =>
-          val src = meta(m)
-          val proxy = methodProxyD(m)
+          val src = meta(m, t.context.getTypeInfo)
+          val proxy = methodProxyD(m, t.context.getTypeInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
           val (args, _) = argsWithSubs.unzip
-          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,t.context.getTypeInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = m.spec.pres map preconditionD(specCtx)
@@ -1996,18 +1996,18 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def inParameterD(p: PParameter, idx: Int): (in.Parameter.In, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+    def inParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
+      val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(nm.inParam(idx, context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.inParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -2016,18 +2016,18 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def outParameterD(p: PParameter, idx: Int): (in.Parameter.Out, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+    def outParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.Out, Option[in.LocalVar]) = {
+      val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.Out(idName(id), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(idName(id, context), typeD(context.symbType(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(nm.outParam(idx, context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.outParameter)(src))(src)
               val local = None
               (param, local)
           }
@@ -2488,7 +2488,8 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode): Meta = {
+    private def meta(n: PNode, context: TypeInfo = info): Meta = {
+      val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)

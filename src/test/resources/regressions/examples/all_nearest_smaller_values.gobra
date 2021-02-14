@@ -6,7 +6,7 @@
 // note that verifying this file takes roughly 77s as part of CI (Z3 4.8.7) but verification does not terminate with Z3 4.8.8
 
 package main
-
+/*
 type Stack struct {
     value int
     next *Stack
@@ -45,14 +45,14 @@ requires acc(stack(x), 1/4)
 requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
 requires 1 <= z && z <= len(s)
 pure func stackInv(x *Stack, s []int, z int) (res bool) {
-    /* the following code causes unexpected Z3 output and a crash in Silicon
+    *//* the following code causes unexpected Z3 output and a crash in Silicon
     return x != nil ? unfolding acc(stack(x), 1/4) in (
         1 <= x.value && x.value < len(s) &&
         x.value <= z &&
         (z < len(s) ==> forall k int :: { s[k] } x.value < k && k <= z ==> s[z] <= s[k]) &&
         stackInv(x.next, s, x.value)) : (
         z < len(s) ==> forall k int :: { s[k] } 0 < k && k <= z ==> s[z] <= s[k])
-    */
+    *//*
     return stackInvPart1(x, s, z) && stackInvPart2(x, s, z) && stackInvPart3(x, s, z)
 }
 
@@ -194,7 +194,7 @@ func pushWithInv(w *Stack, v int, ghost s []int, ghost nz int) (nw *Stack) {
     nw = &Stack{value: v, next: w}
     fold stack(nw)
 }
-
+*/
 /* implemented algorithm (in func `code`):
 int i = 0
 stack s = emtpy

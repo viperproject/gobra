@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// not import
+
+func foo(e error) int {
+    // this does not work since the built-in error interface has not `Test` method:
+    //:: ExpectedOutput(type_error)
+    return e.Test()
+}

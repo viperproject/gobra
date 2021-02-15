@@ -1,15 +1,13 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/time/zoneinfo.go
 
 package time
-
-/*
-import (
-	// "errors"
-	// "sync"
-	// "syscall"
-)*/
 
 type Location struct {
 	// name string // TODO
@@ -35,23 +33,7 @@ type zoneTrans struct {
 
 // No support for global variables
 // var UTC *Location = &utcLoc
-//var utcLoc = Location{name: "UTC"}
 // var Local *Location = &localLoc
-// var localLoc Location
-// var localOnce sync.Once // TODO: no support for once
-
-// TODO: nees support for sync.Once; 
-// TODO: get is a reserved keyword
-//func (l *Location) get() *Location
-/*{
-	if l == nil {
-		return &utcLoc
-	}
-	if l == &localLoc {
-		localOnce.Do(initLocal)
-	}
-	return l
-}*/
 
 // TODO: Transitively requires synchronization through the call to get
 // pure func (l *Location) String() string {
@@ -72,39 +54,5 @@ func FixedZone(name string, offset int) *Location {
 }
 */
 
-/*
-func LoadLocation(name string) (*Location, error) {
-	if name == "" || name == "UTC" {
-		return UTC, nil
-	}
-	if name == "Local" {
-		return Local, nil
-	}
-	if containsDotDot(name) || name[0] == '/' || name[0] == '\\' {
-		// No valid IANA Time Zone name contains a single dot,
-		// much less dot dot. Likewise, none begin with a slash.
-		return nil, errLocation
-	}
-	zoneinfoOnce.Do(func() {
-		env, _ := syscall.Getenv("ZONEINFO")
-		zoneinfo = &env
-	})
-	var firstErr error
-	if *zoneinfo != "" {
-		if zoneData, err := loadTzinfoFromDirOrZip(*zoneinfo, name); err == nil {
-			if z, err := LoadLocationFromTZData(name, zoneData); err == nil {
-				return z, nil
-			}
-			firstErr = err
-		} else if err != syscall.ENOENT {
-			firstErr = err
-		}
-	}
-	if z, err := loadLocation(name, zoneSources); err == nil {
-		return z, nil
-	} else if firstErr == nil {
-		firstErr = err
-	}
-	return nil, firstErr
-}
-*/
+// No support for strings
+// func LoadLocation(name string) (*Location, error) 

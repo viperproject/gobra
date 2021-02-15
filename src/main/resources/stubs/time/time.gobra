@@ -1,7 +1,12 @@
-// Signatures for the declarations in file
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+// Signatures for the public declarations in file
 // https://github.com/golang/go/blob/master/src/time/time.go
 
-// (joao) check licenses
 package time
 
 type Time struct {
@@ -17,10 +22,6 @@ pure func (t Time) After(u Time) bool
 pure func (t Time) Before(u Time) bool
 
 // Equal reports whether t and u represent the same time instant.
-// Two times can be equal even if they are in different locations.
-// For example, 6:00 +0200 and 4:00 UTC are Equal.
-// See the documentation on the Time type for the pitfalls of using == with
-// Time values; most code should use Equal instead.
 func (t Time) Equal(u Time) bool
 
 // A Month specifies a month of the year (January = 1, ...).
@@ -109,21 +110,10 @@ ensures 1 <= res && res <= 365
 func (t Time) YearDay() (res int)
 
 // A Duration represents the elapsed time between two instants
-// as an int64 nanosecond count. The representation limits the
-// largest representable duration to approximately 290 years.
+// as a nanosecond count.
 type Duration int64
 
-// Common durations. There is no definition for units of Day or larger
-// to avoid confusion across daylight savings time zone transitions.
-//
-// To count the number of units in a Duration, divide:
-//	second := time.Second
-//	fmt.Print(int64(second/time.Millisecond)) // prints 1000
-//
-// To convert an integer number of units to a Duration, multiply:
-//	seconds := 10
-//	fmt.Print(time.Duration(seconds)*time.Second) // prints 10s
-//
+// Common durations
 const (
 	Nanosecond  Duration = 1
 	Microsecond          = 1000 * Nanosecond
@@ -134,10 +124,6 @@ const (
 )
 
 // String returns a string representing the duration in the form "72h3m0.5s".
-// Leading zero units are omitted. As a special case, durations less than one
-// second format use a smaller unit (milli-, micro-, or nanoseconds) to ensure
-// that the leading digit is non-zero. The zero duration formats as 0s.
-
 // func (d Duration) String() string
 
 // Nanoseconds returns the duration as an integer nanosecond count.
@@ -149,36 +135,15 @@ func (d Duration) Microseconds() int64 { return int64(d) / 1000 }
 // Milliseconds returns the duration as an integer millisecond count.
 func (d Duration) Milliseconds() int64 { return int64(d) / 1000000 }
 
-// These methods return float64 because the dominant
-// use case is for printing a floating point number like 1.5s, and
-// a truncation to integer would make them not useful in those cases.
-// Splitting the integer and fraction ourselves guarantees that
-// converting the returned float64 to an integer rounds the same
-// way that a pure integer conversion would have, even in cases
-// where, say, float64(d.Nanoseconds())/1e9 would have rounded
-// differently.
-
 // Seconds returns the duration as a floating point number of seconds.
 /* (joao) no support for float
-func (d Duration) Seconds() float64 {
-	sec := d / Second
-	nsec := d % Second
-	return float64(sec) + float64(nsec)/1e9
-}
+func (d Duration) Seconds() float64
 
 // Minutes returns the duration as a floating point number of minutes.
-func (d Duration) Minutes() float64 {
-	min := d / Minute
-	nsec := d % Minute
-	return float64(min) + float64(nsec)/(60*1e9)
-}
+func (d Duration) Minutes() float64
 
 // Hours returns the duration as a floating point number of hours.
-func (d Duration) Hours() float64 {
-	hour := d / Hour
-	nsec := d % Hour
-	return float64(hour) + float64(nsec)/(60*60*1e9)
-}
+func (d Duration) Hours() float64
 */
 
 // Truncate returns the result of rounding d toward zero to a multiple of m.
@@ -188,20 +153,12 @@ ensures m > 0 ==> res == d - d%m // leads to violation in the desugarer
 pure func (d Duration) Truncate(m Duration) (res Duration)
 
 // Round returns the result of rounding d to the nearest multiple of m.
-// The rounding behavior for halfway values is to round away from zero.
-// If the result exceeds the maximum (or minimum)
-// value that can be stored in a Duration,
-// Round returns the maximum (or minimum) duration.
-// If m <= 0, Round returns d unchanged.
 pure func (d Duration) Round(m Duration) Duration
 
 // Add returns the time t+d.
 func (t Time) Add(d Duration) Time
 
-// Sub returns the duration t-u. If the result exceeds the maximum (or minimum)
-// value that can be stored in a Duration, the maximum (or minimum) duration
-// will be returned.
-// To compute t-d for a duration d, use t.Add(-d).
+// Sub returns the duration t-u.
 func (t Time) Sub(u Time) Duration
 
 // Since returns the time elapsed since t.
@@ -214,26 +171,7 @@ func Until(t Time) Duration
 
 // AddDate returns the time corresponding to adding the
 // given number of years, months, and days to t.
-// For example, AddDate(-1, 2, 3) applied to January 1, 2011
-// returns March 4, 2010.
-//
-// AddDate normalizes its result in the same way that Date does,
-// so, for example, adding one month to October 31 yields
-// December 1, the normalized form for November 31.
-func (t Time) AddDate(years int, months int, days int) Time /*{
-	year, month, day := t.Date()
-	hour, min, sec := t.Clock()
-	return Date(year+years, month+Month(months), day+days, hour, min, sec, int(t.nsec()), t.Location())
-}
-*/
-
-// Monotonic times are reported as offsets from startNano.
-// We initialize startNano to runtimeNano() - 1 so that on systems where
-// monotonic time resolution is fairly low (e.g. Windows 2008
-// which appears to have a default resolution of 15ms),
-// we avoid ever reporting a monotonic time of 0.
-// (Callers may want to use 0 as "time not set".)
-// var startNano int64 = runtimeNano() - 1 // TODO: global vars
+func (t Time) AddDate(years int, months int, days int) Time
 
 // Now returns the current local time.
 func Now() Time
@@ -250,8 +188,6 @@ func (t Time) Local() Time /*{
 // In returns a copy of t representing the same time instant, but
 // with the copy's location information set to loc for display
 // purposes.
-//
-// In panics if loc is nil.
 requires loc != nil
 func (t Time) In(loc *Location) Time
 
@@ -265,91 +201,49 @@ func (t Time) Location() (res *Location)
 // func (t Time) Zone() (name string, offset int) 
 
 // Unix returns t as a Unix time, the number of seconds elapsed
-// since January 1, 1970 UTC. The result does not depend on the
-// location associated with t.
-// Unix-like operating systems often record time as a 32-bit
-// count of seconds, but since the method here returns a 64-bit
-// value it is valid for billions of years into the past or future.
+// since January 1, 1970 UTC.
 func (t Time) Unix() int64
 
 // UnixNano returns t as a Unix time, the number of nanoseconds elapsed
-// since January 1, 1970 UTC. The result is undefined if the Unix time
-// in nanoseconds cannot be represented by an int64 (a date before the year
-// 1678 or after 2262). Note that this means the result of calling UnixNano
-// on the zero Time is undefined. The result does not depend on the
-// location associated with t.
+// since January 1, 1970 UTC.
 func (t Time) UnixNano() int64
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
-//func (t Time) MarshalBinary() ([]byte, error) 
+func (t Time) MarshalBinary() ([]byte, error) 
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
-//func (t *Time) UnmarshalBinary(data []byte) error
+func (t *Time) UnmarshalBinary(data []byte) error
 
 // GobEncode implements the gob.GobEncoder interface.
-// func (t Time) GobEncode() ([]byte, error)
+func (t Time) GobEncode() ([]byte, error)
 
 // GobDecode implements the gob.GobDecoder interface.
-// func (t *Time) GobDecode(data []byte) error
+func (t *Time) GobDecode(data []byte) error
 
 // MarshalJSON implements the json.Marshaler interface.
-// The time is a quoted string in RFC 3339 format, with sub-second precision added if present.
-// func (t Time) MarshalJSON() ([]byte, error)
+func (t Time) MarshalJSON() ([]byte, error)
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-// The time is expected to be a quoted string in RFC 3339 format.
-// func (t *Time) UnmarshalJSON(data []byte) error
+func (t *Time) UnmarshalJSON(data []byte) error
 
 // MarshalText implements the encoding.TextMarshaler interface.
-// The time is formatted in RFC 3339 format, with sub-second precision added if present.
-// func (t Time) MarshalText() ([]byte, error)
+func (t Time) MarshalText() ([]byte, error)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
-// The time is expected to be in RFC 3339 format.
-// func (t *Time) UnmarshalText(data []byte) error
+func (t *Time) UnmarshalText(data []byte) error
 
 // Unix returns the local Time corresponding to the given Unix time,
 // sec seconds and nsec nanoseconds since January 1, 1970 UTC.
-// It is valid to pass nsec outside the range [0, 999999999].
-// Not all sec values have a corresponding time value. One such
-// value is 1<<63-1 (the largest int64 value).
 func Unix(sec int64, nsec int64) Time
 
-// Date returns the Time corresponding to
-//	yyyy-mm-dd hh:mm:ss + nsec nanoseconds
+// Date returns the Time corresponding to yyyy-mm-dd hh:mm:ss + nsec nanoseconds
 // in the appropriate zone for that time in the given location.
-//
-// The month, day, hour, min, sec, and nsec values may be outside
-// their usual ranges and will be normalized during the conversion.
-// For example, October 32 converts to November 1.
-//
-// A daylight savings time transition skips or repeats times.
-// For example, in the United States, March 13, 2011 2:15am never occurred,
-// while November 6, 2011 1:15am occurred twice. In such cases, the
-// choice of time zone, and therefore the time, is not well-defined.
-// Date returns a time that is correct in one of the two zones involved
-// in the transition, but it does not guarantee which.
-//
-// Date panics if loc is nil.
-requires acc(loc, 1/2) // can be changed to any value p > 0, but requires a ghost param of type Perm
+requires acc(loc, 1/2) // TODO: add param p of type Perm and require it to be greater than 0
 ensures acc(loc, 1/2)
 func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) Time
 
 // Truncate returns the result of rounding t down to a multiple of d (since the zero time).
-// If d <= 0, Truncate returns t stripped of any monotonic clock reading but otherwise unchanged.
-//
-// Truncate operates on the time as an absolute duration since the
-// zero time; it does not operate on the presentation form of the
-// time. Thus, Truncate(Hour) may return a time with a non-zero
-// minute, depending on the time's Location.
 func (t Time) Truncate(d Duration) Time
 
 // Round returns the result of rounding t to the nearest multiple of d (since the zero time).
-// The rounding behavior for halfway values is to round up.
-// If d <= 0, Round returns t stripped of any monotonic clock reading but otherwise unchanged.
-//
-// Round operates on the time as an absolute duration since the
-// zero time; it does not operate on the presentation form of the
-// time. Thus, Round(Hour) may return a time with a non-zero
-// minute, depending on the time's Location.
 func (t Time) Round(d Duration) Time

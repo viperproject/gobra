@@ -49,6 +49,7 @@ type ByteOrder interface {
 type LittleEndian struct{}
 type BigEndian struct{}
 
+/*
 LittleEndian implements ByteOrder {
     pure (e LittleEndian) Uint16(b []byte) uint16 {
         return e.Uint16(b)
@@ -74,6 +75,7 @@ LittleEndian implements ByteOrder {
         e.PutUint64(b, v)
     }
 }
+*/
 
 BigEndian implements ByteOrder {
     pure (e BigEndian) Uint16(b []byte) uint16 {

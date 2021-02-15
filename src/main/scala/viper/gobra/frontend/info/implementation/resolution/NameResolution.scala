@@ -8,11 +8,12 @@ package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag, BuiltInFPredicateTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.info.base.SymbolTable._
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
+import viper.gobra.util.Violation
 
 trait NameResolution { this: TypeInfoImpl =>
 
@@ -75,7 +76,10 @@ trait NameResolution { this: TypeInfoImpl =>
         case decl: PFPredicateDecl => FPredicate(decl, this)
         case decl: PMPredicateDecl => MPredicateImpl(decl, this)
         case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
+
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
+      case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
   private lazy val unkEntity: PIdnUnk => Entity =
@@ -110,6 +114,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case _ => violation("unexpected parent of unknown id")
       }
+      case _ => violation("PIdnUnk always has a parent")
     }
 
   private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
@@ -215,8 +220,9 @@ trait NameResolution { this: TypeInfoImpl =>
     }
   }
 
-  private def isUnorderedDef(id: PIdnDef): Boolean = id match { // TODO: a bit hacky, clean up at some point
+  private def isUnorderedDef(id: PIdnDef): Boolean = id match {
     case tree.parent(tree.parent(c)) => enclosingScope(c).isInstanceOf[PUnorderedScope]
+    case c => Violation.violation(s"Only the root has no parent, but got $c")
   }
 
 
@@ -232,6 +238,8 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent(p) =>
         scopedDefenv(p)
+
+      case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
 
   lazy val topLevelEnvironment: Environment = scopedDefenv(tree.originalRoot)

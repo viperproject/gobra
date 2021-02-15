@@ -20,7 +20,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{Algorithms, TypeBounds, Violation}
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -244,7 +244,7 @@ sealed trait Assignee extends Node {
 }
 
 object Assignee {
-  def unapply(x: Assignee): Option[Expr] = Some(x.op)
+  def unapply(x: Assignee): Some[Expr] = Some(x.op)
   def apply(op: Expr): Assignee = op match {
     case op: AssignableVar => Var(op)
     case op: Deref => Pointer(op)
@@ -277,7 +277,7 @@ sealed trait CompositeObject extends Node {
 }
 
 object CompositeObject {
-  def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
+  def unapply(arg: CompositeObject): Some[CompositeLit] = Some(arg.op)
 
   case class Array(op : ArrayLit) extends CompositeObject
   case class Slice(op : SliceLit) extends CompositeObject
@@ -844,7 +844,7 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
 }
 
 object BinaryExpr {
-  def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
+  def unapply(arg: BinaryExpr): Some[(Expr, String, Expr, Type)] =
     Some((arg.left, arg.operator, arg.right, arg.typ))
 }
 
@@ -932,7 +932,7 @@ sealed trait BlockDeclaration extends Declaration
 sealed trait Var extends Expr with Location {
   def id: String
 
-  def unapply(arg: Var): Option[(String, Type)] =
+  def unapply(arg: Var): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
@@ -952,7 +952,7 @@ sealed trait AssignableVar extends Var
 
 
 sealed trait Parameter extends BodyVar {
-  def unapply(arg: Parameter): Option[(String, Type)] =
+  def unapply(arg: Parameter): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
@@ -975,7 +975,7 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
 sealed trait GlobalConst extends GlobalVar {
-  def unapply(arg: GlobalConst): Option[(String, Type)] =
+  def unapply(arg: GlobalConst): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 

@@ -115,7 +115,7 @@ object Desugar {
   }
 
   object NoGhost {
-    def unapply(arg: PNode): Option[PNode] = arg match {
+    def unapply(arg: PNode): Some[PNode] = arg match {
       case PGhostifier(x) => Some(x)
       case x => Some(x)
     }
@@ -1027,12 +1027,14 @@ object Desugar {
       def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
         case ap.Function(id, _) => functionProxy(id)
         case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
         case ap.ReceivedMethod(_, id, _, _) => methodProxy(id)
         case ap.MethodExpr(_, id, _, _) => methodProxy(id)
         case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -1042,6 +1044,7 @@ object Desugar {
           case f: ap.BuiltInFunctionKind => arguments(getBuiltInFuncType(f), args)
           case base: ap.Symbolic => base.symb match {
             case fsym: st.WithArguments => arguments(fsym, args)
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }
       }
@@ -1053,6 +1056,7 @@ object Desugar {
           case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
           case base: ap.Symbolic => base.symb match {
             case fsym: st.WithArguments => fsym.args.length
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }
         sequence(p.args map exprD(ctx)).map {
@@ -1077,6 +1081,7 @@ object Desugar {
             val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
             val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
             (resT, targets)
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
       val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
@@ -1087,6 +1092,7 @@ object Desugar {
           case m: st.Method => m.isPure
           case f: st.BuiltInFunction => f.isPure
           case m: st.BuiltInMethod => m.isPure
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
 
@@ -1146,6 +1152,7 @@ object Desugar {
               case base: ap.BuiltInMethodExpr =>
                 // first argument is the receiver, the remaining arguments are the rest
                 dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             if (isPure) {
@@ -1430,6 +1437,7 @@ object Desugar {
                   val bufferSizeProxy = methodProxy(BuiltInMemberTag.BufferSizeMethodTag, channelType, Vector())(src)
                   in.MakeChannel(target, channelType, arg0, isChannelProxy, bufferSizeProxy)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
               _ <- write(make)
             } yield target
@@ -1455,6 +1463,7 @@ object Desugar {
                     // The result can have arguments, namely the arguments that are provided.
                     // The receiver type is not necessary, since this should already be partially applied by the typing of base
                     in.PredT(dArgs.flatten.map(_.typ), Addressability.rValue)
+                  case c => Violation.violation(s"This case should be unreachable, but got $c")
                 }
                 res <- w(idT, dArgs)
               } yield res
@@ -1467,11 +1476,13 @@ object Desugar {
                 val appliedArgs = args.flatten
                 violation(appliedArgs.length == args.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
                 fpredicateProxy(tag, appliedArgs.map(_.typ))(src)
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             def getMPredProxy(recvT: in.Type, argsT: Vector[in.Type]) = info.regular(base.id) match {
               case _: st.MPredicate => mpredicateProxyD(base.id)
               case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             base match {
@@ -1503,6 +1514,7 @@ object Desugar {
                       idT = in.PredT(baseT.args, Addressability.rValue)
                     } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
                   })
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
           }
 
@@ -2011,6 +2023,7 @@ object Desugar {
               val local = None
               (param, local)
           }
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
@@ -2031,6 +2044,7 @@ object Desugar {
               val local = None
               (param, local)
           }
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
@@ -2402,6 +2416,8 @@ object Desugar {
           val dRecvWithPath = applyMemberPathD(dArgs.head, b.path)(src)
           val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
+
+        case _: ap.PredExprInstance => Violation.violation("this case should be handled somewhere else")
 
         case b: ap.ImplicitlyReceivedInterfacePredicate =>
           val proxy = mpredicateProxyD(b.id)

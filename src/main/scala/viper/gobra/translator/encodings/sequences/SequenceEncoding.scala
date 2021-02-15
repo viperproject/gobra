@@ -15,6 +15,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class SequenceEncoding extends LeafTypeEncoding {
@@ -184,7 +185,8 @@ class SequenceEncoding extends LeafTypeEncoding {
         val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
         for {
           vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s).right.get)(ctx)
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s)
+            .getOrElse(Violation.violation("An incomparable sequence entails an incomparable element type.")))(ctx)
           contains = vpr.SeqContains(vS, vExp)(pos, info, errT)
           res = vpr.Forall(
           variables = Seq(vSDecl),
@@ -371,5 +373,6 @@ class SequenceEncoding extends LeafTypeEncoding {
     case Vector(chunk) => Vector(chunk)
     case c1 +: c2 +: cs =>
       c1 +: EmptyChunk(c2.firstIndex - c1.lastIndex - 1) +: completeGaps(c2 +: cs)
+    case c => Violation.violation(s"This case should be unreachable, but got $c")
   }
 }

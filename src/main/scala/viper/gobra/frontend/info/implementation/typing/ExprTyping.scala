@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -207,6 +208,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         val pureReceiverMsgs = p.predicate match {
           case _: ap.Predicate => noMessages
           case _: ap.PredicateExpr => noMessages
+          case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
           case _: ap.BuiltInPredicate => noMessages
           case _: ap.BuiltInPredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
@@ -228,6 +230,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case PredT(args) =>
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
 
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
@@ -641,6 +644,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
             case Some(ap.PredicateCall(_, args)) =>
@@ -660,6 +664,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
             case Some(ap.PredExprInstance(base, args)) =>
@@ -688,6 +693,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
             //  crashes Gobra without this case).
             None
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
 
         // expr has the default type if it appears in any other kind of statement
@@ -695,6 +701,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _ => None
       }
+      case c => Violation.violation(s"Only the root has not parent, but got $c")
     }
   }
 
@@ -705,6 +712,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
       case x => violation("blank identifier not supported in node " + x)
     }
+    case _ => violation("blank identifier always has a parent")
   }
 
   private def intExprType(expr: PNumExpression): Type = expr match {

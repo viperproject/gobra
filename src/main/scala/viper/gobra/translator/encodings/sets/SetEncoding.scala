@@ -12,6 +12,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class SetEncoding extends LeafTypeEncoding {
@@ -32,7 +33,7 @@ class SetEncoding extends LeafTypeEncoding {
     case ctx.Multiset(t) / m =>
       m match {
         case Exclusive => vpr.MultisetType(ctx.typeEncoding.typ(ctx)(t))
-        case Shared    => vpr.Ref
+        case Shared    => vpr.Ref: vpr.Type
       }
   }
 
@@ -149,18 +150,20 @@ class SetEncoding extends LeafTypeEncoding {
         val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
         for {
           vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s).right.get)(ctx)
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(s)
+            .getOrElse(Violation.violation("An incomparable set or mset entails an incomparable element type.")))(ctx)
           contains = vpr.AnySetContains(vS, vExp)(pos, info, errT)
           lhs = exp.typ match {
             case ctx.Set(_) => contains
             case ctx.Multiset(_) => vpr.GtCmp(contains, vpr.IntLit(0)(pos, info, errT))(pos, info, errT)
+            case t => Violation.violation(s"expected set or mset, but got $t")
           }
           res = vpr.Forall(
             variables = Seq(vSDecl),
             triggers = Seq(vpr.Trigger(Seq(rhs, contains))(pos, info, errT)),
             exp = vpr.Implies(lhs, rhs)(pos, info, errT)
           )(pos, info, errT)
-        } yield res
+        } yield res: vpr.Exp
       }
   }
 

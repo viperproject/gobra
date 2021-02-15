@@ -340,7 +340,7 @@ object ViperWriter {
       w.copy(newData, codeStmt)
     }
 
-    def seqnUnits(ws: Vector[Writer[Unit]], assume: Boolean = false): Writer[vpr.Seqn] =
+    def seqnUnits(ws: Vector[Writer[Unit]]): Writer[vpr.Seqn] =
       sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
 
     def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] = {

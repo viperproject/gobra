@@ -10,6 +10,8 @@ import viper.gobra.frontend.Config
 import viper.silver.{ast => vpr}
 import viper.silver
 
+import scala.annotation.unused
+
 object BackTranslator {
 
   trait ErrorBackTranslator {
@@ -25,7 +27,7 @@ object BackTranslator {
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
   type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerificationErrorReason]
 
-  def backTranslate(result: BackendVerifier.Result)(config: Config): VerifierResult = result match {
+  def backTranslate(result: BackendVerifier.Result)(@unused config: Config): VerifierResult = result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) =>
       val errorTranslator = new DefaultErrorBackTranslator(backtrack)

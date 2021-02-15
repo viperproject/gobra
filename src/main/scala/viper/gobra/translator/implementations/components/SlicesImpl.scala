@@ -206,7 +206,7 @@ class SlicesImpl(val arrays : Arrays) extends Slices {
   )()
 
   /** A function application of "sadd". */
-  private def add(left : vpr.Exp, right : vpr.Exp)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp = {
+  private def add(left : vpr.Exp, right : vpr.Exp)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp = {
     generateDomain = true
     vpr.FuncApp(sadd_func.name, Seq(left, right))(pos, info, vpr.Int, errT)
   }

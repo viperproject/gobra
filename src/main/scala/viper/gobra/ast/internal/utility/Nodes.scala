@@ -34,7 +34,7 @@ object Nodes {
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
-      case Field(_, _, _) => Seq()
+      case Field(_, _, _) => Seq.empty
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -47,7 +47,7 @@ object Nodes {
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
-        case Return() => Seq()
+        case Return() => Seq.empty
         case Assert(ass) => Seq(ass)
         case Exhale(ass) => Seq(ass)
         case Inhale(ass) => Seq(ass)
@@ -57,6 +57,12 @@ object Nodes {
         case PredExprFold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case PredExprUnfold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
+        case GoFunctionCall(func, args) => Seq(func) ++ args
+        case GoMethodCall(recv, meth, args) => Seq(recv, meth) ++ args
+        case SafeReceive(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed) =>
+          Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
+        case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
+          Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -78,7 +84,7 @@ object Nodes {
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
         case Conversion(_, expr) => Seq(expr)
-        case DfltVal(_) => Seq()
+        case DfltVal(_) => Seq.empty
         case Tuple(args) => args
         case Deref(exp, _) => Seq(exp)
         case Ref(ref, _) => Seq(ref)
@@ -90,11 +96,11 @@ object Nodes {
         case IsComparableInterface(exp) => Seq(exp)
         case ToInterface(exp, _) => Seq(exp)
         case IsBehaviouralSubtype(left, right) => Seq(left, right)
-        case BoolTExpr() => Seq()
-        case IntTExpr(_) => Seq()
-        case PermTExpr() => Seq()
+        case BoolTExpr() => Seq.empty
+        case IntTExpr(_) => Seq.empty
+        case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)
-        case StructTExpr(_) => Seq()
+        case StructTExpr(_) => Seq.empty
         case ArrayTExpr(len, elem) => Seq(len, elem)
         case SliceTExpr(elem) => Seq(elem)
         case SequenceTExpr(elem) => Seq(elem)
@@ -102,7 +108,7 @@ object Nodes {
         case MultisetTExpr(elem) => Seq(elem)
         case OptionTExpr(elem) => Seq(elem)
         case TupleTExpr(elem) => elem
-        case DefinedTExpr(_) => Seq()
+        case DefinedTExpr(_) => Seq.empty
         case PredicateConstructor(pred, _, args) => Seq(pred) ++ args.flatten
         case IndexedExp(base, idx) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
@@ -117,26 +123,26 @@ object Nodes {
         case MultisetConversion(expr) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
-        case OptionNone(_) => Seq()
+        case OptionNone(_) => Seq.empty
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)
         case Negation(operand) => Seq(operand)
+        case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
-        case EqCmp(l, r) => Seq(l, r)
         case Old(op, _) => Seq(op)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case p: Permission => p match {
-          case _: FullPerm => Seq()
-          case _: NoPerm => Seq()
+          case _: FullPerm => Seq.empty
+          case _: NoPerm => Seq.empty
           case FractionalPerm(left, right) => Seq(left, right)
-          case _: WildcardPerm => Seq()
+          case _: WildcardPerm => Seq.empty
         }
         case l: Lit => l match {
-          case IntLit(_, _) => Seq()
-          case BoolLit(_) => Seq()
-          case NilLit(_) => Seq()
+          case IntLit(_, _) => Seq.empty
+          case BoolLit(_) => Seq.empty
+          case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
           case StructLit(_, args) => args
@@ -144,18 +150,19 @@ object Nodes {
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
         }
-        case Parameter.In(_, _) => Seq()
-        case Parameter.Out(_, _) => Seq()
-        case LocalVar(_, _) => Seq()
-        case GlobalConst.Val(_, _) => Seq()
+        case Parameter.In(_, _) => Seq.empty
+        case Parameter.Out(_, _) => Seq.empty
+        case LocalVar(_, _) => Seq.empty
+        case GlobalConst.Val(_, _) => Seq.empty
+        case _: BoundVar => Seq.empty
       }
       case Trigger(exprs) => exprs
       case a: Addressable => Seq(a.op)
       case p: Proxy => p match {
-        case FunctionProxy(_) => Seq()
-        case MethodProxy(_, _) => Seq()
-        case FPredicateProxy(_) => Seq()
-        case MPredicateProxy(_, _) => Seq()
+        case FunctionProxy(_) => Seq.empty
+        case MethodProxy(_, _) => Seq.empty
+        case FPredicateProxy(_) => Seq.empty
+        case MPredicateProxy(_, _) => Seq.empty
       }
     }
 //    n match {

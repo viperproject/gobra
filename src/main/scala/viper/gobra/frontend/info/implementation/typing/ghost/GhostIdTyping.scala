@@ -13,17 +13,19 @@ import viper.gobra.frontend.info.base.Type.{AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
 
+import scala.annotation.unused
+
 trait GhostIdTyping { this: TypeInfoImpl =>
 
-  private[typing] def wellDefGhostRegular(entity: GhostRegular, id: PIdnNode): ValidityMessages = entity match {
+  private[typing] def wellDefGhostRegular(entity: GhostRegular, @unused id: PIdnNode): ValidityMessages = entity match {
     case _: BoundVariable => LocalMessages(noMessages)
     case predicate: Predicate => unsafeMessage(! {
       predicate.args.forall(wellDefMisc.valid)
     })
-
+    case _: BuiltInFPredicate | _: BuiltInMPredicate => LocalMessages(noMessages)
   }
 
-  private[typing] def ghostEntityType(entity: GhostRegular, id: PIdnNode): Type = entity match {
+  private[typing] def ghostEntityType(entity: GhostRegular, @unused id: PIdnNode): Type = entity match {
 
     case x: BoundVariable => typeSymbType(x.decl.typ)
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)

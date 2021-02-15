@@ -9,6 +9,12 @@ following *exceptions*:
     project
     src/test/resources
 
+- Files found in the following directories (and their sub-directories), which
+  are copyrighted by The Go Authors
+  (see https://github.com/golang/go/blob/master/LICENSE)
+
+    src/main/resources/stubs/sync
+
 
 Mozilla Public License Version 2.0
 ==================================

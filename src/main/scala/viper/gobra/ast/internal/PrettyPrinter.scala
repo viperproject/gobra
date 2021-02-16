@@ -459,7 +459,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
 
     case SequenceLit(_, typ, elems) => {
-      val typP = showType(typ)
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       "seq" <> brackets(showType(typ)) <+> exprsP
     }

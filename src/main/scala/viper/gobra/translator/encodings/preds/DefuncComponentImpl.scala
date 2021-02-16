@@ -114,7 +114,7 @@ class DefuncComponentImpl extends DefuncComponent {
       typ = domainType(S)
     )(domainName = domainName(S))
   }
-  private def makeFuncApp(S: Token, id: BigInt, args: Vector[vpr.Exp])(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+  private def makeFuncApp(S: Token, id: BigInt, args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(func = makeFunc(S, id), args, Map.empty)(pos, info, errT)
   }
 

@@ -15,7 +15,7 @@ import viper.silver.{ast => vpr}
   * Creates an embedded type E that is made up of all elements of 't' that satisfy 'p',
   * where 't' and 'p' are parametrized by an instance of P.
   */
-abstract class EmbeddingComponent[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends Generator {
+trait EmbeddingComponent[P] extends Generator {
 
   /** Returns the embedded type E. */
   def typ(id: P)(ctx: Context): vpr.Type
@@ -30,7 +30,7 @@ abstract class EmbeddingComponent[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P
 
 object EmbeddingComponent {
 
-  class Impl[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends EmbeddingComponent[P](p, t) {
+  class Impl[P](p: (vpr.Exp, P) => Context => vpr.Exp, t: P => Context => vpr.Type) extends EmbeddingComponent[P] {
 
     override def finalize(col: Collector): Unit = {
       generatedMember foreach col.addMember

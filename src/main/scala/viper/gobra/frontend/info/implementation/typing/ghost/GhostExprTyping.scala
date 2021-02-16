@@ -16,6 +16,8 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
 
+import scala.annotation.unused
+
 trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
@@ -268,7 +270,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * @param strong If `true`, then `isPure` tests for strong purity;
     *               otherwise for weak purity. (Is `true`` by default.)
     */
-  private def isPure(expr : PExpression)(strong : Boolean = true) : Boolean = {
+  private def isPure(expr : PExpression)(strong : Boolean) : Boolean = {
     def go(e : PExpression) = isPure(e)(strong)
 
     expr match {
@@ -352,6 +354,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PIndexedExp(base, index) => Seq(base, index).forall(go)
 
+      case _: PMake | _: PNew => false
+
       // Might change as some point
       case _: PFunctionLit => false
 
@@ -362,8 +366,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PFractionalPerm(left, right) => go(left) && go(right)
         case _ => true
       }
-
-      case PPredConstructor(_, args) => args.flatten.forall(go)
     }
   }
 
@@ -441,6 +443,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * @param trigger The trigger to be tested for validity and consistency.
     * @return True if  `trigger` is a valid and consistent trigger.
     */
+  @unused
   private def validTrigger(boundVars: Vector[PBoundVariable], trigger : PTrigger) : Messages = {
     // [validity] check whether all expressions in `trigger` are valid trigger expressions
     val (usedVars, msgs1) = combineTriggerResults(trigger.exps.map(validTriggerPattern))
@@ -459,7 +462,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     * @param triggers The sequence of triggers to be tested for validity.
     * @return True if `triggers` is a valid sequence of triggers.
     */
-  private def validTriggers(vars: Vector[PBoundVariable], triggers : Vector[PTrigger]) : Messages = {
+  private def validTriggers(@unused vars: Vector[PBoundVariable], @unused triggers: Vector[PTrigger]) : Messages = {
     // TODO: As a temporary workaround, the validity checks for triggers are disabled because they are too restrictive.
     //       We should either extend the validity checks or, somehow, defer that task to Viper
     // triggers.flatMap(validTrigger(vars, _))

@@ -111,6 +111,9 @@ object OverflowChecksTransform extends InternalTransform {
     case m@GoMethodCall(recv, _, args) =>
       Seqn(genOverflowChecksExprs(recv +: args) :+ m)(m.info)
 
+    case m@Send(_, expr, _, _, _) =>
+      Seqn(genOverflowChecksExprs(Vector(expr)) :+ m)(m.info)
+
     case m@MakeSlice(_, _, arg1, optArg2) =>
       Seqn(genOverflowChecksExprs(arg1 +: optArg2.toVector) :+ m)(m.info)
 
@@ -121,7 +124,9 @@ object OverflowChecksTransform extends InternalTransform {
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
-    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume | _: Return | _: Fold | _: Unfold | _: SafeTypeAssertion) => x
+    case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
+            | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold
+            | _: SafeTypeAssertion | _: SafeReceive) => x
   }
 
   private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =

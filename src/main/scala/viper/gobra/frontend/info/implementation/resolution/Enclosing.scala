@@ -14,6 +14,8 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 
+import scala.annotation.tailrec
+
 trait Enclosing { this: TypeInfoImpl =>
 
   import viper.gobra.util.Violation._
@@ -52,6 +54,7 @@ trait Enclosing { this: TypeInfoImpl =>
         if s.binder.exists(_.name == id.name) => Vector.empty
 
       case tree.parent(p) => typeSwitchConstraintsLookup(id)(p)
+      case n => Violation.violation(s"every node, except the root, must have a parent: $n")
     }}
 
   def containedIn(n: PNode, s: PNode): Boolean = contained(n)(s)
@@ -66,6 +69,7 @@ trait Enclosing { this: TypeInfoImpl =>
 
   def nilType(nil: PNilLit): Option[Type] = {
 
+    @tailrec
     def aux(n: PNode): Option[Type] = {
       n match {
         case tree.parent(p) => p match {
@@ -86,6 +90,7 @@ trait Enclosing { this: TypeInfoImpl =>
             case (Right(target), Some(_: ap.Conversion)) => Some(symbType(target))
             case (Left(callee), Some(p: ap.FunctionCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
             case (Left(callee), Some(p: ap.PredicateCall)) => Some(typ(callee).asInstanceOf[Type.FunctionT].args(p.args.indexOf(n)))
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
             // no not
           case PIndexedExp(base, `n`) => Some(typ(base).asInstanceOf[Type.MapT].key)
@@ -117,6 +122,7 @@ trait Enclosing { this: TypeInfoImpl =>
             // no sequence append, sequence conversion
           case PSequenceUpdateClause(_, `n`) => p match {
             case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
+            case c => Violation.violation(s"Only the root has not parent, but got $c")
           }
             // no range sequence
             // no union, intersection, set minus, subset, set conversion, multiset conversion
@@ -124,6 +130,7 @@ trait Enclosing { this: TypeInfoImpl =>
 
           case _ => Violation.violation(s"Encountered unexpected parent of nil: $p")
         }
+        case c => Violation.violation(s"Only the root has no parent, but got $c")
       }
     }
 

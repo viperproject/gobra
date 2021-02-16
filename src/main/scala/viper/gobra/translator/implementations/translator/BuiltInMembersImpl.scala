@@ -18,6 +18,7 @@ import viper.gobra.translator.util.PrimitiveGenerator
 import viper.gobra.util.Computation
 import viper.gobra.util.Violation.violation
 
+import scala.annotation.unused
 import scala.language.postfixOps
 
 
@@ -105,6 +106,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
   /**
     * Returns an already existing proxy for a tag or otherwise creates a new proxy and the corresponding member
     */
+  @unused
   private def getOrGenerateFunction(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Source.Parser.Info)(ctx: Context): in.FunctionProxy = {
     def create(): in.BuiltInFunction = {
       val proxy = in.FunctionProxy(freshNameForTag(tag))(src)
@@ -383,7 +385,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
     }
   }
 
-  private def translateFPredicate(x: in.BuiltInFPredicate)(ctx: Context): in.FPredicate = {
+  private def translateFPredicate(x: in.BuiltInFPredicate)(@unused ctx: Context): in.FPredicate = {
     val src = x.info
     (x.tag, x.argsT) match {
       case (PredTrueFPredTag, args) =>
@@ -403,7 +405,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
     }
   }
 
-  private def translateMPredicate(x: in.BuiltInMPredicate)(ctx: Context): in.MPredicate = {
+  private def translateMPredicate(x: in.BuiltInMPredicate)(@unused ctx: Context): in.MPredicate = {
     val src = x.info
     assert(x.receiverT.addressability == Addressability.inParameter)
     val recvParam = in.Parameter.In("c", x.receiverT)(src)

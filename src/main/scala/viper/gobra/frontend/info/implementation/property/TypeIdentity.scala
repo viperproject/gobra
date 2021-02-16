@@ -1,7 +1,14 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds
 
 trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
@@ -10,22 +17,23 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
 
-      case (IntT, IntT) | (BooleanT, BooleanT) => true
+      // Two integer types are equal if they have the same type or they are from types which are aliased
+      case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(TypeBounds.SignedInteger32, TypeBounds.Rune)) || Set(x,y).subsetOf(Set(TypeBounds.UnsignedInteger8, TypeBounds.Byte))
+      case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
 
-      case (DeclaredT(l), DeclaredT(r)) => l == r
+      case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR
 
       case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
-
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
+      case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
+      case (SetT(l), SetT(r)) => identicalTypes(l, r)
+      case (MultisetT(l), MultisetT(r)) => identicalTypes(l, r)
+      case (OptionT(l), OptionT(r)) => identicalTypes(l, r)
 
-      case (StructT(l), StructT(r)) =>
-        val (les, lfs, res, rfs) = (l.embedded, l.fields, r.embedded, r.fields)
-
-        les.size == res.size && les.zip(res).forall {
-          case (lm, rm) => identicalTypes(miscType(lm.typ), miscType(rm.typ))
-        } && lfs.size == rfs.size && lfs.zip(rfs).forall {
-          case (lm, rm) => lm.id.name == rm.id.name && identicalTypes(typeType(lm.typ), typeType(rm.typ))
+      case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
+        contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
+          case (lm, rm) => lm._1 == rm._1 && lm._2._1 == rm._2._1 && identicalTypes(lm._2._2, rm._2._2)
         }
 
       case (l: InterfaceT, r: InterfaceT) =>
@@ -40,6 +48,11 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
         larg.size == rarg.size && larg.zip(rarg).forall {
           case (l, r) => identicalTypes(l, r)
         } && identicalTypes(lr, rr)
+
+      case (PredT(larg), PredT(rarg)) =>
+        larg.size == rarg.size && larg.zip(rarg).forall {
+          case (l, r) => identicalTypes(l, r)
+        }
 
       case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk, rk) && identicalTypes(le, re)
 

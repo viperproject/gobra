@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+pure func foo(ghost n int) bool
+
+requires forall k int :: foo(k)
+func bar() { }

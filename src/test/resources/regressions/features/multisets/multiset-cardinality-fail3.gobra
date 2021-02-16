@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  // fails: clearly wrong
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert |mset[int] { 1, 2 } union mset[int] { 2, 3 }| == 3
+}

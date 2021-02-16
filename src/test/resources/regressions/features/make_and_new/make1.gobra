@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// Throws an error because length might be negative
+func Err1(length int) (ret []int) {
+	//:: ExpectedOutput(make_precondition_error)
+	ret := make([]int, length)
+}
+
+// Throws an error because length is not guaranteed to be less than capacity
+requires length > 0 && capacity > 0
+func Err2(length int, capacity int) (ret []int) {
+	//:: ExpectedOutput(make_precondition_error)
+	ret := make([]int, length, capacity)
+}
+
+func accessOutsideLen() {
+	s := make([]int, 2, 10)
+	assert forall i int :: (0 <= i && i < 2) ==> s[i] == 0
+	assert len(s) == 2 && cap(s) == 10
+	// despite s2 having a capacity of 10, its length is 2 and thus,
+	// memory in index 2 is not initialized
+	//:: ExpectedOutput(assert_error)
+	assert s[2] == 0
+}
+
+requires length > 0 && capacity >= length
+ensures forall i int :: (0 <= i && i < length) ==> acc(&ret[i]) && ret[i] == 0
+ensures len(ret) == length && cap(ret) == capacity
+func Ok1(length int, capacity int) (ret []int) {
+	ret := make([]int, length, capacity)
+}
+
+func Ok2() {
+	s := make([]int, 5)
+	assert forall i int :: (0 <= i && i < 5) ==> s[i] == 0
+	assert len(s) == 5 && cap(s) == 5
+}
+
+/* to test once support for channels and maps is added
+func newDataStructs() {
+    m1 := make(map[int]int)
+    m2 := make(map[int]int, 100) // map with initial space for approximately 100 elements
+
+    c1 := make(chan int) // unbefered channel
+    c2 := make(chan int, 10) // channel with a buffer size of 10
+}
+*/

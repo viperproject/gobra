@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct{
+	val int;
+}
+
+requires n >= 0
+func main(n int) {
+    x := &cell{42};
+    assert x.val == 42
+
+    // wildcard permissions are duplicable
+    invariant 0 <= i && i <= n;
+    invariant acc(&x.val, _) && x.val == 42
+    for i := 0; i < n; i++ {
+        test(x)
+    }
+
+    assert x.val == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+}
+
+requires acc(&x.val, _) && x.val == 42
+func test(x *cell) {
+    assert x.val == 42
+}

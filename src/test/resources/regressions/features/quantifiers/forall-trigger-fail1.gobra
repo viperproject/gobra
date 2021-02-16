@@ -1,0 +1,14 @@
+//:: IgnoreFile(/gobra/issue/177/)
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+pure func foo() int {
+  return 42
+}
+
+// invalid trigger: doesn't contain the quantified variable
+//:: ExpectedOutput(type_error)
+requires forall x int :: { foo() } 0 < x
+func bar () { }

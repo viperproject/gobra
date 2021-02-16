@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type List struct {
+  val int
+  next *List
+}
+
+requires acc(&l.val)
+ensures acc(&l.val) && l.val == old(l).val
+func test(l *List) {
+}

@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Node struct {
+  value int
+  next *Node
+}
+
+requires acc(&ptr.value)
+func remove(val int, ptr *Node) (result *Node) {
+  if (ptr == nil) {
+    result = nil
+  } else if (ptr.value == val) {
+    //:: ExpectedOutput(call_error)
+    result = remove(val, ptr.next)
+  } else {
+    result = &Node { ptr.value, remove(val, ptr.next) }
+  }
+}

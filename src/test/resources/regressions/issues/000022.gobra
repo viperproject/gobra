@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type Cell struct {
+  val int;
+};
+
+type Pair struct {
+  left, right Cell;
+};
+
+func client1() {
+  var a Cell;
+  var b Pair;
+  c := Cell{};
+  d := Pair{};
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false;
+};
+
+func client2() {
+  a := &Pair{Cell{1}, Cell{2}};
+  a = &Pair{Cell{1}, Cell{2}};
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false;
+};

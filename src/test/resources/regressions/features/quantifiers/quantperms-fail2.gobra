@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Point struct {
+	x int
+	y int
+}
+
+//:: ExpectedOutput(parser_error)
+ensures forall p *Point :: {  } acc(&p.x)
+func test() { }

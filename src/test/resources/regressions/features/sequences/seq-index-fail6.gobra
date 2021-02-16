@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires len(xs) == 2
+func foo(ghost xs seq[int]) {
+  var b bool
+  //:: ExpectedOutput(type_error)
+  b = xs[1]
+}

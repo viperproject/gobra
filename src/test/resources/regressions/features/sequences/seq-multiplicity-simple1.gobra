@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1(ghost b bool, ghost xs seq[bool], ghost ys seq[int]) {
+  ghost n1 := b # xs
+  ghost n2 := b # xs # ys
+
+  assert 0 <= n1;
+  assert n1 <= len(xs)
+  assert 0 <= n2;
+  assert n2 <= len(ys)
+}
+
+func example2() {
+  assert 42 # seq[int] { } == 0
+}
+
+func example3() {
+  assert 42 # seq[int] { 42 } == 1
+  assert 42 # seq[int] { 24 } == 0
+}
+
+func example4() {
+  assert 1 # seq[int] { 1, 2, 3 } == 1
+  assert 2 # seq[int] { 1, 2, 3 } == 1
+  assert 2 # seq[int] { 1, 2, 3, 2 } == 2
+  assert 2 # seq[int] { 1, 2, 2, 2, 2, 1 } == 4
+  assert 2 # seq[int] { 1, 3, 4 } == 0
+}
+
+func example5() {
+  assert seq[1..10] == seq[int] { 1, 2, 3, 4, 5, 6, 7, 8, 9 } // needed??
+  assert 4 # seq[1..10] == 1
+  assert 42 # seq[1..10] == 0
+}
+
+func example6(ghost x int, ghost y int) {
+  assert x # seq[int] { y } == (x == y ? 1 : 0)
+}
+
+ensures 0 <= x # xs
+ensures x # xs <= len(xs)
+func example7(ghost x int, ghost xs seq[int]) {
+}
+
+ensures x # xs ++ ys == (x # xs) + (x # ys)
+func example8(ghost x int, ghost xs seq[int], ghost ys seq[int]) {
+}
+
+func example9(ghost x int, ghost xs seq[int]) {
+  assert x in xs ==> 0 < x # xs
+  assert 0 < x # xs ==> x in xs
+}
+
+func example10() {
+  assert false # seq[bool] { false, true, false } # seq[int] { 1, 2, 3 } == 1;
+}
+
+func example11() {
+  assert 2 # seq[int] { 1, 2 } ++ seq[int] { 2, 3 } == 2
+}

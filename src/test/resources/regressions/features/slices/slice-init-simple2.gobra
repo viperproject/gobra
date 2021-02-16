@@ -1,0 +1,62 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s1 := a[2:4]
+  s2 := s1[1:4]
+  
+  assert len(s1) == 2 && len(s2) == 3
+  assert cap(s1) == 4 && cap(s2) == 3
+  
+  assert s2[0] == 8
+  assert s2[1] == 16
+  assert s2[2] == 32
+  
+  assert forall i int :: 0 <= i && i < len(s2) ==> s2[i] == a[i + 3]
+}
+
+func test2() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s1 := a[2:4]
+  s2 := s1[:3]
+  
+  assert len(s1) == 2 && len(s2) == 3
+  assert cap(s1) == 4 && cap(s2) == 4
+  
+  assert s2[0] == 4
+  assert s2[1] == 8
+  assert s2[2] == 16
+  
+  assert forall i int :: 0 <= i && i < len(s1) ==> s1[i] == s2[i]
+}
+
+func test3() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s1 := a[2:5]
+  s2 := s1[1:]
+  
+  assert len(s1) == 3 && len(s2) == 2
+  assert cap(s1) == 4 && cap(s2) == 3
+  
+  assert s2[0] == 8
+  assert s2[1] == 16
+  
+  assert forall i int :: 0 <= i && i < len(s2) ==> s2[i] == s1[i + 1]
+}
+
+func test4() {
+  a@ := [6]int { 1, 2, 4, 8, 16, 32 }
+  s1 := a[3:5]
+  s2 := s1[:]
+  
+  assert len(s1) == 2 && len(s2) == 2
+  assert cap(s1) == 3 && cap(s2) == 3
+  
+  assert s2[0] == 8
+  assert s2[1] == 16
+  
+  assert forall i int :: 0 <= i && i < len(s1) ==> s1[i] == s2[i]
+}

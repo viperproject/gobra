@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires len(xs) == 2
+func foo(ghost xs seq[bool]) {
+  //:: ExpectedOutput(assignment_error:seq_index_exceeds_length_error)
+  ghost n := xs[42]
+}

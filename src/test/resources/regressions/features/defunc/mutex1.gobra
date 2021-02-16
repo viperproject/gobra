@@ -1,0 +1,44 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// These examples were designed and proposed by Linard Arquint
+package pkg
+
+import "sync"
+
+pred mutexInvariant(x *int) {
+	acc(x)
+}
+
+// For now, requires parentheses surrounding exp!<...!>
+requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+ensures acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+func foo(pmutex *sync.Mutex, x *int) {
+	pmutex.Lock()
+	unfold mutexInvariant!<x!>()
+	*x = *x + 1
+	fold mutexInvariant!<x!>()
+	pmutex.Unlock()
+}
+
+func ex1() {
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = sync.Mutex{}
+	var pmutex *sync.Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.SetInv(mutexInvariant!<px!>)
+	foo(pmutex, px)
+}
+
+func ex2() {
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = sync.Mutex{}
+	var pmutex *sync.Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.SetInv(mutexInvariant!<px!>)
+	go foo(pmutex, px)
+	go foo(pmutex, px)
+	go foo(pmutex, px)
+}

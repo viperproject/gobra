@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  xs := seq(seq[int] { 42 })
+  test1(xs)
+  test2(xs)
+  test3(xs)
+  //:: ExpectedOutput(type_error)
+  test4(len(xs))
+}
+
+func test1(ghost s seq[int]) (ghost res int) {
+    return len(s)
+}
+
+ghost func test2(s seq[int]) int {
+    return len(s)
+}
+
+ghost func test3(ghost s seq[int]) int {
+    return len(s)
+}
+
+ghost pure func test4(s seq[int]) int {
+    return len(s)
+}

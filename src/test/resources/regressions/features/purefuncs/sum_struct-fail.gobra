@@ -1,0 +1,21 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type tripleInt struct {
+    a int;
+    b int;
+    c int;
+};
+
+pure func test(t tripleInt) (res int) {
+    return t.a + t.b + t.c
+}
+
+func client(a,b,c,i int){
+    assert test(tripleInt{a,b,c}) == a+b+c
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert test(tripleInt{a,b,b}) == a+b+c
+    assert test(tripleInt{a,b,c}) == test(tripleInt{a,b+i,c-i})
+}

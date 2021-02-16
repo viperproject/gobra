@@ -1,6 +1,5 @@
-
-
 .idea/
+.bsp/
 project/project/
 project/target/
 target/
@@ -9,6 +8,8 @@ tmp/
 carbon
 silver
 silicon
+viperserver
 logger.log
 
 *.go.*
+*.gobra.*

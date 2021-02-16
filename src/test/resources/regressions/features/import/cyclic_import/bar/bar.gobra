@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+// ##(-I src/test/resources/regressions/features/import/cyclic_import)
+//:: ExpectedOutput(type_error)
+import f "foo" // this is a cyclic import
+
+ensures res == f.foo()
+func bar() (res int) {
+    f.foo()
+}

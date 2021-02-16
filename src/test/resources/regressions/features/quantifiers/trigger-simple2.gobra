@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type Point struct {
+  x int
+  y int
+}
+
+requires forall p Point :: { p.x, p.y } p.x < p.y
+requires exists p Point :: { p.x, p.y } p.x < p.y
+func example1 () { }

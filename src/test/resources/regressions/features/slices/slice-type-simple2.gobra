@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+	var a [2][]int
+	var b [3][2][]bool
+	var c [4][][3][][2][][1][]bool
+	var d [][4][][3][][2][][1]bool
+}
+
+func test2() {
+  var a [2][]int 
+  s := a[0]
+  assert s == nil
+  assert len(s) == 0
+  assert cap(s) == 0
+}
+
+func test3() {
+  var a@ [2][]int 
+  s := a[0]
+  assert s == nil
+  assert len(s) == 0
+  assert cap(s) == 0
+}

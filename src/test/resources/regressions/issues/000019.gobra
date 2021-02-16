@@ -1,0 +1,51 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+ensures r == 9;
+func foo() (r int) {
+    return 9;
+};
+
+func foo1(int, int, int) (int, int, int) {
+	return 1,2,3;
+};
+
+ensures x == 1 && y == 2 && z == 0;
+func foo2() (x, y, z int) {
+	x := 1;
+	y := 2;
+	return;
+};
+
+func foo3() () {
+	return;
+};
+
+
+func foo4() {
+	return;
+};
+
+func foo5() (x, y, z int) {
+	return foo1(1,2,3);
+};
+
+ensures x == 1;
+func foo6() (x int) {
+	x := 1;
+	return;
+};
+
+ensures x == b && y == c && z == a;
+func foo7(a, b, c int) (x, y, z int) {
+	return b, c, a;
+};
+
+ensures x == a && y == b && z == c;
+func foo8(a, b, c int) (x, y, z int) {
+	return foo7(foo7(foo7(a, b, c)));
+};
+
+

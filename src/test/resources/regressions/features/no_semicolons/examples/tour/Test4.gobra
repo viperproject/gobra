@@ -1,0 +1,82 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package trivial
+
+type Point struct {
+  x int
+  y int
+}
+
+requires acc(&p.x)
+pure func (p *Point) getX1() int {
+  return p.x
+}
+
+requires acc(&p.x)
+ensures  acc(&p.x) && res == old(p.x) && p.x == old(p.x)
+func (p *Point) getX2() (res int) {
+  res = p.x
+}
+
+func client() {
+  p@ := Point{5, 7}
+  x := (&p).getX2()
+  assert x == 5
+  y := p.getX2()
+  assert y == 5
+  assert ((&p).getX1()) == 5
+}
+
+
+/* not supported yet
+type Number int;
+
+func (this Number) inc() (res int) {
+  res = this + 1;
+};*/
+
+
+
+//--------------------------------------------------
+/* interfaces are not supported yet
+
+type Pair interface {
+  getX() int
+  setX(int)
+};
+
+requires acc(&p.x);
+ensures  acc(&p.x) && res == old(p.x) && p.x == old(p.x);
+func (p *Point) getX() (res int) {
+  res = p.x;
+};
+
+requires acc(&p.x);
+ensures  acc(&p.x) && p.x == v;
+func (p *Point) getX(v int) {
+  p.x = v;
+};
+
+func client(p *Pair) {
+
+}
+*/
+
+requires this != nil ==> (acc(&this.x) && acc(&this.y))
+ensures acc(&res.x) && acc(&res.y)
+func (this *Point) idOrNew() (res *Point) {
+  if this == nil {
+    res = &Point{0,0}
+  } else {
+    res = this
+  }
+}
+
+func idClient() {
+  var p *Point
+  assert p == nil
+  q := p.idOrNew()
+  q.x = 5
+}
+

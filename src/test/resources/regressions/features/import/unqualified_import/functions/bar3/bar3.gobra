@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar3
+
+ensures res == 0
+func bar() (res int) {
+    return 0
+}
+
+func unusedFunc() { }

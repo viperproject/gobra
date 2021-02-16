@@ -1,0 +1,52 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+const tmp = 42
+ghost const Answer int = tmp
+
+// ghost types are not supported yet
+/* ghost */ type Rectangle struct {
+    Width, Height int
+}
+
+pred RectMem(r *Rectangle) {
+    acc(&r.Width) && acc(&r.Height)
+}
+
+ghost
+requires RectMem(r)
+ensures RectMem(r)
+ensures res == unfolding RectMem(r) in (r.Width * r.Height)
+ensures unfolding RectMem(r) in (r.Width) == old(unfolding RectMem(r) in r.Width)
+ensures unfolding RectMem(r) in (r.Height) == old(unfolding RectMem(r) in r.Height)
+func (r *Rectangle) Area() (res int) {
+    unfold RectMem(r)
+    res := r.Width * r.Height
+    fold RectMem(r)
+}
+
+ghost
+requires RectMem(r)
+ensures RectMem(r)
+ensures res == unfolding RectMem(r) in (r.Width * r.Width + r.Height * r.Height)
+ensures unfolding RectMem(r) in (r.Width) == old(unfolding RectMem(r) in r.Width)
+ensures unfolding RectMem(r) in (r.Height) == old(unfolding RectMem(r) in r.Height)
+func SquaredHypotenuse(r *Rectangle) (res int) {
+    unfold RectMem(r)
+    res := r.Width * r.Width + r.Height * r.Height
+    fold RectMem(r)
+}
+
+ghost
+requires RectMem(r)
+pure func (r *Rectangle) GetWidth() (res int) {
+    return unfolding RectMem(r) in r.Width
+}
+
+ghost
+requires RectMem(r)
+pure func Height(r *Rectangle) (res int) {
+    return unfolding RectMem(r) in r.Height
+}

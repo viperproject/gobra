@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type T struct {
+	x int
+}
+
+pred (rec *T) AccInv() {
+	acc(rec)
+}
+
+func f(p pred())
+
+func error1() {
+	v := &T{}
+	fold v.AccInv()
+	//:: ExpectedOutput(type_error)
+	f((*T).AccInv!<v!>) // Predicate expressions are not allowed in predicate constructors
+}
+
+func g(x int)
+
+func error2() {
+	x := 1
+	// In previous versions of Gobra, we did not check for the pattern of the predicate constructor
+	// base, and examples like this would not throw a type error
+	//:: ExpectedOutput(type_error)
+	f(g!<x!>)
+}

@@ -1,6 +1,13 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PDeref, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -9,15 +16,15 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val underlyingType: Type => Type =
     attr[Type, Type] {
-      case Single(DeclaredT(t: PTypeDecl)) => underlyingType(typeType(t.right))
+      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => underlyingType(context.symbType(t.right))
       case t => t
     }
 
   lazy val underlyingTypeP: PType => Option[PType] =
     attr[PType, Option[PType]] {
       case PNamedOperand(t) => entity(t) match {
-        case st.NamedType(decl, _) => underlyingTypeP(decl.right)
-        case st.TypeAlias(decl, _) => underlyingTypeP(decl.right)
+        case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
+        case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
         case _ => None // type not defined
       }
       case t => Some(t)
@@ -32,7 +39,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val derefType: Type => Option[Type] =
     attr[Type, Option[Type]] {
-      case Single(DeclaredT(t: PTypeDecl)) => derefType(typeType(t.right))
+      case Single(DeclaredT(t: PTypeDecl, context: ExternalTypeInfo)) => derefType(context.symbType(t.right))
       case Single(PointerT(elem)) => Some(elem)
       case _ => None
     }
@@ -86,7 +93,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
 
   lazy val isInterfaceType: Property[Type] = createBinaryProperty("an interface type") { t =>
     underlyingType(t) match {
-      case InterfaceT(decl) => true
+      case _: InterfaceT => true
       case _ => false
     }
   }
@@ -127,6 +134,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
       case _: MapT => true
       case _: ChannelT => true
       case _: FunctionT => true
+      case _: InterfaceT => true
       case _ => false
     }
   }
@@ -165,4 +173,9 @@ trait UnderlyingType { this: TypeInfoImpl =>
     }
   }
 
+  lazy val isReceiverType: Property[Type] = createBinaryProperty("not a receiver type") {
+    case _: DeclaredT => true
+    case PointerT(t) => t.isInstanceOf[DeclaredT]
+    case _ => false
+  }
 }

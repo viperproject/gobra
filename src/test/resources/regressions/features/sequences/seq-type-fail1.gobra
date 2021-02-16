@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// this fails since a "ghost" annotation is missing for `xs`
+//:: ExpectedOutput(type_error)
+func foo(xs seq[int]) {
+}

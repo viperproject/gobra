@@ -1,0 +1,218 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ported verified operations by Felix on a stack from Viper
+// function "code" implements Challenge 2 - Part A: All Nearest Smaller Values from VerifyThis at ETAPS 2019
+// note that verifying this file takes roughly 77s as part of CI (Z3 4.8.7) but verification does not terminate with Z3 4.8.8
+
+package main
+/*
+type Stack struct {
+    value int
+    next *Stack
+}
+
+pred stack(s *Stack) {
+    s != nil ==> acc(&s.value) && acc(&s.next) && stack(s.next)
+}
+
+pure func isEmpty(s *Stack) bool {
+    return s == nil
+}
+
+ghost
+requires acc(stack(s), _)
+pure func elems(s *Stack) seq[int] {
+    return isEmpty(s) ? seq[int] { } : unfolding acc(stack(s), _) in seq[int] { s.value } ++ elems(s.next)
+}
+
+requires acc(stack(s), _) && !isEmpty(s)
+ensures res in elems(s)
+pure func peek(s *Stack) (res int) {
+    return unfolding acc(stack(s), _) in s.value
+}
+
+requires stack(s)
+ensures res != nil && stack(res)
+ensures unfolding stack(res) in res.next == s && res.value == v
+func push(s *Stack, v int) (res *Stack) {
+    res = &Stack{value: v, next: s}
+    fold stack(res)
+}
+
+ghost
+requires acc(stack(x), 1/4)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires 1 <= z && z <= len(s)
+pure func stackInv(x *Stack, s []int, z int) (res bool) {
+    *//* the following code causes unexpected Z3 output and a crash in Silicon
+    return x != nil ? unfolding acc(stack(x), 1/4) in (
+        1 <= x.value && x.value < len(s) &&
+        x.value <= z &&
+        (z < len(s) ==> forall k int :: { s[k] } x.value < k && k <= z ==> s[z] <= s[k]) &&
+        stackInv(x.next, s, x.value)) : (
+        z < len(s) ==> forall k int :: { s[k] } 0 < k && k <= z ==> s[z] <= s[k])
+    *//*
+    return stackInvPart1(x, s, z) && stackInvPart2(x, s, z) && stackInvPart3(x, s, z)
+}
+
+ghost
+requires acc(stack(x), 1/4)
+pure func stackInvPart1(x *Stack, s []int, z int) bool {
+    return x != nil ==> 1 <= getOrZero(x) && getOrZero(x) < len(s) && getOrZero(x) <= z
+}
+
+ghost
+requires acc(stack(x), 1/4)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires x != nil ==> 1 <= getOrZero(x) && getOrZero(x) < len(s)
+pure func stackInvPart2(x *Stack, s []int, z int) bool {
+    return x != nil ==> unfolding acc(stack(x), 1/4) in stackInv(x.next, s, x.value)
+}
+
+ghost
+requires acc(stack(x), 1/4)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires 1 <= z && z <= len(s)
+requires x != nil ==> 1 <= getOrZero(x)
+pure func stackInvPart3(x *Stack, s []int, z int) bool {
+    return z < len(s) ==> (forall k int :: { s[k] } getOrZero(x) < k && k <= z ==> s[z] <= s[k])
+}
+
+requires acc(stack(x), 1/4)
+pure func getOrZero(x *Stack) int {
+    return unfolding acc(stack(x), 1/4) in (x == nil ? 0 : x.value)
+}
+
+ghost
+requires 1 <= z && z <= nz && nz < len(s)
+requires acc(stack(x), 1/4)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires stackInv(x, s, z)
+requires s[z] >= s[nz]
+requires forall k int :: { s[k] } z < k && k <= nz ==> s[nz] <= s[k]
+ensures acc(stack(x), 1/4)
+ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+ensures stackInv(x, s, nz)
+func convertStackInv(x *Stack, s []int, z, nz int) {
+    // the following two assertions are needed such that the postconditions can be proved
+    assert stackInvPart2(x, s, z)
+    assert stackInvPart2(x, s, nz)
+}
+
+requires len(s) > 0
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/2)
+ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/2)
+ensures len(s) == len(left)
+ensures forall i int :: { left[i] } 1 <= i && i < len(left) ==> acc(&left[i])
+ensures forall i int :: { left[i] } 1 <= i && i < len(left) ==> 0 <= left[i] && left[i] < i &&
+                                    (0 < left[i] ==> s[left[i]] < s[i]) &&
+                                    forall k int :: { s[k] } left[i] < k && k <= i ==> s[i] <= s[k]
+func code(s []int) (left []int) {
+    left = make([]int, len(s))
+
+    var myStack *Stack = nil
+    fold stack(myStack)
+
+    invariant 1 <= j && j <= len(s)
+    invariant forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/2)
+    invariant forall i int :: { left[i] } 1 <= i && i < len(left) ==> acc(&left[i])
+    invariant stack(myStack)
+    invariant stackInv(myStack, s, j)
+    invariant forall i int :: { left[i] } 1 <= i && i < j ==> 0 <= left[i] && left[i] < i &&
+                                          (0 < left[i] ==> s[left[i]] < s[i]) &&
+                                          forall k int :: { s[k] } left[i] < k && k <= i ==> s[i] <= s[k]
+    for j := 1; j < len(s); j++ {
+        myStack = codeOuterLoopBody(myStack, s, j, left)
+    }
+}
+
+requires 1 <= j && j < len(s)
+requires len(s) == len(left)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/4)
+requires stack(myStack)
+requires stackInv(myStack, s, j)
+requires forall i int :: { left[i] } 1 <= i && i < len(left) ==> acc(&left[i], 1/2)
+requires acc(&left[j], 1/2) // full permission to `&left[j]`, read-only permissions to all other indices
+requires forall i int :: { left[i] } 1 <= i && i < j ==> 0 <= left[i] && left[i] < i &&
+                                   (0 < left[i] ==> s[left[i]] < s[i]) &&
+                                   forall k int :: { s[k] } left[i] < k && k <= i ==> s[i] <= s[k]
+ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/4)
+ensures stack(res)
+ensures stackInv(res, s, j+1)
+ensures forall i int :: { left[i] } 1 <= i && i < len(left) ==> acc(&left[i], 1/2)
+ensures acc(&left[j], 1/2)
+ensures forall i int :: { left[i] } 1 <= i && i <= j ==> 0 <= left[i] && left[i] < i &&
+                                   (0 < left[i] ==> s[left[i]] < s[i]) &&
+                                   forall k int :: { s[k] } left[i] < k && k <= i ==> s[i] <= s[k]
+func codeOuterLoopBody(myStack *Stack, s []int, j int, left []int) (res *Stack) {
+    myStack = codeInnerLoop(myStack, s, j)
+
+    if (isEmpty(myStack)) {
+        left[j] = 0
+    } else {
+        left[j] = peek(myStack)
+    }
+
+    return pushWithInv(myStack, j, s, j+1)
+}
+
+requires 1 <= j && j < len(s)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires stack(myStack)
+requires stackInv(myStack, s, j)
+ensures forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+ensures stack(res)
+ensures stackInv(res, s, j)
+ensures isEmpty(res) || s[peek(res)] < s[j]
+func codeInnerLoop(myStack *Stack, s []int, j int) (res *Stack) {
+    invariant 1 <= j && j < len(s)
+    invariant forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+    invariant stack(myStack)
+    invariant stackInv(myStack, s, j)
+    for !isEmpty(myStack) && s[peek(myStack)] >= s[j] {
+        unfold stack(myStack)
+        oldValue := myStack.value
+        myStack = myStack.next
+        convertStackInv(myStack, s, oldValue, j)
+    }
+    return myStack
+}
+
+requires 1 <= v && v < nz && nz <= len(s)
+requires stack(w)
+requires forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+requires stackInv(w, s, v)
+requires nz < len(s) ==> forall k int :: { s[k] } v < k && k <= nz ==> s[nz] <= s[k]
+ensures  nw != nil
+ensures  stack(nw)
+ensures  forall i int :: { s[i] } 1 <= i && i < len(s) ==> acc(&s[i], 1/8)
+ensures  unfolding stack(nw) in nw.next == w && nw.value == v
+ensures  stackInv(nw, s, nz)
+func pushWithInv(w *Stack, v int, ghost s []int, ghost nz int) (nw *Stack) {
+    // copy of push function. However, replacing it by a function call does not suffice to prove the postconditions
+    nw = &Stack{value: v, next: w}
+    fold stack(nw)
+}
+*/
+/* implemented algorithm (in func `code`):
+int i = 0
+stack s = emtpy
+while (i < N) {
+  h = stack.peek
+  while !s.isEmpty && s[h] >= s[i] {
+    stack.pop
+    h = stack.peek
+  }
+
+  if stack.isEmpty {
+    left[i] = 0
+  } else {
+    left[i] = h
+  }
+
+  stack.push(i)
+
+  i = i + 1
+}
+*/

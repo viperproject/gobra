@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// fails: mixing ghost and non-ghost constructs
+//:: ExpectedOutput(type_error)
+func foo() (m mset[bool]) {
+}

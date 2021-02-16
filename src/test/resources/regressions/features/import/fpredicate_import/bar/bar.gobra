@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+type Rectangle struct {
+    Width, Height int
+}
+
+pred RectMem(r *Rectangle) {
+    acc(&r.Width) && acc(&r.Height)
+}
+
+requires RectMem(r)
+ensures RectMem(r)
+ensures res == unfolding RectMem(r) in (r.Width * r.Height)
+ensures unfolding RectMem(r) in (r.Width) == old(unfolding RectMem(r) in r.Width)
+ensures unfolding RectMem(r) in (r.Height) == old(unfolding RectMem(r) in r.Height)
+func (r *Rectangle) Area() (res int) {
+    unfold RectMem(r)
+    res := r.Width * r.Height
+    fold RectMem(r)
+}

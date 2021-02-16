@@ -1,31 +1,34 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.frontend
 
 import java.io.{File, Reader}
-import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Path}
 
-import org.apache.commons.io.FileUtils
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
-import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter}
-import org.bitbucket.inkytonik.kiama.util.{IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
+import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParserError, VerifierError}
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
+import viper.gobra.util.{Constants, Violation}
+
+import scala.io.BufferedSource
+import scala.util.matching.Regex
 
 object Parser {
 
   /**
-    * Parses file and returns either the parsed program if the file was parsed successfully,
-    * otherwise returns list of error messages
+    * Parses files and returns either the parsed program if the file was parsed successfully,
+    * otherwise returns list of error messages.
     *
-    * @param file
+    * @param input
+    * @param specOnly specifies whether only declarations and specifications should be parsed and implementation should be ignored
     * @return
     *
     * The following transformations are performed:
@@ -36,49 +39,133 @@ object Parser {
     *
     */
 
-  def parse(file: File)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val source = SemicolonPreprocessor.preprocess(file)
-    parse(source)(config)
+  def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val preprocessedSources = input
+      .map{ getSource }
+      .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
+    for {
+      parseAst <- parseSources(preprocessedSources, specOnly)(config)
+      postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
+    } yield postprocessedAst
   }
 
-  private def parse(source: Source)(config: Config): Either[Vector[VerifierError], PProgram] = {
-    val pom = new PositionManager
-    val parsers = new SyntaxAnalyzer(pom)
+  private def getSource(path: Path): FromFileSource = {
+    val filename = path.getFileName.toString
+    val inputStream = Files.newInputStream(path)
+    val bufferedSource = new BufferedSource(inputStream)
+    val content = bufferedSource.mkString
+    bufferedSource.close()
+    FromFileSource(filename, content)
+  }
 
-    parsers.parseAll(parsers.program, source) match {
-      case Success(ast, _) =>
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-        // print parsed program if set in config
-        if (config.unparse()) {
-          val outputFile = OutputUtil.postfixFile(config.inputFile(), "unparsed")
-          FileUtils.writeStringToFile(
-            outputFile,
-            ast.formatted,
-            UTF_8
-          )
+    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+      parsers.parseAll(parsers.program, source) match {
+        case Success(ast, _) =>
+
+          val filename = source match {
+            case ffs: FromFileSource => Some(new File(ffs.name))
+            case fs: FileSource => Some(new File(fs.name))
+            case _ => None
+          }
+
+          if(filename.isDefined) {
+            config.reporter report ParsedInputMessage(filename.get, () => ast)
+          }
+
+          Right(ast)
+
+        case ns@NoSuccess(label, next) =>
+          val pos = next.position
+          pom.positions.setStart(ns, pos)
+          pom.positions.setFinish(ns, pos)
+          val messages = message(ns, label)
+          val errors = pom.translate(messages, ParserError)
+          
+          val groupedErrors = errors.groupBy{ _.position.get.file.toFile }
+          groupedErrors.foreach{ case (p, pErrors) =>
+            config.reporter report ParserErrorMessage(p, pErrors)
+          }
+
+          Left(errors)
+
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
+      }
+    }
+
+    val parsedPrograms = {
+      val parserResults = sources.map(parseSource)
+      val (errors, programs) = parserResults.partitionMap(identity)
+
+      if (errors.nonEmpty) {
+        Left(errors.flatten)
+      } else {
+        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+        // of the same package has failed
+        assert(programs.nonEmpty)
+        assert{
+          val packageName = programs.head.packageClause.id.name
+          programs.forall(_.packageClause.id.name == packageName)
         }
 
-        Right(ast)
-
-      case ns@NoSuccess(label, next) =>
-        val pos = next.position
-        pom.positions.setStart(ns, pos)
-        pom.positions.setFinish(ns, pos)
-        val messages = message(ns, label)
-        Left(pom.translate(messages, ParserError))
+        Right(programs)
+      }
     }
+
+    parsedPrograms.map(programs => {
+      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
+      val parsedPackage = PPackage(clause, programs, pom)
+      // The package parse tree node gets the position of the package clause:
+      pom.positions.dupPos(clause, parsedPackage)
+      parsedPackage
+    })
+  }
+
+  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    translateParseResult(pom)(parsers.parseAll(parsers.program, preprocessedSource))
+  }
+
+  def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom, specOnly)
+    translateParseResult(pom)(parsers.parseAll(parsers.member, source))
   }
 
   def parseStmt(source: Source): Either[Messages, PStatement] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
   }
 
   def parseExpr(source: Source): Either[Messages, PExpression] = {
-    val pom = new PositionManager
+    val positions = new Positions
+    val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom)
     translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
+  }
+
+  def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
+  }
+
+  def parseType(source : Source) : Either[Messages, PType] = {
+    val positions = new Positions
+    val pom = new PositionManager(positions)
+    val parsers = new SyntaxAnalyzer(pom)
+    translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
   }
 
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
@@ -90,21 +177,20 @@ object Parser {
         pom.positions.setStart(ns, pos)
         pom.positions.setFinish(ns, pos)
         Left(message(ns, label))
+
+      case c => Violation.violation(s"This case should be unreachable, but got $c")
     }
   }
 
   private object SemicolonPreprocessor {
 
     /**
-      * Assumes that file corresponds to an existing file
+      * Assumes that source corresponds to an existing file
       */
-    def preprocess(file: File, encoding : String = "UTF-8"): Source = {
-      val filename = file.getPath
-      val bufferedSource = scala.io.Source.fromFile(filename, encoding)
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      val translatedContent = translate(content)
-      FromFileSource(filename, translatedContent)
+    def preprocess(source: Source)(config: Config): Source = {
+      val translatedContent = translate(source.content)
+      config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
+      FromFileSource(source.name, translatedContent)
     }
 
     def preprocess(content: String): Source = {
@@ -113,13 +199,13 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n")
+      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
       val integer = """[0-9]+"""
-      val rawStringLit = """`[^`]*`"""
-      val interpretedStringLit = """\"(?:\\"|[^"\n])*\""""
+      val rawStringLit = """`(?:.|\n)*`"""
+      val interpretedStringLit = """\".*\""""
       val stringLit = s"$rawStringLit|$interpretedStringLit"
       val specialKeywords = """break|continue|fallthrough|return"""
       val specialOperators = """\+\+|--"""
@@ -140,17 +226,78 @@ object Parser {
     }
   }
 
-  case class FromFileSource(filename : String, content: String) extends Source {
-    val optName : Option[String] = Some(Source.dropCurrentPath(filename))
+  case class FromFileSource(name : String, content: String) extends Source {
+    val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
     def reader : Reader = IO.stringreader(content)
+
+    def useAsFile[T](fn : String => T) : T = {
+      // copied from StringSource
+      val filename = Filenames.makeTempFilename(name)
+      IO.createFile(filename, content)
+      val t = fn(filename)
+      IO.deleteFile(filename)
+      t
+    }
   }
 
-  private class SyntaxAnalyzer(pom: PositionManager) extends Parsers(pom.positions) {
+  private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
+    /**
+      * Replaces all PQualifiedWoQualifierImport by PQualifiedImport nodes
+      */
+    def postprocess(pkg: PPackage)(config: Config): Either[Vector[VerifierError], PPackage] = {
+      def createError(n: PImplicitQualifiedImport, errorMsg: String): Vector[VerifierError] =
+        pkg.positions.translate(message(n,
+          s"Explicit qualifier could not be derived (reason: '$errorMsg')"), ParserError)
+
+      // unfortunately Kiama does not seem to offer a way to report errors while applying the strategy
+      // hence, we keep ourselves track of errors
+      var failedNodes: Vector[VerifierError] = Vector()
+
+      def replace(n: PImplicitQualifiedImport): Option[PExplicitQualifiedImport] = {
+        val qualifier = for {
+          qualifierName <- PackageResolver.getQualifier(n, config.includeDirs)
+          // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
+          // the same happens for the newly created PExplicitQualifiedImport)
+          idnDef = PIdnDef(qualifierName)
+          _ = pkg.positions.positions.dupPos(n, idnDef)
+        } yield PExplicitQualifiedImport(idnDef, n.importPath)
+        // record errors:
+        qualifier.left.foreach(errorMsg => failedNodes = failedNodes ++ createError(n, errorMsg))
+        qualifier.toOption
+      }
+
+      // note that the next term after PPackageClause to which the strategy will be applied is a Vector of PProgram
+      val resolveImports: Strategy =
+        strategyWithName[Any]("resolveImports", {
+          case n: PImplicitQualifiedImport => replace(n)
+          case n => Some(n)
+        })
+
+      // apply strategy only to import nodes in each program
+      val updatedProgs = pkg.programs.map(prog => {
+        // apply the resolveImports to all import nodes and children and continue even if a strategy returns None
+        // note that the resolveImports strategy could be embedded in e.g. a logfail strategy to report a
+        // failed strategy application
+        val updatedImports = rewrite(topdown(attempt(resolveImports)))(prog.imports)
+        val updatedProg = PProgram(prog.packageClause, updatedImports, prog.declarations)
+        pkg.positions.positions.dupPos(prog, updatedProg)
+      })
+      // create a new package node with the updated programs
+      val updatedPkg = PPackage(pkg.packageClause, updatedProgs, pkg.positions)
+      pkg.positions.positions.dupPos(pkg, updatedPkg)
+      // check whether an error has occurred
+      if (failedNodes.isEmpty) Right(updatedPkg)
+      else Left(failedNodes)
+    }
+  }
+
+  private class SyntaxAnalyzer(pom: PositionManager, specOnly: Boolean = false) extends Parsers(pom.positions) {
 
     lazy val rewriter = new PRewriter(pom.positions)
 
+    val singleWhitespaceChar: String = """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)"""
     override val whitespace: Parser[String] =
-      """(\s|(//.*\s*\n)|/\*(?:.|[\n\r])*?\*/)*""".r
+      s"$singleWhitespaceChar*".r
 
     //    """(\s|(//.*\s*\n)|/\*(?s:(.*)?)\*/)*""".r
     // The above regex matches the same whitespace strings as this one:
@@ -169,42 +316,64 @@ object Parser {
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
+      "len", "cap", "make", "new",
       // new keywords introduced by Gobra
       "ghost", "acc", "assert", "exhale", "assume", "inhale",
       "memory", "fold", "unfold", "unfolding", "pure",
-      "predicate", "old",
-      // predeclared types:// predeclared types:
-      "bool", "int", "string"
+      "predicate", "old", "seq", "set", "in", "union",
+      "intersection", "setminus", "subset", "mset", "option",
+      "none", "some", "get", "write",
+      "typeOf", "isComparable"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
+
+    /**
+      * Optionally consumes nested curly brackets with arbitrary content if `specOnly` is turned on, otherwise optionally applies the parser `p`
+      */
+    def specOnlyParser[T](p: Parser[T]): Parser[Option[T]] =
+      if (specOnly) nestedCurlyBracketsConsumer.? ^^ (_.flatten)
+      else p.?
+
+    /**
+      * Consumes nested curly brackets with arbitrary content and returns None
+      */
+    lazy val nestedCurlyBracketsConsumer: Parser[Option[Nothing]] =
+      "{" ~> ("""[^{}]""".r | nestedCurlyBracketsConsumer).* <~ "}" ^^ (_ => None)
 
     /**
       * Member
       */
 
     lazy val program: Parser[PProgram] =
-      (packageClause <~ eos) ~ (member <~ eos).* ^^ {
-        case pkgClause ~ members =>
-          PProgram(pkgClause, Vector.empty, members.flatten, pom)
+      (packageClause <~ eos) ~ importDecls ~ members ^^ {
+        case pkgClause ~ importDecls ~ members =>
+          PProgram(pkgClause, importDecls.flatten, members.flatten)
       }
 
     lazy val packageClause: Parser[PPackageClause] =
       "package" ~> pkgDef ^^ PPackageClause
 
-    lazy val importDecl: Parser[Vector[PImportDecl]] =
-      "import" ~> importSpec ^^ (decl => Vector(decl)) |
-        "import" ~> "(" ~> (importSpec <~ eos).* <~ ")"
+    lazy val importDecls: Parser[Vector[Vector[PImport]]] =
+      (importDecl <~ eos).*
 
-    lazy val importSpec: Parser[PImportDecl] =
+    lazy val members: Parser[Vector[Vector[PMember]]] =
+      (member <~ eos).*
+
+    lazy val importDecl: Parser[Vector[PImport]] =
+      ("import" ~> importSpec ^^ (decl => Vector(decl))) |
+        ("import" ~> "(" ~> repsep(importSpec, eos) <~ eos.? <~ ")")
+
+    lazy val importSpec: Parser[PImport] =
       unqualifiedImportSpec | qualifiedImportSpec
 
     lazy val unqualifiedImportSpec: Parser[PUnqualifiedImport] =
-      "." ~> idnPackage ^^ PUnqualifiedImport
+      "." ~> idnImportPath ^^ PUnqualifiedImport
 
     lazy val qualifiedImportSpec: Parser[PQualifiedImport] =
-      idnDef.? ~ idnPackage ^^ {
-        case id ~ pkg => PQualifiedImport(id.getOrElse(PIdnDef(???).at(???)), pkg)
+      idnDefLike.? ~ idnImportPath ^^ {
+        case Some(id) ~ pkg => PExplicitQualifiedImport(id, pkg)
+        case None ~ pkg => PImplicitQualifiedImport(pkg)
       }
 
     lazy val member: Parser[Vector[PMember]] =
@@ -219,7 +388,7 @@ object Parser {
         "const" ~> "(" ~> (constSpec <~ eos).* <~ ")"
 
     lazy val constSpec: Parser[PConstDecl] =
-      rep1sep(idnDef, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
+      rep1sep(idnDefLike, ",") ~ (typ.? ~ ("=" ~> rep1sep(expression, ","))).? ^^ {
         case left ~ None => PConstDecl(None, Vector.empty, left)
         case left ~ Some(t ~ right) => PConstDecl(t, right, left)
       }
@@ -229,7 +398,7 @@ object Parser {
         "var" ~> "(" ~> (varSpec <~ eos).* <~ ")"
 
     lazy val varSpec: Parser[PVarDecl] =
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
+      rep1sep(maybeAddressableIdn(idnDefLike), ",") ~ typ ~ ("=" ~> rep1sep(expression, ",")).? ^^ {
         case left ~ t ~ None =>
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), Vector.empty, vars, addressable)
@@ -237,7 +406,7 @@ object Parser {
           val (vars, addressable) = left.unzip
           PVarDecl(Some(t), right, vars, addressable)
       } |
-        (rep1sep(maybeAddressableIdnDef, ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
+        (rep1sep(maybeAddressableIdn(idnDefLike), ",") <~ "=") ~ rep1sep(expression, ",") ^^ {
           case left ~ right =>
             val (vars, addressable) = left.unzip
             PVarDecl(None, right, vars, addressable)
@@ -257,8 +426,9 @@ object Parser {
       (idnDef <~ "=") ~ typ ^^ { case left ~ right => PTypeAlias(right, left)}
 
     lazy val functionDecl: Parser[PFunctionDecl] =
-      functionSpec ~ ("func" ~> idnDef) ~ signature ~ block.? ^^ {
-        case spec ~ name ~ sig ~ body => PFunctionDecl(name, sig._1, sig._2, spec, body)
+      functionSpec ~ ("func" ~> idnDef) ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
+        case spec ~ name ~ sig ~ body =>
+          PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
@@ -267,7 +437,7 @@ object Parser {
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =
-      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ block.? ^^ {
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
       }
 
@@ -311,9 +481,9 @@ object Parser {
       (rep1sep(assignee, ",") <~ "=") ~ rep1sep(expression, ",") ^^ { case left ~ right => PAssignment(right, left) }
 
     lazy val assignmentWithOp: Parser[PAssignmentWithOp] =
-      assignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
-        assignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
-        assignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
+      nonBlankAssignee ~ (assOp <~ "=") ~ expression ^^ { case left ~ op ~ right => PAssignmentWithOp(right, op, left) }  |
+        nonBlankAssignee <~ "++" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PAddOp().at(e), e).at(e)) |
+        nonBlankAssignee <~ "--" ^^ (e => PAssignmentWithOp(PIntLit(1).at(e), PSubOp().at(e), e).at(e))
 
     lazy val assOp: Parser[PAssOp] =
       "+" ^^^ PAddOp() |
@@ -322,11 +492,16 @@ object Parser {
         "/" ^^^ PDivOp() |
         "%" ^^^ PModOp()
 
-    lazy val assignee: Parser[PAssignee] =
+    lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
 
+    lazy val assignee: Parser[PAssignee] =
+      nonBlankAssignee | blankIdentifier
+
+    lazy val blankIdentifier: Parser[PAssignee] = "_" ^^^ PBlankIdentifier()
+
     lazy val shortVarDecl: Parser[PShortVarDecl] =
-      (rep1sep(maybeAddressableIdnUnk, ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
+      (rep1sep(maybeAddressableIdn(idnUnkLike), ",") <~ ":=") ~ rep1sep(expression, ",") ^^ {
         case lefts ~ rights =>
           val (vars, addressable) = lefts.unzip
           PShortVarDecl(rights, vars, addressable)
@@ -358,6 +533,16 @@ object Parser {
 
     lazy val block: Parser[PBlock] =
       "{" ~> repsep(statement, eos) <~ eos.? <~ "}" ^^ PBlock
+
+    lazy val blockWithoutBraces: Parser[PBlock] =
+      repsep(statement, eos) <~ eos.? ^^ PBlock
+
+    lazy val blockWithBodyParameterInfo: Parser[(PBodyParameterInfo, PBlock)] =
+      "{" ~> bodyParameterInfo ~ blockWithoutBraces <~ "}"
+
+    lazy val bodyParameterInfo: Parser[PBodyParameterInfo] =
+      Constants.SHARE_PARAMETER_KEYWORD ~> repsep(idnUse, ",") <~ eos.? ^^ PBodyParameterInfo |
+        success(PBodyParameterInfo(Vector.empty))
 
     lazy val ifStmt: Parser[PIfStmt] =
       ifClause ~ ("else" ~> ifStmt) ^^ { case clause ~ PIfStmt(ifs, els) => PIfStmt(clause +: ifs, els) } |
@@ -453,10 +638,14 @@ object Parser {
 
     lazy val forStmt: Parser[PForStmt] =
       loopSpec ~ pos("for") ~ block ^^ { case spec ~ pos ~ b => PForStmt(None, PBoolLit(true).at(pos), None, spec, b) } |
-      loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
-        case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
-        case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
-      }
+        loopSpec ~ ("for" ~> simpleStmt.? <~ ";") ~ (pos(expression.?) <~ ";") ~ simpleStmt.? ~ block ^^ {
+          case spec ~ pre ~ (pos@PPos(None)) ~ post ~ body => PForStmt(pre, PBoolLit(true).at(pos), post, spec, body)
+          case spec ~ pre ~ PPos(Some(cond)) ~ post ~ body => PForStmt(pre, cond, post, spec, body)
+        } |
+        loopSpec ~ ("for" ~> expression) ~ block ^^ {
+          case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
+        }
+
 
     lazy val loopSpec: Parser[PLoopSpec] =
       ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
@@ -493,16 +682,31 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence5) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence5) ^^ PUnequals |
-        precedence4 ~ ("<" ~> precedence5) ^^ PLess |
-        precedence4 ~ ("<=" ~> precedence5) ^^ PAtMost |
-        precedence4 ~ (">" ~> precedence5) ^^ PGreater |
-        precedence4 ~ (">=" ~> precedence5) ^^ PAtLeast |
+      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
+        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+        // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
+        precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
+        precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
+        precedence4 ~ ("<=" ~> precedence4P1) ^^ PAtMost |
+        precedence4 ~ (">" ~> precedence4P1) ^^ PGreater |
+        precedence4 ~ (">=" ~> precedence4P1) ^^ PAtLeast |
+        precedence4P1
+
+    lazy val precedence4P1 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P1 ~ ("in" ~> precedence4P2) ^^ PIn |
+        precedence4P1 ~ ("#" ~> precedence4P2) ^^ PMultiplicity |
+        precedence4P1 ~ ("subset" ~> precedence4P2) ^^ PSubset |
+        precedence4P2
+
+    lazy val precedence4P2 : PackratParser[PExpression] = /* Left-associative */
+      precedence4P2 ~ ("union" ~> precedence5) ^^ PUnion |
+        precedence4P2 ~ ("intersection" ~> precedence5) ^^ PIntersection |
+        precedence4P2 ~ ("setminus" ~> precedence5) ^^ PSetMinus |
         precedence5
 
-    lazy val precedence5: PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
+    lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
+      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+        precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence6
 
@@ -515,7 +719,6 @@ object Parser {
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
 
-
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
@@ -524,7 +727,27 @@ object Parser {
         dereference |
         receiveExp |
         unfolding |
+        make |
+        newExp |
+        len |
+        cap |
+        ghostUnaryExp |
         primaryExp
+
+    lazy val make : Parser[PMake] =
+      "make" ~> ("(" ~> typ ~ expSequence <~ ")") ^^ PMake
+
+    lazy val expSequence: Parser[Vector[PExpression]] =
+      ("," ~> rep1sep(expression, ",") <~ ",".?).? ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val newExp : Parser[PNew] =
+      "new" ~> ("(" ~> typ <~ ")") ^^ PNew
+
+    lazy val len : Parser[PLength] =
+      "len" ~> ("(" ~> expression <~ ")") ^^ PLength
+
+    lazy val cap : Parser[PCapacity] =
+      "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -538,17 +761,50 @@ object Parser {
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
+    lazy val ghostUnaryExp : Parser[PGhostExpression] =
+      "|" ~> expression <~ "|" ^^ PCardinality
+
+    lazy val sequenceConversion : Parser[PSequenceConversion] =
+      "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
+
+    lazy val setConversion : Parser[PSetConversion] =
+      "set" ~> ("(" ~> expression <~ ")") ^^ PSetConversion
+
+    lazy val multisetConversion : Parser[PMultisetConversion] =
+      "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
 
     lazy val primaryExp: Parser[PExpression] =
-        conversion |
+      conversion |
         call |
+        predConstruct |
         selection |
         indexedExp |
         sliceExp |
+        seqUpdExp |
         typeAssertion |
         ghostPrimaryExp |
         operand
 
+    // TODO: change delimiters to { and } and implement required ambiguity resolution
+    // current format: declaredPred!<d1, ..., dn!>
+    lazy val fpredConstruct: Parser[PPredConstructor] =
+      (idnUse ~ predConstructArgs) ^^ {
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
+      }
+
+    lazy val mpredConstruct: Parser[PPredConstructor] =
+      selection ~ predConstructArgs ^^ {
+        case recvWithId ~ args => PPredConstructor(PDottedBase(recvWithId).at(recvWithId), args)
+      }
+
+    lazy val predConstruct: Parser[PPredConstructor] =
+      mpredConstruct | fpredConstruct
+
+    lazy val predConstructArgs: Parser[Vector[Option[PExpression]]] =
+      ("!<" ~> (rep1sep(predConstructArg, ",") <~ ",".?).? <~ "!>") ^^ (opt => opt.getOrElse(Vector.empty))
+
+    lazy val predConstructArg: Parser[Option[PExpression]] =
+      (expression ^^ Some[PExpression]) | ("_" ^^^ None)
 
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
@@ -562,7 +818,8 @@ object Parser {
       ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
 
     lazy val selection: PackratParser[PDot] =
-      primaryExp ~ ("." ~> idnUse) ^^ PDot
+      primaryExp ~ ("." ~> idnUse) ^^ PDot |
+      typ ~ ("." ~> idnUse) ^^ PDot
 
     lazy val idBasedSelection: Parser[PDot] =
       nestedIdnUse ~ ("." ~> idnUse) ^^ {
@@ -573,7 +830,13 @@ object Parser {
       primaryExp ~ ("[" ~> expression <~ "]") ^^ PIndexedExp
 
     lazy val sliceExp: PackratParser[PSliceExp] =
-      primaryExp ~ ("[" ~> expression) ~ ("," ~> expression) ~ (("," ~> expression).? <~ "]") ^^ PSliceExp
+      primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
+
+    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+
+    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
@@ -638,42 +901,63 @@ object Parser {
 
 
 
-
-
-
     /**
       * Types
       */
 
-    lazy val typ: Parser[PType] =
-      "(" ~> typ <~ ")" | typeLit | predeclaredType | namedType
+    lazy val typ : Parser[PType] =
+      "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
+
+    lazy val ghostTyp : Parser[PGhostType] =
+      "(" ~> ghostTyp <~ ")" | ghostTypeLit
 
     lazy val typeLit: Parser[PTypeLit] =
-      pointerType | sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType
+      pointerType | sliceType | arrayType | mapType |
+        channelType | functionType | structType | interfaceType | predType
 
+    lazy val ghostTypeLit : Parser[PGhostLiteralType] =
+      sequenceType | setType | multisetType | optionType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
-      "[]" ~> typ ^^ PSliceType
+      ("[" ~ "]") ~> typ ^^ PSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
 
     lazy val channelType: Parser[PChannelType] =
-      ("chan" ~> "<-") ~> typ ^^ PRecvChannelType |
-        ("<-" ~> "chan") ~> typ ^^ PSendChannelType |
+      ("chan" ~> "<-") ~> typ ^^ PSendChannelType |
+        ("<-" ~> "chan") ~> typ ^^ PRecvChannelType |
         "chan" ~> typ ^^ PBiChannelType
 
     lazy val functionType: Parser[PFunctionType] =
       "func" ~> signature ^^ PFunctionType.tupled
 
+    lazy val predType: Parser[PPredType] =
+      "pred" ~> predTypeParams ^^ PPredType
+
+    lazy val predTypeParams: Parser[Vector[PType]] =
+      "(" ~> (rep1sep(typ, ",") <~ ",".?).? <~ ")" ^^ (_.toVector.flatten)
+
     lazy val arrayType: Parser[PArrayType] =
       ("[" ~> expression <~ "]") ~ typ ^^ PArrayType
 
+    lazy val sequenceType : Parser[PSequenceType] =
+      "seq" ~> ("[" ~> typ <~ "]") ^^ PSequenceType
+
+    lazy val setType : Parser[PSetType] =
+      "set" ~> ("[" ~> typ <~ "]") ^^ PSetType
+
+    lazy val multisetType : Parser[PMultisetType] =
+      "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
+
+    lazy val optionType : Parser[POptionType] =
+      "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
+
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> (structClause <~ eos).* <~ "}" ^^ PStructType
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
 
     lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl
@@ -696,16 +980,16 @@ object Parser {
       }
 
     lazy val interfaceClause: Parser[PInterfaceClause] =
-      methodSpec | interfaceName
+      predicateSpec | methodSpec | interfaceName
 
     lazy val interfaceName: Parser[PInterfaceName] =
       declaredType ^^ PInterfaceName
 
     lazy val methodSpec: Parser[PMethodSig] =
-      idnDef ~ signature ^^ { case id ~ sig => PMethodSig(id, sig._1, sig._2) }
+      "ghost".? ~ functionSpec ~ idnDef ~ signature ^^ { case isGhost ~ spec ~ id ~ sig => PMethodSig(id, sig._1, sig._2, spec, isGhost.isDefined) }
 
     lazy val predicateSpec: Parser[PMPredicateSig] =
-      idnDef ~ parameters ^^ PMPredicateSig
+      ("pred" ~> idnDef) ~ parameters ^^ PMPredicateSig
 
 
     lazy val namedType: Parser[PNamedType] =
@@ -713,18 +997,45 @@ object Parser {
         declaredType
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
-      "bool" ^^^ PBoolType() |
-        "int" ^^^ PIntType() |
-        "string" ^^^ PStringType()
+      exactWord("bool") ^^^ PBoolType() |
+        exactWord("string") ^^^ PStringType() |
+        // signed integer types
+        exactWord("rune") ^^^ PRune() |
+        exactWord("int") ^^^ PIntType() |
+        exactWord("int8") ^^^ PInt8Type() |
+        exactWord("int16") ^^^ PInt16Type() |
+        exactWord("int32") ^^^ PInt32Type() |
+        exactWord("int64") ^^^ PInt64Type() |
+        // unsigned integer types
+        exactWord("byte") ^^^ PByte() |
+        exactWord("uint") ^^^ PUIntType() |
+        exactWord("uint8") ^^^ PUInt8Type() |
+        exactWord("uint16") ^^^ PUInt16Type() |
+        exactWord("uint32") ^^^ PUInt32Type() |
+        exactWord("uint64") ^^^ PUInt64Type() |
+        exactWord("uintptr") ^^^ PUIntPtr()
+
+    private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
+
+    lazy val qualifiedType: Parser[PDot] =
+      declaredType ~ ("." ~> idnUse) ^^ PDot
 
     lazy val declaredType: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand
 
     lazy val literalType: Parser[PLiteralType] =
-      sliceType | arrayType | implicitSizeArrayType | mapType | structType | declaredType
+      sliceType |
+        arrayType |
+        implicitSizeArrayType |
+        mapType |
+        structType |
+        qualifiedType |
+        ghostTypeLit |
+        declaredType
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType
+
 
     /**
       * Misc
@@ -756,8 +1067,8 @@ object Parser {
 
     lazy val parameterDecl: Parser[Vector[PParameter]] =
       ghostParameter |
-      rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PNamedParameter(id._1, t.copy, id._2).at(id._1): PParameter)
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
       } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
 
 
@@ -787,14 +1098,15 @@ object Parser {
     lazy val idnUse: Parser[PIdnUse] = identifier ^^ PIdnUse
     lazy val idnUnk: Parser[PIdnUnk] = identifier ^^ PIdnUnk
 
-    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] =
-      idnDef ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+    def maybeAddressableIdn[T <: PIdnNode](p: Parser[T]): Parser[(T, Boolean)] =
+      p ~ addressabilityMod.? ^^ { case id ~ opt => (id, opt.isDefined) }
 
-    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] =
-      idnUnk ~ "!".? ^^ { case id ~ opt => (id, opt.isDefined) }
+    lazy val maybeAddressableIdnDef: Parser[(PIdnDef, Boolean)] = maybeAddressableIdn(idnDef)
+    lazy val maybeAddressableIdnUnk: Parser[(PIdnUnk, Boolean)] = maybeAddressableIdn(idnUnk)
 
     lazy val idnDefLike: Parser[PDefLikeId] = idnDef | wildcard
     lazy val idnUseLike: Parser[PUseLikeId] = idnUse | wildcard
+    lazy val idnUnkLike: Parser[PUnkLikeId] = idnUnk | wildcard
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
@@ -804,17 +1116,22 @@ object Parser {
 
     lazy val wildcard: Parser[PWildcard] = "_" ^^^ PWildcard()
 
+    lazy val addressabilityMod: Parser[String] = Constants.ADDRESSABILITY_MODIFIER
 
     lazy val identifier: Parser[String] =
-      "[a-zA-Z_][a-zA-Z0-9_]*".r into (s => {
+      // "_" is not an identifier (but a wildcard)
+      "(?:_[a-zA-Z0-9_]+|[a-zA-Z][a-zA-Z0-9_]*)".r into (s => {
         if (isReservedWord(s))
           failure(s"""keyword "$s" found where identifier expected""")
         else
           success(s)
       })
 
-    lazy val idnPackage: Parser[String] = ???
-
+    lazy val idnImportPath: Parser[String] =
+      // this allows for seemingly meaningless paths such as ".......". It is not problematic that Gobra parses these
+      // paths given that it will throw an error if they do not exist in the filesystem
+      "\"" ~> "[.a-zA-Z0-9_/]*".r <~ "\""
+      // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**
       * Ghost
@@ -823,18 +1140,32 @@ object Parser {
     lazy val ghostMember: Parser[Vector[PGhostMember]] =
       fpredicateDecl ^^ (Vector(_)) |
         mpredicateDecl ^^ (Vector(_)) |
+        implementationProof ^^ (Vector(_)) |
       "ghost" ~ eos.? ~> (methodDecl | functionDecl) ^^ (m => Vector(PExplicitGhostMember(m).at(m))) |
         "ghost" ~ eos.? ~> (constDecl | varDecl | typeDecl) ^^ (ms => ms.map(m => PExplicitGhostMember(m).at(m)))
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val fpredicateDecl: Parser[PFPredicateDecl] =
-      ("pred" ~> idnDef) ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ PFPredicateDecl
+      ("pred" ~> idnDef) ~ parameters ~ predicateBody ^^ PFPredicateDecl
 
     // expression can be terminated with a semicolon to simply preprocessing
     lazy val mpredicateDecl: Parser[PMPredicateDecl] =
-      ("pred" ~> receiver) ~ idnDef ~ parameters ~ ("{" ~> expression <~ eos.? ~ "}").? ^^ {
+      ("pred" ~> receiver) ~ idnDef ~ parameters ~ predicateBody ^^ {
         case rcv ~ name ~ paras ~ body => PMPredicateDecl(name, rcv, paras, body)
       }
+
+    lazy val implementationProof: Parser[PImplementationProof] =
+      (typ <~ "implements") ~ typ ~ ("{" ~> (methodImplementationProof <~ eos).* <~ "}").? ^^ {
+        case subT ~ superT ~ memberProofOpt => PImplementationProof(subT, superT, memberProofOpt.getOrElse(Vector.empty))
+      }
+
+    lazy val methodImplementationProof: Parser[PMethodImplementationProof] =
+      "pure".? ~ receiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
+        case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body)
+      }
+
+    lazy val predicateBody: Parser[Option[PExpression]] =
+      ("{" ~> expression <~ eos.? ~ "}").?
 
     lazy val ghostStatement: Parser[PGhostStatement] =
       "ghost" ~> statement ^^ PExplicitGhostStatement |
@@ -845,23 +1176,110 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold
 
-
     lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(maybeAddressableIdnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id._1, t.copy, id._2).at(id._1)).at(id._1): PParameter)
+      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
       } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
 
-    lazy val ghostPrimaryExp: Parser[PGhostExpression] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld |
-        "acc" ~> "(" ~> expression <~ ")" ^^ PAccess
+    lazy val ghostPrimaryExp : Parser[PGhostExpression] =
+      forall |
+        exists |
+        old |
+        access |
+        typeOf |
+        isComparable |
+        rangeSequence |
+        rangeSet |
+        rangeMultiset |
+        sequenceConversion |
+        setConversion |
+        multisetConversion |
+        optionNone | optionSome | optionGet
+
+    lazy val forall : Parser[PForall] =
+      ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
+
+    lazy val exists : Parser[PExists] =
+      ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
+
+    lazy val old : Parser[POld] =
+      "old" ~> "(" ~> expression <~ ")" ^^ POld
+
+    lazy val access : Parser[PAccess] =
+      "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+
+    lazy val permission: Parser[PPermission] =
+      fractionalPermission |
+      "write" ^^^ PFullPerm() |
+      "none" ^^^ PNoPerm() |
+      "_" ^^^ PWildcardPerm()
+
+    lazy val fractionalPermission: Parser[PFractionalPerm] =
+      expression into {
+        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
+        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
+      }
+
+    lazy val typeOf: Parser[PTypeOf] =
+      "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
+
+    lazy val isComparable: Parser[PIsComparable] =
+      "isComparable" ~> "(" ~> (expression | typ) <~ ")" ^^ PIsComparable
+
+    private lazy val rangeExprBody : Parser[PExpression ~ PExpression] =
+      "[" ~> expression ~ (".." ~> expression <~ "]")
+
+    lazy val rangeSequence : Parser[PRangeSequence] = "seq" ~> rangeExprBody ^^ PRangeSequence
+
+    /**
+      * Expressions of the form "set[`left` .. `right`]" are directly
+      * transformed into "set(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeSet : Parser[PGhostExpression] = "set" ~> rangeExprBody ^^ {
+      case left ~ right => PSetConversion(PRangeSequence(left, right).range(left, right))
+    }
+
+    /**
+      * Expressions of the form "mset[`left` .. `right`]" are directly
+      * transformed into "mset(seq[`left` .. `right`])" (to later lift on
+      * the existing type checking support for range sequences.)
+      */
+    lazy val rangeMultiset : Parser[PGhostExpression] = "mset" ~> rangeExprBody ^^ {
+      case left ~ right => PMultisetConversion(PRangeSequence(left, right).range(left, right))
+    }
+
+    lazy val optionNone : Parser[POptionNone] =
+      "none" ~> ("[" ~> typ <~ "]") ^^ POptionNone
+
+    lazy val optionSome : Parser[POptionSome] =
+      "some" ~> ("(" ~> expression <~ ")") ^^ POptionSome
+
+    lazy val optionGet : Parser[POptionGet] =
+      "get" ~> ("(" ~> expression <~ ")") ^^ POptionGet
 
     lazy val predicateAccess: Parser[PPredicateAccess] =
-      predicateCall ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+      // call ^^ PPredicateAccess // | "acc" ~> "(" ~> call <~ ")" ^^ PPredicateAccess
+      primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
+        case invoke: PInvoke => success(PPredicateAccess(invoke, PFullPerm().at(invoke)))
+        case PAccess(invoke: PInvoke, perm) => success(PPredicateAccess(invoke, perm))
+        case e => failure(s"expected invoke but got ${e.getClass}")
+      }
 
-    lazy val predicateCall: Parser[PInvoke] = // TODO: should just be 'call'
-        idnUse ~ callArguments ^^ { case id ~ args => PInvoke(PNamedOperand(id).at(id), args)} |
-        nestedIdnUse ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(PNamedOperand(base).at(base), id).at(base), args)}  |
-        primaryExp ~ ("." ~> idnUse) ~ callArguments ^^ { case base ~ id ~ args => PInvoke(PDot(base, id).at(base), args)}
+    lazy val boundVariables: Parser[Vector[PBoundVariable]] =
+      rep1sep(boundVariableDecl, ",") ^^ Vector.concat
+
+    lazy val boundVariableDecl: Parser[Vector[PBoundVariable]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
+        ids map (id => PBoundVariable(id, t.copy).at(id))
+      }
+
+    lazy val triggers: Parser[Vector[PTrigger]] = trigger.*
+
+    lazy val trigger: Parser[PTrigger] =
+      "{" ~> rep1sep(expression, ",") <~ "}" ^^ PTrigger
+
 
     /**
       * EOS
@@ -896,5 +1314,4 @@ object Parser {
 
 
 }
-
 

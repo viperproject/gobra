@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// check whether Gobra only considers import on file level (not package level)
+// ##(-I src/test/resources/same_package/file_local_imports/import_not_avail)
+import "bar"
+
+func test1() {
+    assert bar.Answer == 42
+}

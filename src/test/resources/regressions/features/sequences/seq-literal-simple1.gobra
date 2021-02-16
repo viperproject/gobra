@@ -1,0 +1,49 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1() {
+  ghost xs := seq[int] { }
+}
+
+func example2() {
+  ghost xs := seq[int] { 1 }
+}
+
+func example3() {
+  ghost xs := seq[int] { 1, 17, 142 }
+}
+
+func example4() {
+  ghost xs := seq[bool] { true, false, true }
+}
+
+func example5() {
+  ghost xs := seq[seq[int]] { seq[int] { 1 }, seq[int] { 17, 142 } }
+}
+
+requires xs == seq[int] { }
+func example6(ghost xs seq[int]) {
+}
+
+requires xs == seq[int] { 1, 2, 3 }
+func example7(ghost xs seq[int]){
+}
+
+requires xs == seq[int] { 1, 2, 3 }
+ensures ys == seq[int] { 1, 2, 3 }
+func example8(ghost xs seq[int]) (ghost ys seq[int]) {
+  ys = xs
+}
+
+func example9() {
+  assert seq[int] { 2, 3 } == seq[int] { 1 + 1, 1 + 1 + 1 }
+}
+
+func example10() {
+  ghost xs := seq[int] { 1 }
+  ghost ys := seq[int] { 2 }
+  assert xs[0] != ys[0]
+  assert xs != ys
+}

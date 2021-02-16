@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+	var a [3]int = [3]int{1, 2, 3}
+}
+
+func test2() {
+	var a = [3]int{1, 2, 3}
+  assert len(a) == 3
+  assert cap(a) == 3
+}
+
+func test3() {
+	n := ([3]int{1, 2, 3})[1]
+  assert n == 2
+}
+
+func test4() {
+	var a@ [2]int = [...]int{1: 10, 0: 20}
+  assert a == [2]int { 20, 10 }
+}
+
+func test5() {
+  assert [3]int { 2:50, 1:30, 0:10 } == [3]int { 10, 30, 50 }
+}
+
+func test6() {
+	var a@ = [3]int{1, 2, 3}
+  assert len(a) == 3
+  assert cap(a) == 3
+}
+
+func test7 () {
+  a := [12]int{}
+  assert len(a) == 12
+  assert a[7] == 0
+}
+
+func test8 () {
+  a := [10001]bool{ 2:true, 998:true }
+  assert len(a) == 10001
+  assert !a[1] && a[2] && !a[123] && a[998]
+}

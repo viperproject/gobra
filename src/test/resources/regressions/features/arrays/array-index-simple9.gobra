@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires len(a) == 3
+func test1(a [2]int) {
+  assert false
+}
+
+requires cap(a) == 2
+func test2(a [3]int) {
+  assert false
+}
+
+requires a[1] == 42
+func test3(a [2]int) {
+  assert a[1] == 42
+}
+
+requires len(a) == n
+func test4(n int, a [64]int) {
+  assert n == cap(a)
+}
+
+requires cap(a) == n
+func test5(n int, a [128]int) {
+  assert n == len(a)
+}
+
+ensures len(a) == 4
+func test6() (a [4]int) {
+}
+
+func test7() (b [4]int) {
+  var a [4]int
+  assert a == b
+}
+
+
+
+ensures res[0] != res[1]
+func test10() (res [2]bool) {
+  share res
+  res[0] = true
+  res[1] = false
+}

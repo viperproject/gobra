@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo(ghost m1 mset[int], ghost m2 mset[bool]) {
+  //:: ExpectedOutput(type_error)
+  ghost m := m1 intersection m2
+}

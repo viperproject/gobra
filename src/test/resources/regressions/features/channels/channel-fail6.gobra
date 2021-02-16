@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred sendInvariant(v int) {
+    v == 42
+}
+
+// contracts for built-in members might use other built-in members which also need to be generated (even when not mentioned in the program text)
+requires c.IsChannel() && c.BufferSize() == 1
+func testDependentBuiltInMembers(c chan int) {
+    // PredTrue, SendChannel, RecvChannel, SendGivenPerm, SendGotPerm, RecvGivenPerm, and RecvGotPerm members have to be generated
+
+    // Init cannot be called since equality of sendInvariant!<42!> and PredTrue!<!> cannot be proved
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    c.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+}
+
+requires c.IsChannel() // c.BufferSize() is not specified
+func testInitWithoutBufferSize(c chan int) {
+    // as the buffer size is unknown, the second argument has to be equal to PredTrue!<!> (same situation as in the functio above)
+    //:: ExpectedOutput(precondition_error:assertion_error)
+    c.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+}
+
+requires c.IsChannel() && c.BufferSize() == 0
+func testInitWithBufferSize0(c chan int) {
+    // any predicate expression can be used as second argument as it is known that the channel has buffer size 0
+    c.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+}

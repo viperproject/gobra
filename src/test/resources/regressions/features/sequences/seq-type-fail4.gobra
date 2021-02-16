@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Cell struct {
+  // fails since the field declaration `xs` is of a ghost type while the field is not marked as being ghost.
+  //:: ExpectedOutput(type_error)
+  xs seq[int]
+}

@@ -1,7 +1,14 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
+import viper.gobra.util.Constants
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -15,9 +22,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   override def format(node: PNode): String = pretty(show(node)).layout
 
   def show(node: PNode): Doc = node match {
+    case n: PPackage => showPackage(n)
     case n: PProgram => showProgram(n)
-    case n: PPackageClause => showPackage(n)
-    case n: PImportDecl => showImport(n)
+    case n: PPackageClause => showPackageClause(n)
+    case n: PImport => showImport(n)
     case n: PMember => showMember(n)
     case n: PStatement => showStmt(n)
     case n: PExpression => showExpr(n)
@@ -25,45 +33,48 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PType => showType(n)
     case n: PIdnNode => showId(n)
     case n: PLabelNode => showLabel(n)
-    case n: PPackegeNode => showPackageId(n)
+    case n: PPackageNode => showPackageId(n)
+    case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
-
+    case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
-    case n: PLiteralValue => showLiteralValue(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
-    case n: PKeyedElement => showKeyedElement(n)
-
     case n: PIfClause => showIfClause(n)
     case n: PExprSwitchClause => showExprSwitchClause(n)
     case n: PTypeSwitchClause => showTypeSwitchClause(n)
     case n: PSelectClause => showSelectClause(n)
-
     case n: PStructClause => showStructClause(n)
-    case n: PFieldDecl => showFieldDecl(n)
     case n: PInterfaceClause => showInterfaceClause(n)
-
+    case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case PPos(_) => emptyDoc
   }
+
+  // entire package
+
+  def showPackage(p: PPackage): Doc =
+    ssep(p.programs map showProgram, line) <> line
 
   // program
 
   def showProgram(p: PProgram): Doc = p match {
-    case PProgram(packages, imports, declarations, _) =>
-      showPackage(packages) <> line <> line <>
+    case PProgram(packageClause, imports, declarations) =>
+      showPackageClause(packageClause) <> line <> line <>
         ssep(imports map showImport, line) <> line <>
         ssep(declarations map showMember, line <> line) <> line
   }
 
   // package
 
-  def showPackage(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
-  def showPackageId(id: PPackegeNode): Doc = id.name
+  def showPackageClause(node: PPackageClause): Doc = "package" <+> showPackageId(node.id)
+  def showPackageId(id: PPackageNode): Doc = id.name
 
   // imports
 
-  def showImport(decl: PImportDecl): Doc = decl match {
-    case PQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+  def showImport(decl: PImport): Doc = decl match {
+    case PExplicitQualifiedImport(PWildcard(), pkg) => "import" <+> "_" <+> pkg
+    case PExplicitQualifiedImport(qualifier, pkg) => "import" <+> showId(qualifier) <+> pkg
+    case PImplicitQualifiedImport(pkg) => "import" <+> pkg
     case PUnqualifiedImport(pkg) => "import" <+> "." <+> pkg
   }
 
@@ -74,28 +85,50 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PConstDecl => showConstDecl(n)
       case n: PVarDecl => showVarDecl(n)
       case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, result, spec, body) =>
-        showSpec(spec) <>
-        "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(result) <> opt(body)(b => space <> block(showStmt(b)))
+      case PFunctionDecl(id, args, res, spec, body) =>
+        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+          opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PMethodDecl(id, rec, args, res, spec, body) =>
-        showSpec(spec) <>
-        "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <> opt(body)(b => space <> block(showStmt(b)))
+        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res) <>
+        opt(body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
     }
     case member: PGhostMember => member match {
       case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, body) => "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
-      case PMPredicateDecl(id, recv, args, body) => "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PFPredicateDecl(id, args, body) =>
+        "pred" <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case PMPredicateDecl(id, recv, args, body) =>
+        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
+      case ip: PImplementationProof =>
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <>
+          (if (ip.memberProofs.isEmpty) emptyDoc else block(ssep(ip.memberProofs map showMisc, line)))
     }
   }
 
+  def showPure: Doc = "pure" <> line
+  def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
+  def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
+  def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
+
   def showSpec(spec: PSpecification): Doc = spec match {
     case PFunctionSpec(pres, posts, isPure) =>
-      (if (isPure) "pure" <> line else emptyDoc) <>
-      hcat(pres map (p => "requires" <+> showExpr(p) <> line)) <>
-        hcat(posts map (p => "ensures" <+> showExpr(p) <> line))
+      (if (isPure) showPure else emptyDoc) <>
+      hcat(pres map (showPre(_) <> line)) <>
+        hcat(posts map (showPost(_) <> line))
 
     case PLoopSpec(inv) =>
-      hcat(inv map (p => "invariants" <+> showExpr(p) <> line))
+      hcat(inv map (showInv(_) <> line))
+  }
+
+  def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {
+    this.block(
+      showBodyParameterInfo(info) <> showStmtList(block.stmts)
+    )
+  }
+
+  def showBodyParameterInfo(info: PBodyParameterInfo): Doc = {
+    if (info.shareableParameters.nonEmpty) {
+      Constants.SHARE_PARAMETER_KEYWORD <+> showIdList(info.shareableParameters) <> line
+    } else emptyDoc
   }
 
   def showNestedStmtList[T <: PStatement](list: Vector[T]): Doc = sequence(ssep(list map showStmt, line))
@@ -109,7 +142,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showVarDecl(decl: PVarDecl): Doc = decl match {
     case PVarDecl(typ, right, left, addressable) =>
-      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <+> "=" <+> showExprList(right)
+      val rhs: Doc = if (right.isEmpty) "" else space <> "=" <+> showExprList(right)
+      "var" <+> showList(left zip addressable){ case (v, a) => showAddressable(a, v) } <> opt(typ)(space <> showType(_)) <> rhs
   }
 
   def showConstDecl(decl: PConstDecl): Doc = decl match {
@@ -124,7 +158,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showParameter(para: PParameter): Doc = para match {
     case PExplicitGhostParameter(p) => "ghost" <+> showParameter(p)
     case PUnnamedParameter(typ) => showType(typ)
-    case PNamedParameter(id, typ, addressable) => showAddressable(addressable, id) <+> showType(typ)
+    case PNamedParameter(id, typ) => showId(id) <+> showType(typ)
   }
 
   def showReceiver(rec: PReceiver): Doc = rec match {
@@ -133,11 +167,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showResult(res: PResult): Doc = res match {
-    case PResult(outs) => space <> (if (outs.size == 1) showParameter(outs.head) else parens(showParameterList(outs)))
+    case PResult(outs) => space <> parens(showParameterList(outs))
   }
 
   def showAddressable(addressable: Boolean, id: PIdnNode): Doc =
-    (if (addressable) "!" else "") <> showId(id)
+    (if (addressable) Constants.ADDRESSABILITY_MODIFIER else "") <> showId(id)
 
   // statements
 
@@ -155,9 +189,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PAssignment(right, left) => showExprList(left) <+> "=" <+> showExprList(right)
       case PAssignmentWithOp(right, op, left) => showExpr(left) <+> showAssOp(op) <> "=" <+> showExpr(right)
       case PIfStmt(ifs, els) =>
-        ssep(ifs map showIfClause, line) <>
-          opt(els)("else" <+> showStmt(_) <> line)
-      case PExprSwitchStmt(pre, exp, cases, dflt) =>
+        ssep(ifs map showIfClause, space <> "else" <> space) <>
+          opt(els)(space <> "else" <+> showStmt(_) <> line)
+      case PExprSwitchStmt(pre, _, cases, dflt) =>
         "switch" <> showPreStmt(pre) <+> block(
           ssep(cases map showExprSwitchClause, line) <>
             ssep(dflt map { d =>
@@ -169,9 +203,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           ssep(cases map showTypeSwitchClause, line)) <>
           ssep(dflt map {d => "default"  <> ":" <> showNestedStmtList(d.stmts) }, line)
       case PForStmt(pre, cond, post, spec, body) => showSpec(spec) <> ((pre, cond, post) match {
-        case (None, PBoolLit(true), None) =>  "for" <+> block(showStmt(body))
-        case (None, _, None) => "for" <+> showExpr(cond) <+> block(showStmt(body))
-        case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> block(showStmt(body))
+        case (None, PBoolLit(true), None) =>  "for" <+> showStmt(body)
+        case (None, _, None) => "for" <+> showExpr(cond) <+> showStmt(body)
+        case _ => "for" <+> opt(pre)(showStmt) <> ";" <+> showExpr(cond) <> ";" <+> opt(post)(showStmt) <+> showStmt(body)
       })
       case PAssForRange(range, ass, body) =>
         "for" <+> showExprList(ass) <+> "=" <+> showRange(range) <+> block(showStmt(body))
@@ -247,9 +281,77 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // expressions
 
   def showExprOrType(expr: PExpressionOrType): Doc = expr match {
-    case expr: PExpression => showExpr(expr)
+    case expr: PExpression => expr match {
+      case _: PReference => parens(showExpr(expr))
+      case _ => showExpr(expr)
+    }
     case typ: PType => showType(typ)
   }
+
+
+  def showMultSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _: PSub => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+  def showSubtractionSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+  def showDivSubExpr(expr: PExpression): Doc = expr match {
+    case _: PAdd => parens(showExpr(expr))
+    case _: PSub => parens(showExpr(expr))
+    case _: PMul => parens(showExpr(expr))
+    case _ => showExpr(expr)
+  }
+
+  /**
+    * Precedence of expressions.
+    */
+  object Precedence extends Enumeration {
+    val p1 = Value(1)
+    val p1P5 = Value(2)
+    val p2 = Value(3)
+    val p3 = Value(4)
+    val p4 = Value(5)
+    val p5 = Value(6)
+    val p6 = Value(7)
+    val p7 = Value(8)
+  }
+
+  def getPrecedence(expr: PExpressionOrType): Precedence.Value = expr match {
+    case _: PConditional => Precedence.p1
+    case _: PImplication => Precedence.p1P5
+    case _: POr => Precedence.p2
+    case _: PAnd => Precedence.p3
+    case _: PEquals | _: PUnequals | _: PLess | _: PAtMost | _: PGreater | _: PAtLeast => Precedence.p4
+    case _: PAdd | _: PSub => Precedence.p5
+    case _: PMul | _: PDiv | _: PMod => Precedence.p6
+    case _ => Precedence.p7
+  }
+
+  def showSubExpr(expr: PExpression, subExpr: PExpression): Doc = {
+    val exprPrecedence = getPrecedence(expr)
+    val subExprPrecedence = getPrecedence(subExpr)
+
+    if (subExprPrecedence < exprPrecedence)
+      parens(showExpr(subExpr))
+    else
+      showExpr(subExpr)
+  }
+
+  def showSubExprOrType(expr: PExpressionOrType, subExpr: PExpressionOrType): Doc = {
+    val exprPrecedence = getPrecedence(expr)
+    val subExprPrecedence = getPrecedence(subExpr)
+
+    if (subExprPrecedence < exprPrecedence)
+      parens(showExprOrType(subExpr))
+    else
+      showExprOrType(subExpr)
+  }
+
 
   def showExpr(expr: PExpression): Doc = expr match {
     case expr: PActualExpression => expr match {
@@ -268,36 +370,96 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
       case PInvoke(base, args) => showExprOrType(base) <> parens(showExprList(args))
       case PIndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
-      case PSliceExp(base, low, high, cap) => (low, high, cap) match {
-        case (l, h, None)    => showExpr(base) <> brackets(showExprList(Vector(l, h)))
-        case (l, h, Some(c)) => showExpr(base) <> brackets(showExprList(Vector(l, h, c)))
+
+      case PSliceExp(base, low, high, cap) => {
+        val lowP = low.fold(emptyDoc)(showExpr)
+        val highP = ":" <> high.fold(emptyDoc)(showExpr)
+        val capP = cap.fold(emptyDoc)(":" <> showExpr(_))
+        showExpr(base) <> brackets(lowP <> highP <> capP)
       }
+
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
-      case PEquals(left, right) => showExpr(left) <+> "==" <+> showExpr(right)
-      case PUnequals(left, right) => showExpr(left) <+> "!=" <+> showExpr(right)
-      case PAnd(left, right) => showExpr(left) <+> "&&" <+> showExpr(right)
-      case POr(left, right) => showExpr(left) <+> "||" <+> showExpr(right)
-      case PLess(left, right) => showExpr(left) <+> "<" <+> showExpr(right)
-      case PAtMost(left, right) => showExpr(left) <+> "<=" <+> showExpr(right)
-      case PGreater(left, right) => showExpr(left) <+> ">" <+> showExpr(right)
-      case PAtLeast(left, right) => showExpr(left) <+> ">=" <+> showExpr(right)
-      case PAdd(left, right) => showExpr(left) <+> "+" <+> showExpr(right)
-      case PSub(left, right) => showExpr(left) <+> "-" <+> showExpr(right)
-      case PMul(left, right) => showExpr(left) <+> "*" <+> showExpr(right)
-      case PMod(left, right) => showExpr(left) <+> "%" <+> showExpr(right)
-      case PDiv(left, right) => showExpr(left) <+> "/" <+> showExpr(right)
+      case PEquals(left, right) => showSubExprOrType(expr, left) <+> "==" <+> showSubExprOrType(expr, right)
+      case PUnequals(left, right) => showSubExprOrType(expr, left) <+> "!=" <+> showSubExprOrType(expr, right)
+      case PAnd(left, right) => showSubExpr(expr, left) <+> "&&" <+> showSubExpr(expr, right)
+      case POr(left, right) => showSubExpr(expr, left) <+> "||" <+> showSubExpr(expr, right)
+      case PLess(left, right) => showSubExpr(expr, left) <+> "<" <+> showSubExpr(expr, right)
+      case PAtMost(left, right) => showSubExpr(expr, left) <+> "<=" <+> showSubExpr(expr, right)
+      case PGreater(left, right) => showSubExpr(expr, left) <+> ">" <+> showSubExpr(expr, right)
+      case PAtLeast(left, right) => showSubExpr(expr, left) <+> ">=" <+> showSubExpr(expr, right)
+      case PAdd(left, right) => showSubExpr(expr, left) <+> "+" <+> showSubExpr(expr, right)
+      case PSub(left, right) => showSubExpr(expr, left) <+> "-" <+> showSubExpr(expr, right)
+      case PMul(left, right) => showSubExpr(expr, left) <+> "*" <+> showSubExpr(expr, right)
+      case PMod(left, right) => showSubExpr(expr, left) <+> "%" <+> showSubExpr(expr, right)
+      case PDiv(left, right) => showSubExpr(expr, left) <+> "/" <+> showSubExpr(expr, right)
       case PUnfolding(acc, op) => "unfolding" <+> showExpr(acc) <+> "in" <+> showExpr(op)
+      case PLength(expr) => "len" <> parens(showExpr(expr))
+      case PCapacity(expr) => "cap" <> parens(showExpr(expr))
+      case PMake(typ, args) => "make" <> parens(showList[PExpressionOrType](typ +: args){
+        case x: PExpression => showExpr(x)
+        case x: PType => showType(x)
+      })
+      case PNew(typ) => "new" <> parens(showType(typ))
+      case PBlankIdentifier() => "_"
+      // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
+      // partially applied predicates
+      case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
     }
     case expr: PGhostExpression => expr match {
-      case POld(op) => "old(" <> showExpr(op) <> ")"
-      case PConditional(cond, thn, els) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
-      case PImplication(left, right) => showExpr(left) <+> "==>" <+> showExpr(right)
-      case PAccess(exp) => "acc" <> parens(showExpr(exp))
-      case PPredicateAccess(exp) => exp match {
-        case n: PExpression => "acc" <> parens(showExpr(n))
+      case POld(e) => "old" <> parens(showExpr(e))
+      case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
+      case PForall(vars, triggers, body) =>
+        "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PExists(vars, triggers, body) =>
+        "exists" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
+      case PImplication(left, right) => showSubExpr(expr, left) <+> "==>" <+> showSubExpr(expr, right)
+      case PAccess(exp, PFullPerm()) => "acc" <> parens(showExpr(exp))
+      case PAccess(exp, perm) => "acc" <> parens(showExpr(exp) <> "," <+> showExpr(perm))
+      case PPredicateAccess(exp, perm) => exp match {
+        case n: PInvoke if perm == PFullPerm() => showExpr(n)
+        case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
+        case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
+      }
+
+      case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
+      case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))
+
+      case POptionNone(t) => "none" <> brackets(showType(t))
+      case POptionSome(e) => "some" <> parens(showExpr(e))
+      case POptionGet(e) => "get" <> parens(showExpr(e))
+
+      case expr : PGhostCollectionExp => expr match {
+        case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
+        case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
+        case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
+        case expr : PSequenceExp => expr match {
+          case PSequenceConversion(exp) => "seq" <> parens(showExpr(exp))
+          case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
+          case PSequenceAppend(left, right) => showSubExpr(expr, left) <+> "++" <+> showSubExpr(expr, right)
+          case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
+            (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
+        }
+        case expr : PUnorderedGhostCollectionExp => expr match {
+          case PUnion(left, right) => showSubExpr(expr, left) <+> "union" <+> showSubExpr(expr, right)
+          case PIntersection(left, right) => showSubExpr(expr, left) <+> "intersection" <+> showSubExpr(expr, right)
+          case PSetMinus(left, right) => showSubExpr(expr, left) <+> "setminus" <+> showSubExpr(expr, right)
+          case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
+          case PSetConversion(exp) => "set" <> parens(showExpr(exp))
+          case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+        }
+      }
+
+      case expr: PPermission => expr match {
+        case PFullPerm() => "write"
+        case PNoPerm() => "none"
+        case PFractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
+        case PWildcardPerm() => "_"
       }
     }
   }
+
+  def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
+    showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
     case t: PType => showType(t)
@@ -314,7 +476,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PLitCompositeVal(l) => showLiteralValue(l)
   }
 
-  def showLiteralValue(lit: PLiteralValue): Doc = braces(ssep(lit.elems map showKeyedElement, comma))
+  def showLiteralValue(lit: PLiteralValue): Doc =
+    braces(ssep(lit.elems map showKeyedElement, comma) <> space)
 
   def showKeyedElement(n: PKeyedElement): Doc = n match {
     case PKeyedElement(key, exp) => opt(key)(showCompositeKey(_) <> ":") <+> showCompositeVal(exp)
@@ -323,33 +486,55 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   // types
 
   def showType(typ: PType): Doc = typ match {
-    case actualType: PActualType => actualType match {
-      case PNamedOperand(id) => showId(id)
-      case PBoolType() => "bool"
-      case PIntType() => "int"
-      case PStringType() => "string"
-      case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
-      case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
-      case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
-      case PDeref(base) => "*" <> showExprOrType(base)
-      case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
-      case channelType: PChannelType => channelType match {
-        case PBiChannelType(elem)   => "chan" <+> showType(elem)
-        case PSendChannelType(elem) => "<-" <> "chan" <+> showType(elem)
-        case PRecvChannelType(elem) => "chan" <> "<-" <+> showType(elem)
-      }
-      case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
-      case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
-      case PInterfaceType(embedded, mspec, pspec) =>
-        "interface" <+> block(
-          ssep(embedded map showInterfaceClause, line) <>
-            ssep(mspec map showInterfaceClause, line) <>
-            ssep(pspec map showInterfaceClause, line)
-        )
-      case PMethodReceiveName(t) => showType(t)
-      case PMethodReceivePointer(t) => "*" <> showType(t)
+    case t: PActualType => showActualType(t)
+    case t: PGhostType => showGhostType(t)
+  }
+
+  def showActualType(typ : PActualType) : Doc = typ match {
+    case PNamedOperand(id) => showId(id)
+    case PBoolType() => "bool"
+    case PStringType() => "string"
+    case PIntType() => "int"
+    case PInt8Type() => "int8"
+    case PInt16Type() => "int16"
+    case PInt32Type() => "int32"
+    case PRune() => "rune"
+    case PInt64Type() => "int64"
+    case PUIntType() => "uint"
+    case PUInt8Type() => "uint8"
+    case PByte() => "byte"
+    case PUInt16Type() => "uint16"
+    case PUInt32Type() => "uint32"
+    case PUInt64Type() => "uint64"
+    case PUIntPtr() => "uintptr"
+    case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
+    case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
+    case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
+    case PDeref(base) => "*" <> showExprOrType(base)
+    case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
+    case channelType: PChannelType => channelType match {
+      case PBiChannelType(elem)   => "chan" <+> showType(elem)
+      case PSendChannelType(elem) => "chan" <> "<-" <+> showType(elem)
+      case PRecvChannelType(elem) => "<-" <> "chan" <+> showType(elem)
     }
-    case ghostType: PGhostType => ???
+    case PStructType(clauses) => "struct" <+> block(ssep(clauses map showStructClause, line))
+    case PFunctionType(args, result) => "func" <> parens(showParameterList(args)) <> showResult(result)
+    case PPredType(args) => "pred" <> parens(showTypeList(args))
+    case PInterfaceType(embedded, mspec, pspec) =>
+      "interface" <+> block(
+        ssep(embedded map showInterfaceClause, line) <>
+          ssep(mspec map showInterfaceClause, line) <>
+          ssep(pspec map showInterfaceClause, line)
+      )
+    case PMethodReceiveName(t) => showType(t)
+    case PMethodReceivePointer(t) => "*" <> showType(t)
+  }
+
+  def showGhostType(typ : PGhostType) : Doc = typ match {
+    case PSequenceType(elem) => "seq" <> brackets(showType(elem))
+    case PSetType(elem) => "set" <> brackets(showType(elem))
+    case PMultisetType(elem) => "mset" <> brackets(showType(elem))
+    case POptionType(elem) => "option" <> brackets(showType(elem))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -373,8 +558,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showInterfaceClause(n: PInterfaceClause): Doc = n match {
     case PInterfaceName(typ) => showType(typ)
-    case PMethodSig(id, args, result) => showId(id) <> parens(showParameterList(args)) <> showResult(result)
-    case PMPredicateSig(id, args) => "predicate"  <+> showId(id) <> parens(showParameterList(args))
+    case PMethodSig(id, args, result, spec, isGhost) =>
+      (if (isGhost) "ghost" <> line else emptyDoc) <> showSpec(spec) <>
+        showId(id) <> parens(showParameterList(args)) <> showResult(result)
+    case PMPredicateSig(id, args) => "pred"  <+> showId(id) <> parens(showParameterList(args))
   }
 
   // ids
@@ -394,6 +581,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case literalValue: PLiteralValue => showLiteralValue(literalValue)
     case keyedElement: PKeyedElement => showKeyedElement(keyedElement)
     case compositeVal: PCompositeVal => showCompositeVal(compositeVal)
-    case misc: PGhostMisc => ???
+    case misc: PGhostMisc => misc match {
+      case PFPredBase(id) => showId(id)
+      case PDottedBase(expr) => showExprOrType(expr)
+      case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
+      case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
+      case PExplicitGhostParameter(actual) => showParameter(actual)
+      case mip: PMethodImplementationProof =>
+        (if (mip.isPure) "pure ": Doc else emptyDoc) <>
+          showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
+          opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+    }
   }
+
+  def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =
+    showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }

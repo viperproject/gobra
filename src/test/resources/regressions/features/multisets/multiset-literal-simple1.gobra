@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1() {
+	ghost m := mset[int] { }
+}
+
+ensures m == mset[bool] { }
+func example2() (ghost m mset[bool]) {
+  m = mset[bool] { }
+}
+
+requires m == mset[bool] { }
+func example3(ghost m mset[bool]) {
+}
+
+func example4() (ghost m mset[int]) {
+  assert m == mset[int] { } // default value
+}
+
+func example5() {
+	ghost m := mset[int] { 5 }
+}
+
+ensures m == mset[bool] { true }
+func example6() (ghost m mset[bool]) {
+  m = mset[bool] { true }
+}
+
+func example7() {
+  assert mset[int] { 1, 2, 3 } == mset[int] { 3, 2, 1 }
+  assert mset[int] { 1, 2, 2, 3 } == mset[int] { 3, 2, 2, 1 }
+  // assert mset[int] { 1 } != mset[int] { 2 } -- doesn't verify@?
+  assert mset[bool] { true, false } == mset[bool] { false, true }
+}
+
+func example8() {
+  ghost m := mset[mset[int]] { mset[int] { 1, 2 }, mset[int] { 3 } }
+}

@@ -1,18 +1,30 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra
 
 import java.nio.file.Path
 
+import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
-import viper.gobra.reporting.VerifierError
+import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, AnnotationBasedTestSuite, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
+
+import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
   val testDirectories: Seq[String] = Vector("regressions")
-  override val defaultTestPattern: String = ".*\\.go"
+  override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
 
   var gobraInstance: Gobra = _
 
@@ -31,12 +43,14 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        val config = new Config(Array(
-          "--logLevel", "Error",
-          "-i", input.file.toFile.getPath,
-        ))
+        val config = Config(
+          logLevel = Level.INFO,
+          reporter = NoopReporter,
+          inputFiles = Vector(input.file.toFile)
+        )
 
-        val (result, elapsedMilis) = time(() => gobraInstance.verify(config))
+        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
 
         info(s"Time required: $elapsedMilis ms")
 
@@ -59,7 +73,7 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
 
   case class GobraTestOuput(error: VerifierError) extends AbstractOutput {
     /** Whether the output belongs to the given line in the given file. */
-    override def isSameLine(file: Path, lineNr: Int): Boolean = error.position.line == lineNr
+    override def isSameLine(file: Path, lineNr: Int): Boolean = error.position.exists(_.line == lineNr)
 
     /** A short and unique identifier for this output. */
     override def fullId: String = error.id

@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() (ghost s seq[int]) {
+  // fails: sets and sequences are incompatible
+  //:: ExpectedOutput(type_error)
+  s = set[int] { 42 }
+}

@@ -1,0 +1,50 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1(ghost s set[int], ghost t set[int]) {
+  ghost u := s union t
+}
+
+func example2() {
+  assert set[bool] { } union set[bool] { } == set[bool] { }
+  assert set[int] { 1 } union set[int] { 2 } == set[int] { 1, 2 }
+}
+
+func example3() {
+  assert set[int] { 1 } union set[int] { 2 } union set[int] { 3 } == set[int] { 1, 2, 3 }
+}
+
+func example4() {
+  assert set[int] { 1, 2 } union set[int] { 2, 3 } == set[int] { 1, 2, 3 }
+}
+
+func example5(ghost s set[int], ghost t set[int], ghost u set[int]) {
+  assert (s union t) union u == s union (t union u)
+}
+
+ensures t == s union set[int] { 2, 1 }
+func example6(ghost s set[int]) (ghost t set[int]) {
+  t = s union set[int] { 1, 2 }
+}
+
+func example7(ghost s set[int]) {
+  assert s union s == s
+  assert s == s union set[int] { }
+  assert s == set[int] { } union s
+}
+
+func example8(b bool) {
+  assert set[bool] { true, false } == set[bool] { true, false } union set[bool] { b }
+}
+
+func example9() (b bool) {
+  // should work since `b` is assigned false by default
+  assert set[bool] { true, false } == set[bool] { true } union set[bool] { b }
+}
+
+func example10(ghost s set[int], ghost t set[int]) {
+  assert s union t == t union s
+}
+

@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  var a [4]int
+  a[2] = 42
+  ghost xs := seq(a)
+  assert xs == seq[int] { 0, 0, 42, 0 }
+}
+
+func test2(a [64]int) {
+  assert len(seq(a)) == 64
+}
+
+ensures len(seq(a)) == 42
+func test3() (a [42]int) {
+}
+
+requires len(seq(a)) == 23
+func test4(a [32]int) {
+  assert false
+}
+
+func test5(a [12]int) {
+  assert seq(seq(seq(seq(seq(seq(a)))))) == seq(a)
+}
+
+func test6() {
+  var a1 [6]int
+  a1[2] = 42
+  assert seq(a1)[2] == 42
+
+  var a2 [8]int
+  a2[2] = 42
+  assert seq(a1)[2] == seq(a2)[2]
+}
+
+ensures len(a) == len(seq(a))
+func test7(a [8]int) {
+}
+
+func test8(a [12]int, b [12]int) {
+  assert seq(a) == seq(b) ==> a == b
+  assert a == b ==> seq(a) == seq(b)
+}
+

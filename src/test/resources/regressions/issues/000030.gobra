@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Cell struct {
+    val int
+}
+
+func f(c Cell) Cell {
+    return c
+}
+
+func g(c Cell) {
+    d := f(c)
+}

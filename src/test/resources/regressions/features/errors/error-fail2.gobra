@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I src/test/resources/regressions/features/errors)
+import . "bar"
+
+func foo(e error) int {
+    // this does not work since Gobra gives higher precedence to the built-in error interface than to the one
+    // declared in package bar
+    // (note that in Go, error in package bar would not be exported as it is starting with a lower case letter)
+    //:: ExpectedOutput(type_error)
+    return e.Test()
+}

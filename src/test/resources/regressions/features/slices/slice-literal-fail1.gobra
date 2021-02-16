@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  s@ := []int { 1, 2, 3, 4, 5 }[1:3:4]
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert len(s) == 3 // just a sanity check; this should be 2
+}

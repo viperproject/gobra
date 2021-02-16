@@ -1,8 +1,16 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import scala.collection.immutable.ListMap
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.base.Type.{StructT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -11,7 +19,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isTypeCondition = exprOrType(n).isRight
-    message(n, s"expected expression, but got $n", !isTypeCondition)
+    error(n, s"expected expression, but got $n", !isTypeCondition)
   }
 
   lazy val wellDefAndType: WellDefinedness[PType] = createWellDef { n =>
@@ -25,11 +33,19 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntType => noMessages
-    case n: PStringType => message(n, "string are currently unsupported")
+    case _: PBoolType | _: PIntegerType => noMessages
 
-    case n@PArrayType(len, t) =>
-      message(n, s"expected constant array length but got $len", intConstantEval(len).isEmpty) ++ isType(t).out
+    case n: PStringType => error(n, "string are currently unsupported")
+
+    case typ @ PArrayType(_, PNamedOperand(_)) =>
+      error(typ, s"arrays of custom declared types are currently not supported")
+
+    case n @ PArrayType(len, t) => isType(t).out ++ {
+      intConstantEval(len) match {
+        case None => error(n, s"expected constant array length, but got $len")
+        case Some(v) => error(len, s"array length should be positive, but got $v", v < 0)
+      }
+    }
 
     case n: PSliceType => isType(n.elem).out
     case n: PBiChannelType => isType(n.elem).out
@@ -37,62 +53,123 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PRecvChannelType => isType(n.elem).out
     case n: PMethodReceiveName => isType(n.typ).out
     case n: PMethodReceivePointer => isType(n.typ).out
-    case n: PFunctionType => noMessages // parameters and result is implied by well definedness of children
+    case _: PFunctionType => noMessages // parameters and result is implied by well definedness of children
+    case _: PPredType => noMessages // well definedness implied by well definedness of children
 
     case n@ PMapType(key, elem) => isType(key).out ++ isType(elem).out ++
-      message(n, s"map key $key is not comparable", !comparableType(typeType(key)))
+      error(n, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
 
     case t: PStructType =>
       t.embedded.flatMap(e => isNotPointerTypePE.errors(e.typ)(e)) ++
       t.fields.flatMap(f => isType(f.typ).out ++ isNotPointerTypeP.errors(f.typ)(f)) ++
-      structMemberSet(StructT(t)).errors(t) ++ addressableMethodSet(StructT(t)).errors(t)
+      structMemberSet(structSymbType(t)).errors(t) ++ addressableMethodSet(structSymbType(t)).errors(t) ++
+      error(t, "invalid recursive struct", cyclicStructDef(t))
 
-    case t: PInterfaceType => addressableMethodSet(InterfaceT(t)).errors(t)
+    case t: PInterfaceType => addressableMethodSet(InterfaceT(t, this)).errors(t)
 
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
 
-  lazy val typeType: Typing[PType] = createTyping {
-    case typ: PActualType => actualTypeType(typ)
-    case typ: PGhostType  => ghostTypeType(typ)
+  lazy val typeSymbType: Typing[PType] = createTyping {
+    case typ: PActualType => actualTypeSymbType(typ)
+    case typ: PGhostType  => ghostTypeSymbType(typ)
   }
 
-  private[typing] def actualTypeType(typ: PActualType): Type = typ match {
+  private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {
 
     case PBoolType() => BooleanT
-    case PIntType() => IntT
+    case PIntType() => IntT(config.typeBounds.Int)
+    case PInt8Type() => IntT(config.typeBounds.Int8)
+    case PInt16Type() => IntT(config.typeBounds.Int16)
+    case PInt32Type() => IntT(config.typeBounds.Int32)
+    case PInt64Type() => IntT(config.typeBounds.Int64)
+    case PRune() => IntT(config.typeBounds.Rune)
+    case PUIntType() => IntT(config.typeBounds.UInt)
+    case PUInt8Type() => IntT(config.typeBounds.UInt8)
+    case PUInt16Type() => IntT(config.typeBounds.UInt16)
+    case PUInt32Type() => IntT(config.typeBounds.UInt32)
+    case PUInt64Type() => IntT(config.typeBounds.UInt64)
+    case PByte() => IntT(config.typeBounds.Byte)
+    case PUIntPtr() => IntT(config.typeBounds.UIntPtr)
     case PStringType() => violation("strings are currently unsupported")
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)
-      violation(lenOpt.isDefined, s"expected constant expression but got $len")
-      ArrayT(lenOpt.get, typeType(elem))
+      violation(lenOpt.isDefined, s"expected constant expression, but got $len")
+      ArrayT(lenOpt.get, typeSymbType(elem))
 
-    case PSliceType(elem) => SliceT(typeType(elem))
+    case PSliceType(elem) => SliceT(typeSymbType(elem))
 
-    case PMapType(key, elem) => MapT(typeType(key), typeType(elem))
+    case PMapType(key, elem) => MapT(typeSymbType(key), typeSymbType(elem))
 
-    case PBiChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Bi)
+    case PBiChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Bi)
 
-    case PSendChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Send)
+    case PSendChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Send)
 
-    case PRecvChannelType(elem) => ChannelT(typeType(elem), ChannelModus.Recv)
+    case PRecvChannelType(elem) => ChannelT(typeSymbType(elem), ChannelModus.Recv)
 
-    case t: PStructType => StructT(t)
+    case t: PStructType => structSymbType(t)
 
-    case PMethodReceiveName(t) => typeType(t)
+    case PMethodReceiveName(t) => typeSymbType(t)
 
-    case PMethodReceivePointer(t) => PointerT(typeType(t))
+    case PMethodReceivePointer(t) => PointerT(typeSymbType(t))
 
     case PFunctionType(args, r) => FunctionT(args map miscType, miscType(r))
 
-    case t: PInterfaceType => InterfaceT(t)
+    case PPredType(args) => PredT(args map typeSymbType)
 
-    case t: PExpressionAndType => exprAndTypeType(t)
+    case t: PInterfaceType => InterfaceT(t, this)
+
+    case n: PNamedOperand => idSymType(n.id)
+
+    case n: PDeref =>
+      resolve(n) match {
+        case Some(p: ap.PointerType) => PointerT(typeSymbType(p.base))
+        case _ => violation(s"expected type, but got $n")
+      }
+
+    case n: PDot =>
+      resolve(n) match {
+        case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case _ => violation(s"expected type, but got $n")
+      }
   }
 
-  def litTypeType(typ: PLiteralType): Type = typ match {
-    case PImplicitSizeArrayType(t) => typeType(t)
-    case t: PType => typeType(t)
+  private def structSymbType(t: PStructType): Type = {
+    def makeFields(x: PFieldDecls): ListMap[String, (Boolean, Type)] = {
+      x.fields.foldLeft(ListMap[String, (Boolean, Type)]()) { case (prev, f) => prev + (f.id.name -> (true, typeSymbType(f.typ))) }
+    }
+    def makeEmbedded(x: PEmbeddedDecl): ListMap[String, (Boolean, Type)] =
+      ListMap[String, (Boolean, Type)](x.id.name -> (false, miscType(x.typ)))
+
+    val clauses = t.clauses.foldLeft(ListMap[String, (Boolean, Type)]()) {
+      case (prev, x: PFieldDecls) => prev ++ makeFields(x)
+      case (prev, PExplicitGhostStructClause(x: PFieldDecls)) => prev ++ makeFields(x)
+      case (prev, x: PEmbeddedDecl) => prev ++ makeEmbedded(x)
+      case (prev, PExplicitGhostStructClause(x: PEmbeddedDecl)) => prev ++ makeEmbedded(x)
+    }
+    StructT(clauses, t, this)
+  }
+
+  /**
+    * Checks whether a struct is cyclically defined in terms of itself (if its name is provided)
+    * or other cyclic structures.
+    */
+  def cyclicStructDef(struct: PStructType, name: Option[PIdnDef] = None) : Boolean = {
+    // `visitedTypes` keeps track of the types that were already discovered and checked,
+    // used for detecting cyclic definition chains
+    def isCyclic: (PStructType, Set[String]) => Boolean = (struct, visitedTypes) => {
+      val fieldTypes = struct.fields.map(_.typ) ++ struct.embedded.map(_.typ.typ)
+
+      fieldTypes exists {
+        case s: PStructType => isCyclic(s, visitedTypes)
+        case n: PNamedType if visitedTypes.contains(n.name) => true
+        case n: PNamedType if underlyingTypeP(n).exists(_.isInstanceOf[PStructType]) =>
+          isCyclic(underlyingTypeP(n).get.asInstanceOf[PStructType], visitedTypes + n.name)
+        case _ => false
+      }
+    }
+
+    isCyclic(struct, name.map(_.name).toSet)
   }
 }

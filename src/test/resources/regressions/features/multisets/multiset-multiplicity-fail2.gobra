@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo(ghost x int, ghost m mset[bool]) {
+  ghost var n int
+  // fails since the types of `in`'s operands are incompatible
+  //:: ExpectedOutput(type_error)
+  n = x # m
+}

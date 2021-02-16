@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 import scala.sys.process.Process
 import scala.util.Try
 
@@ -6,8 +12,9 @@ lazy val silver = project in file("silver")
 lazy val silicon = project in file("silicon")
 lazy val carbon = project in file("carbon")
 
+
 // Gobra specific project settings
-lazy val server = (project in file("."))
+lazy val gobra = (project in file("."))
   .dependsOn(silver % "compile->compile;test->test")
   .dependsOn(silicon % "compile->compile;test->test")
   .dependsOn(carbon % "compile->compile;test->test")
@@ -16,7 +23,7 @@ lazy val server = (project in file("."))
     name := "Gobra",
     organization := "viper",
     version := "0.1.0-SNAPSHOT",
-    homepage := Some(url("https://bitbucket.org/mschwerhoff/voila")), // TODO: update link to correct repository
+    homepage := Some(url("https://github.com/viperproject/gobra")),
     licenses := Seq("MPL-2.0 License" -> url("https://opensource.org/licenses/MPL-2.0")),
 
     // Compilation settings
@@ -25,23 +32,23 @@ lazy val server = (project in file("."))
     Compile / unmanagedResourceDirectories += baseDirectory.value / "conf",
 
     libraryDependencies +=
-      ("org.bitbucket.inkytonik.kiama" %% "kiama" % "2.2.0") // Parsing
+      ("org.bitbucket.inkytonik.kiama" %% "kiama" % "2.3.0") // Parsing
         .exclude("com.google.guava", "guava"),
-    libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0", // Logging Frontend
+    libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2", // Logging Frontend
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
-    libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
-    libraryDependencies += "org.apache.commons" % "commons-text" % "1.8", // for escaping strings in parser preprocessor
+    // libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
+    libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.9", // for SystemUtils
+    libraryDependencies += "org.apache.commons" % "commons-text" % "1.9", // for escaping strings in parser preprocessor
 
     scalacOptions ++= Seq(
-      "-Ypartial-unification",
       "-Ypatmat-exhaust-depth", "40"
     ),
-    
+
     // Run settings
     run / javaOptions += "-Xss128m",
 
     fork := true,
-    
+
 
     // Test settings
     Test / javaOptions ++= (run / javaOptions).value,
@@ -49,7 +56,7 @@ lazy val server = (project in file("."))
     // Assembly settings
     assembly / assemblyJarName := "gobra.jar",
     assembly / mainClass := Some("viper.gobra.GobraRunner"),
-    assembly / javaOptions += "-Xss128m", // TODO: does apparently nothing
+    // assembly / javaOptions += "-Xss128m", // TODO: does apparently nothing
 
 
     assembly / assemblyMergeStrategy := {

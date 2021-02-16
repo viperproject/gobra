@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo(ghost xs seq[bool]) {
+  // fails since index `-4` into `xs` is negative
+  //:: ExpectedOutput(assignment_error:seq_index_negative_error)
+  ghost ys := xs[-4 = true]
+}

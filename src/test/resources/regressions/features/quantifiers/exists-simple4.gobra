@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+pure func foo (n int) bool
+
+requires exists i int :: { foo(i) } 0 < i
+func bar () { }

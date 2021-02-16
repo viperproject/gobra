@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred sendInvariant(v int) {
+    v == 42
+}
+
+func testIsChannelPredicateIsIndependantOfAddressability() {
+  var c1@ = make(chan int)
+  var c2 = make(chan int)
+  assert c1.IsChannel() && c1.BufferSize() == 0
+  assert c2.IsChannel() && c2.BufferSize() == 0
+  // testCall can be called with both channels:
+  testCall1(c1)
+  testCall1(c2)
+  c1.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+  c2.Init(sendInvariant!<_!>, sendInvariant!<42!>)
+  testCall2(c1)
+  testCall2(c2)
+}
+
+requires c.IsChannel() && c.BufferSize() == 0
+ensures c.IsChannel() && c.BufferSize() == 0
+func testCall1(c chan int)
+
+requires c.SendChannel()
+func testCall2(c chan int)

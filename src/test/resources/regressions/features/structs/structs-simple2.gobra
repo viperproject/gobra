@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type cell struct{
+	val int;
+};
+
+requires acc(&x.val) && acc(&y.val);
+requires x.val == a && y.val == b;
+ensures  acc(&x.val) && acc(&y.val);
+ensures  x.val == b && y.val == a;
+func swap1(x, y *cell, ghost a, b int) {
+	x.val, y.val = y.val, x.val;
+};
+
+
+requires acc(&x.val) && acc(&y.val);
+requires x.val == a && y.val == b;
+ensures  acc(&x.val) && acc(&y.val);
+ensures  x.val == b && y.val == a;
+func (x *cell) swap2(y *cell, ghost a, b int) {
+    x.val, y.val = y.val, x.val;
+};
+
+func client() {
+    x@ := cell{42};
+    y@ := cell{17};
+    swap1(&x, &y, 42, 17);
+    assert x == cell{17} && y.val == 42;
+
+    (&y).swap2(&x, 42, 17);
+    assert x.val == 42 && y == cell{17};
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false;
+};
+
+
+

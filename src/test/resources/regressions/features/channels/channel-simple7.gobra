@@ -1,0 +1,59 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred sendInvariant(v *int) {
+    acc(v) && *v == 42
+}
+
+func main() {
+  var c@ = make(chan *int)
+  var pc *chan *int = &c
+  (*pc).Init(sendInvariant!<_!>, PredTrue!<!>)
+  go foo(pc)
+
+  var x@ int = 42
+  var p *int = &x
+
+  fold sendInvariant!<_!>(p)
+  *pc <- p
+
+  fold PredTrue!<!>()
+  res, ok := <- *pc
+  if (ok) {
+    unfold sendInvariant!<_!>(res)
+    assert *res == 42
+    // we have regained write access:
+    *res = 1
+  }
+
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}
+
+requires acc(pc, 1/2)
+requires acc((*pc).SendChannel(), 1/2)
+requires acc((*pc).RecvChannel(), 1/2)
+requires (*pc).SendGivenPerm() == sendInvariant!<_!>;
+requires (*pc).SendGotPerm() == PredTrue!<!>;
+requires (*pc).RecvGivenPerm() == PredTrue!<!>;
+requires (*pc).RecvGotPerm() == sendInvariant!<_!>;
+func foo(pc *chan *int) {
+    fold PredTrue!<!>()
+    res, ok := <- *pc
+    if (ok) {
+        unfold sendInvariant!<_!>(res)
+        assert *res == 42
+        // we should have write access and thus can write to it
+        *res = 0
+        // before being able to fold again, we have to revert the value:
+        *res = 42
+        // send pointer and permission back:
+        fold sendInvariant!<_!>(res)
+        *pc <- res
+    }
+
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

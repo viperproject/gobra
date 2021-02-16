@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
@@ -7,7 +13,7 @@ import viper.silver.{ast => vpr}
 
 class PureMethodsImpl extends PureMethods {
 
-  import viper.gobra.translator.util.ViperWriter.{CodeLevel => cl, _}
+  import viper.gobra.translator.util.ViperWriter._
   import MemberLevel._
 
   /**
@@ -20,65 +26,72 @@ class PureMethodsImpl extends PureMethods {
 
     val (pos, info, errT) = meth.vprMeta
 
-    val (vRecv, recvWells) = ctx.loc.parameter(meth.receiver)(ctx)
-    val recvWell = cl.assertUnit(recvWells)
+    val vRecv = ctx.typeEncoding.variable(ctx)(meth.receiver)
+    val vRecvPres = ctx.typeEncoding.precondition(ctx).lift(meth.receiver).toVector
 
-    val (vArgss, argWells) = meth.args.map(ctx.loc.parameter(_)(ctx)).unzip
-    val vArgs = vArgss.flatten
-    val argWell = argWells map cl.assertUnit
+    val vArgs = meth.args.map(ctx.typeEncoding.variable(ctx))
+    val vArgPres = meth.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
 
-    val (vResult, resultWells) = ctx.loc.parameter(meth.results.head)(ctx)
-    val resultType = if (vResult.size == 1) vResult.head.typ else ctx.tuple.typ(vResult map (_.typ))
+    val vResults = meth.results.map(ctx.typeEncoding.variable(ctx))
+    val vResultPosts = meth.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    assert(vResults.size == 1)
+    val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
+
+    val fixResultvar = (x: vpr.Exp) => {
+      x.transform { case v: vpr.LocalVar if v.name == meth.results.head.id => vpr.Result(resultType)() }
+    }
 
     for {
-      pres <- sequence((recvWell +: argWell) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
+      pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
+      posts <- sequence(vResultPosts ++ meth.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
 
-      body <- option(meth.body map {b =>
-        cl.assumeExp(
+      body <- option(meth.body map { b =>
+        pure(
           for {
-            _ <- resultWells
-            results <- ctx.loc.argument(b)(ctx)
-            res = if (results.size == 1) results.head else ctx.tuple.create(results)
-          } yield res
-        )
+            results <- ctx.expr.translate(b)(ctx)
+          } yield results
+        )(ctx)
       })
 
       function = vpr.Function(
         name = meth.name.uniqueName,
-        formalArgs = vRecv ++ vArgs,
+        formalArgs = vRecv +: vArgs,
         typ = resultType,
         pres = pres,
-        posts = Vector.empty,
+        posts = posts,
         body = body
       )(pos, info, errT)
 
     } yield function
   }
 
-
   override def pureFunction(func: in.PureFunction)(ctx: Context): MemberWriter[vpr.Function] = {
     require(func.results.size == 1)
 
     val (pos, info, errT) = func.vprMeta
 
-    val (vArgss, argWells) = func.args.map(ctx.loc.parameter(_)(ctx)).unzip
-    val vArgs = vArgss.flatten
-    val argWell = argWells map cl.assertUnit
+    val vArgs = func.args.map(ctx.typeEncoding.variable(ctx))
+    val vArgPres = func.args.flatMap(ctx.typeEncoding.precondition(ctx).lift(_))
 
-    val (vResult, resultWells) = ctx.loc.parameter(func.results.head)(ctx)
-    val resultType = if (vResult.size == 1) vResult.head.typ else ctx.tuple.typ(vResult map (_.typ))
+    val vResults = func.results.map(ctx.typeEncoding.variable(ctx))
+    val vResultPosts = func.results.flatMap(ctx.typeEncoding.postcondition(ctx).lift(_))
+    assert(vResults.size == 1)
+    val resultType = if (vResults.size == 1) vResults.head.typ else ctx.tuple.typ(vResults map (_.typ))
+
+    val fixResultvar = (x: vpr.Exp) => {
+      x.transform { case v: vpr.LocalVar if v.name == func.results.head.id => vpr.Result(resultType)() }
+    }
 
     for {
-      pres <- sequence(argWell ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
+      pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
+      posts <- sequence(vResultPosts ++ func.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
 
-      body <- option(func.body map {b =>
-        cl.assumeExp(
+      body <- option(func.body map { b =>
+        pure(
           for {
-            _ <- resultWells
-            results <- ctx.loc.argument(b)(ctx)
-            res = if (results.size == 1) results.head else ctx.tuple.create(results)
-          } yield res
-        )
+            results <- ctx.expr.translate(b)(ctx)
+          } yield results
+        )(ctx)
       })
 
       function = vpr.Function(
@@ -86,12 +99,11 @@ class PureMethodsImpl extends PureMethods {
         formalArgs = vArgs,
         typ = resultType,
         pres = pres,
-        posts = Vector.empty,
+        posts = posts,
         body = body
       )(pos, info, errT)
 
     } yield function
   }
-
 
 }

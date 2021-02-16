@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type T struct {
+	x int
+}
+
+// new successfully allocates the default value for the type passed as an argument
+func main() {
+	newInt := new(int)
+	assert (*newInt) == 0
+
+	newSlice := new([]int)
+	assert *newSlice == nil
+
+	newArr := new([5]int)
+	assert forall i int :: (0 <= i && i < 5) ==> (*newArr)[i] == 0
+
+	newStruct := new(T)
+	assert newStruct.x == 0
+}

@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1(ghost xs seq[int]) {
+}
+
+ghost func example2(xs seq[int]) {
+}
+
+func example3() {
+  ghost var xs seq[int]
+}
+
+func example4(ghost xs seq[int]) {
+  ghost ys := xs
+}
+
+func example5(n int) (ghost xs seq[bool]) {
+}
+
+func example6(ghost xs seq[seq[seq[int]]]) {
+}
+

@@ -1,0 +1,47 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  var a [42]int
+  assert cap(a) == 42
+  assert cap(a) == len(a)
+}
+
+func test2(a [12]int) {
+  assert cap(a) == 12
+  assert cap(a) == len(a)
+}
+
+requires cap(a) == 14
+func test3(a [12]int) {
+  assert false
+}
+
+func test4(a [12]int) {
+  assert cap(a) != 21
+}
+
+func test5() {
+  var a@ [42]int
+  assert cap(a) == 42
+  assert cap(a) == len(a)
+}
+
+func test6(a [12]int) {
+  share a
+  assert cap(a) == 12
+  assert cap(a) == len(a)
+}
+
+requires cap(a) == 14
+func test7(a [12]int) {
+  share a
+  assert false
+}
+
+func test8(a [12]int) {
+  share a
+  assert cap(a) != 21
+}

@@ -1,0 +1,79 @@
+[
+  {
+    "include": [
+      "**/*.scala",
+      "**/*.vpr",
+      "**/*.go",
+      "build.sbt",
+      "src/main/**/*.gobra"
+    ],
+    "exclude": [
+      "carbon/**",
+      "silicon/**",
+      "silver/**",
+      "viperserver/**",
+      "project/project/**",
+      "project/target/**",
+      "target/**"
+    ],
+    "license": "./.github/license-check/headers/MPLv2-ETH.txt"
+  },
+  {
+    "include": [
+      "**/Dockerfile"
+    ],
+    "exclude": [
+      "carbon/**",
+      "silicon/**",
+      "silver/**",
+      "viperserver/**"
+    ],
+    "license": "./.github/license-check/headers/MPLv2-ETH-hashtags.txt"
+  },
+  {
+    "include": [
+      "**/*.xml"
+    ],
+    "exclude": [
+      "carbon/**",
+      "silicon/**",
+      "silver/**",
+      "viperserver/**",
+      "project/project/**",
+      "project/target/**",
+      "target/**"
+    ],
+    "license": "./.github/license-check/headers/MPLv2-ETH-xml.txt"
+  },
+  {
+    "include": [
+      "**/*.gobra"
+    ],
+    "exclude": [
+      "project/project/**",
+      "project/target/**",
+      "target/**",
+      "src/main/**"
+    ],
+    "license": "./.github/license-check/headers/CC0.txt"
+  },
+  {
+    "include": [
+      "carbon/**",
+      "silicon/**",
+      "silver/**",
+      "viperserver/**",
+      "project/build.properties",
+      "project/plugins.sbt",
+      "project/project/**",
+      "project/target/**",
+      "target/**",
+      "tmp/**",
+      "**/*.json",
+      "**/*.log",
+      ".github/check-license/**",
+      "**/README.md",
+      "**/LICENSE"
+    ]
+  }
+]

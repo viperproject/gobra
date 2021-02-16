@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type Point struct {
+  x int;
+  y int;
+};
+
+func Origin() (r Point) {
+  r = Point{0, 0};
+};
+
+
+func init1() {
+  a := Point{y: 5};
+  assert a.x == 0 && a.y == 5;
+
+  b := Point{};
+  assert b.x == 0 && b.y == 0;
+};
+
+type Cell struct {
+  val int;
+};
+
+type Pair struct {
+  left, right Cell;
+};
+
+func init2() {
+  a := Pair{right: Cell{1}};
+  assert a.left == Cell{0} && a.right == Cell{1};
+
+  b := Pair{};
+  assert b.left == Cell{0} && b.right == Cell{0};
+};

@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type coordinate struct{
+    x, y, val int
+}
+
+pred cooMem(self *coordinate) {
+    acc(&self.x) && acc(&self.y) && acc(&self.val)
+}
+
+requires cooMem(self)
+pure func (self *coordinate) value() int {
+    return unfolding cooMem(self) in self.val
+}
+
+func client() {
+    x := &coordinate{0, 1, 42}
+    fold cooMem(x)
+    val := x.value()
+    assert val == 42
+    // check whether value can be called repeatedly, i.e. that the cooMem resource is still in the state:
+    assert val == x.value()
+}

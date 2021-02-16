@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test() {
+    a := 1
+    b := 2
+    c := a + b
+    d := a + b // some line comment
+    e := a + b /* some general comment */
+    f := a + b /* comment */ + c
+    g := a + b /* some multi-line
+    comment */ h := a + b
+    i := a + b /* comment 1 */ /* comment 2 */ + c /*
+    comment 3 */ j := a + b // comment 4
+    k := a + b /* comment 1 */ /* comment 2
+    */
+    l := a + b /*
+    line1
+    line2
+    */ m := a + b
+}

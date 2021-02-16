@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+// try to call an inexistent function
+//:: ExpectedOutput(type_error)
+ensures res == inexistent()
+func bar() (res int){
+    // body is ignored anyway
+}

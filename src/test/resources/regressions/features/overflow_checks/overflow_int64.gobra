@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// ##(--overflow)
+package overflow
+
+// Should overflow when running in 32 bit mode, not in 64
+requires i <= 2147483647
+ensures res == i + 1
+func overflowInt32(i int) (res int) {
+	return i + 1
+}
+
+// Operation may lead to overflow, no bound checks are performed on the argument u before incrementing it
+ensures ret == u + 1
+func incrementOverflows(u uint) (ret uint) {
+	//:: ExpectedOutput(integer_overflow_error)
+	ret = u + 1
+	return
+}
+
+// Overflow checks are also performed when a type conversion occurs
+func f(i int) uint {
+	//:: ExpectedOutput(integer_overflow_error)
+	return uint(i)
+}
+
+// For 64-bit ints, the following can lead to an overflow.
+ensures res == int64(i) + 1
+func inc(i int) (res int64) {
+	//:: ExpectedOutput(integer_overflow_error)
+	return int64(i) + 1
+}

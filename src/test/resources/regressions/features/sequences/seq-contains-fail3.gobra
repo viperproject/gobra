@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  b := 42 in seq[1..100]
+  // fails: assigning ghost expression to non-ghost parameter
+  //:: ExpectedOutput(type_error)
+  test(b)
+}
+
+func test(b bool)

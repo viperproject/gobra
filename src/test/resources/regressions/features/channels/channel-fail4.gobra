@@ -1,0 +1,35 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func closeNotEnoughArgs(c chan int) {
+    // close takes 4 arguments
+    //:: ExpectedOutput(type_error)
+    close(c)
+}
+
+pred testPredicate(p int)
+
+func closeWrongArgTypes(c chan int) {
+    // last argument has to be of type `pred()`
+    //:: ExpectedOutput(type_error)
+    close(c, 1, 2, testPredicate!<_!>)
+}
+
+func closeGhostChannel(ghost c chan int) {
+    // channel has to be of actual type
+    //:: ExpectedOutput(type_error)
+    close(c, 1, 2, testPredicate!<0!>)
+}
+
+func initWithWrongArgType() {
+  // previously, Init took as first argument an int. If this argument is provided as a literal, type inference kicks
+  // in which crashed if the parameter type is not int. This case checks whether the type error is correctly detected
+  // and reported (i.e. without crashing Gobra)
+  c := make(chan int, 1) // make a buffered channel
+  //:: ExpectedOutput(type_error)
+  c.Init(1, testPredicate!<_!>, PredTrue!<!>, PredTrue!<!>, testPredicate!<_!>)
+  //:: ExpectedOutput(type_error)
+  c.Init(1, testPredicate!<_!>)
+}

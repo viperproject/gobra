@@ -1,0 +1,36 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred myPred(x *int) {
+    acc(x) && *x == 42
+}
+
+func main() {
+    val@ := 42
+    x := &val;
+    // fold acc(myPred(x), 1/2)
+    fold myPred(x)
+    test(x)
+    test(x)
+    //:: ExpectedOutput(assert_error:permission_error)
+    assert *x == 42
+}
+
+requires acc(myPred(x), 1/2)
+func test(x *int) {
+    assert unfolding acc(myPred(x), 1/2) in *x == 42
+    test2(x)
+    assert unfolding acc(myPred(x), 1/4) in *x == 42
+    test2(x)
+    //:: ExpectedOutput(assert_error:permission_error)
+    assert *x == 42
+}
+
+requires acc(myPred(x), 1/4)
+func test2(x *int) {
+    assert unfolding acc(myPred(x), 1/4) in *x == 42
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

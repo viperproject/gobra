@@ -1,0 +1,98 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred vIsOne(v int) {
+    v == 1
+}
+
+pred someLocation(p *int) {
+    acc(p)
+}
+
+func main() {
+  // make channel
+  c := make(chan int)
+  assert c.IsChannel()
+  assert c.BufferSize() == 0
+
+  // set channel invariants
+  assert c.IsChannel()
+  assert c.BufferSize() > 0 ==> PredTrue!<!> == PredTrue!<!>;
+  c.Init(vIsOne!<_!>, PredTrue!<!>)
+  assert c.SendChannel() && c.RecvChannel()
+  assert c.SendGivenPerm() == vIsOne!<_!> && c.SendGotPerm() == PredTrue!<!>;
+  assert c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == vIsOne!<_!>;
+
+  var x@ int = 0
+  var p *int = &x
+  assert acc(p)
+  fold someLocation!<p!>()
+
+  // split someLocation{p}() into ClosureDebt and Token:
+  assert someLocation!<p!>()
+  c.CreateDebt(1, 2 /* 1/2 */, someLocation!<p!>)
+  assert c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */) && c.Token(someLocation!<p!>)
+
+  // start a separate thread to send a value back to us
+  go foo(1, c, p)
+
+  // receive from channel:
+  fold PredTrue!<!>()
+  assert acc(c.RecvChannel(), _) && c.RecvGivenPerm()()
+  res, ok := <- c
+  assert c.RecvChannel()
+  assert ok ==> c.RecvGotPerm()(res)
+  assert !ok ==> c.Closed() && res == 0
+  // first receive should succeed (but we cannot prove it)
+  if (ok) {
+    unfold vIsOne!<_!>(res)
+    assert res == 1
+  }
+
+  // receive a second time from the channel:
+  fold PredTrue!<!>()
+  assert acc(c.RecvChannel(), _) && c.RecvGivenPerm()()
+  res, ok := <- c
+  assert c.RecvChannel()
+  assert ok ==> c.RecvGotPerm()(res)
+  assert !ok ==> c.Closed() && res == 0
+  // second receive should definitely fail (but we cannot prove it)
+  if (!ok) {
+    // use Token from `DebtRedistribution` to regain access to p
+    assert c.Token(someLocation!<p!>)
+    assert acc(c.Closed(), _)
+    c.Redeem(someLocation!<p!>)
+    assert someLocation!<p!>()
+
+    unfold someLocation!<p!>()
+    // do something with p:
+    *p = 42
+  }
+}
+
+requires acc(c.SendChannel(), 1/2)
+requires c.SendGivenPerm() == vIsOne!<_!>;
+requires c.SendGotPerm() == PredTrue!<!>;
+requires v == 1
+requires someLocation!<p!>()
+requires c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */)
+func foo(v int, c chan int, p *int) {
+    // send something to main:
+    fold vIsOne!<_!>(v)
+
+    assert acc(c.SendChannel(), _) && vIsOne!<_!>(v)
+    c <- v
+    assert acc(c.SendChannel(), _) && PredTrue!<!>()
+
+    // permission to p should not have been touched and thus can still be used:
+    unfold someLocation!<p!>()
+    *p = 1234
+    fold someLocation!<p!>()
+
+    // close channel
+    assert acc(c.SendChannel(), 1/2) && c.ClosureDebt(someLocation!<p!>, 1, 2 /* 1/2 */) && someLocation!<p!>()
+    close(c, 1, 2 /* 1/2 */, someLocation!<p!>)
+    assert c.Closed()
+}

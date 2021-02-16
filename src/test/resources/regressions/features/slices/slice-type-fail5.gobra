@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires s == nil
+func foo(s []int) {
+  var a@ [0]int
+  //:: ExpectedOutput(type_error)
+  assert s[:] == a[:] // slices can only be compared to nil
+}

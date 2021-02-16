@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I src/test/resources/regressions/features/import/ghost_member_import)
+import b "bar"
+
+func foo() {
+    assert b.Answer == 42
+    r@ := b.Rectangle{Width: 2, Height: 5}
+    fold b.RectMem(&r)
+    assert r.Area() == 10
+    unfold b.RectMem(&r)
+    fold b.RectMem(&r)
+    assert (*(b.Rectangle)).Area(&r) == 10
+    assert b.SquaredHypotenuse(&r) == 29
+    // asserting r.GetWidth() == 2 does not work as one currently cannot specify a custom postcondition for pure
+    // functions or methods and the body is ignored (because it's an imported method)
+    // assert r.GetWidth() == 2
+    // assert (*(b.Rectangle)).GetWidth(&r) == 2
+    assert r.GetWidth() == (*(b.Rectangle)).GetWidth(&r)
+    // assert b.Height(&r) == 10
+    assert b.Height(&r) == b.Height(&r)
+    unfold b.RectMem(&r)
+}

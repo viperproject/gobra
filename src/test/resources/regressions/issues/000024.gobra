@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main;
+
+type Cell struct {
+    a int;
+    b int;
+};
+
+func test1(c Cell) () {
+    q@ := c
+    x := q.a;
+    p := &(q.a);
+    *p = x+1;
+    y := q.a;
+    assert x != y;
+};
+
+func test2() (c Cell) {
+    q@ := c
+    x := q.a;
+    p := &(q.a);
+    *p = x+1;
+    y := q.a;
+    assert x != y;
+};

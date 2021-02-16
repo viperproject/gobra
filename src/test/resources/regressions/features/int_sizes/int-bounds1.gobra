@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package ints
+
+func test() {
+	//:: ExpectedOutput(type_error)
+	var x int8 = 200000 // overflows the size of int8
+
+	var y int16 = 32767
+	y += 32767 // this should be ok
+
+	//:: ExpectedOutput(type_error)
+	y -= 32768 // this should not, 32768 is not representable as an int16
+
+	var u uint
+
+	//:: ExpectedOutput(type_error)
+	u = -1
+}

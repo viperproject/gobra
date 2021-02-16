@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// this import should work as it shouldn't interfere with the import in main1.gobra
+import "bar"
+
+func test2() {
+    assert bar.Answer == 42
+}

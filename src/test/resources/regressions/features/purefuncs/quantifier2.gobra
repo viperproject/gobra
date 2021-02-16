@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+pure func test(a int)(res int){
+    return a+1
+}
+
+ensures forall i int :: i == test(i)-1
+func client(){}

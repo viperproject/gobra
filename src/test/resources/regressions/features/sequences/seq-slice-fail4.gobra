@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo(ghost xs seq[int]) {
+  // fails: cannot specify a capacity in a sequence slice expression
+  //:: ExpectedOutput(type_error)
+  ghost ys := xs[1:2:3]
+}

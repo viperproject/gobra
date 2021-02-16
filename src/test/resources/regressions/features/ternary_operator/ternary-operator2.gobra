@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+func test() {
+  // int and bool are not mergeable:
+  //:: ExpectedOutput(type_error)
+  v := 1 == 1 ? 5 : true;
+};

@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+ensures flag[0]
+func test1() (flag [1]bool) {
+  flag[0] = true
+}
+
+func test2() {
+  a := test1()
+  assert a[0]
+}
+
+ensures flag[0]
+func test3() (flag [1]bool) {
+  share flag
+  flag[0] = true
+}
+
+func test4() {
+  a@ := test3()
+  assert a[0]
+}

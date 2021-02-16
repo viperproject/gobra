@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred vIsOne(v int) {
+    v == 1
+}
+
+pred customTrue() {
+    true
+}
+
+func initBufferedChannelWithWrongPredicates() {
+  c0 := make(chan int, 0) // make an unbuffered channel
+  // if it's an unbuffered channel one can use arbitrary predicate expressions as SendGotPerm and RecvGivenPerm
+  c0.Init(vIsOne!<_!>, customTrue!<!>)
+  c1 := make(chan int, 1) // make a buffered channel
+  // however, this is not possible if the channel is buffered:
+  //:: ExpectedOutput(precondition_error:assertion_error)
+  c1.Init(vIsOne!<_!>, customTrue!<!>)
+}

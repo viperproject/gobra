@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.==>
@@ -50,6 +56,11 @@ trait BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => wellDefExprAndType.valid(n)
     case e: PExpression => wellDefExpr.valid(e)
     case t: PType => wellDefType.valid(t)
+    // skip well-definedness checks for defined identifiers. This enables the parent node, e.g. the declaration
+    // statement, to perform the necessary checks as the parent is not skipped due to an unsafe message from the
+    // identifier well-definedness check. See issue #185
+    case _: PIdnDef => true
+    case i: PIdnUnk if isDef(i) => true
     case i: PIdnNode => wellDefID.valid(i)
     case o: PMisc => wellDefMisc.valid(o)
     case s: PSpecification => wellDefSpec.valid(s)
@@ -94,7 +105,7 @@ trait BaseTyping { this: TypeInfoImpl =>
     override def invalid(ret: Type): Boolean = ret == UnknownType
   }
 
-  private[typing] def createTyping[T](inference: T => Type)(implicit wellDef: WellDefinedness[T]): Typing[T] =
+  private[typing] def createTyping[T <: AnyRef](inference: T => Type)(implicit wellDef: WellDefinedness[T]): Typing[T] =
     new Attribution with Typing[T] with Memoization[T, Type] {
 
       override def safe(n: T): Boolean = wellDef.valid(n)
@@ -102,7 +113,7 @@ trait BaseTyping { this: TypeInfoImpl =>
       override def compute(n: T): Type = inference(n)
     }
 
-  private[typing] def createWellDefInference[X, Z](wellDef: X => Boolean)(inference: X => Z): X => Option[Z] =
+  private[typing] def createWellDefInference[X <: AnyRef, Z](wellDef: X => Boolean)(inference: X => Z): X => Option[Z] =
     new Attribution with Safety[X, Option[Z]] with Memoization[X, Option[Z]] {
 
       override def safe(n: X): Boolean = wellDef(n)

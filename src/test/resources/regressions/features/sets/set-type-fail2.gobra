@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  // fails: `s` should've been marked as ghost
+  //:: ExpectedOutput(type_error)
+  var s set[int]
+}
+

@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1() {
+  s := []int { 1:34, 0:12 }
+  assert len(s) == 2
+  assert cap(s) == 2
+  assert s[0] == 12 && s[1] == 34  
+}
+
+func test2() {
+	s@ := [][]int{[]int{1}, []int{2}}
+  assert len(s) == 2
+}
+
+func test3() {
+  assert len([]int { 1, 2, 3 }) == 3
+  assert cap([]int { 4, 5 }[:]) == 2
+  assert len([]int { 1, 2, 3 }[:2]) == 2
+  assert cap([]int { 4, 5 }[1:]) == 1
+}
+
+func test4() {
+  s := []int { 1, 2, 3, 4, 5 }[1:3:4]
+  assert len(s) == 2
+  assert cap(s) == 3
+  assert s[0] == 2 && s[1] == 3
+}
+
+func test5 () {
+  s := []int { 10000:12 }
+  assert len(s) == 10001
+  assert cap(s) == 10001
+  assert s[82] == 0
+  assert s[10000] == 12
+}

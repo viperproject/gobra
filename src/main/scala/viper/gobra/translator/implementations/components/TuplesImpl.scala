@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.interfaces.Collector
@@ -24,22 +30,22 @@ class TuplesImpl extends Tuples {
     )
   }
 
-  override def create(args: Vector[vpr.Exp]): vpr.DomainFuncApp = {
+  override def create(args: Vector[vpr.Exp])(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     val arity = args.size
 
     vpr.DomainFuncApp(
       func = tuple(arity),
       args = args,
       typVarMap = typeVarMap(args map (_.typ))
-    )()
+    )(pos, info, errT)
   }
 
-  override def get(arg: vpr.Exp, index: Int, arity: Int): vpr.DomainFuncApp = {
+  override def get(arg: vpr.Exp, index: Int, arity: Int)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(
       func = getter(index, arity),
       args = Vector(arg),
-      typVarMap = typeVarMap(Vector(arg.typ))
-    )()
+      typVarMap = arg.typ.asInstanceOf[vpr.DomainType].typVarsMap
+    )(pos, info, errT)
   }
 
   def tuple(arity: Int): vpr.DomainFunc =
@@ -90,7 +96,7 @@ class TuplesImpl extends Tuples {
         )()
       }
 
-      vpr.DomainAxiom(
+      vpr.NamedDomainAxiom(
         name = s"getter_over_tuple$arity",
         exp = vpr.Forall(
           decls,
@@ -105,7 +111,7 @@ class TuplesImpl extends Tuples {
         vpr.DomainFuncApp(f, Seq(domainVar), typVarMap)()
         )
 
-      vpr.DomainAxiom(
+      vpr.NamedDomainAxiom(
         name = s"tuple${arity}_over_getter",
         exp = vpr.Forall(
           Seq(domainDecl),

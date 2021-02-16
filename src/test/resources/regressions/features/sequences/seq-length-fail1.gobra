@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// fails: cannot take the length of an integer
+//:: ExpectedOutput(type_error)
+requires 0 < len(n)
+func foo(n int) {
+}

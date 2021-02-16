@@ -1,19 +1,21 @@
-/*
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.backend
 
-import java.nio.charset.StandardCharsets.UTF_8
-
-import org.apache.commons.io.FileUtils
+import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
-import viper.gobra.reporting.BackTranslator
-import viper.gobra.util.OutputUtil
+import viper.gobra.reporting.BackTranslator.BackTrackInfo
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
+import viper.gobra.util.GobraExecutionContext
 import viper.silver
+import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
+
+import scala.concurrent.Future
 
 object BackendVerifier {
 
@@ -29,52 +31,50 @@ object BackendVerifier {
                     backtrack: BackTranslator.BackTrackInfo
                     ) extends Result
 
-  def verify(task: Task)(config: Config): Result = {
+  def verify(task: Task)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
+    var exePaths: Vector[String] = Vector.empty
 
-    // print generated viper file if set in config
-    if (config.printVpr()) {
-      val outputFile = OutputUtil.postfixFile(config.inputFile(), "vpr")
-      FileUtils.writeStringToFile(
-        outputFile,
-        silver.ast.pretty.FastPrettyPrinter.pretty(task.program),
-        UTF_8
-      )
+    config.z3Exe match {
+      case Some(z3Exe) =>
+        exePaths ++= Vector("--z3Exe", z3Exe)
+      case _ =>
     }
 
-    val verifier = setupSilicon(config)
-    verifier.start()
-    val verificationResult = verifier.handle(task.program)
-    verifier.stop()
-
-    verificationResult match {
-      case silver.verifier.Success => Success
-      case failure: silver.verifier.Failure =>
-
-        val (verificationError, otherError) = failure.errors
-          .partition(_.isInstanceOf[silver.verifier.VerificationError])
-          .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
-
-        checkAbstractViperErrors(otherError)
-
-        Failure(verificationError.toVector, task.backtrack)
+    (config.backend, config.boogieExe) match {
+      case (Carbon, Some(boogieExe)) =>
+        exePaths ++= Vector("--boogieExe", boogieExe)
+      case _ =>
     }
+
+    val verifier = config.backend.create(exePaths)
+
+    val programID = "_programID_" + config.inputFiles.head.getName
+
+    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
+
+
+    verificationResult.map(
+      result => {
+        convertVerificationResult(result, task.backtrack)
+      })
+
   }
 
-  private def setupSilicon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
-    options ++= Vector("--disableCatchingExceptions")
-    options ++= Vector("--enableMoreCompleteExhale")
+  /**
+    * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
+    */
+  def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
+    case silver.verifier.Success => Success
+    case failure: silver.verifier.Failure =>
 
-    new Silicon(options)
-  }
+      val (verificationError, otherError) = failure.errors
+        .partition(_.isInstanceOf[silver.verifier.VerificationError])
+        .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]
 
-  private def setupCarbon(config: Config): ViperVerifier = {
-    var options: Vector[String] = Vector.empty
-    options ++= Vector("--logLevel", "ERROR")
+      checkAbstractViperErrors(otherError)
 
-    new Carbon(options)
+      Failure(verificationError.toVector, backTrackInfo)
   }
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

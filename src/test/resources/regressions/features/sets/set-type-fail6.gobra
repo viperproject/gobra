@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type Point struct {
+  x int
+  y int
+}
+
+func foo() {
+  // sequences of custom defined types are not supported currently
+  //:: ExpectedOutput(type_error)
+  ghost var xs set[Point]
+}

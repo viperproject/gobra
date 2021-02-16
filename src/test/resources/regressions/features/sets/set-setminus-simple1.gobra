@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1(ghost s set[int], ghost t set[int]) {
+  ghost u := s setminus t
+}
+
+func example2() {
+  assert set[bool] { } setminus set[bool] { } == set[bool] { }
+  assert set[int] { 1, 2 } setminus set[int] { 1 } == set[int] { 2 }
+  assert set[int] { 1, 2 } setminus set[int] { 2, 3 } == set[int] { 1 }
+  assert set[int] { 1, 2 } setminus set[int] { 3, 4 } == set[int] { 1, 2 }
+}
+
+func example3() {
+  assert set[int] { 1, 2, 3 } setminus set[int] { 1 } setminus set[int] { 2 } == set[int] { 3 }
+}
+
+requires s intersection u == set[int] { }
+func example4(ghost s set[int], ghost t set[int], ghost u set[int]) {
+  assert (s setminus t) setminus u == s setminus (t setminus u)
+}
+
+ensures t == s setminus set[int] { 2, 1 }
+func example5(ghost s set[int]) (ghost t set[int]) {
+  t = s setminus set[int] { 1, 2 }
+}
+
+func example6(ghost s set[int]) {
+  assert s setminus s == set[int] {  }
+  assert s setminus set[int] { } == s
+}
+
+func example7(ghost s set[int], ghost t set[int], ghost u set[int]) {
+  assert s setminus (t union u) == (s setminus t) intersection (s setminus u)
+  assert s setminus (t intersection u) == (s setminus t) union (s setminus u)
+}

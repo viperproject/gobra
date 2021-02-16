@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func example1(ghost m1 mset[int], ghost m2 mset[int]) {
+  ghost m := m1 setminus m2
+}
+
+ghost func example2(m1 mset[int], m2 mset[int]) (m mset[int]) {
+  m = m1 setminus m2
+}
+
+ensures m == m1 setminus m2
+func example3(ghost m1 mset[int], ghost m2 mset[int]) (ghost m mset[int]) {
+  m = m1 setminus m2
+}
+
+func example4() {
+  assert mset[bool] { } setminus mset[bool] { } == mset[bool] { }
+  assert mset[int] { 1, 2 } setminus mset[int] { 1 } == mset[int] { 2 }
+  assert mset[int] { 1, 2, 2 } setminus mset[int] { 1 } == mset[int] { 2, 2 }
+  assert mset[int] { 1, 2 } setminus mset[int] { 2, 3 } == mset[int] { 1 }
+  assert mset[int] { 1, 2 } setminus mset[int] { 3, 4 } == mset[int] { 1, 2 }
+}
+
+func example5() {
+  assert mset[int] { 1, 2, 3 } setminus mset[int] { 1 } setminus mset[int] { 2 } == mset[int] { 3 }
+}
+
+ensures m2 == m1 setminus mset[int] { 2, 1 }
+func example6(ghost m1 mset[int]) (ghost m2 mset[int]) {
+  m2 = m1 setminus mset[int] { 1, 2 }
+}
+
+func example7(ghost m mset[int]) {
+  assert m setminus m == mset[int] {  }
+  assert m setminus mset[int] { } == m
+}

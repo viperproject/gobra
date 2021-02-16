@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func main() {
+    // static overflows are detected for blank identifiers too
+    // even though no type is specified
+    //:: ExpectedOutput(type_error)
+    _ = 1231234312421342143123421312342141234  
+}

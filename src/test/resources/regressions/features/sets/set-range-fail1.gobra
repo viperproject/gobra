@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func foo() {
+  //:: ExpectedOutput(type_error)
+  assert seq[1..10] == set[1..10]
+}

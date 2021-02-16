@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I src/test/resources/regressions/features/import/multi_import)
+// import of same package but with different qualifiers should be possible:
+import b "bar"
+import bar "bar"
+import . "bar"
+
+func foo() {
+  assert(b.Answer == 42)
+  assert(bar.Answer == 42)
+  assert(Answer == 42)
+}

@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func test1(v int) {
+  assert seq(none[int]) == seq[int] { }
+  assert seq(some(v)) == seq[int] { v }
+}
+
+ensures len(seq(o)) <= 1
+func test3(ghost o option[int]) {
+  assert o != none[int] ==> o == some(get(o))
+  assert o != none[int] ==> seq(o) == seq[int] { get(o) }
+}
+
+requires v in seq(o)
+ensures o == some(v)
+func test4(ghost o option[int], v int) {
+  assert o == some(get(o))
+}
+
+requires len(seq(o)) == 0
+ensures o == none[int]
+func test5(ghost o option[int]) {
+  ghost if (o != none[int]) {
+    assert o == some(get(o))
+  }
+}
+
+requires v # (seq(l) ++ seq(r)) == 2
+ensures l == some(v)
+ensures r == some(v)
+func test6(ghost l option[int], ghost r option[int], v int) {
+  test3(l)
+  test3(r)
+  test4(l, v)
+  test4(r, v)
+}
+
+requires v # seq(o) == 2
+ensures false
+func test7(ghost o option[int], v int) {
+  test3(o)
+}

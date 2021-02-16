@@ -11,7 +11,7 @@ following *exceptions*:
 
 - Files found in the following directories (and their sub-directories), which
   are copyrighted by The Go Authors
-  (see https://github.com/golang/go/blob/master/LICENSE)
+  (see https://golang.org/LICENSE)
 
     src/main/resources/stubs/sync
 

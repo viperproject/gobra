@@ -73,7 +73,8 @@
       "**/*.log",
       ".github/check-license/**",
       "**/README.md",
-      "**/LICENSE"
+      "**/LICENSE",
+      "docs/**"
     ]
   },
   {

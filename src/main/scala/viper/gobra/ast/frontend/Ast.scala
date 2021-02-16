@@ -517,6 +517,7 @@ sealed trait PNamedType extends PActualType {
 sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
 
 case class PBoolType() extends PPredeclaredType("bool")
+case class PStringType() extends PPredeclaredType("string")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
@@ -534,7 +535,6 @@ case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
-case class PStringType() extends PPredeclaredType("string")
 
 // TODO: add more types
 

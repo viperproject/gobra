@@ -1578,6 +1578,7 @@ object Desugar {
       lit match {
         case PIntLit(v)  => single(in.IntLit(v))
         case PBoolLit(b) => single(in.BoolLit(b))
+        case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
         case c: PCompositeLit => compositeLitD(ctx)(c)
         case _ => ???
@@ -1896,6 +1897,7 @@ object Desugar {
       case Type.VoidType => in.VoidT
       case t: DeclaredT => registerType(registerDefinedType(t, addrMod)(src))
       case Type.BooleanT => in.BoolT(addrMod)
+      case Type.StringT => in.StringT(addrMod)
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
@@ -2584,6 +2586,7 @@ object Desugar {
     }
     private def stringifyType(typ: in.Type): String = typ match {
       case _: in.BoolT => "Bool"
+      case _: in.StringT => "String"
       case in.IntT(_, kind) => s"Int${kind.name}"
       case in.VoidT => ""
       case _: in.PermissionT => "Permission"

@@ -886,6 +886,10 @@ case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
 }
 
+case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = StringT(Addressability.literal)
+}
+
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 
 /**
@@ -1015,6 +1019,11 @@ case class BoolT(addressability: Addressability) extends Type {
 case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
+}
+
+case class StringT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
+  override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
 }
 
 case object VoidT extends Type {

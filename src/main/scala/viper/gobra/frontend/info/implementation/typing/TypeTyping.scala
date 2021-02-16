@@ -33,9 +33,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntegerType => noMessages
-
-    case n: PStringType => error(n, "string are currently unsupported")
+    case _: PBoolType | _: PIntegerType | _: PStringType => noMessages
 
     case typ @ PArrayType(_, PNamedOperand(_)) =>
       error(typ, s"arrays of custom declared types are currently not supported")
@@ -91,7 +89,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PUInt64Type() => IntT(config.typeBounds.UInt64)
     case PByte() => IntT(config.typeBounds.Byte)
     case PUIntPtr() => IntT(config.typeBounds.UIntPtr)
-    case PStringType() => violation("strings are currently unsupported")
+    case PStringType() => StringT
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)

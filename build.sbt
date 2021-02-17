@@ -41,11 +41,17 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "org.apache.commons" % "commons-text" % "1.9", // for escaping strings in parser preprocessor
 
     scalacOptions ++= Seq(
+      "-encoding", "UTF-8",               // Enforce UTF-8, instead of relying on properly set locales
       "-Ypatmat-exhaust-depth", "40"
     ),
 
+    javacOptions ++= Seq("-encoding", "UTF-8", "-charset", "UTF-8", "-docencoding", "UTF-8"),
+
     // Run settings
-    run / javaOptions += "-Xss128m",
+    run / javaOptions ++= Seq(
+      "-Xss128m",
+      "-Dfile.encoding=UTF-8"
+    ),
 
     fork := true,
 

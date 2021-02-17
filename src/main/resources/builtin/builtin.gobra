@@ -7,8 +7,7 @@
 package builtin
 
 type error interface {
-    // currently empty as Gobra does not yet support strings
-    // Error() string
+    Error() string
 }
 
 // The panic built-in function stops normal execution of the current

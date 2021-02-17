@@ -5,11 +5,11 @@ package main
 
 func lenTestFail() {
 	h1 := "hello"
-	//:: ExpectedOutput(assert_error:permission_error)
+	//:: ExpectedOutput(assert_error)
 	assert len(h1) == 4
 }
 
 func compareStr() {
-	//:: ExpectedOutput(assert_error:permission_error)
+	//:: ExpectedOutput(assert_error)
 	assert "a" < "bb" || "a" < "bb" || "a" == "bb"
 }

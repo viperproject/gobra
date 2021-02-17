@@ -11,14 +11,13 @@ import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
 
 class StringEncoding extends LeafTypeEncoding {
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
 
   /**
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.String() / m => ctx.typeEncoding.typ(ctx)(underlyingStruct(m))
+    case ctx.String() / m =>  //ctx.typeEncoding.typ(ctx)(underlyingStruct(m))
   }
 
   /**
@@ -38,8 +37,7 @@ class StringEncoding extends LeafTypeEncoding {
         // unit(withSrc(goE(v), lit))
         goE(v)
       case lit: in.StringLit => //unit(withSrc(vpr.IntLit(0), lit))
-        println(s"s: ${lit.s} ; len: ${lit.s.length}")
-        val v = in.StructLit(underlyingStruct(Exclusive), Vector(in.IntLit(BigInt(lit.s.getBytes("UTF-8")))(Source.Parser.Internal)))(Source.Parser.Internal)
+        val v = in.StructLit(underlyingStruct(Exclusive), Vector(in.IntLit(BigInt(lit.s.length))(Source.Parser.Internal)))(Source.Parser.Internal)
         // unit(withSrc(goE(v), lit))
         goE(v)
       // case in.Length(exp :: ctx.String()) => for {
@@ -50,10 +48,12 @@ class StringEncoding extends LeafTypeEncoding {
 
   //def len()
 
+  /*
   private def underlyingStruct(addr: Addressability): in.Type =
     in.StructT("string",
       //Vector(in.Field("length", in.IntT(Addressability.field(addr), TypeBounds.DefaultInt), false)(Source.Parser.Internal),
         //TODO: in.Field("str", in.PointerT(in.IntT(Addressability.sharedVariable, TypeBounds.Byte), Addressability.field(addr)), false)(Source.Parser.Internal)), //TODO: change default int to the type determined by config
       Vector(in.Field("length", in.IntT(Addressability.field(addr), TypeBounds.DefaultInt), false)(Source.Parser.Internal)),
       addr)
+   */
 }

@@ -1553,6 +1553,8 @@ object Desugar {
 
         case PBoolType() => unit(in.BoolTExpr()(src))
 
+        case PStringType() => unit(in.StringTExpr()(src))
+
         case t: PIntegerType =>
           val st = info.symbType(t).asInstanceOf[Type.IntT]
           unit(in.IntTExpr(st.kind)(src))

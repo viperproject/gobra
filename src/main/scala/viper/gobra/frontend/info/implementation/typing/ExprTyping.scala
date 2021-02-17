@@ -178,7 +178,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PBoolLit | _: PNilLit | _: PStringLit => noMessages
 
     case n: PIntLit => numExprWithinTypeBounds(n)
-    
+
     case n@PCompositeLit(t, lit) =>
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))

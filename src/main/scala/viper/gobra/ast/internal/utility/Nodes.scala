@@ -97,6 +97,7 @@ object Nodes {
         case ToInterface(exp, _) => Seq(exp)
         case IsBehaviouralSubtype(left, right) => Seq(left, right)
         case BoolTExpr() => Seq.empty
+        case StringTExpr() => Seq.empty
         case IntTExpr(_) => Seq.empty
         case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)

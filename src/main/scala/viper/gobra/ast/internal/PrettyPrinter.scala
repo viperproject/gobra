@@ -407,6 +407,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       })
 
     case BoolTExpr() => "bool"
+    case StringTExpr() => "string"
     case IntTExpr(kind) => kind.name
     case PermTExpr() => "perm"
     case PointerTExpr(elem) => "*" <> showExpr(elem)

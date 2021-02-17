@@ -42,7 +42,7 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "commons-codec" % "commons-codec" % "1.15", // for obtaining the hex encoding of a string
 
     scalacOptions ++= Seq(
-      "-encoding", "UTF-8",               // Enforce UTF-8, instead of relying on properly set locales
+      "-encoding", "UTF-8", // Enforce UTF-8, instead of relying on properly set locales
       "-Ypatmat-exhaust-depth", "40"
     ),
 

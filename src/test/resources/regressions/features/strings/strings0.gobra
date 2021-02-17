@@ -15,20 +15,29 @@ func test() {
 }
 
 func lenTest() {
-  h1 := "hello"
-  h2 := "world"
-  assert len(h1) == 5
-  assert len(h2) == 5
-  assert len(h1 + h2) == 10
-}
-
-func lenTestFail() {
-  h1 := "hello"
-  assert len(h1) == 4
+	h1 := "hello"
+	h2 := "world"
+	assert len(h1) == 5
+	assert len(h2) == 5
+	assert len(h1 + h2) == 10
 }
 
 func stringEq(){
-  h1 := "hello"
-  var h2 = "hello"
-  assert h1 == h2
+	h1 := "hello"
+	var h2 = "hello"
+	assert h1 == h2
+}
+
+func id(s string) string {
+	return s
+}
+
+func comp(s1, s2 string) int {
+	if s1 == s2 {
+		return 0
+	} else if s1 < s2 {
+		return -1
+	} else {
+		return 1
+	}
 }

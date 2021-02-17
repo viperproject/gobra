@@ -438,6 +438,7 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr

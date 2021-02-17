@@ -18,6 +18,7 @@ sealed trait TypeHead
 object TypeHead {
 
   case object BoolHD extends TypeHead
+  case object StringHD extends TypeHead
   case class IntHD(kind: IntegerKind) extends TypeHead
   case object PointerHD extends TypeHead
   case class DefinedHD(name: String) extends TypeHead
@@ -95,6 +96,7 @@ object TypeHead {
   /** Returns the direct children types of a type expression. */
   def children(typ: TypeExpr): Vector[Expr] = typ match {
     case _: BoolTExpr => Vector.empty
+    case _: StringTExpr => Vector.empty
     case _: IntTExpr => Vector.empty
     case t: PointerTExpr => Vector(t.elems)
     case _: DefinedTExpr => Vector.empty
@@ -112,6 +114,7 @@ object TypeHead {
   /** Returns type-head representation of the argument type expression. */
   def typeHead(typ: TypeExpr): TypeHead = typ match {
     case _: BoolTExpr => BoolHD
+    case _: StringTExpr => StringHD
     case t: IntTExpr => IntHD(t.kind)
     case _: PointerTExpr => PointerHD
     case t: DefinedTExpr => DefinedHD(t.name)
@@ -129,6 +132,7 @@ object TypeHead {
   /** Returns arity of the type represented by the argument type-head. */
   def arity(typeHead: TypeHead): Int = typeHead match {
     case BoolHD => 0
+    case StringHD => 0
     case _: IntHD => 0
     case PointerHD => 1
     case _: DefinedHD => 0

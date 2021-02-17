@@ -63,9 +63,13 @@ class StringEncoding extends LeafTypeEncoding {
         val encodedStr = stringBeginning + Hex.encodeHexString(lit.s.getBytes("UTF-8"))
         strLengths += encodedStr -> lit.s.length
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), lit))
-      case len@in.Length(exp :: ctx.String()) => for {
-        e <- goE(exp)
-      } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
+      case len@in.Length(exp :: ctx.String()) =>
+        for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
+      case concat@in.Concat(l :: ctx.String(), r :: ctx.String()) =>
+        for {
+          lEncoded <- goE(l)
+          rEncoded <- goE(r)
+        } yield withSrc(vpr.DomainFuncApp(concatFunc, Seq(lEncoded, rEncoded), Map.empty),concat)
     }
   }
 

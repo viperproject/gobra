@@ -815,6 +815,10 @@ sealed trait IntOperation extends Expr {
   override val typ: Type = IntT(Addressability.rValue)
 }
 
+sealed trait StringOperation extends Expr {
+  override val typ: Type = StringT(Addressability.rValue)
+}
+
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
@@ -858,12 +862,13 @@ case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolOperation
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
-
 case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
 case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
 case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
+
+case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType

@@ -313,8 +313,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) if l == StringT && r == StringT => noMessages
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+          case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])

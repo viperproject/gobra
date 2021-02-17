@@ -2601,7 +2601,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // 0xf8 == 248
     val parseRes = frontend.parseExp("string(248)")
     inside (parseRes) {
-      case PInvoke(PStringType(), Vector(PIntLit(value))) => value should be (0xf8)
+      case Right(PInvoke(PStringType(), Vector(PIntLit(value)))) => value should be (0xf8)
     }
   }
 

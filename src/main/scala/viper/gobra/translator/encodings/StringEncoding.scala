@@ -26,22 +26,6 @@ class StringEncoding extends LeafTypeEncoding {
   private var funcs: Map[String, vpr.DomainFunc] = Map.empty
   private val stringBeginning: String = "stringLit"
 
-  // TODO: doc the length func
-  private val lenFuncName: String = "strLen"
-  private val lenFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = lenFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
-    typ = vpr.Int,
-  )(domainName = domainName)
-
-  //TODO: doc the string concat
-  private val concatFuncName: String = "strConcat"
-  private val concatFunc: vpr.DomainFunc = vpr.DomainFunc(
-    name = concatFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)(), vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
-    typ = vpr.Int,
-  )(domainName = domainName)
-
   /**
     * Translates a type into a Viper type.
     */
@@ -52,20 +36,20 @@ class StringEncoding extends LeafTypeEncoding {
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
-    * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
-    * (1) exclusive operations on T, which includes literals and default values
+    * [ dfltVal: string° ] -> stringLitDefault()
+    * [ strLit: string° ] -> stringLitX() where X is a unique suffix dependant on the value of the string literal
+    * [ len(s: string) ] -> strLen([s])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
-    // TODO: doc
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
         val encodedStr = stringBeginning + "Default"
         strLengths += encodedStr -> 0
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), e))
-      case lit: in.StringLit =>
+      case lit: in.StringLit if lit.typ.addressability == Exclusive =>
         val encodedStr = stringBeginning + Hex.encodeHexString(lit.s.getBytes("UTF-8"))
         strLengths += encodedStr -> lit.s.length
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), lit))
@@ -79,6 +63,9 @@ class StringEncoding extends LeafTypeEncoding {
     }
   }
 
+  /**
+    * Encodes a string variable as an vpr.Int
+    */
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = {
     case v if typ(ctx).isDefinedAt(v.typ) =>
       val (pos, info, errT) = v.vprMeta
@@ -89,6 +76,11 @@ class StringEncoding extends LeafTypeEncoding {
     col.addMember(genDomain())
   }
 
+  /** Every string literal in the program is encoded as a unique domain function in the String domain,
+    * whose value corresponds to the string id.
+    *     unique function stringLitX(): Int
+    * Here, X is an unique suffix depending on the literal value.
+    */
   private def makeFunc(name: String): vpr.DomainFunc = {
     val func = vpr.DomainFunc(
       name = name,
@@ -100,11 +92,40 @@ class StringEncoding extends LeafTypeEncoding {
     func
   }
 
+  /**
+    * Generates
+    *   function strLen(id: Int): Int
+    */
+  private val lenFuncName: String = "strLen"
+  private val lenFunc: vpr.DomainFunc = vpr.DomainFunc(
+    name = lenFuncName,
+    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
+    typ = vpr.Int,
+  )(domainName = domainName)
+
+  /**
+    * Generates
+    *   function strCat(l: Int, r: Int): Int
+    * where l and r are string ids
+    */
+  private val concatFuncName: String = "strConcat"
+  private val concatFunc: vpr.DomainFunc = vpr.DomainFunc(
+    name = concatFuncName,
+    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)(), vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
+    typ = vpr.Int,
+  )(domainName = domainName)
+
   private def genDomain(): vpr.Domain = {
     funcs += lenFuncName -> lenFunc
     funcs += concatFuncName -> concatFunc
 
-    // TODO: doc axioms
+    /**
+      * The length of every string literal in the program is axiomatized as
+      *   axiom {
+      *     strLen(literal()) == X
+      *   }
+      * where `literal` is one of the generated unique domain functions and X is the length of the corresponding string
+      */
     val lenAxioms = strLengths.toSeq.map {
       case (str, len) =>
         vpr.AnonymousDomainAxiom {
@@ -114,6 +135,13 @@ class StringEncoding extends LeafTypeEncoding {
         }(domainName = domainName)
     }
 
+    /**
+      * Generates
+      *   axiom {
+      *     forall l: Int, r: Int :: {strLen(strConcat(l, r))} strLen(strConcat(l, r)) == strLen(l) + strLen(r)
+      *   }
+      *   where l and r correspond to string ids
+      */
     val appAxiom: vpr.DomainAxiom = vpr.AnonymousDomainAxiom {
       val var1 = vpr.LocalVarDecl(Names.freshName, vpr.Int)()
       val var2 = vpr.LocalVarDecl(Names.freshName, vpr.Int)()

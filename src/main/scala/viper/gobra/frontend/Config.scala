@@ -18,7 +18,7 @@ import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-import viper.gobra.util.TypeBounds
+import viper.gobra.util.{TypeBounds, Violation}
 
 
 object LoggerDefaults {
@@ -294,6 +294,7 @@ class ScallopGobraConfig(arguments: Seq[String])
         case (pkgs, files) if pkgs.nonEmpty && files.nonEmpty =>
           message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${concatRight(files, ",")}'; package names: '${concatLeft(pkgs, ",")}')")
         case (pkgs, files) if pkgs.isEmpty && files.isEmpty => message(null, s"no input specified")
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 

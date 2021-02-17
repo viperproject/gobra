@@ -18,12 +18,14 @@ import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
+import scala.annotation.unused
+
 private[arrays] object ArrayEncoding {
   /** Parameter of array components. */
   type ComponentParameter = (BigInt, in.Type)
 
   /** Computes the component parameter. */
-  def cptParam(len: BigInt, t: in.Type)(ctx: Context): ComponentParameter = {
+  def cptParam(len: BigInt, t: in.Type)(@unused ctx: Context): ComponentParameter = {
     (len, t)
   }
 }
@@ -272,13 +274,14 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
         val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
         for {
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx)(exp.info)).right.get)(ctx)
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx)(exp.info))
+            .getOrElse(Violation.violation("An incomparable array entails an incomparable element type.")))(ctx)
           res = vpr.Forall(
             variables = Seq(vIdxDecl),
             triggers = Seq(vpr.Trigger(Seq(rhs))(pos, info, errT)),
             exp = vpr.Implies(boundaryCondition(vIdxDecl.localVar, len)(exp), rhs)(pos, info, errT)
           )(pos, info, errT)
-        } yield res
+        } yield res: vpr.Exp
       }
   }
 

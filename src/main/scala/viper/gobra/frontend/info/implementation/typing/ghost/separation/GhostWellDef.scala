@@ -57,6 +57,8 @@ trait GhostWellDef { this: TypeInfoImpl =>
       error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
     }
 
+    case m: PMember => memberGhostSeparation(m)
+
     case _: PLabeledStmt
       |  _: PEmptyStmt
       |  _: PBlock

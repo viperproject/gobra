@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -174,7 +175,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
-    case _: PBoolLit | _: PNilLit => noMessages
+    case _: PBoolLit | _: PNilLit | _: PStringLit => noMessages
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
@@ -207,6 +208,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         val pureReceiverMsgs = p.predicate match {
           case _: ap.Predicate => noMessages
           case _: ap.PredicateExpr => noMessages
+          case pei: ap.PredExprInstance => pei.args flatMap isPureExpr
           case _: ap.BuiltInPredicate => noMessages
           case _: ap.BuiltInPredicateExpr => noMessages
           case rp: ap.ReceivedPredicate => isPureExpr(rp.recv)
@@ -228,6 +230,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case PredT(args) =>
             if (n.args.isEmpty && args.isEmpty) noMessages
             else multiAssignableTo.errors(n.args map exprType, args)(n) ++ n.args.flatMap(isExpr(_).out)
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
 
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
@@ -310,8 +313,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) if l == StringT && r == StringT => noMessages
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+          case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
@@ -326,9 +331,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT => noMessages
+        case _: ArrayT | _: SliceT | StringT => noMessages
         case _: SequenceT => isPureExpr(op)
-        case typ => error(op, s"expected an array, sequence or slice type, but got $typ")
+        case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
     }
 
@@ -434,8 +439,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def actualExprType(expr: PActualExpression): Type = expr match {
 
     case _: PBoolLit => BooleanT
-
     case _: PNilLit => NilType
+    case _: PStringLit => StringT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 
@@ -641,6 +646,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
             case Some(ap.PredicateCall(_, args)) =>
@@ -660,6 +666,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   }
                   */
                   None
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
 
             case Some(ap.PredExprInstance(base, args)) =>
@@ -688,6 +695,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             //  https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/defunc/defunc-fail1.gobra
             //  crashes Gobra without this case).
             None
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
 
         // expr has the default type if it appears in any other kind of statement
@@ -695,6 +703,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case _ => None
       }
+      case c => Violation.violation(s"Only the root has not parent, but got $c")
     }
   }
 
@@ -705,6 +714,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PSelectAssRecv(_, _, _) => ??? // TODO: implement when select statements are supported
       case x => violation("blank identifier not supported in node " + x)
     }
+    case _ => violation("blank identifier always has a parent")
   }
 
   private def intExprType(expr: PNumExpression): Type = expr match {

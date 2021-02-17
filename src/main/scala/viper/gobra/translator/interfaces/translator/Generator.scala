@@ -8,12 +8,14 @@ package viper.gobra.translator.interfaces.translator
 
 import viper.gobra.translator.interfaces.{Collector, Context}
 
+import scala.annotation.unused
+
 trait Generator {
 
   /**
     * Finalizes translation. May add to collector.
     */
-  def finalize(col: Collector): Unit = {}
+  def finalize(@unused col: Collector): Unit = {}
 
   def chain[R](fs: Vector[Context => (R, Context)])(ctx: Context): (Vector[R], Context) = {
     fs.foldLeft((Vector.empty[R], ctx)){ case ((rs, c), rf) =>

@@ -12,6 +12,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class OptionEncoding extends LeafTypeEncoding {
@@ -43,10 +44,9 @@ class OptionEncoding extends LeafTypeEncoding {
       case (exp : in.DfltVal) :: ctx.Option(t) / Exclusive =>
         unit(withSrc(ctx.option.none(ctx.typeEncoding.typ(ctx)(t)), exp))
 
-      case exp @ in.OptionNone(typ) => {
+      case exp @ in.OptionNone(typ) =>
         val typT = ctx.typeEncoding.typ(ctx)(typ)
         unit(withSrc(ctx.option.none(typT), exp))
-      }
 
       case exp @ in.OptionSome(op) => for {
         opT <- ctx.expr.translate(op)(ctx)
@@ -60,7 +60,7 @@ class OptionEncoding extends LeafTypeEncoding {
       case exp @ in.SequenceConversion(op :: ctx.Option(typ)) => for {
         opT <- ctx.expr.translate(op)(ctx)
         typT = ctx.typeEncoding.typ(ctx)(typ)
-      } yield withSrc(ctx.optionToSeq.create(opT, typT), exp)
+      } yield withSrc(ctx.optionToSeq.create(opT, typT), exp): vpr.Exp
     }
   }
 
@@ -76,14 +76,15 @@ class OptionEncoding extends LeafTypeEncoding {
         // if this is executed, then type parameter must have dynamic comparability
         val vT = ctx.typeEncoding.typ(ctx)(t)
         for {
-          rhs <- ctx.typeEncoding.isComparable(ctx)(exp).right.get
-          isComp <- ctx.typeEncoding.isComparable(ctx)(in.OptionGet(exp)(exp.info)).right.get
+          rhs <- ctx.expr.translate(exp)(ctx)
+          isComp <- ctx.typeEncoding.isComparable(ctx)(in.OptionGet(exp)(exp.info))
+            .getOrElse(Violation.violation("An incomparable option entails an incomparable element type."))
           res = vpr.CondExp(
             vpr.EqCmp(rhs, ctx.option.none(vT)(pos, info, errT))(pos, info, errT),
             vpr.TrueLit()(pos, info, errT),
             isComp
           )(pos, info, errT)
-        } yield res
+        } yield res: vpr.Exp
       }
   }
 }

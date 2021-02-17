@@ -61,6 +61,7 @@ object Names {
 
   // types
   def typesDomain: String = "Types"
+  def stringsDomain: String = "String"
 
   // array
   def sharedArrayDomain: String = "ShArray"

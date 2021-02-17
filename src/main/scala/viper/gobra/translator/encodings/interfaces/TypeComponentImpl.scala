@@ -29,9 +29,11 @@ class TypeComponentImpl extends TypeComponent {
   private def serialize(head: TypeHead): String = head match {
 
     case BoolHD => "bool"
+    case StringHD => "string"
     case PointerHD => "pointer"
     case ArrayHD => "array"
     case SliceHD => "slice"
+    case ChannelHD => "channel"
     case NilHD => "nil"
     case UnitHD => "unit"
     case PermHD => "perm"
@@ -41,6 +43,7 @@ class TypeComponentImpl extends TypeComponent {
     case MSetHD => "mset"
     case OptionHD => "option"
     case t: TupleHD => s"tuple${t.arity}"
+    case t: PredHD => s"pred${t.arity}"
 
     case t: TypeHead.DefinedHD => t.name
     case t: TypeHead.InterfaceHD => t.name

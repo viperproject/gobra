@@ -16,6 +16,8 @@ import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
 
+import scala.annotation.unused
+
 trait TypeEncoding extends Generator {
 
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
@@ -24,7 +26,7 @@ trait TypeEncoding extends Generator {
   /**
     * Translates a type into a Viper type.
     */
-  def typ(ctx: Context): in.Type ==> vpr.Type = PartialFunction.empty
+  def typ(@unused ctx: Context): in.Type ==> vpr.Type = PartialFunction.empty
 
   /**
     * Translates variables that have the scope of a code body. Returns the encoded Viper variables.
@@ -43,24 +45,24 @@ trait TypeEncoding extends Generator {
     */
   def globalVar(ctx: Context): in.GlobalVar ==> CodeWriter[vpr.Exp] = {
     case v: in.GlobalConst if typ(ctx) isDefinedAt v.typ =>
-      unit(ctx.fixpoint.get(v)(ctx))
+      unit(ctx.fixpoint.get(v)(ctx): vpr.Exp)
   }
 
 
   /**
     * Encodes a member
     */
-  def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = PartialFunction.empty
+  def member(@unused ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = PartialFunction.empty
 
   /**
     * Returns extensions to the precondition for an in-parameter.
     */
-  def precondition(ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = PartialFunction.empty
+  def precondition(@unused ctx: Context): in.Parameter.In ==> MemberWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Returns extensions to the postcondition for an out-parameter
     */
-  def postcondition(ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = PartialFunction.empty
+  def postcondition(@unused ctx: Context): in.Parameter.Out ==> MemberWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Returns initialization code for a declared location with the scope of a body.
@@ -77,7 +79,7 @@ trait TypeEncoding extends Generator {
       val (pos, info, errT) = loc.vprMeta
       for {
         eq <- ctx.typeEncoding.equal(ctx)(loc, in.DfltVal(t.withAddressability(Exclusive))(loc.info), loc)
-      } yield vpr.Inhale(eq)(pos, info, errT)
+      } yield vpr.Inhale(eq)(pos, info, errT): vpr.Stmt
 
     case loc :: t / Shared if typ(ctx).isDefinedAt(t) =>
       val (pos, info, errT) = loc.vprMeta
@@ -139,7 +141,7 @@ trait TypeEncoding extends Generator {
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
         vRhs <- ctx.expr.translate(rhs)(ctx)
-      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT)
+      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
 
     case (lhs :: ctx.*(t) / Exclusive, rhs :: ctx.*(s), src) if typ(ctx).isDefinedAt(t) && typ(ctx).isDefinedAt(s) =>
       val (pos, info, errT) = src.vprMeta
@@ -171,7 +173,7 @@ trait TypeEncoding extends Generator {
     * Constraints:
     * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
     */
-  def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  def assertion(@unused ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes the reference of an expression.
@@ -180,7 +182,7 @@ trait TypeEncoding extends Generator {
     * The default implements shared variables with [[variable]].
     */
   def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = {
-    case (v: in.BodyVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar)
+    case (v: in.BodyVar) :: t / Shared if typ(ctx).isDefinedAt(t) => unit(variable(ctx)(v).localVar: vpr.Exp)
   }
 
   /**
@@ -188,7 +190,7 @@ trait TypeEncoding extends Generator {
     * i.e. all permissions involved in converting the shared location to an exclusive r-value.
     * An encoding for type T should be defined at all shared locations of type T.
     */
-  def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
+  def addressFootprint(@unused ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = PartialFunction.empty
 
   /**
     * Encodes whether a value is comparable or not.
@@ -196,7 +198,7 @@ trait TypeEncoding extends Generator {
     */
   def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
     case exp :: t if typ(ctx).isDefinedAt(t) =>
-      Comparability.comparable(t)(ctx.lookup).toLeft(unit(withSrc(vpr.FalseLit(), exp)))
+      Comparability.comparable(t)(ctx.lookup).toLeft(unit(withSrc(vpr.FalseLit(), exp): vpr.Exp))
   }
 
   /**
@@ -219,7 +221,7 @@ trait TypeEncoding extends Generator {
           _ <- write(vpr.Inhale(vpr.And(footprint, eq)(pos, info, errT))(pos, info, errT))
           ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), z, newStmt)
         } yield ass
-      )
+      ): CodeWriter[vpr.Stmt]
   }
 
 

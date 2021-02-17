@@ -44,7 +44,6 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
   private val ghost_parameters: String = "ghost-parameters:"
   private val ghost_results: String = "ghost-results:"
   private val addressable_variables: String = "addressable:"
-  private val predicate_access: String = "predicate-access:"
   private val with_keyword: String = "with:"
   private val unfolding_keyword: String = "unfolding:"
 

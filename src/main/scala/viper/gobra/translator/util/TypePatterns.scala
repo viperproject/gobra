@@ -20,12 +20,12 @@ object TypePatterns {
 
   /** Matches every expression and splits it into the expression and its type. */
   object :: {
-    def unapply[T <: in.Expr](arg: T): Option[(T, in.Type)] = Some(arg, arg.typ)
+    def unapply[T <: in.Expr](arg: T): Some[(T, in.Type)] = Some(arg, arg.typ)
   }
 
   /** Matches every type and splits it into the type and its addressability modifier. */
   object / {
-    def unapply[T <: in.Type](arg: T): Option[(T, Addressability)] = Some(arg, arg.addressability)
+    def unapply[T <: in.Type](arg: T): Some[(T, Addressability)] = Some(arg, arg.addressability)
   }
 
   /** Matches every shared type. */
@@ -58,6 +58,11 @@ object TypePatterns {
     object Bool {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.BoolT]
+    }
+
+    object String {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx).isInstanceOf[in.StringT]
     }
 
     object Int {

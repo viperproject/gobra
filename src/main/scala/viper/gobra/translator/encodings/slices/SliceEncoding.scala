@@ -18,6 +18,7 @@ import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
@@ -226,7 +227,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * getCellPerms[loc: []T] -> forall idx :: {loc(a, idx) 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
     */
   def getCellPerms(ctx: Context)(expr: in.Location, perm: in.Permission): CodeWriter[vpr.Exp] = expr match {
-    case (loc :: ctx.Slice(t) / Exclusive) =>
+    case loc :: ctx.Slice(t) / Exclusive =>
       val (pos, info, errT) = loc.vprMeta
 
       val cap = in.Capacity(loc)(loc.info)
@@ -239,6 +240,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
       )
+    case c => Violation.violation(s"getCellPerm should only be called with exclusive slices, but got $c")
   }
 
   /** Returns: Forall idx :: {'trigger'(idx)} 0 <= idx && idx < 'length' => ['body'(idx)] */
@@ -297,15 +299,15 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     fullSliceFromSliceGenerator(Vector(base, i, j, k), typ)(pos, info, errT)(ctx)
 
   /** Gives the 'nil' slice of inner type `typ`. */
-  private def nilSlice(typ: in.Type)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  private def nilSlice(typ: in.Type)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
     nilSliceGenerator(Vector(), typ)(pos, info, errT)(ctx)
 
   /** An application of the "ssliceFromArray[`typ`](...)" Viper function. */
-  private def sliceFromArray(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  private def sliceFromArray(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
     sliceFromArrayGenerator(Vector(base, i, j), typ)(pos, info, errT)(ctx)
 
   /** An application of the "ssliceFromSlice[`typ`](...)" Viper function. */
-  private def sliceFromSlice(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  private def sliceFromSlice(typ : vpr.Type, base : vpr.Exp, i : vpr.Exp, j : vpr.Exp)(ctx : Context)(pos : vpr.Position, info : vpr.Info, errT : vpr.ErrorTrafo) : vpr.FuncApp =
     sliceFromSliceGenerator(Vector(base, i, j), typ)(pos, info, errT)(ctx)
 
 

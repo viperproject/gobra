@@ -83,6 +83,8 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PReference => AddrMod.reference
       case _: PNegation => AddrMod.rValue
       case _: PBinaryExp[_,_] => AddrMod.rValue
+      case _: PPermission => AddrMod.rValue
+      case _: PPredConstructor => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
       case _: POld => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
@@ -93,8 +95,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
            _: PSetMinus | _: PSubset => AddrMod.rValue
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
-      case _: PMake => AddrMod.make
-
+      case _: PMake | _: PNew => AddrMod.make
     }
 
   def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {

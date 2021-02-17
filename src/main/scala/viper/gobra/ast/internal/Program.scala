@@ -20,7 +20,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{Algorithms, TypeBounds, Violation}
+import viper.gobra.util.{TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -244,7 +244,7 @@ sealed trait Assignee extends Node {
 }
 
 object Assignee {
-  def unapply(x: Assignee): Option[Expr] = Some(x.op)
+  def unapply(x: Assignee): Some[Expr] = Some(x.op)
   def apply(op: Expr): Assignee = op match {
     case op: AssignableVar => Var(op)
     case op: Deref => Pointer(op)
@@ -277,7 +277,7 @@ sealed trait CompositeObject extends Node {
 }
 
 object CompositeObject {
-  def unapply(arg: CompositeObject): Option[CompositeLit] = Some(arg.op)
+  def unapply(arg: CompositeObject): Some[CompositeLit] = Some(arg.op)
 
   case class Array(op : ArrayLit) extends CompositeObject
   case class Slice(op : SliceLit) extends CompositeObject
@@ -438,6 +438,7 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
@@ -815,6 +816,10 @@ sealed trait IntOperation extends Expr {
   override val typ: Type = IntT(Addressability.rValue)
 }
 
+sealed trait StringOperation extends Expr {
+  override val typ: Type = StringT(Addressability.rValue)
+}
+
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
@@ -844,7 +849,7 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
 }
 
 object BinaryExpr {
-  def unapply(arg: BinaryExpr): Option[(Expr, String, Expr, Type)] =
+  def unapply(arg: BinaryExpr): Some[(Expr, String, Expr, Type)] =
     Some((arg.left, arg.operator, arg.right, arg.typ))
 }
 
@@ -858,12 +863,13 @@ case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolOperation
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
-
 case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
 case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
 case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
+
+case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
@@ -884,6 +890,10 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Sou
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
+}
+
+case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = StringT(Addressability.literal)
 }
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
@@ -932,7 +942,7 @@ sealed trait BlockDeclaration extends Declaration
 sealed trait Var extends Expr with Location {
   def id: String
 
-  def unapply(arg: Var): Option[(String, Type)] =
+  def unapply(arg: Var): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
@@ -952,7 +962,7 @@ sealed trait AssignableVar extends Var
 
 
 sealed trait Parameter extends BodyVar {
-  def unapply(arg: Parameter): Option[(String, Type)] =
+  def unapply(arg: Parameter): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
@@ -975,7 +985,7 @@ case class BoundVar(id: String, typ: Type)(val info: Source.Parser.Info) extends
 case class LocalVar(id: String, typ: Type)(val info: Source.Parser.Info) extends BodyVar with AssignableVar with BlockDeclaration
 
 sealed trait GlobalConst extends GlobalVar {
-  def unapply(arg: GlobalConst): Option[(String, Type)] =
+  def unapply(arg: GlobalConst): Some[(String, Type)] =
     Some((arg.id, arg.typ))
 }
 
@@ -1015,6 +1025,11 @@ case class BoolT(addressability: Addressability) extends Type {
 case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
+}
+
+case class StringT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
+  override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
 }
 
 case object VoidT extends Type {

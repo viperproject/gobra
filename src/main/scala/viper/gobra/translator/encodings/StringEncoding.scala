@@ -2,9 +2,12 @@ package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
 
 class StringEncoding extends LeafTypeEncoding {
@@ -15,11 +18,7 @@ class StringEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.String() / m =>
-      m match {
-        case Exclusive => ???
-        case Shared    => vpr.Ref
-      }
+    case ctx.String() / m => ctx.typeEncoding.typ(ctx)(underlyingStruct(m))
   }
 
   /**
@@ -33,16 +32,28 @@ class StringEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     default(super.expr(ctx)){
-      case (e: in.DfltVal) :: ctx.String() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
-      case lit: in.StringLit => unit(withSrc(???, ???))
-
-        /*
-      case e@ in.Add(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Add(vl, vr), e)
-      case e@ in.Sub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Sub(vl, vr), e)
-      case e@ in.Mul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mul(vl, vr), e)
-      case e@ in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
-      case e@ in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
-         */
+      case (e: in.DfltVal) :: ctx.String() / Exclusive =>
+        //unit(withSrc(vpr.IntLit(0), e))
+        val v = in.StructLit(underlyingStruct(Exclusive), Vector(in.IntLit(BigInt(0))(Source.Parser.Internal)))(Source.Parser.Internal)
+        // unit(withSrc(goE(v), lit))
+        goE(v)
+      case lit: in.StringLit => //unit(withSrc(vpr.IntLit(0), lit))
+        println(s"s: ${lit.s} ; len: ${lit.s.length}")
+        val v = in.StructLit(underlyingStruct(Exclusive), Vector(in.IntLit(BigInt(lit.s.getBytes("UTF-8")))(Source.Parser.Internal)))(Source.Parser.Internal)
+        // unit(withSrc(goE(v), lit))
+        goE(v)
+      // case in.Length(exp :: ctx.String()) => for {
+      //  expT <- goE(exp)
+      // } yield withSrc(len(expT), exp)
     }
   }
+
+  //def len()
+
+  private def underlyingStruct(addr: Addressability): in.Type =
+    in.StructT("string",
+      //Vector(in.Field("length", in.IntT(Addressability.field(addr), TypeBounds.DefaultInt), false)(Source.Parser.Internal),
+        //TODO: in.Field("str", in.PointerT(in.IntT(Addressability.sharedVariable, TypeBounds.Byte), Addressability.field(addr)), false)(Source.Parser.Internal)), //TODO: change default int to the type determined by config
+      Vector(in.Field("length", in.IntT(Addressability.field(addr), TypeBounds.DefaultInt), false)(Source.Parser.Internal)),
+      addr)
 }

@@ -2607,19 +2607,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: raw string") {
     frontend.parseExp("`Hello World`") should matchPattern {
-      case PStringLit("Hello World") =>
+      case Right(PStringLit("Hello World")) =>
     }
   }
 
   test("Parser: interpreted string") {
     frontend.parseExp("\"Hello World\"") should matchPattern {
-      case PStringLit("Hello World") =>
+      case Right(PStringLit("Hello World")) =>
     }
   }
 
   test("Parser: interpreted string with a quote") {
     frontend.parseExp("\"\\\"\"") should matchPattern {
-      case PStringLit("""\"""") =>
+      case Right(PStringLit("""\"""")) =>
     }
   }
 

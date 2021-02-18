@@ -39,6 +39,7 @@ class StringEncoding extends LeafTypeEncoding {
     * [ dfltVal: string° ] -> stringLitDefault()
     * [ strLit: string° ] -> stringLitX() where X is a unique suffix dependant on the value of the string literal
     * [ len(s: string) ] -> strLen([s])
+    * [ (s1: string) + (s2: string) ] -> strConcat([ s1 ], [ s2 ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -108,7 +109,7 @@ class StringEncoding extends LeafTypeEncoding {
 
   /**
     * Generates
-    *   function strCat(l: Int, r: Int): Int
+    *   function strConcat(l: Int, r: Int): Int
     * where l and r are string ids
     */
   private val concatFuncName: String = "strConcat"

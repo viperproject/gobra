@@ -44,11 +44,16 @@ type ByteOrder interface {
 // type littleEndian struct{}
 // type bigEndian struct{}
 
-type LittleEndian struct{}
-type BigEndian struct{}
+type LittleEndian struct {
+	// TODO: remove field
+	x int // temporary solution to side-step problems with the encoding of interfaces with fields of finite cardinality
+}
+type BigEndian struct {
+	// TODO: remove field
+	x int // temporary solution to side-step problems with the encoding of interfaces with fields of finite cardinality
+}
 
-/*
-LittleEndian implements ByteOrder {
+(LittleEndian) implements ByteOrder {
     pure (e LittleEndian) Uint16(b []byte) uint16 {
         return e.Uint16(b)
     }
@@ -73,10 +78,8 @@ LittleEndian implements ByteOrder {
         e.PutUint64(b, v)
     }
 }
-*/
 
-/*
-(*BigEndian) implements ByteOrder {
+(BigEndian) implements ByteOrder {
     pure (e BigEndian) Uint16(b []byte) uint16 {
         return e.Uint16(b)
     }
@@ -101,8 +104,6 @@ LittleEndian implements ByteOrder {
         e.PutUint64(b, v)
     }
 }
-*/
-
 
 requires acc(&b[0], _) && acc(&b[1], _)
 pure func (e LittleEndian) Uint16(b []byte) uint16 /*{

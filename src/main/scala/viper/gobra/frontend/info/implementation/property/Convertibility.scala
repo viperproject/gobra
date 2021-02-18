@@ -21,6 +21,7 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
       case (IntT(_), IntT(_)) => true
       case (left, right) => (underlyingType(left), underlyingType(right)) match {
         case (l, r) if identicalTypes(l, r) => true
+        case (IntT(_), IntT(_)) => true
         case (PointerT(l), PointerT(r)) if identicalTypes(underlyingType(l), underlyingType(r)) &&
           !(left.isInstanceOf[DeclaredT] && right.isInstanceOf[DeclaredT]) => true
         case _ => false

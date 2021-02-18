@@ -9,6 +9,12 @@ func lenTestFail() {
 	assert len(h1) == 4
 }
 
+// Having the same size is not enough to prove that two strings are equal
+func eqFail() {
+	//:: ExpectedOutput(assert_error)
+	assert "a" == "b"
+}
+
 // The current encoding does not establish an order relation between string literals
 func orderStringLit1() {
 	//:: ExpectedOutput(assert_error)

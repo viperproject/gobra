@@ -22,14 +22,29 @@ func lenTest() {
 	assert len(h1 + h2) == 10
 }
 
-func stringEq(){
+func sharedStrTest() {
+	s@ := "test"
+	assert getStr(&s) == "test"
+}
+
+func stringEqTest() {
 	h1 := "hello"
 	var h2 = "hello"
 	assert h1 == h2
+
+	var h3 string = "heooo"
+	assert h1 != h3
 }
 
 func id(s string) string {
 	return s
+}
+
+requires acc(s, 1/2)
+ensures acc(s, 1/2)
+ensures res == *s
+func getStr(s *string) (res string) {
+	return *s
 }
 
 func comp(s1, s2 string) int {

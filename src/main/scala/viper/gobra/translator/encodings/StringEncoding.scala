@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings
 import org.apache.commons.codec.binary.Hex
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability.Exclusive
+import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
@@ -21,7 +21,6 @@ class StringEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   private val domainName: String = Names.stringsDomain
-  private val domainType: vpr.DomainType = vpr.DomainType(domainName, Map.empty)(Seq.empty)
   private var strLengths: Map[String, Int] = Map.empty
   private var funcs: Map[String, vpr.DomainFunc] = Map.empty
   private val stringBeginning: String = "stringLit"
@@ -30,7 +29,8 @@ class StringEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.String() => domainType
+    case ctx.String() / Exclusive => vpr.Int
+    case ctx.String() / Shared => vpr.Ref
   }
 
   /**
@@ -39,6 +39,7 @@ class StringEncoding extends LeafTypeEncoding {
     * [ dfltVal: string° ] -> stringLitDefault()
     * [ strLit: string° ] -> stringLitX() where X is a unique suffix dependant on the value of the string literal
     * [ len(s: string) ] -> strLen([s])
+    * [ (s1: string) + (s2: string) ] -> strConcat([ s1 ], [ s2 ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -67,9 +68,12 @@ class StringEncoding extends LeafTypeEncoding {
     * Encodes a string variable as an vpr.Int
     */
   override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = {
-    case v if typ(ctx).isDefinedAt(v.typ) =>
+    case v :: ctx.String() / Exclusive if typ(ctx).isDefinedAt(v.typ) =>
       val (pos, info, errT) = v.vprMeta
       vpr.LocalVarDecl(v.id, vpr.Int)(pos, info, errT)
+    case v :: ctx.String() / Shared if typ(ctx).isDefinedAt(v.typ) =>
+      val (pos, info, errT) = v.vprMeta
+      vpr.LocalVarDecl(v.id, vpr.Ref)(pos, info, errT)
   }
 
   override def finalize(col: Collector): Unit = {
@@ -105,7 +109,7 @@ class StringEncoding extends LeafTypeEncoding {
 
   /**
     * Generates
-    *   function strCat(l: Int, r: Int): Int
+    *   function strConcat(l: Int, r: Int): Int
     * where l and r are string ids
     */
   private val concatFuncName: String = "strConcat"

@@ -34,11 +34,11 @@ type ByteOrder interface {
     ensures acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
 	PutUint64(b []byte, uint64)
 
-	// String() string // TODO: no support for string types
+	String() string
 }
 
 // Original implementation of BigEndian and LittleEndian. Changed due to lack of support
-// for global vars
+// for global vars:
 // var LittleEndian littleEndian
 // var BigEndian bigEndian
 // type littleEndian struct{}
@@ -75,7 +75,8 @@ LittleEndian implements ByteOrder {
 }
 */
 
-BigEndian implements ByteOrder {
+/*
+(*BigEndian) implements ByteOrder {
     pure (e BigEndian) Uint16(b []byte) uint16 {
         return e.Uint16(b)
     }
@@ -100,6 +101,7 @@ BigEndian implements ByteOrder {
         e.PutUint64(b, v)
     }
 }
+*/
 
 
 requires acc(&b[0], _) && acc(&b[1], _)
@@ -151,8 +153,8 @@ func (e LittleEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v >> 56)
 }*/
 
-func (LittleEndian) String() string { return "LittleEndian" }
-func (LittleEndian) GoString() string { return "binary.LittleEndian" }
+func (l LittleEndian) String() string { return "LittleEndian" }
+func (l LittleEndian) GoString() string { return "binary.LittleEndian" }
 
 requires acc(&b[0], _) && acc(&b[1], _)
 pure func (e BigEndian) Uint16(b []byte) uint16 /*{
@@ -203,8 +205,8 @@ func (e BigEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v)
 }*/
 
-func (BigEndian) String() string { return "BigEndian" }
-func (BigEndian) GoString() string { return "binary.BigEndian" }
+func (b BigEndian) String() string { return "BigEndian" }
+func (b BigEndian) GoString() string { return "binary.BigEndian" }
 
 // Read reads structured binary data from r into data.
 // TODO: no support for io.Reader

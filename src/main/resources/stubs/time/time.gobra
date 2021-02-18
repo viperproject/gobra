@@ -43,7 +43,7 @@ const (
 )
 
 // String returns the English name of the month ("January", "February", ...).
-// func (m Month) String() string // (joao) string type not supported
+func (m Month) String() string
 
 // A Weekday specifies a day of the week (Sunday = 0, ...).
 type Weekday int
@@ -60,7 +60,7 @@ const (
 )
 
 // String returns the English name of the day ("Sunday", "Monday", ...).
-// func (d Weekday) String() string 
+func (d Weekday) String() string 
 
 
 // IsZero reports whether t represents the zero time instant,
@@ -124,7 +124,7 @@ const (
 )
 
 // String returns a string representing the duration in the form "72h3m0.5s".
-// func (d Duration) String() string
+func (d Duration) String() string
 
 // Nanoseconds returns the duration as an integer nanosecond count.
 func (d Duration) Nanoseconds() int64 { return int64(d) }
@@ -198,7 +198,7 @@ func (t Time) Location() (res *Location)
 
 // Zone computes the time zone in effect at time t, returning the abbreviated
 // name of the zone (such as "CET") and its offset in seconds east of UTC.
-// func (t Time) Zone() (name string, offset int) 
+func (t Time) Zone() (name string, offset int) 
 
 // Unix returns t as a Unix time, the number of seconds elapsed
 // since January 1, 1970 UTC.

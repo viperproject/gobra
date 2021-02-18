@@ -13,9 +13,8 @@ import "time"
 
 // Addr represents a network end point address.
 type Addr interface {
-    // TODO: add support for string
-	// Network() string
-	// String() string
+	Network() string
+	String() string
 }
 
 // Conn is a generic stream-oriented network connection.
@@ -48,8 +47,6 @@ type Conn interface {
 	// SetWriteDeadline sets the deadline for future Write calls
 	// and any currently-blocked Write call.
 	SetWriteDeadline(t time.Time) error
-
-    ghost IsClosed() bool
 }
 
 // PacketConn is a generic packet-oriented network connection.
@@ -87,7 +84,7 @@ type Listener interface {
 	Close() error
 
 	// Addr returns the listener's network address.
-	//Addr() Addr
+	//Addr() Addr // TODO: no support for embedded types
 }
 
 // An Error represents a network error.
@@ -108,18 +105,18 @@ var (
 // package. It describes the operation, network type, and address of
 // an error.
 type OpError struct {
-    // TODO: add support for string
-	// Op string
-	// Net string
+	Op string
+	Net string
 	Source Addr
-	// Addr Addr
+	// Addr Addr // TODO: add support for embeddings
 	Err error
 }
 
 requires acc(&e.Err, _)
 pure func (e *OpError) Unwrap() error { return e.Err }
 
-// TODO: add support for string
+// requires acc(&e.Err)
+// ensures acc(&e.Err)
 // func (e *OpError) Error() string 
 
 func (e *OpError) Timeout() bool /*{
@@ -146,17 +143,17 @@ func (e *OpError) Temporary() bool /*{
 
 // A ParseError is the error type of literal network address parsers.
 type ParseError struct {
-    // TODO: add support for string
-	// Type string
-	// Text string
+	Type string
+	Text string
 }
 
+// requires acc(e)
+// ensures acc(e)
 // func (e *ParseError) Error() string
 
 type AddrError struct {
-    // TODO: add support for string
-	// Err  string
-	// Addr string
+	Err  string
+	Addr string
 }
 
 /*
@@ -171,29 +168,26 @@ func (e *AddrError) Error() string {
 	return s
 }*/
 
-func (e *AddrError) Timeout() bool   { return false }
-func (e *AddrError) Temporary() bool { return false }
+// func (e *AddrError) Timeout() bool   { return false }
+// func (e *AddrError) Temporary() bool { return false }
 
-/*
 type UnknownNetworkError string
 
-func (e UnknownNetworkError) Error() string   { return "unknown network " + string(e) }
+func (e UnknownNetworkError) Error() string   // { return "unknown network " + string(e) }
 func (e UnknownNetworkError) Timeout() bool   { return false }
 func (e UnknownNetworkError) Temporary() bool { return false }
 
 type InvalidAddrError string
 
-func (e InvalidAddrError) Error() string   { return string(e) }
+// func (e InvalidAddrError) Error() string   { return string(e) }
 func (e InvalidAddrError) Timeout() bool   { return false }
 func (e InvalidAddrError) Temporary() bool { return false }
-*/
-
 
 // DNSError represents a DNS lookup error.
 type DNSError struct {
-	// Err         string
-	// Name        string
-	// Server      string
+	Err         string
+	Name        string
+	Server      string
 	IsTimeout   bool
 	IsTemporary bool
 	IsNotFound  bool
@@ -214,14 +208,10 @@ func (e *DNSError) Error() string {
 */
 
 // Timeout reports whether the DNS lookup is known to have timed out.
-// This is not always known; a DNS lookup may fail due to a timeout
-// and return a DNSError for which Timeout returns false.
-requires acc(&e.IsTimeout, _)
-func (e *DNSError) Timeout() bool { return e.IsTimeout }
+// requires acc(&e.IsTimeout, _)
+// func (e *DNSError) Timeout() bool { return e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
-// This is not always known; a DNS lookup may fail due to a temporary
-// error and return a DNSError for which Temporary returns false.
 requires acc(&e.IsTimeout, _) && acc(&e.IsTemporary, _)
 pure func (e *DNSError) Temporary() bool { return e.IsTimeout || e.IsTemporary }
 

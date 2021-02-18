@@ -40,7 +40,6 @@ func IPv4Mask(a, b, c, d byte) IPMask
 
 // CIDRMask returns an IPMask consisting of 'ones' 1 bits
 // followed by 0s up to a total length of 'bits' bits.
-// For a mask of this form, CIDRMask is the inverse of IPMask.Size.
 func CIDRMask(ones, bits int) IPMask 
 
 // Well-known IPv4 addresses
@@ -132,15 +131,12 @@ func (ip IP) To16() IP /*{
 }*/
 
 // DefaultMask returns the default IP mask for the IP address ip.
-// Only IPv4 addresses have default masks; DefaultMask returns
-// nil if ip is not a valid IPv4 address.
 func (ip IP) DefaultMask() IPMask
 
 // Mask returns the result of masking the IP address ip with mask.
 func (ip IP) Mask(mask IPMask) IP
 
-// TODO: no support for the string type
-// func (ip IP) String() string
+func (ip IP) String() string
 
 // MarshalText implements the encoding.TextMarshaler interface.
 // The encoding is the same as returned by String, with one exception:
@@ -168,18 +164,14 @@ pure func (ip IP) Equal(x IP) bool /*{
 }*/
 
 // Size returns the number of leading ones and total bits in the mask.
-// If the mask is not in the canonical form--ones followed by zeros--then
-// Size returns 0, 0.
 func (m IPMask) Size() (ones, bits int)
 
 // String returns the hexadecimal form of m, with no punctuation.
-// TODO: no support for the string type
-// func (m IPMask) String() string 
+func (m IPMask) String() string 
 
 // Contains reports whether the network includes ip.
 func (n *IPNet) Contains(ip IP) bool
 
-/* TODO: add support for the string type
 // Network returns the address's network name, "ip+net".
 func (n *IPNet) Network() string
 
@@ -190,14 +182,9 @@ ensures acc(n, 1/2)
 func (n *IPNet) String() string
 
 // ParseIP parses s as an IP address, returning the result.
-// The string s can be in IPv4 dotted decimal ("192.0.2.1"), IPv6
-// ("2001:db8::68"), or IPv4-mapped IPv6 ("::ffff:192.0.2.1") form.
-// If s is not a valid textual representation of an IP address,
-// ParseIP returns nil.
 func ParseIP(s string) IP
 
 // ParseCIDR parses s as a CIDR notation IP address and prefix length,
 // like "192.0.2.0/24" or "2001:db8::/32", as defined in
 // RFC 4632 and RFC 4291.
 func ParseCIDR(s string) (IP, *IPNet, error)
-*/

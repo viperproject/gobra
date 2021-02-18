@@ -1,8 +1,6 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
-//
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
 
 // Signatures for the public declarations in file
 // https://github.com/golang/go/blob/master/src/time/zoneinfo.go
@@ -10,7 +8,7 @@
 package time
 
 type Location struct {
-	// name string
+	name string
 	// zone []zone // TODO: Leads to cycle in kiama
 	tx   []zoneTrans
 	extend string
@@ -35,13 +33,12 @@ type zoneTrans struct {
 // var UTC *Location = &utcLoc
 // var Local *Location = &localLoc
 
-// TODO: Transitively requires synchronization through the call to get
+// TODO: Transitively requires synchronization through the call to get, uses Once in the actual code
 // pure func (l *Location) String() string {
 // 	return l.get().name
 //}
 
-/*
-func FixedZone(name string, offset int) *Location {
+func FixedZone(name string, offset int) *Location /*{
 	l := &Location{
 		name:       name,
 		zone:       []zone{{name, offset, false}},
@@ -49,10 +46,8 @@ func FixedZone(name string, offset int) *Location {
 		cacheStart: alpha,
 		cacheEnd:   omega,
 	}
-	l.cacheZone = &l.zone[0]
+	l.cacheZone = (&l.zone)[0]
 	return l
-}
-*/
+}*/
 
-// No support for strings
-// func LoadLocation(name string) (*Location, error) 
+func LoadLocation(name string) (*Location, error) 

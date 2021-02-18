@@ -1,8 +1,6 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
-//
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
 
 // Signatures for the public declarations in file
 // https://github.com/golang/go/blob/master/src/encoding/binary/binary.gobra
@@ -153,9 +151,8 @@ func (e LittleEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v >> 56)
 }*/
 
-// No support for the string type
-// func (LittleEndian) String() string { return "LittleEndian" }
-// func (LittleEndian) GoString() string { return "binary.LittleEndian" }
+func (LittleEndian) String() string { return "LittleEndian" }
+func (LittleEndian) GoString() string { return "binary.LittleEndian" }
 
 requires acc(&b[0], _) && acc(&b[1], _)
 pure func (e BigEndian) Uint16(b []byte) uint16 /*{
@@ -206,9 +203,8 @@ func (e BigEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v)
 }*/
 
-// No support for the string type
-// func (BigEndian) String() string { return "BigEndian" }
-// func (BigEndian) GoString() string { return "binary.BigEndian" }
+func (BigEndian) String() string { return "BigEndian" }
+func (BigEndian) GoString() string { return "binary.BigEndian" }
 
 // Read reads structured binary data from r into data.
 // TODO: no support for io.Reader

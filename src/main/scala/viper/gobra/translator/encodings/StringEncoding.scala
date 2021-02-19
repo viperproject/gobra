@@ -36,7 +36,6 @@ class StringEncoding extends LeafTypeEncoding {
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
     *
-    * [ dfltVal: string° ] -> stringLitDefault()
     * [ strLit: string° ] -> stringLitX() where X is a unique suffix dependant on the value of the string literal
     * [ len(s: string) ] -> strLen([s])
     * [ (s1: string) + (s2: string) ] -> strConcat([ s1 ], [ s2 ])
@@ -47,7 +46,7 @@ class StringEncoding extends LeafTypeEncoding {
 
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
-        val encodedStr = stringBeginning + "Default"
+        val encodedStr = stringBeginning
         strLengths += encodedStr -> 0
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), e))
       case lit: in.StringLit if lit.typ.addressability == Exclusive =>

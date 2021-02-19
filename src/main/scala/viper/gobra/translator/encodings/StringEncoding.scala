@@ -64,18 +64,6 @@ class StringEncoding extends LeafTypeEncoding {
     }
   }
 
-  /**
-    * Encodes a string variable as an vpr.Int
-    */
-  override def variable(ctx: Context): in.BodyVar ==> vpr.LocalVarDecl = {
-    case v :: ctx.String() / Exclusive if typ(ctx).isDefinedAt(v.typ) =>
-      val (pos, info, errT) = v.vprMeta
-      vpr.LocalVarDecl(v.id, vpr.Int)(pos, info, errT)
-    case v :: ctx.String() / Shared if typ(ctx).isDefinedAt(v.typ) =>
-      val (pos, info, errT) = v.vprMeta
-      vpr.LocalVarDecl(v.id, vpr.Ref)(pos, info, errT)
-  }
-
   override def finalize(col: Collector): Unit = {
     col.addMember(genDomain())
   }
@@ -103,7 +91,7 @@ class StringEncoding extends LeafTypeEncoding {
   private val lenFuncName: String = "strLen"
   private val lenFunc: vpr.DomainFunc = vpr.DomainFunc(
     name = lenFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
+    formalArgs = Seq(vpr.LocalVarDecl("id", vpr.Int)()),
     typ = vpr.Int,
   )(domainName = domainName)
 
@@ -115,7 +103,7 @@ class StringEncoding extends LeafTypeEncoding {
   private val concatFuncName: String = "strConcat"
   private val concatFunc: vpr.DomainFunc = vpr.DomainFunc(
     name = concatFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl(Names.freshName, vpr.Int)(), vpr.LocalVarDecl(Names.freshName, vpr.Int)()),
+    formalArgs = Seq(vpr.LocalVarDecl("l", vpr.Int)(), vpr.LocalVarDecl("r", vpr.Int)()),
     typ = vpr.Int,
   )(domainName = domainName)
 
@@ -147,8 +135,8 @@ class StringEncoding extends LeafTypeEncoding {
       *   where l and r correspond to string ids
       */
     val appAxiom: vpr.DomainAxiom = vpr.AnonymousDomainAxiom {
-      val var1 = vpr.LocalVarDecl(Names.freshName, vpr.Int)()
-      val var2 = vpr.LocalVarDecl(Names.freshName, vpr.Int)()
+      val var1 = vpr.LocalVarDecl("l", vpr.Int)()
+      val var2 = vpr.LocalVarDecl("r", vpr.Int)()
       val lenConcat = vpr.DomainFuncApp(lenFunc, Seq(vpr.DomainFuncApp(concatFunc, Seq(var1.localVar, var2.localVar), Map.empty)()), Map.empty)()
       val trigger = vpr.Trigger(Seq(lenConcat))()
       val exp = vpr.EqCmp(lenConcat, vpr.Add(

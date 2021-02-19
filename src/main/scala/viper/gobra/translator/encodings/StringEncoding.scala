@@ -43,16 +43,17 @@ class StringEncoding extends LeafTypeEncoding {
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
 
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
-        val encodedStr = stringBeginning
-        strLengths += encodedStr -> 0
-        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), e))
+        val litFuncName = genLitFuncName("") // "" is the default string value
+        strLengths += litFuncName -> 0
+        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(litFuncName), Seq(), Map.empty), e))
       case lit: in.StringLit if lit.typ.addressability == Exclusive =>
-        val encodedStr = stringBeginning + Hex.encodeHexString(lit.s.getBytes("UTF-8"))
-        strLengths += encodedStr -> lit.s.length
-        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(encodedStr), Seq(), Map.empty), lit))
+        val litFuncName = genLitFuncName(lit.s)
+        strLengths += litFuncName -> lit.s.length
+        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(litFuncName), Seq(), Map.empty), lit))
       case len@in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
       case concat@in.Concat(l :: ctx.String(), r :: ctx.String()) =>

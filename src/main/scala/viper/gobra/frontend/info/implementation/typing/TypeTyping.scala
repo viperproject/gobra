@@ -45,6 +45,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       }
     }
 
+    case n: PVariadicType => isType(n.elem).out
     case n: PSliceType => isType(n.elem).out
     case n: PBiChannelType => isType(n.elem).out
     case n: PSendChannelType => isType(n.elem).out
@@ -96,6 +97,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       ArrayT(lenOpt.get, typeSymbType(elem))
 
     case PSliceType(elem) => SliceT(typeSymbType(elem))
+
+    case PVariadicType(elem) => VariadicT(typeSymbType(elem))
 
     case PMapType(key, elem) => MapT(typeSymbType(key), typeSymbType(elem))
 

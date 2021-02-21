@@ -169,7 +169,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           (if (aLeft.isEmpty) emptyDoc else super.showStmt(PAssignment(aRight, aLeft))) <>
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PAssignment(ghostRight, ghostLeft), with_prefix(aLeft)))
 
-        case AssignMode.Error => errorMsg
+        case _ => errorMsg
       }
 
     case PShortVarDecl(right, left, addressable) =>
@@ -202,7 +202,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           (if (ghostLeft.isEmpty) emptyDoc else showGhostStmt(PShortVarDecl(ghostRight, ghostLeft, ghostAddressable), with_prefix(aLeft))) <+>
           showAddressableVars(aAddressableVars, prefix)
 
-        case AssignMode.Error => errorMsg
+        case _ => errorMsg
       }
 
     case n@ PReturn(right) =>

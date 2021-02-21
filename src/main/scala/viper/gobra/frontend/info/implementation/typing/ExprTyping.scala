@@ -629,7 +629,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                case FunctionT(fArgs, _) => fArgs.lift(index)
+                case FunctionT(fArgs, _) =>
+                  if (index >= fArgs.length-1 && fArgs.lastOption.exists(_.isInstanceOf[VariadicT])) {
+                    fArgs.lastOption.map(_.asInstanceOf[VariadicT].elem)
+                  } else {
+                    fArgs.lift(index)
+                  }
                 case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama because we need to know the
                      types of all arguments in order to resolve it and we need to resolve it in order to find the type

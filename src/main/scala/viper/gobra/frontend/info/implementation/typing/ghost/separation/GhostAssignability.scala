@@ -88,7 +88,11 @@ trait GhostAssignability {
         val gt = typing(rights.head)
         lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.isIdxGhost(idx), l) }.toVector
 
-      case AssignMode.Error => Violation.violation("assignment mismatch")
+      case AssignMode.Variadic =>
+        val dummyFill = rights(0)
+        rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+
+      case _ => Violation.violation("assignment mismatch")
     }
 
 

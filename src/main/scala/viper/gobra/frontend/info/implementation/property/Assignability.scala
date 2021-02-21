@@ -28,7 +28,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
-        case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+        case AssignMode.Variadic if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>
+          val variadicTyp: Type = left.last.asInstanceOf[VariadicT].elem
+          propForall(right.zipAll(left.init, UnknownType, variadicTyp), assignableTo)
+
+        case _ => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
       }
   }
 
@@ -73,7 +77,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         // conservative choice
       case _ => false
     }
-    case _ => false
+    case _ =>  false
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {

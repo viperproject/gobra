@@ -507,6 +507,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUIntPtr() => "uintptr"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
+    case PVariadicType(elem) => "..." <> showType(elem)
     case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
     case PDeref(base) => "*" <> showExprOrType(base)
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)

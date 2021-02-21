@@ -1052,9 +1052,9 @@ object Parser {
 
     lazy val parameterDecl: Parser[Vector[PParameter]] =
       ghostParameter |
-      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
-      } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
+      rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ { case ids ~ variadicAnnotation ~ t =>
+        ids map (id => PNamedParameter(id, if(variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy).at(id): PParameter)
+      } |  ("...".? ~ typ) ^^ { case variadicAnnotation ~ t => Vector(PUnnamedParameter(if(variadicAnnotation.isDefined) PVariadicType(t) else t).at(t)) }
 
 
     lazy val nestedIdnUse: PackratParser[PIdnUse] =
@@ -1162,9 +1162,11 @@ object Parser {
       "unfold" ~> predicateAccess ^^ PUnfold
 
     lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
-      } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
+      "ghost" ~> rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ { case ids ~ variadicAnnotation ~ t =>
+        ids map (id => PExplicitGhostParameter(PNamedParameter(id, if(variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy).at(id)).at(id): PParameter)
+      } | "ghost" ~> "...".? ~ typ ^^ {
+        case variadicAnnotation ~ t => Vector(PExplicitGhostParameter(PUnnamedParameter(if(variadicAnnotation.isDefined) PVariadicType(t) else t).at(t)).at(t))
+      }
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
       forall |

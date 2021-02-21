@@ -89,8 +89,15 @@ trait GhostAssignability {
         lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.isIdxGhost(idx), l) }.toVector
 
       case AssignMode.Variadic =>
-        val dummyFill = rights(0)
-        rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+        if(lefts.length - 1 == rights.length) {
+          // if the variadic argument is not passed
+          rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+        } else if(rights.length > lefts.length) {
+          val dummyFill = rights(0)
+          rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+        } else {
+          Violation.violation("assignment mismatch")
+        }
 
       case _ => Violation.violation("assignment mismatch")
     }

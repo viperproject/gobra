@@ -1051,19 +1051,52 @@ object Desugar {
 
       // encode arguments
       val dArgs = {
-        val parameterCount = p.callee match {
+        def getVarParamElemType(p: Option[PParameter]): Option[Type] = {
+          // TODO: simplify
+          p.filter(_.typ.isInstanceOf[PVariadicType]).map(_.typ.asInstanceOf[PVariadicType].elem).map(info.symbType)
+        }
+
+        val (parameterCount: Int, variadicArgOption: Option[Type]) = p.callee match {
           // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
-          case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
+          case f: ap.BuiltInFunctionKind =>
+            val args = getBuiltInFuncType(f).args
+            // TODO: simplify
+            val lastElemTyp = args.lastOption.filter(_.isInstanceOf[VariadicT]).map(_.asInstanceOf[VariadicT].elem)
+            (args.length, lastElemTyp)
           case base: ap.Symbolic => base.symb match {
-            case fsym: st.WithArguments => fsym.args.length
+            case fsym: st.WithArguments => (fsym.args.length, getVarParamElemType(fsym.args.lastOption))
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }
-        sequence(p.args map exprD(ctx)).map {
+
+        val wRes: Writer[Vector[in.Expr]] = sequence(p.args map exprD(ctx)).map {
           // go function chaining feature
           case Vector(in.Tuple(targs)) if parameterCount > 1 => targs
           case dargs => dargs
         }
+
+        for {
+          res <- wRes
+          adaptedRes = if (variadicArgOption.isDefined) {
+            if (res.length == parameterCount - 1) {
+              // variadic arg not passed
+              res :+ in.NilLit(in.SliceT(typeD(variadicArgOption.get, Addressability.sliceElement)(src), Addressability.nil))(src)
+              // TODO: refactor
+            } else if(res.length == parameterCount && res.lastOption.exists {
+              case x if x.typ.isInstanceOf[in.SliceT] => x.typ.asInstanceOf[in.SliceT].elems.equalsWithoutMod(typeD(variadicArgOption.get, Addressability.sliceElement)(src))
+              case _ => false
+            }){
+              res // corresponds to the case where an unpacked slice is already passed as an argument
+            } else if(res.length == parameterCount && res.length == 1 && res(0).typ.isInstanceOf[in.TupleT]) {
+              // supports chaining function calls with variadic functions of one argument
+              Vector(in.SliceLit(typeD(variadicArgOption.get, Addressability.sliceElement)(src),
+                res(0).asInstanceOf[in.Tuple].args.zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src))
+            } else {
+              res.take(parameterCount-1) :+ in.SliceLit(typeD(variadicArgOption.get, Addressability.sliceElement)(src),
+                res.drop(parameterCount-1).zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src)
+            }
+          } else res
+        } yield adaptedRes
       }
       // encode results
       val (resT, targets) = p.callee match {
@@ -1518,6 +1551,7 @@ object Desugar {
               }
           }
 
+          case PUnpackSlice(slice) => exprD(ctx)(slice)
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
       }
@@ -1926,6 +1960,10 @@ object Desugar {
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
 
       case Type.SortT => in.SortT
+
+      case Type.VariadicT(elem) =>
+        val elemD = typeD(elem, Addressability.sliceElement)(src)
+        in.SliceT(elemD, addrMod)
 
       case _ => Violation.violation(s"got unexpected type $t")
     }

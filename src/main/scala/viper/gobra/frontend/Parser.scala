@@ -813,8 +813,10 @@ object Parser {
     lazy val call: PackratParser[PInvoke] =
       primaryExp ~ callArguments ^^ PInvoke
 
-    lazy val callArguments: Parser[Vector[PExpression]] =
-      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+    lazy val callArguments: Parser[Vector[PExpression]] = {
+      val parseArg: Parser[PExpression] = expression ~ "...".? ^^ { case exp ~ unpack => if(unpack.isDefined) PUnpackSlice(exp) else exp }
+      ("(" ~> (rep1sep(parseArg, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+    }
 
     lazy val selection: PackratParser[PDot] =
       primaryExp ~ ("." ~> idnUse) ^^ PDot |

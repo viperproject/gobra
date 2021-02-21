@@ -377,6 +377,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         showExpr(base) <> brackets(lowP <> highP <> capP)
       }
 
+      case PUnpackSlice(exp) => showExpr(exp) <> "..."
+
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
       case PEquals(left, right) => showSubExprOrType(expr, left) <+> "==" <+> showSubExprOrType(expr, right)
       case PUnequals(left, right) => showSubExprOrType(expr, left) <+> "!=" <+> showSubExprOrType(expr, right)

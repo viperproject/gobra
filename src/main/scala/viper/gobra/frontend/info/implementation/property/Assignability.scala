@@ -23,7 +23,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
       StrictAssignModi(left.size, right.size) match {
-        case AssignMode.Single => propForall(right.zip(left), assignableTo)
+        case AssignMode.Single =>
+          (left, right) match {
+              // TODO: simplify this case
+            case (Vector(VariadicT(e)), Vector(InternalTupleT(t))) =>
+              propForall(t.map((e, _)), assignableTo)
+            case _ => propForall(right.zip(left), assignableTo)
+          }
         case AssignMode.Multi => right.head match {
           case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
@@ -65,6 +71,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (l, r) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (NilType, r) if isPointerType(r) => true
+      case (VariadicT(t1), VariadicT(t2)) => assignableTo(t1, t2)
 
         // for ghost types
       case (BooleanT, AssertionT) => true

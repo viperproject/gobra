@@ -367,6 +367,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
+    case PUnpackSlice(elem) => error(expr, "only slices can be unpacked", !exprType(elem).isInstanceOf[SliceT])
+
     case p@PPredConstructor(base, _) => {
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
         case FunctionT(args, AssertionT) =>
@@ -557,6 +559,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _ => violation(s"unexpected base $base for predicate constructor")
         }
       }
+
+    case PUnpackSlice(elem) =>
+      val sliceElemType = exprType(elem).asInstanceOf[SliceT]
+      VariadicT(sliceElemType.elem)
 
     case e => violation(s"unexpected expression $e")
   }

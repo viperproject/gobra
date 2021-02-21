@@ -423,6 +423,8 @@ case class PCapacity(exp : PExpression) extends PActualExpression with PNumExpre
   */
 case class PSliceExp(base: PExpression, low: Option[PExpression] = None, high: Option[PExpression] = None, cap: Option[PExpression] = None) extends PActualExpression
 
+case class PUnpackSlice(elem: PExpression) extends PActualExpression
+
 case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpression
 
 case class PReceive(operand: PExpression) extends PUnaryExp

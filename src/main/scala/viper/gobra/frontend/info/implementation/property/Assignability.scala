@@ -26,8 +26,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case AssignMode.Single =>
           (left, right) match {
               // TODO: simplify this case
-            case (Vector(VariadicT(e)), Vector(InternalTupleT(t))) =>
-              propForall(t.map((e, _)), assignableTo)
+            case (v, Vector(InternalTupleT(t))) if v.lastOption.exists(_.isInstanceOf[VariadicT]) =>
+              def correspondigTyp(idx: Int) = if(idx >= v.length-1) v.last.asInstanceOf[VariadicT].elem else v(idx)
+              propForall(t.zipWithIndex.map{case (e, i) => println(s"e: $e, typ: ${correspondigTyp(i)}"); (correspondigTyp(i), e)}, assignableTo)
             case _ => propForall(right.zip(left), assignableTo)
           }
         case AssignMode.Multi => right.head match {

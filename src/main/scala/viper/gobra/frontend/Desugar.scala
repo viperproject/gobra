@@ -115,7 +115,7 @@ object Desugar {
   }
 
   object NoGhost {
-    def unapply(arg: PNode): Option[PNode] = arg match {
+    def unapply(arg: PNode): Some[PNode] = arg match {
       case PGhostifier(x) => Some(x)
       case x => Some(x)
     }
@@ -169,9 +169,9 @@ object Desugar {
       in.MethodProxy(decl.id.name, name)(meta(decl))
     }
 
-    def methodProxyD(decl: PMethodSig): in.MethodProxy = {
-      val name = idName(decl.id)
-      in.MethodProxy(decl.id.name, name)(meta(decl))
+    def methodProxyD(decl: PMethodSig, context: TypeInfo = info): in.MethodProxy = {
+      val name = idName(decl.id, context)
+      in.MethodProxy(decl.id.name, name)(meta(decl, context))
     }
 
     def methodProxy(id: PIdnUse): in.MethodProxy = {
@@ -194,9 +194,9 @@ object Desugar {
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
     }
 
-    def mpredicateProxyD(decl: PMPredicateSig): in.MPredicateProxy = {
-      val name = idName(decl.id)
-      in.MPredicateProxy(decl.id.name, name)(meta(decl))
+    def mpredicateProxyD(decl: PMPredicateSig, context: TypeInfo = info): in.MPredicateProxy = {
+      val name = idName(decl.id, context)
+      in.MPredicateProxy(decl.id.name, name)(meta(decl, context))
     }
 
     def mpredicateProxyD(id: PIdnUse): in.MPredicateProxy = {
@@ -1027,12 +1027,14 @@ object Desugar {
       def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
         case ap.Function(id, _) => functionProxy(id)
         case ap.BuiltInFunction(_, symb) => functionProxy(symb.tag, args.map(_.typ))(src)
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
       def getMethodProxy(f: ap.FunctionKind, recv: in.Expr, args: Vector[in.Expr]): in.MethodProxy = f match {
         case ap.ReceivedMethod(_, id, _, _) => methodProxy(id)
         case ap.MethodExpr(_, id, _, _) => methodProxy(id)
         case bm: ap.BuiltInMethodKind => methodProxy(bm.symb.tag, recv.typ, args.map(_.typ))(src)
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
 
       def convertArgs(args: Vector[in.Expr]): Vector[in.Expr] = {
@@ -1042,6 +1044,7 @@ object Desugar {
           case f: ap.BuiltInFunctionKind => arguments(getBuiltInFuncType(f), args)
           case base: ap.Symbolic => base.symb match {
             case fsym: st.WithArguments => arguments(fsym, args)
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }
       }
@@ -1053,6 +1056,7 @@ object Desugar {
           case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args.length
           case base: ap.Symbolic => base.symb match {
             case fsym: st.WithArguments => fsym.args.length
+            case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }
         sequence(p.args map exprD(ctx)).map {
@@ -1077,6 +1081,7 @@ object Desugar {
             val resT = typeD(fsym.context.typ(fsym.result), Addressability.callResult)(src)
             val targets = fsym.result.outs map (o => freshExclusiveVar(typeD(fsym.context.symbType(o.typ), Addressability.exclusiveVariable)(src))(src))
             (resT, targets)
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
       val res = if (targets.size == 1) targets.head else in.Tuple(targets)(src) // put returns into a tuple if necessary
@@ -1087,6 +1092,7 @@ object Desugar {
           case m: st.Method => m.isPure
           case f: st.BuiltInFunction => f.isPure
           case m: st.BuiltInMethod => m.isPure
+          case c => Violation.violation(s"This case should be unreachable, but got $c")
         }
       }
 
@@ -1146,6 +1152,7 @@ object Desugar {
               case base: ap.BuiltInMethodExpr =>
                 // first argument is the receiver, the remaining arguments are the rest
                 dArgs map (args => (applyMemberPathD(args.head, base.path)(src), args.tail))
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             if (isPure) {
@@ -1430,6 +1437,7 @@ object Desugar {
                   val bufferSizeProxy = methodProxy(BuiltInMemberTag.BufferSizeMethodTag, channelType, Vector())(src)
                   in.MakeChannel(target, channelType, arg0, isChannelProxy, bufferSizeProxy)(src)
                 case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
               _ <- write(make)
             } yield target
@@ -1455,6 +1463,7 @@ object Desugar {
                     // The result can have arguments, namely the arguments that are provided.
                     // The receiver type is not necessary, since this should already be partially applied by the typing of base
                     in.PredT(dArgs.flatten.map(_.typ), Addressability.rValue)
+                  case c => Violation.violation(s"This case should be unreachable, but got $c")
                 }
                 res <- w(idT, dArgs)
               } yield res
@@ -1467,11 +1476,13 @@ object Desugar {
                 val appliedArgs = args.flatten
                 violation(appliedArgs.length == args.length, s"unsupported predicate construction of a built-in predicate with partially applied arguments")
                 fpredicateProxy(tag, appliedArgs.map(_.typ))(src)
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             def getMPredProxy(recvT: in.Type, argsT: Vector[in.Type]) = info.regular(base.id) match {
               case _: st.MPredicate => mpredicateProxyD(base.id)
               case st.BuiltInMPredicate(tag, _, _) => mpredicateProxy(tag, recvT, argsT)(src)
+              case c => Violation.violation(s"This case should be unreachable, but got $c")
             }
 
             base match {
@@ -1503,6 +1514,7 @@ object Desugar {
                       idT = in.PredT(baseT.args, Addressability.rValue)
                     } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
                   })
+                case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
           }
 
@@ -1759,10 +1771,10 @@ object Desugar {
         val itfT = dT.withAddressability(Addressability.Exclusive)
 
         t.decl.predSpec foreach { p =>
-          val src = meta(p)
-          val proxy = mpredicateProxyD(p)
+          val src = meta(p, t.context.getTypeInfo)
+          val proxy = mpredicateProxyD(p, t.context.getTypeInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
           val (args, _) = argsWithSubs.unzip
 
           val mem = in.MPredicate(recv, proxy, args, None)(src)
@@ -1772,12 +1784,12 @@ object Desugar {
         }
 
         t.decl.methSpecs foreach { m =>
-          val src = meta(m)
-          val proxy = methodProxyD(m)
+          val src = meta(m, t.context.getTypeInfo)
+          val proxy = methodProxyD(m, t.context.getTypeInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i) }
+          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
           val (args, _) = argsWithSubs.unzip
-          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i) }
+          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,t.context.getTypeInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = m.spec.pres map preconditionD(specCtx)
@@ -1996,41 +2008,43 @@ object Desugar {
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def inParameterD(p: PParameter, idx: Int): (in.Parameter.In, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+    def inParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
+      val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.inParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.In(nm.inParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.inParameter)(src))(src)
+              val param = in.Parameter.In(nm.inParam(idx, context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.inParameter)(src))(src)
               val local = None
               (param, local)
           }
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
     /** desugars parameter.
       * The second return argument contains an addressable copy, if necessary */
-    def outParameterD(p: PParameter, idx: Int): (in.Parameter.Out, Option[in.LocalVar]) = {
-      val src: Meta = meta(p)
+    def outParameterD(p: PParameter, idx: Int, context: TypeInfo = info): (in.Parameter.Out, Option[in.LocalVar]) = {
+      val src: Meta = meta(p, context)
       p match {
         case NoGhost(noGhost: PActualParameter) =>
           noGhost match {
             case PNamedParameter(id, typ) =>
-              val param = in.Parameter.Out(idName(id), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(idName(id, context), typeD(context.symbType(typ), Addressability.outParameter)(src))(src)
               val local = Some(localAlias(localVarContextFreeD(id)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
-              val param = in.Parameter.Out(nm.outParam(idx, info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.outParameter)(src))(src)
+              val param = in.Parameter.Out(nm.outParam(idx, context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.outParameter)(src))(src)
               val local = None
               (param, local)
           }
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
@@ -2403,6 +2417,8 @@ object Desugar {
           val proxy = mpredicateProxyD(b.id)
           unit(in.MPredicateAccess(dRecvWithPath, proxy, dArgs.tail)(src))
 
+        case _: ap.PredExprInstance => Violation.violation("this case should be handled somewhere else")
+
         case b: ap.ImplicitlyReceivedInterfacePredicate =>
           val proxy = mpredicateProxyD(b.id)
           val recvType = typeD(b.symb.itfType, Addressability.receiver)(src)
@@ -2488,7 +2504,8 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode): Meta = {
+    private def meta(n: PNode, context: TypeInfo = info): Meta = {
+      val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get
       val pos = pom.translate(start, finish)

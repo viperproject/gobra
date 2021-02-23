@@ -218,6 +218,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case PConstDecl(typ, right, left) => typ.map(symbType).getOrElse(getBlankAssigneeType(w, left, right))
         case _ => ???
       }
+      case _ => ???
     }
   }
 }

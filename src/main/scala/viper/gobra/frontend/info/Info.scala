@@ -9,6 +9,7 @@ package viper.gobra.frontend.info
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
+import viper.gobra.frontend.PackageResolver.AbstractImport
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.{GhostLessPrinter, GoifyingPrinter}
 import viper.gobra.reporting.{CyclicImportError, TypeCheckDebugMessage, TypeCheckFailureMessage, TypeCheckSuccessMessage, TypeError, VerifierError}
@@ -21,33 +22,33 @@ object Info {
 
   class Context {
     /** stores the results of all imported packages that have been parsed and type checked so far */
-    private var contextMap: Map[String, Either[Vector[VerifierError], ExternalTypeInfo]] = ListMap[String, Either[Vector[VerifierError], ExternalTypeInfo]]()
+    private var contextMap: Map[AbstractImport, Either[Vector[VerifierError], ExternalTypeInfo]] = ListMap[AbstractImport, Either[Vector[VerifierError], ExternalTypeInfo]]()
     /** keeps track of the package dependencies that are currently resolved. This information is used to detect cycles */
-    private var pendingPackages: Vector[String] = Vector()
+    private var pendingPackages: Vector[AbstractImport] = Vector()
     /** stores all cycles that have been discovered so far */
-    private var knownImportCycles: Set[Vector[String]] = Set()
+    private var knownImportCycles: Set[Vector[AbstractImport]] = Set()
 
-    def addPackage(importPath: String, typeInfo: ExternalTypeInfo): Unit = {
-      pendingPackages = pendingPackages.filterNot(_ == importPath)
-      contextMap = contextMap + (importPath -> Right(typeInfo))
+    def addPackage(importTarget: AbstractImport, typeInfo: ExternalTypeInfo): Unit = {
+      pendingPackages = pendingPackages.filterNot(_ == importTarget)
+      contextMap = contextMap + (importTarget -> Right(typeInfo))
     }
 
-    def addErrenousPackage(importPath: String, errors: Vector[VerifierError]): Unit = {
-      pendingPackages = pendingPackages.filterNot(_ == importPath)
-      contextMap = contextMap + (importPath -> Left(errors))
+    def addErrenousPackage(importTarget: AbstractImport, errors: Vector[VerifierError]): Unit = {
+      pendingPackages = pendingPackages.filterNot(_ == importTarget)
+      contextMap = contextMap + (importTarget -> Left(errors))
     }
 
-    def getTypeInfo(importPath: String): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = contextMap.get(importPath) match {
+    def getTypeInfo(importTarget: AbstractImport): Option[Either[Vector[VerifierError], ExternalTypeInfo]] = contextMap.get(importTarget) match {
       case s@Some(_) => s
       case _ => {
         // there is no entry yet and package resolution might need to resolve multiple depending packages
         // keep track of these packages in pendingPackages until either type information or an error is added to contextMap
-        if (pendingPackages.contains(importPath)) {
+        if (pendingPackages.contains(importTarget)) {
           // package cycle detected
           knownImportCycles += pendingPackages
-          Some(Left(Vector(CyclicImportError(s"Cyclic package import detected starting with package '$importPath'"))))
+          Some(Left(Vector(CyclicImportError(s"Cyclic package import detected starting with package '$importTarget'"))))
         } else {
-          pendingPackages = pendingPackages :+ importPath
+          pendingPackages = pendingPackages :+ importTarget
           None
         }
       }
@@ -56,7 +57,7 @@ object Info {
     /**
       * Returns all package names that lie on the cycle of imports or none if no cycle was found
       */
-    def getImportCycle(importPath: String): Option[Vector[String]] = knownImportCycles.find(_.contains(importPath))
+    def getImportCycle(importTarget: AbstractImport): Option[Vector[AbstractImport]] = knownImportCycles.find(_.contains(importTarget))
 
     def getContexts: Iterable[ExternalTypeInfo] = contextMap.values.collect { case Right(info) => info }
 

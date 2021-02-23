@@ -16,9 +16,9 @@ import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleA
 import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
-import viper.gobra.frontend.PackageResolver.FileResource
+import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
-import viper.gobra.util.TypeBounds
+import viper.gobra.util.{TypeBounds, Violation}
 
 
 object LoggerDefaults {
@@ -294,6 +294,7 @@ class ScallopGobraConfig(arguments: Seq[String])
         case (pkgs, files) if pkgs.nonEmpty && files.nonEmpty =>
           message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${concatRight(files, ",")}'; package names: '${concatLeft(pkgs, ",")}')")
         case (pkgs, files) if pkgs.isEmpty && files.isEmpty => message(null, s"no input specified")
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
@@ -305,7 +306,7 @@ class ScallopGobraConfig(arguments: Seq[String])
           case Left(_) =>
             for {
               // look for files in the current directory, i.e. use an empty importPath
-              resolvedResources <- PackageResolver.resolve("", includeDirs)
+              resolvedResources <- PackageResolver.resolve(RegularImport(""), includeDirs)
               resolvedFiles = resolvedResources.flatMap({
                 case fileResource: FileResource => Some(fileResource.file)
                 case _ => None

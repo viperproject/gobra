@@ -5,7 +5,7 @@
       "**/*.vpr",
       "**/*.go",
       "build.sbt",
-      "src/main/**/*.gobra"
+      "src/main/resources/stubs/github.com/**/*.gobra"
     ],
     "exclude": [
       "carbon/**",
@@ -73,7 +73,17 @@
       "**/*.log",
       ".github/check-license/**",
       "**/README.md",
-      "**/LICENSE"
+      "**/LICENSE",
+      "docs/**"
     ]
+  },
+  {
+    "include": [
+      "src/main/**/*.gobra"
+    ],
+    "exclude": [
+      "src/main/resources/stubs/github.com/**/*.gobra"
+    ],
+    "license": "./.github/license-check/headers/Go.txt"
   }
 ]

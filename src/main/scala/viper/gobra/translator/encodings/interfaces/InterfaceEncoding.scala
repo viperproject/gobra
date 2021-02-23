@@ -255,7 +255,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /** returns dynamic type of an interface expression. */
-  private def typeOfWithSubtypeFact(arg: vpr.Exp, itfT: in.InterfaceT)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+  private def typeOfWithSubtypeFact(arg: vpr.Exp, itfT: in.InterfaceT)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
     if (itfT.isEmpty) {
       typeOf(arg)(pos, info, errT)(ctx)
     } else {

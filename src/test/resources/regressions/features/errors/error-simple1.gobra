@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func main() {
+    res, err := test()
+    if err == nil {
+        assert res == 42
+    }
+}
+
+ensures err == nil ==> res == 42
+func test() (res int, err error) {
+    if e := bar(); e != nil {
+        return -1, e
+    }
+    return 42, nil
+}
+
+func bar() error {
+    return nil
+}

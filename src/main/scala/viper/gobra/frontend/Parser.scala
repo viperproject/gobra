@@ -15,7 +15,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions,
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.Constants
+import viper.gobra.util.{Constants, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -91,6 +91,8 @@ object Parser {
           }
 
           Left(errors)
+
+        case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
@@ -174,6 +176,8 @@ object Parser {
         pom.positions.setStart(ns, pos)
         pom.positions.setFinish(ns, pos)
         Left(message(ns, label))
+
+      case c => Violation.violation(s"This case should be unreachable, but got $c")
     }
   }
 

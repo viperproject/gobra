@@ -23,7 +23,7 @@ trait Executability extends BaseProperty { this: TypeInfoImpl =>
 
   // TODO: probably will be unneccessary because build int functions always have to be called
 
-  private lazy val isBuildIn: Property[PExpression] = createBinaryProperty("built-in") {
+  lazy val isBuildIn: Property[PExpression] = createBinaryProperty("built-in") {
     case _: PBuildIn => true
     case _ => false
   }

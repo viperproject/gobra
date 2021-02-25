@@ -253,6 +253,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
+          case (StringT, IntT(_)) =>
+            error(n, "Indexing a string is currently not supported")
+
           case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 

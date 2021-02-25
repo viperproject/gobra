@@ -52,6 +52,7 @@ object TypeHead {
   /** Returns type-head representation of the argument type. */
   def typeHead(typ: Type): TypeHead = typ match {
     case _: BoolT => BoolHD
+    case _: StringT => StringHD
     case t: IntT => IntHD(t.kind)
     case _: PointerT => PointerHD
     case t: DefinedT => DefinedHD(t.name)
@@ -74,6 +75,7 @@ object TypeHead {
   /** Returns the direct children types of a type. */
   def children(typ: Type): Vector[Type] = typ match {
     case _: BoolT => Vector.empty
+    case _: StringT => Vector.empty
     case _: IntT => Vector.empty
     case t: PointerT => Vector(t.t)
     case _: DefinedT => Vector.empty

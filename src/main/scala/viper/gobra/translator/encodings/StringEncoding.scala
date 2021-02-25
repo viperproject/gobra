@@ -23,7 +23,7 @@ class StringEncoding extends LeafTypeEncoding {
   private val domainName: String = Names.stringsDomain
   private var encodedStrings: Map[String, vpr.DomainFunc] = Map.empty
   private val stringBeginning: String = "stringLit"
-  def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
+  private def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
 
   /**
     * Translates a type into a Viper type.

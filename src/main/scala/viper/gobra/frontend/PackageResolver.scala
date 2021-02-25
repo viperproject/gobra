@@ -58,7 +58,7 @@ object PackageResolver {
     * Similar to `resolve` but returns the package name of the files instead of the files themselves.
     * The returned package name can be used as qualifier for the implicitly qualified import.
     *
-    * @param n           implicitely qualified import for which a qualifier should be resolved
+    * @param n implicitely qualified import for which a qualifier should be resolved
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses

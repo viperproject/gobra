@@ -2597,6 +2597,32 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     })
   }
 
+  test("Parser: string conversion") {
+    // 0xf8 == 248
+    val parseRes = frontend.parseExp("string(248)")
+    inside (parseRes) {
+      case Right(PInvoke(PStringType(), Vector(PIntLit(value)))) => value should be (0xf8)
+    }
+  }
+
+  test("Parser: raw string") {
+    frontend.parseExp("`Hello World`") should matchPattern {
+      case Right(PStringLit("Hello World")) =>
+    }
+  }
+
+  test("Parser: interpreted string") {
+    frontend.parseExp("\"Hello World\"") should matchPattern {
+      case Right(PStringLit("Hello World")) =>
+    }
+  }
+
+  test("Parser: interpreted string with a quote") {
+    frontend.parseExp("\"\\\"\"") should matchPattern {
+      case Right(PStringLit("""\"""")) =>
+    }
+  }
+
 
   /* ** Stubs, mocks and other test setup */
 

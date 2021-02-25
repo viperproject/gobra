@@ -60,6 +60,11 @@ object TypePatterns {
         underlyingType(arg)(ctx).isInstanceOf[in.BoolT]
     }
 
+    object String {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx).isInstanceOf[in.StringT]
+    }
+
     object Int {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.IntT]

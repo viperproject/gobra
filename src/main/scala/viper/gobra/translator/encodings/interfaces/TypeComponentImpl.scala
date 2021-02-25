@@ -29,6 +29,7 @@ class TypeComponentImpl extends TypeComponent {
   private def serialize(head: TypeHead): String = head match {
 
     case BoolHD => "bool"
+    case StringHD => "string"
     case PointerHD => "pointer"
     case ArrayHD => "array"
     case SliceHD => "slice"

@@ -278,7 +278,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
-      case _: PBoolLit | _: PIntLit | _: PNilLit => true
+      case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
         case (Right(_), Some(_: ap.Conversion)) => false // Might change at some point

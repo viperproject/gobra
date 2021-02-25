@@ -38,13 +38,21 @@ lazy val gobra = (project in file("."))
     libraryDependencies += "org.fusesource.jansi" % "jansi" % "1.17.1", // For colouring Logback output
     // libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0", // cats
     libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.9", // for SystemUtils
+    libraryDependencies += "org.apache.commons" % "commons-text" % "1.9", // for escaping strings in parser preprocessor
+    libraryDependencies += "commons-codec" % "commons-codec" % "1.15", // for obtaining the hex encoding of a string
 
     scalacOptions ++= Seq(
+      "-encoding", "UTF-8", // Enforce UTF-8, instead of relying on properly set locales
       "-Ypatmat-exhaust-depth", "40"
     ),
 
+    javacOptions ++= Seq("-encoding", "UTF-8", "-charset", "UTF-8", "-docencoding", "UTF-8"),
+
     // Run settings
-    run / javaOptions += "-Xss128m",
+    run / javaOptions ++= Seq(
+      "-Xss128m",
+      "-Dfile.encoding=UTF-8"
+    ),
 
     fork := true,
 

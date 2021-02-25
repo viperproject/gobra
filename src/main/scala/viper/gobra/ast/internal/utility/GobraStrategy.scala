@@ -103,6 +103,7 @@ object GobraStrategy {
       case (e: ToInterface, Seq(exp: Expr)) => ToInterface(exp, e.typ)(meta)
       case (_: IsBehaviouralSubtype, Seq(left: Expr, right: Expr)) => IsBehaviouralSubtype(left, right)(meta)
       case (_: BoolTExpr, Seq()) => BoolTExpr()(meta)
+      case (_: StringTExpr, Seq()) => StringTExpr()(meta)
       case (e: IntTExpr, Seq()) => IntTExpr(e.kind)(meta)
       case (_: PermTExpr, Seq()) => PermTExpr()(meta)
       case (e: DefinedTExpr, Seq()) => DefinedTExpr(e.name)(meta)

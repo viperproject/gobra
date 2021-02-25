@@ -443,7 +443,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showLit(l: Lit): Doc = l match {
     case IntLit(v, _) => v.toString
-    case StringLit(s) => s"${"\""}$s${"\""}"
+    case StringLit(s) => "\"" <> s <> "\""
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))
 

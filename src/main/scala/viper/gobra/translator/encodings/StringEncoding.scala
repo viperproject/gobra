@@ -21,9 +21,9 @@ class StringEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   private val domainName: String = Names.stringsDomain
-  private var strLengths: Map[String, Int] = Map.empty
-  private var funcs: Map[String, vpr.DomainFunc] = Map.empty
+  private var encodedStrings: Map[String, vpr.DomainFunc] = Map.empty
   private val stringBeginning: String = "stringLit"
+  def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
 
   /**
     * Translates a type into a Viper type.
@@ -43,17 +43,12 @@ class StringEncoding extends LeafTypeEncoding {
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
-    def genLitFuncName(lit: String): String = stringBeginning + Hex.encodeHexString(lit.getBytes("UTF-8"))
 
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
-        val litFuncName = genLitFuncName("") // "" is the default string value
-        strLengths += litFuncName -> 0
-        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(litFuncName), Seq(), Map.empty), e))
+        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
       case lit: in.StringLit if lit.typ.addressability == Exclusive =>
-        val litFuncName = genLitFuncName(lit.s)
-        strLengths += litFuncName -> lit.s.length
-        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(litFuncName), Seq(), Map.empty), lit))
+        unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
       case len@in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
       case concat@in.Concat(l :: ctx.String(), r :: ctx.String()) =>
@@ -75,12 +70,12 @@ class StringEncoding extends LeafTypeEncoding {
     */
   private def makeFunc(name: String): vpr.DomainFunc = {
     val func = vpr.DomainFunc(
-      name = name,
+      name = genLitFuncName(name),
       formalArgs = Seq(),
       typ = vpr.Int,
       unique = true
     )(domainName = domainName)
-    funcs += name -> func
+    encodedStrings += name -> func
     func
   }
 
@@ -108,9 +103,6 @@ class StringEncoding extends LeafTypeEncoding {
   )(domainName = domainName)
 
   private def genDomain(): vpr.Domain = {
-    funcs += lenFuncName -> lenFunc
-    funcs += concatFuncName -> concatFunc
-
     /**
       * The length of every string literal in the program is axiomatized as
       *   axiom {
@@ -118,13 +110,12 @@ class StringEncoding extends LeafTypeEncoding {
       *   }
       * where `literal` is one of the generated unique domain functions and X is the length of the corresponding string
       */
-    val lenAxioms = strLengths.toSeq.map {
-      case (str, len) =>
-        vpr.AnonymousDomainAxiom {
-          val encodedStr: vpr.Exp = vpr.DomainFuncApp(funcs(str), Seq.empty, Map.empty)()
-          val lenCall = vpr.DomainFuncApp(func = lenFunc, Seq(encodedStr), Map.empty)()
-          vpr.EqCmp(lenCall, vpr.IntLit(BigInt(len))())()
-        }(domainName = domainName)
+    val lenAxioms = encodedStrings.keys.toSeq.map { str =>
+      vpr.AnonymousDomainAxiom {
+        val encodedStr: vpr.Exp = vpr.DomainFuncApp(encodedStrings(str), Seq.empty, Map.empty)()
+        val lenCall = vpr.DomainFuncApp(func = lenFunc, Seq(encodedStr), Map.empty)()
+        vpr.EqCmp(lenCall, vpr.IntLit(BigInt(str.length))())()
+      }(domainName = domainName)
     }
 
     /**
@@ -148,7 +139,7 @@ class StringEncoding extends LeafTypeEncoding {
 
     vpr.Domain(
       name = domainName,
-      functions = funcs.values.toSeq,
+      functions = lenFunc +: concatFunc +: encodedStrings.values.toSeq,
       axioms = appAxiom +: lenAxioms,
       typVars = Seq.empty
     )()

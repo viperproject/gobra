@@ -17,8 +17,10 @@ import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter,CounterexampleBackTranslators}
 import viper.gobra.util.{TypeBounds, Violation}
+import org.scalactic.Bool
+import _root_.viper.gobra.reporting.CounterexampleBackTranslator
 
 
 object LoggerDefaults {
@@ -203,6 +205,19 @@ class ScallopGobraConfig(arguments: Seq[String])
     default = Some(false),
     noshort = false
   )
+
+  val counterexample:ScallopOption[CounterexampleBackTranslator] = opt[CounterexampleBackTranslator](
+    name = "counterexample",
+    descr = "Adds counterexamples to output can be run with: mapped, native, reduced, extended (default: no counterexample)",
+    default = None,
+    noshort = false
+  )(singleArgConverter({ //TODO: create different cases of counterexample display option
+    case "mapped" => CounterexampleBackTranslators.MappedCounterexamples
+    case "native" => CounterexampleBackTranslators.NativeCounterexamples
+    case "reduced" => CounterexampleBackTranslators.ReducedCounterexamples 
+    case "extended" => CounterexampleBackTranslators.ExtendedCounterexamples 
+    case _ => CounterexampleBackTranslators.MappedCounterexamples
+  }))
 
 
   /**

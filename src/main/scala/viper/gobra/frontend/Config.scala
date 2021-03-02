@@ -42,10 +42,12 @@ case class Config(
                  shouldViperEncode: Boolean = true,
                  checkOverflows: Boolean = false,
                  shouldVerify: Boolean = true,
+                 
                  // The go language specification states that int and uint variables can have either 32bit or 64, as long
                  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                  // 64 bit otherwise.
-                 int32bit: Boolean = false
+                 int32bit: Boolean = false,
+                 counterexample :Option[CounterexampleBackTranslator] = None
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -62,7 +64,8 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit
+      int32bit = int32bit || other.int32bit,
+      counterexample=counterexample
     )
   }
 
@@ -208,10 +211,11 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   val counterexample:ScallopOption[CounterexampleBackTranslator] = opt[CounterexampleBackTranslator](
     name = "counterexample",
-    descr = "Adds counterexamples to output can be run with: mapped, native, reduced, extended (default: no counterexample)",
+    descr = "Adds counterexamples to output can be run with: mapped, native, reduced, extended (default: no counterexample)"
+              +"curently works witch SILICON as a backend",
     default = None,
     noshort = false
-  )(singleArgConverter({ //TODO: create different cases of counterexample display option
+  )(singleArgConverter({ 
     case "mapped" => CounterexampleBackTranslators.MappedCounterexamples
     case "native" => CounterexampleBackTranslators.NativeCounterexamples
     case "reduced" => CounterexampleBackTranslators.ReducedCounterexamples 
@@ -386,6 +390,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
-    shouldVerify = shouldVerify
+    shouldVerify = shouldVerify,
+    counterexample=counterexample.toOption
   )
 }

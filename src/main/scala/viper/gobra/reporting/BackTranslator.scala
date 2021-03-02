@@ -29,7 +29,19 @@ object BackTranslator {
 
   def backTranslate(result: BackendVerifier.Result)(@unused config: Config): VerifierResult = result match {
     case BackendVerifier.Success => VerifierResult.Success
-    case BackendVerifier.Failure(errors, backtrack) =>
+    case BackendVerifier.Failure(errors, backtrack) => 
+    config.counterexample match {
+      case Some(_) => printf("counterexamples activated") 
+                        val msg =errors.apply(0).counterexample match {
+                          case None => "no counterexamples"
+                          case Some(value) => value.toString()
+                        }
+                        printf(msg)
+
+                      
+      case None => printf("continue without counterexamples")
+
+    }
       val errorTranslator = new DefaultErrorBackTranslator(backtrack)
       VerifierResult.Failure(errors map errorTranslator.translate)
   }

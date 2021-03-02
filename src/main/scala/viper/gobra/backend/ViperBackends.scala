@@ -16,10 +16,14 @@ object ViperBackends {
     def create(exePaths: Vector[String]): Silicon = {
 
       var options: Vector[String] = Vector.empty
+       
       options ++= Vector("--logLevel", "ERROR")
       options ++= Vector("--disableCatchingExceptions")
       options ++= Vector("--enableMoreCompleteExhale")
+      //silicon does not accept this option? 
+      //options ++= Vector("--counterexample1 mapped")
       options ++= exePaths
+      
 
       new Silicon(options)
     }

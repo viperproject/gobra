@@ -97,6 +97,7 @@ object Nodes {
         case ToInterface(exp, _) => Seq(exp)
         case IsBehaviouralSubtype(left, right) => Seq(left, right)
         case BoolTExpr() => Seq.empty
+        case StringTExpr() => Seq.empty
         case IntTExpr(_) => Seq.empty
         case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)
@@ -142,6 +143,7 @@ object Nodes {
         case l: Lit => l match {
           case IntLit(_, _) => Seq.empty
           case BoolLit(_) => Seq.empty
+          case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq

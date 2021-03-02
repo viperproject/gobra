@@ -32,6 +32,8 @@ object Type {
 
   case object BooleanT extends Type
 
+  case object StringT extends Type
+
   case class IntT(kind: TypeBounds.IntegerKind) extends Type
 
   case class ArrayT(length: BigInt, elem: Type) extends Type {

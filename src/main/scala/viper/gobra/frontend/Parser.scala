@@ -9,6 +9,7 @@ package viper.gobra.frontend
 import java.io.{File, Reader}
 import java.nio.file.{Files, Path}
 
+import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
@@ -221,7 +222,7 @@ object Parser {
       val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
       // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
       // group(2) contains the line's remainder after finalTokenRequiringSemicolon
-      r.replaceAllIn(line, m => m.group(1) ++ ";" ++ m.group(2))
+      r.replaceAllIn(line, m => StringEscapeUtils.escapeJava(m.group(1) ++ ";" ++ m.group(2)))
     }
   }
 
@@ -855,7 +856,20 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit)))
+        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
+        //runeLit |
+        stringLit
+
+    lazy val stringLit: Parser[PStringLit] =
+      rawStringLit | interpretedStringLit
+
+    lazy val rawStringLit: Parser[PStringLit] =
+      // unicode characters and newlines are allowed
+      "`" ~> "[^`]*".r <~ "`" ^^ (lit => PStringLit(lit))
+
+    lazy val interpretedStringLit: Parser[PStringLit] =
+    // unicode values and byte values are allowed
+      "\"" ~> """(?:\\"|[^"\n])*""".r <~ "\"" ^^ (lit => PStringLit(lit))
 
     lazy val compositeLit: Parser[PCompositeLit] =
       literalType ~ literalValue ^^ PCompositeLit
@@ -986,6 +1000,7 @@ object Parser {
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
       exactWord("bool") ^^^ PBoolType() |
+        exactWord("string") ^^^ PStringType() |
         // signed integer types
         exactWord("rune") ^^^ PRune() |
         exactWord("int") ^^^ PIntType() |

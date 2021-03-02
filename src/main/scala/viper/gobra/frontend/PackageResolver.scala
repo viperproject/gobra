@@ -7,8 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.{Closeable, File, InputStream}
-import java.net.URI
-import java.nio.file.{FileSystems, Files, Path, Paths}
+import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems, Files, Path, Paths}
 import java.util.Collections
 
 import org.apache.commons.io.FilenameUtils
@@ -82,22 +81,9 @@ object PackageResolver {
     includeDirs.map(FileResource)
   }
 
-  // getBuiltInResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
-  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
-  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
-  // the underlying FileSystem.
-  private def getBuiltInResource: Option[InputResource] = getResource(builtInDirectory)
+  private val getBuiltInResource: Option[InputResource] = getResource(builtInDirectory)
+  private val getStubResources: Vector[InputResource] = stubDirectories.flatMap(getResource)
 
-  // getStubResources must be a def instead of a val because a new instance of `BaseJarResource` should be created for
-  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
-  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
-  // the underlying FileSystem.
-  private def getStubResources: Vector[InputResource] = stubDirectories.flatMap(getResource)
-
-  // getResource must be a def instead of a val because a new instance of `BaseJarResource` should be created for
-  // each call. This is important as the managed file system used internally of BaseJarResource keeps track of the number
-  // of instance creations (i.e. calls to retain) and calls to close (i.e. calls to release) to decide when to close
-  // the underlying FileSystem.
   private def getResource(path: String): Option[InputResource] = {
     val nullableResourceUri = getClass.getClassLoader.getResource(path).toURI
     for {
@@ -109,7 +95,13 @@ object PackageResolver {
       // to these resources.
       resource <- resourceUri.getScheme match {
         case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri).toFile))
-        case s if s == jarUriScheme => Some(BaseJarResource(resourceUri, path))
+        case s if s == jarUriScheme =>
+          val fs = try {
+            FileSystems.newFileSystem(resourceUri, Collections.emptyMap[String, Any]())
+          } catch {
+            case _: FileSystemAlreadyExistsException => FileSystems.getFileSystem(resourceUri)
+          }
+          Some(JarResource(fs, path))
         case _ => None
       }
     } yield resource
@@ -236,10 +228,9 @@ object PackageResolver {
 
     /** closes stream and filesystem (if applicable) */
     override def close(): Unit = stream match {
-      case Some(s) => {
+      case Some(s) =>
         s.close()
         stream = None
-      }
       case _ =>
     }
   }
@@ -256,83 +247,13 @@ object PackageResolver {
     }
   }
 
-  trait JarResource extends InputResource with Closeable {
-    protected val filesystem: ManagedFileSystem[JarResource]
+  case class JarResource(filesystem: FileSystem, pathString: String) extends InputResource {
+    override def resolve(pathComponent: String): JarResource =
+      JarResource(filesystem, path.resolve(pathComponent).toString)
 
-    override def resolve(pathComponent: String): JarFileResource =
-      JarFileResource(filesystem, path.resolve(pathComponent).toString)
-
-    override def listContent(): Vector[JarFileResource] = {
-      Files.newDirectoryStream(path).asScala.toVector
-        .map(p => JarFileResource(filesystem, p.toString))
-    }
-
-    override def close(): Unit = {
-      super.close()
-      filesystem.release(this)
-    }
-  }
-
-  /**
-    *
-    * @param baseUri URI to a resource in a JAR
-    * @param rootPath Path relative to the resource directory. Note that rootPath occurs as the last path components in baseUrl
-    */
-  case class BaseJarResource(baseUri: URI, rootPath: String) extends JarResource {
-    if (baseUri.getScheme != jarUriScheme) {
-      throw new IllegalArgumentException(s"BaseJarResource expects an URI to a JAR but got $baseUri")
-    }
-    override protected lazy val filesystem = new ManagedFileSystem(baseUri, this)
-    override val path: Path = filesystem.getPath(rootPath)
-  }
-
-  /**
-    *
-    * @param filesystem Filesystem in which this resource is located
-    * @param pathString Path to the resource relative to the resource directory.
-    */
-  case class JarFileResource(override protected val filesystem: ManagedFileSystem[JarResource],
-                             pathString: String) extends JarResource {
-    // retain the filesystem when constructing an instance:
-    filesystem.retain(this)
+    override def listContent(): Vector[JarResource] =
+      Files.newDirectoryStream(path).asScala.toVector.map(p => JarResource(filesystem, p.toString))
 
     override val path: Path = filesystem.getPath(pathString)
-  }
-
-  /**
-    * Wrapper around FileSystem to ensure that the same file system is reused if it already exists.
-    * Calls to retain and release keep track of the number of clients currently using this file system.
-    * After construction, one client exists (i.e. the one that constructed it). As soon as no clients exist, the
-    * file system is closed and can no longer be used.
-    */
-  class ManagedFileSystem[T](val baseUri: URI, firstClient: T) {
-    private val filesystem = FileSystems.newFileSystem(baseUri, Collections.emptyMap[String, Any]())
-    private var clients: Set[T] = Set(firstClient)
-
-    def retain(client: T): Unit = {
-      if (!filesystem.isOpen) {
-        throw new IllegalStateException("managed file system can no longer be retained when it is already closed")
-      }
-      clients = clients + client
-    }
-
-    def release(client: T): Unit = {
-      val oldCount = clients.size
-      clients = clients - client
-      val newCount = clients.size
-      if (newCount + 1 != oldCount) {
-        throw new IllegalStateException("managed file system was double-released or released with a client that did not retain it")
-      }
-      if (newCount == 0 && filesystem.isOpen) {
-        filesystem.close()
-      }
-    }
-
-    def getPath(component: String): Path = {
-      if (!filesystem.isOpen) {
-        throw new IllegalStateException("managed file system is already closed")
-      }
-      filesystem.getPath(component)
-    }
   }
 }

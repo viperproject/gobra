@@ -357,6 +357,8 @@ case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
+case class PStringLit(lit: String) extends PBasicLiteral
+
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
 sealed trait PShortCircuitMisc extends PMisc
@@ -517,6 +519,7 @@ sealed trait PNamedType extends PActualType {
 sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
 
 case class PBoolType() extends PPredeclaredType("bool")
+case class PStringType() extends PPredeclaredType("string")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
@@ -533,6 +536,7 @@ case class PUInt32Type() extends PPredeclaredType("uint32") with PIntegerType
 case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
+
 
 // TODO: add more types
 

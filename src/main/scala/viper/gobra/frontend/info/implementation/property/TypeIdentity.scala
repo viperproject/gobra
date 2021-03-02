@@ -21,6 +21,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (IntT(x), IntT(y)) => x == y || Set(x,y).subsetOf(Set(TypeBounds.SignedInteger32, TypeBounds.Rune)) || Set(x,y).subsetOf(Set(TypeBounds.UnsignedInteger8, TypeBounds.Byte))
       case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
+      case (StringT, StringT) => true
 
       case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR
 

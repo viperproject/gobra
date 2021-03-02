@@ -175,7 +175,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private def wellDefActualExpr(expr: PActualExpression): Messages = expr match {
 
-    case _: PBoolLit | _: PNilLit => noMessages
+    case _: PBoolLit | _: PNilLit | _: PStringLit => noMessages
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
@@ -253,6 +253,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
+          case (StringT, IntT(_)) =>
+            error(n, "Indexing a string is currently not supported")
+
           case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
@@ -313,8 +316,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) if l == StringT && r == StringT => noMessages
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+          case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
@@ -329,9 +334,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT => noMessages
+        case _: ArrayT | _: SliceT | StringT => noMessages
         case _: SequenceT => isPureExpr(op)
-        case typ => error(op, s"expected an array, sequence or slice type, but got $typ")
+        case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
     }
 
@@ -439,8 +444,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def actualExprType(expr: PActualExpression): Type = expr match {
 
     case _: PBoolLit => BooleanT
-
     case _: PNilLit => NilType
+    case _: PStringLit => StringT
 
     case cl: PCompositeLit => expectedCompositeLitType(cl)
 

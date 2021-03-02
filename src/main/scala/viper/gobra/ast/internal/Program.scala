@@ -438,6 +438,7 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
@@ -815,6 +816,10 @@ sealed trait IntOperation extends Expr {
   override val typ: Type = IntT(Addressability.rValue)
 }
 
+sealed trait StringOperation extends Expr {
+  override val typ: Type = StringT(Addressability.rValue)
+}
+
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
@@ -858,12 +863,13 @@ case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolOperation
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
-
 case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
 case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
 case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
+
+case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
@@ -884,6 +890,10 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Sou
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
+}
+
+case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = StringT(Addressability.literal)
 }
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
@@ -1015,6 +1025,11 @@ case class BoolT(addressability: Addressability) extends Type {
 case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
+}
+
+case class StringT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
+  override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
 }
 
 case object VoidT extends Type {

@@ -364,6 +364,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoolLit(lit) => if(lit) "true" else "false"
       case PIntLit(lit) => lit.toString
       case PNilLit() => "nil"
+      case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
@@ -494,6 +495,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showActualType(typ : PActualType) : Doc = typ match {
     case PNamedOperand(id) => showId(id)
     case PBoolType() => "bool"
+    case PStringType() => "string"
     case PIntType() => "int"
     case PInt8Type() => "int8"
     case PInt16Type() => "int16"

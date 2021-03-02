@@ -27,23 +27,17 @@ object BackTranslator {
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
   type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerificationErrorReason]
 
-  def backTranslate(result: BackendVerifier.Result)(@unused config: Config): VerifierResult = result match {
+  def backTranslate(result: BackendVerifier.Result)(/* @unused */ config: Config): VerifierResult = result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
-    config.counterexample match {
-      case Some(_) => printf("counterexamples activated") 
-                        val msg =errors.apply(0).counterexample match {
-                          case None => "no counterexamples"
-                          case Some(value) => value.toString()
-                        }
-                        printf(msg)
-
-                      
-      case None => printf("continue without counterexamples")
+      val errorTranslator = new DefaultErrorBackTranslator(backtrack)
+      val counterexampleTranslator = config.counterexample match {
+                  case Some(translator) => translator.getString(_)
+                  case None => ((_:silver.verifier.VerificationError) => "no counter example")
 
     }
-      val errorTranslator = new DefaultErrorBackTranslator(backtrack)
-      VerifierResult.Failure(errors map errorTranslator.translate)
+      errors map ((x)=>printf(counterexampleTranslator(x)))
+      VerifierResult.Failure(errors map  errorTranslator.translate)
   }
 
   implicit class RichErrorMessage(error: silver.verifier.ErrorMessage) {

@@ -30,13 +30,12 @@ object BackTranslator {
   def backTranslate(result: BackendVerifier.Result)(/* @unused */ config: Config): VerifierResult = result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
-      val errorTranslator = new DefaultErrorBackTranslator(backtrack)
-      val counterexampleTranslator = config.counterexample match {
-                  case Some(translator) => translator.getString(_)
-                  case None => ((_:silver.verifier.VerificationError) => "no counter example")
+      val default = new DefaultErrorBackTranslator(backtrack)
+      val errorTranslator =  config.counterexample match {
+                  case Some(translator) => translator.getTranslator(backtrack)
+                  case None => default
 
     }
-      errors map ((x)=>printf(counterexampleTranslator(x)))
       VerifierResult.Failure(errors map  errorTranslator.translate)
   }
 

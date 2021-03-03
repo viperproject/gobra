@@ -154,8 +154,11 @@ func (e LittleEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v >> 56)
 }*/
 
-func (l LittleEndian) String() string { return "LittleEndian" }
-func (l LittleEndian) GoString() string { return "binary.LittleEndian" }
+ensures res == "LittleEndian"
+func (l LittleEndian) String() (res string) { return "LittleEndian" }
+
+ensures res == "binary.LittleEndian"
+func (l LittleEndian) GoString() (res string) { return "binary.LittleEndian" }
 
 requires acc(&b[0], _) && acc(&b[1], _)
 pure func (e BigEndian) Uint16(b []byte) uint16 /*{
@@ -206,15 +209,19 @@ func (e BigEndian) PutUint64(b []byte, v uint64) /*{
 	b[7] = byte(v)
 }*/
 
-func (b BigEndian) String() string { return "BigEndian" }
-func (b BigEndian) GoString() string { return "binary.BigEndian" }
+
+ensures res == "BigEndian"
+func (b BigEndian) String() (res string) { return "BigEndian" }
+
+ensures res == "BigEndian"
+func (b BigEndian) GoString() (res string) { return "binary.BigEndian" }
 
 // Read reads structured binary data from r into data.
-// TODO: no support for io.Reader
+// TODO: add support for io.Reader
 // func Read(r io.Reader, order ByteOrder, data interface{}) error
 
 // Write writes the binary representation of data into w.
-// TODO: no support for io.Write
+// TODO: add support for io.Write
 // func Write(w io.Writer, order ByteOrder, data interface{}) error
 
 // Size returns how many bytes Write would generate to encode the value v, which

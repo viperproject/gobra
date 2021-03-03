@@ -13,18 +13,12 @@ const (
 	IPv6len = 16
 )
 
-// An IP is a single IP address, a slice of bytes.
-// Functions in this package accept either 4-byte (IPv4)
-// or 16-byte (IPv6) slices as input.
 type IP []byte
 
-// An IPMask is a bitmask that can be used to manipulate
-// IP addresses for IP addressing and routing.
 type IPMask []byte
 
-// An IPNet represents an IP network.
 type IPNet struct {
-	// IP   IP // TODO: embedded types not supported
+	// IP   IP // TODO: leads to a kiama cycle
 	Mask IPMask
 }
 

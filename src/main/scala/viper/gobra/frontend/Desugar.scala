@@ -1940,6 +1940,8 @@ object Desugar {
 
       case Type.SortT => in.SortT
 
+      case Type.PermissionT => in.PermissionT(addrMod)
+
       case _ => Violation.violation(s"got unexpected type $t")
     }
 
@@ -2497,9 +2499,11 @@ object Desugar {
 
       perm match {
         case PFullPerm() => unit(in.FullPerm(src))
+        case PWildcardPerm() => unit(in.WildcardPerm(src))
+        case PEpsilonPerm() => unit(in.EpsilonPerm(src))
         case PNoPerm() => unit(in.NoPerm(src))
         case PFractionalPerm(left, right) => for { l <- goE(left); r <- goE(right) } yield in.FractionalPerm(l, r)(src)
-        case PWildcardPerm() => unit(in.WildcardPerm(src))
+        case PNamedOpPerm(exp) => for { e <- goE(exp) } yield in.NamedOpPerm(e)(src)
       }
     }
 

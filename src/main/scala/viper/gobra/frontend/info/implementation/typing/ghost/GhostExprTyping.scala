@@ -151,6 +151,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr: PPermission => expr match {
       case PFullPerm() => noMessages
+      case PWildcardPerm() => noMessages
+      case PEpsilonPerm() => noMessages
+      case n@PNamedOpPerm(namedOp) => assignableTo.errors(exprOrTypeType(namedOp), PermissionT)(n)
       case PNoPerm() => noMessages
       case fp@ PFractionalPerm(left, right) =>
         val intKind = config.typeBounds.UntypedConst
@@ -161,7 +164,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(divisor) if divisor == 0 => error(right, s"expected a non-zero dividend, but got $right")
             case _ => noMessages
           })
-      case PWildcardPerm() => noMessages
     }
   }
 
@@ -364,6 +366,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case p: PPermission => p match {
         case PFractionalPerm(left, right) => go(left) && go(right)
+          // TODO: update here
         case _ => true
       }
     }

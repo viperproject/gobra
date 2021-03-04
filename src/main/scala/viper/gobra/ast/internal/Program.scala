@@ -403,6 +403,8 @@ case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
+case class EpsilonPerm(info: Source.Parser.Info) extends Permission
+case class NamedOpPerm(namedOp: Expr)(val info: Source.Parser.Info) extends Permission // TODO: maybe remove, may be unnecessary
 
 /* ** Type related expressions */
 
@@ -819,6 +821,13 @@ sealed trait IntOperation extends Expr {
 sealed trait StringOperation extends Expr {
   override val typ: Type = StringT(Addressability.rValue)
 }
+
+/*
+sealed trait PermOperation extends Expr {
+  override val typ: Type = PermissionT(Addressability.rValue)
+}
+
+ */
 
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 

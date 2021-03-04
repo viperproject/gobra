@@ -518,6 +518,7 @@ sealed abstract class PPredeclaredType(override val name: String) extends PNamed
 
 case class PBoolType() extends PPredeclaredType("bool")
 case class PStringType() extends PPredeclaredType("string")
+case class PPermissionType() extends PPredeclaredType("perm")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
@@ -816,8 +817,22 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
 sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
-case class PFractionalPerm(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp
 case class PWildcardPerm() extends PPermission
+case class PEpsilonPerm() extends PPermission
+case class PNamedOpPerm(exp: PExpression) extends PPermission // TODO: encodes variables of this type, needs chenged encoding
+case class PFractionalPerm(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp
+case class PermDiv(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp
+  /* TODO: translate checks
+  override lazy val check : Seq[ConsistencyError] =
+    (if(left.typ != Perm) Seq(ConsistencyError(s"First parameter of permission division expression must be Perm, but found ${left.typ}", left.pos)) else Seq()) ++
+      (if(right.typ != Int) Seq(ConsistencyError(s"Second parameter of permission division expression must be Int, but found ${right.typ}", right.pos)) else Seq())
+
+   */
+case class PermMinus(exp: PExpression) extends PPermission // TODO: why is this needed // TODO: add support
+case class PermAdd(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp // TODO: add support
+case class PermSub(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp // TODO: add support
+case class PermMul(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp // TODO: add support
+case class IntPermMul(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp // TODO: add support
 
 case class POld(operand: PExpression) extends PGhostExpression
 

@@ -999,6 +999,7 @@ object Parser {
     lazy val predeclaredType: Parser[PPredeclaredType] =
       exactWord("bool") ^^^ PBoolType() |
         exactWord("string") ^^^ PStringType() |
+        exactWord("perm") ^^^ PPermissionType() |
         // signed integer types
         exactWord("rune") ^^^ PRune() |
         exactWord("int") ^^^ PIntType() |
@@ -1210,14 +1211,17 @@ object Parser {
       "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
-      fractionalPermission |
-      "write" ^^^ PFullPerm() |
-      "none" ^^^ PNoPerm() |
+      permFromExp |
+      "writePerm" ^^^ PFullPerm() |
+      "nonePerm" ^^^ PNoPerm() |
+      "epsilonPerm" ^^^ PEpsilonPerm() |
       "_" ^^^ PWildcardPerm()
 
-    lazy val fractionalPermission: Parser[PFractionalPerm] =
+    lazy val permFromExp: Parser[PPermission] =
       expression into {
-        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
+        case n@PNamedOperand(_) => success(PNamedOpPerm(n).at(n))
+        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d)) // TODO: fix ambiguity
+        case s@PAdd(left, right) => success(PFractionalPerm(left, right).at(s))
         case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
       }
 

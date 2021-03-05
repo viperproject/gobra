@@ -52,7 +52,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
     case n: PAccess =>
-      resolve(n.exp) match {
+      val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
+        typ(n.perm) != PermissionT && !typ(n.perm).isInstanceOf[IntT])
+      val expWellDef = resolve(n.exp) match {
         case Some(_: ap.PredicateCall) => noMessages
         case Some(_: ap.PredExprInstance) => noMessages
         case _ =>
@@ -63,6 +65,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }
+      permWellDef ++ expWellDef
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
@@ -153,7 +156,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFullPerm() => noMessages
       case PWildcardPerm() => noMessages
       case PEpsilonPerm() => noMessages
-      case n@PNamedOpPerm(namedOp) => assignableTo.errors(exprOrTypeType(namedOp), PermissionT)(n)
       case PNoPerm() => noMessages
       case fp@ PFractionalPerm(left, right) =>
         val intKind = config.typeBounds.UntypedConst
@@ -365,7 +367,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PReceive(_) => false
 
       case p: PPermission => p match {
-        case PFractionalPerm(left, right) => go(left) && go(right)
+        // case PFractionalPerm(left, right) => go(left) && go(right)
           // TODO: update here
         case _ => true
       }

@@ -1273,6 +1273,8 @@ object Desugar {
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
+          case exp: PExpression if info.typ(exp) == PermissionT => permissionD(ctx)(exp)
+
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)
             case Some(p: ap.PointerType) => for { inElem <- goTExpr(p.base) } yield in.PointerTExpr(inElem)(src)
@@ -1324,6 +1326,29 @@ object Desugar {
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
+          case PEquals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
+            // TODO: add violation if both arguments are not expressions
+            for {
+              l <- permissionD(ctx)(left.asInstanceOf[PExpression])
+              r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+            } yield in.EqCmp(l, r)(src)
+
+          case PUnequals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT => ???
+            // TODO: add violation if both arguments are not expressions
+            for {
+              l <- permissionD(ctx)(left.asInstanceOf[PExpression])
+              r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+            } yield in.UneqCmp(l, r)(src)
+
+          case PLess(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
+            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLtCmp(l, r)(src)
+          case PAtMost(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
+            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLeCmp(l, r)(src)
+          case PGreater(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
+            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGtCmp(l, r)(src)
+          case PAtLeast(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
+            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGeCmp(l, r)(src)
+
           case PEquals(left, right) =>
             for {
               l <- exprAndTypeAsExpr(ctx)(left)
@@ -1346,12 +1371,11 @@ object Desugar {
 
           case PAdd(left, right) =>
             for {
-              l <- go(left);
+              l <- go(left)
               r <- go(right)
-              res = if (info.typ(left) == StringT && info.typ(right) == StringT) {
-                in.Concat(l, r)(src)
-              } else {
-                in.Add(l, r)(src)
+              res = (info.typ(left), info.typ(right)) match {
+                case (StringT, StringT) => in.Concat(l, r)(src)
+                case _ => in.Add(l, r)(src)
               }
             } yield res
           case PSub(left, right) => for {l <- go(left); r <- go(right)} yield in.Sub(l, r)(src)
@@ -2389,7 +2413,7 @@ object Desugar {
       }
     }
 
-    def predicateCallD(ctx: FunctionContext)(n: PInvoke, perm: PPermission): Writer[in.Assertion] = {
+    def predicateCallD(ctx: FunctionContext)(n: PInvoke, perm: PExpression): Writer[in.Assertion] = {
 
       val src: Meta = meta(n)
 
@@ -2493,17 +2517,41 @@ object Desugar {
 
     }
 
-    def permissionD(ctx: FunctionContext)(perm: PPermission): Writer[in.Permission] = {
-      val src: Meta = meta(perm)
+    def permissionD(ctx: FunctionContext)(exp: PExpression): Writer[in.Expr] = {
+      val src: Meta = meta(exp)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
-      perm match {
+      exp match {
+        case n: PNamedOperand => goE(n) // necessary in case a named operand appears as a subexpression of a perm expr
+        case n: PInvoke if info.resolve(n).exists(_.isInstanceOf[ap.Conversion]) =>
+          for {
+            // the welldefinedness checker ensures that there is exactly one argument
+            arg <- permissionD(ctx)(n.args.head)
+          } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
+        // TODO: case for PInvoke missing (for function calls that return perm)
         case PFullPerm() => unit(in.FullPerm(src))
+        case PNoPerm() => unit(in.NoPerm(src))
         case PWildcardPerm() => unit(in.WildcardPerm(src))
         case PEpsilonPerm() => unit(in.EpsilonPerm(src))
-        case PNoPerm() => unit(in.NoPerm(src))
-        case PFractionalPerm(left, right) => for { l <- goE(left); r <- goE(right) } yield in.FractionalPerm(l, r)(src)
-        case PNamedOpPerm(exp) => for { e <- goE(exp) } yield in.NamedOpPerm(e)(src)
+        case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
+        case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
+          case (PermissionT, IntT(_)) => for {vl <- permissionD(ctx)(l); vr <- goE(r)} yield in.PermDiv(vl, vr)(src)
+          case (IntT(x), IntT(y)) if x == y => for {vl <- goE(l); vr <- goE(r)} yield in.FractionalPerm(vl, vr)(src)
+          case err => violation(s"This case should be unreachable, but got $err")
+        }
+        case PNegation(exp) => for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src)
+        case PAdd(l, r) => for {vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r)} yield in.PermAdd(vl, vr)(src)
+        case PSub(l, r) => for {vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r)} yield in.PermSub(vl, vr)(src)
+        case PMul(l, r) =>
+          (info.typ(l), info.typ(r)) match {
+            case (IntT(_), PermissionT) | (PermissionT, IntT(_)) | (PermissionT, PermissionT) =>
+              // A multiplication where one of the operands is a perm value always forces the other to be evaluated
+              // in the same fashion as permissions, even if it is an integer
+              for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src)
+            case err => violation(s"This case should be unreachable, but got $err")
+          }
+
+        case x if info.typ(x).isInstanceOf[IntT] => for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src)
       }
     }
 

@@ -316,13 +316,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) if l == StringT && r == StringT => noMessages
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r)
+            if (l == StringT && r == StringT) || (l == PermissionT && r == PermissionT) => noMessages
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            val untypedIntErrors = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+              // ++ numExprWithinTypeBounds(n.asInstanceOf[PNumExpression]) // TODO: This was not here before but I guess it should
+            val permErrors = assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            // val permErrors = if (l == PermissionT) {} else if(r == PermissionT) // TODO: make type system stricter by making sure that if one is of type perm, the other is either of type perm or a div
+            Seq(untypedIntErrors, permErrors).sortBy(_.length)(Ordering[Int]).head
           case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+            val permErrors = assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            val untypedIntErrors = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+            Seq(untypedIntErrors, permErrors).sortBy(_.length)(Ordering[Int]).head
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 

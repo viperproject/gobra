@@ -401,10 +401,20 @@ sealed trait Permission extends Expr {
 
 case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
-case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
+case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission // TODO: maybe remove
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
 case class EpsilonPerm(info: Source.Parser.Info) extends Permission
-case class NamedOpPerm(namedOp: Expr)(val info: Source.Parser.Info) extends Permission // TODO: maybe remove, may be unnecessary
+case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermAdd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with Permission
+case class PermSub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with Permission
+case class PermMul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with Permission
+case class IntPermMul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with Permission
+case class PermDiv(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with Permission
+// Comparison expressions
+case class PermLtCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("<") with BoolOperation
+case class PermLeCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("<=") with BoolOperation
+case class PermGtCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">") with BoolOperation
+case class PermGeCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">=") with BoolOperation
 
 /* ** Type related expressions */
 

@@ -1195,7 +1195,7 @@ object Parser {
         sequenceConversion |
         setConversion |
         multisetConversion |
-        optionNone | optionSome | optionGet
+        optionNone | optionSome | optionGet | permission
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
@@ -1208,22 +1208,12 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
-      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+      "acc" ~> "(" ~> expression <~ ("," ~> wildcard <~ ")") ^^ { exp => PAccess(exp, PWildcardPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> expression <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
-      permFromExp |
       "writePerm" ^^^ PFullPerm() |
-      "nonePerm" ^^^ PNoPerm() |
-      "epsilonPerm" ^^^ PEpsilonPerm() |
-      "_" ^^^ PWildcardPerm()
-
-    lazy val permFromExp: Parser[PPermission] =
-      expression into {
-        case n@PNamedOperand(_) => success(PNamedOpPerm(n).at(n))
-        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d)) // TODO: fix ambiguity
-        case s@PAdd(left, right) => success(PFractionalPerm(left, right).at(s))
-        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
-      }
+      "noPerm" ^^^ PNoPerm()
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf

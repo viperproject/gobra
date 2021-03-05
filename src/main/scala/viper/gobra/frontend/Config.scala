@@ -17,10 +17,10 @@ import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter,CounterexampleBackTranslators}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter,CounterexampleConfigs}
 import viper.gobra.util.{TypeBounds, Violation}
 import org.scalactic.Bool
-import _root_.viper.gobra.reporting.CounterexampleBackTranslator
+import _root_.viper.gobra.reporting.CounterexampleConfig
 
 
 object LoggerDefaults {
@@ -47,7 +47,7 @@ case class Config(
                  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                  // 64 bit otherwise.
                  int32bit: Boolean = false,
-                 counterexample :Option[CounterexampleBackTranslator] = None
+                 counterexample :Option[CounterexampleConfig] = None
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -209,18 +209,18 @@ class ScallopGobraConfig(arguments: Seq[String])
     noshort = false
   )
 
-  val counterexample:ScallopOption[CounterexampleBackTranslator] = opt[CounterexampleBackTranslator](
+  val counterexample:ScallopOption[CounterexampleConfig] = opt[CounterexampleConfig](
     name = "counterexample",
     descr = "Adds counterexamples to output can be run with: mapped, native, reduced, extended (default: no counterexample)"
               +"curently works witch SILICON as a backend",
     default = None,
     noshort = false
   )(singleArgConverter({ 
-    case "mapped" => CounterexampleBackTranslators.MappedCounterexamples
-    case "native" => CounterexampleBackTranslators.NativeCounterexamples
-    case "reduced" => CounterexampleBackTranslators.ReducedCounterexamples 
-    case "extended" => CounterexampleBackTranslators.ExtendedCounterexamples 
-    case _ => CounterexampleBackTranslators.MappedCounterexamples
+    case "mapped" => CounterexampleConfigs.MappedCounterexamples
+    case "native" => CounterexampleConfigs.NativeCounterexamples
+    case "reduced" => CounterexampleConfigs.ReducedCounterexamples 
+    case "extended" => CounterexampleConfigs.ExtendedCounterexamples 
+    case _ => CounterexampleConfigs.MappedCounterexamples
   }))
 
 

@@ -3,72 +3,51 @@ package viper.gobra.reporting
 import viper.gobra.translator.interfaces.Context
 import viper.silicon.interfaces.SiliconCounterexample
 import viper.silver
+import _root_.viper.silver.verifier.Counterexample
 
-trait CounterexampleBackTranslator{
-	/**
-	 * 
-	 *  gets back a translator with a counterexample written in the couterexample field of the VerificationError in VerifierError.scala
-	 * 
-	  * @param backtrack info for backtranslation i assume
-	  * @return modified version of ErrorBacktranslator
-	  */
-	def getTranslator( backtrack: BackTranslator.BackTrackInfo) :BackTranslator.ErrorBackTranslator
-}
+trait CounterexampleConfig
 /**
   * simple counterexample distinction
   */
 
-object CounterexampleBackTranslators{
-	
-	 object MappedCounterexamples extends CounterexampleBackTranslator{
-		 def getTranslator(backtrack:BackTranslator.BackTrackInfo) :BackTranslator.ErrorBackTranslator = new CounterexampleMappedTransformer(backtrack)
-	 }
-	object NativeCounterexamples extends CounterexampleBackTranslator{
-		def getTranslator( backtrack: BackTranslator.BackTrackInfo) :BackTranslator.ErrorBackTranslator = new CounterexampleNativeTransformer(backtrack)
-	 }
-	 object ReducedCounterexamples extends CounterexampleBackTranslator{
-		 def getTranslator( backtrack: BackTranslator.BackTrackInfo) :BackTranslator.ErrorBackTranslator = new DefaultErrorBackTranslator(backtrack)
-	 }
-	 object ExtendedCounterexamples extends CounterexampleBackTranslator{
-		 def getTranslator(backtrack: BackTranslator.BackTrackInfo) :BackTranslator.ErrorBackTranslator = new DefaultErrorBackTranslator(backtrack)
-	 }
-
-	
+object CounterexampleConfigs{
+	object MappedCounterexamples extends CounterexampleConfig
+	object NativeCounterexamples extends CounterexampleConfig
+	object ReducedCounterexamples extends CounterexampleConfig
+	object ExtendedCounterexamples extends CounterexampleConfig
 }
+
+
 //makes shure nothing but the counterexample changes
-class CounterexampleTransformer(backtrack: BackTranslator.BackTrackInfo)  extends BackTranslator.ErrorBackTranslator{
+class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,info:CounterexampleConfig)  extends BackTranslator.ErrorBackTranslator{
 	val default = new DefaultErrorBackTranslator(backtrack)
-	def translate(error: silver.verifier.VerificationError): VerificationError = default.translate(error)
+	val translator : ((Counterexample)=>Counterexample) = info match {
+		case CounterexampleConfigs.MappedCounterexamples => mappedTranslation(_)
+		case CounterexampleConfigs.NativeCounterexamples => nativeTranslation(_)
+		case CounterexampleConfigs.ReducedCounterexamples => reducedTranslation(_)
+		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
+	}
+	def translate(error: silver.verifier.VerificationError): VerificationError ={
+		val ret =default.translate(error)
+		ret.counterexample = error.counterexample match {
+			case Some(example) => Some(translator(example))
+			case None => None
+		}
+		ret
+	} 
 	def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason = default.translate(reason)
-}
 
+	def mappedTranslation(counterexample:Counterexample):Counterexample ={
+		counterexample
+	}
+	def nativeTranslation(counterexample:Counterexample):Counterexample ={
+		counterexample
+	} 
+	def reducedTranslation(counterexample:Counterexample):Counterexample ={
+		counterexample
+	} 
+	def extendedTranslation(counterexample:Counterexample):Counterexample ={
+		counterexample
+	}  
 
-class CounterexampleNativeTransformer(backtrack: BackTranslator.BackTrackInfo) extends CounterexampleTransformer(backtrack){
-	override def translate(error: silver.verifier.VerificationError): VerificationError = {
-		val err =default.translate(error)
-		err.counterexample = error.counterexample
-		err
-	}
-}
-//TODO: Implement
-class CounterexampleMappedTransformer(backtrack: BackTranslator.BackTrackInfo) extends CounterexampleTransformer(backtrack){
-	override def translate(error: silver.verifier.VerificationError): VerificationError = {
-		val err =default.translate(error)
-		val silcounterexample = error.counterexample
-		err
-	}
-}
-class CounterexampleReducedTransformer(backtrack: BackTranslator.BackTrackInfo) extends CounterexampleTransformer(backtrack){
-	override def translate(error: silver.verifier.VerificationError): VerificationError = {
-		val err =default.translate(error)
-		val silcounterexample = error.counterexample
-		err
-	}
-}
-class CounterexampleExtendedTransformer(backtrack: BackTranslator.BackTrackInfo) extends CounterexampleTransformer(backtrack){
-	override def translate(error: silver.verifier.VerificationError): VerificationError = {
-		val err =default.translate(error)
-		val silcounterexample = error.counterexample
-		err
-	}
 }

@@ -58,8 +58,8 @@ sealed trait VerificationError extends VerifierError {
   override def message: String = {
     val reasonsMsg = if (reasons.nonEmpty) s"\n${reasons.mkString("\n")}" else ""
     val detailsMsg = if (details.nonEmpty) s"\n${details.mkString("\n")}" else ""
-    val counterexampleMsg = counterexample match { case None => "" case Some(ce)=> s"\n${ce.toString()}"}
-    s"$localMessage. $reasonsMsg$detailsMsg. $counterexampleMsg"
+    val counterexampleMsg = counterexample match { case None => "" case Some(ce)=> s"Possible counterexample:\n${ce.toString()}"}
+    s"$localMessage. $reasonsMsg$detailsMsg.\n$counterexampleMsg"
   }
 
   protected var _reasons: List[VerificationErrorReason] = List.empty

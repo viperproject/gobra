@@ -323,9 +323,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
               // ++ numExprWithinTypeBounds(n.asInstanceOf[PNumExpression]) // TODO: This was not here before but I guess it should
           case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if (l == PermissionT && r == PermissionT) ||
-            (l == PermissionT && r.isInstanceOf[IntT]) || (l.isInstanceOf[IntT] && r == PermissionT) =>
-            assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT || getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT) =>
+            assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n) // TODO: Add numExprWithinTypeBounds???
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
@@ -629,6 +628,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
 
         case _: PMake => Some(INT_TYPE)
+
+        case r: PReturn =>
+          val index = r.exps.indexOf(expr)
+          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

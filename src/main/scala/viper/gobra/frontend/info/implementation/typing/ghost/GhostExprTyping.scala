@@ -285,7 +285,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(_: ap.Conversion)) => false // Might change at some point
+        case (Right(_), Some(c: ap.Conversion)) =>
+          c.typ match {
+            case PPermissionType() => n.args.map(go).forall(identity)
+            case _ => false
+          } // Might change at some point
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong
@@ -367,9 +371,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PReceive(_) => false
 
       case p: PPermission => p match {
-        // case PFractionalPerm(left, right) => go(left) && go(right)
-          // TODO: update here
-        case _ => true
+        case PFractionalPerm(left, right) => go(left) && go(right)
+        case PFullPerm() | PNoPerm() | PWildcardPerm() | PEpsilonPerm() => true
       }
     }
   }

@@ -30,7 +30,6 @@ object Comparability {
   @tailrec
   /** Returns the kind of comparability for the argument type head. */
   def compareKind(typeHead: TypeHead)(reg: DefinedT => Type): Kind = typeHead match {
-      // TODO: add Perm
     case TypeHead.BoolHD => Kind.Comparable
     case TypeHead.StringHD => Kind.Comparable
     case _: TypeHead.IntHD => Kind.Comparable

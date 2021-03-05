@@ -1304,19 +1304,7 @@ object Desugar {
             case _ => Violation.violation(s"could not resolve $n")
           }
 
-          case n: PInvoke =>
-            info.resolve(n) match {
-              case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
-              case Some(ap.Conversion(typ, arg)) =>
-                val desugaredTyp = typeD(info.symbType(typ), info.addressability(n))(src)
-                if (arg.length == 1) {
-                  for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
-                } else {
-                  Violation.violation(s"desugarer: conversion $n is not supported")
-                }
-              case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
-              case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
-            }
+          case n: PInvoke => invokeD(ctx)(n)
 
           case n: PTypeAssertion =>
             for {
@@ -1327,14 +1315,16 @@ object Desugar {
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
           case PEquals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
-            // TODO: add violation if both arguments are not expressions
+            violation(left.isInstanceOf[PExpression], s"Expected an expression but got $left instead.")
+            violation(right.isInstanceOf[PExpression], s"Expected an expression but got $right instead.")
             for {
               l <- permissionD(ctx)(left.asInstanceOf[PExpression])
               r <- permissionD(ctx)(right.asInstanceOf[PExpression])
             } yield in.EqCmp(l, r)(src)
 
           case PUnequals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
-            // TODO: add violation if both arguments are not expressions
+            violation(left.isInstanceOf[PExpression], s"Expected an expression but got $left instead.")
+            violation(right.isInstanceOf[PExpression], s"Expected an expression but got $right instead.")
             for {
               l <- permissionD(ctx)(left.asInstanceOf[PExpression])
               r <- permissionD(ctx)(right.asInstanceOf[PExpression])
@@ -1553,6 +1543,22 @@ object Desugar {
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
+      }
+    }
+
+    private def invokeD(ctx: FunctionContext)(inv: PInvoke): Writer[in.Expr] = {
+      val src: Meta = meta(inv)
+      info.resolve(inv) match {
+        case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
+        case Some(ap.Conversion(typ, arg)) =>
+          val desugaredTyp = typeD(info.symbType(typ), info.addressability(inv))(src)
+          if (arg.length == 1) {
+            for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
+          } else {
+            Violation.violation(s"desugarer: conversion $inv is not supported")
+          }
+        case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($inv) to an expression")
+        case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }
     }
 
@@ -2528,7 +2534,7 @@ object Desugar {
             // the welldefinedness checker ensures that there is exactly one argument
             arg <- permissionD(ctx)(n.args.head)
           } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
-        // TODO: case for PInvoke missing (for function calls that return perm)
+        case n: PInvoke => invokeD(ctx)(n)
         case PFullPerm() => unit(in.FullPerm(src))
         case PNoPerm() => unit(in.NoPerm(src))
         case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
@@ -2536,7 +2542,7 @@ object Desugar {
         case PEpsilonPerm() => unit(in.EpsilonPerm(src))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
           case (PermissionT, IntT(_)) => for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src)
-          case (IntT(x), IntT(y)) => for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src)
+          case (IntT(_), IntT(_)) => for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src)
           case err => violation(s"This case should be unreachable, but got $err")
         }
         case PNegation(exp) => for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src)
@@ -2550,8 +2556,8 @@ object Desugar {
               for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src)
             case err => violation(s"This case should be unreachable, but got $err")
           }
-
         case x if info.typ(x).isInstanceOf[IntT] => for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src)
+        case err => violation(s"This case should be unreachable, but got $err")
       }
     }
 

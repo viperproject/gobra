@@ -1208,12 +1208,12 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
-      "acc" ~> "(" ~> expression <~ ("," ~> wildcard <~ ")") ^^ { exp => PAccess(exp, PWildcardPerm().at(exp)) } |
       "acc" ~> "(" ~> expression ~ ("," ~> expression <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
       "writePerm" ^^^ PFullPerm() |
-      "noPerm" ^^^ PNoPerm()
+      "noPerm" ^^^ PNoPerm() |
+      wildcard ^^^ PWildcardPerm()
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf

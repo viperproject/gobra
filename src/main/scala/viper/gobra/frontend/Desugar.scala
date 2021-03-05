@@ -2531,17 +2531,17 @@ object Desugar {
         // TODO: case for PInvoke missing (for function calls that return perm)
         case PFullPerm() => unit(in.FullPerm(src))
         case PNoPerm() => unit(in.NoPerm(src))
+        case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
         case PWildcardPerm() => unit(in.WildcardPerm(src))
         case PEpsilonPerm() => unit(in.EpsilonPerm(src))
-        case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
-          case (PermissionT, IntT(_)) => for {vl <- permissionD(ctx)(l); vr <- goE(r)} yield in.PermDiv(vl, vr)(src)
-          case (IntT(x), IntT(y)) if x == y => for {vl <- goE(l); vr <- goE(r)} yield in.FractionalPerm(vl, vr)(src)
+          case (PermissionT, IntT(_)) => for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src)
+          case (IntT(x), IntT(y)) => for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src)
           case err => violation(s"This case should be unreachable, but got $err")
         }
         case PNegation(exp) => for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src)
-        case PAdd(l, r) => for {vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r)} yield in.PermAdd(vl, vr)(src)
-        case PSub(l, r) => for {vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r)} yield in.PermSub(vl, vr)(src)
+        case PAdd(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src)
+        case PSub(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src)
         case PMul(l, r) =>
           (info.typ(l), info.typ(r)) match {
             case (IntT(_), PermissionT) | (PermissionT, IntT(_)) | (PermissionT, PermissionT) =>

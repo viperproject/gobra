@@ -453,8 +453,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PFullPerm() => "write"
         case PEpsilonPerm() => "epsilon"
         case PNoPerm() => "none"
-        case PWildcardPerm() => "_"
         case PFractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
+        case PWildcardPerm() => "_"
       }
     }
   }

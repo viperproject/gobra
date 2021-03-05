@@ -401,7 +401,7 @@ sealed trait Permission extends Expr {
 
 case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
-case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission // TODO: maybe remove
+case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
 case class EpsilonPerm(info: Source.Parser.Info) extends Permission
 case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission

@@ -1333,7 +1333,7 @@ object Desugar {
               r <- permissionD(ctx)(right.asInstanceOf[PExpression])
             } yield in.EqCmp(l, r)(src)
 
-          case PUnequals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT => ???
+          case PUnequals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
             // TODO: add violation if both arguments are not expressions
             for {
               l <- permissionD(ctx)(left.asInstanceOf[PExpression])

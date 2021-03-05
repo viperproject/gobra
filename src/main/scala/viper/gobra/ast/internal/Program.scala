@@ -832,13 +832,6 @@ sealed trait StringOperation extends Expr {
   override val typ: Type = StringT(Addressability.rValue)
 }
 
-/*
-sealed trait PermOperation extends Expr {
-  override val typ: Type = PermissionT(Addressability.rValue)
-}
-
- */
-
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {

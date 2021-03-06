@@ -1208,7 +1208,7 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
-      // parsing wildcard permissions should be done here instead of in [[permission]] to avoid parsing `_` as an expression
+      // parsing wildcard permissions should be done here instead of in `permission` to avoid parsing `_` as an expression
       // in arbitrary parts of the code
       "acc" ~> "(" ~> expression <~ ("," ~> wildcard <~ ")") ^^ { exp => PAccess(exp, PWildcardPerm().at(exp)) } |
       "acc" ~> "(" ~> expression ~ ("," ~> expression <~ ")") ^^ PAccess

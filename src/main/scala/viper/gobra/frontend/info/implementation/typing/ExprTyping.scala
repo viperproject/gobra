@@ -314,6 +314,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
+          // case (_: PEquals | _: PUnequals, l, r) if => comparableTypes.errors(l, r)(n) // TODO: Add case for int exps to check overflows
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r)
@@ -323,8 +324,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
               // ++ numExprWithinTypeBounds(n.asInstanceOf[PNumExpression]) // TODO: This was not here before but I guess it should
           case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT || getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT) =>
-            assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n) // TODO: Add numExprWithinTypeBounds???
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT ||
+            getTypeFromCtxt(n.asInstanceOf[PNumExpression], mustBeUntypedInt = false).contains(PermissionT) =>
+              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
@@ -585,12 +587,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     getTypeFromCtxt(expr).map(defaultTypeIfInterface)
   }
 
-  /** Returns the type that is implied by the context if the numeric expression is an untyped
-    * constant expression.
+  /** Returns the type that is implied by the context of a numeric expression. If `mustBeUntypedIn` is `true`, expr must
+    * be an untyped constant expression.
     */
-  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
+  private def getTypeFromCtxt(expr: PNumExpression, mustBeUntypedInt: Boolean = true): Option[Type] = {
     violation(
-      intExprType(expr) == UNTYPED_INT_CONST,
+      !mustBeUntypedInt || intExprType(expr) == UNTYPED_INT_CONST,
       s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
     )
 

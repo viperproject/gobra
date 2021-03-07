@@ -1,0 +1,80 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+requires acc(i, 1/2)
+requires acc(i, 1/4 + 1/4)
+ensures acc(i, 1)
+func test1(i *int) {
+	return
+}
+
+requires p > 0
+requires acc(i, p)
+ensures acc(i, p)
+func test2(i *int, ghost p perm) int {
+	return *i
+}
+
+requires p > 1/2
+requires acc(i, p)
+ensures acc(i, 1/2)
+func test3(i *int, ghost p perm) int {
+	return *i
+}
+
+requires p == 1
+requires acc(i, p)
+ensures acc(i, p)
+func test4(i *int, v int, ghost p perm) {
+	*i = v
+}
+
+requires acc(i, writePerm)
+ensures acc(i, writePerm)
+func test5(i *int, v int) {
+	*i = v
+}
+
+func test6() {
+	m1 := perm(1/2 + 1/2)
+	assert m1 == writePerm
+
+	m2 := perm(1/2) + perm(1/2)
+	assert m2 == writePerm
+
+	m3 := perm(1/2) + 1/2
+	assert m3 == writePerm
+
+	// the following is interpreted as an int expression (the default type when no type is provided).
+	// as such, it yields the value `0`
+	m4 := 1/2 + 1/2
+	assert m4 == noPerm
+
+	var m5 perm = 1/2
+	assert m5 + 1/2 == writePerm
+
+	m6 := perm((1/2)/1)
+	assert m6 == 0
+}
+
+func test7() {
+	assert int8(1)/int8(1) == writePerm
+}
+
+func test8() {
+	assert getPerm() == 3/4
+	assert getPerm() != noPerm
+	assert getPerm() != writePerm
+}
+
+ghost pure func getPerm() perm {
+	return 3/4
+}
+
+// behaviour consistent with Viper: the subexpressions of the following perm expression
+// are treated as integer expressions and not as perms
+requires acc(i, 0)
+ensures acc(i, (1/2)/4)
+func test9(i *int) { }

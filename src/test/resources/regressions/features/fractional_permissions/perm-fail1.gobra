@@ -1,0 +1,106 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+requires acc(i, 1/2)
+requires acc(i, 1/4)
+//:: ExpectedOutput(postcondition_error)
+ensures acc(i, 1)
+func test1(i *int) {
+	return
+}
+
+requires p >= 0
+requires acc(i, p)
+ensures acc(i, p)
+func test2(i *int, ghost p perm) int {
+	//:: ExpectedOutput(assignment_error)
+	return *i
+}
+
+requires p < 1/2
+requires acc(i, p)
+ensures acc(i, 1/2)
+func test3(i *int, ghost p perm) int {
+	//:: ExpectedOutput(assignment_error)
+	return *i
+}
+
+requires p == 0
+requires acc(i, p)
+ensures acc(i, p)
+func test4(i *int, v int, ghost p perm) {
+	//:: ExpectedOutput(assignment_error)
+	*i = v
+}
+
+requires acc(i, noPerm)
+ensures acc(i, noPerm)
+func test5(i *int, v int) {
+	//:: ExpectedOutput(assignment_error)
+	*i = v
+}
+
+func test6() {
+	m1 := 1/2 + 1/2
+	//:: ExpectedOutput(assert_error)
+	assert m1 == writePerm
+}
+
+func test7() {
+	m2 := perm(1/2) + perm(1/2)
+	//:: ExpectedOutput(assert_error)
+	assert m2 == noPerm
+}
+
+func test8() {
+	m3 := perm(1/2) + 1/2
+	//:: ExpectedOutput(assert_error)
+	assert m3 == 1/2
+}
+
+func test9() {
+	// the following is interpreted as an int expression (the default type when no type is provided).
+	// as such, it yields the value `0`
+	m4 := 1/2 + 1/2
+	//:: ExpectedOutput(assert_error)
+	assert m4 == writePerm
+}
+
+func test10() {
+	var m5 perm = 1/2
+	//:: ExpectedOutput(assert_error)
+	assert m5 + 1/2 == 1/2
+}
+
+func test11() {
+	//:: ExpectedOutput(assert_error)
+	assert getPerm() != perm(3/4)
+}
+
+func test12() {
+	//:: ExpectedOutput(assert_error)
+	assert getPerm() != 3/4
+}
+
+func test13() {
+	//:: ExpectedOutput(assert_error)
+	assert getPerm() == noPerm
+}
+
+func test14() {
+	//:: ExpectedOutput(assert_error)
+	assert getPerm() == writePerm
+}
+
+ghost pure func getPerm() perm {
+	return 3/4
+}
+
+// behaviour consistent with Viper: the subexpressions of the following perm expression
+// are treated as integer expressions and not as perms
+requires acc(i, (1/2)/2)
+//:: ExpectedOutput(postcondition_error)
+ensures acc(i, 1/4)
+func test15(i *int) {}

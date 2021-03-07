@@ -587,8 +587,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     getTypeFromCtxt(expr).map(defaultTypeIfInterface)
   }
 
-  /** Returns the type that is implied by the context of a numeric expression. If `mustBeUntypedIn` is `true`, expr must
-    * be an untyped constant expression.
+  /** Returns the type that is implied by the context of a numeric expression. If `mustBeUntypedInt` is `true`, expr must
+    * be an unbounded integer expression.
     */
   private def getTypeFromCtxt(expr: PNumExpression, mustBeUntypedInt: Boolean = true): Option[Type] = {
     violation(
@@ -716,7 +716,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
-        case exp: PMisc => exp match {
+        case e: PMisc => e match {
           // The following case infers the type of an literal expression when it occurs inside a composite literal.
           // For example, it infers that the expression `1/2` in `seq[perm]{ 1/2 }` has type perm. Notice that the whole
           // expression would be parsed as
@@ -727,23 +727,25 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           //         None,
           //         PExpCompositeVal(PDiv(PIntLit(BigInt(1)), PIntLit(BigInt(2))))))))
           case comp if comp.isInstanceOf[PCompositeVal] => comp match {
-            case tree.parent(keyedElem) if keyedElem.isInstanceOf[PKeyedElement] => keyedElem match {
-              case tree.parent(litValue) if litValue.isInstanceOf[PLiteralValue] => litValue match {
-                case tree.parent(comp) => comp match {
-                  case PCompositeLit(typ, _) => typ match {
-                    case PSequenceType(elem) => Some(typeSymbType(elem))
-                    case PSetType(elem) => Some(typeSymbType(elem))
-                    case PMultisetType(elem) => Some(typeSymbType(elem))
-                    case PSliceType(elem) => Some(typeSymbType(elem))
-                    case PArrayType(_, elem) => Some(typeSymbType(elem))
-                    case _ => None // conservative choice
+            // comp must be the exp of a [[PKeyedElement]], not its key
+            case tree.parent(keyedElem) if keyedElem.isInstanceOf[PKeyedElement] && keyedElem.asInstanceOf[PKeyedElement].exp == comp =>
+              keyedElem match {
+                case tree.parent(litValue) if litValue.isInstanceOf[PLiteralValue] => litValue match {
+                  case tree.parent(comp) => comp match {
+                    case PCompositeLit(typ, _) => typ match {
+                      case PSequenceType(elem) => Some(typeSymbType(elem))
+                      case PSetType(elem) => Some(typeSymbType(elem))
+                      case PMultisetType(elem) => Some(typeSymbType(elem))
+                      case PSliceType(elem) => Some(typeSymbType(elem))
+                      case PArrayType(_, elem) => Some(typeSymbType(elem))
+                      case _ => None // conservative choice
+                    }
+                    case _ => None
                   }
                   case _ => None
                 }
                 case _ => None
               }
-              case _ => None
-            }
             case _ => None
           }
           case _ => None

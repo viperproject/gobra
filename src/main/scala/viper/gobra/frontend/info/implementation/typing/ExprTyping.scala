@@ -690,6 +690,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
+
             case _ => None
           }
 
@@ -715,9 +716,41 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
+        case exp: PMisc => exp match {
+          // The following case infers the type of an literal expression when it occurs inside a composite literal.
+          // For example, it infers that the expression `1/2` in `seq[perm]{ 1/2 }` has type perm. Notice that the whole
+          // expression would be parsed as
+          //   PCompositeLit(
+          //     PSequenceType(PPermissionType()),
+          //     PLiteralValue(Vector(
+          //       PKeyedElement(
+          //         None,
+          //         PExpCompositeVal(PDiv(PIntLit(BigInt(1)), PIntLit(BigInt(2))))))))
+          case comp if comp.isInstanceOf[PCompositeVal] => comp match {
+            case tree.parent(keyedElem) if keyedElem.isInstanceOf[PKeyedElement] => keyedElem match {
+              case tree.parent(litValue) if litValue.isInstanceOf[PLiteralValue] => litValue match {
+                case tree.parent(comp) => comp match {
+                  case PCompositeLit(typ, _) => typ match {
+                    case PSequenceType(elem) => Some(typeSymbType(elem))
+                    case PSetType(elem) => Some(typeSymbType(elem))
+                    case PMultisetType(elem) => Some(typeSymbType(elem))
+                    case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PArrayType(_, elem) => Some(typeSymbType(elem))
+                    case _ => None // conservative choice
+                  }
+                  case _ => None
+                }
+                case _ => None
+              }
+              case _ => None
+            }
+            case _ => None
+          }
+          case _ => None
+        }
         case _ => None
       }
-      case c => Violation.violation(s"Only the root has not parent, but got $c")
+      case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
   }
 

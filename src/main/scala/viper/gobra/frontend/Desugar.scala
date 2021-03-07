@@ -1255,7 +1255,10 @@ object Desugar {
     def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] =
       indexedExprD(expr.base, expr.index)(ctx)(src)
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
+    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = exprD(ctx, ignorePerm = false)(expr)
+    // the [[ignorePerm]] parameter determines whether expressions of type perm should be desugared
+    // using permissionD (when ignorePerm == false) or, instead, they should fallback on the other cases.
+    def exprD(ctx: FunctionContext, ignorePerm: Boolean)(expr: PExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
       def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(e)
@@ -1273,7 +1276,7 @@ object Desugar {
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
-          case exp: PExpression if info.typ(exp) == PermissionT => permissionD(ctx)(exp)
+          case exp: PExpression if info.typ(exp) == PermissionT && !ignorePerm => permissionD(ctx)(exp)
 
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)
@@ -1304,7 +1307,19 @@ object Desugar {
             case _ => Violation.violation(s"could not resolve $n")
           }
 
-          case n: PInvoke => invokeD(ctx)(n)
+          case n: PInvoke =>
+            info.resolve(n) match {
+              case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
+              case Some(ap.Conversion(typ, arg)) =>
+                val desugaredTyp = typeD(info.symbType(typ), info.addressability(n))(src)
+                if (arg.length == 1) {
+                  for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
+                } else {
+                  Violation.violation(s"desugarer: conversion $n is not supported")
+                }
+              case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
+              case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
+            }
 
           case n: PTypeAssertion =>
             for {
@@ -1543,22 +1558,6 @@ object Desugar {
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
-      }
-    }
-
-    private def invokeD(ctx: FunctionContext)(inv: PInvoke): Writer[in.Expr] = {
-      val src: Meta = meta(inv)
-      info.resolve(inv) match {
-        case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
-        case Some(ap.Conversion(typ, arg)) =>
-          val desugaredTyp = typeD(info.symbType(typ), info.addressability(inv))(src)
-          if (arg.length == 1) {
-            for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
-          } else {
-            Violation.violation(s"desugarer: conversion $inv is not supported")
-          }
-        case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($inv) to an expression")
-        case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }
     }
 
@@ -2528,13 +2527,11 @@ object Desugar {
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       exp match {
-        case n: PNamedOperand => goE(n) // necessary in case a named operand appears as a subexpression of a perm expr
         case n: PInvoke if info.resolve(n).exists(_.isInstanceOf[ap.Conversion]) =>
           for {
             // the welldefinedness checker ensures that there is exactly one argument
             arg <- permissionD(ctx)(n.args.head)
           } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
-        case n: PInvoke => invokeD(ctx)(n)
         case PFullPerm() => unit(in.FullPerm(src))
         case PNoPerm() => unit(in.NoPerm(src))
         case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
@@ -2557,7 +2554,7 @@ object Desugar {
             case err => violation(s"This case should be unreachable, but got $err")
           }
         case x if info.typ(x).isInstanceOf[IntT] => for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src)
-        case err => violation(s"This case should be unreachable, but got $err")
+        case x => exprD(ctx, ignorePerm = true)(x)
       }
     }
 

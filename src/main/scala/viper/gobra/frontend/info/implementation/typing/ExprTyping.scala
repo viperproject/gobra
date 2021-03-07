@@ -314,7 +314,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PBinaryExp[_,_] =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
-          // case (_: PEquals | _: PUnequals, l, r) if => comparableTypes.errors(l, r)(n) // TODO: Add case for int exps to check overflows
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r)
@@ -322,7 +321,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               (l == PermissionT && r.isInstanceOf[IntT]) || (l.isInstanceOf[IntT] && r == PermissionT) => noMessages
           case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
-              // ++ numExprWithinTypeBounds(n.asInstanceOf[PNumExpression]) // TODO: This was not here before but I guess it should
           case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT ||
             getTypeFromCtxt(n.asInstanceOf[PNumExpression], mustBeUntypedInt = false).contains(PermissionT) =>

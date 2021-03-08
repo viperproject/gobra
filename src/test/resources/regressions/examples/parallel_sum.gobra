@@ -62,9 +62,9 @@ func ParallelSum(s []int) (res int) {
 	invariant forall j int :: i <= j && j < n ==> acc(&seenSlice[j], 1/2)
 	invariant forall j int :: i <= j && j < n ==> seenSlice[j] == 0
 	for i := 0; i < n; i++ {
-		w.Add(1, 1, 2, PredTrue!<!>)
+		w.Add(1, 1/2, PredTrue!<!>)
 		ghost if i == 0 {
-			w.Start(1, 2, PredTrue!<!>)
+			w.Start(1/2, PredTrue!<!>)
 		}
 		tokens = tokens ++ seq[pred()]{ locHasVal!<&seenSlice[i], s[i]!> }
 		w.GenerateTokenAndDebt(tokens[i])
@@ -72,8 +72,8 @@ func ParallelSum(s []int) (res int) {
 		go worker(w, c, s[i], seenSlice, i)
 	}
 
-	w.SetWaitMode(1, 2, 1, 2)
-	w.Wait(1, 1, tokens)
+	w.SetWaitMode(1/2, 1/2)
+	w.Wait(1/1, tokens)
 	ghost {
 		invariant 0 <= i && i <= n
 		invariant forall j int :: 0 <= j && j < n ==> acc(&s[j], 1/2)

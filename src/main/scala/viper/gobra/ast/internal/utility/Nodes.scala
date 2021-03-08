@@ -139,6 +139,9 @@ object Nodes {
           case _: NoPerm => Seq.empty
           case FractionalPerm(left, right) => Seq(left, right)
           case _: WildcardPerm => Seq.empty
+          case _: EpsilonPerm => Seq.empty
+          case PermMinus(exp) => Seq(exp)
+          case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
         case l: Lit => l match {
           case IntLit(_, _) => Seq.empty

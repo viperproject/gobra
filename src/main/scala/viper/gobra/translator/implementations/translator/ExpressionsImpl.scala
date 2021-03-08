@@ -96,6 +96,12 @@ class ExpressionsImpl extends Expressions {
 
       case in.Conversion(_, expr) => goE(expr)
 
+      // Perm comparisons
+      case in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield vpr.PermLtCmp(vl, vr)(pos, info, errT)
+      case in.PermLeCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield vpr.PermLeCmp(vl, vr)(pos, info, errT)
+      case in.PermGtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield vpr.PermGtCmp(vl, vr)(pos, info, errT)
+      case in.PermGeCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield vpr.PermGeCmp(vl, vr)(pos, info, errT)
+
       case _ => Violation.violation(s"Expression $x did not match with any implemented case.")
     }
   }

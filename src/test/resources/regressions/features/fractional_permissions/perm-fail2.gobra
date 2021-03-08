@@ -1,0 +1,23 @@
+// type errors
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+//:: ExpectedOutput(type_error)
+ensures acc(i, "test")
+func test1(i *int) {
+	return
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(i, int8(1)/uint64(2)) // non well-defined expression
+func test2(i *int) int {
+	return *i
+}
+
+//:: ExpectedOutput(type_error)
+requires acc(i, true)
+func test3(i *int) int {
+	return *i
+}

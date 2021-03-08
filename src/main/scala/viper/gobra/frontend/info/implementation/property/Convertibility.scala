@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{DeclaredT, IntT, PointerT, Single, SliceT, StringT, Type}
+import viper.gobra.frontend.info.base.Type.{DeclaredT, IntT, PermissionT, PointerT, Single, SliceT, StringT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
@@ -20,6 +20,7 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
       case (left, right) if assignableTo(left, right) => true
       case (IntT(_), IntT(_)) => true
       case (SliceT(IntT(config.typeBounds.Byte)), StringT) => true
+      case (IntT(_), PermissionT) => true
       case (left, right) => (underlyingType(left), underlyingType(right)) match {
         case (l, r) if identicalTypes(l, r) => true
         case (IntT(_), IntT(_)) => true

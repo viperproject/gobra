@@ -2536,7 +2536,6 @@ object Desugar {
         case PNoPerm() => unit(in.NoPerm(src))
         case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
         case PWildcardPerm() => unit(in.WildcardPerm(src))
-        case PEpsilonPerm() => unit(in.EpsilonPerm(src))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
           case (PermissionT, IntT(_)) => for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src)
           case (IntT(_), IntT(_)) => for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src)

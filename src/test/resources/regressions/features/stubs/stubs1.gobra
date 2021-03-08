@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+import "net"
+
+func ipLen(ip net.IP) int
+
+func closePacketConn(conn net.PacketConn) error {
+    return conn.Close()
+}

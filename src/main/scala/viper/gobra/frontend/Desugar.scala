@@ -1329,47 +1329,59 @@ object Desugar {
 
           case PNegation(op) => for {o <- go(op)} yield in.Negation(o)(src)
 
-          case PEquals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
-            violation(left.isInstanceOf[PExpression], s"Expected an expression but got $left instead.")
-            violation(right.isInstanceOf[PExpression], s"Expected an expression but got $right instead.")
-            for {
-              l <- permissionD(ctx)(left.asInstanceOf[PExpression])
-              r <- permissionD(ctx)(right.asInstanceOf[PExpression])
-            } yield in.EqCmp(l, r)(src)
-
-          case PUnequals(left, right) if info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT =>
-            violation(left.isInstanceOf[PExpression], s"Expected an expression but got $left instead.")
-            violation(right.isInstanceOf[PExpression], s"Expected an expression but got $right instead.")
-            for {
-              l <- permissionD(ctx)(left.asInstanceOf[PExpression])
-              r <- permissionD(ctx)(right.asInstanceOf[PExpression])
-            } yield in.UneqCmp(l, r)(src)
-
-          case PLess(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
-            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLtCmp(l, r)(src)
-          case PAtMost(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
-            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLeCmp(l, r)(src)
-          case PGreater(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
-            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGtCmp(l, r)(src)
-          case PAtLeast(left, right) if info.typ(left) == PermissionT || info.typ(right) == PermissionT =>
-            for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGeCmp(l, r)(src)
-
           case PEquals(left, right) =>
-            for {
-              l <- exprAndTypeAsExpr(ctx)(left)
-              r <- exprAndTypeAsExpr(ctx)(right)
-            } yield in.EqCmp(l, r)(src)
+            if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              for {
+                l <- permissionD(ctx)(left.asInstanceOf[PExpression])
+                r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+              } yield in.EqCmp(l, r)(src)
+            } else {
+              for {
+                l <- exprAndTypeAsExpr(ctx)(left)
+                r <- exprAndTypeAsExpr(ctx)(right)
+              } yield in.EqCmp(l, r)(src)
+            }
 
           case PUnequals(left, right) =>
-            for {
-              l <- exprAndTypeAsExpr(ctx)(left)
-              r <- exprAndTypeAsExpr(ctx)(right)
-            } yield in.UneqCmp(l, r)(src)
+            if (info.typOfExprOrType(left) == PermissionT || info.typOfExprOrType(right) == PermissionT) {
+              for {
+                l <- permissionD(ctx)(left.asInstanceOf[PExpression])
+                r <- permissionD(ctx)(right.asInstanceOf[PExpression])
+              } yield in.UneqCmp(l, r)(src)
+            } else {
+              for {
+                l <- exprAndTypeAsExpr(ctx)(left)
+                r <- exprAndTypeAsExpr(ctx)(right)
+              } yield in.UneqCmp(l, r)(src)
+            }
 
-          case PLess(left, right) => for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
-          case PAtMost(left, right) => for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
-          case PGreater(left, right) => for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
-          case PAtLeast(left, right) => for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
+          case PLess(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLtCmp(l, r)(src)
+            } else {
+              for {l <- go(left); r <- go(right)} yield in.LessCmp(l, r)(src)
+            }
+
+          case PAtMost(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermLeCmp(l, r)(src)
+            } else {
+              for {l <- go(left); r <- go(right)} yield in.AtMostCmp(l, r)(src)
+            }
+
+          case PGreater(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGtCmp(l, r)(src)
+            } else {
+              for {l <- go(left); r <- go(right)} yield in.GreaterCmp(l, r)(src)
+            }
+
+          case PAtLeast(left, right) =>
+            if (info.typ(left) == PermissionT || info.typ(right) == PermissionT) {
+              for {l <- permissionD(ctx)(left); r <- permissionD(ctx)(right)} yield in.PermGeCmp(l, r)(src)
+            } else {
+              for {l <- go(left); r <- go(right)} yield in.AtLeastCmp(l, r)(src)
+            }
 
           case PAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.And(l, r)(src)
           case POr(left, right) => for {l <- go(left); r <- go(right)} yield in.Or(l, r)(src)

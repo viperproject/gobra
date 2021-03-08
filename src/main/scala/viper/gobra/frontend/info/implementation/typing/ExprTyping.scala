@@ -323,7 +323,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT ||
-            getTypeFromCtxt(n.asInstanceOf[PNumExpression], mustBeUntypedInt = false).contains(PermissionT) =>
+            getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
@@ -585,15 +585,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     getTypeFromCtxt(expr).map(defaultTypeIfInterface)
   }
 
-  /** Returns the type that is implied by the context of a numeric expression. If `mustBeUntypedInt` is `true`, expr must
-    * be an unbounded integer expression.
-    */
-  private def getTypeFromCtxt(expr: PNumExpression, mustBeUntypedInt: Boolean = true): Option[Type] = {
-    violation(
-      !mustBeUntypedInt || intExprType(expr) == UNTYPED_INT_CONST,
-      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
-    )
-
+  /** Returns the type that is implied by the context of a numeric expression. */
+  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
     expr match {
       case tree.parent(p) => p match {
         case PShortVarDecl(rights, lefts, _) =>

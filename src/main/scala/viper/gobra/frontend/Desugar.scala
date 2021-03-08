@@ -2544,14 +2544,7 @@ object Desugar {
         case PNegation(exp) => for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src)
         case PAdd(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src)
         case PSub(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src)
-        case PMul(l, r) =>
-          (info.typ(l), info.typ(r)) match {
-            case (IntT(_), PermissionT) | (PermissionT, IntT(_)) | (PermissionT, PermissionT) =>
-              // A multiplication where one of the operands is a perm value always forces the other to be evaluated
-              // in the same fashion as permissions, even if it is an integer
-              for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src)
-            case err => violation(s"This case should be unreachable, but got $err")
-          }
+        case PMul(l, r) => for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src)
         case x if info.typ(x).isInstanceOf[IntT] => for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src)
         case x => exprD(ctx, ignorePerm = true)(x)
       }

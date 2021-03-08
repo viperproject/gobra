@@ -62,7 +62,7 @@
     "include": [
       "src/test/resources/regressions/issues/windows-line-ending/*.gobra"
     ],
-    "license": "./.github/license-check/headers/CC0.txt"
+    "license": "./.github/license-check/headers/CC0-Windows.txt"
   },
   {
     "include": [

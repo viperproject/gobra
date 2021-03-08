@@ -407,7 +407,6 @@ case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission
 case class PermAdd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with Permission
 case class PermSub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with Permission
 case class PermMul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with Permission
-case class IntPermMul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with Permission
 case class PermDiv(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with Permission
 // Comparison expressions
 case class PermLtCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("<") with BoolOperation

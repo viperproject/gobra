@@ -53,7 +53,14 @@
       "project/project/**",
       "project/target/**",
       "target/**",
-      "src/main/**"
+      "src/main/**",
+      "src/test/resources/regressions/issues/windows-line-ending/**"
+    ],
+    "license": "./.github/license-check/headers/CC0.txt"
+  },
+  {
+    "include": [
+      "src/test/resources/regressions/issues/windows-line-ending/*.gobra"
     ],
     "license": "./.github/license-check/headers/CC0.txt"
   },

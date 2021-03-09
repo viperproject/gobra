@@ -45,7 +45,6 @@ class PermissionEncoding extends LeafTypeEncoding {
       case fp: in.FullPerm => unit(withSrc(vpr.FullPerm(), fp))
       case np: in.NoPerm => unit(withSrc(vpr.NoPerm(), np))
       case wp: in.WildcardPerm => unit(withSrc(vpr.WildcardPerm(), wp))
-      case co@ in.Conversion(_, exp) => for { e <- goE(exp) } yield withSrc(Function.untupled(e.withMeta), co)
       case pm@ in.PermMinus(exp) => for { e <- goE(exp) } yield withSrc(vpr.PermMinus(e), pm)
       case fp@ in.FractionalPerm(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FractionalPerm(vl, vr), fp)
       case pa@ in.PermAdd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermAdd(vl, vr), pa)

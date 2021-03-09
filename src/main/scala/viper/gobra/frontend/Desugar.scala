@@ -2551,15 +2551,14 @@ object Desugar {
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       exp match {
-        case n: PInvoke => Some(info.resolve(n) match {
+        case n: PInvoke => info.resolve(n) match {
           case Some(_: ap.Conversion) =>
-            for {
+            Some(for {
               // the well-definedness checker ensures that there is exactly one argument
               arg <- permissionD(ctx)(n.args.head)
-            } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
-          // this case cannot be None to avoid cycles when desugaring function calls that return permissions
-          case _ => invokeD(ctx)(exp)
-        })
+            } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src))
+          case _ => None
+        }
         case PFullPerm() => Some(unit(in.FullPerm(src)))
         case PNoPerm() => Some(unit(in.NoPerm(src)))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))

@@ -1255,10 +1255,7 @@ object Desugar {
     def indexedExprD(expr : ap.IndexedExp)(ctx : FunctionContext)(src : Meta) : Writer[in.IndexedExp] =
       indexedExprD(expr.base, expr.index)(ctx)(src)
 
-    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = exprD(ctx, ignorePerm = false)(expr)
-    // the [[ignorePerm]] parameter determines whether expressions of type perm should be desugared
-    // using permissionD (when ignorePerm == false) or, instead, they should fallback on the other cases.
-    def exprD(ctx: FunctionContext, ignorePerm: Boolean)(expr: PExpression): Writer[in.Expr] = {
+    def exprD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
 
       def go(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
       def goTExpr(e: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(e)
@@ -1276,7 +1273,7 @@ object Desugar {
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
 
-          case exp: PExpression if info.typ(exp) == PermissionT && !ignorePerm => permissionD(ctx)(exp)
+          case exp: PExpression if info.typ(exp) == PermissionT => permissionD(ctx)(exp)
 
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)
@@ -1307,19 +1304,7 @@ object Desugar {
             case _ => Violation.violation(s"could not resolve $n")
           }
 
-          case n: PInvoke =>
-            info.resolve(n) match {
-              case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
-              case Some(ap.Conversion(typ, arg)) =>
-                val desugaredTyp = typeD(info.symbType(typ), info.addressability(n))(src)
-                if (arg.length == 1) {
-                  for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
-                } else {
-                  Violation.violation(s"desugarer: conversion $n is not supported")
-                }
-              case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($n) to an expression")
-              case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
-            }
+          case n: PInvoke => invokeD(ctx)(n)
 
           case n: PTypeAssertion =>
             for {
@@ -1570,6 +1555,22 @@ object Desugar {
 
           case e => Violation.violation(s"desugarer: $e is not supported")
         }
+      }
+    }
+
+    def invokeD(ctx: FunctionContext)(expr: PExpression): Writer[in.Expr] = {
+      val src: Meta = meta(expr)
+      info.resolve(expr) match {
+        case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
+        case Some(ap.Conversion(typ, arg)) =>
+          val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
+          if (arg.length == 1) {
+            for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
+          } else {
+            Violation.violation(s"desugarer: conversion $expr is not supported")
+          }
+        case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
+        case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }
     }
 
@@ -2535,30 +2536,38 @@ object Desugar {
     }
 
     def permissionD(ctx: FunctionContext)(exp: PExpression): Writer[in.Expr] = {
+      maybePermissionD(ctx)(exp) getOrElse exprD(ctx)(exp)
+    }
+
+    def maybePermissionD(ctx: FunctionContext)(exp: PExpression): Option[Writer[in.Expr]] = {
       val src: Meta = meta(exp)
       def goE(e: PExpression): Writer[in.Expr] = exprD(ctx)(e)
 
       exp match {
-        case n: PInvoke if info.resolve(n).exists(_.isInstanceOf[ap.Conversion]) =>
-          for {
-            // the welldefinedness checker ensures that there is exactly one argument
-            arg <- permissionD(ctx)(n.args.head)
-          } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
-        case PFullPerm() => unit(in.FullPerm(src))
-        case PNoPerm() => unit(in.NoPerm(src))
-        case PFractionalPerm(left, right) => for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src)
-        case PWildcardPerm() => unit(in.WildcardPerm(src))
+        case n: PInvoke => Some(info.resolve(n) match {
+          case Some(_: ap.Conversion) =>
+            for {
+              // the well-definedness checker ensures that there is exactly one argument
+              arg <- permissionD(ctx)(n.args.head)
+            } yield in.Conversion(in.PermissionT(Addressability.conversionResult), arg)(src)
+          // this case cannot be None to avoid cycles when desugaring function calls that return permissions
+          case _ => invokeD(ctx)(exp)
+        })
+        case PFullPerm() => Some(unit(in.FullPerm(src)))
+        case PNoPerm() => Some(unit(in.NoPerm(src)))
+        case PFractionalPerm(left, right) => Some(for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src))
+        case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
-          case (PermissionT, IntT(_)) => for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src)
-          case (IntT(_), IntT(_)) => for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src)
+          case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))
+          case (IntT(_), IntT(_)) => Some(for { vl <- goE(l); vr <- goE(r) } yield in.FractionalPerm(vl, vr)(src))
           case err => violation(s"This case should be unreachable, but got $err")
         }
-        case PNegation(exp) => for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src)
-        case PAdd(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src)
-        case PSub(l, r) => for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src)
-        case PMul(l, r) => for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src)
-        case x if info.typ(x).isInstanceOf[IntT] => for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src)
-        case x => exprD(ctx, ignorePerm = true)(x)
+        case PNegation(exp) => Some(for {e <- permissionD(ctx)(exp)} yield in.PermMinus(e)(src))
+        case PAdd(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermAdd(vl, vr)(src))
+        case PSub(l, r) => Some(for { vl <- permissionD(ctx)(l); vr <- permissionD(ctx)(r) } yield in.PermSub(vl, vr)(src))
+        case PMul(l, r) => Some(for {vl <- goE(l); vr <- permissionD(ctx)(r)} yield in.PermMul(vl, vr)(src))
+        case x if info.typ(x).isInstanceOf[IntT] => Some(for { e <- goE(x) } yield in.FractionalPerm(e, in.IntLit(BigInt(1))(src))(src))
+        case _ => None
       }
     }
 

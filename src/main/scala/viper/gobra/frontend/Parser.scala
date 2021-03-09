@@ -322,7 +322,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get", "write",
+      "none", "some", "get", "writePerm", "noPerm",
       "typeOf", "isComparable"
     )
 

@@ -719,21 +719,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           //       PKeyedElement(
           //         None,
           //         PExpCompositeVal(PDiv(PIntLit(BigInt(1)), PIntLit(BigInt(2))))))))
-          case comp if comp.isInstanceOf[PCompositeVal] => comp match {
+          case comp: PCompositeVal => comp match {
             // comp must be the exp of a [[PKeyedElement]], not its key
-            case tree.parent(keyedElem) if keyedElem.isInstanceOf[PKeyedElement] && keyedElem.asInstanceOf[PKeyedElement].exp == comp =>
+            case tree.parent(keyedElem: PKeyedElement) if keyedElem.exp == comp =>
               keyedElem match {
-                case tree.parent(litValue) if litValue.isInstanceOf[PLiteralValue] => litValue match {
-                  case tree.parent(comp) => comp match {
-                    case PCompositeLit(typ, _) => typ match {
-                      case PSequenceType(elem) => Some(typeSymbType(elem))
-                      case PSetType(elem) => Some(typeSymbType(elem))
-                      case PMultisetType(elem) => Some(typeSymbType(elem))
-                      case PSliceType(elem) => Some(typeSymbType(elem))
-                      case PArrayType(_, elem) => Some(typeSymbType(elem))
-                      case _ => None // conservative choice
-                    }
-                    case _ => None
+                case tree.parent(litValue: PLiteralValue) => litValue match {
+                  case tree.parent(PCompositeLit(typ, _)) => typ match {
+                    case PSequenceType(elem) => Some(typeSymbType(elem))
+                    case PSetType(elem) => Some(typeSymbType(elem))
+                    case PMultisetType(elem) => Some(typeSymbType(elem))
+                    case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PArrayType(_, elem) => Some(typeSymbType(elem))
+                    case _ => None // conservative choice
                   }
                   case _ => None
                 }

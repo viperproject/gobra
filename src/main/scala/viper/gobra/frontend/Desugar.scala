@@ -2562,7 +2562,6 @@ object Desugar {
         })
         case PFullPerm() => Some(unit(in.FullPerm(src)))
         case PNoPerm() => Some(unit(in.NoPerm(src)))
-        case PFractionalPerm(left, right) => Some(for {l <- goE(left); r <- goE(right)} yield in.FractionalPerm(l, r)(src))
         case PWildcardPerm() => Some(unit(in.WildcardPerm(src)))
         case PDiv(l, r) => (info.typ(l), info.typ(r)) match {
           case (PermissionT, IntT(_)) => Some(for { vl <- permissionD(ctx)(l); vr <- goE(r) } yield in.PermDiv(vl, vr)(src))

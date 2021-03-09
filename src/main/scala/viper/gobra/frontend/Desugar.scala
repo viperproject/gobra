@@ -1262,6 +1262,15 @@ object Desugar {
 
       val src: Meta = meta(expr)
 
+      // if expr is a permission and its case is defined in maybePermissionD,
+      // then desugaring expr should yield the value returned by that method
+      if(info.typ(expr) == PermissionT) {
+        val maybePerm = maybePermissionD(ctx)(expr)
+        if (maybePerm.isDefined) {
+          return maybePerm.head
+        }
+      }
+
       expr match {
         case NoGhost(noGhost) => noGhost match {
           case n: PNamedOperand => info.resolve(n) match {
@@ -1272,8 +1281,6 @@ object Desugar {
               unit(in.DefinedTExpr(name)(src))
             case p => Violation.violation(s"encountered unexpected pattern: $p")
           }
-
-          case exp: PExpression if info.typ(exp) == PermissionT => permissionD(ctx)(exp)
 
           case n: PDeref => info.resolve(n) match {
             case Some(p: ap.Deref) => derefD(ctx)(p)(src)

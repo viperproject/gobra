@@ -23,7 +23,6 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
           (lst, rst) match {
             case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[IntT] => Some(a)
             case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
-            case (PermissionT, PermissionT) => Some(PermissionT)
             case (IntT(_), PermissionT) => Some(PermissionT)
             case (PermissionT, IntT(_)) => Some(PermissionT)
             case (SequenceT(l), SequenceT(r)) => typeMerge(l,r) map SequenceT

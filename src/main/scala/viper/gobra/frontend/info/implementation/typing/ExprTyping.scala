@@ -316,18 +316,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r)
-            if (l == StringT && r == StringT) || (l == PermissionT && r == PermissionT) ||
-              (l == PermissionT && r.isInstanceOf[IntT]) || (l.isInstanceOf[IntT] && r == PermissionT) => noMessages
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
-          case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) if l == PermissionT || r == PermissionT ||
-            getTypeFromCtxt(n.asInstanceOf[PNumExpression], mustBeUntypedInt = false).contains(PermissionT) =>
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
+            case (StringT, StringT) => noMessages
+            case _ if l == PermissionT || r == PermissionT =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+          }
+          case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
-              numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+            if (l == PermissionT || r == PermissionT || getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT)) {
+              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            } else {
+              assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+                numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+            }
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
@@ -585,15 +587,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     getTypeFromCtxt(expr).map(defaultTypeIfInterface)
   }
 
-  /** Returns the type that is implied by the context of a numeric expression. If `mustBeUntypedInt` is `true`, expr must
-    * be an unbounded integer expression.
-    */
-  private def getTypeFromCtxt(expr: PNumExpression, mustBeUntypedInt: Boolean = true): Option[Type] = {
-    violation(
-      !mustBeUntypedInt || intExprType(expr) == UNTYPED_INT_CONST,
-      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
-    )
-
+  /** Returns the type that is implied by the context of a numeric expression. */
+  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
     expr match {
       case tree.parent(p) => p match {
         case PShortVarDecl(rights, lefts, _) =>
@@ -724,21 +719,18 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           //       PKeyedElement(
           //         None,
           //         PExpCompositeVal(PDiv(PIntLit(BigInt(1)), PIntLit(BigInt(2))))))))
-          case comp if comp.isInstanceOf[PCompositeVal] => comp match {
+          case comp: PCompositeVal => comp match {
             // comp must be the exp of a [[PKeyedElement]], not its key
-            case tree.parent(keyedElem) if keyedElem.isInstanceOf[PKeyedElement] && keyedElem.asInstanceOf[PKeyedElement].exp == comp =>
+            case tree.parent(keyedElem: PKeyedElement) if keyedElem.exp == comp =>
               keyedElem match {
-                case tree.parent(litValue) if litValue.isInstanceOf[PLiteralValue] => litValue match {
-                  case tree.parent(comp) => comp match {
-                    case PCompositeLit(typ, _) => typ match {
-                      case PSequenceType(elem) => Some(typeSymbType(elem))
-                      case PSetType(elem) => Some(typeSymbType(elem))
-                      case PMultisetType(elem) => Some(typeSymbType(elem))
-                      case PSliceType(elem) => Some(typeSymbType(elem))
-                      case PArrayType(_, elem) => Some(typeSymbType(elem))
-                      case _ => None // conservative choice
-                    }
-                    case _ => None
+                case tree.parent(litValue: PLiteralValue) => litValue match {
+                  case tree.parent(PCompositeLit(typ, _)) => typ match {
+                    case PSequenceType(elem) => Some(typeSymbType(elem))
+                    case PSetType(elem) => Some(typeSymbType(elem))
+                    case PMultisetType(elem) => Some(typeSymbType(elem))
+                    case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PArrayType(_, elem) => Some(typeSymbType(elem))
+                    case _ => None // conservative choice
                   }
                   case _ => None
                 }

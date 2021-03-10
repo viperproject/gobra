@@ -45,14 +45,18 @@ class PermissionEncoding extends LeafTypeEncoding {
       case fp: in.FullPerm => unit(withSrc(vpr.FullPerm(), fp))
       case np: in.NoPerm => unit(withSrc(vpr.NoPerm(), np))
       case wp: in.WildcardPerm => unit(withSrc(vpr.WildcardPerm(), wp))
-      case ep: in.EpsilonPerm => unit(withSrc(vpr.EpsilonPerm(), ep))
-      case co@ in.Conversion(_, exp) => for { e <- goE(exp) } yield withSrc(Function.untupled(e.withMeta), co)
       case pm@ in.PermMinus(exp) => for { e <- goE(exp) } yield withSrc(vpr.PermMinus(e), pm)
       case fp@ in.FractionalPerm(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FractionalPerm(vl, vr), fp)
       case pa@ in.PermAdd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermAdd(vl, vr), pa)
       case ps@ in.PermSub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermSub(vl, vr), ps)
       case pm@ in.PermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermMul(vl, vr), pm)
-      case im@ in.IntPermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.IntPermMul(vl, vr), im)
+
+      // Perm comparisons
+      case lt@in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLtCmp(vl, vr), lt)
+      case le@in.PermLeCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLeCmp(vl, vr), le)
+      case gt@in.PermGtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermGtCmp(vl, vr), gt)
+      case ge@in.PermGeCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermGeCmp(vl, vr), ge)
+
     }
   }
 }

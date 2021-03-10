@@ -199,7 +199,7 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
+      content.split("\r\n|\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
@@ -322,7 +322,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get", "write",
+      "none", "some", "get", "writePerm", "noPerm",
       "typeOf", "isComparable"
     )
 
@@ -855,7 +855,6 @@ object Parser {
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
-        //runeLit |
         stringLit
 
     lazy val stringLit: Parser[PStringLit] =

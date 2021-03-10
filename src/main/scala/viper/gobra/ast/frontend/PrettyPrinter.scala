@@ -452,7 +452,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case expr: PPermission => expr match {
         case PFullPerm() => "write"
         case PNoPerm() => "none"
-        case PFractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
         case PWildcardPerm() => "_"
       }
     }
@@ -494,6 +493,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PNamedOperand(id) => showId(id)
     case PBoolType() => "bool"
     case PStringType() => "string"
+    case PPermissionType() => "perm"
     case PIntType() => "int"
     case PInt8Type() => "int8"
     case PInt16Type() => "int16"

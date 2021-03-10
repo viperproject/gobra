@@ -316,13 +316,20 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (n, exprOrTypeType(n.left), exprOrTypeType(n.right)) match {
           case (_: PEquals | _: PUnequals, l, r) => comparableTypes.errors(l, r)(n)
           case (_: PAnd | _: POr, l, r) => assignableTo.errors(l, AssertionT)(n) ++ assignableTo.errors(r, AssertionT)(n)
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) if l == StringT && r == StringT => noMessages
-          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
-          case (_: PAdd, l, r) if l == StringT && r == StringT => noMessages
+          case (_: PLess | _: PAtMost | _: PGreater | _: PAtLeast, l, r) => (l,r) match {
+            case (StringT, StringT) => noMessages
+            case _ if l == PermissionT || r == PermissionT =>
+              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+          }
+          case (_: PAdd, StringT, StringT) => noMessages
           case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
-              numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+            if (l == PermissionT || r == PermissionT || getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT)) {
+              assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
+            } else {
+              assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+                numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+            }
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 
@@ -580,15 +587,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     getTypeFromCtxt(expr).map(defaultTypeIfInterface)
   }
 
-  /** Returns the type that is implied by the context if the numeric expression is an untyped
-    * constant expression.
-    */
+  /** Returns the type that is implied by the context of a numeric expression. */
   private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
-    violation(
-      intExprType(expr) == UNTYPED_INT_CONST,
-      s"expression $expr must have type $UNTYPED_INT_CONST in order to be passed to getNonInterfaceTypeFromCtxt"
-    )
-
     expr match {
       case tree.parent(p) => p match {
         case PShortVarDecl(rights, lefts, _) =>
@@ -623,6 +623,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PVarDecl(typ, _, _, _) => typ map (x => typeSymbType(x))
 
         case _: PMake => Some(INT_TYPE)
+
+        case r: PReturn =>
+          val index = r.exps.indexOf(expr)
+          Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
@@ -679,6 +683,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case PredT(fArgs) => fArgs.lift(index)
                 case t => violation(s"predicate expression instance has base $base with unsupported type $t")
               }
+
             case _ => None
           }
 
@@ -704,9 +709,40 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // expr has the default type if it appears in any other kind of statement
         case x if x.isInstanceOf[PStatement] => Some(DEFAULT_INTEGER_TYPE)
 
+        case e: PMisc => e match {
+          // The following case infers the type of an literal expression when it occurs inside a composite literal.
+          // For example, it infers that the expression `1/2` in `seq[perm]{ 1/2 }` has type perm. Notice that the whole
+          // expression would be parsed as
+          //   PCompositeLit(
+          //     PSequenceType(PPermissionType()),
+          //     PLiteralValue(Vector(
+          //       PKeyedElement(
+          //         None,
+          //         PExpCompositeVal(PDiv(PIntLit(BigInt(1)), PIntLit(BigInt(2))))))))
+          case comp: PCompositeVal => comp match {
+            // comp must be the exp of a [[PKeyedElement]], not its key
+            case tree.parent(keyedElem: PKeyedElement) if keyedElem.exp == comp =>
+              keyedElem match {
+                case tree.parent(litValue: PLiteralValue) => litValue match {
+                  case tree.parent(PCompositeLit(typ, _)) => typ match {
+                    case PSequenceType(elem) => Some(typeSymbType(elem))
+                    case PSetType(elem) => Some(typeSymbType(elem))
+                    case PMultisetType(elem) => Some(typeSymbType(elem))
+                    case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PArrayType(_, elem) => Some(typeSymbType(elem))
+                    case _ => None // conservative choice
+                  }
+                  case _ => None
+                }
+                case _ => None
+              }
+            case _ => None
+          }
+          case _ => None
+        }
         case _ => None
       }
-      case c => Violation.violation(s"Only the root has not parent, but got $c")
+      case c => Violation.violation(s"Only the root has no parent, but got $c")
     }
   }
 

@@ -322,7 +322,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get", "write",
+      "none", "some", "get", "writePerm", "noPerm",
       "typeOf", "isComparable"
     )
 
@@ -998,6 +998,7 @@ object Parser {
     lazy val predeclaredType: Parser[PPredeclaredType] =
       exactWord("bool") ^^^ PBoolType() |
         exactWord("string") ^^^ PStringType() |
+        exactWord("perm") ^^^ PPermissionType() |
         // signed integer types
         exactWord("rune") ^^^ PRune() |
         exactWord("int") ^^^ PIntType() |
@@ -1193,7 +1194,7 @@ object Parser {
         sequenceConversion |
         setConversion |
         multisetConversion |
-        optionNone | optionSome | optionGet
+        optionNone | optionSome | optionGet | permission
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
@@ -1206,19 +1207,14 @@ object Parser {
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
-      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+      // parsing wildcard permissions should be done here instead of in [[permission]] to avoid parsing "_"
+      // as an expression in arbitrary parts of the code
+      "acc" ~> "(" ~> expression <~ ("," ~> wildcard <~ ")") ^^ { exp => PAccess(exp, PWildcardPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> expression <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
-      fractionalPermission |
-      "write" ^^^ PFullPerm() |
-      "none" ^^^ PNoPerm() |
-      "_" ^^^ PWildcardPerm()
-
-    lazy val fractionalPermission: Parser[PFractionalPerm] =
-      expression into {
-        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
-        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
-      }
+      "writePerm" ^^^ PFullPerm() |
+      "noPerm" ^^^ PNoPerm()
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf

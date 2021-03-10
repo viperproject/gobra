@@ -44,9 +44,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
         // for go's types according to go's specification (mostly)
-      case (IntT(kind), r) if kind == config.typeBounds.UntypedConst && underlyingType(r).isInstanceOf[IntT] => true
+      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => true
       // not part of Go spec, but necessary for the definition of comparability
-      case (l, IntT(kind)) if kind == config.typeBounds.UntypedConst && underlyingType(l).isInstanceOf[IntT] => true
+      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
       // even though the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
@@ -65,10 +65,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         // for ghost types
       case (BooleanT, AssertionT) => true
       case (SortT, SortT) => true
+      case (PermissionT, PermissionT) => true
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
+      case (IntT(_), PermissionT) => true
 
         // conservative choice
       case _ => false

@@ -105,9 +105,9 @@ func SearchReplace(s []int, x, y int) {
       &section[i] == &s[i + offset]
     ghost s1 := toSeq(section)
     ghost wpr := replacedPerm!<s1,section,x,y!>;
-    wg.Add(1,1,2,PredTrue!<!>)
+    wg.Add(1,1/2,PredTrue!<!>)
     ghost if(offset == 0) {
-      wg.Start(1,2,PredTrue!<!>)
+      wg.Start(1/2,PredTrue!<!>)
     }
     wg.GenerateTokenAndDebt(wpr)
     fold wg.TokenById(wpr,len(pseqs))
@@ -117,8 +117,8 @@ func SearchReplace(s []int, x, y int) {
     c <- section
     offset = nextOffset
   }
-  wg.SetWaitMode(1,2,1,2)
-  wg.Wait(1,2,pseqs)
+  wg.SetWaitMode(1/2,1/2)
+  wg.Wait(1/2,pseqs)
   ghost {
     invariant 0 <= i && i <= len(seqs)
     invariant forall j int :: i <= j && j < len(seqs) ==>

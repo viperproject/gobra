@@ -33,7 +33,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefActualType(typ: PActualType): Messages = typ match {
 
-    case _: PBoolType | _: PIntegerType | _: PStringType => noMessages
+    case _: PBoolType | _: PIntegerType | _: PStringType | _: PPermissionType => noMessages
 
     case typ @ PArrayType(_, PNamedOperand(_)) =>
       error(typ, s"arrays of custom declared types are currently not supported")
@@ -90,6 +90,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case PByte() => IntT(config.typeBounds.Byte)
     case PUIntPtr() => IntT(config.typeBounds.UIntPtr)
     case PStringType() => StringT
+    case PPermissionType() => PermissionT
 
     case PArrayType(len, elem) =>
       val lenOpt = intConstantEval(len)

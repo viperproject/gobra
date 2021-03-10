@@ -9,10 +9,10 @@ pred myPred(x *int) {
 
 const divisor = 0
 
-//:: ExpectedOutput(type_error)
+//:: ExpectedOutput(contract_not_well_formed)
 requires acc(myPred(x), 1/0)
 func zeroDividend1(x *int) {}
 
-//:: ExpectedOutput(type_error)
+//:: ExpectedOutput(contract_not_well_formed)
 requires acc(myPred(x), 1/divisor)
 func zeroDividend2(x *int) {}

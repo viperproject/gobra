@@ -22,6 +22,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
       case (BooleanT, BooleanT) => true
       case (AssertionT, AssertionT) => true
       case (StringT, StringT) => true
+      case (PermissionT, PermissionT) => true
 
       case (DeclaredT(l, contextL), DeclaredT(r, contextR)) => l == r && contextL == contextR
 

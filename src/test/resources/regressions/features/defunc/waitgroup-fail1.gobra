@@ -5,13 +5,11 @@ package pkg
 
 import "sync"
 
-/* The following fails to verify because sync.CollectFractions(seq[pred()]{ PredTrue!<!>}, seq[int]{1}, seq[int]{2}) does not imply 
- * sync.CollectFractions(seq[pred()]{ PredTrue!<!>}, seq[int]{2}, seq[int]{4}) even though they are equivalent.
- */
 func problemWithCollect() {
 	fold acc(PredTrue!<!>(), 1/2)
-	fold sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[int]{1}, seq[int]{2})
-	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[int]{1}, seq[int]{2})
+	fold sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{1/2})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{1/2})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{2/4})
 	//:: ExpectedOutput(assert_error:permission_error)
-	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[int]{2}, seq[int]{4})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{3/4})
 }

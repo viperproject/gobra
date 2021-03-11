@@ -451,7 +451,8 @@ object Desugar {
 
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = argSubs.flatten ++ returnSubs.flatten
-        val body = argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
+        val varsInit = vars map (v => in.Initialization(v)(v.info))
+        val body = varsInit ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
       }
 
@@ -611,7 +612,8 @@ object Desugar {
 
       val bodyOpt = decl.body.map{ case (_, s) =>
         val vars = recvSub.toVector ++ argSubs.flatten ++ returnSubs.flatten
-        val body = recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
+        val varsInit = vars map (v => in.Initialization(v)(v.info))
+        val body = varsInit ++ recvInits ++ argInits ++ Vector(blockD(ctx)(s)) ++ resultAssignments
         in.Block(vars, body)(meta(s))
       }
 
@@ -832,22 +834,22 @@ object Desugar {
                 for{
                   re <- goE(r)
                   le <- unit(in.Assignee.Var(getVar(l)(re.typ)))
-                  _ <- l match {
-                    case unk: PIdnUnk if info.isDef(unk) => write(in.Initialization(le.op)(src))
-                    case _ => unit(())
+                  init = l match {
+                    case unk: PIdnUnk if info.isDef(unk) => Vector(in.Initialization(le.op)(src))
+                    case _ => Vector.empty
                   }
-                } yield singleAss(le, re)(src)
+                } yield in.Seqn(init :+ singleAss(le, re)(src))(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
                 re  <- goE(right.head)
                 les <-
                   unit(left.map{l =>  in.Assignee.Var(getVar(l)(typeD(info.typ(l), Addressability.exclusiveVariable)(src)))})
-                _ <- sequence((left zip les) map {
-                  case (unk: PIdnUnk, le) if info.isDef(unk) => write(in.Initialization(le.op)(src))
-                  case _ => unit(())
-                })
-              } yield multiassD(les, re)(src)
+                inits = (left zip les) flatMap {
+                  case (unk: PIdnUnk, le) if info.isDef(unk) => Some(in.Initialization(le.op)(src))
+                  case _ => None
+                }
+              } yield in.Seqn(inits :+ multiassD(les, re)(src))(src)
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, _) =>
@@ -858,15 +860,15 @@ object Desugar {
                   re <- goE(r)
                   typ: in.Type = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
                   le <- unit(in.Assignee.Var(getVar(l)(typ)))
-                  _ <- write(in.Initialization(le.op)(src))
-                } yield singleAss(le, re)(src)
+                  init = in.Initialization(le.op)(src)
+                } yield in.Seqn(Vector(init, singleAss(le, re)(src)))(src)
               }).map(in.Seqn(_)(src))
             } else if (right.size == 1) {
               for{
                 re  <- goE(right.head)
                 les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
-                _ <- write(les.map(le => in.Initialization(le.op)(src)): _*)
-              } yield multiassD(les, re)(src)
+                inits = les.map(le => in.Initialization(le.op)(src))
+              } yield in.Seqn(inits :+ multiassD(les, re)(src))(src)
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
               val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typ)) }

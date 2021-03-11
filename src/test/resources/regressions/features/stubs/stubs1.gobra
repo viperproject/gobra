@@ -11,10 +11,11 @@ func closePacketConn(conn net.PacketConn) error {
     return conn.Close()
 }
 
-func addrErrorTimeout(ae * net.AddrError) {
+func addrErrorTimeout(ae * net.AddrError) bool {
     assert !ae.Timeout()
+    return ae.Timeout()
 }
 
-func addrErrorTimeoutInterface(ae net.Error) {
-    assert !ae.Timeout()
+func addrErrorTimeoutInterface(ae net.Error) bool {
+    return ae.Timeout()
 }

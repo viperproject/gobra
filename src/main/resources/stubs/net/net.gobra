@@ -166,20 +166,24 @@ func (e *AddrError) Error() string {
 	return s
 }*/
 
-pure func (e *AddrError) Timeout() bool   { return false }
-pure func (e *AddrError) Temporary() bool { return false }
+ensures !res
+pure func (e *AddrError) Timeout() (res bool)   { return false }
+ensures !res
+pure func (e *AddrError) Temporary() (res bool) { return false }
 
 type UnknownNetworkError string
 
 func (e UnknownNetworkError) Error() string   // { return "unknown network " + string(e) }
-pure func (e UnknownNetworkError) Timeout() bool   { return false }
-pure func (e UnknownNetworkError) Temporary() bool { return false }
+ensures !res
+pure func (e UnknownNetworkError) Timeout() (res bool)   { return false }
+ensures !res
+pure func (e UnknownNetworkError) Temporary() (res bool) { return false }
 
 type InvalidAddrError string
 
 // func (e InvalidAddrError) Error() string   { return string(e) }
-func (e InvalidAddrError) Timeout() bool   { return false }
-func (e InvalidAddrError) Temporary() bool { return false }
+func (e InvalidAddrError) Timeout() (res bool)   { return false }
+func (e InvalidAddrError) Temporary() (res bool) { return false }
 
 // DNSError represents a DNS lookup error.
 type DNSError struct {
@@ -208,11 +212,13 @@ func (e *DNSError) Error(ghost p perm) string {
 
 // Timeout reports whether the DNS lookup is known to have timed out.
 requires acc(&e.IsTimeout, _)
-pure func (e *DNSError) Timeout() bool { return e.IsTimeout }
+ensures res == e.IsTimeout
+pure func (e *DNSError) Timeout() (res bool) { return e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
 requires acc(&e.IsTimeout, _) && acc(&e.IsTemporary, _)
-pure func (e *DNSError) Temporary() bool { return e.IsTimeout || e.IsTemporary }
+ensures res == e.IsTimeout || e.IsTemporary
+pure func (e *DNSError) Temporary() (res bool) { return e.IsTimeout || e.IsTemporary }
 
 // Buffers contains zero or more runs of bytes to write.
 type Buffers [][]byte

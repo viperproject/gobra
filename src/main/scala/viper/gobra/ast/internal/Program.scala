@@ -236,6 +236,8 @@ case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) ex
 
 case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
 
+case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
+
 sealed trait Assignment extends Stmt
 
 case class SingleAss(left: Assignee, right: Expr)(val info: Source.Parser.Info) extends Assignment

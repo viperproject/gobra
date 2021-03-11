@@ -67,15 +67,15 @@ class StatementsImpl extends Statements {
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
-        val inits = decls collect { case x: in.BodyVar => ctx.typeEncoding.initialization(ctx)(x) }
         val vDecls = decls map (blockDecl(_)(ctx))
         block{
           for {
             _ <- global(vDecls: _*)
-            vInits <- seqns(inits)
             vBody <- sequence(stmts map ctx.stmt.translateF(ctx))
-          } yield vu.seqn(vInits +: vBody)(pos, info, errT)
+          } yield vu.seqn(vBody)(pos, info, errT)
         }
+
+      case in.Initialization(left) => ctx.typeEncoding.initialization(ctx)(left)
 
       case in.Seqn(stmts) => seqns(stmts map goS)
 

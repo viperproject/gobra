@@ -14,7 +14,7 @@ import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
-  def isDef[T](n: PIdnUnk): Boolean = !isDefinedAt(n,n)
+  override def isDef(n: PIdnUnk): Boolean = !isDefinedAt(n,n)
 
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType] = {
     n match {

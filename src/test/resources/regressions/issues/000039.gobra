@@ -37,7 +37,9 @@ func test3() {
   x2 = 8
   x1 = 8
 
-  assert old[L](x1) == 8 && old[L](x2) == 0
+  assert old[L](x1) == 8
+  //:: ExpectedOutput(assert_error:permission_error)
+  assert old[L](x2) == old[L](x2)
 }
 
 

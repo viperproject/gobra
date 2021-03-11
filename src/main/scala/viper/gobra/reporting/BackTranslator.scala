@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 import viper.gobra.backend.BackendVerifier
-import viper.gobra.frontend.Config
+import viper.gobra.frontend.{Config,Parser}
 import viper.silver.{ast => vpr}
 import viper.silver
 
@@ -31,7 +31,9 @@ object BackTranslator {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
       val errorTranslator =  config.counterexample match {
-                  case Some(info) => new CounterexampleBackTranslator(backtrack,info)
+                  case Some(info) => Parser.parse(config.inputFiles.map(_.toPath))(config) match{//we have to reparse the file... but only once
+			                                case Left(_) => new DefaultErrorBackTranslator(backtrack) //if there is a parsin failure at this step there is nothing we can do...
+			                              case Right(b) => new CounterexampleBackTranslator(backtrack,info,b)}
                   case None => new DefaultErrorBackTranslator(backtrack)
 
     }

@@ -21,7 +21,7 @@ object ViperBackends {
       options ++= Vector("--disableCatchingExceptions")
       options ++= Vector("--enableMoreCompleteExhale")
       //silicon does not accept this option? 
-      //options ++= Vector("--counterexample_is_broken mapped")
+      options ++= Vector("--counterexample_is_broken","mapped")
       options ++= exePaths
       
 

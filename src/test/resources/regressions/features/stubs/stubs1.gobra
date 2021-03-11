@@ -10,3 +10,11 @@ func ipLen(ip net.IP) int
 func closePacketConn(conn net.PacketConn) error {
     return conn.Close()
 }
+
+func addrErrorTimeout(ae * net.AddrError) {
+    assert !ae.Timeout()
+}
+
+func addrErrorTimeoutInterface(ae net.Error) {
+    assert !ae.Timeout()
+}

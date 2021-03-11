@@ -60,6 +60,7 @@ class ExpressionsImpl extends Expressions {
         } yield vpr.Unfolding(a.asInstanceOf[vpr.PredicateAccessPredicate], e)(pos, info, errT)
 
       case in.Old(op, _) => for { o <- goE(op) } yield vpr.Old(o)(pos, info, errT)
+      case in.LabeledOld(l, op) => for {o <- goE(op) } yield vpr.LabelledOld(o, l.name)(pos, info, errT)
 
       case in.LessCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LtCmp(vl, vr)(pos, info, errT)
       case in.AtMostCmp(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.LeCmp(vl, vr)(pos, info, errT)

@@ -79,6 +79,9 @@ class StatementsImpl extends Statements {
 
       case in.Seqn(stmts) => seqns(stmts map goS)
 
+      case in.Label(id) =>
+        unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
+
       case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)
@@ -176,6 +179,9 @@ class StatementsImpl extends Statements {
   def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {
     x match {
       case x: in.BodyVar => ctx.typeEncoding.variable(ctx)(x)
+      case l: in.LabelProxy =>
+        val (pos, info, errT) = x.vprMeta
+        vpr.Label(l.name, Seq.empty)(pos, info, errT)
     }
   }
 

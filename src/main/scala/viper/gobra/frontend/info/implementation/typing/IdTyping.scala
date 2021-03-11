@@ -45,6 +45,14 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => children(n).exists(!isNotCyclic(_, e).valid)
   }))
 
+  implicit lazy val wellDefLabel: WellDefinedness[PLabelNode] = createWellDef {
+    id => label(id) match {
+      case _: UnknownEntity => error(id, s"got unknown label $id")
+      case _: MultipleEntity => error(id, s"got duplicate label $id")
+      case _ => noMessages
+    }
+  }
+
   private[typing] def wellDefActualRegular(r: ActualRegular, id: PIdnNode): ValidityMessages = r match {
 
     case SingleConstant(_, _, exp, opt, _, _) =>

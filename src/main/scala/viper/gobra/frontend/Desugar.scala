@@ -749,6 +749,14 @@ object Desugar {
 
           case b: PBlock => unit(blockD(ctx)(b))
 
+          case l: PLabeledStmt =>
+            val proxy = labelProxy(l.label)
+            for {
+              _ <- declare(proxy)
+              _ <- write(in.Label(proxy)(src))
+              s <- goS(l.stmt)
+            } yield s
+
           case s@ PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
             ifs.foldRight(elsStmt){
@@ -2069,6 +2077,11 @@ object Desugar {
       in.LocalVar(p.id, p.typ)(p.info)
     }
 
+    def labelProxy(l: PLabelNode): in.LabelProxy = {
+      val src = meta(l)
+      in.LabelProxy(nm.label(l.name))(src)
+    }
+
     // Miscellaneous
 
     /** desugars parameter.
@@ -2216,6 +2229,7 @@ object Desugar {
 
       expr match {
         case POld(op) => for {o <- go(op)} yield in.Old(o, typ)(src)
+        case PLabeledOld(l, op) => for {o <- go(op)} yield in.LabeledOld(labelProxy(l), o)(src)
         case PConditional(cond, thn, els) =>  for {
           wcond <- go(cond)
           wthn <- go(thn)
@@ -2630,6 +2644,7 @@ object Desugar {
     private val TYPE_PREFIX = "T"
     private val STRUCT_PREFIX = "X"
     private val INTERFACE_PREFIX = "Y"
+    private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
 
@@ -2738,6 +2753,8 @@ object Desugar {
         s"$INTERFACE_PREFIX$$$interfaceName"
       }
     }
+
+    def label(n: String): String = s"${n}_$LABEL_PREFIX"
   }
 }
 

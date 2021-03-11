@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, MethodSpec, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, Label, MethodImpl, MethodSpec, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -23,6 +23,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
 
     case POld(op) => isExpr(op).out ++ isPureExpr(op)
+
+    case PLabeledOld(l, op) =>
+      isExpr(op).out ++ isPureExpr(op) ++ (
+          label(l) match {
+            case _: Label => noMessages
+            case _ => error(l, s"$l is not a label in scope")
+          }
+        )
 
     case PConditional(cond, thn, els) =>
       // check whether all operands are actually expressions indeed
@@ -167,6 +175,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
+    case PLabeledOld(_, op) => exprType(op)
 
     case PConditional(_, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
@@ -311,7 +320,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
-      case _: POld => true
+      case _: POld | _: PLabeledOld => true
       case _: PForall => true
       case _: PExists => true
 

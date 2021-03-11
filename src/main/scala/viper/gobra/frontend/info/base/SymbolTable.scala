@@ -173,12 +173,6 @@ object SymbolTable extends Environments[Entity] {
     override def ghost: Boolean = false
   }
 
-  case class Label(decl: PLabeledStmt, context: ExternalTypeInfo) extends ActualRegular {
-    override def rep: PNode = decl
-    // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-    override def ghost: Boolean = false
-  }
-
   /**
     * Ghost
     */
@@ -245,4 +239,12 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
 
+
+
+
+  /**
+    * Label
+    */
+
+  case class Label(decl: PLabeledStmt, ghost: Boolean) extends Entity with Product
 }

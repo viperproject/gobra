@@ -14,7 +14,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -23,6 +23,7 @@ import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
+  with LabelResolution
   with MemberResolution
   with AmbiguityResolution
   with Enclosing

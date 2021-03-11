@@ -126,7 +126,7 @@ object OverflowChecksTransform extends InternalTransform {
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold
-            | _: SafeTypeAssertion | _: SafeReceive) => x
+            | _: SafeTypeAssertion | _: SafeReceive | _: Label) => x
   }
 
   private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =

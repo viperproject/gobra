@@ -182,7 +182,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
         showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
-      case PLabeledStmt(label, s) => showId(label) <> ":" <+> showStmt(s)
+      case PLabeledStmt(label, s) => label.name <> ":" <+> showStmt(s)
       case PEmptyStmt() => emptyDoc
       case PExpressionStmt(exp) => showExpr(exp)
       case PSendStmt(channel, msg) => showExpr(channel) <+> "<-" <+> showExpr(msg)
@@ -407,6 +407,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
+      case PLabeledOld(l, e) => "old" <> brackets(l.name) <> parens(showExpr(e))
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
       case PForall(vars, triggers, body) =>
         "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)

@@ -117,11 +117,11 @@ trait NameResolution { this: TypeInfoImpl =>
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
+  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
-  private[resolution] lazy val sequentialDefenv: Chain[Environment] =
+  private lazy val sequentialDefenv: Chain[Environment] =
     chain(defenvin, defenvout)
 
   private def initialEnv(n: PPackage): Vector[(String, Entity)] = {
@@ -224,6 +224,9 @@ trait NameResolution { this: TypeInfoImpl =>
     case tree.parent(tree.parent(c)) => enclosingScope(c).isInstanceOf[PUnorderedScope]
     case c => Violation.violation(s"Only the root has no parent, but got $c")
   }
+
+  /** returns whether or not identified `id` is defined at node `n`. */
+  def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
 
 
   /**

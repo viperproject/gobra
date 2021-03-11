@@ -217,6 +217,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
     case Block(decls, stmts) => "decl" <+> showBlockDeclList(decls) <> line <> showStmtList(stmts)
     case Seqn(stmts) => ssep(stmts map showStmt, line)
+    case Label(label) => showProxy(label)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
     case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
@@ -270,10 +271,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MethodProxy(name, _) => name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
+    case l: LabelProxy => l.name
   })
 
   def showBlockDecl(x: BlockDeclaration): Doc = x match {
     case localVar: LocalVar => showVar(localVar) <> ":" <+> showType(localVar.typ) <> showAddressability(localVar.typ.addressability)
+    case l: LabelProxy => showProxy(l)
   }
 
   def showAddressability(x: Addressability): Doc = x match {
@@ -346,7 +349,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showExpr(e: Expr): Doc = updatePositionStore(e) <> (e match {
     case Unfolding(acc, exp) => "unfolding" <+> showAss(acc) <+> "in" <+> showExpr(exp)
 
-    case Old(op, _) => "old(" <> showExpr(op) <> ")"
+    case Old(op, _) => "old" <> parens(showExpr(op))
+
+    case LabeledOld(label, operand) => "old" <> brackets(showProxy(label)) <> parens(showExpr(operand))
 
     case Conditional(cond, thn, els, _) => showExpr(cond) <> "?" <> showExpr(thn) <> ":" <> showExpr(els)
 
@@ -570,6 +575,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
   override def showStmt(s: Stmt): Doc = s match {
     case Block(decls, _) => "decl" <+> showBlockDeclList(decls)
     case Seqn(_) => emptyDoc
+    case Label(label) => showProxy(label)
     case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
     case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))

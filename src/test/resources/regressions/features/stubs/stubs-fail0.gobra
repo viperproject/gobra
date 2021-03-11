@@ -4,6 +4,6 @@
 package main
 
 import (
-    //:: ExpectedOutput(type_error)
+    //:: ExpectedOutput(parser_error)
     "nopackagewhatsoever"
 )

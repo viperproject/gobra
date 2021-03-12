@@ -815,7 +815,10 @@ object Parser {
       primaryExp ~ callArguments ^^ PInvoke
 
     lazy val callArguments: Parser[Vector[PExpression]] = {
-      val parseArg: Parser[PExpression] = expression ~ "...".? ^^ { case exp ~ unpack => if(unpack.isDefined) PUnpackSlice(exp) else exp }
+      val parseArg: Parser[PExpression] = expression ~ "...".? ^^ {
+        case exp ~ None => exp
+        case exp ~ Some(_) => PUnpackSlice(exp)
+      }
       ("(" ~> (rep1sep(parseArg, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
     }
 

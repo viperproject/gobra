@@ -19,7 +19,7 @@ object StrictAssignModi {
   def apply(left: Int, right: Int): AssignMode = {
     if (left > 0 && left == right) AssignMode.Single
     else if (left > right && right == 1) AssignMode.Multi
-    else if (0 < left && left - 1 <= right) AssignMode.Variadic // a variadic argument may not be passed
+    else if (0 < left && left - 1 <= right) AssignMode.Variadic // TODO: change comment: a variadic argument may not be passed
     else AssignMode.Error
   }
 

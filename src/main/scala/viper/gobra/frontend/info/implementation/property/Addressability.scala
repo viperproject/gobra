@@ -97,6 +97,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
       case _: PMake | _: PNew => AddrMod.make
+      case _: PUnpackSlice => AddrMod.rValue
     }
 
   def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {

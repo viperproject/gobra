@@ -576,9 +576,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-    case PUnpackSlice(elem) =>
-      val sliceElemType = exprType(elem).asInstanceOf[SliceT]
-      VariadicT(sliceElemType.elem)
+    case PUnpackSlice(exp) => exprType(exp) match {
+      case SliceT(elem) => VariadicT(elem)
+      case e => violation(s"expression $e cannot be unpacked")
+    }
 
     case e => violation(s"unexpected expression $e")
   }

@@ -1074,56 +1074,33 @@ object Desugar {
           case dargs => dargs
         }
 
-        /*
         variadicTypeOption match {
           case Some(variadicTyp) => for {
             res <- wRes
             variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
-            argList = if (res.length == parameterCount - 1) {
-              // variadic argument not passed
-              res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
-            } else if (res.length == parameterCount && res.last.typ.equalsWithoutMod(in.SliceT(variadicInTyp, Addressability.rValue))) {
-              // corresponds to the case where an unpacked slice is already passed as an argument
-              res
-            } else if(res.length == parameterCount && res.length == 1 && res(0).typ.isInstanceOf[in.TupleT]) {
-              // supports chaining function calls with variadic functions of one argument
-              // TODO: refactor, not clear
-              Vector(in.SliceLit(variadicInTyp,
-                res(0).asInstanceOf[in.Tuple].args.zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src))
-            } else {
-              // TODO: refactor
-              res.take(parameterCount-1) :+ in.SliceLit(variadicInTyp,
-                res.drop(parameterCount-1).zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src)
+            len = res.length
+            argList = res.lastOption.map(_.typ) match {
+              case Some(in.SliceT(elems, _)) if len == parameterCount && elems == variadicInTyp =>
+                // corresponds to the case where an unpacked slice is already passed as an argument
+                res
+              case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
+                // supports chaining function calls with variadic functions of one argument
+                // TODO: refactor, not clear
+                Vector(in.SliceLit(variadicInTyp,
+                  res(0).asInstanceOf[in.Tuple].args.zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src))
+              case _ if len >= parameterCount =>
+                // TODO: refactor
+                res.take(parameterCount-1) :+ in.SliceLit(variadicInTyp,
+                  res.drop(parameterCount-1).zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src)
+              case _ if len == parameterCount - 1 =>
+                // variadic argument not passed
+                res :+ in.NilLit(in.SliceT(variadicInTyp, Addressability.nil))(src)
+              case t => violation(s"this case should be unreachable, but got $t")
             }
           } yield argList
+
           case None => wRes
         }
-         */
-
-        // TODO: remove, replaced by above
-        for {
-          res <- wRes
-          adaptedRes = if (variadicTypeOption.isDefined) {
-            if (res.length == parameterCount - 1) {
-              // variadic arg not passed
-              res :+ in.NilLit(in.SliceT(typeD(variadicTypeOption.get, Addressability.sliceElement)(src), Addressability.nil))(src)
-              // TODO: refactor
-            } else if(res.length == parameterCount && res.lastOption.exists {
-              case x if x.typ.isInstanceOf[in.SliceT] => println("HERE WHY?"); x.typ.asInstanceOf[in.SliceT].elems.equalsWithoutMod(typeD(variadicTypeOption.get, Addressability.sliceElement)(src))
-              case _ => false
-            }){
-              res // corresponds to the case where an unpacked slice is already passed as an argument
-            } else if(res.length == parameterCount && res.length == 1 && res(0).typ.isInstanceOf[in.TupleT]) {
-              // supports chaining function calls with variadic functions of one argument
-              Vector(in.SliceLit(typeD(variadicTypeOption.get, Addressability.sliceElement)(src),
-                res(0).asInstanceOf[in.Tuple].args.zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src))
-            } else {
-              res.take(parameterCount-1) :+ in.SliceLit(typeD(variadicTypeOption.get, Addressability.sliceElement)(src),
-                res.drop(parameterCount-1).zipWithIndex.map(p => BigInt(p._2) -> p._1).toMap)(src)
-            }
-          } else res
-        } yield adaptedRes
-
       }
 
       // encode results

@@ -253,6 +253,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
+          case (VariadicT(_), IntT(_)) =>
+            noMessages
+
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
@@ -341,7 +344,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT => noMessages
+        case _: ArrayT | _: SliceT | StringT | _: VariadicT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -481,6 +484,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
+      case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")

@@ -73,6 +73,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (NilType, r) if isPointerType(r) => true
       case (VariadicT(t1), VariadicT(t2)) => assignableTo(t1, t2)
+      case (t1, VariadicT(t2)) => assignableTo(t1, t2)
 
         // for ghost types
       case (BooleanT, AssertionT) => true
@@ -94,6 +95,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case PIndexedExp(b, _) => exprType(b) match {
       case _: ArrayT => assignable(b)
       case _: SliceT => assignable(b)
+      case _: VariadicT => assignable(b)
       case _: MapT => true
       case _ => false
     }

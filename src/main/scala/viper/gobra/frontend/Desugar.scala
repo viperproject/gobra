@@ -1860,16 +1860,17 @@ object Desugar {
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
       Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
-      if (!registeredInterfaces.contains(dT.name)) {
+      if (!registeredInterfaces.contains(dT.name) && info == t.context.getTypeInfo) {
         registeredInterfaces += dT.name
 
         val itfT = dT.withAddressability(Addressability.Exclusive)
+        val xInfo = t.context.getTypeInfo
 
         t.decl.predSpec foreach { p =>
-          val src = meta(p, t.context.getTypeInfo)
-          val proxy = mpredicateProxyD(p, t.context.getTypeInfo)
+          val src = meta(p, xInfo)
+          val proxy = mpredicateProxyD(p, xInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
+          val argsWithSubs = p.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
           val (args, _) = argsWithSubs.unzip
 
           val mem = in.MPredicate(recv, proxy, args, None)(src)
@@ -1879,12 +1880,12 @@ object Desugar {
         }
 
         t.decl.methSpecs foreach { m =>
-          val src = meta(m, t.context.getTypeInfo)
-          val proxy = methodProxyD(m, t.context.getTypeInfo)
+          val src = meta(m, xInfo)
+          val proxy = methodProxyD(m, xInfo)
           val recv = implicitThisD(itfT)(src)
-          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,t.context.getTypeInfo) }
+          val argsWithSubs = m.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
           val (args, _) = argsWithSubs.unzip
-          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,t.context.getTypeInfo) }
+          val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = m.spec.pres map preconditionD(specCtx)
@@ -2093,13 +2094,13 @@ object Desugar {
       }
     }
 
-    def localVarContextFreeD(id: PIdnNode): in.LocalVar = {
-      require(info.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
+    def localVarContextFreeD(id: PIdnNode, context: TypeInfo = info): in.LocalVar = {
+      require(context.regular(id).isInstanceOf[st.Variable]) // TODO: add local check
 
-      val src: Meta = meta(id)
+      val src: Meta = meta(id, context)
 
-      val typ = typeD(info.typ(id), info.addressableVar(id))(meta(id))
-      in.LocalVar(idName(id), typ)(src)
+      val typ = typeD(context.typ(id), context.addressableVar(id))(meta(id, context))
+      in.LocalVar(idName(id, context), typ)(src)
     }
 
     def parameterAsLocalValVar(p: in.Parameter): in.LocalVar = {
@@ -2117,7 +2118,7 @@ object Desugar {
           noGhost match {
             case PNamedParameter(id, typ) =>
               val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.inParameter)(src))(src)
-              val local = Some(localAlias(localVarContextFreeD(id)))
+              val local = Some(localAlias(localVarContextFreeD(id, context)))
               (param, local)
 
             case PUnnamedParameter(typ) =>
@@ -2138,7 +2139,7 @@ object Desugar {
           noGhost match {
             case PNamedParameter(id, typ) =>
               val param = in.Parameter.Out(idName(id, context), typeD(context.symbType(typ), Addressability.outParameter)(src))(src)
-              val local = Some(localAlias(localVarContextFreeD(id)))
+              val local = Some(localAlias(localVarContextFreeD(id, context)))
               (param, local)
 
             case PUnnamedParameter(typ) =>

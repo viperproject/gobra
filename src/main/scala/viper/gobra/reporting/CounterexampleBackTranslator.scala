@@ -8,6 +8,8 @@ import viper.silver
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 import viper.silicon.reporting.{Converter,ExtractedModel,ExtractedModelEntry}
 import _root_.viper.silver.verifier.{Counterexample,Model}
+import java.nio.file.Path
+import org.bitbucket.inkytonik.kiama.util._
 
 trait CounterexampleConfig
 /**
@@ -34,39 +36,56 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		case CounterexampleConfigs.ReducedCounterexamples => reducedTranslation(_)
 		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
 	}
+
+	def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason = default.translate(reason)
+
 	def translate(error: silver.verifier.VerificationError): VerificationError ={
 		val ret : VerificationError = default.translate(error) // this is the error we return all we do is append the counterexample
 		//TODO: find all variable in scope of the Pnode of the error
+		val posMngr = parsedPackage.positions
 		val errinfo : Source.Verifier.Info= ret.info
-		val pnode =errinfo.pnode
-		printf(s"${pnode.getClass()}")
-		//assert(pnode.getClass() <: PExpression)// if not we are in big trouble...
-		//val errorPosition : SourcePosition= pnode.positions
-		val pos = errinfo.origin
+		val sourcepos :SourcePosition = errinfo.origin.pos
+		val file : Path =sourcepos.file
+		val linenr:Int = sourcepos.start.line
+		val colnr:Int = sourcepos.start.column
+		// TODO: resolve filneames properly there is an error in the absolute path implementation of the filepath...
+		//absolute filepath is incorrect...
+		val klarpos :Position = new Position(linenr,colnr,new FileSource(s"playground/${file.getFileName.toString()}"))
+		
+		
+		
+/* 		val pos = errinfo.origin
 		val node =errinfo.node
-		val vec =backtrack.errorT
+		//val vec =backtrack.errorT
 		//assert(node.isInstanceOf[PExpression])
 		//for lack of better methods we just have to reparse the file...
 		
 		//split the packages up... TODO: what is important?
-		val declarations =parsedPackage.declarations //or all?
-		val members = declarations.filter(_.isInstanceOf[PActualMember])
+		val pnode =errinfo.pnode
+		//or all? */
+		// maybe we need this?
+		/* val members = declarations.filter(_.isInstanceOf[PActualMember])
 		val allfunctions = declarations.filter(_.isInstanceOf[PFunctionDecl]).map(_.asInstanceOf[PFunctionDecl])
 		val functions_with_same_pre =allfunctions.filter(_.spec.posts.contains(pnode))//extracts all functions with spec as
 		val functions_with_same_post =allfunctions.filter(_.spec.pres.contains(pnode))//carefull this is not what we want... we want the context of the caller --> find caller =(
-		
-		//this only looks for first block asserttion assertions within if statements not covered TODO
+		//this only looks for first block asserttion //assertions within if statements not covered TODO
 		val functions_with_assertion =allfunctions.filter(x=> x.body match {case None => false;case Some((params,block))=> block.stmts.contains(pnode)})
-		//relevant_function =  functions_with_same_spec.apply(0)
-		//printf(s"$functions_with_same_pre%s",functions_with_same_pre.size)
-		printf(s"$functions_with_assertion%s",functions_with_assertion.size)
-		
+		*/
+		val declarations =parsedPackage.declarations 
+		val errorContext = posMngr.positions.findNodesContaining(declarations,klarpos)
+		if(errorContext.size==1){
+			//TODO what if we don't have a function?
+			relevant_function = errorContext.apply(0).asInstanceOf[PFunctionDecl]
+			printf(s"$relevant_function")
+		}else{
+			printf("no single function context...")
+		}
 		
 		//what is the meaning of this methods?
-		val methods : Vector[PMethodDecl]= declarations.filter(_.isInstanceOf[PMethodDecl]).map(_.asInstanceOf[PMethodDecl])
+/* 		val methods : Vector[PMethodDecl]= declarations.filter(_.isInstanceOf[PMethodDecl]).map(_.asInstanceOf[PMethodDecl])
 		val variables = members.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
 		val constatns = members.filter(_.isInstanceOf[PConstDecl]).map(_.asInstanceOf[PConstDecl])
-		
+		 */
 		//write the counterexamples
 		ret.counterexample = error.counterexample match {
 			case Some(example:SiliconMappedCounterexample) => Some(translator(example))
@@ -83,9 +102,9 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		}
 	}
 
-
-
-	def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason = default.translate(reason)
+	def extractVaraibles(function:PFunctionDecl):Vector[(PType,PIdnNode)] = {
+		Vector.empty
+	}
 
 	def mappedTranslation(counterexample:SiliconMappedCounterexample):Counterexample ={
 		val allinfo =counterexample.converter.modelAtLabel
@@ -103,17 +122,6 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 	def extendedTranslation(counterexample:Counterexample):Counterexample ={
 		counterexample
 	} 
-	/**
-	  * this method is supposed to reeturn the function in which the counterexamples is located
-	  *
-	  * @param functions
-	  * @param model
-	  */
-	def findFunction(functions:Vector[PFunctionDecl],model:ExtractedModel):PFunctionDecl={
-		val filterdunc = ((f:PFunctionDecl)=>model.entries.keySet.exists(x=>f.result.toString().contains(variableTranslateion(x))))
-		val havesame_params = functions.filter(filterdunc)
-		havesame_params.apply(0)
-	}
 	
 	def filterLabel(variable:String,label:String): Boolean ={
 		// this should be possible without this hack but how?

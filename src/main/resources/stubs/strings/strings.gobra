@@ -137,13 +137,12 @@ func FieldsFunc(s string, f func(rune) bool) []string
 // Join concatenates the elements of its first argument to create a single string. The separator
 // string sep is placed between elements in the resulting string.
 
-/* // (joao) makes silver crash with error "Contract might not be well-formed"
-requires forall i int :: 0 < i && i < len(elems) ==> acc(&elems[i], _)
+requires forall i int :: 0 <= i && i < len(elems) ==> acc(&elems[i], _)
 ensures len(elems) == 0 ==> res == ""
 ensures len(elems) == 1 ==> res == elems[0]
-ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
-pure */
-func Join(elems []string, sep string) (res string) /*{
+// (joao) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
+// ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+pure func Join(elems []string, sep string) (res string) /*{
 	switch len(elems) {
 	case 0:
 		return ""

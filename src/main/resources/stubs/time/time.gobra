@@ -41,7 +41,19 @@ const (
 )
 
 // String returns the English name of the month ("January", "February", ...).
-func (m Month) String() string
+ensures m == January ==> res == "January"
+ensures m == February ==> res == "February"
+ensures m == March ==> res == "March"
+ensures m == April ==> res == "April"
+ensures m == May ==> res == "May"
+ensures m == June ==> res == "June"
+ensures m == July ==> res == "July"
+ensures m == August ==> res == "August"
+ensures m == September ==> res == "September"
+ensures m == October ==> res == "October"
+ensures m == November ==> res == "November"
+ensures m == December ==> res == "December"
+func (m Month) String() (res string)
 
 // A Weekday specifies a day of the week (Sunday = 0, ...).
 type Weekday int
@@ -58,8 +70,15 @@ const (
 )
 
 // String returns the English name of the day ("Sunday", "Monday", ...).
-func (d Weekday) String() string 
 
+ensures d == Sunday ==> res == "Sunday"
+ensures d == Monday ==> res == "Monday"
+ensures d == Tuesday ==> res == "Tuesday"
+ensures d == Wednesday ==> res == "Wednesday"
+ensures d == Thursday ==> res == "Thursday"
+ensures d == Friday ==> res == "Friday"
+ensures d == Saturday ==> res == "Saturday"
+func (d Weekday) String() (res string)
 
 // IsZero reports whether t represents the zero time instant,
 // January 1, year 1, 00:00:00 UTC.

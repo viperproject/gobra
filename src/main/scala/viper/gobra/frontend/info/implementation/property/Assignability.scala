@@ -27,12 +27,24 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           (left, right) match {
               // TODO: simplify this case
             case (v, Vector(InternalTupleT(t))) if v.lastOption.exists(_.isInstanceOf[VariadicT]) =>
-              def correspondigTyp(idx: Int) = if(idx >= v.length-1) v.last.asInstanceOf[VariadicT].elem else v(idx)
-              propForall(t.zipWithIndex.map{case (e, i) => println(s"e: $e, typ: ${correspondigTyp(i)}"); (correspondigTyp(i), e)}, assignableTo)
+              def correspondigTyp(idx: Int) =
+                if (idx >= v.length-1) {
+                  v.last.asInstanceOf[VariadicT].elem
+                } else {
+                  v(idx)
+                }
+              propForall(t.zipWithIndex.map{ case (e, i) => (correspondigTyp(i), e) }, assignableTo)
             case _ => propForall(right.zip(left), assignableTo)
           }
         case AssignMode.Multi => right.head match {
-          case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
+          case Assign(InternalTupleT(ts)) =>
+            if(ts.size == left.size) {
+              propForall(ts.zip(left), assignableTo)
+            } else left.lastOption match {
+              case Some(VariadicT(elem)) if ts.size > left.size - 1 =>
+                propForall(ts.zipAll(left, UnknownType, elem), assignableTo)
+              case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
+            }
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
         case AssignMode.Variadic if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>

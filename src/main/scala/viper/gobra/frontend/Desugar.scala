@@ -1055,7 +1055,7 @@ object Desugar {
           // `BuiltInFunctionKind` has to be checked first since it implements `Symbolic` as well
           case f: ap.BuiltInFunctionKind => getBuiltInFuncType(f).args
           case base: ap.Symbolic => base.symb match {
-            case fsym: st.WithArguments => fsym.args.map(x => info.symbType(x.typ))
+            case fsym: st.WithArguments => fsym.args.map(fsym.context.typ(_))
             case c => Violation.violation(s"This case should be unreachable, but got $c")
           }
         }

@@ -1070,11 +1070,22 @@ object Parser {
     lazy val parameterList: Parser[Vector[PParameter]] =
       rep1sep(parameterDecl, ",") ^^ Vector.concat
 
-    lazy val parameterDecl: Parser[Vector[PParameter]] =
-      ghostParameter |
-      rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ { case ids ~ variadicAnnotation ~ t =>
-        ids map (id => PNamedParameter(id, if(variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy).at(id): PParameter)
-      } |  ("...".? ~ typ) ^^ { case variadicAnnotation ~ t => Vector(PUnnamedParameter(if(variadicAnnotation.isDefined) PVariadicType(t) else t).at(t)) }
+    lazy val parameterDecl: Parser[Vector[PParameter]] = {
+      val namedParam = rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ {
+        case ids ~ variadicAnnotation ~ t =>
+          ids map { id =>
+            val typ = if (variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy
+            PNamedParameter(id, typ).at(id)
+          }
+      }
+      val unnamedParam = ("...".? ~ typ) ^^ {
+        case variadicAnnotation ~ t =>
+          val typ = if (variadicAnnotation.isDefined) PVariadicType(t) else t
+          Vector(PUnnamedParameter(typ).at(t))
+      }
+
+      ghostParameter | namedParam | unnamedParam
+    }
 
 
     lazy val nestedIdnUse: PackratParser[PIdnUse] =

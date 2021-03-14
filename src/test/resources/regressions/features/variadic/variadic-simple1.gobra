@@ -20,8 +20,10 @@ func Set(a ...int) {
 }
 
 func test1() {
-	Set(1, 2, 3)
+	Print()
 	Print(1, 2, 3)
+
+	Set(1, 2, 3)
 
 	s := []int{1,2,3}
 	// a slice is correctly unpacked
@@ -61,6 +63,8 @@ func test3() {
 
 func SetGhost(ghost a ...int)
 func test4() {
+	SetGhost()
+
 	ghost v1 := []int{1, 2, 3}
 	SetGhost(v1...)
 

@@ -18,15 +18,3 @@ func test2() {
     //:: ExpectedOutput(precondition_error)
     SetFirst()
 }
-
-
-requires acc(&a[0])
-ensures acc(&a[0])
-func SetGhost(ghost a ...int) {
-    a[0] = 10
-}
-
-func test3() {
-	v := []int{1, 2, 3}
-	SetGhost(v...)
-}

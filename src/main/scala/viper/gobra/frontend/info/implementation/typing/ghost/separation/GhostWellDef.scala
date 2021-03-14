@@ -134,7 +134,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       args exists (x => !noGhostPropagationFromChildren(x))
     )
 
-    case PUnpackSlice(_) => noMessages // TODO: what to put here?
+    case PUnpackSlice(_) => noMessages
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

@@ -1072,15 +1072,15 @@ object Parser {
 
     lazy val parameterDecl: Parser[Vector[PParameter]] = {
       val namedParam = rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ {
-        case ids ~ variadicAnnotation ~ t =>
+        case ids ~ variadicOpt ~ t =>
           ids map { id =>
-            val typ = if (variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy
+            val typ = if (variadicOpt.isDefined) PVariadicType(t.copy) else t.copy
             PNamedParameter(id, typ).at(id)
           }
       }
       val unnamedParam = ("...".? ~ typ) ^^ {
-        case variadicAnnotation ~ t =>
-          val typ = if (variadicAnnotation.isDefined) PVariadicType(t) else t
+        case variadicOpt ~ t =>
+          val typ = if (variadicOpt.isDefined) PVariadicType(t) else t
           Vector(PUnnamedParameter(typ).at(t))
       }
 
@@ -1192,12 +1192,24 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold
 
-    lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ { case ids ~ variadicAnnotation ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id, if(variadicAnnotation.isDefined) PVariadicType(t.copy) else t.copy).at(id)).at(id): PParameter)
-      } | "ghost" ~> "...".? ~ typ ^^ {
-        case variadicAnnotation ~ t => Vector(PExplicitGhostParameter(PUnnamedParameter(if(variadicAnnotation.isDefined) PVariadicType(t) else t).at(t)).at(t))
-      }
+    lazy val ghostParameter: Parser[Vector[PParameter]] = {
+      val namedParam =
+        "ghost" ~> rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ {
+          case ids ~ variadicOpt ~ t => ids map { id =>
+            val typ = if (variadicOpt.isDefined) PVariadicType(t.copy) else t.copy
+            PExplicitGhostParameter(PNamedParameter(id, typ).at(id)).at(id)
+          }
+        }
+
+      val unnamedParam =
+        "ghost" ~> "...".? ~ typ ^^ {
+          case variadicOpt ~ t =>
+            val typ = if (variadicOpt.isDefined) PVariadicType(t) else t
+            Vector(PExplicitGhostParameter(PUnnamedParameter(typ).at(t)).at(t))
+        }
+
+      namedParam | unnamedParam
+    }
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
       forall |

@@ -100,7 +100,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         // conservative choice
       case _ => false
     }
-    case _ =>  false
+    case _ => false
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {

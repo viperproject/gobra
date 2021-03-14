@@ -40,7 +40,7 @@ trait GhostTyping extends GhostClassifier { this: TypeInfoImpl =>
 
         case AssignMode.Error if right.isEmpty => left.forall(ghostIdClassification)
 
-        case _ => Violation.violation("expected single or multi assignment mode")
+        case AssignMode.Error | AssignMode.Variadic => Violation.violation("expected single or multi assignment mode")
       }
 
     attr[PStatement, Boolean] {

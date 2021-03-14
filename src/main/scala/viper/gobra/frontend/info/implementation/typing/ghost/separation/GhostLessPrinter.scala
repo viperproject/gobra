@@ -147,7 +147,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
 
       case AssignMode.Error if right.isEmpty => handleMultiOrEmptyRhs
 
-      case _ => errorMsg
+      case AssignMode.Error | AssignMode.Variadic => errorMsg
     }
   }
 

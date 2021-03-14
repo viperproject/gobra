@@ -99,7 +99,7 @@ trait GhostAssignability {
           Violation.violation("assignment mismatch")
         }
 
-      case _ => Violation.violation("assignment mismatch")
+      case AssignMode.Error => Violation.violation("assignment mismatch")
     }
 
 

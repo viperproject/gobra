@@ -80,7 +80,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
 
   private def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
-    p: PParameter => error(p, s"Pure member cannot have variadic arguments, got $p instead", p.typ.isInstanceOf[PVariadicType])
+    p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
   }
 
   private def wellDefVariadicArgs(args: Vector[PParameter]): Messages =

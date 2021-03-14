@@ -24,34 +24,34 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (right, left) =>
       StrictAssignModi(left.size, right.size) match {
         case AssignMode.Single =>
-          (left, right) match {
-              // TODO: simplify this case
-            case (v, Vector(InternalTupleT(t))) if v.lastOption.exists(_.isInstanceOf[VariadicT]) =>
-              def correspondigTyp(idx: Int) =
-                if (idx >= v.length-1) {
-                  v.last.asInstanceOf[VariadicT].elem
-                } else {
-                  v(idx)
-                }
-              propForall(t.zipWithIndex.map{ case (e, i) => (correspondigTyp(i), e) }, assignableTo)
+          right match {
+            // To support Go's function chaining when a tuple with the results of a function call are passed to the
+            // only variadic argument of another function
+            case Vector(InternalTupleT(t)) if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>
+              multiAssignableTo.result(t, left)
             case _ => propForall(right.zip(left), assignableTo)
           }
         case AssignMode.Multi => right.head match {
-          case Assign(InternalTupleT(ts)) =>
-            if(ts.size == left.size) {
-              propForall(ts.zip(left), assignableTo)
-            } else left.lastOption match {
-              case Some(VariadicT(elem)) if ts.size > left.size - 1 =>
-                propForall(ts.zipAll(left, UnknownType, elem), assignableTo)
-              case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
-            }
+          case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
-        case AssignMode.Variadic if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>
-          val variadicTyp: Type = left.last.asInstanceOf[VariadicT].elem
-          propForall(right.zipAll(left.init, UnknownType, variadicTyp), assignableTo)
+        case AssignMode.Variadic => variadicAssignableTo.result(right, left)
 
-        case _ => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+        case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+      }
+  }
+
+  lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
+    case (right, left) =>
+      StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Variadic => left.lastOption match {
+          case Some(VariadicT(elem)) =>
+            val dummyFill = UnknownType
+            // left.init corresponds to the parameter list on the left except for teh variadic type
+            propForall(right.zipAll(left.init, dummyFill, elem), assignableTo)
+          case _ => failedProp(s"expected the last element of $left to be a variadic type")
+        }
+        case _ => failedProp(s"cannot assign $right to $left")
       }
   }
 

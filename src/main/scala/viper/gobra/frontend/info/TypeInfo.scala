@@ -26,7 +26,6 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def regular(n: PIdnNode): Regular
 
-  def variables(s: PScope): Vector[PIdnNode]
   def isDef(n: PIdnUnk): Boolean
 
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]

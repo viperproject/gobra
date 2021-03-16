@@ -717,16 +717,9 @@ object Desugar {
       stmt.map(stmtD(ctx)).getOrElse(unit(in.Seqn(Vector.empty)(src)))
 
     def blockD(ctx: FunctionContext)(block: PBlock): in.Stmt = {
-      val vars = info.variables(block) map localVarD(ctx)
-      val ssW = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
-      in.Block(vars ++ ssW.decls, ssW.stmts ++ ssW.res)(meta(block))
+      val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
+      blockV(dStatements)(meta(block))
     }
-
-    def halfScopeFinish(ctx: FunctionContext)(scope: PScope)(desugared: in.Stmt): in.Block = {
-      val decls = info.variables(scope) map localVarD(ctx)
-      in.Block(decls, Vector(desugared))(desugared.info)
-    }
-
 
     def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
 
@@ -736,11 +729,33 @@ object Desugar {
 
       val src: Meta = meta(stmt)
 
-      // Generates a fresh variable if `idn` is a wildcard or returns the variable
-      // associated with idn otherwise
-      def getVar(idn: PIdnNode)(t: in.Type): in.AssignableVar = idn match {
-        case _: PWildcard => freshExclusiveVar(t.withAddressability(Addressability.Exclusive))(src)
-        case x => assignableVarD(ctx)(x)
+      /**
+        * Desugars the left side of an assignment.
+        * If the argument is a variable use, Left is returned, containing the desugared variable.
+        * If the argument is a variable definition, Right is returned,
+        * containing the desugared variable and initialization code.
+        */
+      def leftOfAssignmentD(idn: PIdnNode)(t: in.Type): Writer[in.AssignableVar] = {
+        idn match {
+          case _: PIdnDef =>
+            val v = assignableVarD(ctx)(idn).asInstanceOf[in.LocalVar]
+            for {
+              _ <- declare(v)
+              _ <- write(in.Initialization(v)(src))
+            } yield v
+
+          case unk: PIdnUnk if info.isDef(unk) =>
+            val v = assignableVarD(ctx)(idn).asInstanceOf[in.LocalVar]
+            for {
+              _ <- declare(v)
+              _ <- write(in.Initialization(v)(src))
+            } yield v
+
+          case _: PWildcard =>
+            freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive))(src)
+
+          case x => unit(assignableVarD(ctx)(x))
+        }
       }
 
       stmt match {
@@ -759,34 +774,38 @@ object Desugar {
               s <- goS(l.stmt)
             } yield s
 
-          case s@ PIfStmt(ifs, els) =>
+          case PIfStmt(ifs, els) =>
             val elsStmt = maybeStmtD(ctx)(els)(src)
-            ifs.foldRight(elsStmt){
-              case (PIfClause(pre, cond, body), c) =>
-                for {
-                  dPre <- maybeStmtD(ctx)(pre)(src)
-                  dCond <- exprD(ctx)(cond)
-                  dBody = blockD(ctx)(body)
-                  els <- seqn(c)
-                } yield in.Seqn(Vector(dPre, in.If(dCond, dBody, els)(src)))(src)
-            }.map(halfScopeFinish(ctx)(s))
+            unit(block( // is a block because 'pre' might define new variables
+              ifs.foldRight(elsStmt){
+                case (PIfClause(pre, cond, body), c) =>
+                  for {
+                    dPre <- maybeStmtD(ctx)(pre)(src)
+                    dCond <- exprD(ctx)(cond)
+                    dBody = blockD(ctx)(body)
+                    els <- seqn(c)
+                  } yield in.Seqn(Vector(dPre, in.If(dCond, dBody, els)(src)))(src)
+              }
+            ))
 
-          case s@ PForStmt(pre, cond, post, spec, body) =>
-            for {
-              dPre <- maybeStmtD(ctx)(pre)(src)
-              (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
-              (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
-              dBody = blockD(ctx)(body)
-              dPost <- maybeStmtD(ctx)(post)(src)
+          case PForStmt(pre, cond, post, spec, body) =>
+            unit(block( // is a block because 'pre' might define new variables
+              for {
+                dPre <- maybeStmtD(ctx)(pre)(src)
+                (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
+                (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                dBody = blockD(ctx)(body)
+                dPost <- maybeStmtD(ctx)(post)(src)
 
-              wh = in.Seqn(
-                Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
-                  in.While(dCond, dInv, in.Seqn(
-                  Vector(dBody, dPost) ++ dCondPre ++ dInvPre
-                  )(src))(src)
-                )
-              )(src)
-            } yield halfScopeFinish(ctx)(s)(wh)
+                wh = in.Seqn(
+                  Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
+                    in.While(dCond, dInv, in.Seqn(
+                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre
+                    )(src))(src)
+                  )
+                )(src)
+              } yield wh
+            ))
 
           case PExpressionStmt(e) =>
             val w = goE(e)
@@ -830,55 +849,57 @@ object Desugar {
 
           case PShortVarDecl(right, left, _) =>
             if (left.size == right.size) {
-              sequence((left zip right).map{ case (l, r) =>
-                for{
+              seqn(sequence((left zip right).map{ case (l, r) =>
+                for {
                   re <- goE(r)
-                  le <- unit(in.Assignee.Var(getVar(l)(re.typ)))
-                  init = l match {
-                    case unk: PIdnUnk if info.isDef(unk) => Vector(in.Initialization(le.op)(src))
-                    case _ => Vector.empty
-                  }
-                } yield in.Seqn(init :+ singleAss(le, re)(src))(src)
-              }).map(in.Seqn(_)(src))
+                  dL <- leftOfAssignmentD(l)(re.typ)
+                  le = in.Assignee.Var(dL)
+                } yield singleAss(le, re)(src)
+              }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
-              for{
+              seqn(for {
                 re  <- goE(right.head)
-                les <-
-                  unit(left.map{l =>  in.Assignee.Var(getVar(l)(typeD(info.typ(l), Addressability.exclusiveVariable)(src)))})
-                inits = (left zip les) flatMap {
-                  case (unk: PIdnUnk, le) if info.isDef(unk) => Some(in.Initialization(le.op)(src))
-                  case _ => None
-                }
-              } yield in.Seqn(inits :+ multiassD(les, re)(src))(src)
+                les <- sequence(left.map{ l =>
+                  for {
+                    dL <- leftOfAssignmentD(l)(typeD(info.typ(l), Addressability.exclusiveVariable)(src))
+                  } yield in.Assignee.Var(dL)
+                })
+              } yield multiassD(les, re)(src))
             } else { violation("invalid assignment") }
 
           case PVarDecl(typOpt, right, left, _) =>
 
             if (left.size == right.size) {
-              sequence((left zip right).map{ case (l, r) =>
-                for{
+              seqn(sequence((left zip right).map{ case (l, r) =>
+                for {
                   re <- goE(r)
-                  typ: in.Type = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
-                  le <- unit(in.Assignee.Var(getVar(l)(typ)))
-                  init = in.Initialization(le.op)(src)
-                } yield in.Seqn(Vector(init, singleAss(le, re)(src)))(src)
-              }).map(in.Seqn(_)(src))
+                  typ = typOpt.map(x => typeD(info.symbType(x), Addressability.exclusiveVariable)(src)).getOrElse(re.typ)
+                  dL <- leftOfAssignmentD(l)(typ)
+                  le <- unit(in.Assignee.Var(dL))
+                } yield singleAss(le, re)(src)
+              }).map(in.Seqn(_)(src)))
             } else if (right.size == 1) {
-              for{
+              seqn(for {
                 re  <- goE(right.head)
-                les <- unit(left.map{l =>  in.Assignee.Var(getVar(l)(re.typ))})
-                inits = les.map(le => in.Initialization(le.op)(src))
-              } yield in.Seqn(inits :+ multiassD(les, re)(src))(src)
+                les <- sequence(left.map{l =>
+                  for {
+                    dL <- leftOfAssignmentD(l)(re.typ)
+                  } yield in.Assignee.Var(dL)
+                })
+              } yield multiassD(les, re)(src))
             } else if (right.isEmpty && typOpt.nonEmpty) {
               val typ = typeD(info.symbType(typOpt.get), Addressability.exclusiveVariable)(src)
-              val lelems = left.map{ l => in.Assignee.Var(getVar(l)(typ)) }
+              val lelems = sequence(left.map{ l =>
+                for {
+                  dL <- leftOfAssignmentD(l)(typ)
+                } yield in.Assignee.Var(dL)
+              })
               val relems = left.map{ l => in.DfltVal(typeD(info.symbType(typOpt.get), Addressability.defaultValue)(meta(l)))(meta(l)) }
-              unit(in.Seqn((lelems zip relems).flatMap{
-                case (l, r) => Vector(
-                  in.Initialization(l.op)(src),
-                  singleAss(l, r)(src)
-                )
-              })(src))
+              seqn(lelems.map{ lelemsV =>
+                in.Seqn((lelemsV zip relems).map{
+                  case (l, r) => singleAss(l, r)(src)
+                })(src)
+              })
             } else { violation("invalid declaration") }
 
           case PReturn(exps) =>
@@ -890,8 +911,7 @@ object Desugar {
             for {
               dPre <- maybeStmtD(ctx)(pre)(src)
               dExp <- exprD(ctx)(exp)
-              exprVar = freshExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable))(dExp.info)
-              _ <- declare(exprVar)
+              exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable))(dExp.info)
               exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
               _ <- write(exprAss)
               clauses <- sequence(cases.map(c => switchCaseD(c, exprVar)(ctx)))
@@ -990,7 +1010,7 @@ object Desugar {
           val successTarget = freshExclusiveVar(lefts(1).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           in.Block(
             Vector(resTarget, successTarget),
-            Vector(
+            Vector( // declare for the fresh variables is not necessary because they are put into a block
               in.SafeTypeAssertion(resTarget, successTarget, n.exp, n.arg)(n.info),
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
@@ -1006,7 +1026,7 @@ object Desugar {
           val closedProxy = mpredicateProxy(BuiltInMemberTag.ClosedMPredTag, n.channel.typ, Vector())(src)
           in.Block(
             Vector(resTarget, successTarget),
-            Vector(
+            Vector( // declare for the fresh variables is not necessary because they are put into a block
               in.SafeReceive(resTarget, successTarget, n.channel, recvChannelProxy, recvGivenPermProxy, recvGotPermProxy, closedProxy)(n.info),
               singleAss(lefts(0), resTarget)(src),
               singleAss(lefts(1), successTarget)(src)
@@ -1241,7 +1261,10 @@ object Desugar {
         case Some(p : ap.IndexedExp) =>
           indexedExprD(p.base, p.index)(ctx)(src) map in.Assignee.Index
         case Some(ap.BlankIdentifier(decl)) =>
-          for { expr <- exprD(ctx)(decl) } yield in.Assignee.Var(freshExclusiveVar(expr.typ)(src))
+          for {
+            expr <- exprD(ctx)(decl)
+            v <- freshDeclaredExclusiveVar(expr.typ)(src)
+          } yield in.Assignee.Var(v)
         case p => Violation.violation(s"unexpected ast pattern $p")
       }
     }
@@ -1317,8 +1340,7 @@ object Desugar {
             case c: PCompositeLit =>
               for {
                 c <- compositeLitD(ctx)(c)
-                v = freshExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
-                _ <- declare(v)
+                v <- freshDeclaredExclusiveVar(in.PointerT(c.typ.withAddressability(Addressability.Shared), Addressability.reference))(src)
                 _ <- write(in.New(v, c)(src))
               } yield v
 
@@ -1472,7 +1494,7 @@ object Desugar {
 
           case b: PBlankIdentifier =>
             val typ = typeD(info.typ(b), Addressability.exclusiveVariable)(src)
-            unit(freshExclusiveVar(typ)(src))
+            freshDeclaredExclusiveVar(typ)(src)
 
           case PReceive(op) =>
             for {
@@ -1487,10 +1509,9 @@ object Desugar {
 
             // the target arguments must be always exclusive, that is an invariant of the desugarer
             val resT = typeD(info.symbType(t), Addressability.Exclusive)(src)
-            val target = freshExclusiveVar(resT)(src)
 
             for {
-              _ <- declare(target)
+              target <- freshDeclaredExclusiveVar(resT)(src)
               argsD <- sequence(args map go)
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
@@ -1511,9 +1532,8 @@ object Desugar {
           case PNew(t) =>
             val allocatedType = typeD(info.symbType(t), Addressability.Exclusive)(src)
             val targetT = in.PointerT(allocatedType.withAddressability(Addressability.Shared), Addressability.reference)
-            val target = freshExclusiveVar(targetT)(src)
             for {
-              _ <- declare(target)
+              target <- freshDeclaredExclusiveVar(targetT)(src)
               zero = in.DfltVal(allocatedType)(src)
               _ <- write(in.New(target, zero)(src))
             } yield target
@@ -2068,6 +2088,12 @@ object Desugar {
     def freshExclusiveVar(typ: in.Type)(info: Source.Parser.Info): in.LocalVar = {
       require(typ.addressability == Addressability.exclusiveVariable)
       in.LocalVar(nm.fresh, typ)(info)
+    }
+
+    def freshDeclaredExclusiveVar(typ: in.Type)(info: Source.Parser.Info): Writer[in.LocalVar] = {
+      require(typ.addressability == Addressability.exclusiveVariable)
+      val res = in.LocalVar(nm.fresh, typ)(info)
+      declare(res).map(_ => res)
     }
 
     def localVarD(ctx: FunctionContext)(id: PIdnNode): in.LocalVar = {

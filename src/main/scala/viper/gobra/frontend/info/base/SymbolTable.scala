@@ -85,9 +85,8 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
-  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     require(exp.isDefined || opt.isDefined)
-    override def rep: PNode = exp.getOrElse(opt.get)
   }
   case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp

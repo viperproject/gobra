@@ -150,7 +150,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       entity(id) match {
         case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
 
-        case SingleLocalVariable(exp, _, _, _, _) => unsafeMessage(! {
+        case SingleLocalVariable(exp, _, _, _, _, _) => unsafeMessage(! {
           // exp has to be well-def if it exists (independently on the existence of opt) as we need it for ghost typing
           exp.forall(wellGhostSeparated.valid)
         })

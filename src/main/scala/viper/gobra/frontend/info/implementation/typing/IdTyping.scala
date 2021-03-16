@@ -61,7 +61,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         opt.exists(wellDefAndType.valid) || (wellDefAndExpr.valid(exp) && Single.unapply(exprType(exp)).nonEmpty)
       }) else cyclicMsg
 
-    case SingleLocalVariable(exp, opt, _, _, _) => unsafeMessage(! {
+    case SingleLocalVariable(exp, opt, _, _, _, _) => unsafeMessage(! {
       opt.exists(wellDefAndType.valid) || exp.exists(e => wellDefAndExpr.valid(e) && Single.unapply(exprType(e)).nonEmpty)
     })
 
@@ -148,7 +148,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case t => violation(s"expected single Type but got $t")
       })
 
-    case SingleLocalVariable(exp, opt, _, _, context) => opt.map(context.symbType)
+    case SingleLocalVariable(exp, opt, _, _, _, context) => opt.map(context.symbType)
       .getOrElse(context.typ(exp.get) match {
         case Single(t) => t
         case t => violation(s"expected single Type but got $t")

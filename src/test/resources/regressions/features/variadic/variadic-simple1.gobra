@@ -74,7 +74,6 @@ func test4() {
 
 func g(a ...interface{})
 func test5() {
-	// currently not working due to issue 236
-	// g([](interface{}){1, 2, 3})
-	// g(true, 1, []int{1, 2})
+	g([](interface{}){1, 2, 3})
+	g(true, 1, []int{1, 2})
 }

@@ -1074,6 +1074,11 @@ object Desugar {
           case dargs => dargs
         }
 
+        lazy val getArgsMap = (args: Vector[in.Expr], typ: in.Type) =>
+          args.zipWithIndex.map {
+            case (arg, index) => BigInt(index) -> implicitConversion(arg.typ, typ, arg)
+          }.toMap
+
         variadicTypeOption match {
           case Some(variadicTyp) => for {
             res <- wRes
@@ -1085,16 +1090,10 @@ object Desugar {
                 res
               case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
                 // supports chaining function calls with variadic functions of one argument
-                val argsMap: Map[BigInt, in.Expr] =
-                  res.last.asInstanceOf[in.Tuple].args.zipWithIndex.map {
-                    case (arg, index) => BigInt(index) -> arg
-                  }.toMap
+                val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
                 Vector(in.SliceLit(variadicInTyp, argsMap)(src))
               case _ if len >= parameterCount =>
-                val argsMap: Map[BigInt, in.Expr] =
-                  res.drop(parameterCount-1).zipWithIndex.map {
-                    case (arg, index) => BigInt(index) -> arg
-                  }.toMap
+                val argsMap = getArgsMap(res.drop(parameterCount-1), variadicInTyp)
                 res.take(parameterCount-1) :+ in.SliceLit(variadicInTyp, argsMap)(src)
               case _ if len == parameterCount - 1 =>
                 // variadic argument not passed

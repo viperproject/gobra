@@ -56,7 +56,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         val baseType = exprType(base)
         baseType match {
           case _: SliceT => AddrMod.sliceLookup
-          case _: VariadicT => AddrMod.sliceLookup
+          case _: VariadicT => AddrMod.variadicLookup
           case _: ArrayT => AddrMod.arrayLookup(addressability(base))
           case _: SequenceT => AddrMod.mathDataStructureLookup
           case _: MapT => AddrMod.mapLookup

@@ -361,7 +361,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // Others
       case PReceive(_) => false
 
-      case PUnpackSlice(s) => isPure(s)(strong) // may change in the future
+      case PUnpackSlice(s) => go(s)
 
       case PFullPerm() | PNoPerm() | PWildcardPerm() => true
     }

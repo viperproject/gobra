@@ -112,6 +112,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PReference
        | _: PBlankIdentifier
        | _: PPredConstructor
+       | _: PUnpackSlice
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
@@ -133,8 +134,6 @@ trait GhostWellDef { this: TypeInfoImpl =>
       "ghost error: make expressions may not contain ghost expressions",
       args exists (x => !noGhostPropagationFromChildren(x))
     )
-
-    case PUnpackSlice(_) => noMessages
   }
 
   private def typeGhostSeparation(typ: PType): Messages = typ match {

@@ -47,7 +47,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case AssignMode.Variadic => left.lastOption match {
           case Some(VariadicT(elem)) =>
             val dummyFill = UnknownType
-            // left.init corresponds to the parameter list on the left except for teh variadic type
+            // left.init corresponds to the parameter list on the left except for the variadic type
             propForall(right.zipAll(left.init, dummyFill, elem), assignableTo)
           case _ => failedProp(s"expected the last element of $left to be a variadic type")
         }

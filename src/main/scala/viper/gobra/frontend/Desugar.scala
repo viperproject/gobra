@@ -1717,10 +1717,11 @@ object Desugar {
     }
 
     def compositeValD(ctx : FunctionContext)(expr : PCompositeVal, typ : in.Type) : Writer[in.Expr] = {
-      expr match {
+      val e = expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
         case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
       }
+      e map { exp => implicitConversion(exp.typ, typ, exp) }
     }
 
     def literalValD(ctx: FunctionContext)(lit: PLiteralValue, t: in.Type): Writer[in.CompositeLit] = {

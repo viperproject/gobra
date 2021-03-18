@@ -129,11 +129,25 @@ func (ip IP) Mask(mask IPMask) IP
 func (ip IP) String() string
 
 // MarshalText implements the encoding.TextMarshaler interface.
-func (ip IP) MarshalText() ([]byte, error)
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (ip IP) MarshalText() (res []byte, error) /*{
+	if len(ip) == 0 {
+		return []byte(""), nil
+	}
+	if len(ip) != IPv4len && len(ip) != IPv6len {
+		return nil, &AddrError{Err: "invalid IP address", Addr: hexString(ip)}
+	}
+	return []byte(ip.String()), nil
+}*/
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 // The IP address is expected in a form accepted by ParseIP.
-func (ip *IP) UnmarshalText(text []byte) error 
+requires acc(ip)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(text) ==> acc(&text[i], p)
+ensures acc(ip)
+ensures forall i int :: 0 <= i && i < len(text) ==> acc(&text[i], p)
+func (ip *IP) UnmarshalText(text []byte, ghost p perm) error 
 
 // Equal reports whether ip and x are the same IP address.
 // An IPv4 address and that same address in IPv6 form are
@@ -158,10 +172,13 @@ func (m IPMask) Size() (ones, bits int)
 func (m IPMask) String() string 
 
 // Contains reports whether the network includes ip.
-func (n *IPNet) Contains(ip IP) bool
+requires p > 0
+requires acc(n, p)
+ensures p > 0
+func (n *IPNet) Contains(ip IP, ghost p perm) bool
 
 // Network returns the address's network name, "ip+net".
-func (n *IPNet) Network() string
+func (n *IPNet) Network() string { return "ip+net" }
 
 // String returns the CIDR notation of n like "192.0.2.0/24"
 // or "2001:db8::/48" as defined in RFC 4632 and RFC 4291.
@@ -176,4 +193,5 @@ func ParseIP(s string) IP
 // ParseCIDR parses s as a CIDR notation IP address and prefix length,
 // like "192.0.2.0/24" or "2001:db8::/32", as defined in
 // RFC 4632 and RFC 4291.
-func ParseCIDR(s string) (IP, *IPNet, error)
+ensures ipnet != nil ==> acc(ipnet)
+func ParseCIDR(s string) (IP, ipnet *IPNet, error)

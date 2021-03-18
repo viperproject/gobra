@@ -22,7 +22,10 @@ type NumError struct {
 	Err  error  // the reason the conversion failed (e.g. ErrRange, ErrSyntax, etc.)
 }
 
-func (e *NumError) Error() string /*{
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *NumError) Error(ghost p perm) string /*{
 	return "strconv." + e.Func + ": " + "parsing " + Quote(e.Num) + ": " + e.Err.Error()
 }*/
 

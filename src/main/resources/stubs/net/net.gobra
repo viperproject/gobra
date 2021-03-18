@@ -19,10 +19,15 @@ type Addr interface {
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn interface {
 	// Read reads data from the connection.
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 	Read(b []byte) (n int, err error)
 
 	// Write writes data to the connection.
-	Write(b []byte) (n int, err error)
+	requires p > 0
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	Write(b []byte, ghost p perm) (n int, err error)
 
 	// Close closes the connection.
 	// Any blocked Read or Write operations will be unblocked and return errors.
@@ -117,7 +122,10 @@ requires acc(&e.Err)
 ensures acc(&e.Err)
 func (e *OpError) Error() string 
 
-func (e *OpError) Timeout() bool /*{
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *OpError) Timeout(ghost p perm) bool /*{
 	if ne, ok := e.Err.(*os.SyscallError); ok {
 		t, ok := ne.Err.(timeout)
 		return ok && t.Timeout()
@@ -126,7 +134,10 @@ func (e *OpError) Timeout() bool /*{
 	return ok && t.Timeout()
 }*/
 
-func (e *OpError) Temporary() bool /*{
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *OpError) Temporary(ghost p perm) bool /*{
 	if e.Op == "accept" && isConnError(e.Err) {
 		return true
 	}
@@ -196,8 +207,8 @@ type DNSError struct {
 }
 
 requires p > 0
-requires acc(e, p)
-ensures acc(e, p)
+requires e != nil ==> acc(e, p)
+ensures e != nil ==> acc(e, p)
 func (e *DNSError) Error(ghost p perm) string {
 	if e == nil {
 		return "<nil>"

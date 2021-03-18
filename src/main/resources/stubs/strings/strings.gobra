@@ -103,19 +103,23 @@ func LastIndexByte(s string, c byte) int /*{
 
 // SplitN slices s into substrings separated by sep and returns a slice of
 // the substrings between those separators.
-func SplitN(s, sep string, n int) []string
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitN(s, sep string, n int) (res []string)
 
 // SplitAfterN slices s into substrings after each instance of sep and
 // returns a slice of those substrings.
-func SplitAfterN(s, sep string, n int) []string
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitAfterN(s, sep string, n int) (res []string)
 
 // Split slices s into all substrings separated by sep and returns a slice of
 // the substrings between those separators.
-func Split(s, sep string) []string //{ return genSplit(s, sep, 0, -1) }
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func Split(s, sep string) (res []string) //{ return genSplit(s, sep, 0, -1) }
 
 // SplitAfter slices s into all substrings after each instance of sep and
 // returns a slice of those substrings.
-func SplitAfter(s, sep string) []string /*{
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitAfter(s, sep string) (res []string) /*{
 	return genSplit(s, sep, len(sep), -1)
 }*/
 
@@ -124,7 +128,8 @@ func SplitAfter(s, sep string) []string /*{
 // Fields splits the string s around each instance of one or more consecutive white space
 // characters, as defined by unicode.IsSpace, returning a slice of substrings of s or an
 // empty slice if s contains only white space.
-func Fields(s string) []string
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func Fields(s string) (res []string)
 
 // FieldsFunc splits the string s at each run of Unicode code points c satisfying f(c)
 // and returns an array of slices of s. If all code points in s satisfy f(c) or the

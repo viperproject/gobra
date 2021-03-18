@@ -205,7 +205,8 @@ func (t Time) Local() Time /*{
 // In returns a copy of t representing the same time instant, but
 // with the copy's location information set to loc for display
 // purposes.
-requires loc != nil
+requires acc(loc)
+ensures acc(loc)
 func (t Time) In(loc *Location) Time
 
 // Location returns the time zone information associated with t.
@@ -229,25 +230,51 @@ func (t Time) UnixNano() int64
 func (t Time) MarshalBinary() ([]byte, error) 
 
 // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
-func (t *Time) UnmarshalBinary(data []byte) error
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalBinary(data []byte, ghost p perm) error
 
 // GobEncode implements the gob.GobEncoder interface.
-func (t Time) GobEncode() ([]byte, error)
+requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) GobEncode() (res []byte, error)
 
 // GobDecode implements the gob.GobDecoder interface.
-func (t *Time) GobDecode(data []byte) error
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) GobDecode(data []byte, ghost p perm) error
 
 // MarshalJSON implements the json.Marshaler interface.
-func (t Time) MarshalJSON() ([]byte, error)
+requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) MarshalJSON() (res []byte, error)
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-func (t *Time) UnmarshalJSON(data []byte) error
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalJSON(data []byte, ghost p perm) error
 
 // MarshalText implements the encoding.TextMarshaler interface.
-func (t Time) MarshalText() ([]byte, error)
+requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) MarshalText() (res []byte, error)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
-func (t *Time) UnmarshalText(data []byte) error
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalText(data []byte, ghost p perm) error
 
 // Unix returns the local Time corresponding to the given Unix time,
 // sec seconds and nsec nanoseconds since January 1, 1970 UTC.
@@ -255,9 +282,10 @@ func Unix(sec int64, nsec int64) Time
 
 // Date returns the Time corresponding to yyyy-mm-dd hh:mm:ss + nsec nanoseconds
 // in the appropriate zone for that time in the given location.
-requires acc(loc, 1/2) // TODO: add param p of type Perm and require it to be greater than 0
-ensures acc(loc, 1/2)
-func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) Time
+requires p > 0
+requires acc(loc, p)
+ensures acc(loc, p)
+func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location, ghost p perm) Time
 
 // Truncate returns the result of rounding t down to a multiple of d (since the zero time).
 func (t Time) Truncate(d Duration) Time

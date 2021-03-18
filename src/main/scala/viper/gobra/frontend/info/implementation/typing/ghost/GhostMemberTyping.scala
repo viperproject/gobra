@@ -53,9 +53,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
         nonVariadicArguments(member.args)
-    } else {
-      wellDefVariadicArgs(member.args)
-    }
+    } else noMessages
   }
 
   private def isSingleResultArg(member: PCodeRootWithResult): Messages = {
@@ -82,10 +80,4 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
   }
-
-  private def wellDefVariadicArgs(args: Vector[PParameter]): Messages =
-    args.dropRight(1).flatMap {
-      p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
-    }
-
 }

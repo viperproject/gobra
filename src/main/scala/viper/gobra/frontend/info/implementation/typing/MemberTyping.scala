@@ -6,15 +6,15 @@
 
 package viper.gobra.frontend.info.implementation.typing
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val wellDefMember: WellDefinedness[PMember] = createWellDef {
-    case member: PActualMember => wellDefActualMember(member)
-    case member: PGhostMember  => wellDefGhostMember(member)
+    case member: PActualMember => wellDefBothMember(member) ++ wellDefActualMember(member)
+    case member: PGhostMember  => wellDefBothMember(member) ++ wellDefGhostMember(member)
   }
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
@@ -27,4 +27,14 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       idenNumMsgs ++ constExprMsgs
     case s: PActualStatement => wellDefStmt(s).out
   }
+
+  private[typing] def wellDefBothMember(member: PMember): Messages = member match {
+    case m: PWithParam => wellDefVariadicArgs(m.args)
+    case _ => noMessages
+  }
+
+  private[typing] def wellDefVariadicArgs(args: Vector[PParameter]): Messages =
+    args.dropRight(1).flatMap {
+      p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
+    }
 }

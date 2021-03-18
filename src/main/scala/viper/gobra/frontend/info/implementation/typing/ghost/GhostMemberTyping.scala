@@ -36,9 +36,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         isSinglePureReturnExpr(member) ++
         isPurePostcondition(member.spec) ++
         nonVariadicArguments(member.args)
-    } else {
-      wellDefVariadicArgs(member.args)
-    }
+    } else noMessages
   }
 
   private[typing] def wellDefIfPureMethodImplementationProof(implProof: PMethodImplementationProof): Messages = {

@@ -1,0 +1,281 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/net/net.go
+
+package net
+
+import "time"
+
+// Addr represents a network end point address.
+type Addr interface {
+	Network() string
+	String() string
+}
+
+// Conn is a generic stream-oriented network connection.
+// Multiple goroutines may invoke methods on a Conn simultaneously.
+type Conn interface {
+	// Read reads data from the connection.
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+	Read(b []byte) (n int, err error)
+
+	// Write writes data to the connection.
+	requires p > 0
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	Write(b []byte, ghost p perm) (n int, err error)
+
+	// Close closes the connection.
+	// Any blocked Read or Write operations will be unblocked and return errors.
+	Close() error
+
+	// LocalAddr returns the local network address.
+	LocalAddr() Addr
+
+	// RemoteAddr returns the remote network address.
+	RemoteAddr() Addr
+
+	// SetDeadline sets the read and write deadlines associated
+	// with the connection.
+	SetDeadline(t time.Time) error
+
+	// SetReadDeadline sets the deadline for future Read calls
+	// and any currently-blocked Read call.
+	SetReadDeadline(t time.Time) error
+
+	// SetWriteDeadline sets the deadline for future Write calls
+	// and any currently-blocked Write call.
+	SetWriteDeadline(t time.Time) error
+}
+
+// PacketConn is a generic packet-oriented network connection.
+// Multiple goroutines may invoke methods on a PacketConn simultaneously.
+type PacketConn interface {
+	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+	ensures 0 <= n && n <= len(p)
+	ReadFrom(p []byte) (n int, addr Addr, err error)
+
+	requires permission > 0
+	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
+	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
+	WriteTo(p []byte, addr Addr, ghost permission perm) (n int, err error)
+
+	Close() error
+
+	LocalAddr() Addr
+
+	SetDeadline(t time.Time) error
+
+	SetReadDeadline(t time.Time) error
+
+	SetWriteDeadline(t time.Time) error
+}
+
+// A Listener is a generic network listener for stream-oriented protocols.
+// Multiple goroutines may invoke methods on a Listener simultaneously.
+type Listener interface {
+	// Accept waits for and returns the next connection to the listener.
+	Accept() (Conn, error)
+
+	// Close closes the listener.
+	// Any blocked Accept operations will be unblocked and return errors.
+	Close() error
+
+	// Addr returns the listener's network address.
+	// Addr() Addr // (joao): error, check issue 229
+}
+
+// An Error represents a network error.
+type Error interface {
+	// error // (joao) support for embeddings is buggy
+	Timeout() bool   // Is the error a timeout?
+	Temporary() bool // Is the error temporary?
+}
+
+// Various errors contained in OpError.
+// (joao): global variables and errors package not supported
+/*
+var (
+	ErrWriteToConnected = errors.New("use of WriteTo with pre-connected connection")
+)*/
+
+// OpError is the error type usually returned by functions in the net
+// package. It describes the operation, network type, and address of
+// an error.
+type OpError struct {
+	Op string
+	Net string
+	Source Addr
+	// Addr Addr // (joao): error, check issue 229
+	Err error
+}
+
+requires acc(&e.Err, _)
+pure func (e *OpError) Unwrap() error { return e.Err }
+
+requires acc(&e.Err)
+ensures acc(&e.Err)
+func (e *OpError) Error() string 
+
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *OpError) Timeout(ghost p perm) bool /*{
+	if ne, ok := e.Err.(*os.SyscallError); ok {
+		t, ok := ne.Err.(timeout)
+		return ok && t.Timeout()
+	}
+	t, ok := e.Err.(timeout)
+	return ok && t.Timeout()
+}*/
+
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *OpError) Temporary(ghost p perm) bool /*{
+	if e.Op == "accept" && isConnError(e.Err) {
+		return true
+	}
+
+	if ne, ok := e.Err.(*os.SyscallError); ok {
+		t, ok := ne.Err.(temporary)
+		return ok && t.Temporary()
+	}
+	t, ok := e.Err.(temporary)
+	return ok && t.Temporary()
+}*/
+
+// A ParseError is the error type of literal network address parsers.
+type ParseError struct {
+	Type string
+	Text string
+}
+
+requires acc(e)
+ensures acc(e)
+func (e *ParseError) Error() string
+
+type AddrError struct {
+	Err  string
+	Addr string
+}
+
+/*
+func (e *AddrError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	s := e.Err
+	if e.Addr != "" {
+		s = "address " + e.Addr + ": " + s
+	}
+	return s
+}*/
+
+ensures !res
+pure func (e *AddrError) Timeout() (res bool)   { return false }
+ensures !res
+pure func (e *AddrError) Temporary() (res bool) { return false }
+
+type UnknownNetworkError string
+
+func (e UnknownNetworkError) Error() string   // { return "unknown network " + string(e) }
+ensures !res
+pure func (e UnknownNetworkError) Timeout() (res bool)   { return false }
+ensures !res
+pure func (e UnknownNetworkError) Temporary() (res bool) { return false }
+
+type InvalidAddrError string
+
+// func (e InvalidAddrError) Error() string   { return string(e) }
+func (e InvalidAddrError) Timeout() (res bool)   { return false }
+func (e InvalidAddrError) Temporary() (res bool) { return false }
+
+// DNSError represents a DNS lookup error.
+type DNSError struct {
+	Err         string
+	Name        string
+	Server      string
+	IsTimeout   bool
+	IsTemporary bool
+	IsNotFound  bool
+}
+
+requires p > 0
+requires e != nil ==> acc(e, p)
+ensures e != nil ==> acc(e, p)
+func (e *DNSError) Error(ghost p perm) string {
+	if e == nil {
+		return "<nil>"
+	}
+	s := "lookup " + e.Name
+	if e.Server != "" {
+		s += " on " + e.Server
+	}
+	s += ": " + e.Err
+	return s
+}
+
+// Timeout reports whether the DNS lookup is known to have timed out.
+requires acc(&e.IsTimeout, _)
+ensures res == e.IsTimeout
+pure func (e *DNSError) Timeout() (res bool) { return e.IsTimeout }
+
+// Temporary reports whether the DNS error is known to be temporary.
+requires acc(&e.IsTimeout, _) && acc(&e.IsTemporary, _)
+ensures res == e.IsTimeout || e.IsTemporary
+pure func (e *DNSError) Temporary() (res bool) { return e.IsTimeout || e.IsTemporary }
+
+// Buffers contains zero or more runs of bytes to write.
+type Buffers [][]byte
+
+// TODO: add support for io.Writer
+/*
+func (v *Buffers) WriteTo(w io.Writer) (n int64, err error) {
+	if wv, ok := w.(buffersWriter); ok {
+		return wv.writeBuffers(v)
+	}
+	for _, b := range *v {
+		nb, err := w.Write(b)
+		n += int64(nb)
+		if err != nil {
+			v.consume(n)
+			return n, err
+		}
+	}
+	v.consume(n)
+	return n, nil
+}
+*/
+
+/*
+func (v *Buffers) Read(p []byte) (n int, err error) {
+	for len(p) > 0 && len(*v) > 0 {
+		n0 := copy(p, (*v)[0])
+		v.consume(int64(n0))
+		p = p[n0:]
+		n += n0
+	}
+	if len(*v) == 0 {
+		err = io.EOF
+	}
+	return
+}
+
+func (v *Buffers) consume(n int64) {
+	for len(*v) > 0 {
+		ln0 := int64(len((*v)[0]))
+		if ln0 > n {
+			(*v)[0] = (*v)[0][n:]
+			return
+		}
+		n -= ln0
+		*v = (*v)[1:]
+	}
+}
+*/

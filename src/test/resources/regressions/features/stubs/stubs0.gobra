@@ -1,0 +1,53 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// All packages are found
+import (
+	"encoding/binary"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Checks that files from package "encoding/binary" are correctly parsed
+func testEncodingBinary(e binary.LittleEndian) {
+	s := make([]byte, 2)
+	e.PutUint16(s, uint16(0))
+	assert e.String() == "LittleEndian"
+}
+
+// Checks that files from package "net" are correctly parsed
+// 1: file net/ip.gobra
+func testNet1(ip net.IP) {
+	s, e := ip.MarshalText() 
+}
+
+// 2: file net/net.gobra
+requires acc(opErr)
+func testNet2(opErr *net.OpError) error {
+	return opErr.Unwrap()
+}
+
+// Checks that files from package "strconv" are correctly parsed
+func testStrconv() {
+	i, _ := strconv.ParseUint("10", 10, 64)
+}
+
+// Checks that files from package "strings" are correctly parsed
+func testStrings(s string) bool {
+	return strings.HasPrefix(s, "test")
+}
+
+// Checks that files from package "time" are correctly parsed
+// 1: file time/time.gobra
+func testTime1(d time.Weekday) {
+	assert d == time.Wednesday ==> d.String() == "Wednesday"
+}
+
+// 2: file time/zoneinfo.gobra
+func testTime2(name string) (res *time.Location) {
+	return time.FixedZone(name, 0)
+}

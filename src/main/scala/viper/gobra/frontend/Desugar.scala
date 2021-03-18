@@ -338,16 +338,19 @@ object Desugar {
       case sc@st.SingleConstant(_, id, _, _, _, _) =>
         val src = meta(id)
         val gVar = globalConstD(sc)(src)
-        val intLit: in.Lit = gVar.typ match {
+        val lit: in.Lit = gVar.typ match {
           case in.BoolT(Addressability.Exclusive) =>
             val constValue = sc.context.boolConstantEvaluation(sc.exp)
             in.BoolLit(constValue.get)(src)
-          case in.IntT(Addressability.Exclusive, _) =>
+          case in.StringT(Addressability.Exclusive) =>
+            val constValue = sc.context.stringConstantEvaluation(sc.exp)
+            in.StringLit(constValue.get)(src)
+          case x if underlyingType(x).isInstanceOf[in.IntT] && x.addressability == Addressability.Exclusive =>
             val constValue = sc.context.intConstantEvaluation(sc.exp)
             in.IntLit(constValue.get)(src)
           case _ => ???
         }
-        Vector(in.GlobalConstDecl(gVar, intLit)(src))
+        Vector(in.GlobalConstDecl(gVar, lit)(src))
 
       // Constants defined with the blank identifier can be safely ignored as they
       // must be computable statically (and thus do not have side effects) and

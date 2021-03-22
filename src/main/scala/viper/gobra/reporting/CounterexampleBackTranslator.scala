@@ -48,13 +48,13 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		val sourcepos :SourcePosition = errinfo.origin.pos
 		val pnode = errinfo.pnode
 		val origin = errinfo.origin
-		val (file:Path , linenr:Int, colnr:Int) = SourcePosition.unapply(sourcepos) match {
+		val (shortName:Path , linenr:Int, colnr:Int) = SourcePosition.unapply(sourcepos) match {
 																						case Some((p,s,e))=>(p,s.line,s.column)
 																						case _ =>(sourcepos.file,0,0)
 																						}
 		//TODO: find out if this works with multiple files
 		printf(s"$inputfiles\n")
-		val absolutePath = inputfiles.filter(p=>p.endsWith(file)).apply(0)
+		val absolutePath = inputfiles.filter(p=>p.endsWith(shortName)).apply(0)
 		val klarpos :Position = new Position(linenr,colnr,new FileSource(s"${absolutePath.toString()}"))
 		
 

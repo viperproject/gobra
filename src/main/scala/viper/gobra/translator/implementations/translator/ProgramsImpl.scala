@@ -14,6 +14,7 @@ import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.util.Violation
+import viper.gobra.reporting.BackTranslator.VerificationBackTrackInfo
 import viper.silver.{ast => vpr}
 import viper.silver.ast.utility.AssumeRewriter
 
@@ -21,7 +22,7 @@ class ProgramsImpl extends Programs {
 
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
 
-  override def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task = {
+  override def translate(program: in.Program)(conf: TranslatorConfig): (vpr.Program, VerificationBackTrackInfo) = {
 
     val (pos, info, errT) = program.vprMeta
 
@@ -93,11 +94,9 @@ class ProgramsImpl extends Programs {
 //    val errors = progWithoutAssumes.checkTransitively
 //    if (errors.nonEmpty) Violation.violation(errors.toString)
 
-    val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
+     val backTrackInfo = VerificationBackTrackInfo(error.errorT, error.reasonT)
 
-    BackendVerifier.Task(
-      program = progWithoutAssumes,
-      backtrack = backTrackInfo
-    )
+
+   (progWithoutAssumes, backTrackInfo)
   }
 }

@@ -5,7 +5,8 @@
 // Copyright (c) 2011-2020 ETH Zurich.
 
 package viper.gobra.reporting
-import viper.gobra.ast.frontend.PositionManager
+import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.TypeInfo
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config,Parser}
 import viper.silver.{ast => vpr}
@@ -27,13 +28,15 @@ object BackTranslator {
   case class BackTrackInfo(
                             errorT: Seq[BackTranslator.ErrorTransformer],
                             reasonT: Seq[BackTranslator.ReasonTransformer],
-                            pom:PositionManager
+                            pom:PositionManager,
+                            typeInfo:TypeInfo
                           )
 
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
   type ReasonTransformer = PartialFunction[silver.verifier.ErrorReason, VerificationErrorReason]
 
-  def backTranslate(result: BackendVerifier.Result)(/* @unused */ config: Config): VerifierResult = result match {
+  def backTranslate(result: BackendVerifier.Result)(/* @unused */ config: Config): VerifierResult = 
+  result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
       val errorTranslator =  config.counterexample match {

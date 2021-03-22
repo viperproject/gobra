@@ -32,29 +32,23 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		case CounterexampleConfigs.ReducedCounterexamples => reducedTranslation(_)
 		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
 	}
+	var relevant_function :PFunctionDecl=null
+	//this adds counterexamples to the error of the default translation...
+	//the translate(reason) function is inherited by the DefaultErrorBackTranslator
 	override def translate(error: silver.verifier.VerificationError): VerificationError ={
-		val ret : VerificationError = super.translate(error) // this is the error we return all we do is append the counterexample
+		val ret : VerificationError = super.translate(error) 
 		//TODO: find all variable in scope of the Pnode of the error
-		val posMngr = backtrack.pom
-		val errinfo : Source.Verifier.Info= ret.info
-		val sourcepos :SourcePosition = errinfo.origin.pos
-		val pnode = errinfo.node // gobra internal node
-		val origin = errinfo.origin //???
-		val (shortName:Path , linenr:Int, colnr:Int) = SourcePosition.unapply(sourcepos) match {
-																						case Some((p,s,e))=>(p,s.line,s.column)
-																						case _ =>(sourcepos.file,0,0)
-																						}
-		//TODO: find out if this works with multiple files
-		//val absolutePath = inputfiles.filter(p=>p.endsWith(shortName)).apply(0)
-		/* val klarpos :Position = new Position(linenr,colnr,new FileSource(s"${absolutePath.toString()}"))
-		val errorContext = posMngr.positions.findNodesContaining(declarations,klarpos)
-		if(errorContext.size==1){
-			//TODO what if we don't have a function?
-			relevant_function = errorContext.apply(0).asInstanceOf[PFunctionDecl]
-			//printf(s"$relevant_function")
-		}else{
-			printf("no single function context...")
-		}
+		val posMngr :PositionManager= backtrack.pom
+		val typeinfo = backtrack.typeInfo
+		val errinfo : Source.Verifier.Info = ret.info
+		val errorigin = errinfo.origin
+		val node  = errinfo.node // gobra internal node
+		val pnode = errinfo.pnode
+		val sourcepos :SourcePosition = errorigin.pos //error position
+		val root=typeinfo.codeRoot(pnode)
+		val variables : Vector[PIdnNode] = typeinfo.variables(root)
+		printf(s"$variables")
+		/*
 		val constants = declarations.filter(_.isInstanceOf[PConstDecl]).map(_.asInstanceOf[PConstDecl])
 		val variables = declarations.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
 		val globals = (variables.flatMap(x => x.left.map(y=> (x.typ,y)))) ++ (constants.flatMap(x => x.left.map(y=> (x.typ,y))))

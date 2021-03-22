@@ -1,0 +1,424 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/strings/strings.go
+
+package strings
+
+import (
+	//"internal/bytealg"
+	// "unicode"
+	// "unicode/utf8"
+)
+
+// Count counts the number of non-overlapping instances of substr in s.
+// If substr is an empty string, Count returns 1 + the number of Unicode code points in s.
+func Count(s, substr string) int /*{
+	// special case
+	if len(substr) == 0 {
+		return utf8.RuneCountInString(s) + 1
+	}
+	if len(substr) == 1 {
+		return bytealg.CountString(s, substr[0])
+	}
+	n := 0
+	for {
+		i := Index(s, substr)
+		if i == -1 {
+			return n
+		}
+		n++
+		s = s[i+len(substr):]
+	}
+}*/
+
+// Contains reports whether substr is within s.
+func Contains(s, substr string) bool {
+	return Index(s, substr) >= 0
+}
+
+// ContainsAny reports whether any Unicode code points in chars are within s.
+func ContainsAny(s, chars string) bool {
+	return IndexAny(s, chars) >= 0
+}
+
+// ContainsRune reports whether the Unicode code point r is within s.
+func ContainsRune(s string, r rune) bool {
+	return IndexRune(s, r) >= 0
+}
+
+// LastIndex returns the index of the last instance of substr in s, or -1 if substr is not present in s.
+func LastIndex(s, substr string) int
+
+// IndexByte returns the index of the first instance of c in s, or -1 if c is not present in s.
+func IndexByte(s string, c byte) int /*{
+	return bytealg.IndexByteString(s, c)
+}
+*/
+
+// IndexRune returns the index of the first instance of the Unicode code point
+// r, or -1 if rune is not present in s.
+// If r is utf8.RuneError, it returns the first instance of any
+// invalid UTF-8 byte sequence.
+func IndexRune(s string, r rune) int /*{
+	switch {
+	case 0 <= r && r < utf8.RuneSelf:
+		return IndexByte(s, byte(r))
+	case r == utf8.RuneError:
+		for i, r := range s {
+			if r == utf8.RuneError {
+				return i
+			}
+		}
+		return -1
+	case !utf8.ValidRune(r):
+		return -1
+	default:
+		return Index(s, string(r))
+	}
+}
+*/
+
+// IndexAny returns the index of the first instance of any Unicode code point
+// from chars in s, or -1 if no Unicode code point from chars is present in s.
+func IndexAny(s, chars string) int
+
+// LastIndexAny returns the index of the last instance of any Unicode code
+// point from chars in s, or -1 if no Unicode code point from chars is
+// present in s.
+func LastIndexAny(s, chars string) int
+
+// LastIndexByte returns the index of the last instance of c in s, or -1 if c is not present in s.
+func LastIndexByte(s string, c byte) int /*{
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c { // (joao) no support for indexing a string
+			return i
+		}
+	}
+	return -1
+}
+*/
+
+// SplitN slices s into substrings separated by sep and returns a slice of
+// the substrings between those separators.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitN(s, sep string, n int) (res []string)
+
+// SplitAfterN slices s into substrings after each instance of sep and
+// returns a slice of those substrings.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitAfterN(s, sep string, n int) (res []string)
+
+// Split slices s into all substrings separated by sep and returns a slice of
+// the substrings between those separators.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func Split(s, sep string) (res []string) //{ return genSplit(s, sep, 0, -1) }
+
+// SplitAfter slices s into all substrings after each instance of sep and
+// returns a slice of those substrings.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func SplitAfter(s, sep string) (res []string) /*{
+	return genSplit(s, sep, len(sep), -1)
+}*/
+
+// var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}
+
+// Fields splits the string s around each instance of one or more consecutive white space
+// characters, as defined by unicode.IsSpace, returning a slice of substrings of s or an
+// empty slice if s contains only white space.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func Fields(s string) (res []string)
+
+// FieldsFunc splits the string s at each run of Unicode code points c satisfying f(c)
+// and returns an array of slices of s. If all code points in s satisfy f(c) or the
+// string is empty, an empty slice is returned.
+// (joao) no support for higher-order functions
+/*
+func FieldsFunc(s string, f func(rune) bool) []string 
+*/
+
+// Join concatenates the elements of its first argument to create a single string. The separator
+// string sep is placed between elements in the resulting string.
+
+requires forall i int :: 0 <= i && i < len(elems) ==> acc(&elems[i], _)
+ensures len(elems) == 0 ==> res == ""
+ensures len(elems) == 1 ==> res == elems[0]
+// (joao) Leads to precondition of call might not hold (permission to elems[i] might not suffice)
+// ensures len(elems) > 1 ==> res == elems[0] + sep + Join(elems[1:], sep)
+pure func Join(elems []string, sep string) (res string) /*{
+	switch len(elems) {
+	case 0:
+		return ""
+	case 1:
+		return elems[0]
+	}
+	n := len(sep) * (len(elems) - 1)
+	for i := 0; i < len(elems); i++ {
+		n += len(elems[i])
+	}
+
+	var b Builder
+	b.Grow(n)
+	b.WriteString(elems[0])
+	for _, s := range elems[1:] {
+		b.WriteString(sep)
+		b.WriteString(s)
+	}
+	return b.String()
+}
+*/
+
+// HasPrefix tests whether the string s begins with prefix.
+// (joao) no support for slicing a string
+func HasPrefix(s, prefix string) bool /*{
+	return len(s) >= len(prefix) && s[0:len(prefix)] == prefix
+}*/
+
+// HasSuffix tests whether the string s ends with suffix.
+// (joao) no support for slicing a string
+func HasSuffix(s, suffix string) bool /*{
+	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+*/
+
+// Map returns a copy of the string s with all its characters modified
+// according to the mapping function. If mapping returns a negative value, the character is
+// dropped from the string with no replacement.
+// (joao) no support for higher-order functions
+/*
+func Map(mapping func(rune) rune, s string) string 
+*/
+
+// Repeat returns a new string consisting of count copies of the string s.
+//
+// It panics if count is negative or if
+// the result of (len(s) * count) overflows.
+requires count >= 0
+ensures res == (count == 0? "" : s + Repeat(s, count - 1))
+pure func Repeat(s string, count int) (res string) /*{
+	if count == 0 {
+		return ""
+	}
+
+	// Since we cannot return an error on overflow,
+	// we should panic if the repeat will generate
+	// an overflow.
+	// See Issue golang.org/issue/16237
+	if count < 0 {
+		panic("strings: negative Repeat count")
+	} else if len(s)*count/count != len(s) {
+		panic("strings: Repeat count causes overflow")
+	}
+
+	n := len(s) * count
+	var b Builder
+	b.Grow(n)
+	b.WriteString(s)
+	for b.Len() < n {
+		if b.Len() <= n/2 {
+			b.WriteString(b.String())
+		} else {
+			b.WriteString(b.String()[:n-b.Len()])
+			break
+		}
+	}
+	return b.String()
+}
+*/
+
+// ToUpper returns s with all Unicode letters mapped to their upper case.
+func ToUpper(s string) string
+
+// ToLower returns s with all Unicode letters mapped to their lower case.
+func ToLower(s string) string
+
+// ToTitle returns a copy of the string s with all Unicode letters mapped to
+// their Unicode title case.
+func ToTitle(s string) string // { return Map(unicode.ToTitle, s) }
+
+// ToUpperSpecial returns a copy of the string s with all Unicode letters mapped to their
+// upper case using the case mapping specified by c.
+// (joao) No support for the unicode package yet
+/*
+func ToUpperSpecial(c unicode.SpecialCase, s string) string {
+	return Map(c.ToUpper, s)
+}
+*/
+
+// ToLowerSpecial returns a copy of the string s with all Unicode letters mapped to their
+// lower case using the case mapping specified by c.
+// (joao) No support for the unicode package yet
+/*
+func ToLowerSpecial(c unicode.SpecialCase, s string) string {
+	return Map(c.ToLower, s)
+}
+*/
+
+// ToTitleSpecial returns a copy of the string s with all Unicode letters mapped to their
+// Unicode title case, giving priority to the special casing rules.
+// (joao) No support for the unicode package yet
+/*
+func ToTitleSpecial(c unicode.SpecialCase, s string) string {
+	return Map(c.ToTitle, s)
+}
+*/
+
+// ToValidUTF8 returns a copy of the string s with each run of invalid UTF-8 byte sequences
+// replaced by the replacement string, which may be empty.
+func ToValidUTF8(s, replacement string) string
+
+// isSeparator reports whether the rune could mark a word boundary.
+func isSeparator(r rune) bool /*{
+	// ASCII alphanumerics and underscore are not separators
+	if r <= 0x7F {
+		switch {
+		case '0' <= r && r <= '9':
+			return false
+		case 'a' <= r && r <= 'z':
+			return false
+		case 'A' <= r && r <= 'Z':
+			return false
+		case r == '_':
+			return false
+		}
+		return true
+	}
+	// Letters and digits are not separators
+	if unicode.IsLetter(r) || unicode.IsDigit(r) {
+		return false
+	}
+	// Otherwise, all we can do for now is treat spaces as separators.
+	return unicode.IsSpace(r)
+}
+*/
+
+// Title returns a copy of the string s with all Unicode letters that begin words
+// mapped to their Unicode title case.
+func Title(s string) string 
+
+// TrimLeftFunc returns a slice of the string s with all leading
+// Unicode code points c satisfying f(c) removed.
+// (joao) no support for higher-order functions
+/*
+func TrimLeftFunc(s string, f func(rune) bool) string {
+	i := indexFunc(s, f, false)
+	if i == -1 {
+		return ""
+	}
+	return s[i:]
+}
+*/
+
+// TrimRightFunc returns a slice of the string s with all trailing
+// Unicode code points c satisfying f(c) removed.
+// (joao) no support for higher-order functions
+/*
+func TrimRightFunc(s string, f func(rune) bool) string {
+	i := lastIndexFunc(s, f, false)
+	if i >= 0 && s[i] >= utf8.RuneSelf {
+		_, wid := utf8.DecodeRuneInString(s[i:])
+		i += wid
+	} else {
+		i++
+	}
+	return s[0:i]
+}
+
+// TrimFunc returns a slice of the string s with all leading
+// and trailing Unicode code points c satisfying f(c) removed.
+func TrimFunc(s string, f func(rune) bool) string {
+	// (joao) no support for higher-order functions
+	return TrimRightFunc(TrimLeftFunc(s, f), f)
+}
+
+// IndexFunc returns the index into s of the first Unicode
+// code point satisfying f(c), or -1 if none do.
+func IndexFunc(s string, f func(rune) bool) int {
+	// (joao) no support for higher-order functions
+	return indexFunc(s, f, true)
+}
+
+// LastIndexFunc returns the index into s of the last
+// Unicode code point satisfying f(c), or -1 if none do.
+func LastIndexFunc(s string, f func(rune) bool) int {
+	// (joao) no support for higher-order functions
+	return lastIndexFunc(s, f, true)
+}
+*/
+
+// Trim returns a slice of the string s with all leading and
+// trailing Unicode code points contained in cutset removed.
+func Trim(s, cutset string) string /*{
+	if s == "" || cutset == "" {
+		return s
+	}
+	return TrimFunc(s, makeCutsetFunc(cutset))
+}
+*/
+
+// TrimLeft returns a slice of the string s with all leading
+// Unicode code points contained in cutset removed.
+//
+// To remove a prefix, use TrimPrefix instead.
+func TrimLeft(s, cutset string) string /*{
+	if s == "" || cutset == "" {
+		return s
+	}
+	return TrimLeftFunc(s, makeCutsetFunc(cutset))
+}
+*/
+
+// TrimRight returns a slice of the string s, with all trailing
+// Unicode code points contained in cutset removed.
+//
+// To remove a suffix, use TrimSuffix instead.
+func TrimRight(s, cutset string) string /*{
+	if s == "" || cutset == "" {
+		return s
+	}
+	return TrimRightFunc(s, makeCutsetFunc(cutset))
+}
+*/
+
+// TrimSpace returns a slice of the string s, with all leading
+// and trailing white space removed, as defined by Unicode.
+func TrimSpace(s string) string
+
+// TrimPrefix returns s without the provided leading prefix string.
+// If s doesn't start with prefix, s is returned unchanged.
+func TrimPrefix(s, prefix string) string /*{
+	if HasPrefix(s, prefix) {
+		return s[len(prefix):]
+	}
+	return s
+}
+*/
+
+// TrimSuffix returns s without the provided trailing suffix string.
+// If s doesn't end with suffix, s is returned unchanged.
+func TrimSuffix(s, suffix string) string /*{
+	if HasSuffix(s, suffix) {
+		return s[:len(s)-len(suffix)] // (joao): slicing a string is still unsupported
+	}
+	return s
+}*/
+
+// Replace returns a copy of the string s with the first n
+// non-overlapping instances of old replaced by new.
+func Replace(s, oldS, newS string, n int) string 
+
+// ReplaceAll returns a copy of the string s with all
+// non-overlapping instances of old replaced by new.
+func ReplaceAll(s, oldS, newS string) string {
+	return Replace(s, oldS, newS, -1)
+}
+
+// EqualFold reports whether s and t, interpreted as UTF-8 strings,
+// are equal under Unicode case-folding, which is a more general
+// form of case-insensitivity.
+func EqualFold(s, t string) bool
+
+// Index returns the index of the first instance of substr in s, or -1 if substr is not present in s.
+func Index(s, substr string) int

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bug
+
+func test1() {
+	s := [](interface{}){1, true, []int{1,2,3}}
+}
+
+func test2() {
+	s := seq[interface{}]{1, true, []int{1,2,3}}
+}
+
+func test3() {
+	s := set[interface{}]{1, true, []int{1,2,3}}
+}
+
+func test4() {
+	s := mset[interface{}]{1, true, []int{1,2,3}}
+}

@@ -1,0 +1,54 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/time/zoneinfo.go
+
+package time
+
+type Location struct {
+	name string
+	// zone []zone // (joao) Leads to cycle in kiama
+	tx   []zoneTrans
+	extend string
+	cacheStart int64
+	cacheEnd   int64
+	cacheZone  *zone
+}
+
+type zone struct {
+	name   string
+	offset int
+	isDST  bool
+}
+
+type zoneTrans struct {
+	when         int64
+	index        uint8
+	isstd, isutc bool
+}
+
+// No support for global variables
+// var UTC *Location = &utcLoc
+// var Local *Location = &localLoc
+
+// TODO: Transitively requires synchronization through the call to get, uses Once in the actual code
+// pure func (l *Location) String() string {
+// 	return l.get().name
+//}
+
+ensures acc(res)
+func FixedZone(name string, offset int) (res *Location) /*{
+	l := &Location{
+		name:       name,
+		zone:       []zone{{name, offset, false}},
+		tx:         []zoneTrans{{alpha, 0, false, false}},
+		cacheStart: alpha,
+		cacheEnd:   omega,
+	}
+	l.cacheZone = (&l.zone)[0]
+	return l
+}*/
+
+func LoadLocation(name string) (*Location, error) 

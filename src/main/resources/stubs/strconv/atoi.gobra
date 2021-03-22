@@ -1,0 +1,49 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/strconv/atoi.go
+
+package strconv
+
+// import "errors" //(joao) stub errors package still not implemented
+
+// ErrRange indicates that a value is out of range for the target type.
+// var ErrRange = errors.New("value out of range") // (joao): no support for global vars and for the errors package
+
+// ErrSyntax indicates that a value does not have the right syntax for the target type.
+// var ErrSyntax = errors.New("invalid syntax") // (joao): no support for global vars and for the errors package
+
+// A NumError records a failed conversion.
+type NumError struct {
+	Func string // the failing function (ParseBool, ParseInt, ParseUint, ParseFloat, ParseComplex)
+	Num  string // the input
+	Err  error  // the reason the conversion failed (e.g. ErrRange, ErrSyntax, etc.)
+}
+
+requires p > 0
+requires acc(e, p)
+ensures acc(e, p)
+func (e *NumError) Error(ghost p perm) string /*{
+	return "strconv." + e.Func + ": " + "parsing " + Quote(e.Num) + ": " + e.Err.Error()
+}*/
+
+
+requires acc(e, _)
+pure func (e *NumError) Unwrap() error { return e.Err }
+
+// const intSize = 32 << (^uint(0) >> 63)
+
+// IntSize is the size in bits of an int or uint value.
+// const IntSize = intSize
+
+// ParseUint is like ParseInt but for unsigned numbers.
+func ParseUint(s string, base int, bitSize int) (uint64, error)
+
+// ParseInt interprets a string s in the given base (0, 2 to 36) and
+// bit size (0 to 64) and returns the corresponding value i.
+func ParseInt(s string, base int, bitSize int) (i int64, err error) 
+
+// Atoi is equivalent to ParseInt(s, 10, 0), converted to type int.
+func Atoi(s string) (int, error) 

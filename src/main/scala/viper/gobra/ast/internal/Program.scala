@@ -860,7 +860,7 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // translation to the internal language.
     case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
     case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
-
+    case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 
   }

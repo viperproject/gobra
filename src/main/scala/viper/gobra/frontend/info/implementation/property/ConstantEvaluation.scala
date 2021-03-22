@@ -96,4 +96,17 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
       case _ => None
     }
+
+  lazy val stringConstantEval: PExpression => Option[String] = {
+    attr[PExpression, Option[String]] {
+      case PStringLit(lit) => Some(lit)
+
+      case PAdd(l,r) => for {
+        lStr <- stringConstantEval(l)
+        rStr <- stringConstantEval(r)
+      } yield lStr + rStr
+
+      case _ => None
+    }
+  }
 }

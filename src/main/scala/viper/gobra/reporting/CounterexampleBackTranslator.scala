@@ -16,7 +16,6 @@ trait CounterexampleConfig
 /**
   * simple counterexample distinction
   */
-
 object CounterexampleConfigs{
 	object MappedCounterexamples extends CounterexampleConfig
 	object NativeCounterexamples extends CounterexampleConfig
@@ -26,39 +25,28 @@ object CounterexampleConfigs{
 
 class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 										info:CounterexampleConfig=CounterexampleConfigs.MappedCounterexamples,
-										parsedPackage:PPackage,
-										inputfiles:Vector[Path]
-									)extends BackTranslator.ErrorBackTranslator{
-	val default = new DefaultErrorBackTranslator(backtrack)
-	var relevant_function: PFunctionDecl =null
-	//moved logic fom config to translator
+									)extends DefaultErrorBackTranslator(backtrack){
 	val translator : ((SiliconMappedCounterexample)=>Counterexample) = info match {
 		case CounterexampleConfigs.MappedCounterexamples => mappedTranslation(_)
 		case CounterexampleConfigs.NativeCounterexamples => nativeTranslation(_)
 		case CounterexampleConfigs.ReducedCounterexamples => reducedTranslation(_)
 		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
 	}
-	def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason = default.translate(reason)
-
-	def translate(error: silver.verifier.VerificationError): VerificationError ={
-		val ret : VerificationError = default.translate(error) // this is the error we return all we do is append the counterexample
+	override def translate(error: silver.verifier.VerificationError): VerificationError ={
+		val ret : VerificationError = super.translate(error) // this is the error we return all we do is append the counterexample
 		//TODO: find all variable in scope of the Pnode of the error
-		val posMngr = parsedPackage.positions
+		val posMngr = backtrack.pom
 		val errinfo : Source.Verifier.Info= ret.info
 		val sourcepos :SourcePosition = errinfo.origin.pos
-		val pnode = errinfo.pnode
-		val origin = errinfo.origin
+		val pnode = errinfo.node // gobra internal node
+		val origin = errinfo.origin //???
 		val (shortName:Path , linenr:Int, colnr:Int) = SourcePosition.unapply(sourcepos) match {
 																						case Some((p,s,e))=>(p,s.line,s.column)
 																						case _ =>(sourcepos.file,0,0)
 																						}
 		//TODO: find out if this works with multiple files
-		printf(s"$inputfiles\n")
-		val absolutePath = inputfiles.filter(p=>p.endsWith(shortName)).apply(0)
-		val klarpos :Position = new Position(linenr,colnr,new FileSource(s"${absolutePath.toString()}"))
-		
-
-		val declarations =parsedPackage.declarations 
+		//val absolutePath = inputfiles.filter(p=>p.endsWith(shortName)).apply(0)
+		/* val klarpos :Position = new Position(linenr,colnr,new FileSource(s"${absolutePath.toString()}"))
 		val errorContext = posMngr.positions.findNodesContaining(declarations,klarpos)
 		if(errorContext.size==1){
 			//TODO what if we don't have a function?
@@ -72,7 +60,7 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		val globals = (variables.flatMap(x => x.left.map(y=> (x.typ,y)))) ++ (constants.flatMap(x => x.left.map(y=> (x.typ,y))))
 		val funcvars = extractVaraibles(relevant_function)
 		
-		funcvars.map(x=>printf(s"${x._1},${x._2}\n"))
+		funcvars.map(x=>printf(s"${x._1},${x._2}\n")) */
 		//what is the meaning of this methods?
 /* 		val methods : Vector[PMethodDecl]= declarations.filter(_.isInstanceOf[PMethodDecl]).map(_.asInstanceOf[PMethodDecl])
 		val variables = members.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
@@ -111,7 +99,7 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		val allinfo =counterexample.converter.modelAtLabel
 																//filter to get rid of redundant info 		//mapping to make it more readable
 		val map = allinfo.map(x=>(x._1,ExtractedModel(x._2.entries.filter(y=>filterLabel(y._1,x._1)).map(x=>(variableTranslateion(x._1),valueTranslation(x._2))))))
-		new GobraCounterexample(map,counterexample.model,relevant_function.id.toString())
+		new GobraCounterexample(map,counterexample.model)
 	}
 
 	def nativeTranslation(counterexample:Counterexample):Counterexample ={
@@ -142,7 +130,7 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 
 }
 
-case class GobraCounterexample(labelModels:Map[String,ExtractedModel],nativeModel:Model,functionid:String) extends Counterexample {
+case class GobraCounterexample(labelModels:Map[String,ExtractedModel],nativeModel:Model) extends Counterexample {
 	val model = nativeModel
 
 	override lazy val toString: String = {

@@ -37,13 +37,9 @@ object BackTranslator {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
       val errorTranslator =  config.counterexample match {
-                  case Some(info) => val inputPaths = config.inputFiles.map(x=>Paths.get(x.getAbsolutePath))
-                                    Parser.parse(inputPaths)(config) match{//we have to reparse the file... but only once
-			                                case Left(_) => new DefaultErrorBackTranslator(backtrack) //if there is a parsin failure at this step there is nothing we can do...
-			                              case Right(b) => new CounterexampleBackTranslator(backtrack,info,b,inputPaths)}
+                  case Some(info) => new CounterexampleBackTranslator(backtrack,info)
                   case None => new DefaultErrorBackTranslator(backtrack)
-
-    }
+                                                        } 
       VerifierResult.Failure(errors map  errorTranslator.translate)
   }
 

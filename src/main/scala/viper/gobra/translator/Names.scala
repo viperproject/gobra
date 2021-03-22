@@ -10,7 +10,6 @@ import viper.silver.{ast => vpr}
 
 object Names {
   def returnLabel: String = "returnLabel"
-  def labeledVar(base: String, label: String): String = s"${base}_${label}L"
 
   private var freshCounter = 0
   def freshName: String = {

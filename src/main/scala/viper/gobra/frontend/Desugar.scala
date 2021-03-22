@@ -733,31 +733,29 @@ object Desugar {
       val src: Meta = meta(stmt)
 
       /**
-        * Desugars the left side of an assignment.
-        * If the argument is a variable use, Left is returned, containing the desugared variable.
-        * If the argument is a variable definition, Right is returned,
-        * containing the desugared variable and initialization code.
+        * Desugars the left side of an assignment, short variable declaration, and normal variable declaration.
+        * If the left side is an identifier definition, a variable declaration and initialization is written, as well.
         */
       def leftOfAssignmentD(idn: PIdnNode)(t: in.Type): Writer[in.AssignableVar] = {
+        val isDef = idn match {
+          case _: PIdnDef => true
+          case unk: PIdnUnk if info.isDef(unk) => true
+          case _ => false
+        }
+
         idn match {
-          case _: PIdnDef =>
-            val v = assignableVarD(ctx)(idn).asInstanceOf[in.LocalVar]
-            for {
-              _ <- declare(v)
-              _ <- write(in.Initialization(v)(src))
-            } yield v
-
-          case unk: PIdnUnk if info.isDef(unk) =>
-            val v = assignableVarD(ctx)(idn).asInstanceOf[in.LocalVar]
-            for {
-              _ <- declare(v)
-              _ <- write(in.Initialization(v)(src))
-            } yield v
-
           case _: PWildcard =>
             freshDeclaredExclusiveVar(t.withAddressability(Addressability.Exclusive))(src)
 
-          case x => unit(assignableVarD(ctx)(x))
+          case _ =>
+            val x = assignableVarD(ctx)(idn)
+            if (isDef) {
+              val v = x.asInstanceOf[in.LocalVar]
+              for {
+                _ <- declare(v)
+                _ <- write(in.Initialization(v)(src))
+              } yield v
+            } else unit(x)
         }
       }
 

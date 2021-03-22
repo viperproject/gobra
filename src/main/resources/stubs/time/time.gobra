@@ -238,7 +238,6 @@ ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 func (t *Time) UnmarshalBinary(data []byte, ghost p perm) error
 
 // GobEncode implements the gob.GobEncoder interface.
-requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func (t Time) GobEncode() (res []byte, error)
 
@@ -251,7 +250,6 @@ ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 func (t *Time) GobDecode(data []byte, ghost p perm) error
 
 // MarshalJSON implements the json.Marshaler interface.
-requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func (t Time) MarshalJSON() (res []byte, error)
 
@@ -264,7 +262,6 @@ ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
 func (t *Time) UnmarshalJSON(data []byte, ghost p perm) error
 
 // MarshalText implements the encoding.TextMarshaler interface.
-requires forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func (t Time) MarshalText() (res []byte, error)
 

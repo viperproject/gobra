@@ -7,8 +7,9 @@ import viper.silicon.interfaces.SiliconMappedCounterexample
 import viper.silver
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 import viper.silicon.reporting.{Converter,ExtractedModel,ExtractedModelEntry}
+//import viper.gobra.internal.utility.Nodes
 import _root_.viper.silver.verifier.{Counterexample,Model}
-import java.nio.file.Path
+import java.nio.file.{Path,Paths}
 import org.bitbucket.inkytonik.kiama.util._
 
 trait CounterexampleConfig
@@ -25,7 +26,8 @@ object CounterexampleConfigs{
 
 class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 										info:CounterexampleConfig=CounterexampleConfigs.MappedCounterexamples,
-										parsedPackage:PPackage
+										parsedPackage:PPackage,
+										inputfiles:Vector[Path]
 									)extends BackTranslator.ErrorBackTranslator{
 	val default = new DefaultErrorBackTranslator(backtrack)
 	var relevant_function: PFunctionDecl =null
@@ -36,7 +38,6 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		case CounterexampleConfigs.ReducedCounterexamples => reducedTranslation(_)
 		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
 	}
-
 	def translate(reason: silver.verifier.ErrorReason): VerificationErrorReason = default.translate(reason)
 
 	def translate(error: silver.verifier.VerificationError): VerificationError ={
@@ -45,42 +46,33 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		val posMngr = parsedPackage.positions
 		val errinfo : Source.Verifier.Info= ret.info
 		val sourcepos :SourcePosition = errinfo.origin.pos
-		val file : Path =sourcepos.file
-		val linenr:Int = sourcepos.start.line
-		val colnr:Int = sourcepos.start.column
-		// TODO: resolve filneames properly there is an error in the absolute path implementation of the filepath...
-		//absolute filepath is incorrect...
-		val klarpos :Position = new Position(linenr,colnr,new FileSource(s"playground/${file.getFileName.toString()}"))
+		val pnode = errinfo.pnode
+		val origin = errinfo.origin
+		val (file:Path , linenr:Int, colnr:Int) = SourcePosition.unapply(sourcepos) match {
+																						case Some((p,s,e))=>(p,s.line,s.column)
+																						case _ =>(sourcepos.file,0,0)
+																						}
+		//TODO: find out if this works with multiple files
+		printf(s"$inputfiles\n")
+		val absolutePath = inputfiles.filter(p=>p.endsWith(file)).apply(0)
+		val klarpos :Position = new Position(linenr,colnr,new FileSource(s"${absolutePath.toString()}"))
 		
-		
-		
-/* 		val pos = errinfo.origin
-		val node =errinfo.node
-		//val vec =backtrack.errorT
-		//assert(node.isInstanceOf[PExpression])
-		//for lack of better methods we just have to reparse the file...
-		
-		//split the packages up... TODO: what is important?
-		val pnode =errinfo.pnode
-		//or all? */
-		// maybe we need this?
-		/* val members = declarations.filter(_.isInstanceOf[PActualMember])
-		val allfunctions = declarations.filter(_.isInstanceOf[PFunctionDecl]).map(_.asInstanceOf[PFunctionDecl])
-		val functions_with_same_pre =allfunctions.filter(_.spec.posts.contains(pnode))//extracts all functions with spec as
-		val functions_with_same_post =allfunctions.filter(_.spec.pres.contains(pnode))//carefull this is not what we want... we want the context of the caller --> find caller =(
-		//this only looks for first block asserttion //assertions within if statements not covered TODO
-		val functions_with_assertion =allfunctions.filter(x=> x.body match {case None => false;case Some((params,block))=> block.stmts.contains(pnode)})
-		*/
+
 		val declarations =parsedPackage.declarations 
 		val errorContext = posMngr.positions.findNodesContaining(declarations,klarpos)
 		if(errorContext.size==1){
 			//TODO what if we don't have a function?
 			relevant_function = errorContext.apply(0).asInstanceOf[PFunctionDecl]
-			printf(s"$relevant_function")
+			//printf(s"$relevant_function")
 		}else{
 			printf("no single function context...")
 		}
+		val constants = declarations.filter(_.isInstanceOf[PConstDecl]).map(_.asInstanceOf[PConstDecl])
+		val variables = declarations.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
+		val globals = (variables.flatMap(x => x.left.map(y=> (x.typ,y)))) ++ (constants.flatMap(x => x.left.map(y=> (x.typ,y))))
+		val funcvars = extractVaraibles(relevant_function)
 		
+		funcvars.map(x=>printf(s"${x._1},${x._2}\n"))
 		//what is the meaning of this methods?
 /* 		val methods : Vector[PMethodDecl]= declarations.filter(_.isInstanceOf[PMethodDecl]).map(_.asInstanceOf[PMethodDecl])
 		val variables = members.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
@@ -103,16 +95,25 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 	}
 
 	def extractVaraibles(function:PFunctionDecl):Vector[(PType,PIdnNode)] = {
-		Vector.empty
+		val args = function.args.map(x=>(x.typ,x.asInstanceOf[PNamedParameter].id)) ++ function.result.outs.map(x=>(x.typ,x.asInstanceOf[PNamedParameter].id))
+
+		val locals =(function.body match {
+			case Some((params,block)) => params.shareableParameters.map(x=>(get_global_var_types(x),x)) /* ++ Nodes.subnodes(block).filter(_.isInstanceOf[]) */
+			case None => Vector.empty
+		})
+		args ++ locals
+	}
+	def get_global_var_types(id:PIdnNode):PType={
+		new PIntType()
 	}
 
 	def mappedTranslation(counterexample:SiliconMappedCounterexample):Counterexample ={
 		val allinfo =counterexample.converter.modelAtLabel
-			//filter to get rid of redundant info 		//mapping to make it more readable
+																//filter to get rid of redundant info 		//mapping to make it more readable
 		val map = allinfo.map(x=>(x._1,ExtractedModel(x._2.entries.filter(y=>filterLabel(y._1,x._1)).map(x=>(variableTranslateion(x._1),valueTranslation(x._2))))))
-
-		new GobraCounterexample(map,counterexample.model)
+		new GobraCounterexample(map,counterexample.model,relevant_function.id.toString())
 	}
+
 	def nativeTranslation(counterexample:Counterexample):Counterexample ={
 		counterexample
 	} 
@@ -141,13 +142,13 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 
 }
 
-case class GobraCounterexample(labelModels:Map[String,ExtractedModel],nativeModel:Model) extends Counterexample {
+case class GobraCounterexample(labelModels:Map[String,ExtractedModel],nativeModel:Model,functionid:String) extends Counterexample {
 	val model = nativeModel
 
 	override lazy val toString: String = {
-    labelModels 	//label     model (ExtracredModel[String,ExtractedEntry])
+		labelModels 	//label     model (ExtracredModel[String,ExtractedEntry])
       .map(x => s"${(x._1)}:\n${x._2.toString}\n")
-      .mkString("\n")
+      .mkString("\n") 
     //s"$buf\non return: \n${converter.extractedModel.toString}"
   }
 }

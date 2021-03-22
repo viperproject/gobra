@@ -9,6 +9,7 @@ import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.{Config,Parser}
 import viper.silver.{ast => vpr}
 import viper.silver
+import java.nio.file.{Path,Paths}
 
 import scala.annotation.unused
 
@@ -31,9 +32,10 @@ object BackTranslator {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
       val errorTranslator =  config.counterexample match {
-                  case Some(info) => Parser.parse(config.inputFiles.map(_.toPath))(config) match{//we have to reparse the file... but only once
+                  case Some(info) => val inputPaths = config.inputFiles.map(x=>Paths.get(x.getAbsolutePath))
+                                    Parser.parse(inputPaths)(config) match{//we have to reparse the file... but only once
 			                                case Left(_) => new DefaultErrorBackTranslator(backtrack) //if there is a parsin failure at this step there is nothing we can do...
-			                              case Right(b) => new CounterexampleBackTranslator(backtrack,info,b)}
+			                              case Right(b) => new CounterexampleBackTranslator(backtrack,info,b,inputPaths)}
                   case None => new DefaultErrorBackTranslator(backtrack)
 
     }

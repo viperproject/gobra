@@ -53,6 +53,7 @@ case class Config(
       reporter = reporter,
       backend = backend,
       z3Exe = z3Exe orElse other.z3Exe,
+      boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
       shouldParse = shouldParse,

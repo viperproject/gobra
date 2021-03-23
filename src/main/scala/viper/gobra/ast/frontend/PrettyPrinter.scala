@@ -378,6 +378,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         showExpr(base) <> brackets(lowP <> highP <> capP)
       }
 
+      case PUnpackSlice(exp) => showExpr(exp) <> "..."
+
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
       case PEquals(left, right) => showSubExprOrType(expr, left) <+> "==" <+> showSubExprOrType(expr, right)
       case PUnequals(left, right) => showSubExprOrType(expr, left) <+> "!=" <+> showSubExprOrType(expr, right)
@@ -510,6 +512,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUIntPtr() => "uintptr"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
+    case PVariadicType(elem) => "..." <> showType(elem)
     case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
     case PDeref(base) => "*" <> showExprOrType(base)
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)

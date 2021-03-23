@@ -112,6 +112,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PReference
        | _: PBlankIdentifier
        | _: PPredConstructor
+       | _: PUnpackSlice
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.

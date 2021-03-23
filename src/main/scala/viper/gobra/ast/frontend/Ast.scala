@@ -425,6 +425,8 @@ case class PCapacity(exp : PExpression) extends PActualExpression with PNumExpre
   */
 case class PSliceExp(base: PExpression, low: Option[PExpression] = None, high: Option[PExpression] = None, cap: Option[PExpression] = None) extends PActualExpression
 
+case class PUnpackSlice(elem: PExpression) extends PActualExpression
+
 case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpression
 
 case class PReceive(operand: PExpression) extends PUnaryExp
@@ -548,6 +550,8 @@ case class PArrayType(len: PExpression, elem: PType) extends PTypeLit with PLite
 case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
+
+case class PVariadicType(elem: PType) extends PTypeLit with PLiteralType
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
 

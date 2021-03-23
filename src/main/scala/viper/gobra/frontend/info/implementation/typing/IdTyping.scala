@@ -214,7 +214,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
         case t: InternalTupleT => t.ts(pos)
         case _ => violation("return type of multi-assignment should be an InternalTupleT")
       }
-      case AssignMode.Error => violation("ill formed assignment")
+      case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")
     }
   }
 

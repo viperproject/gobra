@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
-import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -56,6 +56,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         val baseType = exprType(base)
         baseType match {
           case _: SliceT => AddrMod.sliceLookup
+          case _: VariadicT => AddrMod.variadicLookup
           case _: ArrayT => AddrMod.arrayLookup(addressability(base))
           case _: SequenceT => AddrMod.mathDataStructureLookup
           case _: MapT => AddrMod.mapLookup
@@ -96,6 +97,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
       case _: PMake | _: PNew => AddrMod.make
+      case _: PUnpackSlice => AddrMod.rValue
     }
 
   def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {

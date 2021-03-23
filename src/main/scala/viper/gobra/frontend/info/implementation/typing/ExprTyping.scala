@@ -253,6 +253,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SliceT(_), IntT(_)) =>
             noMessages
 
+          case (VariadicT(_), IntT(_)) =>
+            noMessages
+
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
@@ -341,7 +344,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT => noMessages
+        case _: ArrayT | _: SliceT | StringT | _: VariadicT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -378,6 +381,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case PBlankIdentifier() => noMessages
+
+    case PUnpackSlice(elem) => error(expr, "only slices can be unpacked", !exprType(elem).isInstanceOf[SliceT])
 
     case p@PPredConstructor(base, _) => {
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
@@ -479,6 +484,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
+      case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
@@ -570,6 +576,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
+    case PUnpackSlice(exp) => exprType(exp) match {
+      case SliceT(elem) => VariadicT(elem)
+      case e => violation(s"expression $e cannot be unpacked")
+    }
+
     case e => violation(s"unexpected expression $e")
   }
 
@@ -638,7 +649,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               val index = args.indexWhere(_.eq(expr))
               violation(index >= 0, errorMessage)
               typOfExprOrType(n.base) match {
-                case FunctionT(fArgs, _) => fArgs.lift(index)
+                case FunctionT(fArgs, _) =>
+                  if (index >= fArgs.length-1 && fArgs.lastOption.exists(_.isInstanceOf[VariadicT])) {
+                    fArgs.lastOption.map(_.asInstanceOf[VariadicT].elem)
+                  } else {
+                    fArgs.lift(index)
+                  }
                 case _: AbstractType =>
                   /* the abstract type cannot be resolved without creating a loop in kiama because we need to know the
                      types of all arguments in order to resolve it and we need to resolve it in order to find the type

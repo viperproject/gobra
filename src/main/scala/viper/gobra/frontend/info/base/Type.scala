@@ -42,6 +42,8 @@ object Type {
 
   case class SliceT(elem: Type) extends Type
 
+  case class VariadicT(elem: Type) extends Type
+
   case class OptionT(elem : Type) extends Type
 
   case class MapT(key: Type, elem: Type) extends Type

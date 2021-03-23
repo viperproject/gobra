@@ -119,10 +119,6 @@ sealed trait PWithBody extends PNode {
   def body: Option[(PBodyParameterInfo, PBlock)]
 }
 
-sealed trait PWithParam extends PNode {
-  def args: Vector[PParameter]
-}
-
 sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
@@ -143,7 +139,7 @@ case class PFunctionDecl(
                           result: PResult,
                           spec: PFunctionSpec,
                           body: Option[(PBodyParameterInfo, PBlock)]
-                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PWithParam with PGhostifiableMember
+                        ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 case class PMethodDecl(
                         id: PIdnDef,
@@ -152,7 +148,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PWithParam with PGhostifiableMember
+                      ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 

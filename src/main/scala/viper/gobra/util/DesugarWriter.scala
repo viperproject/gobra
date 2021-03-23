@@ -6,6 +6,7 @@
 
 package viper.gobra.util
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
 
 class DesugarWriter {
 
@@ -25,8 +26,19 @@ class DesugarWriter {
   def write(xs: in.Stmt*): Writer[Unit] = Writer(xs.toVector, Vector.empty, ())
   def declare(xs: in.BlockDeclaration*): Writer[Unit] = Writer(Vector.empty, xs.toVector, ())
 
-  def seqn(w: Writer[in.Stmt]): Writer[in.Stmt] =
-    create(Vector.empty, w.decls, in.Seqn(w.stmts :+ w.res)(w.res.info))
+  def seqn(w: Writer[in.Stmt]): Writer[in.Stmt] = {
+    if (w.stmts.isEmpty) w // do not create in.Seqn if not necessary
+    else create(Vector.empty, w.decls, in.Seqn(w.stmts :+ w.res)(w.res.info))
+  }
+
+  def block(w: Writer[in.Stmt]): in.Stmt = {
+    if (w.decls.isEmpty && w.stmts.isEmpty) w.res // do not create in.Block if not necessary
+    else in.Block(w.decls, w.stmts :+ w.res)(w.res.info)
+  }
+
+  def blockV(w: Writer[Vector[in.Stmt]])(info: Source.Parser.Info): in.Stmt = {
+    in.Block(w.decls, w.stmts ++ w.res)(info)
+  }
 
   def prelude[R](w: Writer[R]): Writer[(Vector[in.Stmt], R)] =
     create(Vector.empty, w.decls, (w.stmts, w.res))

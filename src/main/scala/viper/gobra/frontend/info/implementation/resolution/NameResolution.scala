@@ -47,9 +47,9 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, isGhost, decl.addressable(idx), this)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), decl.typ, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
-            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, isGhost, decl.addressable(idx), this)
+            case _ if decl.right.isEmpty => SingleLocalVariable(None, decl.typ, decl, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
 
@@ -93,7 +93,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val idx = decl.left.zipWithIndex.find(_._1 == id).get._2
 
           StrictAssignModi(decl.left.size, decl.right.size) match {
-            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, isGhost, decl.addressable(idx), this)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.right(idx)), None, decl, isGhost, decl.addressable(idx), this)
             case AssignMode.Multi => MultiLocalVariable(idx, decl.right.head, isGhost, decl.addressable(idx), this)
             case _ => UnknownEntity()
           }
@@ -107,7 +107,7 @@ trait NameResolution { this: TypeInfoImpl =>
           val len = decl.shorts.size
 
           StrictAssignModi(len, 1) match { // TODO: check if selection variables are addressable in Go
-            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, isGhost, addressable = false, this)
+            case AssignMode.Single => SingleLocalVariable(Some(decl.recv), None, decl, isGhost, addressable = false, this)
             case AssignMode.Multi  => MultiLocalVariable(idx, decl.recv, isGhost, addressable = false, this)
             case _ => UnknownEntity()
           }
@@ -117,11 +117,11 @@ trait NameResolution { this: TypeInfoImpl =>
       case _ => violation("PIdnUnk always has a parent")
     }
 
-  private lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
+  private[resolution] lazy val isGhostDef: PNode => Boolean = isEnclosingExplicitGhost
 
   private[resolution] def serialize(id: PIdnNode): String = id.name
 
-  private[resolution] lazy val sequentialDefenv: Chain[Environment] =
+  private lazy val sequentialDefenv: Chain[Environment] =
     chain(defenvin, defenvout)
 
   private def initialEnv(n: PPackage): Vector[(String, Entity)] = {
@@ -224,6 +224,9 @@ trait NameResolution { this: TypeInfoImpl =>
     case tree.parent(tree.parent(c)) => enclosingScope(c).isInstanceOf[PUnorderedScope]
     case c => Violation.violation(s"Only the root has no parent, but got $c")
   }
+
+  /** returns whether or not identified `id` is defined at node `n`. */
+  def isDefinedAt(id: PIdnNode, n: PNode): Boolean = isDefinedInScope(sequentialDefenv.in(n), serialize(id))
 
 
   /**

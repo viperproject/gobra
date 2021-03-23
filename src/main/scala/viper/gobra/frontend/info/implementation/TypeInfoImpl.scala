@@ -8,13 +8,12 @@ package viper.gobra.frontend.info.implementation
 
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
-import org.bitbucket.inkytonik.kiama.util.Position
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
 import viper.gobra.frontend.info.implementation.property._
-import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, MemberPath, MemberResolution, NameResolution}
+import viper.gobra.frontend.info.implementation.resolution.{AmbiguityResolution, Enclosing, LabelResolution, MemberPath, MemberResolution, NameResolution}
 import viper.gobra.frontend.info.implementation.typing._
 import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
@@ -23,6 +22,7 @@ import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
+  with LabelResolution
   with MemberResolution
   with AmbiguityResolution
   with Enclosing
@@ -113,42 +113,6 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
 
   override def isUsed(m: PMember): Boolean = {
     externallyAccessedMembers.contains(m)
-  }
-
-  private lazy val variablesMap: Map[(Option[Position], PScope), Vector[PIdnNode]] = {
-    val ids: Vector[PIdnNode] = tree.nodes collect {
-      case id: PIdnDef              => id
-      case id: PIdnUnk if isDef(id) => id
-    }
-
-    ids.groupBy { f =>
-      // having the position in the key ensures that the variables of two structurally equal scopes
-      // occurring in different positions are not merged in a single Vector, avoiding duplicated entries
-      // in the variables of a scope
-      val scope = enclosingIdScope(f); (pos(scope), scope)
-    }
-  }
-
-  private def pos(scope: PScope): Option[Position] =
-    tree.root.positions.positions.getStart(scope)
-
-  override def variables(s: PScope): Vector[PIdnNode] =
-    variablesMap.getOrElse((pos(s), s), Vector.empty).sortWith(_.name < _.name)
-
-  private lazy val usesMap: Map[UniqueRegular, Vector[PIdnUse]] = {
-    val ids: Vector[PIdnUse] = tree.nodes collect {case id: PIdnUse if uniqueRegular(id).isDefined => id }
-    ids.groupBy(uniqueRegular(_).get)
-  }
-
-  def uses(id: PIdnNode): Vector[PIdnUse] = {
-    uniqueRegular(id).fold(Vector.empty[PIdnUse])(r => usesMap.getOrElse(r, Vector.empty))
-  }
-
-  case class UniqueRegular(r: Regular, s: PScope)
-
-  def uniqueRegular(id: PIdnNode): Option[UniqueRegular] = entity(id) match {
-    case r: Regular => Some(UniqueRegular(r, enclosingIdScope(id)))
-    case _ => None
   }
 
   lazy val struct: PNode => Option[Type.StructT] =

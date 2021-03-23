@@ -459,11 +459,13 @@ object Parser {
         selectStmt |
         block |
         simpleStmt |
+        labeledStmt |
+        expressionStmt |
         emptyStmt
 
 
     lazy val simpleStmt: Parser[PSimpleStmt] =
-      sendStmt | assignmentWithOp | assignment | shortVarDecl | expressionStmt
+      sendStmt | assignmentWithOp | assignment | shortVarDecl // expressionStmt is parsed separately
 
     lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
       simpleStmt | emptyStmt
@@ -508,7 +510,10 @@ object Parser {
       }
 
     lazy val labeledStmt: Parser[PLabeledStmt] =
-      (idnDef <~ ":") ~ statement ^^ PLabeledStmt
+      (labelDef <~ ":") ~ statement.? ^^ {
+        case id ~ Some(s) => PLabeledStmt(id, s)
+        case id ~ None    => PLabeledStmt(id, PEmptyStmt().at(id))
+      }
 
     lazy val returnStmt: Parser[PReturn] =
       "return" ~> repsep(expression, ",") ^^ PReturn
@@ -1202,8 +1207,11 @@ object Parser {
     lazy val exists : Parser[PExists] =
       ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
-    lazy val old : Parser[POld] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld
+    lazy val old : Parser[PGhostExpression] =
+      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+        case Some(l) ~ e => PLabeledOld(l, e)
+        case None ~ e => POld(e)
+      }
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |

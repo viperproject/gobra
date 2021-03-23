@@ -35,12 +35,14 @@ object GobraStrategy {
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
+      case (_: Label, Seq(label: LabelProxy)) => Label(label)(meta)
       case (_: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
       case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: MakeSlice, Seq(target: LocalVar, typeParam: SliceT, lenArg: Expr, capArg: Option[Expr@unchecked])) => MakeSlice(target, typeParam, lenArg, capArg)(meta)
       case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy, bufferSize: MethodProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel, bufferSize)(meta)
       case (_: MakeMap, Seq(target: LocalVar, typeParam: Type, initialSpaceArg: Option[Expr@unchecked])) => MakeMap(target, typeParam, initialSpaceArg)(meta)
+      case (_: Initialization, Seq(l: AssignableVar)) => Initialization(l)(meta)
       case (_: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (_: Assignee.Var, Seq(v: AssignableVar)) => Assignee.Var(v)
       case (_: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)
@@ -139,6 +141,7 @@ object GobraStrategy {
       case (_: OptionGet, Seq(op : Expr)) => OptionGet(op)(meta)
       case (_: Slice, Seq(base : Expr, low : Expr, high : Expr, max : Option[Expr@unchecked])) => Slice(base, low, high, max)(meta)
       case (e: Old, Seq(op: Expr)) => Old(op, e.typ)(meta)
+      case (_: LabeledOld, Seq(label: LabelProxy, op: Expr)) => LabeledOld(label, op)(meta)
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)
       case (_: Trigger, Seq(exprs: Vector[Expr@unchecked])) => Trigger(exprs)(meta)
       case (_: PureForall, Seq(vars: Vector[BoundVar@unchecked], triggers: Vector[Trigger@unchecked], body: Expr)) => PureForall(vars, triggers, body)(meta)
@@ -170,6 +173,7 @@ object GobraStrategy {
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
+      case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
     }
 
     node.asInstanceOf[N]

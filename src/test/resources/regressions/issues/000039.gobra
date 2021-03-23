@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test() {
+
+  x1  := 5
+  x2@ := 5
+
+  ghost L:
+
+  x1 = 8
+  x2 = 8
+
+  assert old[L](x1) == 8 && old[L](x2) == 5
+}
+
+func test2() {
+
+  x1  := 5
+  x2@ := 5
+
+  L: x2 = 8
+  x1 = 8
+
+  assert old[L](x1) == 8 && old[L](x2) == 5
+}
+
+func test3() {
+
+  ghost L:
+
+  x1  := 5
+  x2@ := 5
+
+  x2 = 8
+  x1 = 8
+
+  assert old[L](x1) == 8
+  //:: ExpectedOutput(assert_error:permission_error)
+  assert old[L](x2) == old[L](x2)
+}
+
+
+

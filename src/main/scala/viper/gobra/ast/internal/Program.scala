@@ -230,9 +230,13 @@ case class Block(
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
+case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
+
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
+case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assignment extends Stmt
 
@@ -380,6 +384,10 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
 }
 
 case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
+
+case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = operand.typ
+}
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
@@ -1234,7 +1242,7 @@ sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
-
+case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 
 

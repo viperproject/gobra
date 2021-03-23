@@ -62,6 +62,7 @@ trait BaseTyping { this: TypeInfoImpl =>
     case _: PIdnDef => true
     case i: PIdnUnk if isDef(i) => true
     case i: PIdnNode => wellDefID.valid(i)
+    case l: PLabelNode => wellDefLabel.valid(l)
     case o: PMisc => wellDefMisc.valid(o)
     case s: PSpecification => wellDefSpec.valid(s)
     case m: PNode => childrenWellDefined(m)

@@ -38,12 +38,14 @@ object Nodes {
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
+        case Label(label) => Seq(label)
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
+        case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
@@ -131,6 +133,7 @@ object Nodes {
         case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case Old(op, _) => Seq(op)
+        case LabeledOld(label, operand) => Seq(label, operand)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
@@ -167,6 +170,7 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case _: LabelProxy => Seq.empty
       }
     }
 //    n match {

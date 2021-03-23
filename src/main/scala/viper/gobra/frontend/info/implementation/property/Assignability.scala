@@ -33,7 +33,14 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           }
         case AssignMode.Multi => right.head match {
           case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
-          case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
+          case t =>
+            if (left.length == right.length + 1 && left.last.isInstanceOf[VariadicT]) {
+              // this handles the case when all parameters but the last are passed in a function call and the last parameter
+              // is variadic
+              multiAssignableTo.result(right, left.init)
+            } else {
+              failedProp(s"got $t but expected tuple type of size ${left.size}")
+            }
         }
         case AssignMode.Variadic => variadicAssignableTo.result(right, left)
 

@@ -103,20 +103,28 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config): Config = {
-    val inFileConfigStrings = config.inputFiles.flatMap(file => {
+    val inFileConfigs = config.inputFiles.flatMap(file => {
       val bufferedSource = Source.fromFile(file)
       val content = bufferedSource.mkString
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
       bufferedSource.close()
-      configs
+      if (configs.isEmpty) {
+        None
+      } else {
+        // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
+        val args = configs.flatMap(configString => configString.split(" ")).toList
+        // input files are mandatory, therefore we take the inputFiles from the old config:
+        val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
+        val inFileConfig = new ScallopGobraConfig(fullArgs).config
+        // modify all relative includeDirs such that they are resolved relatively to the current file:
+        val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+          includeDir => file.toPath.getParent.resolve(includeDir.toPath).toFile))
+        Some(resolvedConfig)
+      }
     })
 
-    // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
-    val args = inFileConfigStrings.flatMap(configString => configString.split(" "))
-    // input files are mandatory, therefore we take the inputFiles from the old config:
-    val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
-    val inFileConfig = new ScallopGobraConfig(fullArgs).config
-    config.merge(inFileConfig)
+    // start with original config `config` and merge in every in file config:
+    inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
   private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {

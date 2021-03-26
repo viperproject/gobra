@@ -5,12 +5,16 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.{Config,Parser}
 import viper.silicon.interfaces.SiliconMappedCounterexample
 import viper.silver
+import viper.silver.{ast=> vpr}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 import viper.silicon.reporting.{Converter,ExtractedModel,ExtractedModelEntry}
+import viper.gobra.frontend.info.base.SymbolTable
 //import viper.gobra.internal.utility.Nodes
-import _root_.viper.silver.verifier.{Counterexample,Model}
-import java.nio.file.{Path,Paths}
+import viper.silver.verifier.{Counterexample,Model}
 import org.bitbucket.inkytonik.kiama.util._
+import org.bitbucket.inkytonik.kiama.relation.TreeRelation
+import java.util.HashMap
+
 
 trait CounterexampleConfig
 /**
@@ -33,39 +37,67 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		case CounterexampleConfigs.ExtendedCounterexamples => extendedTranslation(_)
 	}
 	var relevant_function :PFunctionDecl=null
+	
 	//this adds counterexamples to the error of the default translation...
 	//the translate(reason) function is inherited by the DefaultErrorBackTranslator
 	override def translate(error: silver.verifier.VerificationError): VerificationError ={
 		val ret : VerificationError = super.translate(error) 
 		//TODO: find all variable in scope of the Pnode of the error
-		val posMngr :PositionManager= backtrack.pom
+
 		val typeinfo = backtrack.typeInfo
 		val errinfo : Source.Verifier.Info = ret.info
-		val errorigin = errinfo.origin
-		val node  = errinfo.node // gobra internal node
 		val pnode = errinfo.pnode
-		val sourcepos :SourcePosition = errorigin.pos //error position
-		val root=typeinfo.codeRoot(pnode)
-		val variables : Vector[PIdnNode] = typeinfo.variables(root)
-		printf(s"$variables")
-		/*
-		val constants = declarations.filter(_.isInstanceOf[PConstDecl]).map(_.asInstanceOf[PConstDecl])
-		val variables = declarations.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
-		val globals = (variables.flatMap(x => x.left.map(y=> (x.typ,y)))) ++ (constants.flatMap(x => x.left.map(y=> (x.typ,y))))
-		val funcvars = extractVaraibles(relevant_function)
+
 		
-		funcvars.map(x=>printf(s"${x._1},${x._2}\n")) */
-		//what is the meaning of this methods?
-/* 		val methods : Vector[PMethodDecl]= declarations.filter(_.isInstanceOf[PMethodDecl]).map(_.asInstanceOf[PMethodDecl])
-		val variables = members.filter(_.isInstanceOf[PVarDecl]).map(_.asInstanceOf[PVarDecl])
-		val constatns = members.filter(_.isInstanceOf[PConstDecl]).map(_.asInstanceOf[PConstDecl])
-		 */
-		//write the counterexamples
-		ret.counterexample = error.counterexample match {
-			case Some(example:SiliconMappedCounterexample) => Some(translator(example))
-			case Some(_) => None // how to handle other counterexamples?
-			case None => None
+		val typenodes = typeinfo.tree.nodes 
+
+
+		val viperModel :Map[String,ExtractedModelEntry] =error.counterexample match {
+			case Some(c:SiliconMappedCounterexample) => c.converter.modelAtLabel.apply("old").entries
+			case None => Map.empty
+			case _ => Map.empty
 		}
+		val viperVars : Vector[String] = viperModel.keys.toSeq.toVector
+		val viperProgram = backtrack.viperprogram
+		val viperNode =error.offendingNode
+		
+		//all variable declarations of the viper program, issue: they do not contain the expression we can use to translate back
+		val varDeclNodes = viperProgram.collect(x=>if(x.isInstanceOf[vpr.LocalVarDecl]&& viperVars.contains(x.asInstanceOf[vpr.LocalVarDecl].name)) Some (x.asInstanceOf[vpr.LocalVarDecl]) else None).collect({case Some(x)=> x})
+		
+		//contains all variable expressions we can use this to translate back to gobra... issue: there is a lot of them... and not unique
+		val varUseNodes = viperProgram.collect(x=>if(x.isInstanceOf[vpr.AbstractLocalVar]&& viperVars.contains(x.asInstanceOf[vpr.AbstractLocalVar].name)) Some(x.asInstanceOf[vpr.AbstractLocalVar]) else None).collect({case Some(x)=> x})
+
+		
+		val declarationMap =(varDeclNodes.map(x=>(x,viperModel.apply(x.name)))).toMap
+		val nativeDeclarationModel  = new DeclarationModel(declarationMap)
+
+
+		//map from info to counterexample entry
+		val declInfosMap = declarationMap.map(x=>(Source.unapply(x._1) match {case Some(t) =>(t)},x._2)).toSeq.sortBy(x=>x._1.origin.pos.start.line).toMap
+	
+
+		val sourceModel = new SourceModel(declInfosMap)
+
+		val pDeclMap = declInfosMap.map(x=>(x._1.pnode,x._2))
+		val pNodeModel = new PNodeModel(pDeclMap)
+		
+		
+		val pInputMap =pDeclMap.filter(x=>x.isInstanceOf[PParameter]||x.isInstanceOf[PResult]) 
+		val pInputModel = new PNodeModel(pInputMap)
+
+		//issue: takes some random values
+		val nativeNodeModel = new NodeModel((varUseNodes.map(x=>(x,viperModel.apply(x.name)))).toMap)
+		//printf(s"$varUseNodes\n")
+		
+
+		//touple of gobra varuable use and viper variable
+		val pUseNodes = varUseNodes.map(x=> try{ Some((Source.Parser.Single.fromVpr(x),x)) }catch{case _:Throwable => None}).collect({case Some(x)=>x})
+		
+		
+		//printf(s"$pUseNodes\n${pUseNodes.size}")
+
+		
+		ret.counterexample = Some(new GobraCounterexample(sourceModel))
 		ret
 	}
 	def isPnodePartOfBlock(block:PBlock,node:PNode):Boolean={
@@ -76,24 +108,8 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 		}
 	}
 
-	def extractVaraibles(function:PFunctionDecl):Vector[(PType,PIdnNode)] = {
-		val args = function.args.map(x=>(x.typ,x.asInstanceOf[PNamedParameter].id)) ++ function.result.outs.map(x=>(x.typ,x.asInstanceOf[PNamedParameter].id))
-
-		val locals =(function.body match {
-			case Some((params,block)) => params.shareableParameters.map(x=>(get_global_var_types(x),x)) /* ++ Nodes.subnodes(block).filter(_.isInstanceOf[]) */
-			case None => Vector.empty
-		})
-		args ++ locals
-	}
-	def get_global_var_types(id:PIdnNode):PType={
-		new PIntType()
-	}
-
 	def mappedTranslation(counterexample:SiliconMappedCounterexample):Counterexample ={
-		val allinfo =counterexample.converter.modelAtLabel
-																//filter to get rid of redundant info 		//mapping to make it more readable
-		val map = allinfo.map(x=>(x._1,ExtractedModel(x._2.entries.filter(y=>filterLabel(y._1,x._1)).map(x=>(variableTranslateion(x._1),valueTranslation(x._2))))))
-		new GobraCounterexample(map,counterexample.model)
+		counterexample
 	}
 
 	def nativeTranslation(counterexample:Counterexample):Counterexample ={
@@ -124,13 +140,56 @@ class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo,
 
 }
 
-case class GobraCounterexample(labelModels:Map[String,ExtractedModel],nativeModel:Model) extends Counterexample {
-	val model = nativeModel
+trait GobraModel {
+	def toString :String
+	def toSilverModel:viper.silver.verifier.Model
+}
+
+case class DeclarationModel(entries:Map[vpr.LocalVarDecl,ExtractedModelEntry]) extends GobraModel{//with this we can map to the declaration of the variables
+	override def toString: String = {
+		entries.map(x => s"${x._1.name}:${x._1.typ} <- ${x._2.toString}").mkString("\n")
+	}
+	def toSilverModel ={
+		new Model(entries.map(x=>(x._1.name,x._2.asValueEntry)))
+	}
+}
+case class NodeModel(entries:Map[vpr.Node,ExtractedModelEntry]) extends GobraModel{
+	override lazy val toString: String = {
+    entries.map(x => s"${x._1} <- ${x._2.toString}").mkString("\n")
+  }
+  def toSilverModel ={
+		new Model(entries.map(x=>(x._1.toString,x._2.asValueEntry)))
+	}
+}
+case class PNodeModel(entries:Map[PNode,ExtractedModelEntry]) extends GobraModel{
+	override lazy val toString: String = {
+    entries.map(x => s"(${x._1}) <- ${x._2.toString}").mkString("\n")
+  }
+  def toSilverModel ={
+		new Model(entries.map(x=>(x._1.toString,x._2.asValueEntry)))
+	}
+}
+case class INodeModel(entries:Map[viper.gobra.ast.internal.Node,ExtractedModelEntry]) extends GobraModel{
+	override lazy val toString: String = {
+    entries.map(x => s"(${x._1}) <- ${x._2.toString}").mkString("\n")
+  }
+  def toSilverModel ={
+		new Model(entries.map(x=>(x._1.toString,x._2.asValueEntry)))
+	}
+}
+case class SourceModel(entries:Map[Source.Verifier.Info,ExtractedModelEntry]) extends GobraModel{
+	override lazy val toString: String = {
+    entries.map(x => s"(${x._1.pnode}\t/\t${x._1.node})\t<-\t${x._2.toString}\tat (${x._1.origin.pos})").mkString("\n")
+  }
+  def toSilverModel ={
+		new Model(entries.map(x=>(x._1.toString,x._2.asValueEntry)))
+	}
+}
+case class GobraCounterexample(gModel:GobraModel) extends Counterexample {
+	val model = gModel.toSilverModel
 
 	override lazy val toString: String = {
-		labelModels 	//label     model (ExtracredModel[String,ExtractedEntry])
-      .map(x => s"${(x._1)}:\n${x._2.toString}\n")
-      .mkString("\n") 
+		gModel.toString() 
     //s"$buf\non return: \n${converter.extractedModel.toString}"
   }
 }

@@ -29,6 +29,7 @@ object BackTranslator {
                             errorT: Seq[BackTranslator.ErrorTransformer],
                             reasonT: Seq[BackTranslator.ReasonTransformer],
                             pom:PositionManager,
+                            viperprogram:vpr.Program,
                             typeInfo:TypeInfo
                           )
 

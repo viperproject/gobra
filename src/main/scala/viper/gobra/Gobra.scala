@@ -86,6 +86,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
            encodingBackInfo.errorT,
            encodingBackInfo.reasonT,
            parsedPackage.positions,
+           encodedProgram,
            typeInfo
          )
        )

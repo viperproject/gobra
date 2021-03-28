@@ -539,6 +539,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case POptionType(elem) => "option" <> brackets(showType(elem))
+    case PDomainType(funcs, axioms) =>
+      "domain" <+> block(
+        ssep((funcs ++ axioms) map showMisc, line)
+      )
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -591,6 +595,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
       case PExplicitGhostParameter(actual) => showParameter(actual)
+      case PDomainFunction(id, args, res) =>
+        "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case PDomainAxiom(exp) => "axiom" <+> block(showExpr(exp))
       case mip: PMethodImplementationProof =>
         (if (mip.isPure) "pure ": Doc else emptyDoc) <>
           showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>

@@ -215,6 +215,12 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 
+  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostRegular with WithArguments with WithResult {
+    override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
+    override val result: PResult = decl.result
+  }
+
 
   /**
     * entities for built-in members

@@ -52,6 +52,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.Predicate) => noMessages
+        case Some(_: ap.DomainFunction) => noMessages
         // TODO: fully supporting packages results in further options: global variable
         // built-in members
         case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
@@ -114,6 +115,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
+        case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
 
         // TODO: fully supporting packages results in further options: global variable
 

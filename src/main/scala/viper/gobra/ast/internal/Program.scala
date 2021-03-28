@@ -218,7 +218,13 @@ case class BuiltInMPredicate(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
-
+case class DomainDefinition(name: String, funcs: Vector[DomainFunc], axioms: Vector[DomainAxiom])(val info: Source.Parser.Info) extends Member
+case class DomainAxiom(expr: Expr)(val info: Source.Parser.Info) extends Node
+case class DomainFunc(
+                       name: DomainFuncProxy,
+                       args: Vector[Parameter.In],
+                       results: Parameter.Out
+                     )(val info: Source.Parser.Info) extends Node
 
 
 sealed trait Stmt extends Node
@@ -772,6 +778,7 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
@@ -1217,6 +1224,16 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
   def isEmpty: Boolean = name == Names.emptyInterface
 }
 
+case class DomainT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: DomainT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): DomainT =
+    DomainT(name, newAddressability)
+}
+
 case class ChannelT(elem: Type, addressability: Addressability) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: ChannelT => elem == o.elem
@@ -1237,6 +1254,7 @@ sealed trait MemberProxy extends Proxy {
 }
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
+case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
 
 sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy

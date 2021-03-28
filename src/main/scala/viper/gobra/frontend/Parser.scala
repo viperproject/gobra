@@ -312,7 +312,7 @@ object Parser {
 
     val reservedWords: Set[String] = Set(
       "break", "default", "func", "interface", "select",
-      "case", "defer", "go", "map", "struct",
+      "case", "defer", "go", "map", "struct", "domain",
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
@@ -925,7 +925,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType
+      sequenceType | setType | multisetType | optionType | domainType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -964,6 +964,17 @@ object Parser {
 
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
+
+    lazy val domainType: Parser[PDomainType] =
+      "domain" ~> "{" ~> (domainClause <~ eos).* <~ "}" ^^ { clauses =>
+        val funcs = clauses.collect{ case x: PDomainFunction => x }
+        val axioms = clauses.collect{ case x: PDomainAxiom => x }
+        PDomainType(funcs, axioms)
+      }
+
+    lazy val domainClause: Parser[PDomainClause] =
+      "func" ~> idnDef ~ signature ^^ { case id ~ sig => PDomainFunction(id, sig._1, sig._2) } |
+      "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType

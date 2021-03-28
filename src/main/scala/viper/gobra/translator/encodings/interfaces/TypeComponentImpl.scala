@@ -47,6 +47,7 @@ class TypeComponentImpl extends TypeComponent {
 
     case t: TypeHead.DefinedHD => t.name
     case t: TypeHead.InterfaceHD => t.name
+    case t: TypeHead.DomainHD => t.name
 
     case t: TypeHead.IntHD =>
       // For identical types a representative is picked

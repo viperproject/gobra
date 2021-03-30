@@ -28,9 +28,9 @@ object BackTranslator {
   case class BackTrackInfo(
                             errorT: Seq[BackTranslator.ErrorTransformer],
                             reasonT: Seq[BackTranslator.ReasonTransformer],
-                            pom:PositionManager,
                             viperprogram:vpr.Program,
-                            typeInfo:TypeInfo
+                            typeInfo:TypeInfo,
+                            config:Config
                           )
 
   type ErrorTransformer = PartialFunction[silver.verifier.VerificationError, VerificationError]
@@ -40,10 +40,7 @@ object BackTranslator {
   result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
-      val errorTranslator =  config.counterexample match {
-                  case Some(info) => new CounterexampleBackTranslator(backtrack,info)
-                  case None => new DefaultErrorBackTranslator(backtrack)
-                                                        } 
+      val errorTranslator =  new DefaultErrorBackTranslator(backtrack) 
       VerifierResult.Failure(errors map  errorTranslator.translate)
   }
 

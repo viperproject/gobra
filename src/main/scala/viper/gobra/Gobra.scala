@@ -85,9 +85,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
          BackTranslator.BackTrackInfo(
            encodingBackInfo.errorT,
            encodingBackInfo.reasonT,
-           parsedPackage.positions,
            encodedProgram,
-           typeInfo
+           typeInfo,
+           config
          )
        )
      } yield (task, finalConfig)

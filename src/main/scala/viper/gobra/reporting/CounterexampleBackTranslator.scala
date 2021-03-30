@@ -19,7 +19,7 @@ import org.bitbucket.inkytonik.kiama.util._
 
 trait CounterexampleConfig
 /**
-  * simple counterexample distinction
+  * simple counterexample distinction this is obsolete but kept to run the counterexamples on the config
   */
 object CounterexampleConfigs{
 	object MappedCounterexamples extends CounterexampleConfig
@@ -29,82 +29,68 @@ object CounterexampleConfigs{
 }
 
 case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo){
-	//this adds counterexamples to the error of the default translation...
-	//the translate(reason) function is inherited by the DefaultErrorBackTranslator
 	def translate(counterexample: silver.verifier.Counterexample): Option[GobraCounterexample] ={
 				
 		val typeinfo = backtrack.typeInfo
-		val info = backtrack.config.counterexample match {case Some(x)=> x}
-		val viperModel :Map[String,sil.ExtractedModelEntry] = counterexample match {
-			case c:SiliconMappedCounterexample => c.converter.modelAtLabel.apply("old").entries
+		val viperModel :Map[String,sil.ExtractedModel] = counterexample match {
+			case c:SiliconMappedCounterexample => c.converter.modelAtLabel
 			case _ => Map.empty
 		}
-		val viperVars : Seq[String] = viperModel.keys.toSeq
+		val fi = viperModel.keys.head
+		val viperVars : Seq[String] = viperModel.apply(fi).entries.keys.toSeq 
 		val viperProgram = backtrack.viperprogram
-		//val viperNode =error.offendingNode
 		
-		//all variable declarations of the viper program, issue: if two vipervariables have the same name we cannot distinguish
+		//all variable declarations of the viper program, issue: if two vipervariables have the same name we cannot distinguish (we have to assume they are unique)
 		val varDeclNodes = viperProgram.collect(x=>if(x.isInstanceOf[vpr.LocalVarDecl]&& viperVars.contains(x.asInstanceOf[vpr.LocalVarDecl].name)) Some (x.asInstanceOf[vpr.LocalVarDecl]) else None).collect({case Some(x)=> x})
 		
-		//contains all variable expressions we can use this to translate back to gobra... issue: there is a lot of them... and not unique
-		//val varUseNodes = viperProgram.collect(x=>if(x.isInstanceOf[vpr.AbstractLocalVar]&& viperVars.contains(x.asInstanceOf[vpr.AbstractLocalVar].name)) Some(x.asInstanceOf[vpr.AbstractLocalVar]) else None).collect({case Some(x)=> x})
-
 		//map from viper declarations to entries
-		val declarationMap =(varDeclNodes.map(x=>(x,viperModel.apply(x.name)))).toMap
-		//val nativeDeclarationModel  = new DeclarationModel(declarationMap)
-
+		val declarationMap : Map[String,Map[vpr.LocalVarDecl,sil.ExtractedModelEntry]]=viperModel.map(y=>(y._1,varDeclNodes.map(x=>(x,y._2.entries.apply(x.name))).toMap))
 
 		//map from info to counterexample entry
-		val declInfosMap = declarationMap.map(x=>(Source.unapply(x._1) match
-																		 {case Some(t) =>
-																			(t,Util.valueTranslation(x._2,Util.getType(t.pnode,typeinfo) match {case Some(v)=>v}))}))
-		val sourceModel = new SourceModel(declInfosMap,typeinfo)
-		//we lose some information when we cast to a string sadly...
-		val gModel = new GobraModel(declInfosMap.map(x=>(x._1.pnode.toString,x._2)))
-		val glabelModel = new GobraModelAtLabel(Seq(("old",gModel)).toMap)
-		//map from gobra declaration to entries
-		val pDeclMap = declInfosMap.map(x=>(x._1.pnode,x._2))
-		/* val pNodeModel = new PNodeModel(pDeclMap) */
+		val declInfosMap: Map[String,Map[Source.Verifier.Info,sil.ExtractedModelEntry]] = declarationMap.map(y=>(y._1,y._2.map(x=>(Source.unapply(x._1) match {case Some(t) => (t,x._2) }))))
+
+		//translate the values
+		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,Util.valueTranslation(x._2,Util.getType(x._1.pnode,typeinfo))))))													
+																			
 		
-		//add type info
-		val pTypedMap = declInfosMap.map(x=>(((x._1.pnode,Util.getType(x._1.pnode,typeinfo)),x._2)))
-		/* val pTypeModel = new TypeModel(pTypedMap) */
-		//issue: takes some random values
-		//val nativeNodeModel = new NodeModel((varUseNodes.map(x=>(x,viperModel.apply(x.name)))).toMap)
-		//printf(s"$varUseNodes\n")
+		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>(x._1.pnode,x._2))))))
+
 		
 		
 		//printf(s"$pUseNodes\n${pUseNodes.size}")
-		val ret = info match {
-			case CounterexampleConfigs.NativeCounterexamples => Some(new GobraCounterexample(glabelModel,sourceModel))
-			case CounterexampleConfigs.ReducedCounterexamples => Some(new GobraCounterexample(glabelModel,sourceModel))
-			case CounterexampleConfigs.ExtendedCounterexamples => Some(new GobraCounterexample(glabelModel,sourceModel))
-			case CounterexampleConfigs.MappedCounterexamples => Some(new GobraCounterexample(glabelModel,sourceModel))
-		} 
+		val ret =  Some(new GobraCounterexample(glabelModel))
 		ret
 	}
 }
 object Util{
-	def getType(pnode:PNode,info:viper.gobra.frontend.info.TypeInfo):Option[Type]={
+	def getType(pnode:PNode,info:viper.gobra.frontend.info.TypeInfo):Type={
 		pnode match {
-			case (x:PIdnNode) => Some(info.typ(x))
-			case (x:PParameter) => Some(info.typ(x))
-			case (x:PExpression) => Some(info.typ(x))
-			case (x:PMisc) => Some(info.typ(x))
-			case _ => None
+			case (x:PIdnNode) => info.typ(x)
+			case (x:PParameter) => info.typ(x)
+			case (x:PExpression) => info.typ(x)
+			case (x:PMisc) => info.typ(x)
+			case _ => UnknownType
 		}
 	}
-	def valueTranslation(input:sil.ExtractedModelEntry,typ:Type):GobraModelEntry={
+	/**
+	  * translates the input from viper to Gobra
+	  *
+	  * @param input 
+	  * @param typ is used to help distinguish between differnet domains
+	  * @return
+	  */
+	def valueTranslation(input:sil.ExtractedModelEntry,typ:Type):LitEntry={
 	  input match {//simple types will be propagated
 		  case sil.LitIntEntry(v) => LitIntEntry(v)
 		  case sil.LitBoolEntry(b) => LitBoolEntry(b)
 		  case sil.LitPermEntry(p) => LitPermEntry(p)
+		  case sil.SeqEntry(_,v) => typ match { //here it is assumed, that at some point we see asequence
+			  							case SequenceT(e) => LitSeqEntry(SequenceT(e),v.map(x => valueTranslation(x,e)))
+										case ArrayT(l,e) => LitArrayEntry(ArrayT(l,e),v.map(x => valueTranslation(x,e)))
+										case _ => DummyEntry()
+									}
 		  case _  => 
 		  		typ match {
-					  //this is obvously false, it serves illustrative purposes
-					  case OptionT(elem) => LitOptionEntry(Some(valueTranslation(sil.LitBoolEntry(false),elem).asInstanceOf[LitEntry]))
-					  case ArrayT(length, elem) => LitArrayEntry(ArrayT(length, elem),Seq.fill(length.toInt)(LitIntEntry(1)))
-					  case StructT(clauses, decl, context) => LitStructEntry(typ.asInstanceOf[StructT],clauses.map(x=>(x._1,LitStructEntry(null,Seq.fill(3)(("t",LitIntEntry(1))).toMap))))
 					  case _ => DummyEntry()
 				  }
 	  }
@@ -114,26 +100,9 @@ object Util{
 }
 
 
-
-case class SourceModel(entries:Map[Source.Verifier.Info,GobraModelEntry],typeinfo:TypeInfo){
-	override lazy val toString: String = {
-	val params = entries.filter(x=>x._1.pnode.isInstanceOf[PParameter])
-	val rest = entries.filterNot(x=>x._1.pnode.isInstanceOf[PParameter]||(!x._1.pnode.isInstanceOf[PIdnNode]))//we do not have gurantee that these are actually pidndefs as sources
-
-    "Old:\n" ++params.map(x => {val node = x._1.pnode.asInstanceOf[PNamedParameter];s"(${node.id}:${Util.getType(node,typeinfo)}\t/\t${x._1.node})\t<-\t${x._2.toString}\tat (${x._1.origin.pos})"}).mkString("\n") ++ "\n" ++
-    "\nAt assertion:\n" ++ rest.map(x =>{val node = x._1.pnode ;s"(${node}:${Util.getType(node,typeinfo)}\t/\t${x._1.node})\t<-\t${x._2.toString}\tat (${x._1.origin.pos})"}).mkString("\n")
-	
-  }
-  def toSilverModel ={
-	  
-		new Model(entries.map(x=>(x._1.toString,silver.verifier.ConstantEntry(x._2.toString))))
-	}
-}
-
-case class GobraCounterexample(gModel:GobraModelAtLabel,
-								sources:SourceModel) extends Counterexample{
+case class GobraCounterexample(gModel:GobraModelAtLabel) extends Counterexample{
 	override def toString:String = gModel.toString
-	val model = sources.toSilverModel
+	val model =null
 }
 
 
@@ -142,9 +111,19 @@ case class GobraModelAtLabel(labeledEntries:Map[Util.Label,GobraModel]){
 		labeledEntries.map(x=>s"model at label ${x._1}:\n${x._2}").mkString("\n")
 	}
 }
-case class GobraModel(entries:Map[Util.Identifier,GobraModelEntry]){
-	override def toString :String = entries.map(x=>s"${x._1}\t<- ${x._2.toString}").mkString("\n")
+case class GobraModel(entries:Map[PNode,GobraModelEntry]){
+	override def toString :String = {
+		val params = entries.filter(x=>x._1.isInstanceOf[PParameter]) //first we separate the different types of values
+		val rest = entries.filterNot(x=>x._1.isInstanceOf[PParameter])
+		params.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n") ++ "\n" ++
+		rest.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n")
+	}
+	
 }
+
+/** this is how we model the  values returned by the counterexamples...
+  * 
+  */
 
 sealed trait GobraModelEntry{
 	override def toString : String = "not implemented"
@@ -154,7 +133,7 @@ sealed trait GobraModelEntry{
 sealed trait LitEntry extends GobraModelEntry
 
 case class DummyEntry() extends LitEntry
-case class LitNilEntry() extends LitEntry{
+case class LitNilEntry() extends LitEntry{//TODO: Think of a way to implement pretty printing
 	override def toString(): String = "null"	
 }
 case class LitIntEntry(value:BigInt) extends LitEntry {
@@ -175,7 +154,7 @@ case class LitSetEntry(values:Set[LitEntry])extends LitEntry {
 case class LitMSetEntry(values:Set[LitEntry])extends LitEntry {
 	override def toString(): String = s"{${values.map(_.toString).mkString(", ")}}"
 }
-case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry {//how to tell whether the entries match the type? maybe we don't care
+case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry {
 	override def toString(): String = s"[${values.map(_.toString).mkString(", ")}]"
 }
 case class LitSliceEntry(typ:SliceT,values:Seq[LitEntry]) extends LitEntry {
@@ -184,24 +163,23 @@ case class LitSliceEntry(typ:SliceT,values:Seq[LitEntry]) extends LitEntry {
 case class LitSeqEntry(typ:SequenceT,values:Seq[LitEntry])extends LitEntry {
 	override def toString(): String = s"[${values.map(_.toString).mkString(", ")}]"
 }
-case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEntry {
-	override def toString(): String = s"{\n${values.map(x=>s"\t\t${x._1} = ${prettySubprint(x._2.toString)}").mkString(";\n")}\t}"
-	def prettySubprint(formatted:String): String ={
-		val split = formatted.split("\n")
-		val first = split.head ++ "\n" // first value will be on the first line with no special indentation
-		val rest = split.tail.map(x=>s"\t$x").mkString("\n")
-		first ++ rest
-	}	
+case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEntry { //TODO: Pretty printing
+	override def toString(): String = s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
 
 }
 case class LitPointerEntry(typ:Type,value:LitEntry)extends LitEntry {
-
+	override def toString(): String = s"*->$value" 
 }
-case class LitDeclaredEntry(name:PTypeDecl,value:LitEntry)extends LitEntry {
-
+case class LitDeclaredEntry(name:Util.Identifier,value:LitEntry)extends LitEntry {
+	override def toString(): String = {
+		value match {
+			case LitStructEntry(_,_) => name ++ value.toString().substring(6)// remove "struct" from the value could also be done by inlining
+			case _ => value.toString()
+		}
+	}
 }
 case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry {
-
+	override def toString(): String = value.toString()
 }
 
 //later

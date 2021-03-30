@@ -273,9 +273,14 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   private def isDefinedType(t: Type): Boolean = {
+    // All of the following are defined types (https://golang.org/ref/spec#Predeclared_identifiers):
+    //   bool byte complex64 complex128 error float32 float64
+    //   int int8 int16 int32 int64 rune string
+    //   uint uint8 uint16 uint32 uint64 uintptr
     t match {
-      case IntT(_) | BooleanT | DeclaredT(_, _) => true
-      case _ => false // conservative choice, may be expanded in the future
+      // should be extended as new types are added to the language
+      case IntT(_) | BooleanT | DeclaredT(_, _) | StringT => true
+      case _ => false
     }
   }
 }

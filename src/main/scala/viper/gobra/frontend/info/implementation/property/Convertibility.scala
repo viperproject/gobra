@@ -20,6 +20,7 @@ trait Convertibility extends BaseProperty { this: TypeInfoImpl =>
       case (left, right) if assignableTo(left, right) => true
       case (IntT(_), IntT(_)) => true
       case (SliceT(IntT(config.typeBounds.Byte)), StringT) => true
+      case (StringT, SliceT(IntT(config.typeBounds.Byte))) => true
       case (IntT(_), PermissionT) => true
       case (left, right) => (underlyingType(left), underlyingType(right)) match {
         case (l, r) if identicalTypes(l, r) => true

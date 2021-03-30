@@ -80,14 +80,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       // not part of Go spec, but necessary for the definition of comparability
       case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
-      // even though the go language spec states that a value x of type V is assignable to a variable of type T
-      // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
-      // seems to reject any program that relies on this, e.g. the go compiler rejects the program containing
-      // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
-      // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
-      //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
-      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
-        && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
+      // the go language spec states that a value x of type V is assignable to a variable of type T
+      // if V and T have identical underlying types and at least one of V or T is not a defined type
+      case (l, r) if !isDefinedType(l) || !isDefinedType(r)
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
 
       case (l, r) if implements(l, r) => true
@@ -274,6 +269,13 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (Some(PExpCompositeVal(exp)), i) => intConstantEval(exp).getOrElse(BigInt(i))
       case (Some(PIdentifierKey(id)), i) => intConstantEval(PNamedOperand(id)).getOrElse(BigInt(i))
       case (_, i) => BigInt(i)
+    }
+  }
+
+  private def isDefinedType(t: Type): Boolean = {
+    t match {
+      case IntT(_) | BooleanT | DeclaredT(_, _) => true
+      case _ => false // conservative choice, may be expanded in the future
     }
   }
 }

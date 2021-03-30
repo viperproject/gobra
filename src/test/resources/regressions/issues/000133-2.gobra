@@ -7,5 +7,6 @@ type IntType int
 
 func main() {
 	var x int = 1
+	//:: ExpectedOutput(type_error)
 	var y IntType = x
 }

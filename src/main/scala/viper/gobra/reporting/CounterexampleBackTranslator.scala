@@ -13,7 +13,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.TypeInfo
 //import viper.gobra.internal.utility.Nodes
 import viper.silver.verifier.{Counterexample,Model}
-import org.bitbucket.inkytonik.kiama.util._
+
 
 
 
@@ -91,12 +91,66 @@ object Util{
 									}
 		  case _  => 
 		  		typ match {
+					  case StructT(_,_,_) => LitStructEntry(null,
+					  									(Seq(("x",LitBoolEntry(false))
+														  ,("z",LitStructEntry(null,
+														  						(Seq(("x",LitArrayEntry(null,
+																Seq.fill(4)(LitStructEntry(null,
+					  									(Seq(("x",LitBoolEntry(false))
+														  ,("z",LitDeclaredEntry("Typo",LitStructEntry(null,
+														  						(Seq(("x",LitArrayEntry(null,Seq.empty))).toMap)
+																				))
+															)
+														  ,("y1",LitIntEntry(1))
+														  ).toMap)
+														))))).toMap)
+																				)
+															)
+														  ,("y1",LitIntEntry(1))
+														  ).toMap)
+														)
+						case ArrayT(_, _) => LitArrayEntry(null,
+																Seq.fill(4)(LitStructEntry(null,
+					  									(Seq(("x",LitBoolEntry(false))
+														  ,("z",LitDeclaredEntry("Typo",LitStructEntry(null,
+														  						(Seq(("x",LitArrayEntry(null,Seq.empty))).toMap)
+																				))
+															)
+														  ,("y1",LitIntEntry(1))
+														  ).toMap)
+														)))
 					  case _ => DummyEntry()
 				  }
 	  }
  	}
 	type Identifier = String
 	type Label = String
+
+	def prettyPrint(input:GobraModelEntry,level:Int):String = {
+		val indent = "   " ++ " ".repeat(level)
+		val postdent = "  " ++ "\t".repeat(level)
+		val predent = " "++" ".repeat(level)
+		input match {
+			case LitStructEntry(_,m) => {
+				val sub = m.map(x=>(x._1,prettyPrint(x._2,level+1)))
+				s"struct{\n${sub.map(x=>s"$indent${x._1}=${x._2}").mkString(";\n")}\n${postdent}}"
+			}
+			case LitDeclaredEntry(name,value) => {
+				value match {
+					case LitStructEntry(_,_) => prettyPrint(value,level).replaceFirst("struct",name)
+					case _ => s"$name(${value.toString()})"  // can we assum that only structs show theit name?
+				} 
+				
+			}
+			case v:WithSeq => {
+				v.values.headOption match {//todo figure out why this does not work (maybe we dont even need it...)
+					case Some(LitStructEntry(_,_)) =>  s"[\n$predent${v.values.map(x=>prettyPrint(x,level+1)).mkString(s",\n$predent")}\n$postdent]"
+					case _ => s"[${v.values.map(x=>prettyPrint(x,level)).mkString(", ")}]"
+				}
+			}
+			case x => x.toString()
+		}
+	}
 }
 
 
@@ -117,6 +171,7 @@ case class GobraModel(entries:Map[PNode,GobraModelEntry]){
 		val rest = entries.filterNot(x=>x._1.isInstanceOf[PParameter])
 		params.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n") ++ "\n" ++
 		rest.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n")
+
 	}
 	
 }
@@ -131,6 +186,10 @@ sealed trait GobraModelEntry{
 
 
 sealed trait LitEntry extends GobraModelEntry
+sealed trait WithSeq {
+	val values:Seq[LitEntry]
+}
+
 
 case class DummyEntry() extends LitEntry
 case class LitNilEntry() extends LitEntry{//TODO: Think of a way to implement pretty printing
@@ -154,28 +213,28 @@ case class LitSetEntry(values:Set[LitEntry])extends LitEntry {
 case class LitMSetEntry(values:Set[LitEntry])extends LitEntry {
 	override def toString(): String = s"{${values.map(_.toString).mkString(", ")}}"
 }
-case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry {
-	override def toString(): String = s"[${values.map(_.toString).mkString(", ")}]"
+case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry with WithSeq{
+	override def toString(): String = Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
-case class LitSliceEntry(typ:SliceT,values:Seq[LitEntry]) extends LitEntry {
-	override def toString(): String = s"[${values.map(_.toString).mkString(", ")}]"
+case class LitSliceEntry(typ:SliceT,values:Seq[LitEntry]) extends LitEntry with WithSeq{
+	override def toString(): String =  Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
-case class LitSeqEntry(typ:SequenceT,values:Seq[LitEntry])extends LitEntry {
-	override def toString(): String = s"[${values.map(_.toString).mkString(", ")}]"
+case class LitSeqEntry(typ:SequenceT,values:Seq[LitEntry])extends LitEntry with WithSeq{
+	override def toString(): String = Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
 case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEntry { //TODO: Pretty printing
-	override def toString(): String = s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
+	override def toString(): String = Util.prettyPrint(this,0) //s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
 
 }
 case class LitPointerEntry(typ:Type,value:LitEntry)extends LitEntry {
 	override def toString(): String = s"*->$value" 
 }
 case class LitDeclaredEntry(name:Util.Identifier,value:LitEntry)extends LitEntry {
-	override def toString(): String = {
-		value match {
-			case LitStructEntry(_,_) => name ++ value.toString().substring(6)// remove "struct" from the value could also be done by inlining
+	override def toString(): String = { Util.prettyPrint(this,0)
+		/* value match {
+			case LitStructEntry(_,_) => value.toString.replaceFirst("struct",name)
 			case _ => value.toString()
-		}
+		} */
 	}
 }
 case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry {

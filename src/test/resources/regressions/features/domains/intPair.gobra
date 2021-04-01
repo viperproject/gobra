@@ -1,3 +1,5 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
 
 package main
 
@@ -17,5 +19,10 @@ type intPair domain {
 
 func test() {
     x := pair(1,2)
+    assert fst(x) == 1
+}
+
+func test2() {
+    x@ := pair(1,2)
     assert fst(x) == 1
 }

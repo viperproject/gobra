@@ -73,6 +73,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
+        // TODO: shoudl not be needed but are requierd for now
       // every type is assignable to interface{}
       case (_, i: InterfaceT) if i.isEmpty => true
       // for go's types according to go's specification (mostly)
@@ -82,7 +83,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (l, r) if identicalTypes(l, r) => true
       // the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type
-      case (l, r) if !isDefinedType(l) || !isDefinedType(r)
+      case (l, r) if !(isDefinedType(l) && isDefinedType(r))
         && identicalTypes(underlyingType(l), underlyingType(r)) => true
 
       case (l, r) if implements(l, r) => true

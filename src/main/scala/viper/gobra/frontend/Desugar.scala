@@ -1565,7 +1565,7 @@ object Desugar {
                   val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
                   val bufferSizeProxy = methodProxy(BuiltInMemberTag.BufferSizeMethodTag, channelType, Vector())(src)
                   in.MakeChannel(target, channelType, arg0, isChannelProxy, bufferSizeProxy)(src)
-                case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
+                case m@MapT(_, _) => in.MakeMap(target, elemD(m).asInstanceOf[in.MapT], arg0)(src)
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
               _ <- write(make)
@@ -2050,7 +2050,10 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
-      case Type.MapT(_, _) => ???
+      case Type.MapT(keys, values) =>
+        val keysD = typeD(keys, Addressability.mapKey)(src)
+        val valuesD = typeD(values, Addressability.mapValue)(src)
+        in.MapT(keysD, valuesD, addrMod)
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)

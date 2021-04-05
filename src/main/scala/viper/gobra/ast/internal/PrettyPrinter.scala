@@ -518,6 +518,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
+    case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

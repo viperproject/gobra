@@ -62,6 +62,7 @@ object Names {
   // types
   def typesDomain: String = "Types"
   def stringsDomain: String = "String"
+  def mapsDomain: String = "GobraMap"
 
   // array
   def sharedArrayDomain: String = "ShArray"

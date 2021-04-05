@@ -270,8 +270,7 @@ sealed trait MakeStmt extends Stmt {
 
 case class MakeSlice(override val target: LocalVar, override val typeParam: SliceT, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 case class MakeChannel(override val target: LocalVar, override val typeParam: ChannelT, bufferSizeArg: Option[Expr], isChannel: MPredicateProxy, bufferSize: MethodProxy)(val info: Source.Parser.Info) extends MakeStmt
-// TODO: change type of typeParam to MapT when MapT is implemented
-case class MakeMap(override val target: LocalVar, override val typeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeMap(override val target: LocalVar, override val typeParam: MapT, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
@@ -1098,6 +1097,19 @@ case class SliceT(elems : Type, addressability: Addressability) extends Type {
 
   override def withAddressability(newAddressability: Addressability): SliceT =
     SliceT(elems.withAddressability(Addressability.sliceElement), newAddressability)
+}
+
+/**
+  * The (composite) type of maps from type `keys` to type `values`.
+  */
+case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): MapT =
+    MapT(keys.withAddressability(Addressability.mapKey), values.withAddressability(Addressability.mapValue), newAddressability)
 }
 
 /**

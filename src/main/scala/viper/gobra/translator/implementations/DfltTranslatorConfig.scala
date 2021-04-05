@@ -11,6 +11,7 @@ import viper.gobra.translator.encodings.channels.ChannelEncoding
 import viper.gobra.translator.encodings.{BoolEncoding, IntEncoding, PermissionEncoding, PointerEncoding, StringEncoding, TypeEncoding}
 import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeTypeEncodingCombiner}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
+import viper.gobra.translator.encodings.maps.MapEncoding
 import viper.gobra.translator.encodings.options.OptionEncoding
 import viper.gobra.translator.encodings.preds.PredEncoding
 import viper.gobra.translator.encodings.sequences.SequenceEncoding
@@ -54,7 +55,8 @@ class DfltTranslatorConfig(
       new BoolEncoding, new IntEncoding, new PermissionEncoding,
       new PointerEncoding, new StructEncoding, arrayEncoding, new InterfaceEncoding,
       new SequenceEncoding, new SetEncoding, new OptionEncoding,
-      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding
+      new SliceEncoding(arrayEncoding), new PredEncoding, new ChannelEncoding, new StringEncoding,
+      new MapEncoding
     ))
   )
 }

@@ -94,6 +94,13 @@ object TypePatterns {
       }
     }
 
+    object Map {
+      def unapply(arg: in.Type): Option[(in.Type, in.Type)] = underlyingType(arg)(ctx) match {
+        case t : in.MapT => Some((t.keys, t.values))
+        case _ => None
+      }
+    }
+
     object Seq {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.SequenceT => Some(t.t)

@@ -42,7 +42,7 @@ object BackendVerifier {
     }
 
     if(config.counterexample.isDefined){
-      exePaths ++= Vector("--counterexample_is_broken", "mapped")
+      exePaths ++= Vector("--counterexample", "mapped")
     }
 
     (config.backend, config.boogieExe) match {

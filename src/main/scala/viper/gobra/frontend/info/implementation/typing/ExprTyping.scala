@@ -374,8 +374,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
             }
 
-        case _: PChannelType | _: PMapType =>
+        case _: PChannelType =>
           error(m, s"too many arguments passed to make($typ)", args.length > 1)
+
+        case PMapType(k, _) =>
+          error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
+            error(m, s"key type $k is not comparable", !comparableType(symbType(k)))
 
         case _ => error(typ, s"cannot make type $typ")
       })

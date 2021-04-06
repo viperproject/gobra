@@ -8,13 +8,16 @@ package viper.gobra.translator.encodings.maps
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{MakePreconditionError, Source}
 import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.Exclusive
+import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.CodeLevel.{seqn, seqns, unit}
+import viper.gobra.translator.util.ViperWriter.CodeLevel.{errorT, local, seqn, seqns, sequence, unit, write}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
 class MapEncoding extends LeafTypeEncoding {
@@ -49,28 +52,61 @@ class MapEncoding extends LeafTypeEncoding {
     * Encodes the allocation of a new map
     *
     *  [r := make(map[T1]T2, n)] ->
-    *    asserts isComparable(T1)
+    *    assert dynamicType(T1) is comparable
     *    asserts 0 <= [n]
-    *    var a [ map[T1]T2 ] = Map(underlyingMap) // TODO: must have field of type map
-    *    inhales len(a) == 0 // TODO: check if it is ok
+    *    var a Ref
+    *    inhales a != nil && len(getMap(a)) == 0 // TODO: acc(a) instead of a != nil
     *    r := a
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
+
+    // TODO: refactor
     default(super.statement(ctx)) {
-      case makeStmt@in.MakeMap(target, t@in.MapT(_, _, _), _) =>
+      case makeStmt@in.MakeMap(target, t@in.MapT(keys, values, _), makeArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val mapVar = in.LocalVar(Names.freshName, t.withAddressability(Addressability.Exclusive))(makeStmt.info)
-        //val vprMap = ctx.typeEncoding.variable(ctx)(mapVar)
-        seqns(Vector())
-        /*
+
+        // Runtime check asserting 0 <= [n]
+        val runtimeCheck = makeArg.toVector map { n =>
+          for {
+            nVpr <- goE(n)
+            runtimeCheckExp = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), nVpr)(pos, info, errT)
+          } yield vpr.Exhale(runtimeCheckExp)(pos, info, errT)
+        }
+
         seqn(
           for {
-            _ <- ???
-          } yield ???
+            checks <- sequence(runtimeCheck)
+            _ <- if (checks.length == 1) write(checks(0)) else unit()
+            _ <- errorT {
+              case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) => MakePreconditionError(info)
+            }
+
+            mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)
+            mapVarVpr = ctx.typeEncoding.variable(ctx)(mapVar)
+            _ <- local(mapVarVpr)
+
+            zeroLit = vpr.IntLit(BigInt(0))(pos, info, errT)
+            _ <- write(
+              vpr.Inhale(
+                vpr.NeCmp(
+                  mapVarVpr.localVar,
+                  vpr.NullLit()(pos, info, errT))(pos, info, errT))(pos, info, errT),
+              vpr.Inhale(
+                vpr.EqCmp(
+                  vpr.MapCardinality(
+                    vpr.DomainFuncApp(
+                      getMapFunc,
+                      Seq(mapVarVpr.localVar),
+                      Map(keyParam -> goT(keys), valueParam -> goT(values)))(pos, info, errT))(pos, info, errT),
+                  zeroLit)(pos, info, errT)
+              )(pos, info, errT)
+            )
+            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), mapVar, makeStmt)
+          } yield ass
         )
 
-        ???
-         */
     }
   }
 
@@ -97,7 +133,7 @@ class MapEncoding extends LeafTypeEncoding {
     vpr.Domain(
       name = domainName,
       functions = Seq(getMapFunc),
-      axioms = Nil,// Seq(nullMapAxiom), // TODO: causes silver to crash
+      axioms = Seq(nullMapAxiom),
       typVars = Seq(keyParam, valueParam)
     )()
   }
@@ -124,7 +160,14 @@ class MapEncoding extends LeafTypeEncoding {
   private val nullMapAxiom: vpr.DomainAxiom = vpr.NamedDomainAxiom(
     name = nullMapAxiomName,
     exp = {
-      val getMapNullSize = vpr.MapCardinality(vpr.DomainFuncApp(getMapFunc, Seq(vpr.NullLit()()), Map.empty)())()
+      val getMapNullSize =
+        vpr.MapCardinality(
+          vpr.DomainFuncApp.apply(
+            func = getMapFunc,
+            args = Seq(vpr.NullLit()()),
+            typVarMap = Map(keyParam -> keyParam, valueParam -> valueParam)
+          )()
+        )()
       val zeroLit = vpr.IntLit(BigInt(0))()
       vpr.EqCmp(getMapNullSize, zeroLit)()
     })(domainName = domainName)

@@ -966,7 +966,7 @@ object Parser {
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
     lazy val domainType: Parser[PDomainType] =
-      "domain" ~> "{" ~> (domainClause <~ eos).* <~ "}" ^^ { clauses =>
+      "domain" ~> "{" ~> repsep(domainClause, eos) <~ eos.? <~ "}" ^^ { clauses =>
         val funcs = clauses.collect{ case x: PDomainFunction => x }
         val axioms = clauses.collect{ case x: PDomainAxiom => x }
         PDomainType(funcs, axioms)
@@ -1358,4 +1358,3 @@ object Parser {
 
 
 }
-

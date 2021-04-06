@@ -10,12 +10,11 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{MakePreconditionError, Source}
-import viper.gobra.theory.Addressability
-import viper.gobra.theory.Addressability.{Exclusive, Shared}
+import viper.gobra.theory.Addressability.Exclusive
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.CodeLevel.{errorT, local, seqn, seqns, sequence, unit, write}
+import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -41,10 +40,18 @@ class MapEncoding extends LeafTypeEncoding {
 
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.expr(ctx)) {
       case (exp: in.DfltVal) :: ctx.Map(_, _) => unit(withSrc(vpr.NullLit(), exp))
-      case (exp : in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
+      case (exp: in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
+      case l@in.Length(exp :: ctx.Map(k, v) / Exclusive) =>
+        for {
+          // TODO: must check whether there is permission to the slice, otherwise race condition (test with the other I wrote)
+          // maybe introduce a new viper function with the correct precondition
+          e <- goE(exp)
+          res = withSrc(vpr.FuncApp(mapLenFunction, Seq(e)), l)
+        } yield res
     }
   }
 
@@ -54,8 +61,8 @@ class MapEncoding extends LeafTypeEncoding {
     *  [r := make(map[T1]T2, n)] ->
     *    assert dynamicType(T1) is comparable
     *    asserts 0 <= [n]
-    *    var a Ref
-    *    inhales a != nil && len(getMap(a)) == 0 // TODO: acc(a) instead of a != nil
+    *    var a Ref := new(val)
+    *    inhales len(getMap(a)) == 0 // TODO: acc(a.val) && len(getMap(a.val)) == 0
     *    r := a
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
@@ -89,16 +96,17 @@ class MapEncoding extends LeafTypeEncoding {
 
             zeroLit = vpr.IntLit(BigInt(0))(pos, info, errT)
             _ <- write(
-              vpr.Inhale(
-                vpr.NeCmp(
-                  mapVarVpr.localVar,
-                  vpr.NullLit()(pos, info, errT))(pos, info, errT))(pos, info, errT),
+              vpr.NewStmt(
+                mapVarVpr.localVar,
+                Seq(underlyingMapField)
+              )(pos, info, errT))
+            _ <- write(
               vpr.Inhale(
                 vpr.EqCmp(
                   vpr.MapCardinality(
                     vpr.DomainFuncApp(
                       getMapFunc,
-                      Seq(mapVarVpr.localVar),
+                      Seq(vpr.FieldAccess(mapVarVpr.localVar, underlyingMapField)(pos, info, errT)),
                       Map(keyParam -> goT(keys), valueParam -> goT(values)))(pos, info, errT))(pos, info, errT),
                   zeroLit)(pos, info, errT)
               )(pos, info, errT)
@@ -112,6 +120,8 @@ class MapEncoding extends LeafTypeEncoding {
 
   override def finalize(col: Collector): Unit = {
     col.addMember(genDomain())
+    col.addMember(underlyingMapField)
+    col.addMember(mapLenFunction)
   }
 
 
@@ -124,7 +134,7 @@ class MapEncoding extends LeafTypeEncoding {
     *     function getMap(addr: Ref): Map[K,V]
     *
     *     axiom nullMap {
-    *       // getMap(null) == Map[K,V]() // causes exception in silver
+    *       // getMap(null) == Map[K,V]()
     *       |getMap(null)| == 0 // alternative
     *     }
     *   }
@@ -150,7 +160,7 @@ class MapEncoding extends LeafTypeEncoding {
   private val nullMapAxiom: vpr.DomainAxiom = vpr.NamedDomainAxiom(
     name = nullMapAxiomName,
     exp = {
-      val getMapNull = vpr.DomainFuncApp(getMapFunc, Seq(vpr.NullLit()()), Map.empty)()
+      val getMapNull = vpr.DomainFuncApp(getMapFunc, Seq(vpr.NullLit()()), Map(keyParam -> keyParam, valueParam -> valueParam))()
       val emptyMap = vpr.EmptyMap(keyParam, valueParam)()
       vpr.EqCmp(getMapNull, emptyMap)()
     })(domainName = domainName)
@@ -171,4 +181,65 @@ class MapEncoding extends LeafTypeEncoding {
       val zeroLit = vpr.IntLit(BigInt(0))()
       vpr.EqCmp(getMapNullSize, zeroLit)()
     })(domainName = domainName)
+
+  // field required to differentiate nill map from empty (non-nill) map
+  private val underlyingMapFieldName = "underlyingMapField" // TODO: change to avoid collisions
+  private val underlyingMapField: vpr.Field = vpr.Field(underlyingMapFieldName, vpr.Ref)()
+
+  /**
+    *   function mapLen(m: Ref): Int
+    *     requires m != null ==> acc(m.underlyingMapField, wildcard)
+    *     ensures m != null ==> result == |underlyingMap(m.underlyingMapField)|
+    *     ensures m == null ==> result == 0
+    */
+    // TODO: explain why access is required
+  private val mapLenFunctionName = "mapLen" // TODO: change name to avoid collision
+  private def mapLenFunction: vpr.Function = {
+    val argDecl = vpr.LocalVarDecl("m", vpr.Ref)()
+    vpr.Function(
+      name = mapLenFunctionName,
+      formalArgs = Seq(argDecl),
+      typ = vpr.Int,
+      pres = Seq(
+        vpr.Implies(
+          vpr.NeCmp(
+            argDecl.localVar,
+            vpr.NullLit()())(),
+          vpr.FieldAccessPredicate(
+            vpr.FieldAccess(
+              argDecl.localVar,
+              underlyingMapField)(),
+            vpr.WildcardPerm()()
+          )()
+        )()
+      ),
+      posts =
+        Seq(
+          // ensures m != null ==> result == |underlyingMap(m.underlyingMapField)|
+          /*vpr.Implies(
+            vpr.NeCmp(
+              argDecl.localVar,
+              vpr.NullLit()())(),
+            vpr.EqCmp(
+              vpr.Result(vpr.Int)(),
+              vpr.MapCardinality(
+                vpr.DomainFuncApp(
+                  func = getMapFunc,
+                  args = Seq(vpr.FieldAccess(argDecl.localVar, underlyingMapField)()),
+                  typVarMap = Map(keyParam -> keyParam, valueParam -> valueParam))())())())(), */
+          // ensures m == null ==> result == 0
+          vpr.Implies(
+            vpr.EqCmp(
+              argDecl.localVar,
+              vpr.NullLit()())(),
+            vpr.EqCmp(
+              vpr.Result(vpr.Int)(),
+              vpr.IntLit(BigInt(0))()
+            )()
+          )()
+        ),
+      body = None)()
+  }
+
+
 }

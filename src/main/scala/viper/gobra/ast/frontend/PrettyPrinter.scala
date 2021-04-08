@@ -539,6 +539,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case POptionType(elem) => "option" <> brackets(showType(elem))
+    case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -595,6 +596,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         (if (mip.isPure) "pure ": Doc else emptyDoc) <>
           showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
           opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case PAdtClause(id, args) =>
+        ssep(args map (decl => {
+          val fields = decl.fields
+          showId(id) <+> brackets(showIdList(fields map (_.id)) <+> showType(fields.head.typ))
+        }), line)
     }
   }
 

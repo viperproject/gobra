@@ -1,0 +1,23 @@
+package main
+
+type Tree adt {
+
+    Node{
+        value int
+        left, right Tree
+    }
+
+    Leaf{}
+}
+
+
+type Test struct {
+    a, b int
+}
+
+/*
+func main() {
+    structTest := Test{1, 2}
+    test := Node{0, Leaf{}, Leaf{}}
+}
+*/

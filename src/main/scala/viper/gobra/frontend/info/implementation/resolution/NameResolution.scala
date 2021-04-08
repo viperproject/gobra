@@ -75,7 +75,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PFPredicateDecl => FPredicate(decl, this)
         case decl: PMPredicateDecl => MPredicateImpl(decl, this)
+        case decl: PAdtClause => AdtClause(decl, this)
         case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
+
 
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
@@ -180,8 +182,13 @@ trait NameResolution { this: TypeInfoImpl =>
           case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PFunctionDecl => Vector(d.id)
-          case d: PTypeDecl => Vector(d.left)
+          case d: PTypeDecl => Vector(d.left) ++ adtClauses(d.right)
           case _: PMethodDecl => Vector.empty
+        }
+
+        def adtClauses(t: PType): Vector[PIdnDef] = t match {
+          case t: PAdtType => t.clauses.map(_.id)
+          case _ => Vector.empty
         }
 
         m match {
@@ -192,6 +199,7 @@ trait NameResolution { this: TypeInfoImpl =>
           case _: PImplementationProof => Vector.empty
         }
       }
+
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
@@ -209,6 +217,13 @@ trait NameResolution { this: TypeInfoImpl =>
           case clause: PActualStructClause => collectStructIds(clause)
           case PExplicitGhostStructClause(clause) => collectStructIds(clause)
         }
+      }
+
+      case n: PAdtType => n.clauses.flatMap { c =>
+        val clauseIds = c.args flatMap { a =>
+          a.fields map (_.id)
+        }
+        clauseIds.appended(c.id)
       }
 
       case n: PInterfaceType =>

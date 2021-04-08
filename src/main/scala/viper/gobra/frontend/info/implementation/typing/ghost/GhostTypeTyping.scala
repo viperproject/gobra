@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -23,6 +23,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case _ : PAdtType => noMessages
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
@@ -30,5 +31,6 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
     case POptionType(elem) => OptionT(typeSymbType(elem))
+    case a: PAdtType => AdtT(a, this)
   }
 }

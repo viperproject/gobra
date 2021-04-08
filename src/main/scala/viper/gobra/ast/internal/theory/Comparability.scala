@@ -53,6 +53,7 @@ object Comparability {
     case TypeHead.OptionHD => Kind.Recursive
     case _: TypeHead.TupleHD => Kind.Recursive
     case _: TypeHead.PredHD => Kind.Comparable
+    case _: TypeHead.AdtHD => Kind.Comparable
   }
 
   /** Returns whether the type is comparable. If none is returned, then comparability depends on the dynamic value. */

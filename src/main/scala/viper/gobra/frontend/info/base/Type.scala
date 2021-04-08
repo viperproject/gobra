@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
@@ -43,6 +43,10 @@ object Type {
   case class SliceT(elem: Type) extends Type
 
   case class VariadicT(elem: Type) extends Type
+
+  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+
+  case class AdtClauseT(clauses: ListMap[String, Type], decl: PAdtClause, context: ExternalTypeInfo) extends Type
 
   case class OptionT(elem : Type) extends Type
 

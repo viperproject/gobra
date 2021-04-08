@@ -126,6 +126,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
+    case n: AdtDefinition => showAdtDefinition(n)
   })
 
   def showFunction(f: Function): Doc = f match {
@@ -212,6 +213,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
     showVarDeclList(list)
 
+  def showAdtDefinition(n: AdtDefinition): Doc = updatePositionStore(n) <> (
+    n.name <+> block(ssep(n.clauses map showAdtClause, line))
+  )
+
+  def showAdtClause(clause: AdtClause): Doc = updatePositionStore(clause) <> (clause match {
+    case AdtClause(name, args) => name.name <+> braces(ssep(args map showField, line))
+  })
+
+
+
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
@@ -273,6 +284,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MethodProxy(name, _) => name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
+    case AdtClauseProxy(name, _) => name
     case l: LabelProxy => l.name
   })
 
@@ -476,6 +488,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
+    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
   }
 
   // variables
@@ -518,6 +531,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
+    case AdtT(_, _) => "adt" <> parens("...")
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

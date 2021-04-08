@@ -323,7 +323,7 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get", "writePerm", "noPerm",
-      "typeOf", "isComparable"
+      "typeOf", "isComparable", "adt"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -925,7 +925,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType
+      sequenceType | setType | multisetType | optionType | adtType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -964,6 +964,12 @@ object Parser {
 
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
+
+    lazy val adtType : Parser[PAdtType] =
+      "adt" ~> "{" ~> repsep(adtClause, eos) <~ eos.? <~ "}" ^^ PAdtType
+
+    lazy val adtClause: Parser[PAdtClause] =
+      idnDef ~ ("{" ~> repsep(fieldDecls, eos) <~ eos.? <~ "}") ^^ PAdtClause
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType

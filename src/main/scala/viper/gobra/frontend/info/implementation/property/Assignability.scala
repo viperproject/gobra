@@ -181,6 +181,22 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             failedProp("number of arguments does not match structure")
           }
 
+        /*case a: AdtClauseT =>
+          if (elems.isEmpty) {
+            successProp
+          } else if (elems.exists(_.key.nonEmpty)) {
+            val tmap : Map[String, Type] = a.clauses
+
+            failedProp("for adt literals either all or none elements must be keyed",
+              !elems.forall(_.key.nonEmpty)) and
+              propForall(elems, createProperty[PKeyedElement] { e =>
+                e.key.map {
+                  case PIdentifierKey(id) if tmap.contains(id.name) =>
+                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+                }
+              })
+          }*/
+
         case ArrayT(len, t) =>
           areAllKeysConstant(elems) and
             areAllKeysDisjoint(elems) and

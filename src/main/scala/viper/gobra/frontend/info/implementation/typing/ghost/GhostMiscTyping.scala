@@ -40,6 +40,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case e => Violation.violation(s"expected a method signature of an interface, but got $e")
         }
       )
+    case _ : PAdtClause => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -51,6 +52,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PFPredBase(id) => idType(id)
     }
     case _: PMethodImplementationProof => UnknownType
+    case _: PAdtClause => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {

@@ -179,6 +179,11 @@ object Desugar {
       in.MethodProxy(id.name, name)(meta(id))
     }
 
+    def adtClauseProxy(adtName: String, clause: PAdtClause): in.AdtClauseProxy ={
+      val name = idName(clause.id)
+      in.AdtClauseProxy(name, adtName)(meta(clause))
+    }
+
     def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
       val name = idName(decl.id)
       in.FPredicateProxy(name)(meta(decl))
@@ -314,6 +319,8 @@ object Desugar {
         case NoGhost(x: PTypeDef) => desugarAllTypeDefVariants(x)
         case _ =>
       }
+
+      val additionalMembers = AdditionalMembers.finalizedMembers
 
       // built-in members are not (yet) added to the program's members or the lookup table
       // instead, they remain only accessible via this desugarer's getter function.
@@ -1739,6 +1746,7 @@ object Desugar {
       case l: in.SequenceLit => in.CompositeObject.Sequence(l)
       case l: in.SetLit => in.CompositeObject.Set(l)
       case l: in.MultisetLit => in.CompositeObject.Multiset(l)
+      case l: in.AdtConstructorLit => in.CompositeObject.AdtClause(l)
     }
 
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
@@ -1769,6 +1777,7 @@ object Desugar {
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
+      case class Adt(t: in.AdtT) extends CompositeKind
     }
 
     def compositeTypeD(t : in.Type) : CompositeKind = t match {
@@ -1778,6 +1787,7 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t: in.AdtT => CompositeKind.Adt(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -1876,6 +1886,7 @@ object Desugar {
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
+
       }
     }
 
@@ -1930,7 +1941,7 @@ object Desugar {
           val mem = in.MPredicate(recv, proxy, args, None)(src)
 
           definedMPredicates += (proxy -> mem)
-          additionalMembers ::= mem
+          AdditionalMembers.addMember(mem)
         }
 
         t.decl.methSpecs foreach { m =>
@@ -1952,13 +1963,33 @@ object Desugar {
           }
 
           definedMethods += (proxy -> mem)
-          additionalMembers ::= mem
+          AdditionalMembers.addMember(mem)
         }
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
 
-    var additionalMembers: List[in.Member] = List.empty
+
+
+    object AdditionalMembers {
+
+      private var additionalMembers: List[in.Member] = List.empty
+      private var finalized: Boolean = false
+      private var computationsBeforeFinalize: List[() => Unit] = List.empty
+
+      def addMember(m: in.Member): Unit = additionalMembers ::= m
+      def addFinalizingComputation(f: () => Unit): Unit = computationsBeforeFinalize ::= f
+      def finalizedMembers: List[in.Member] = {
+        require(!finalized)
+
+        if (!finalized) {
+          computationsBeforeFinalize.foreach(_())
+          finalized = true
+        }
+
+        additionalMembers
+      }
+    }
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
       // TODO: 'interfaceImplementations' should be populated based on 'requiredImplements'
@@ -2001,7 +2032,7 @@ object Desugar {
           in.MethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
         }
 
-        additionalMembers ::= res
+        AdditionalMembers.addMember(res)
       }
     }
 
@@ -2036,6 +2067,53 @@ object Desugar {
       fPred
     }
 
+    var registeredAdts: Set[String] = Set.empty
+
+    def fieldDeclAdtD(decl: PFieldDecl, context: ExternalTypeInfo, adt: AdtT)(src: Meta): in.Field = {
+      val fieldName = nm.adtField(decl.id.name, adt)
+      val typ = typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src)
+      in.Field(fieldName, typ, true)(src)
+    }
+
+    var clauseToAdt : Map[String, String] = Map.empty
+
+    def registerAdt(t: Type.AdtT, aT: in.AdtT): Unit = {
+      if(!registeredAdts.contains(aT.name) && info == t.context.getTypeInfo) {
+        registeredAdts += aT.name
+
+        AdditionalMembers.addFinalizingComputation{() =>
+          val xInfo = t.context.getTypeInfo
+
+          val clauses = t.decl.clauses.map{ c =>
+            val src = meta(c, xInfo)
+            val proxy = adtClauseProxy(aT.name, c)
+            val fields = c.args.flatMap(_.fields).map(f => fieldDeclAdtD(f, t.context, t)(src))
+
+            in.AdtClause(proxy, fields)(src)
+          }
+
+          t.decl.clauses.foreach { c =>
+            clauseToAdt += (c.id.name -> aT.name)
+          }
+
+          AdditionalMembers.addMember(
+            in.AdtDefinition(aT.name, clauses)(meta(t.decl, xInfo))
+          )
+        }
+      }
+    }
+
+    def getAdtClauses(adtName: String) : Vector[in.AdtClause] = {
+      val member = AdditionalMembers.finalizedMembers.find({
+        case in.AdtDefinition(name, clauses) => if (name == adtName) true else false
+        case _ => false
+      }).get
+
+      member match {
+        case in.AdtDefinition(_, c) => c
+      }
+    }
+
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
@@ -2063,6 +2141,12 @@ object Desugar {
 
         val structName = nm.struct(t)
         registerType(in.StructT(structName, inFields, addrMod))
+
+      case t: Type.AdtT =>
+        val adtName = nm.adt(t)
+        val res = registerType(in.AdtT(adtName, addrMod))
+        registerAdt(t, res)
+        res
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 
@@ -2101,6 +2185,7 @@ object Desugar {
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
       case n: st.NamedType => nm.typ(id.name, n.context)
+      case a: st.AdtClause => nm.function(id.name, a.context)
       case _ => ???
     }
 
@@ -2737,6 +2822,8 @@ object Desugar {
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
+    private val ADT_PREFIX = "ADT"
+    private val ADT_CLAUSE_PREFIX = "P"
 
     private var counter = 0
 
@@ -2843,6 +2930,16 @@ object Desugar {
         s"$INTERFACE_PREFIX$$$interfaceName"
       }
     }
+
+    def adt(a: AdtT): String = {
+      val pom = a.context.getTypeInfo.tree.originalRoot.positions
+      val start = pom.positions.getStart(a.decl).get
+      val finish = pom.positions.getFinish(a.decl).get
+      val pos = pom.translate(start, finish)
+      val adtName = pos.toString.replace(".", "$")
+      s"$ADT_PREFIX$$$adtName"
+    }
+    def adtField (n: String, s: AdtT): String = nameWithoutScope(s"$ADT_CLAUSE_PREFIX$$${adt(s)}")(n, s.context)
 
     def label(n: String): String = s"${n}_$LABEL_PREFIX"
   }

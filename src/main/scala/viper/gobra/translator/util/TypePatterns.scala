@@ -186,6 +186,13 @@ object TypePatterns {
         case _ => None
       }
     }
+
+    object Adt {
+      def unapply(arg: in.Type): Option[in.AdtT] = underlyingType(arg)(ctx) match {
+        case t: in.AdtT => Some(t)
+        case _ => None
+      }
+    }
   }
 
 

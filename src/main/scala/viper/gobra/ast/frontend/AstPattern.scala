@@ -71,4 +71,7 @@ object AstPattern {
   case class BuiltInPredicate(id: PIdnUse, symb: st.BuiltInFPredicate) extends BuiltInPredicateKind with Symbolic
   case class BuiltInReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
   case class BuiltInPredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
+
+
+
 }

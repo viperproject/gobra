@@ -129,6 +129,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     entity(id) match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
       case Import(decl, _) => ImportT(decl)
+      case AdtClause(decl, context) => AdtClauseT(decl, context)
       case _ => violation(s"expected type, but got $id")
     }
   }

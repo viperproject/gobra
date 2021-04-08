@@ -218,6 +218,8 @@ case class BuiltInMPredicate(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
+case class AdtDefinition(name: String, clauses: Vector[AdtClause])(val info: Source.Parser.Info) extends Member
+case class AdtClause(name: AdtClauseProxy, args: Vector[Field])(val info: Source.Parser.Info) extends Node
 
 
 
@@ -289,6 +291,7 @@ object CompositeObject {
   case class Sequence(op : SequenceLit) extends CompositeObject
   case class Set(op : SetLit) extends CompositeObject
   case class Multiset(op : MultisetLit) extends CompositeObject
+  case class AdtClause(op: AdtConstructorLit) extends CompositeObject
 }
 
 /**
@@ -950,6 +953,7 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
+case class AdtConstructorLit(typ: Type, clause: AdtClauseProxy, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
 sealed trait Declaration extends Node
 
@@ -1227,6 +1231,25 @@ case class ChannelT(elem: Type, addressability: Addressability) extends Type {
     ChannelT(elem, newAddressability)
 }
 
+case class AdtT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtT(name, newAddressability)
+}
+
+case class AdtClauseT(name: String, adtT: AdtT, addressability: Addressability) extends Type {
+  /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: AdtClauseT => name == o.name && adtT == o.adtT
+  }
+
+  override def withAddressability(newAddressability: Addressability): Type =
+    AdtClauseT(name, adtT, newAddressability)
+}
 
 
 sealed trait Proxy extends Node {
@@ -1237,12 +1260,10 @@ sealed trait MemberProxy extends Proxy {
 }
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
+case class AdtClauseProxy(name: String, adtName: String)(val info: Source.Parser.Info) extends Proxy
 
 sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
-
-
-

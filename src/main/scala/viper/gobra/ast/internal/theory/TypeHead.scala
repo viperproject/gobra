@@ -38,6 +38,7 @@ object TypeHead {
   case object OptionHD extends TypeHead
   case class TupleHD(arity: Int) extends TypeHead
   case class PredHD(arity: Int) extends TypeHead
+  case class AdtHD(name: String) extends TypeHead
 
   val emptyInterfaceHD: InterfaceHD = InterfaceHD(Names.emptyInterface)
 
@@ -70,6 +71,7 @@ object TypeHead {
     case _: OptionT => OptionHD
     case t: TupleT => TupleHD(t.ts.size)
     case t: PredT => PredHD(t.args.size)
+    case t: AdtT => AdtHD(t.name)
   }
 
   /** Returns the direct children types of a type. */
@@ -93,6 +95,7 @@ object TypeHead {
     case t: OptionT => Vector(t.t)
     case t: TupleT => t.ts
     case t: PredT => t.args
+    case _: AdtT => Vector.empty
   }
 
   /** Returns the direct children types of a type expression. */
@@ -151,6 +154,7 @@ object TypeHead {
     case SetHD => 1
     case MSetHD => 1
     case OptionHD => 1
+    case _: AdtHD => 0
     case t: TupleHD => t.arity
     case t: PredHD => t.arity
   }

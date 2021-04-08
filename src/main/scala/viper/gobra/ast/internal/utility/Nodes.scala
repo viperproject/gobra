@@ -156,6 +156,7 @@ object Nodes {
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
+          case AdtConstructorLit(_, _, args) => args
         }
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty
@@ -170,6 +171,7 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case AdtClauseProxy(_, _) => Seq.empty
         case _: LabelProxy => Seq.empty
       }
     }

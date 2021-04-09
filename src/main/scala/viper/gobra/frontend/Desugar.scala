@@ -2644,6 +2644,10 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
+            case Single(_: Type.MapT) =>
+              goE(acc) map in.Accessible.Map // TODO: is this valid for all when underlying types are maps (instead of only having maps?)
+              // TODO: what happens when a map is shared?
+
             case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")
           }
       }

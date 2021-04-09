@@ -39,7 +39,7 @@ trait Implements { this: TypeInfoImpl =>
     } else {
       def go(t: Type): Boolean = isIdentityPreservingType(t, encounteredTypes + t)
       underlyingType(t) match {
-        case Type.NilType | Type.BooleanT | _: Type.IntT => true
+        case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
           ut.decl.clauses.forall(!_.isInstanceOf[PExplicitGhostStructClause]) &&

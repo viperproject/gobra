@@ -334,6 +334,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
     case Accessible.Address(der) => showExpr(der)
     case Accessible.Predicate(op) => showPredicateAcc(op)
+    case Accessible.Map(op) => showExpr(op)
     case Accessible.PredExpr(PredExprInstance(base, args)) => showExpr(base) <> parens(showExprList(args))
   })
 

@@ -33,6 +33,14 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case _ => error(base.recvWithId, s"invalid base $base for predicate constructor")
       }
     }
+
+    case ax: PDomainAxiom =>
+      assignableTo.errors(exprType(ax.exp), BooleanT)(ax) ++ isPureExpr(ax.exp)
+
+    case f: PDomainFunction =>
+      error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
+        nonVariadicArguments(f.args)
+
     case n: PMethodImplementationProof => // TODO: check that body has the right shape
       wellDefIfPureMethodImplementationProof(n) ++ (
         entity(n.id) match {
@@ -50,6 +58,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case PDottedBase(recvWithId) => exprOrTypeType(recvWithId)
       case PFPredBase(id) => idType(id)
     }
+    case _: PDomainAxiom | _: PDomainFunction => UnknownType
     case _: PMethodImplementationProof => UnknownType
   }
 

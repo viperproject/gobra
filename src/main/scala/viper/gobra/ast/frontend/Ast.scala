@@ -1007,7 +1007,6 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
-
 /* ** Types */
 
 /**
@@ -1037,6 +1036,19 @@ case class PMultisetType(elem : PType) extends PGhostLiteralType
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+
+case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
+
+sealed trait PDomainClause extends PNode
+
+case class PDomainFunction(id: PIdnDef,
+                           args: Vector[PParameter],
+                           result: PResult
+                                 ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
+
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
+
 
 /**
   * Miscellaneous

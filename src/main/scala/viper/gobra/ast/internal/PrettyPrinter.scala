@@ -382,7 +382,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case SequenceUpdate(seq, left, right) =>
+    case GhostCollectionUpdate(seq, left, right) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
@@ -390,6 +390,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+    case MathematicalMapKeys(exp) => "keys" <> parens(showExpr(exp))
+    case MathematicalMapValues(exp) => "values" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -440,6 +442,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
+
+    case l: MapLocation => showExpr(l.exp)
   })
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
@@ -477,6 +481,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
+    case lit@MathematicalMapLit(_, _, entries) =>
+      showType(lit.typ) <+> braces(space <> showMap(entries)(showExpr, showExpr) <> (if (entries.nonEmpty) space else emptyDoc))
   }
 
   // variables
@@ -517,6 +523,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
+    case MathematicalMapT(keys, values, _)  => "mmap" <> brackets(showType(keys)) <> showType(values)
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)

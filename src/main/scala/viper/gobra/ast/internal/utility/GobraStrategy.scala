@@ -124,7 +124,7 @@ object GobraStrategy {
       case (_: Capacity, Seq(exp: Expr)) => Capacity(exp)(meta)
       case (_: RangeSequence, Seq(low: Expr, high: Expr)) => RangeSequence(low, high)(meta)
       case (_: SequenceAppend, Seq(l: Expr, r: Expr)) => SequenceAppend(l, r)(meta)
-      case (_: SequenceUpdate, Seq(base: Expr, left: Expr, right: Expr)) => SequenceUpdate(base, left, right)(meta)
+      case (_: GhostCollectionUpdate, Seq(base: Expr, left: Expr, right: Expr)) => GhostCollectionUpdate(base, left, right)(meta)
       case (_: SequenceDrop, Seq(l: Expr, r: Expr)) => SequenceDrop(l, r)(meta)
       case (_: SequenceTake, Seq(l: Expr, r: Expr)) => SequenceTake(l, r)(meta)
       case (_: SequenceConversion, Seq(arg: Expr)) => SequenceConversion(arg)(meta)

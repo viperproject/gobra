@@ -36,7 +36,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PPackageNode => showPackageId(n)
     case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
-    case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
+    case n: PGhostCollectionUpdateClause => showSequenceUpdateClause(n)
     case n: PAssOp => showAssOp(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
@@ -439,7 +439,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSequenceConversion(exp) => "seq" <> parens(showExpr(exp))
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
           case PSequenceAppend(left, right) => showSubExpr(expr, left) <+> "++" <+> showSubExpr(expr, right)
-          case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
+          case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
             (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
         }
         case expr : PUnorderedGhostCollectionExp => expr match {
@@ -449,6 +449,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+          case PMathematicalMapKeys(exp) => "keys" <> parens(showExpr(exp))
+          case PMathematicalMapValues(exp) => "values" <> parens(showExpr(exp))
         }
       }
 
@@ -460,7 +462,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
+  def showSeqUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
@@ -538,6 +540,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
+    case PMathematicalMapType(keys, values) => "mmap" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
   }
 
@@ -598,6 +601,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =
+  def showSequenceUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }

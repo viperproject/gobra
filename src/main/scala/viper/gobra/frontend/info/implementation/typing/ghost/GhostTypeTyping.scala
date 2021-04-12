@@ -21,6 +21,9 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       error(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PMultisetType(elem) => isType(elem).out ++
       error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out ++
+      error(typ, s"maps of custom defined types are currently not supported", key.isInstanceOf[PNamedOperand] || value.isInstanceOf[PNamedOperand]) ++
+      error(typ, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
   }
@@ -29,6 +32,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
+    case PMathematicalMapType(keys, values) => MathematicalMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
   }
 }

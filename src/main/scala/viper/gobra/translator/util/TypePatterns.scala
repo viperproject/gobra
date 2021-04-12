@@ -122,6 +122,13 @@ object TypePatterns {
       }
     }
 
+    object MathematicalMap {
+      def unapply(arg: in.Type): Option[(in.Type, in.Type)] = underlyingType(arg)(ctx) match {
+        case t : in.MathematicalMapT => Some((t.keys, t.values))
+        case _ => None
+      }
+    }
+
     object AnySet {
       def unapply(arg: in.Type): Option[in.Type] = underlyingType(arg)(ctx) match {
         case t : in.MultisetT => Some(t.t)

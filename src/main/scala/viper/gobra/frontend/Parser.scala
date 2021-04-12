@@ -323,7 +323,7 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get", "writePerm", "noPerm",
-      "typeOf", "isComparable"
+      "typeOf", "isComparable", "keys", "values"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -736,6 +736,8 @@ object Parser {
         newExp |
         len |
         cap |
+        keys |
+        values |
         ghostUnaryExp |
         primaryExp
 
@@ -753,6 +755,13 @@ object Parser {
 
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
+
+    lazy val keys : Parser[PMathematicalMapKeys] =
+      "keys" ~> ("(" ~> expression <~ ")") ^^ PMathematicalMapKeys
+
+    // TODO: name may clash quite a lot
+    lazy val values : Parser[PMathematicalMapValues] =
+      "values" ~> ("(" ~> expression <~ ")") ^^ PMathematicalMapValues
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -842,11 +851,11 @@ object Parser {
     lazy val sliceExp: PackratParser[PSliceExp] =
       primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
 
-    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
-      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+    lazy val seqUpdExp : PackratParser[PGhostCollectionUpdate] =
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PGhostCollectionUpdate
 
-    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
-      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
+    lazy val seqUpdClause : Parser[PGhostCollectionUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PGhostCollectionUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
@@ -925,7 +934,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType
+      sequenceType | setType | multisetType | mmapType | optionType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -961,6 +970,9 @@ object Parser {
 
     lazy val multisetType : Parser[PMultisetType] =
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
+
+    lazy val mmapType: Parser[PMathematicalMapType] =
+      ("mmap" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMathematicalMapType
 
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType

@@ -272,6 +272,10 @@ case class MakeSlice(override val target: LocalVar, override val typeParam: Slic
 case class MakeChannel(override val target: LocalVar, override val typeParam: ChannelT, bufferSizeArg: Option[Expr], isChannel: MPredicateProxy, bufferSize: MethodProxy)(val info: Source.Parser.Info) extends MakeStmt
 case class MakeMap(override val target: LocalVar, override val typeParam: MapT, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
+case class MapLocation(exp: Expr)(val info : Source.Parser.Info) extends Location {
+  override def typ: Type = exp.typ
+}
+
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {
@@ -351,7 +355,7 @@ sealed trait Accessible extends Node {
 
 object Accessible {
   case class Predicate(op: PredicateAccess) extends Accessible
-  case class Map(op: Expr) extends Accessible
+  case class Map(op: MapLocation) extends Accessible
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }
@@ -545,6 +549,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
+    case t: MathematicalMapT => t.values
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
@@ -591,13 +596,13 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 }
 
 /**
-  * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
-  * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
+  * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
+  * collection equal to `col` but 'updated' to have `right` at the `left` position.
   */
-case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `base`. */
-  require(base.typ.isInstanceOf[SequenceT], s"expected sequence, but got ${base.typ} (${info.origin})")
-  override val typ : Type = SequenceT(base.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathematicalMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
+  override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -769,6 +774,30 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
   }
 }
 
+/* ** Mathematical Map expressions */
+
+/**
+  * Represents a mathematical map literal "mmap[`keys`]`values` { k_0: e_0, ..., k_n: e_n }",
+  * where `keyExprs` constitutes the vector "k_0, ..., k_n" of members of `keys` type
+  * and `valExprs` constitutes the vector "e_0, ..., e_n" of members,
+  * which should all be of type `values`.
+  */
+case class MathematicalMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = MathematicalMapT(keys, values, Addressability.literal)
+}
+
+/**
+  * TODO
+  */
+case class MathematicalMapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  require(exp.typ.isInstanceOf[MathematicalMapT])
+  override val typ : Type = SetT(exp.typ.asInstanceOf[MathematicalMapT].keys, Addressability.mathDataStructureElement)
+}
+
+case class MathematicalMapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  require(exp.typ.isInstanceOf[MathematicalMapT])
+  override val typ : Type = SetT(exp.typ.asInstanceOf[MathematicalMapT].values, Addressability.mathDataStructureElement)
+}
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -1149,6 +1178,19 @@ case class MultisetT(t : Type, addressability: Addressability) extends Type {
 
   override def withAddressability(newAddressability: Addressability): MultisetT =
     MultisetT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
+
+/**
+  * The type of mathematical maps from `keys` to `values`
+  */
+case class MathematicalMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case MathematicalMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): MathematicalMapT =
+    MathematicalMapT(keys.withAddressability(Addressability.mathDataStructureElement), values.withAddressability(Addressability.mathDataStructureElement), newAddressability)
 }
 
 /**

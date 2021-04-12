@@ -923,17 +923,17 @@ case class PSequenceConversion(exp : PExpression) extends PSequenceExp
   * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExp {
+case class PGhostCollectionUpdate(seq : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PSequenceExp with PMathematicalMapExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
-    this(seq, Vector(PSequenceUpdateClause(left, right)))
+    this(seq, Vector(PGhostCollectionUpdateClause(left, right)))
 }
 
 /**
   * Represents a single update clause "`left` = `right`"
-  * in a sequence update expression "`seq`[`left` = `right`]".
+  * in a ghost collection update expression "`T`[`left` = `right`]", where `T` is either a sequence or a (mathematical) map
   */
-case class PSequenceUpdateClause(left : PExpression, right : PExpression) extends PNode
+case class PGhostCollectionUpdateClause(left : PExpression, right : PExpression) extends PNode
 
 /**
   * Denotes the range of integers from `low` to `high`
@@ -1007,7 +1007,14 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
+/* ** (Mathematical) Map expressions */
+sealed trait PMathematicalMapExp extends PUnorderedGhostCollectionExp
 
+// TODO: doc
+case class PMathematicalMapKeys(exp : PExpression) extends PMathematicalMapExp
+
+// TODO: doc
+case class PMathematicalMapValues(exp : PExpression) extends PMathematicalMapExp
 /* ** Types */
 
 /**
@@ -1035,8 +1042,14 @@ case class PSetType(elem : PType) extends PGhostLiteralType
   */
 case class PMultisetType(elem : PType) extends PGhostLiteralType
 
+/**
+  * The type of (mathematical) maps with elements from `keys` to `values`
+  */
+case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLiteralType
+
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
 
 /**
   * Miscellaneous

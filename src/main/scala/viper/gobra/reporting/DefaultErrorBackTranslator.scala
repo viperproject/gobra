@@ -73,6 +73,8 @@ object DefaultErrorBackTranslator {
         SeqIndexNegativeError(node, index)
       case vprrea.DivisionByZero(info) =>
         DivisionByZeroReason(Source.unapply(info))
+      case vprrea.MapKeyNotContained(Source(node), Source(index)) =>
+        MapKeyNotContained(node, index)
       //      case vprrea.DummyReason =>
       //      case vprrea.InternalReason(offendingNode, explanation) =>
       //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>

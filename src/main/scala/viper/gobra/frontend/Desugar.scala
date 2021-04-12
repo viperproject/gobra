@@ -1768,6 +1768,7 @@ object Desugar {
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
+      case class MathematicalMap(t : in.MathematicalMapT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
@@ -1778,6 +1779,7 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t: in.MathematicalMapT => CompositeKind.MathematicalMap(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -1821,7 +1823,8 @@ object Desugar {
             val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }}
+            }
+            }
 
             for {
               args <- sequence(wArgs)
@@ -1855,12 +1858,12 @@ object Desugar {
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for {elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))}
             yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
+          for {elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))}
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
@@ -1876,6 +1879,21 @@ object Desugar {
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
+
+        case CompositeKind.MathematicalMap(in.MathematicalMapT(keys, values, _)) =>
+          for {
+            entriesD <- sequence(lit.elems.map {
+              case PKeyedElement(Some(key), value) => for {
+                entryKey <- key match {
+                  case v: PCompositeVal => compositeValD(ctx)(v, keys)
+                  case _: PIdentifierKey => ??? // violation
+                }
+                entryVal <- compositeValD(ctx)(value, values)
+              } yield (entryKey, entryVal)
+
+              case _ => ??? // violation
+            })
+        } yield in.MathematicalMapLit(keys, values, entriesD.toMap)(src)
       }
     }
 
@@ -2060,6 +2078,12 @@ object Desugar {
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      case Type.MathematicalMapT(keys, values) =>
+        in.MathematicalMapT(
+          typeD(keys, Addressability.mathDataStructureElement)(src),
+          typeD(values, Addressability.mathDataStructureElement)(src),
+          addrMod
+        )
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
@@ -2381,11 +2405,11 @@ object Desugar {
           dright <- go(right)
         } yield in.SequenceAppend(dleft, dright)(src)
 
-        case PSequenceUpdate(seq, clauses) => clauses.foldLeft(go(seq)) {
-          case (dseq, clause) => for {
+        case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
+          case (dcol, clause) => for {
             dleft <- go(clause.left)
             dright <- go(clause.right)
-          } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
+          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright)(src)
         }
 
         case PSequenceConversion(op) => for {
@@ -2447,6 +2471,14 @@ object Desugar {
         case POptionGet(op) => for {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
+
+        case PMathematicalMapKeys(exp) => for {
+          e <- go(exp)
+        } yield in.MathematicalMapKeys(e)(src)
+
+        case PMathematicalMapValues(exp) => for {
+          e <- go(exp)
+        } yield in.MathematicalMapValues(e)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
@@ -2645,7 +2677,7 @@ object Desugar {
               }
 
             case Single(_: Type.MapT) =>
-              goE(acc) map in.Accessible.Map // TODO: is this valid for all when underlying types are maps (instead of only having maps?)
+              goE(acc) map (x => in.Accessible.Map(in.MapLocation(x)(src))) // TODO: is this valid for all when underlying types are maps (instead of only having maps?)
               // TODO: what happens when a map is shared?
 
             case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")

@@ -429,10 +429,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: simple sequence update") {
     frontend.parseExpOrFail("xs[i = 42]") should matchPattern {
-      case PSequenceUpdate(
+      case PGhostCollectionUpdate(
         PNamedOperand(PIdnUse("xs")),
         Vector(
-          PSequenceUpdateClause(
+          PGhostCollectionUpdateClause(
             PNamedOperand(PIdnUse("i")),
             PIntLit(n)
           )
@@ -443,13 +443,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: sequence update with an append on left-hand side") {
     frontend.parseExp("(xs ++ ys)[i = true]") should matchPattern {
-      case Right(PSequenceUpdate(
+      case Right(PGhostCollectionUpdate(
         PSequenceAppend(
           PNamedOperand(PIdnUse("xs")),
           PNamedOperand(PIdnUse("ys"))
         ),
         Vector(
-          PSequenceUpdateClause(
+          PGhostCollectionUpdateClause(
             PNamedOperand(PIdnUse("i")),
             PBoolLit(true)
           )
@@ -462,10 +462,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExp("xs ++ ys[i = v]") should matchPattern {
       case Right(PSequenceAppend(
         PNamedOperand(PIdnUse("xs")),
-        PSequenceUpdate(
+        PGhostCollectionUpdate(
           PNamedOperand(PIdnUse("ys")),
           Vector(
-            PSequenceUpdateClause(
+            PGhostCollectionUpdateClause(
               PNamedOperand(PIdnUse("i")),
               PNamedOperand(PIdnUse("v"))
             )
@@ -478,10 +478,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: taking the length of sequence update expression") {
     frontend.parseExp("|xs[x = false]|") should matchPattern {
       case Right(PCardinality(
-        PSequenceUpdate(
+        PGhostCollectionUpdate(
           PNamedOperand(PIdnUse("xs")),
           Vector(
-            PSequenceUpdateClause(
+            PGhostCollectionUpdateClause(
               PNamedOperand(PIdnUse("x")),
               PBoolLit(false)
             )
@@ -493,7 +493,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: updating sequence literals") {
     frontend.parseExp("seq[bool] { true, false, false }[1 = true]") should matchPattern {
-      case Right(PSequenceUpdate(
+      case Right(PGhostCollectionUpdate(
         PCompositeLit(
           PSequenceType(PBoolType()),
           PLiteralValue(Vector(
@@ -502,25 +502,25 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
             PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
           ))
         ),
-        Vector(PSequenceUpdateClause(PIntLit(i), PBoolLit(true)))
+        Vector(PGhostCollectionUpdateClause(PIntLit(i), PBoolLit(true)))
       )) if i == BigInt(1) =>
     }
   }
 
   test("Parser: chaining sequence updates") {
     frontend.parseExp("xs[i = true][j = false]") should matchPattern {
-      case Right(PSequenceUpdate(
-        PSequenceUpdate(
+      case Right(PGhostCollectionUpdate(
+        PGhostCollectionUpdate(
           PNamedOperand(PIdnUse("xs")),
           Vector(
-            PSequenceUpdateClause(
+            PGhostCollectionUpdateClause(
               PNamedOperand(PIdnUse("i")),
               PBoolLit(true)
             )
           )
         ),
         Vector(
-          PSequenceUpdateClause(
+          PGhostCollectionUpdateClause(
             PNamedOperand(PIdnUse("j")),
             PBoolLit(false)
           )
@@ -531,15 +531,15 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: nested sequence updates") {
     frontend.parseExp("xs[i = ys[j = v]]") should matchPattern {
-      case Right(PSequenceUpdate(
+      case Right(PGhostCollectionUpdate(
         PNamedOperand(PIdnUse("xs")),
         Vector(
-          PSequenceUpdateClause(
+          PGhostCollectionUpdateClause(
             PNamedOperand(PIdnUse("i")),
-            PSequenceUpdate(
+            PGhostCollectionUpdate(
               PNamedOperand(PIdnUse("ys")),
               Vector(
-                PSequenceUpdateClause(
+                PGhostCollectionUpdateClause(
                   PNamedOperand(PIdnUse("j")),
                   PNamedOperand(PIdnUse("v"))
                 )
@@ -684,12 +684,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse a sequence update expression with three clauses") {
     frontend.parseExpOrFail("xs[1 = true,2 = b , 7 = |xs|]") should matchPattern {
-      case PSequenceUpdate(
+      case PGhostCollectionUpdate(
         PNamedOperand(PIdnUse("xs")),
         Vector(
-          PSequenceUpdateClause(PIntLit(a), PBoolLit(true)),
-          PSequenceUpdateClause(PIntLit(b), PNamedOperand(PIdnUse("b"))),
-          PSequenceUpdateClause(PIntLit(c), PCardinality(PNamedOperand(PIdnUse("xs"))))
+          PGhostCollectionUpdateClause(PIntLit(a), PBoolLit(true)),
+          PGhostCollectionUpdateClause(PIntLit(b), PNamedOperand(PIdnUse("b"))),
+          PGhostCollectionUpdateClause(PIntLit(c), PCardinality(PNamedOperand(PIdnUse("xs"))))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(7) =>
     }

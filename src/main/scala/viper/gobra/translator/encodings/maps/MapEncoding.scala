@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) 2011-2020 ETH Zurich.
+// Copyright (c) 2011-2021 ETH Zurich.
 
 package viper.gobra.translator.encodings.maps
 
@@ -43,13 +43,32 @@ class MapEncoding extends LeafTypeEncoding {
     default(super.expr(ctx)) {
       case (exp: in.DfltVal) :: ctx.Map(_, _) => unit(withSrc(vpr.NullLit(), exp))
       case (exp: in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
-      case in.Length(exp :: ctx.Map(k, v) / Exclusive) =>
+      case in.MapLocation(exp :: ctx.Map(_, _) / Exclusive) => goE(exp)
+
+      /** Unlike slices, taking the length of a map requires read permissions to it because maps may change in size, e.g.
+       *    m := make(map[int]int)
+       *    go f(m) // f(m) sets m[10] to 10
+       *    go g(m) // where g(m) computes len(m)
+       *
+       *  There is a race condition here but Gobra still verifies if len(m) does not require read permissions to m.
+       */
+      case l@ in.Length(exp :: ctx.Map(k, v) / Exclusive) =>
+        val (pos, info, errT) = l.vprMeta
         for {
           e <- goE(exp)
-          keyType = goT(k)
-          valueType = goT(v)
-          // Todo: use ternary op here
-          res <- handleLength(e, keyType, valueType)
+          keys = goT(k)
+          values = goT(v)
+          // [ len(m) ] ->
+          //      [ m ] == null? 0 : |underlyingMap([ m ].underlyingMapField)|
+          res = vpr.CondExp(
+            vpr.EqCmp(e, vpr.NullLit()(pos, info, errT))(pos, info, errT),
+            vpr.IntLit(BigInt(0))(pos, info, errT),
+            vpr.MapCardinality(
+              vpr.DomainFuncApp(
+                func = getMapFunc,
+                args = Seq(vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)),
+                typVarMap = Map(keyParam -> keys, valueParam -> values))(pos, info, errT))(pos, info, errT)
+          )(pos, info, errT)
         } yield res
     }
   }
@@ -125,11 +144,10 @@ class MapEncoding extends LeafTypeEncoding {
   private val keyParam = vpr.TypeVar("K")
   private val valueParam = vpr.TypeVar("V")
 
-  // TODO: maybe this can be done as a function generator instead of a domain?
   /**
     * Generates
     *   domain GobraMap[K,V] {
-    *     function getMap(addr: Ref): Map[K,V]
+    *     function getMap(addr: Ref): Map[K,V] // TODO: make addr of type int instead of ref
     *
     *     axiom nullMap {
     *       |getMap(null)| == 0
@@ -174,64 +192,31 @@ class MapEncoding extends LeafTypeEncoding {
   private val underlyingMapFieldName = "underlyingMapField" // TODO: change to avoid collisions
   private val underlyingMapField: vpr.Field = vpr.Field(underlyingMapFieldName, vpr.Ref)()
 
-  /** Encodes the specification of the len() function for maps as follows:
-    *   function mapLen(m: Ref): Int
-    *     requires m != null ==> acc(m.underlyingMapField, wildcard)
-    *     // TODO: m == null? 0 : |underlyingMap(m.underlyingMapField)|
-    *     ensures m != null ==> result == |underlyingMap(m.underlyingMapField)|
-    *     ensures m == null ==> result == 0
+  /** TODO: rephrase
+    * Encodes the permissions for all addresses of a shared type,
+    * i.e. all permissions involved in converting the shared location to an exclusive r-value.
+    * An encoding for type T should be defined at all shared locations of type T.
     *
-    * Alternatively, we could have encoded this as a vpr.Function. However, the need to pass the types of keys and
-    * values makes things a bit harder. (instead, one could use a FunctionGenerator)
-    *
-    * Unlike slices, taking the length of a map requires read permissions to it because maps may change in size, e.g.
-    *   m := make(map[int]int)
-    *   go f(m) // f(m) sets m[10] to 10
-    *   go g(m) // where g(m) computes len(m)
-    * There is a race condition here but Gobra still verifies if len(m) does not require read permissions to m.
+    * Footprint[loc: T@, perm] -> acc([loc], [perm])
+    * Footprint[loc: T@, perm] -> acc([loc], [perm])
     */
-  private def handleLength(e: vpr.Exp, keys: vpr.Type, values: vpr.Type): CodeWriter[vpr.Exp] = {
-    val (pos, info, errT) = e.meta
-    val resVarDecl = vpr.LocalVarDecl(Names.freshName, vpr.Int)(pos, info, errT)
-    for {
-      // var res: Int
-      _ <- local(resVarDecl)
+  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
+    case (in.MapLocation(exp :: in.MapT(_, _, _) / Exclusive), p) if typ(ctx).isDefinedAt(exp.typ) =>
+      val (pos, info, errT) = exp.vprMeta
+      for {
+        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
+        e <- ctx.expr.translate(exp)(ctx)
+        fldAcc = vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)
+      } yield vpr.FieldAccessPredicate(fldAcc, vprPerm)(pos, info, errT)
+      /*
+    case loc@(in.MapLocation(exp :: in.MapT(_, _, _) / Shared), p) if typ(ctx).isDefinedAt(exp.typ) =>
+      val (pos, info, errT) = exp.vprMeta
+      for {
+        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
+        e <- ctx.expr.translate(exp)(ctx)
+        fldAcc = vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)
+      } yield vpr.FieldAccessPredicate(fldAcc, vprPerm)(pos, info, errT)
 
-      // assert e != null ==> acc(e.underlyingMap, _)
-      _ <- write(
-        vpr.Assert(
-          vpr.Implies(
-            vpr.NeCmp(e, vpr.NullLit()(pos, info, errT))(pos, info, errT),
-            vpr.FieldAccessPredicate(
-              vpr.FieldAccess(e, underlyingMapField)(pos, info, errT),
-              vpr.WildcardPerm()(pos, info, errT)
-            )(pos, info, errT)
-          )(pos, info, errT)
-        )(pos, info, errT))
-
-      // assume e == null ==> res == 0
-      _ <- write(
-        vpr.Assume(
-          vpr.Implies(
-            vpr.EqCmp(e, vpr.NullLit()(pos, info, errT))(pos, info, errT),
-            vpr.EqCmp(resVarDecl.localVar, vpr.IntLit(BigInt(0))(pos, info, errT))(pos, info, errT)
-          )(pos, info, errT)
-        )(pos, info, errT)
-      )
-
-      // assume e != null ==> res == |getMap(e.underlyingMap)|
-      _ <- write(
-        vpr.Assume(
-          vpr.Implies(
-            vpr.NeCmp(e, vpr.NullLit()(pos, info, errT))(),
-            vpr.EqCmp(
-              resVarDecl.localVar,
-              vpr.MapCardinality(
-                vpr.DomainFuncApp(
-                  func = getMapFunc,
-                  args = Seq(vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)),
-                  typVarMap = Map(keyParam -> keys, valueParam -> values))(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
-      )
-    } yield resVarDecl.localVar // return res
+       */
   }
 }

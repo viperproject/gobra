@@ -262,6 +262,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
+          case (MathematicalMapT(key, _), indexT) =>
+            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         })
 
@@ -344,7 +347,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT | _: VariadicT | _: MapT => noMessages
+        case _: ArrayT | _: SliceT | StringT | _: VariadicT | _: MapT | _: MathematicalMapT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -491,6 +494,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+      case (MathematicalMapT(key, elem), indexT) if assignableTo(indexT, key) =>
+        elem
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 

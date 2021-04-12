@@ -117,7 +117,7 @@ object Nodes {
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
-        case SequenceUpdate(base, left, right) => Seq(base, left, right)
+        case GhostCollectionUpdate(base, left, right) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
         case SequenceTake(left, right) => Seq(left, right)
         case SequenceConversion(expr) => Seq(expr)

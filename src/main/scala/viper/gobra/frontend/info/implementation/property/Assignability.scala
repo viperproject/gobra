@@ -96,6 +96,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
+      case (MathematicalMapT(k1, v1), MathematicalMapT(k2, v2)) => assignableTo(k1, k2) && assignableTo(v1, v2) // TODO: rethink this with examples
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
       case (IntT(_), PermissionT) => true
 
@@ -111,6 +112,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case _: SliceT => assignable(b)
       case _: VariadicT => assignable(b)
       case _: MapT => true
+      case _: SequenceT => true
+      case _: MathematicalMapT => true
       case _ => false
     }
     case PBlankIdentifier() => true
@@ -205,6 +208,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case MultisetT(t) =>
           areNoElementsKeyed(elems) and
             areAllElementsAssignable(elems, t)
+
+        case MathematicalMapT(keys, values) =>
+          areAllElementsKeyed(elems) and
+            areAllKeysAssignable(elems, keys) and
+            areAllElementsAssignable(elems, values)
+
 
         case t => failedProp(s"cannot assign literal to $t")
       }

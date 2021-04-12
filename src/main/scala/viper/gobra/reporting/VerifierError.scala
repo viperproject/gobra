@@ -210,6 +210,11 @@ case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verif
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
 }
 
+case class MapKeyNotContained(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "map_key_not_contained"
+  override def message: String = s"Key ${index.origin.tag.trim} might not be contained in ${node.origin.tag.trim}"
+}
+
 // João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.
 // This has to do with the fact that, in our tests, there are cases where a division by zero occurs but we cannot retrieve
 // a corresponding Source.Verifier.Info. E.g. src/test/resources/regressions/features/fractional_permissions/fields/fail3.gobra

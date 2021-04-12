@@ -2676,9 +2676,9 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
+              // TODO: do similarly same for slices (and arrays?)
             case Single(_: Type.MapT) =>
-              goE(acc) map (x => in.Accessible.Map(in.MapLocation(x)(src))) // TODO: is this valid for all when underlying types are maps (instead of only having maps?)
-              // TODO: what happens when a map is shared?
+              goE(acc) map (x => in.Accessible.ExprAccess(x))
 
             case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")
           }

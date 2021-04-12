@@ -43,7 +43,10 @@ class AssertionsImpl extends Assertions {
         acc.e match {
           case in.Accessible.Predicate(op) => ctx.predicate.predicateAccess(ctx)(op, acc.p)
           case in.Accessible.Address(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
-          case in.Accessible.Map(op) => ctx.typeEncoding.addressFootprint(ctx)(op, acc.p)
+          case in.Accessible.ExprAccess(op) =>
+            op.typ match {
+              case _: in.MapT => ctx.typeEncoding.assertion(ctx)(acc) // TODO: do the same for slices
+            }
           case n => Violation.violation(s"node $n should have been handled by an type encoding.")
         }
 

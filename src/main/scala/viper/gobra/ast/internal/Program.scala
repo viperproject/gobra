@@ -272,10 +272,6 @@ case class MakeSlice(override val target: LocalVar, override val typeParam: Slic
 case class MakeChannel(override val target: LocalVar, override val typeParam: ChannelT, bufferSizeArg: Option[Expr], isChannel: MPredicateProxy, bufferSize: MethodProxy)(val info: Source.Parser.Info) extends MakeStmt
 case class MakeMap(override val target: LocalVar, override val typeParam: MapT, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
-case class MapLocation(exp: Expr)(val info : Source.Parser.Info) extends Location {
-  override def typ: Type = exp.typ
-}
-
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait CompositeObject extends Node {
@@ -355,7 +351,7 @@ sealed trait Accessible extends Node {
 
 object Accessible {
   case class Predicate(op: PredicateAccess) extends Accessible
-  case class Map(op: MapLocation) extends Accessible
+  case class ExprAccess(op: Expr) extends Accessible // TODO
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }

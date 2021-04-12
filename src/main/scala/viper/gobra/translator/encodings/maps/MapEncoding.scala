@@ -43,7 +43,6 @@ class MapEncoding extends LeafTypeEncoding {
     default(super.expr(ctx)) {
       case (exp: in.DfltVal) :: ctx.Map(_, _) => unit(withSrc(vpr.NullLit(), exp))
       case (exp: in.NilLit) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
-      case in.MapLocation(exp :: ctx.Map(_, _) / Exclusive) => goE(exp)
 
       /** Unlike slices, taking the length of a map requires read permissions to it because maps may change in size, e.g.
        *    m := make(map[int]int)
@@ -135,6 +134,27 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
+  /** TODO: redo doc
+    * Encodes assertions.
+    *
+    * Constraints:
+    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
+    *
+    * [acc(p(e1, ..., en))] -> eval_S([p], [e1], ..., [en]) where p: pred(S)
+    */
+  override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    default(super.assertion(ctx)) {
+      case n@ in.Access(in.Accessible.ExprAccess(exp :: ctx.Map(_, _)), perm) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          vE <- goE(exp)
+          vP <- goE(perm)
+        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField)(pos, info, errT), vP)(pos, info, errT)
+    }
+  }
+
   override def finalize(col: Collector): Unit = {
     col.addMember(genDomain())
     col.addMember(underlyingMapField)
@@ -191,32 +211,4 @@ class MapEncoding extends LeafTypeEncoding {
     */
   private val underlyingMapFieldName = "underlyingMapField" // TODO: change to avoid collisions
   private val underlyingMapField: vpr.Field = vpr.Field(underlyingMapFieldName, vpr.Ref)()
-
-  /** TODO: rephrase
-    * Encodes the permissions for all addresses of a shared type,
-    * i.e. all permissions involved in converting the shared location to an exclusive r-value.
-    * An encoding for type T should be defined at all shared locations of type T.
-    *
-    * Footprint[loc: T@, perm] -> acc([loc], [perm])
-    * Footprint[loc: T@, perm] -> acc([loc], [perm])
-    */
-  override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
-    case (in.MapLocation(exp :: in.MapT(_, _, _) / Exclusive), p) if typ(ctx).isDefinedAt(exp.typ) =>
-      val (pos, info, errT) = exp.vprMeta
-      for {
-        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
-        e <- ctx.expr.translate(exp)(ctx)
-        fldAcc = vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)
-      } yield vpr.FieldAccessPredicate(fldAcc, vprPerm)(pos, info, errT)
-      /*
-    case loc@(in.MapLocation(exp :: in.MapT(_, _, _) / Shared), p) if typ(ctx).isDefinedAt(exp.typ) =>
-      val (pos, info, errT) = exp.vprMeta
-      for {
-        vprPerm <- ctx.typeEncoding.expr(ctx)(p)
-        e <- ctx.expr.translate(exp)(ctx)
-        fldAcc = vpr.FieldAccess(e, underlyingMapField)(pos, info, errT)
-      } yield vpr.FieldAccessPredicate(fldAcc, vprPerm)(pos, info, errT)
-
-       */
-  }
 }

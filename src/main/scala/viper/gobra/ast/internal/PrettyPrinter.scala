@@ -88,6 +88,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Program => showProgram(n)
     case n: Member => showMember(n)
     case n: Field => showField(n)
+    case n: DomainFunc => showDomainFunc(n)
+    case n: DomainAxiom => showDomainAxiom(n)
     case n: Stmt => showStmt(n)
     case n: Assignee => showAssignee(n)
     case n: Assertion => showAss(n)
@@ -121,6 +123,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureFunction => showPureFunction(n)
     case n: FPredicate => showFPredicate(n)
     case n: MPredicate => showMPredicate(n)
+    case n: DomainDefinition => showDomainDefinition(n)
     case n: MethodSubtypeProof => showMethodSubtypeProof(n)
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
@@ -199,6 +202,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Field(name, typ, _) => "field" <> name <> ":" <+> showType(typ)
   })
 
+  def showDomainDefinition(n: DomainDefinition): Doc = updatePositionStore(n) <> (
+    n.name <+> block(ssep(n.funcs map showDomainFunc, line) <> ssep(n.axioms map showDomainAxiom, line))
+  )
+
+  def showDomainFunc(func: DomainFunc): Doc = updatePositionStore(func) <> (func match {
+    case DomainFunc(name, args, res) =>  "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVar(res))
+  })
+
+  def showDomainAxiom(ax: DomainAxiom): Doc = updatePositionStore(ax) <> (ax match {
+    case DomainAxiom(expr) =>  "axiom" <+> block(showExpr(expr))
+  })
+
   def showTypeDecl(t: DefinedT): Doc =
     "type" <+> t.name <+> "..." <> line
 
@@ -270,6 +285,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
+    case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
     case l: LabelProxy => l.name
@@ -372,6 +388,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
     case PureMethodCall(recv, meth, args, _) =>
       showExpr(recv) <> meth.name <> parens(showExprList(args))
+
+    case DomainFunctionCall(func, args, _) =>
+      func.name <> parens(showExprList(args))
 
     case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
@@ -515,6 +534,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredT(args, _) => "pred" <> parens(showTypeList(args))
     case struct: StructT => emptyDoc <> block(hcat(struct.fields map showField))
     case _: InterfaceT => "interface" <> parens("...")
+    case _: DomainT => "domain" <> parens("...")
     case ChannelT(elem, _) => "chan" <+> showType(elem)
     case SortT => "sort"
     case array : ArrayT => brackets(array.length.toString) <> showType(array.elems)

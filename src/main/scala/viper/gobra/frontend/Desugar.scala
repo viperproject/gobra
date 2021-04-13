@@ -164,6 +164,12 @@ object Desugar {
       in.FunctionProxy(name)(meta(id))
     }
 
+    def domainFunctionProxy(symb: st.DomainFunction): in.DomainFuncProxy = {
+      val domainName = nm.domain(Type.DomainT(symb.domain, symb.context))
+      val functionName = idName(symb.decl.id, symb.context.getTypeInfo)
+      in.DomainFuncProxy(functionName, domainName)(meta(symb.decl.id, symb.context.getTypeInfo))
+    }
+
     def methodProxyD(decl: PMethodDecl): in.MethodProxy = {
       val name = idName(decl.id)
       in.MethodProxy(decl.id.name, name)(meta(decl))
@@ -314,6 +320,8 @@ object Desugar {
         case NoGhost(x: PTypeDef) => desugarAllTypeDefVariants(x)
         case _ =>
       }
+
+      val additionalMembers = AdditionalMembers.finalizedMembers
 
       // built-in members are not (yet) added to the program's members or the lookup table
       // instead, they remain only accessible via this desugarer's getter function.
@@ -1187,6 +1195,7 @@ object Desugar {
         case base: ap.Symbolic => base.symb match {
           case f: st.Function => f.isPure
           case m: st.Method => m.isPure
+          case _: st.DomainFunction => true
           case f: st.BuiltInFunction => f.isPure
           case m: st.BuiltInMethod => m.isPure
           case c => Violation.violation(s"This case should be unreachable, but got $c")
@@ -1230,6 +1239,13 @@ object Desugar {
                 _ <- write(in.MethodCall(targets, implicitThisD(recvType)(src), proxy, convertedArgs)(src))
               } yield res
             }
+
+          case df: ap.DomainFunction =>
+            for {
+              args <- dArgs
+              convertedArgs = convertArgs(args)
+              proxy = domainFunctionProxy(df.symb)
+            } yield in.DomainFunctionCall(proxy, convertedArgs, resT)(src)
 
           case _: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.BuiltInReceivedMethod | _: ap.BuiltInMethodExpr => {
             val dRecvWithArgs = base match {
@@ -1968,7 +1984,7 @@ object Desugar {
           val mem = in.MPredicate(recv, proxy, args, None)(src)
 
           definedMPredicates += (proxy -> mem)
-          additionalMembers ::= mem
+          AdditionalMembers.addMember(mem)
         }
 
         t.decl.methSpecs foreach { m =>
@@ -1990,13 +2006,66 @@ object Desugar {
           }
 
           definedMethods += (proxy -> mem)
-          additionalMembers ::= mem
+          AdditionalMembers.addMember(mem)
         }
       }
     }
     var registeredInterfaces: Set[String] = Set.empty
 
-    var additionalMembers: List[in.Member] = List.empty
+
+
+    object AdditionalMembers {
+
+      private var additionalMembers: List[in.Member] = List.empty
+      private var finalized: Boolean = false
+      private var computationsBeforeFinalize: List[() => Unit] = List.empty
+
+      def addMember(m: in.Member): Unit = additionalMembers ::= m
+      def addFinalizingComputation(f: () => Unit): Unit = computationsBeforeFinalize ::= f
+      def finalizedMembers: List[in.Member] = {
+        require(!finalized)
+
+        if (!finalized) {
+          computationsBeforeFinalize.foreach(_())
+          finalized = true
+        }
+
+        additionalMembers
+      }
+    }
+
+
+    def registerDomain(t: Type.DomainT, dT: in.DomainT): Unit = {
+      if (!registeredDomains.contains(dT.name) && info == t.context.getTypeInfo) {
+        registeredDomains += dT.name
+
+        AdditionalMembers.addFinalizingComputation{ () =>
+
+          val xInfo = t.context.getTypeInfo
+
+          val funcs = t.decl.funcs.map{ f =>
+            val src = meta(f, xInfo)
+            val proxy = domainFunctionProxy(st.DomainFunction(f, t.decl, t.context))
+            val argsWithSubs = f.args.zipWithIndex map { case (p,i) => inParameterD(p,i,xInfo) }
+            val (args, _) = argsWithSubs.unzip
+            val returnsWithSubs = f.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
+            val (returns, _) = returnsWithSubs.unzip
+            in.DomainFunc(proxy, args, returns.head)(src)
+          }
+
+          val axioms = t.decl.axioms.map{ ax =>
+            val src = meta(ax, xInfo)
+            val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
+            in.DomainAxiom(pureExprD(specCtx)(ax.exp))(src)
+          }
+
+          AdditionalMembers.addMember(
+            in.DomainDefinition(dT.name, funcs, axioms)(meta(t.decl, xInfo))
+          )
+        }
+      }
+    }
+    var registeredDomains: Set[String] = Set.empty
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
       // TODO: 'interfaceImplementations' should be populated based on 'requiredImplements'
@@ -2039,7 +2108,7 @@ object Desugar {
           in.MethodSubtypeProof(subProxy, dSuperT, superProxy, recv, args, returns, bodyOpt)(src)
         }
 
-        additionalMembers ::= res
+        AdditionalMembers.addMember(res)
       }
     }
 
@@ -2121,6 +2190,12 @@ object Desugar {
         registerInterface(t, res)
         res
 
+      case t: Type.DomainT =>
+        val domainT = in.DomainT(nm.domain(t), addrMod)
+        registerType(domainT)
+        registerDomain(t, domainT)
+        domainT
+
       case Type.InternalTupleT(ts) => in.TupleT(ts.map(t => typeD(t, Addressability.mathDataStructureElement)(src)), addrMod)
 
       case Type.SortT => in.SortT
@@ -2144,6 +2219,7 @@ object Desugar {
       case f: st.FPredicate => nm.function(id.name, f.context)
       case m: st.MPredicateImpl => nm.method(id.name, m.decl.receiver.typ, m.context)
       case m: st.MPredicateSpec => nm.spec(id.name, m.itfType, m.context)
+      case f: st.DomainFunction => nm.function(id.name, f.context)
       case v: st.Variable => nm.variable(id.name, context.scope(id), v.context)
       case sc: st.SingleConstant => nm.global(id.name, sc.context)
       case st.Embbed(_, _, _) | st.Field(_, _, _) => violation(s"expected that fields and embedded field are desugared by using embeddedDeclD resp. fieldDeclD but idName was called with $id")
@@ -2793,6 +2869,7 @@ object Desugar {
     private val TYPE_PREFIX = "T"
     private val STRUCT_PREFIX = "X"
     private val INTERFACE_PREFIX = "Y"
+    private val DOMAIN_PREFIX = "D"
     private val LABEL_PREFIX = "L"
     private val GLOBAL_PREFIX = "G"
     private val BUILTIN_PREFIX = "B"
@@ -2901,6 +2978,19 @@ object Desugar {
           .replace("-", "_")
         s"$INTERFACE_PREFIX$$$interfaceName"
       }
+    }
+
+    def domain(s: DomainT): String = {
+      val pom = s.context.getTypeInfo.tree.originalRoot.positions
+      val start = pom.positions.getStart(s.decl).get
+      val finish = pom.positions.getFinish(s.decl).get
+      val pos = pom.translate(start, finish)
+      // replace characters that could be misinterpreted:
+      val domainName = pos.toString
+        .replace(".", "$")
+        .replace("@", "")
+        .replace("-", "_")
+      s"$DOMAIN_PREFIX$$$domainName"
     }
 
     def label(n: String): String = s"${n}_$LABEL_PREFIX"

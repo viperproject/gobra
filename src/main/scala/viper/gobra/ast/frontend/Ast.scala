@@ -1015,6 +1015,7 @@ case class PMathMapKeys(exp : PExpression) extends PMathematicalMapExp
 
 // TODO: doc
 case class PMathMapValues(exp : PExpression) extends PMathematicalMapExp
+
 /* ** Types */
 
 /**
@@ -1050,6 +1051,17 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
+
+case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
+
+sealed trait PDomainClause extends PNode
+
+case class PDomainFunction(id: PIdnDef,
+                           args: Vector[PParameter],
+                           result: PResult
+                                 ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
+
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
 
 /**
   * Miscellaneous

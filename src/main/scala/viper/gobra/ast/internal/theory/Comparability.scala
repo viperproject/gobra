@@ -43,6 +43,7 @@ object Comparability {
     case TypeHead.SliceHD => Kind.NonComparable
     case TypeHead.MapHD => Kind.NonComparable
     case _: TypeHead.InterfaceHD => Kind.Dynamic
+    case _: TypeHead.DomainHD => Kind.Comparable
     case TypeHead.ChannelHD => Kind.NonComparable
     case TypeHead.NilHD => Kind.Comparable
     case TypeHead.UnitHD => Kind.Comparable

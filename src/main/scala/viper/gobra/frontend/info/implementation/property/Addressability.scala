@@ -67,7 +67,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressabilityMemberPath(addressability(s.base), s.path))
         case Some(_: ap.Constant) => AddrMod.constant
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
-        case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate) => AddrMod.rValue
+        case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }

@@ -32,6 +32,9 @@ object GobraStrategy {
       case (n: MethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Block@unchecked])) => MethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (n: PureMethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Expr@unchecked])) => PureMethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (f: Field, Seq()) => Field(f.name, f.typ, f.ghost)(meta)
+      case (d: DomainDefinition, Seq(funcs: Vector[DomainFunc@unchecked], axioms: Vector[DomainAxiom@unchecked])) => DomainDefinition(d.name, funcs, axioms)(meta)
+      case (_: DomainFunc, Seq(name: DomainFuncProxy, args: Vector[Parameter.In@unchecked], res: Parameter.Out)) => DomainFunc(name, args, res)(meta)
+      case (_: DomainAxiom, Seq(expr: Expr)) => DomainAxiom(expr)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
@@ -75,6 +78,7 @@ object GobraStrategy {
         // Expressions
       case (_: Unfolding, Seq(acc: Access, e: Expr)) => Unfolding(acc, e)(meta)
       case (f: PureFunctionCall, Seq(func: FunctionProxy, args: Vector[Expr@unchecked])) => PureFunctionCall(func, args, f.typ)(meta)
+      case (f: DomainFunctionCall, Seq(func: DomainFuncProxy, args: Vector[Expr@unchecked])) => DomainFunctionCall(func, args, f.typ)(meta)
       case (m: PureMethodCall, Seq(recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => PureMethodCall(recv, meth, args, m.typ)(meta)
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
       case (_: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
@@ -171,6 +175,7 @@ object GobraStrategy {
         // Proxy
       case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
+      case (f: DomainFuncProxy, Seq()) => DomainFuncProxy(f.name, f.domainName)(meta)
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)

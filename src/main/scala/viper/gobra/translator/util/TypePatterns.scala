@@ -180,6 +180,13 @@ object TypePatterns {
       }
     }
 
+    object Domain {
+      def unapply(arg: in.Type): Option[in.DomainT] = underlyingType(arg)(ctx) match {
+        case t : in.DomainT => Some(t)
+        case _ => None
+      }
+    }
+
     object Tuple {
       def unapply(arg: in.Type): Option[Vector[in.Type]] = underlyingType(arg)(ctx) match {
         case t : in.TupleT => Some(t.ts)

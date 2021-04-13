@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type intPair domain {
+    func fst(intPair) int
+    func snd(intPair) int
+    func pair(int, int) intPair
+
+    axiom {
+      forall p intPair :: {fst(p)}{snd(p)} p == pair(fst(p),snd(p))
+    } // pair
+
+    axiom {
+      forall l, r int :: {pair(l,r)} l == fst(pair(l,r)) && r == snd(pair(l,r))
+    }
+}
+
+func test() {
+    x := pair(1,2)
+    assert fst(x) == 1
+}
+
+func test2() {
+    x@ := pair(1,2)
+    assert fst(x) == 1
+}

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -26,6 +26,8 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       error(typ, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+
+    case _: PDomainType => noMessages
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {
@@ -34,5 +36,6 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
     case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
+    case t: PDomainType => DomainT(t, this)
   }
 }

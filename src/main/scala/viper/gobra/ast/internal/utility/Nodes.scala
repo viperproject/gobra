@@ -35,6 +35,9 @@ object Nodes {
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
+      case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
+      case DomainFunc(_, args, results) => args ++ Seq(results)
+      case DomainAxiom(expr) => Seq(expr)
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -86,6 +89,7 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case DomainFunctionCall(func, args, _) => Seq(func) ++ args
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -175,6 +179,7 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case _: DomainFuncProxy => Seq.empty
         case _: LabelProxy => Seq.empty
       }
     }

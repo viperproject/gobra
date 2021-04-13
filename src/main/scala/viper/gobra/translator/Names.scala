@@ -83,6 +83,9 @@ object Names {
   // predicate
   def predDomain: String = "Pred"
 
+  // domain
+  def dfltDomainValue(domainName: String): String = s"dflt$domainName"
+
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"
   def unknownValueFunc: String = "unknownValue"

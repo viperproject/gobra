@@ -109,7 +109,7 @@ object Type {
 
   case class MultisetT(elem : Type) extends GhostUnorderedCollectionType
 
-  case class MathematicalMapT(keys : Type, values : Type) extends GhostUnorderedCollectionType {
+  case class MathMapT(keys : Type, values : Type) extends GhostUnorderedCollectionType {
     override def elem: Type = InternalTupleT(Vector(keys, values)) // TODO: improve
   }
 

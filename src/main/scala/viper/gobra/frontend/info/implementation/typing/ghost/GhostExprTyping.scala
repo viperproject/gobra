@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, Label, MethodImpl, MethodSpec, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MathematicalMapT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MathMapT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -117,8 +117,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
         case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
-        case MathematicalMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
-        case t => error(seq, s"expected a sequence, but got $t")
+        case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
+        case t => error(seq, s"expected a sequence or mathematical map, but got $t")
       })
 
       case expr : PSequenceExp => expr match {
@@ -160,11 +160,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
         case PMathMapKeys(exp) => exprType(exp) match {
-          case _: MathematicalMapT => isExpr(exp).out
+          case _: MathMapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
         case PMathMapValues(exp) => exprType(exp) match {
-          case _: MathematicalMapT => isExpr(exp).out
+          case _: MathMapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
       }
@@ -253,11 +253,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMathMapKeys(exp) => exprType(exp) match {
-          case t: MathematicalMapT => SetT(t.keys)
+          case t: MathMapT => SetT(t.keys)
           case t => violation(s"expected a mathematical map, but got $t")
         }
         case PMathMapValues(exp) => exprType(exp) match {
-          case t: MathematicalMapT => SetT(t.values)
+          case t: MathMapT => SetT(t.values)
           case t => violation(s"expected a mathematical map, but got $t")
         }
       }

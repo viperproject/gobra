@@ -33,18 +33,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   /**
     * Encodes an assignment.
     * The first and second argument is the left-hand side and right-hand side, respectively.
-    *
-    * To avoid conflicts with other encodings, an encoding for type T
-    * should be defined at the following left-hand sides:
-    * (1) exclusive variables of type T
-    * (2) exclusive operations on type T (e.g. a field access for structs)
-    * (3) shared expressions of type T
-    * In particular, being defined at shared operations on type T causes conflicts with (3)
-    *
-    * Super implements:
-    * [v: T° = rhs] -> VAR[v] = [rhs]
-    * [loc: T@ = rhs] -> [loc] = [rhs]
-    *
     * [(e: mmap[K]V)[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
@@ -74,7 +62,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case (e: in.DfltVal) :: ctx.MathematicalMap(k, v) / Exclusive =>
         unit(withSrc(vpr.EmptyMap(ctx.typeEncoding.typ(ctx)(k), ctx.typeEncoding.typ(ctx)(v)), e))
 
-      case (lit: in.MathMapLit) :: ctx.MathematicalMap(_, _) => {
+      case (lit: in.MathMapLit) :: ctx.MathematicalMap(_, _) / Exclusive =>
         val (pos, info, errT) = lit.vprMeta
         for {
           mapletList <- sequence(lit.entries.toVector.map {
@@ -84,7 +72,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
             } yield vpr.Maplet(k, v)(pos, info, errT)
           })
         } yield vpr.ExplicitMap(mapletList)(pos, info, errT)
-      }
 
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta
@@ -114,7 +101,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
         goE(e).map(vpr.MapRange(_)(pos, info, errT))
     }
   }
-
 
   /**
     * Encodes whether a value is comparable or not.

@@ -41,6 +41,7 @@ object Comparability {
     case _: TypeHead.StructHD => Kind.Recursive
     case TypeHead.ArrayHD => Kind.Recursive
     case TypeHead.SliceHD => Kind.NonComparable
+    case TypeHead.MapHD => Kind.NonComparable
     case _: TypeHead.InterfaceHD => Kind.Dynamic
     case TypeHead.ChannelHD => Kind.NonComparable
     case TypeHead.NilHD => Kind.Comparable
@@ -50,6 +51,7 @@ object Comparability {
     case TypeHead.SeqHD => Kind.Recursive
     case TypeHead.SetHD => Kind.Recursive
     case TypeHead.MSetHD => Kind.Recursive
+    case TypeHead.MMapHD => Kind.Recursive
     case TypeHead.OptionHD => Kind.Recursive
     case _: TypeHead.TupleHD => Kind.Recursive
     case _: TypeHead.PredHD => Kind.Comparable

@@ -46,6 +46,7 @@ trait Implements { this: TypeInfoImpl =>
             ut.clauses.forall{ case (_, (_, fieldType)) => go(fieldType) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
+        case _: Type.MapT => true
         case ut: Type.OptionT => go(ut.elem)
         case ut: GhostCollectionType => go(ut.elem)
         case _ => false

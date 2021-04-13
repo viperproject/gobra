@@ -263,7 +263,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             val key = underlyingType(t).asInstanceOf[MapT].key
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
-          case (MathematicalMapT(key, _), indexT) =>
+          case (MathMapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
@@ -348,7 +348,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT | _: VariadicT | _: MapT | _: MathematicalMapT => noMessages
+        case _: ArrayT | _: SliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -496,7 +496,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (mapT, indexT) if underlyingType(mapT).isInstanceOf[MapT] && assignableTo(indexT, underlyingType(mapT).asInstanceOf[MapT].key) =>
         val elem = underlyingType(mapT).asInstanceOf[MapT].elem
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathematicalMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
+      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
@@ -605,9 +605,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
-    getSingleTypeFromCtxt(expr).map(defaultTypeIfInterface)
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+      case Some(t) => t match {
+        case Single(t) => Some(t)
+        case UnknownType => Some(UnknownType)
+        case _ => violation(s"unexpected case reached $t")
+      }
+      case None => None
+    }
   }
-
 
   /** Returns the type that is implied by the context of a numeric expression. */
   private def getSingleTypeFromCtxt(expr: PNumExpression): Option[Type] = {
@@ -803,10 +809,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         val typeRight = exprOrTypeType(bExpr.right)
         typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
     }
-    // TODO: do this only once
+
     typ match {
       case Single(t) => t
-      case _ => ??? // violation
+      case UnknownType => UnknownType
+      case _ => violation(s"unexpected type $typ")
     }
   }
 

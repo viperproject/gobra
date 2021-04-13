@@ -32,7 +32,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
-    case PMathematicalMapType(keys, values) => MathematicalMapT(typeSymbType(keys), typeSymbType(values))
+    case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
   }
 }

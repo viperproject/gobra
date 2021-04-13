@@ -2098,7 +2098,7 @@ object Desugar {
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
-      case Type.MathematicalMapT(keys, values) =>
+      case Type.MathMapT(keys, values) =>
         in.MathMapT(
           typeD(keys, Addressability.mathDataStructureElement)(src),
           typeD(values, Addressability.mathDataStructureElement)(src),

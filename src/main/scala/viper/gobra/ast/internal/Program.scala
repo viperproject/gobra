@@ -331,6 +331,12 @@ case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGiv
   */
 case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
 
+/**
+  * Map lookup operation that does not only return the result of the lookup or the default value if the key is not in the map,
+  * but also a boolean result stating whether the key is in the map.
+  */
+case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
+
 
 sealed trait Assertion extends Node
 
@@ -545,6 +551,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
+    case t: MapT => t.values
     case t: MathematicalMapT => t.values
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
@@ -975,6 +982,9 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
+case class MapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = MapT(keys, values, Addressability.literal)
+}
 
 sealed trait Declaration extends Node
 

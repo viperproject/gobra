@@ -259,7 +259,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
-          case (MapT(key, _), indexT) =>
+          case (t, indexT) if underlyingType(t).isInstanceOf[MapT] =>
+            val key = underlyingType(t).asInstanceOf[MapT].key
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (MathematicalMapT(key, _), indexT) =>
@@ -492,10 +493,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
       case (VariadicT(elem), IntT(_)) => elem
-      case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
+      case (mapT, indexT) if underlyingType(mapT).isInstanceOf[MapT] && assignableTo(indexT, underlyingType(mapT).asInstanceOf[MapT].key) =>
+        val elem = underlyingType(mapT).asInstanceOf[MapT].elem
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathematicalMapT(key, elem), indexT) if assignableTo(indexT, key) =>
-        elem
+      case (MathematicalMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
@@ -604,7 +605,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface)
+    getSingleTypeFromCtxt(expr).map(defaultTypeIfInterface)
+  }
+
+
+  /** Returns the type that is implied by the context of a numeric expression. */
+  private def getSingleTypeFromCtxt(expr: PNumExpression): Option[Type] = {
+    // TODO: do this only once, maybe remove this method
+    getTypeFromCtxt(expr) match {
+      case Some(t) => t match { case Single(t) => Some(t)}
+      case _ => None // TODO: violation or None, fix this, expr may be a sum of strings
+    }
   }
 
   /** Returns the type that is implied by the context of a numeric expression. */
@@ -781,15 +792,22 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
-  private def intExprType(expr: PNumExpression): Type = expr match {
-    case _: PIntLit => UNTYPED_INT_CONST
+  private def intExprType(expr: PNumExpression): Type = {
+    val typ = expr match {
+      case _: PIntLit => UNTYPED_INT_CONST
 
-    case _: PLength | _: PCapacity => INT_TYPE
+      case _: PLength | _: PCapacity => INT_TYPE
 
-    case bExpr: PBinaryExp[_,_] =>
-      val typeLeft = exprOrTypeType(bExpr.left)
-      val typeRight = exprOrTypeType(bExpr.right)
-      typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+      case bExpr: PBinaryExp[_,_] =>
+        val typeLeft = exprOrTypeType(bExpr.left)
+        val typeRight = exprOrTypeType(bExpr.right)
+        typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+    }
+    // TODO: do this only once
+    typ match {
+      case Single(t) => t
+      case _ => ??? // violation
+    }
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

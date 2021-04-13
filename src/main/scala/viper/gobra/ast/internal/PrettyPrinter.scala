@@ -262,6 +262,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
+    case SafeMapLookup(resTarget, successTarget, mapLookup) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   })
@@ -471,6 +473,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       brackets(emptyDoc) <> typP <+> exprsP
     }
 
+    case lit@MapLit(_, _, entries) =>
+      showType(lit.typ) <+> braces(space <> showMap(entries)(showExpr, showExpr) <> (if (entries.nonEmpty) space else emptyDoc))
+
     case SequenceLit(_, typ, elems) => {
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
       "seq" <> brackets(showType(typ)) <+> exprsP
@@ -602,6 +607,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
+
+    case SafeMapLookup(resTarget, successTarget, expr) =>
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr)
 
     case Initialization(left) => "init" <+> showVar(left)
     case SingleAss(left, right) => showAssignee(left) <+> "=" <+> showExpr(right)

@@ -1034,6 +1034,17 @@ object Desugar {
             )
           )(src)
 
+        case l@ in.IndexedExp(base, _) if underlyingType(base.typ).isInstanceOf[in.MapT] && lefts.size == 2 =>
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector(
+              in.SafeMapLookup(resTarget, successTarget, l)(l.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
 
         case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
       }
@@ -1768,6 +1779,7 @@ object Desugar {
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
+      case class Map(t : in.MapT) extends CompositeKind
       case class MathematicalMap(t : in.MathematicalMapT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
@@ -1779,6 +1791,7 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t: in.MapT => CompositeKind.Map(t)
       case t: in.MathematicalMapT => CompositeKind.MathematicalMap(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
@@ -1879,6 +1892,22 @@ object Desugar {
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
+
+          // TODO: abstract pattern in function
+        case CompositeKind.Map(in.MapT(keys, values, _)) =>
+          for {
+            entriesD <- sequence(lit.elems.map {
+              case PKeyedElement(Some(key), value) => for {
+                entryKey <- key match {
+                  case v: PCompositeVal => compositeValD(ctx)(v, keys)
+                  case _: PIdentifierKey => ??? // violation
+                }
+                entryVal <- compositeValD(ctx)(value, values)
+              } yield (entryKey, entryVal)
+
+              case _ => ??? // violation
+            })
+          } yield in.MapLit(keys, values, entriesD.toMap)(src)
 
         case CompositeKind.MathematicalMap(in.MathematicalMapT(keys, values, _)) =>
           for {

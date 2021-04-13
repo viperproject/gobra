@@ -124,7 +124,7 @@ object TypePatterns {
 
     object MathematicalMap {
       def unapply(arg: in.Type): Option[(in.Type, in.Type)] = underlyingType(arg)(ctx) match {
-        case t : in.MathematicalMapT => Some((t.keys, t.values))
+        case t : in.MathMapT => Some((t.keys, t.values))
         case _ => None
       }
     }

@@ -435,12 +435,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
+        case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
+          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
         case expr : PSequenceExp => expr match {
           case PSequenceConversion(exp) => "seq" <> parens(showExpr(exp))
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
           case PSequenceAppend(left, right) => showSubExpr(expr, left) <+> "++" <+> showSubExpr(expr, right)
-          case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
-            (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
         }
         case expr : PUnorderedGhostCollectionExp => expr match {
           case PUnion(left, right) => showSubExpr(expr, left) <+> "union" <+> showSubExpr(expr, right)
@@ -449,8 +449,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-          case PMathematicalMapKeys(exp) => "keys" <> parens(showExpr(exp))
-          case PMathematicalMapValues(exp) => "values" <> parens(showExpr(exp))
+          case PMathMapKeys(exp) => "keys" <> parens(showExpr(exp))
+          case PMathMapValues(exp) => "values" <> parens(showExpr(exp))
         }
       }
 

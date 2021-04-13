@@ -323,7 +323,7 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get", "writePerm", "noPerm",
-      "typeOf", "isComparable", "keys", "values"
+      "typeOf", "isComparable", "keySet", "valueSet"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -756,12 +756,11 @@ object Parser {
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
 
-    lazy val keys : Parser[PMathematicalMapKeys] =
-      "keys" ~> ("(" ~> expression <~ ")") ^^ PMathematicalMapKeys
+    lazy val keys : Parser[PMathMapKeys] =
+      "keySet" ~> ("(" ~> expression <~ ")") ^^ PMathMapKeys
 
-    // TODO: name may clash quite a lot
-    lazy val values : Parser[PMathematicalMapValues] =
-      "values" ~> ("(" ~> expression <~ ")") ^^ PMathematicalMapValues
+    lazy val values : Parser[PMathMapValues] =
+      "valueSet" ~> ("(" ~> expression <~ ")") ^^ PMathMapValues
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference

@@ -90,7 +90,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: Field => showField(n)
     case n: Stmt => showStmt(n)
     case n: Assignee => showAssignee(n)
-    case n: CompositeObject => showCompositeObject(n)
     case n: Assertion => showAss(n)
     case n: Accessible => showAcc(n)
     case n: PredicateAccess => showPredicateAcc(n)
@@ -268,8 +267,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   })
 
-  def showComposite(c: CompositeObject): Doc = showLit(c.op)
-
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
     case MethodProxy(name, _) => name
@@ -318,8 +315,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Field(f) => showExpr(f)
     case Assignee.Index(e) => showExpr(e)
   })
-
-  def showCompositeObject(co: CompositeObject): Doc = updatePositionStore(co) <> showLit(co.op)
 
   // assertions
 
@@ -392,8 +387,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MathematicalMapKeys(exp) => "keys" <> parens(showExpr(exp))
-    case MathematicalMapValues(exp) => "values" <> parens(showExpr(exp))
+    case MathMapKeys(exp) => "keys" <> parens(showExpr(exp))
+    case MathMapValues(exp) => "values" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -484,7 +479,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
-    case lit@MathematicalMapLit(_, _, entries) =>
+    case lit@MathMapLit(_, _, entries) =>
       showType(lit.typ) <+> braces(space <> showMap(entries)(showExpr, showExpr) <> (if (entries.nonEmpty) space else emptyDoc))
   }
 
@@ -526,7 +521,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
-    case MathematicalMapT(keys, values, _)  => "mmap" <> brackets(showType(keys)) <> showType(values)
+    case MathMapT(keys, values, _)  => "mmap" <> brackets(showType(keys)) <> showType(values)
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)

@@ -115,6 +115,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
+      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
+        case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
+        case MathematicalMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
+        case t => error(seq, s"expected a sequence, but got $t")
+      })
+
       case expr : PSequenceExp => expr match {
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
@@ -129,11 +135,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
-        case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
-          case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
-          case MathematicalMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
-          case t => error(seq, s"expected a sequence, but got $t")
-        })
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
           case _: ArrayT => isExpr(op).out ++ error(op, s"exclusive array expected, but shared array $op found", addressable(op))
@@ -158,11 +159,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
-        case PMathematicalMapKeys(exp) => exprType(exp) match {
+        case PMathMapKeys(exp) => exprType(exp) match {
           case _: MathematicalMapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
-        case PMathematicalMapValues(exp) => exprType(exp) match {
+        case PMathMapValues(exp) => exprType(exp) match {
           case _: MathematicalMapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
@@ -218,6 +219,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PCardinality(_) => IntT(config.typeBounds.UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
       case PIn(_, _) => BooleanT
+      case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
 
@@ -228,7 +230,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(seq@SequenceT(_)) => seq
             case _ => violation(s"types $lType and $rType cannot be merged.")
           }
-        case PGhostCollectionUpdate(seq, _) => exprType(seq)
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t
           case t: ArrayT => SequenceT(t.elem)
@@ -251,11 +252,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t: OptionT => MultisetT(t.elem)
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
-        case PMathematicalMapKeys(exp) => exprType(exp) match {
+        case PMathMapKeys(exp) => exprType(exp) match {
           case t: MathematicalMapT => SetT(t.keys)
           case t => violation(s"expected a mathematical map, but got $t")
         }
-        case PMathematicalMapValues(exp) => exprType(exp) match {
+        case PMathMapValues(exp) => exprType(exp) match {
           case t: MathematicalMapT => SetT(t.values)
           case t => violation(s"expected a mathematical map, but got $t")
         }
@@ -363,6 +364,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PCardinality(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
         case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
+        case PMathMapKeys(exp) => go(exp)
+        case PMathMapValues(exp) => go(exp)
       }
 
       case _: PAccess | _: PPredicateAccess => !strong

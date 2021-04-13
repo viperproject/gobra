@@ -27,6 +27,7 @@ class MapEncoding extends LeafTypeEncoding {
 
   //TODO: doc
   // TODO: use fields and field generators instead
+  // TODO: Check for comparability of keys and goequality
 
   //  TODO: Unlike slices, maps are not thread-safe: a modification to a map must be synchronized with others.
 
@@ -138,7 +139,7 @@ class MapEncoding extends LeafTypeEncoding {
         seqn(
           for {
             checks <- sequence(runtimeCheck)
-            _ <- if (checks.length == 1) write(checks(0)) else unit()
+            _ <- if (checks.length == 1) write(checks(0)) else unit(())
             _ <- errorT {
               case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) => MakePreconditionError(info)
             }
@@ -230,7 +231,6 @@ class MapEncoding extends LeafTypeEncoding {
     *
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = {
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
     def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.assignment(ctx)){
@@ -255,20 +255,8 @@ class MapEncoding extends LeafTypeEncoding {
               args = Seq(vRes.localVar),
               typVarMap = Map(keyParam -> goT(k), valueParam -> goT(v)))(pos, info, errT)
 
-            // inhale1 = vpr.Inhale(vpr.FieldAccessPredicate(vpr.FieldAccess(vRes.localVar, underlyingMapField)(pos, info, errT), vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT)
-            inhale2 = vpr.Inhale(vpr.EqCmp(correspondingMapRes, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT))(pos, info, errT)
-            // _ <- write(inhale1)
-            _ <- write(inhale2)
-
-
-            // exhale = vpr.Exhale(vpr.FieldAccessPredicate(vpr.FieldAccess(vM, underlyingMapField)(pos, info, errT), vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT)
-            // _ <- write(exhale)
-
-            // inhale = vpr.Inhale(vpr.FieldAccessPredicate(vpr.FieldAccess(vM, underlyingMapField)(pos, info, errT), vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT)
-            // _ <- write(inhale)
-
-
-            // eq = vpr.Inhale(vpr.EqCmp(correspondingMap, vpr.Old(vpr.MapUpdate(correspondingMap, vIdx, vRhs)(pos, info, errT))(pos, info, errT))(pos, info, errT))(pos, info, errT)
+            inhale = vpr.Inhale(vpr.EqCmp(correspondingMapRes, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT))(pos, info, errT)
+            _ <- write(inhale)
           } yield vpr.FieldAssign(vpr.FieldAccess(vM, underlyingMapField)(pos, info, errT), vRes.localVar)(pos, info, errT)
         )
     }

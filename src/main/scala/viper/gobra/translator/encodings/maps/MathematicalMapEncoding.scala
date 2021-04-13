@@ -74,7 +74,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case (e: in.DfltVal) :: ctx.MathematicalMap(k, v) / Exclusive =>
         unit(withSrc(vpr.EmptyMap(ctx.typeEncoding.typ(ctx)(k), ctx.typeEncoding.typ(ctx)(v)), e))
 
-      case (lit: in.MathematicalMapLit) :: ctx.MathematicalMap(_, _) => {
+      case (lit: in.MathMapLit) :: ctx.MathematicalMap(_, _) => {
         val (pos, info, errT) = lit.vprMeta
         for {
           mapletList <- sequence(lit.entries.toVector.map {
@@ -105,11 +105,11 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapCardinality(_)(pos, info, errT))
 
-      case n@ in.MathematicalMapKeys(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MathMapKeys(e :: ctx.MathematicalMap(_, _)) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapDomain(_)(pos, info, errT))
 
-      case n@ in.MathematicalMapValues(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MathMapValues(e :: ctx.MathematicalMap(_, _)) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapRange(_)(pos, info, errT))
     }
@@ -121,7 +121,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     *   isComp[ e: mmap[T] ] -> forall s :: { s in keys([e]), isComp[s] } s in keys([e]) ==> isComp[s] && isComp[e(s)]
     */
   override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
-    case exp :: ctx.Map(k, v) =>
+    case exp :: ctx.Map(k, _) =>
       super.isComparable(ctx)(exp).map { _ =>
         val (pos, info, errT) = exp.vprMeta
         // if this is executed, then type parameter must have dynamic comparability

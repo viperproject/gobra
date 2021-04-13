@@ -1743,15 +1743,6 @@ object Desugar {
       }
     }
 
-    def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
-      case l: in.ArrayLit => in.CompositeObject.Array(l)
-      case l: in.SliceLit => in.CompositeObject.Slice(l)
-      case l: in.StructLit => in.CompositeObject.Struct(l)
-      case l: in.SequenceLit => in.CompositeObject.Sequence(l)
-      case l: in.SetLit => in.CompositeObject.Set(l)
-      case l: in.MultisetLit => in.CompositeObject.Multiset(l)
-    }
-
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
@@ -1780,7 +1771,7 @@ object Desugar {
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
       case class Map(t : in.MapT) extends CompositeKind
-      case class MathematicalMap(t : in.MathematicalMapT) extends CompositeKind
+      case class MathematicalMap(t : in.MathMapT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
@@ -1792,7 +1783,7 @@ object Desugar {
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
       case t: in.MapT => CompositeKind.Map(t)
-      case t: in.MathematicalMapT => CompositeKind.MathematicalMap(t)
+      case t: in.MathMapT => CompositeKind.MathematicalMap(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -1909,7 +1900,7 @@ object Desugar {
             })
           } yield in.MapLit(keys, values, entriesD.toMap)(src)
 
-        case CompositeKind.MathematicalMap(in.MathematicalMapT(keys, values, _)) =>
+        case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) =>
           for {
             entriesD <- sequence(lit.elems.map {
               case PKeyedElement(Some(key), value) => for {
@@ -1922,7 +1913,7 @@ object Desugar {
 
               case _ => ??? // violation
             })
-        } yield in.MathematicalMapLit(keys, values, entriesD.toMap)(src)
+        } yield in.MathMapLit(keys, values, entriesD.toMap)(src)
       }
     }
 
@@ -2108,7 +2099,7 @@ object Desugar {
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MathematicalMapT(keys, values) =>
-        in.MathematicalMapT(
+        in.MathMapT(
           typeD(keys, Addressability.mathDataStructureElement)(src),
           typeD(values, Addressability.mathDataStructureElement)(src),
           addrMod
@@ -2501,13 +2492,13 @@ object Desugar {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
 
-        case PMathematicalMapKeys(exp) => for {
+        case PMathMapKeys(exp) => for {
           e <- go(exp)
-        } yield in.MathematicalMapKeys(e)(src)
+        } yield in.MathMapKeys(e)(src)
 
-        case PMathematicalMapValues(exp) => for {
+        case PMathMapValues(exp) => for {
           e <- go(exp)
-        } yield in.MathematicalMapValues(e)(src)
+        } yield in.MathMapValues(e)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

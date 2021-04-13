@@ -923,7 +923,7 @@ case class PSequenceConversion(exp : PExpression) extends PSequenceExp
   * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PGhostCollectionUpdate(seq : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PSequenceExp with PMathematicalMapExp {
+case class PGhostCollectionUpdate(seq : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PGhostCollectionExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
     this(seq, Vector(PGhostCollectionUpdateClause(left, right)))
@@ -1011,10 +1011,10 @@ case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 sealed trait PMathematicalMapExp extends PUnorderedGhostCollectionExp
 
 // TODO: doc
-case class PMathematicalMapKeys(exp : PExpression) extends PMathematicalMapExp
+case class PMathMapKeys(exp : PExpression) extends PMathematicalMapExp
 
 // TODO: doc
-case class PMathematicalMapValues(exp : PExpression) extends PMathematicalMapExp
+case class PMathMapValues(exp : PExpression) extends PMathematicalMapExp
 /* ** Types */
 
 /**

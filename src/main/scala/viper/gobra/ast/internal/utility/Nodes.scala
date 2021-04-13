@@ -45,6 +45,7 @@ object Nodes {
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
+        case SafeMapLookup(resTarget, successTarget, mapLookup) => Vector(resTarget, successTarget, mapLookup)
         case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
@@ -124,6 +125,8 @@ object Nodes {
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case MathMapKeys(expr) => Seq(expr)
+        case MathMapValues(expr) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq.empty
@@ -152,10 +155,12 @@ object Nodes {
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
+          case MapLit(_, _, entries) => entries.keys.toSeq ++ entries.values.toSeq
           case StructLit(_, args) => args
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
+          case MathMapLit(_, _, entries) => entries.keys.toSeq ++ entries.values.toSeq
         }
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty

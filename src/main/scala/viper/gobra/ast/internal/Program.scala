@@ -274,22 +274,6 @@ case class MakeMap(override val target: LocalVar, override val typeParam: MapT, 
 
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
 
-sealed trait CompositeObject extends Node {
-  def op: CompositeLit
-  override def info: Parser.Info = op.info
-}
-
-object CompositeObject {
-  def unapply(arg: CompositeObject): Some[CompositeLit] = Some(arg.op)
-
-  case class Array(op : ArrayLit) extends CompositeObject
-  case class Slice(op : SliceLit) extends CompositeObject
-  case class Struct(op : StructLit) extends CompositeObject
-  case class Sequence(op : SequenceLit) extends CompositeObject
-  case class Set(op : SetLit) extends CompositeObject
-  case class Multiset(op : MultisetLit) extends CompositeObject
-}
-
 /**
   * Type assertion that does not fail.
   * 'successTarget' gets assigned a boolean, indicating whether the cast is valid or not.
@@ -552,7 +536,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t: SequenceT => t.t
     case t: SliceT => t.elems
     case t: MapT => t.values
-    case t: MathematicalMapT => t.values
+    case t: MathMapT => t.values
     case t => Violation.violation(s"expected an array or sequence type, but got $t")
   }
 }
@@ -604,7 +588,7 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
   */
 case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `base`. */
-  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathematicalMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
+  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
   override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
@@ -785,21 +769,21 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
   * and `valExprs` constitutes the vector "e_0, ..., e_n" of members,
   * which should all be of type `values`.
   */
-case class MathematicalMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
-  override val typ : Type = MathematicalMapT(keys, values, Addressability.literal)
+case class MathMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
 /**
-  * TODO
+  * TODO, use for all kinds of Map (math and non-math)
   */
-case class MathematicalMapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  require(exp.typ.isInstanceOf[MathematicalMapT])
-  override val typ : Type = SetT(exp.typ.asInstanceOf[MathematicalMapT].keys, Addressability.mathDataStructureElement)
+case class MathMapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  require(exp.typ.isInstanceOf[MathMapT])
+  override val typ : Type = SetT(exp.typ.asInstanceOf[MathMapT].keys, Addressability.mathDataStructureElement)
 }
 
-case class MathematicalMapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  require(exp.typ.isInstanceOf[MathematicalMapT])
-  override val typ : Type = SetT(exp.typ.asInstanceOf[MathematicalMapT].values, Addressability.mathDataStructureElement)
+case class MathMapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  require(exp.typ.isInstanceOf[MathMapT])
+  override val typ : Type = SetT(exp.typ.asInstanceOf[MathMapT].values, Addressability.mathDataStructureElement)
 }
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -1189,14 +1173,14 @@ case class MultisetT(t : Type, addressability: Addressability) extends Type {
 /**
   * The type of mathematical maps from `keys` to `values`
   */
-case class MathematicalMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t match {
-    case MathematicalMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
+    case MathMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
   }
 
-  override def withAddressability(newAddressability: Addressability): MathematicalMapT =
-    MathematicalMapT(keys.withAddressability(Addressability.mathDataStructureElement), values.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+  override def withAddressability(newAddressability: Addressability): MathMapT =
+    MathMapT(keys.withAddressability(Addressability.mathDataStructureElement), values.withAddressability(Addressability.mathDataStructureElement), newAddressability)
 }
 
 /**

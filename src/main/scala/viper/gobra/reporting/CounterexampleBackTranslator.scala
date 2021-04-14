@@ -52,8 +52,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 
 		val tranlator = MasterInterpreter(converter).interpret(_,_)	
 		//translate the values
-		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,Util.valueTranslation(x._2,Util.getType(x._1.pnode,typeinfo),converter)))))													
-																			
+
 		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,tranlator(x._2,Util.getType(x._1.pnode,typeinfo))))))													
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
 		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
@@ -76,22 +75,6 @@ object Util{
 			case _ => UnknownType
 		}
 	}
-	/**
-	  * translates the input from viper to Gobra
-	  * TODO: dissolve this and implement easy way of passing the master interpreter to subinterpreters
-	  *
-	  * @param input 
-	  * @param typ is used to help distinguish between differnet domains
-	  * @return
-	  */
-	def valueTranslation(input:sil.ExtractedModelEntry,typ:Type,converter:sil.Converter):LitEntry={
-	  		  MasterInterpreter(converter).interpret(input,typ)  match {
-					case l:LitEntry => l
-					case _ => FaultEntry("What else could it be?")
-				}
- 	}
-	type Identifier = String
-	type Label = String
 
 	def prettyPrint(input:GobraModelEntry,level:Int):String = {
 		val indent = "\t\t" ++ "   ".repeat(level)

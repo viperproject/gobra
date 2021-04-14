@@ -58,7 +58,10 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>(x._1.pnode,x._2))))))
 		printf(s"${converter.domains}\n${converter.non_domain_functions}")
 		val ret =  Some(new GobraCounterexample(glabelModel))
-		ret
+		backtrack.config.counterexample match {
+			case Some(CounterexampleConfigs.NativeCounterexamples) => Some(new GobraNativeCounterexample(counterexample.asInstanceOf[SiliconMappedCounterexample]))
+			case _ => ret
+		}
 	
 	}
 }
@@ -117,18 +120,23 @@ object Util{
 }
 
 
-case class GobraCounterexample(gModel:GobraModelAtLabel) extends Counterexample{
+class GobraCounterexample(gModel:GobraModelAtLabel) extends Counterexample{
 	override def toString:String = gModel.toString
 	val model =null
 }
+//for debugging purposes 
+class GobraNativeCounterexample(s:SiliconMappedCounterexample) extends GobraCounterexample(null){
+	//override val gModel: GobraModelAtLabel = null
+	//val model: Null = null
+	override def toString(): String = s.toString
+}
 
-
-case class GobraModelAtLabel(labeledEntries:Map[Util.Label,GobraModel]){
+case class GobraModelAtLabel(labeledEntries:Map[String,GobraModel]){
 	override def toString :String ={
 		labeledEntries.map(x=>s"model at label ${x._1}:\n${x._2}").mkString("\n")
 	}
 }
-case class GobraModel(entries:Map[PNode,GobraModelEntry]){
+case class GobraModel(entries:Map[(PNode,String),GobraModelEntry]){
 	override def toString :String = {
 		val params = entries.filter(x=>x._1.isInstanceOf[PParameter]) //first we separate the different types of values
 		val rest = entries.filterNot(x=>x._1.isInstanceOf[PParameter])

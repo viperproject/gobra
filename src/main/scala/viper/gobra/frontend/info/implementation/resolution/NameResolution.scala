@@ -75,7 +75,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
         case decl: PFPredicateDecl => FPredicate(decl, this)
         case decl: PMPredicateDecl => MPredicateImpl(decl, this)
-        case decl: PAdtClause => AdtClause(decl, this)
+        case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
         case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
 
 
@@ -158,7 +158,17 @@ trait NameResolution { this: TypeInfoImpl =>
   private def defenvout(out: PNode => Environment): PNode ==> Environment = {
 
     case id: PIdnDef if doesAddEntry(id) && !isUnorderedDef(id) =>
-      defineIfNew(out(id), serialize(id), MultipleEntity(), defEntity(id))
+
+      if (isDefinedInEnv(out(id), serialize(id))) {
+        val ent = lookup(out(id),serialize(id),UnknownEntity())
+        ent match {
+          case _ : AdtClause =>
+            define(out(id), serialize(id), defEntity(id))
+          case _ => defineIfNew(out(id), serialize(id), MultipleEntity(), defEntity(id))
+        }
+      } else {
+        defineIfNew(out(id), serialize(id), MultipleEntity(), defEntity(id))
+      }
 
     case id: PIdnUnk if !isDefinedInScope(out(id), serialize(id)) =>
       define(out(id), serialize(id), unkEntity(id))
@@ -187,7 +197,10 @@ trait NameResolution { this: TypeInfoImpl =>
         }
 
         def adtClauses(t: PType): Vector[PIdnDef] = t match {
-          case t: PAdtType => t.clauses.map(_.id)
+          case t: PAdtType => t.clauses.flatMap(f => {
+            f.args.flatMap(f => f.fields.map(_.id)) :+ f.id
+          })
+
           case _ => Vector.empty
         }
 
@@ -219,12 +232,9 @@ trait NameResolution { this: TypeInfoImpl =>
         }
       }
 
-      case n: PAdtType => n.clauses.flatMap { c =>
-        val clauseIds = c.args flatMap { a =>
-          a.fields map (_.id)
-        }
-        clauseIds.appended(c.id)
-      }
+      case _: PAdtType => Vector.empty
+
+      case _: PAdtClause => Vector.empty
 
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)

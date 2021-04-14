@@ -218,7 +218,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   )
 
   def showAdtClause(clause: AdtClause): Doc = updatePositionStore(clause) <> (clause match {
-    case AdtClause(name, args) => name.name <+> braces(ssep(args map showField, line))
+    case AdtClause(name, args) => name.name <+> block(ssep(args map showField, line))
   })
 
 
@@ -531,7 +531,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
-    case AdtT(_, _) => "adt" <> parens("...")
+    case AdtT(name, _) => "adt" <> parens(name)
+    case AdtClauseT(name, adtT, _, _) => showType(adtT) <+> "::" <+> name
   }
 
   private def showTypeList[T <: Type](list: Vector[T]): Doc =

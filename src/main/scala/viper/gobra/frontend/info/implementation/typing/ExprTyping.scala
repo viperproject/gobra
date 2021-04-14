@@ -70,8 +70,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t: AbstractType => t.messages(n, Vector(symbType(p.typ)))
           case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
         }
+        case Some(p: ap.QualifiedAdtType) => memberType(p.symb) match {
+          case _: AdtClauseT => noMessages
+          case t => error(n, s"expected an AdtClausT for QualifiedAdtType but got $t")
+        }
 
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression," +
+          s"qualified adt access, predicate expression, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -114,6 +119,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
+        case Some(p: ap.QualifiedAdtType) => memberType(p.symb)
 
         // TODO: fully supporting packages results in further options: global variable
 
@@ -179,7 +185,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
-    case n@PCompositeLit(t, lit) =>
+    case n@PCompositeLit(t : PLiteralType, lit) =>
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
         case t: PType => typeSymbType(t)

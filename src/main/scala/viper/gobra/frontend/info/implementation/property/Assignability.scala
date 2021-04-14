@@ -105,6 +105,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
       case (IntT(_), PermissionT) => true
+      case (t: DeclaredT, c: AdtClauseT) if underlyingType(t).isInstanceOf[AdtT] =>
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
+      case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
+      case (a: AdtClauseT, b: AdtClauseT) => a.decl == b.decl
 
         // conservative choice
       case _ => false
@@ -181,7 +186,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             failedProp("number of arguments does not match structure")
           }
 
-        /*case a: AdtClauseT =>
+        case a: AdtClauseT =>
           if (elems.isEmpty) {
             successProp
           } else if (elems.exists(_.key.nonEmpty)) {
@@ -193,9 +198,18 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
                 e.key.map {
                   case PIdentifierKey(id) if tmap.contains(id.name) =>
                     compositeValAssignableTo.result(e.exp, tmap(id.name))
-                }
+
+                  case v => failedProp(s"got $v but expected field name")
+                }.getOrElse(successProp)
               })
-          }*/
+          } else if (elems.size == a.clauses.size) {
+            propForall(
+              elems.map(_.exp).zip(a.clauses.values),
+              compositeValAssignableTo
+            )
+          }else {
+            failedProp("number of arguments does not match adt constructor")
+          }
 
         case ArrayT(len, t) =>
           areAllKeysConstant(elems) and

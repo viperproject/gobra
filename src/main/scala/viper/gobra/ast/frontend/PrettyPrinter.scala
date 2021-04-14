@@ -597,10 +597,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
           opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
       case PAdtClause(id, args) =>
+        showId(id) <+> block(
         ssep(args map (decl => {
           val fields = decl.fields
-          showId(id) <+> brackets(showIdList(fields map (_.id)) <+> showType(fields.head.typ))
-        }), line)
+          showIdList(fields map (_.id)) <+> showType(fields.head.typ)
+        }), line))
     }
   }
 

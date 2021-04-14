@@ -1241,14 +1241,15 @@ case class AdtT(name: String, addressability: Addressability) extends Type with 
     AdtT(name, newAddressability)
 }
 
-case class AdtClauseT(name: String, adtT: AdtT, addressability: Addressability) extends Type {
+case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {
   /** Returns whether 'this' is equals to 't' without considering the addressability modifier of the types. */
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtClauseT => name == o.name && adtT == o.adtT
+    case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtClauseT(name, adtT, newAddressability)
+    AdtClauseT(name, adtT, fields, newAddressability)
 }
 
 

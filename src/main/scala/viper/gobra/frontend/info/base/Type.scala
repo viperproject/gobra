@@ -46,7 +46,7 @@ object Type {
 
   case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
 
-  case class AdtClauseT(clauses: ListMap[String, Type], decl: PAdtClause, context: ExternalTypeInfo) extends Type
+  case class AdtClauseT(clauses: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 
   case class OptionT(elem : Type) extends Type
 

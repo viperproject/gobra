@@ -1777,7 +1777,7 @@ object Desugar {
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
-      case class Adt(t: in.AdtT) extends CompositeKind
+      case class Adt(t: in.AdtClauseT) extends CompositeKind
     }
 
     def compositeTypeD(t : in.Type) : CompositeKind = t match {
@@ -1787,7 +1787,7 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
-      case t: in.AdtT => CompositeKind.Adt(t)
+      case t: in.AdtClauseT => CompositeKind.Adt(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -1862,6 +1862,44 @@ object Desugar {
             } yield in.StructLit(it, args)(src)
           }
         }
+
+        case CompositeKind.Adt(t) =>
+          val fields = t.fields
+          val proxy = in.AdtClauseProxy(t.name, t.adtT.name)(src)
+
+          if (lit.elems.exists(_.key.isEmpty)) {
+            val wArgs = fields.zip(lit.elems).map  { case (f, PKeyedElement(_, exp)) => exp match {
+              case PExpCompositeVal(ev) => exprD(ctx)(ev)
+              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
+            }}
+
+            for {
+              args <- sequence(wArgs)
+            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
+          } else {
+            val fMap = fields.map({f => nm.inverse(f.name) -> f}).toMap
+
+            val vMap = lit.elems.map {
+              case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
+                val f = fMap(key.name)
+                exp match {
+                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
+                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
+                }
+
+                case _ => Violation.violation("expected identifier as a key")
+            }.toMap
+
+            val wArgs = fields.map {
+              case f if vMap.isDefinedAt(f) => vMap(f)
+              case f => unit(in.DfltVal(f.typ)(src))
+            }
+
+            for {
+              args <- sequence(wArgs)
+            } yield in.AdtConstructorLit(t.adtT, proxy, args)(src)
+          }
+
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
@@ -2103,17 +2141,6 @@ object Desugar {
       }
     }
 
-    def getAdtClauses(adtName: String) : Vector[in.AdtClause] = {
-      val member = AdditionalMembers.finalizedMembers.find({
-        case in.AdtDefinition(name, clauses) => if (name == adtName) true else false
-        case _ => false
-      }).get
-
-      member match {
-        case in.AdtDefinition(_, c) => c
-      }
-    }
-
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
@@ -2147,6 +2174,16 @@ object Desugar {
         val res = registerType(in.AdtT(adtName, addrMod))
         registerAdt(t, res)
         res
+
+      case t: Type.AdtClauseT =>
+        val tAdt = Type.AdtT(t.adtT, t.context)
+        val adt : in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
+        val fields : Vector[in.Field] = (t.clauses map {case (key: String, typ: Type) => {
+          in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
+        }}).toVector
+
+        in.AdtClauseT(idName(t.decl.id, t.context.getTypeInfo), adt, fields, addrMod)
+
 
       case Type.PredT(args) => in.PredT(args.map(typeD(_, Addressability.rValue)(src)), Addressability.rValue)
 

@@ -21,6 +21,7 @@ object AstPattern {
 
   case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
+  case class QualifiedAdtType(base: PType, symb: st.AdtClause) extends Type with Symbolic
 
   sealed trait Expr extends Pattern
 

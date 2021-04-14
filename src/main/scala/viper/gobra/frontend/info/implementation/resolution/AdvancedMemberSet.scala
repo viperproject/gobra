@@ -84,6 +84,7 @@ object AdvancedMemberSet {
         case n: MPredicateSpec => n.decl.id.name
         case Field(m, _, _)      => m.id.name
         case Embbed(m, _, _)     => m.id.name
+        case AdtClause(m, _, _) => m.id.name
         case ml: BuiltInMethodLike => ml.tag.identifier
       }
 

@@ -267,8 +267,20 @@ trait MemberResolution { this: TypeInfoImpl =>
     )
   }
 
+  def tryAdtLookup(use: PIdnUse, adtType: PAdtType) : Option[(Entity, Vector[MemberPath])] = {
+    val clauseOpt: Option[PAdtClause] = adtType.clauses.find(c => c.id.name == use.name)
+
+    val ent: Entity = clauseOpt match {
+      case Some(c) => AdtClause(c, adtType, typeSymbType(adtType).asInstanceOf[AdtT].context)
+      case None => ErrorMsgEntity(message(use, s"No ADT Clause ${use} found"))
+    }
+
+    Option((ent, Vector()))
+  }
+
 
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
+
     exprOrType(b) match {
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
@@ -278,8 +290,9 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else typeSymbType(typ) match {
+        else underlyingType(typeSymbType(typ)) match {
           case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
+          case adt: AdtT => tryAdtLookup(id, adt.decl)
           case _ => None
         }
     }

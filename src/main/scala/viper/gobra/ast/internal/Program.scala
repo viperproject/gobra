@@ -457,10 +457,12 @@ case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends Typ
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MapTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class SequenceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MultisetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MathMapTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 

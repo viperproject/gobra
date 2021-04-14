@@ -19,6 +19,7 @@ case class DefaultGobraInterpreter() extends GobraInterpreter{
 case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val optionInterpreter: GobraDomainInterpreter[OptionT] = OptionInterpreter(c)
 	val productInterpreter: GobraDomainInterpreter[StructT] = ProductInterpreter(c)
+	val boxInterpreter:GobraDomainInterpreter[Type] = BoxInterpreter(c)
 	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
 		entry match{
 			case sil.LitIntEntry(v) => LitIntEntry(v)
@@ -27,7 +28,9 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			case v:sil.VarEntry => interpret(c.extractVal(v),info)//TODO:make shure this does not pingpong
 			case d:sil.DomainValueEntry => info match {//TODO: More interpreters
 												case t:OptionT => optionInterpreter.interpret(d,t)
-												case t:StructT => productInterpreter.interpret(d,t);
+												case t:StructT =>  productInterpreter.interpret(d,t)
+												case t:ArrayT =>boxInterpreter.interpret(d,t)
+												case t:SliceT => FaultEntry("TODO: Silce")
 												case DeclaredT(d,c) => val name = d.left.name
 																		val actual = interpret(entry,c.symbType(d.right)) match {
 																			case l:LitEntry => l
@@ -37,9 +40,9 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 												case _ => DummyEntry()
 											}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
+			case s:sil.SeqEntry => FaultEntry("Sequence sould not be unboxed...")
 			case _ => FaultEntry("illegal call of interpret")
 		}
-		
 	}
 }
 
@@ -84,6 +87,7 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
 		if(doms.isDefined){
+			//printf(s"${doms.get}")
 			val functions:Seq[sil.ExtractedFunction] =doms.get.functions
 			val fields = info.fields
 			val numFields = fields.size
@@ -99,14 +103,45 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 																										case l:LitEntry=> l;
 																										case _ => return FaultEntry("internal error struct")
 																									}
-										))
+										)) 
 			LitStructEntry(info,values)
 			}catch{
-				case _ => return FaultEntry(s"$fieldToVals")
+				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: $info")
 			}
 			
 		}else{
 			FaultEntry(s"could not relsove domain: ${entry.domain}")
+		}
+	}
+}
+//experimental (somehow the thing does not work...)
+case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
+	def unboxFunc(domain:String) = s"unbox_$domain"
+	def boxFunc(domain:String) = s"box_$domain"
+	def interpret(entry:sil.DomainValueEntry,info:Type):GobraModelEntry={
+		val unbox = c.non_domain_functions.find(_.fname==unboxFunc(entry.domain))
+		val box = c.non_domain_functions.find(_.fname==boxFunc(entry.domain))
+		//printf(s"$box \n $unbox")
+		if(unbox.isDefined){
+			//printf(s"$entry")
+			val unboxed = Right(unbox.get.default) match{ //unboxing has some strange behaviour snaps and such
+					case Right(v:sil.VarEntry) => c.extractVal(v)
+					case Right(x) => x
+					case _ => FaultEntry(s"wrong application of function $unbox")
+			} 
+			unboxed match{
+				case x:sil.SeqEntry => info match{
+													case a:ArrayT => LitArrayEntry(a,
+																		x.values.map(y=>MasterInterpreter(c).interpret(y,a.elem)  match {
+																			case l:LitEntry => l
+																			case _ => FaultEntry("not a lit entry")
+																		}))
+													}
+				case _=> FaultEntry(s"$unboxed not a box entry...")
+			}
+			//MasterInterpreter(c).interpret(unboxed,UnknownType)
+		}else{
+			FaultEntry(s"${unboxFunc(entry.domain)} not found")
 		}
 	}
 }

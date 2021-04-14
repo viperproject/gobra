@@ -50,8 +50,13 @@ case class OptionInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Opt
 		val doms = c.domains.filter(x=>x.valueName==entry.domain)
 		if(doms.length==1){
 			val functions:Seq[sil.ExtractedFunction] =doms.head.functions
-			val noneFunc : sil.ExtractedFunction = functions.find(_.fname==nonFuncName) match {case Some(value) => value; case None => return FaultEntry(s"${entry}: could not relsove ($nonFuncName) not found")}
-			val getFunc : sil.ExtractedFunction= functions.find(_.fname==getFuncName) match {case Some(value) => value; case None => return FaultEntry(s"${entry}: could not relsove ($nonFuncName) not found")}
+			val noneFunc : sil.ExtractedFunction = functions.find(_.fname==nonFuncName) match {
+																							case Some(value) => value; 
+																							case None => return FaultEntry(s"${entry}: could not relsove ($nonFuncName) not found")}
+			val getFunc : sil.ExtractedFunction= functions.find(_.fname==getFuncName) match {
+																						case Some(value) => value; 
+																						case None => return FaultEntry(s"${entry}: could not relsove ($getFuncName) not found")
+																					}
 			val isNone : Boolean = noneFunc.apply(Seq(entry)) match {
 				case Right(sil.LitBoolEntry(b)) => b
 				case _ => return FaultEntry(s"${entry}: could not relsove ($nonFuncName)")

@@ -50,13 +50,14 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		//map from info to counterexample entry
 		val declInfosMap: Map[String,Map[Source.Verifier.Info,sil.ExtractedModelEntry]] = declarationMap.map(y=>(y._1,y._2.map(x=>(Source.unapply(x._1) match {case Some(t) => (t,x._2) }))))
 
-
+		val tranlator = MasterInterpreter(converter).interpret(_,_)	
 		//translate the values
 		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,Util.valueTranslation(x._2,Util.getType(x._1.pnode,typeinfo),converter)))))													
 																			
-		
-		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>(x._1.pnode,x._2))))))
-		printf(s"${converter.domains}\n${converter.non_domain_functions}")
+		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,tranlator(x._2,Util.getType(x._1.pnode,typeinfo))))))													
+		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
+		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
+		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
 		val ret =  Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
 			case Some(CounterexampleConfigs.NativeCounterexamples) => Some(new GobraNativeCounterexample(counterexample.asInstanceOf[SiliconMappedCounterexample]))

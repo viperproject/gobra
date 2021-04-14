@@ -11,7 +11,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.CodeLevel.{pure, sequence, unit}
+import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, pure, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
@@ -37,7 +37,11 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
+      for {
+        isCompKey <- checkKeyComparability(idx)(ctx)
+        _ <- assert(isCompKey) // key must be comparable
+        stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
+      } yield stmt
   }
 
   /**
@@ -76,6 +80,8 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta
         for {
+          isCompKey <- checkKeyComparability(idx)(ctx)
+          _ <- assert(isCompKey)
           vE <- goE(e)
           vIdx <- goE(idx)
         } yield vpr.MapLookup(vE, vIdx)(pos, info, errT)
@@ -127,5 +133,16 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
           )(pos, info, errT)
         } yield res
       }
+  }
+
+  // TODO: unify implementations; this is a copy from the checkKeyComparability method defined
+  //       in in MapEncoding.scala
+  private def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+    val isComp = ctx.typeEncoding.isComparable(ctx)(key)
+    isComp match {
+      case Left(false) => unit[vpr.Exp](withSrc(vpr.FalseLit(), key))
+      case Left(true) => unit[vpr.Exp](withSrc(vpr.TrueLit(), key))
+      case Right(compExp) => compExp
+    }
   }
 }

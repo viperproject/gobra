@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package gomap
+
+// no access to m granted
+func test1(m map[int]int) int {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	return len(m)
+}
+
+requires acc(m)
+func test2(m map[interface{}]int) int {
+    var m1 interface{} = make(map[int]int)
+	// runtime type of m1 is not comparable
+	//:: ExpectedOutput(assert_error)
+    return m[m1]
+}
+
+func test3() {
+    x := -100
+	// x is negative (determined dynamically)
+	//:: ExpectedOutput(make_precondition_error)
+    m := make(map[int]int, x)
+}

@@ -1,0 +1,18 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package mathmaps
+
+func test1() {
+	m := mmap[string]int{ "hello": 5, "bye": 3 }
+	assert |keySet(m)| == 2
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert |keySet(m)| != 2
+}
+
+func test2() {
+	m := mmap[string]int{ "hello": 5, "bye": 3 }
+	assert m["hello"] == 5
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert m["X"] == 0
+}

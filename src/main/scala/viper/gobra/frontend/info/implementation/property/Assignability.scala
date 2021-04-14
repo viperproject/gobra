@@ -96,7 +96,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
-      case (MathMapT(k1, v1), MathMapT(k2, v2)) => assignableTo(k1, k2) && assignableTo(v1, v2) // TODO: rethink this with examples
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
       case (IntT(_), PermissionT) => true
 

@@ -449,8 +449,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-          case PMathMapKeys(exp) => "keys" <> parens(showExpr(exp))
-          case PMathMapValues(exp) => "values" <> parens(showExpr(exp))
+          case PMapKeys(exp) => "keys" <> parens(showExpr(exp))
+          case PMapValues(exp) => "values" <> parens(showExpr(exp))
         }
       }
 

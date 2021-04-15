@@ -756,11 +756,11 @@ object Parser {
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
 
-    lazy val keys : Parser[PMathMapKeys] =
-      "keySet" ~> ("(" ~> expression <~ ")") ^^ PMathMapKeys
+    lazy val keys : Parser[PMapKeys] =
+      "keySet" ~> ("(" ~> expression <~ ")") ^^ PMapKeys
 
-    lazy val values : Parser[PMathMapValues] =
-      "valueSet" ~> ("(" ~> expression <~ ")") ^^ PMathMapValues
+    lazy val values : Parser[PMapValues] =
+      "valueSet" ~> ("(" ~> expression <~ ")") ^^ PMapValues
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference

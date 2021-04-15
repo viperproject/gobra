@@ -2168,11 +2168,9 @@ object Desugar {
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MathMapT(keys, values) =>
-        in.MathMapT(
-          typeD(keys, Addressability.mathDataStructureElement)(src),
-          typeD(values, Addressability.mathDataStructureElement)(src),
-          addrMod
-        )
+        val keysD = typeD(keys, Addressability.mathDataStructureElement)(src)
+        val valuesD = typeD(values, Addressability.mathDataStructureElement)(src)
+        in.MathMapT(keysD, valuesD, addrMod)
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
@@ -2568,13 +2566,13 @@ object Desugar {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
 
-        case PMathMapKeys(exp) => for {
+        case PMapKeys(exp) => for {
           e <- go(exp)
-        } yield in.MathMapKeys(e)(src)
+        } yield in.MapKeys(e)(src)
 
-        case PMathMapValues(exp) => for {
+        case PMapValues(exp) => for {
           e <- go(exp)
-        } yield in.MathMapValues(e)(src)
+        } yield in.MapValues(e)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

@@ -94,6 +94,16 @@ class MapEncoding extends LeafTypeEncoding {
           _ <- write(vpr.Inhale(vpr.FieldAccessPredicate(vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx))(pos, info, errT), vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
         } yield vRes.localVar
+
+      case k@ in.MapKeys(mapExp :: ctx.Map(keys, values)) =>
+        for {
+          correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
+        } yield withSrc(vpr.MapDomain(correspondingMap), k)
+
+      case v@ in.MapValues(mapExp:: ctx.Map(keys, values)) =>
+        for {
+          correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
+        } yield withSrc(vpr.MapRange(correspondingMap), v)
     }
   }
 

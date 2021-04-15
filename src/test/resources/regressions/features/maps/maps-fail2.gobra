@@ -11,15 +11,23 @@ func test1(m map[int]int) int {
 
 requires acc(m)
 func test2(m map[interface{}]int) int {
-    var m1 interface{} = make(map[int]int)
+	var m1 interface{} = make(map[int]int)
 	// runtime type of m1 is not comparable
 	//:: ExpectedOutput(assert_error)
-    return m[m1]
+	return m[m1]
 }
 
 func test3() {
-    x := -100
+	x := -100
 	// x is negative (determined dynamically)
 	//:: ExpectedOutput(make_precondition_error)
-    m := make(map[int]int, x)
+	m := make(map[int]int, x)
+}
+
+
+// cannot compute keySet(m), no permission to m
+//:: ExpectedOutput(contract_not_well_formed)
+requires "key" in keySet(m)
+func test4(m map[string]string) (r string){
+	return m["key"]
 }

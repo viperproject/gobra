@@ -111,9 +111,11 @@ object Nodes {
         case StructTExpr(_) => Seq.empty
         case ArrayTExpr(len, elem) => Seq(len, elem)
         case SliceTExpr(elem) => Seq(elem)
+        case MapTExpr(key, elem) => Seq(key, elem)
         case SequenceTExpr(elem) => Seq(elem)
         case SetTExpr(elem) => Seq(elem)
         case MultisetTExpr(elem) => Seq(elem)
+        case MathMapTExpr(key, elem) => Seq(key, elem)
         case OptionTExpr(elem) => Seq(elem)
         case TupleTExpr(elem) => elem
         case DefinedTExpr(_) => Seq.empty
@@ -129,8 +131,8 @@ object Nodes {
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
-        case MathMapKeys(expr) => Seq(expr)
-        case MathMapValues(expr) => Seq(expr)
+        case MapKeys(expr) => Seq(expr)
+        case MapValues(expr) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq.empty

@@ -98,11 +98,11 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapCardinality(_)(pos, info, errT))
 
-      case n@ in.MathMapKeys(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MapKeys(e :: ctx.MathematicalMap(_, _)) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapDomain(_)(pos, info, errT))
 
-      case n@ in.MathMapValues(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MapValues(e :: ctx.MathematicalMap(_, _)) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapRange(_)(pos, info, errT))
     }

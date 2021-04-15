@@ -347,7 +347,7 @@ sealed trait Accessible extends Node {
 
 object Accessible {
   case class Predicate(op: PredicateAccess) extends Accessible
-  case class ExprAccess(op: Expr) extends Accessible // TODO
+  case class ExprAccess(op: Expr) extends Accessible
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }
@@ -457,12 +457,12 @@ case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends Typ
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
-case class MapTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class SequenceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MultisetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
-case class MathMapTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
@@ -545,7 +545,7 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t: SliceT => t.elems
     case t: MapT => t.values
     case t: MathMapT => t.values
-    case t => Violation.violation(s"expected an array or sequence type, but got $t")
+    case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
 
@@ -781,17 +781,20 @@ case class MathMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val
   override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
-/**
-  * TODO, use for all kinds of Map (math and non-math)
-  */
-case class MathMapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  require(exp.typ.isInstanceOf[MathMapT])
-  override val typ : Type = SetT(exp.typ.asInstanceOf[MathMapT].keys, Addressability.mathDataStructureElement)
+case class MapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = exp.typ match {
+    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case _ => violation(s"unexpected type ${exp.typ}")
+  }
 }
 
-case class MathMapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  require(exp.typ.isInstanceOf[MathMapT])
-  override val typ : Type = SetT(exp.typ.asInstanceOf[MathMapT].values, Addressability.mathDataStructureElement)
+case class MapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = exp.typ match {
+    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case _ => violation(s"unexpected type ${exp.typ}")
+  }
 }
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr

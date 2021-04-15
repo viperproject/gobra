@@ -36,42 +36,42 @@ func test6() {
 	assert acc(m) && len(m) == 0
 
 	// multi assignement supported
-    v1, ok1 := m[3]
-    assert !ok1 && v1 == 0
+	v1, ok1 := m[3]
+	assert !ok1 && v1 == 0
 
 	// single assignement supported
-    v2 := m[3]
-    assert v2 == 0
+	v2 := m[3]
+	assert v2 == 0
 
 	// assign a value to a key in the map
 	m[3] = 10
-    v3, ok3 := m[3]
-    assert ok3 && v3 == 10
+	v3, ok3 := m[3]
+	assert ok3 && v3 == 10
 }
 
 type T struct {
-    x int
-    y string
+	x int
+	y string
 }
 
 func test7() {
-    m := make(map[T]int)
-    m[T{1, "one"}] = 1
-    assert m[T{1, "one"}] == 1
+	m := make(map[T]int)
+	m[T{1, "one"}] = 1
+	assert m[T{1, "one"}] == 1
 }
 
 func test8() {
 	// map literals
 	m := map[string]int { "hello": 5, "bye": 3 }
-    v, ok := m["hello"]
-    assert ok && v == 5
+	v, ok := m["hello"]
+	assert ok && v == 5
 }
 
 func test9() {
 	// shared maps
 	m@ := make(map[string]string)
-    assert len(m) == 0
-    m["ola"] = "hello"
+	assert len(m) == 0
+	m["ola"] = "hello"
 	assert len(m) == 1
 }
 
@@ -79,9 +79,10 @@ type T2 int
 
 func test10() {
 	var m1 map[*T2]struct{ x, y int64 }
-    var m2 map[string]interface{}
-    var m3 map[interface{}]string
-    var m4@ map[string]int
+	var m2 map[string]interface{}
+	var m3 map[interface{}]string
+	var m4@ map[string]int
+	var m map[int8]int16 = map[int8]int16{1: 1, 2: 1, 3: 3, 4: 4, 5: 7}
 }
 
 // adapted from https://tour.golang.org/moretypes/20
@@ -98,4 +99,16 @@ func test11() {
 			3742202, -12208408,
 		},
 	}
+}
+
+requires acc(m, _)
+requires "key" in keySet(m)
+func test12(m map[string]string) (r string){
+    return m["key"]
+}
+
+requires acc(m, _)
+requires "value" in valueSet(m)
+func test13(m map[string]string) {
+    assert exists k string :: m[k] == "value"
 }

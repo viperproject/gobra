@@ -18,9 +18,9 @@ func test2() {
 }
 
 func test3() {
-    m := make(map[int]int)
-    m[10] = 10
+	m := make(map[int]int)
+	m[10] = 10
 	// &m[10] is not effective addressable
 	//:: ExpectedOutput(type_error)
-    z := &m[10]
+	z := &m[10]
 }

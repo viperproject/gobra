@@ -158,12 +158,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
-        case PMathMapKeys(exp) => exprType(exp) match {
-          case _: MathMapT => isExpr(exp).out
+        case PMapKeys(exp) => exprType(exp) match {
+          case _: MathMapT | _: MapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
-        case PMathMapValues(exp) => exprType(exp) match {
-          case _: MathMapT => isExpr(exp).out
+        case PMapValues(exp) => exprType(exp) match {
+          case _: MathMapT | _: MapT => isExpr(exp).out
           case t => error(expr, s"expected a mathematical map, but got $t")
         }
       }
@@ -251,12 +251,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t: OptionT => MultisetT(t.elem)
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
-        case PMathMapKeys(exp) => exprType(exp) match {
-          case t: MathMapT => SetT(t.keys)
+        case PMapKeys(exp) => exprType(exp) match {
+          case t: MathMapT => SetT(t.key)
+          case t: MapT => SetT(t.key)
           case t => violation(s"expected a mathematical map, but got $t")
         }
-        case PMathMapValues(exp) => exprType(exp) match {
-          case t: MathMapT => SetT(t.values)
+        case PMapValues(exp) => exprType(exp) match {
+          case t: MathMapT => SetT(t.elem)
+          case t: MapT => SetT(t.key)
           case t => violation(s"expected a mathematical map, but got $t")
         }
       }
@@ -363,8 +365,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PCardinality(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
         case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
-        case PMathMapKeys(exp) => go(exp)
-        case PMathMapValues(exp) => go(exp)
+        case PMapKeys(exp) => go(exp)
+        case PMapValues(exp) => go(exp)
       }
 
       case _: PAccess | _: PPredicateAccess => !strong

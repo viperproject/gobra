@@ -618,15 +618,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   /** Returns the type that is implied by the context of a numeric expression. */
-  private def getSingleTypeFromCtxt(expr: PNumExpression): Option[Type] = {
-    // TODO: do this only once, maybe remove this method
-    getTypeFromCtxt(expr) match {
-      case Some(t) => t match { case Single(t) => Some(t)}
-      case _ => None // TODO: violation or None, fix this, expr may be a sum of strings
-    }
-  }
-
-  /** Returns the type that is implied by the context of a numeric expression. */
   private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
     expr match {
       case tree.parent(p) => p match {

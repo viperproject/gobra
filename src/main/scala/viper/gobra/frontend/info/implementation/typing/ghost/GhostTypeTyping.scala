@@ -23,7 +23,12 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
-    case _ : PAdtType => noMessages
+    case t : PAdtType => noMessages //error(typ,"Multiple Clauses with the same name found", adtHasNoDuplicates(t))
+  }
+
+  def adtHasNoDuplicates(decl: PAdtType): Boolean = {
+    decl.clauses.map(_.id.name).groupBy(identity).collect { case (x, Vector(_, _, _*)) => x }
+      .isEmpty
   }
 
   private[typing] def ghostTypeSymbType(typ : PGhostType) : Type = typ match {

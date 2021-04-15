@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.Type.{ImportT, PredT}
+import viper.gobra.frontend.info.base.Type.{DeclaredT, ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
@@ -31,6 +31,8 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             _ => Left(n),
             symbType(_) match { // check if base is a package qualifier and id points to a type
               case _: ImportT if pointsToType(n.id) => Right(n)
+              case DeclaredT(decl: PTypeDecl, _) if pointsToType(n.id) && decl.right.isInstanceOf[PAdtType] =>
+                Right(n)
               case _ => Left(n)
             })
 

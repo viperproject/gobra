@@ -13,6 +13,6 @@ func test1() {
 func test2() {
 	m := mmap[string]int{ "hello": 5, "bye": 3 }
 	assert m["hello"] == 5
-	//:: ExpectedOutput(assert_error:assertion_error)
+	//:: ExpectedOutput(assert_error:map_key_not_contained)
 	assert m["X"] == 0
 }

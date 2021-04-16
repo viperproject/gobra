@@ -18,8 +18,8 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def wellDefActualMember(member: PActualMember): Messages = member match {
-    case n: PFunctionDecl => wellDefIfPureFunction(n)
-    case m: PMethodDecl => isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
+    case n: PFunctionDecl => wellDefVariadicArgs(n.args) ++ wellDefIfPureFunction(n)
+    case m: PMethodDecl => wellDefVariadicArgs(m.args) ++ isReceiverType.errors(miscType(m.receiver))(member) ++ wellDefIfPureMethod(m)
 
     case c: PConstDecl =>
       val idenNumMsgs = error(c, s"number of identifiers does not match the number of expressions", c.left.length != c.right.length)
@@ -27,4 +27,9 @@ trait MemberTyping extends BaseTyping { this: TypeInfoImpl =>
       idenNumMsgs ++ constExprMsgs
     case s: PActualStatement => wellDefStmt(s).out
   }
+
+  private[typing] def wellDefVariadicArgs(args: Vector[PParameter]): Messages =
+    args.dropRight(1).flatMap {
+      p => error(p, s"Only the last argument can be variadic, got $p instead", p.typ.isInstanceOf[PVariadicType])
+    }
 }

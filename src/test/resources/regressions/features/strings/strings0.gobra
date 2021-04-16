@@ -1,0 +1,64 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test() {
+	s0 := "test0"
+	s1 := `test1`
+	/* multi line raw strings are currently not supported by the preprocessor
+	s2 := `\n
+	\n`
+	*/
+	s3 := "\""
+	s4 := "Hello, world!\n"
+}
+
+func dfltTest() {
+	var s1 string
+	s2 := ""
+	assert s1 == s2
+}
+
+func lenTest() {
+	h1 := "hello"
+	h2 := "world"
+	assert len(h1) == 5
+	assert len(h2) == 5
+	assert len(h1 + h2) == 10
+}
+
+func sharedStrTest() {
+	s@ := "test"
+	assert getStr(&s) == "test"
+}
+
+func stringEqTest() {
+	h1 := "hello"
+	var h2 = "hello"
+	assert h1 == h2
+
+	var h3 string = "heooo"
+	assert h1 != h3
+}
+
+func id(s string) string {
+	return s
+}
+
+requires acc(s, 1/2)
+ensures acc(s, 1/2)
+ensures res == *s
+func getStr(s *string) (res string) {
+	return *s
+}
+
+func comp(s1, s2 string) int {
+	if s1 == s2 {
+		return 0
+	} else if s1 < s2 {
+		return -1
+	} else {
+		return 1
+	}
+}

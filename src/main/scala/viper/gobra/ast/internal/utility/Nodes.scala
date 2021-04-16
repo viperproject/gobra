@@ -35,15 +35,20 @@ object Nodes {
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
+      case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
+      case DomainFunc(_, args, results) => args ++ Seq(results)
+      case DomainAxiom(expr) => Seq(expr)
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
+        case Label(label) => Seq(label)
         case If(cond, thn, els) => Seq(cond, thn, els)
         case While(cond, invs, body) => Seq(cond) ++ invs ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
+        case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
         case MethodCall(targets, recv, meth, args) => targets ++ Seq(recv, meth) ++ args
@@ -83,6 +88,7 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case DomainFunctionCall(func, args, _) => Seq(func) ++ args
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -97,6 +103,7 @@ object Nodes {
         case ToInterface(exp, _) => Seq(exp)
         case IsBehaviouralSubtype(left, right) => Seq(left, right)
         case BoolTExpr() => Seq.empty
+        case StringTExpr() => Seq.empty
         case IntTExpr(_) => Seq.empty
         case PermTExpr() => Seq.empty
         case PointerTExpr(elem) => Seq(elem)
@@ -130,6 +137,7 @@ object Nodes {
         case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case Old(op, _) => Seq(op)
+        case LabeledOld(label, operand) => Seq(label, operand)
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
@@ -138,10 +146,13 @@ object Nodes {
           case _: NoPerm => Seq.empty
           case FractionalPerm(left, right) => Seq(left, right)
           case _: WildcardPerm => Seq.empty
+          case PermMinus(exp) => Seq(exp)
+          case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
         case l: Lit => l match {
           case IntLit(_, _) => Seq.empty
           case BoolLit(_) => Seq.empty
+          case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
@@ -163,6 +174,8 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case _: DomainFuncProxy => Seq.empty
+        case _: LabelProxy => Seq.empty
       }
     }
 //    n match {

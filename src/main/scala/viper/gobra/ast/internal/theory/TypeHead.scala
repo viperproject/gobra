@@ -18,6 +18,7 @@ sealed trait TypeHead
 object TypeHead {
 
   case object BoolHD extends TypeHead
+  case object StringHD extends TypeHead
   case class IntHD(kind: IntegerKind) extends TypeHead
   case object PointerHD extends TypeHead
   case class DefinedHD(name: String) extends TypeHead
@@ -26,6 +27,7 @@ object TypeHead {
   case object ArrayHD extends TypeHead
   case object SliceHD extends TypeHead
   case class InterfaceHD(name: String) extends TypeHead
+  case class DomainHD(name: String) extends TypeHead
   case object ChannelHD extends TypeHead
   case object NilHD extends TypeHead
   case object UnitHD extends TypeHead
@@ -51,11 +53,13 @@ object TypeHead {
   /** Returns type-head representation of the argument type. */
   def typeHead(typ: Type): TypeHead = typ match {
     case _: BoolT => BoolHD
+    case _: StringT => StringHD
     case t: IntT => IntHD(t.kind)
     case _: PointerT => PointerHD
     case t: DefinedT => DefinedHD(t.name)
     case t: StructT => StructHD(t.fields.map(f => (f.name, f.ghost)))
     case t: InterfaceT => InterfaceHD(t.name)
+    case t: DomainT => DomainHD(t.name)
     case _: ChannelT => ChannelHD
     case VoidT => UnitHD
     case _: PermissionT => PermHD
@@ -73,11 +77,13 @@ object TypeHead {
   /** Returns the direct children types of a type. */
   def children(typ: Type): Vector[Type] = typ match {
     case _: BoolT => Vector.empty
+    case _: StringT => Vector.empty
     case _: IntT => Vector.empty
     case t: PointerT => Vector(t.t)
     case _: DefinedT => Vector.empty
     case t: StructT => t.fields.map(_.typ)
     case _: InterfaceT => Vector.empty
+    case _: DomainT => Vector.empty
     case t: ChannelT => Vector(t.elem)
     case VoidT => Vector.empty
     case _: PermissionT => Vector.empty
@@ -95,6 +101,7 @@ object TypeHead {
   /** Returns the direct children types of a type expression. */
   def children(typ: TypeExpr): Vector[Expr] = typ match {
     case _: BoolTExpr => Vector.empty
+    case _: StringTExpr => Vector.empty
     case _: IntTExpr => Vector.empty
     case t: PointerTExpr => Vector(t.elems)
     case _: DefinedTExpr => Vector.empty
@@ -112,6 +119,7 @@ object TypeHead {
   /** Returns type-head representation of the argument type expression. */
   def typeHead(typ: TypeExpr): TypeHead = typ match {
     case _: BoolTExpr => BoolHD
+    case _: StringTExpr => StringHD
     case t: IntTExpr => IntHD(t.kind)
     case _: PointerTExpr => PointerHD
     case t: DefinedTExpr => DefinedHD(t.name)
@@ -129,6 +137,7 @@ object TypeHead {
   /** Returns arity of the type represented by the argument type-head. */
   def arity(typeHead: TypeHead): Int = typeHead match {
     case BoolHD => 0
+    case StringHD => 0
     case _: IntHD => 0
     case PointerHD => 1
     case _: DefinedHD => 0
@@ -136,6 +145,7 @@ object TypeHead {
     case ArrayHD => 1
     case SliceHD => 1
     case _: InterfaceHD => 0
+    case _: DomainHD => 0
     case ChannelHD => 1
     case NilHD => 0
     case UnitHD => 0

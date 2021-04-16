@@ -94,6 +94,7 @@ object Addressability {
   def fieldLookup(receiver: Addressability): Addressability = field(receiver)
   def arrayLookup(receiver: Addressability): Addressability = arrayElement(receiver)
   val sliceLookup: Addressability = sliceElement
+  val variadicLookup: Addressability = sliceElement
   val mapLookup: Addressability = mapValue
 
   val reference: Addressability = rValue

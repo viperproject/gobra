@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PointerT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -21,8 +21,10 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
       case (Single(lst), Single(rst)) =>
         if (identicalTypes(lst, rst)) Some(lst) else {
           (lst, rst) match {
-            case (a, IntT(config.typeBounds.UntypedConst)) if underlyingType(a).isInstanceOf[IntT] => Some(a)
-            case (IntT(config.typeBounds.UntypedConst), b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
+            case (a, UNTYPED_INT_CONST) if underlyingType(a).isInstanceOf[IntT] => Some(a)
+            case (UNTYPED_INT_CONST, b) if underlyingType(b).isInstanceOf[IntT] => Some(b)
+            case (IntT(_), PermissionT) => Some(PermissionT)
+            case (PermissionT, IntT(_)) => Some(PermissionT)
             case (SequenceT(l), SequenceT(r)) => typeMerge(l,r) map SequenceT
             case (SetT(l), SetT(r)) => typeMerge(l,r) map SetT
             case (MultisetT(l), MultisetT(r)) => typeMerge(l,r) map MultisetT

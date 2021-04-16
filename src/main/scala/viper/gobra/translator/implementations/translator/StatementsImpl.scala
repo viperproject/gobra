@@ -27,10 +27,13 @@ class StatementsImpl extends Statements {
 
   override def finalize(col: Collector): Unit = ()
 
+  /** Clients can assume that the returned writer does not contain local variable definitions or written statements. */
   override def translate(x: in.Stmt)(ctx: Context): CodeWriter[vpr.Stmt] = {
 
+    def result(res: CodeWriter[vpr.Stmt]): CodeWriter[vpr.Stmt] = seqn(res)
+
     val typEncodingOptRes = ctx.typeEncoding.statement(ctx).lift(x)
-    if (typEncodingOptRes.isDefined) return typEncodingOptRes.get map (s => stmtComment(x, s))
+    if (typEncodingOptRes.isDefined) return result(typEncodingOptRes.get map (s => stmtComment(x, s)))
 
 
     val (pos, info, errT) = x.vprMeta
@@ -51,7 +54,7 @@ class StatementsImpl extends Statements {
         "number of passed arguments must match number of expected arguments"
       )
 
-      seqn(for {
+      for {
         vArgss <- sequence(args map goE)
         funcArgs <- sequence(formalParams map goE)
         substitutions = (funcArgs zip vArgss).toMap
@@ -62,29 +65,32 @@ class StatementsImpl extends Statements {
         _ <- errorT {
           case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionError(info))
         }
-      } yield exhale)
+      } yield exhale
     }
 
     val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
-        val inits = decls collect { case x: in.BodyVar => ctx.typeEncoding.initialization(ctx)(x) }
         val vDecls = decls map (blockDecl(_)(ctx))
         block{
           for {
             _ <- global(vDecls: _*)
-            vInits <- seqns(inits)
-            vBody <- sequence(stmts map ctx.stmt.translateF(ctx))
-          } yield vu.seqn(vInits +: vBody)(pos, info, errT)
+            vBody <- sequence(stmts map goS)
+          } yield vu.seqn(vBody)(pos, info, errT)
         }
 
+      case in.Initialization(left) => ctx.typeEncoding.initialization(ctx)(left)
+
       case in.Seqn(stmts) => seqns(stmts map goS)
+
+      case in.Label(id) =>
+        unit(vpr.Label(id.name, Seq.empty)(pos, info, errT))
 
       case in.If(cond, thn, els) =>
           for {
             c <- goE(cond)
-            t <- seqn(goS(thn))
-            e <- seqn(goS(els))
-          } yield vpr.If(c, t, e)(pos, info, errT)
+            t <- goS(thn)
+            e <- goS(els)
+          } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
       case in.While(cond, invs, body) =>
 
@@ -95,7 +101,7 @@ class StatementsImpl extends Statements {
           ipre <- seqnUnits(iws)
           vBody <- goS(body)
 
-          cpost = vpr.If(vCond, cpre, vu.nop(pos, info, errT))(pos, info, errT)
+          cpost = vpr.If(vCond, vu.toSeq(cpre), vu.nop(pos, info, errT))(pos, info, errT)
           ipost = ipre
 
           wh = vu.seqn(Vector(
@@ -153,7 +159,7 @@ class StatementsImpl extends Statements {
       case _ => Violation.violation(s"Statement $x did not match with any implemented case.")
     }
 
-    vprStmt map (s => stmtComment(x, s))
+    result(vprStmt) map (s => stmtComment(x, s))
   }
 
   private def viperTarget(x: vpr.Exp): (vpr.LocalVar, Option[(vpr.LocalVarDecl, vpr.AbstractAssign)]) = {
@@ -176,6 +182,9 @@ class StatementsImpl extends Statements {
   def blockDecl(x: in.BlockDeclaration)(ctx: Context): vpr.Declaration = {
     x match {
       case x: in.BodyVar => ctx.typeEncoding.variable(ctx)(x)
+      case l: in.LabelProxy =>
+        val (pos, info, errT) = x.vprMeta
+        vpr.Label(l.name, Seq.empty)(pos, info, errT)
     }
   }
 

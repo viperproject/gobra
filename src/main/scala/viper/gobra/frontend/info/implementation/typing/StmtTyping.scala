@@ -61,6 +61,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
           multiAssignableTo.errors(rights map exprType, lefts map idType)(n)
       else error(n, s"at least one assignee in $lefts points to a type")
 
+    case _: PLabeledStmt => noMessages
+
     case n: PIfStmt => n.ifs.flatMap(ic =>
       isExpr(ic.condition).out ++
         comparableTypes.errors(exprType(ic.condition), BooleanT)(ic)

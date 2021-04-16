@@ -29,6 +29,7 @@ trait GhostAssignability {
       case p: ap.BuiltInMethodExpr => p.symb.isPure
       case p: ap.BuiltInReceivedMethod => p.symb.isPure
       case p: ap.ImplicitlyReceivedInterfaceMethod => p.symb.isPure
+      case _: ap.DomainFunction => true
       case _ => false
     }
     if (isPure) {return noMessages}
@@ -88,6 +89,17 @@ trait GhostAssignability {
         val gt = typing(rights.head)
         lefts.zipWithIndex.flatMap{ case (l, idx) => msg(gt.isIdxGhost(idx), l) }.toVector
 
+      case AssignMode.Variadic =>
+        if(lefts.length - 1 == rights.length) {
+          // if the variadic argument is not passed
+          rights.zip(lefts).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+        } else if(rights.length >= lefts.length) {
+          val dummyFill = rights(0)
+          rights.zipAll(lefts, dummyFill, lefts.last).flatMap{ case (r,l) => msg(typing(r).isGhost, l) }.toVector
+        } else {
+          Violation.violation("assignment mismatch")
+        }
+
       case AssignMode.Error => Violation.violation("assignment mismatch")
     }
 
@@ -104,6 +116,7 @@ trait GhostAssignability {
       case p: ap.ReceivedMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
+      case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => symb.tag.argGhostTyping(call.args.map(typ))(config)
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.argGhostTyping(Vector(typ(recv)))(config)
       case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: symb.tag.argGhostTyping(Vector(typeSymbType(typ)))(config).toTuple)
@@ -118,6 +131,7 @@ trait GhostAssignability {
     case p: ap.ReceivedMethod => ghost(p.symb.ghost)
     case p: ap.MethodExpr => ghost(p.symb.ghost)
     case _: ap.PredicateKind => GhostType.isGhost
+    case _: ap.DomainFunction => GhostType.isGhost
     case p: ap.BuiltInFunction => ghost(p.symb.ghost)
     case p: ap.BuiltInReceivedMethod => ghost(p.symb.ghost)
     case p: ap.BuiltInMethodExpr => ghost(p.symb.ghost)
@@ -136,6 +150,7 @@ trait GhostAssignability {
       case p: ap.ReceivedMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _: ap.PredicateKind => GhostType.isGhost
+      case _: ap.DomainFunction => GhostType.isGhost
       case ap.BuiltInFunction(_, symb) => symb.tag.returnGhostTyping(call.args.map(typ))(config)
       case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.returnGhostTyping(Vector(typ(recv)))(config)
       case ap.BuiltInMethodExpr(typ, _, _, symb) => symb.tag.returnGhostTyping(Vector(typeSymbType(typ)))(config)

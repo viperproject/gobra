@@ -172,7 +172,7 @@ sealed trait PActualStatement extends PStatement
 
 sealed trait PGhostifiableStatement extends PActualStatement with PGhostifiable
 
-case class PLabeledStmt(label: PIdnDef, stmt: PStatement) extends PActualStatement
+case class PLabeledStmt(label: PLabelDef, stmt: PStatement) extends PActualStatement with PGhostifiableStatement
 
 
 sealed trait PSimpleStmt extends PActualStatement
@@ -357,6 +357,8 @@ case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
+case class PStringLit(lit: String) extends PBasicLiteral
+
 case class PCompositeLit(typ: PLiteralType, lit: PLiteralValue) extends PLiteral
 
 sealed trait PShortCircuitMisc extends PMisc
@@ -422,6 +424,8 @@ case class PCapacity(exp : PExpression) extends PActualExpression with PNumExpre
   * depending on the type of `base`.
   */
 case class PSliceExp(base: PExpression, low: Option[PExpression] = None, high: Option[PExpression] = None, cap: Option[PExpression] = None) extends PActualExpression
+
+case class PUnpackSlice(elem: PExpression) extends PActualExpression
 
 case class PTypeAssertion(base: PExpression, typ: PType) extends PActualExpression
 
@@ -515,6 +519,8 @@ sealed trait PNamedType extends PActualType {
 sealed abstract class PPredeclaredType(override val name: String) extends PNamedType
 
 case class PBoolType() extends PPredeclaredType("bool")
+case class PStringType() extends PPredeclaredType("string")
+case class PPermissionType() extends PPredeclaredType("perm")
 
 sealed trait PIntegerType extends PType
 case class PIntType() extends PPredeclaredType("int") with PIntegerType
@@ -532,6 +538,7 @@ case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
 
+
 // TODO: add more types
 
 // TODO: ellipsis type
@@ -543,6 +550,8 @@ case class PArrayType(len: PExpression, elem: PType) extends PTypeLit with PLite
 case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
+
+case class PVariadicType(elem: PType) extends PTypeLit with PLiteralType
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
 
@@ -812,20 +821,21 @@ sealed trait PBinaryGhostExp extends PGhostExpression {
 sealed trait PPermission extends PGhostExpression
 case class PFullPerm() extends PPermission
 case class PNoPerm() extends PPermission
-case class PFractionalPerm(left: PExpression, right: PExpression) extends PPermission with PBinaryGhostExp
 case class PWildcardPerm() extends PPermission
 
 case class POld(operand: PExpression) extends PGhostExpression
+
+case class PLabeledOld(label: PLabelUse, operand: PExpression) extends PGhostExpression
 
 case class PConditional(cond: PExpression, thn: PExpression, els: PExpression) extends PGhostExpression
 
 case class PImplication(left: PExpression, right: PExpression) extends PGhostExpression
 
 /** Expression has to be deref, field selection, or predicate call */
-case class PAccess(exp: PExpression, perm: PPermission) extends PGhostExpression
+case class PAccess(exp: PExpression, perm: PExpression) extends PGhostExpression
 
 /** Specialised version of PAccess that only handles predicate accesses. E.g, used for foldings.  */
-case class PPredicateAccess(pred: PInvoke, perm: PPermission) extends PGhostExpression
+case class PPredicateAccess(pred: PInvoke, perm: PExpression) extends PGhostExpression
 
 case class PForall(vars: Vector[PBoundVariable], triggers: Vector[PTrigger], body: PExpression) extends PGhostExpression with PScope
 
@@ -997,7 +1007,6 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
-
 /* ** Types */
 
 /**
@@ -1027,6 +1036,19 @@ case class PMultisetType(elem : PType) extends PGhostLiteralType
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+
+case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
+
+sealed trait PDomainClause extends PNode
+
+case class PDomainFunction(id: PIdnDef,
+                           args: Vector[PParameter],
+                           result: PResult
+                                 ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
+
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
+
 
 /**
   * Miscellaneous

@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func lenTestFail() {
+	h1 := "hello"
+	//:: ExpectedOutput(assert_error)
+	assert len(h1) == 4
+}
+
+// Having the same size is not enough to prove that two strings are equal
+func eqFail() {
+	//:: ExpectedOutput(assert_error)
+	assert "a" == "b"
+}
+
+// The current encoding does not establish an order relation between string literals
+func orderStringLit1() {
+	//:: ExpectedOutput(assert_error)
+	assert "a" < "bb"
+}
+
+func orderStringLit2() {
+	//:: ExpectedOutput(assert_error)
+	assert "a" == "bb"
+}
+
+func orderStringLit3() {
+	//:: ExpectedOutput(assert_error)
+	assert "a" > "bb"
+}

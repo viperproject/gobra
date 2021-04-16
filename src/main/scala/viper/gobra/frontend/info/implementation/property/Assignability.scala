@@ -23,12 +23,35 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val multiAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
     case (right, left) =>
       StrictAssignModi(left.size, right.size) match {
-        case AssignMode.Single => propForall(right.zip(left), assignableTo)
+        case AssignMode.Single =>
+          right match {
+            // To support Go's function chaining when a tuple with the results of a function call are passed to the
+            // only variadic argument of another function
+            case Vector(InternalTupleT(t)) if left.lastOption.exists(_.isInstanceOf[VariadicT]) =>
+              multiAssignableTo.result(t, left)
+            case _ => propForall(right.zip(left), assignableTo)
+          }
         case AssignMode.Multi => right.head match {
-          case Assign(InternalTupleT(ts)) if ts.size == left.size => propForall(ts.zip(left), assignableTo)
+          case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
           case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
+        case AssignMode.Variadic => variadicAssignableTo.result(right, left)
+
         case AssignMode.Error => failedProp(s"cannot assign ${right.size} to ${left.size} elements")
+      }
+  }
+
+  lazy val variadicAssignableTo: Property[(Vector[Type], Vector[Type])] = createProperty[(Vector[Type], Vector[Type])] {
+    case (right, left) =>
+      StrictAssignModi(left.size, right.size) match {
+        case AssignMode.Variadic => left.lastOption match {
+          case Some(VariadicT(elem)) =>
+            val dummyFill = UnknownType
+            // left.init corresponds to the parameter list on the left except for the variadic type
+            propForall(right.zipAll(left.init, dummyFill, elem), assignableTo)
+          case _ => failedProp(s"expected the last element of $left to be a variadic type")
+        }
+        case _ => failedProp(s"cannot assign $right to $left")
       }
   }
 
@@ -44,9 +67,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
         // for go's types according to go's specification (mostly)
-      case (IntT(kind), r) if kind == config.typeBounds.UntypedConst && underlyingType(r).isInstanceOf[IntT] => true
+      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => true
       // not part of Go spec, but necessary for the definition of comparability
-      case (l, IntT(kind)) if kind == config.typeBounds.UntypedConst && underlyingType(l).isInstanceOf[IntT] => true
+      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true
       case (l, r) if identicalTypes(l, r) => true
       // even though the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
@@ -61,14 +84,18 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (l, r) if implements(l, r) => true
       case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
       case (NilType, r) if isPointerType(r) => true
+      case (VariadicT(t1), VariadicT(t2)) => assignableTo(t1, t2)
+      case (t1, VariadicT(t2)) => assignableTo(t1, t2)
 
         // for ghost types
       case (BooleanT, AssertionT) => true
       case (SortT, SortT) => true
+      case (PermissionT, PermissionT) => true
       case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
       case (SetT(l), SetT(r)) => assignableTo(l,r)
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
+      case (IntT(_), PermissionT) => true
 
         // conservative choice
       case _ => false
@@ -80,6 +107,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case PIndexedExp(b, _) => exprType(b) match {
       case _: ArrayT => assignable(b)
       case _: SliceT => assignable(b)
+      case _: VariadicT => assignable(b)
       case _: MapT => true
       case _ => false
     }
@@ -91,6 +119,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
     case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp()) => true
+    case (Single(StringT), PAddOp()) => true
     case _ => false
   }
 

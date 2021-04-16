@@ -31,6 +31,7 @@ object Comparability {
   /** Returns the kind of comparability for the argument type head. */
   def compareKind(typeHead: TypeHead)(reg: DefinedT => Type): Kind = typeHead match {
     case TypeHead.BoolHD => Kind.Comparable
+    case TypeHead.StringHD => Kind.Comparable
     case _: TypeHead.IntHD => Kind.Comparable
     case TypeHead.PointerHD => Kind.Comparable
 
@@ -41,6 +42,7 @@ object Comparability {
     case TypeHead.ArrayHD => Kind.Recursive
     case TypeHead.SliceHD => Kind.NonComparable
     case _: TypeHead.InterfaceHD => Kind.Dynamic
+    case _: TypeHead.DomainHD => Kind.Comparable
     case TypeHead.ChannelHD => Kind.NonComparable
     case TypeHead.NilHD => Kind.Comparable
     case TypeHead.UnitHD => Kind.Comparable

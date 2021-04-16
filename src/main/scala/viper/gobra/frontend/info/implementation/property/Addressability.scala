@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
-import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -56,6 +56,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         val baseType = exprType(base)
         baseType match {
           case _: SliceT => AddrMod.sliceLookup
+          case _: VariadicT => AddrMod.variadicLookup
           case _: ArrayT => AddrMod.arrayLookup(addressability(base))
           case _: SequenceT => AddrMod.mathDataStructureLookup
           case _: MapT => AddrMod.mapLookup
@@ -65,7 +66,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
         case Some(s: ap.FieldSelection) => AddrMod.fieldLookup(addressabilityMemberPath(addressability(s.base), s.path))
         case Some(_: ap.Constant) => AddrMod.constant
         case Some(_: ap.ReceivedMethod | _: ap.MethodExpr | _: ap.ReceivedPredicate | _: ap.PredicateExpr ) => AddrMod.rValue
-        case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate) => AddrMod.rValue
+        case Some(_: ap.NamedType | _: ap.Function | _: ap.Predicate | _: ap.DomainFunction) => AddrMod.rValue
         case Some(_: ap.ImplicitlyReceivedInterfaceMethod | _: ap.ImplicitlyReceivedInterfacePredicate) => AddrMod.rValue
         case p => Violation.violation(s"Unexpected dot resolve, got $p")
       }
@@ -86,7 +87,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PPermission => AddrMod.rValue
       case _: PPredConstructor => AddrMod.rValue
       case n: PUnfolding => AddrMod.unfolding(addressability(n.op))
-      case _: POld => AddrMod.old
+      case _: POld | _: PLabeledOld => AddrMod.old
       case _: PConditional | _: PImplication | _: PForall | _: PExists => AddrMod.rValue
       case _: PAccess | _: PPredicateAccess => AddrMod.rValue
       case _: PTypeOf | _: PIsComparable => AddrMod.rValue
@@ -96,6 +97,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
       case _: PMake | _: PNew => AddrMod.make
+      case _: PUnpackSlice => AddrMod.rValue
     }
 
   def addressabilityMemberPath(base: AddrMod, path: Vector[MemberPath]): AddrMod = {

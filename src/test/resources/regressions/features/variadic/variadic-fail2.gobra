@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package variadic
+
+requires len(a) > 0
+requires acc(&a[0])
+ensures acc(&a[0])
+func SetFirst(a ...int)
+
+func test1() {
+    //:: ExpectedOutput(precondition_error)
+    SetFirst()
+}
+
+func test2() {
+    s := []int{}
+    //:: ExpectedOutput(precondition_error)
+    SetFirst()
+}

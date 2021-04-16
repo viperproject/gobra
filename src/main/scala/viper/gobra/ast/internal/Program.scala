@@ -218,7 +218,13 @@ case class BuiltInMPredicate(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
-
+case class DomainDefinition(name: String, funcs: Vector[DomainFunc], axioms: Vector[DomainAxiom])(val info: Source.Parser.Info) extends Member
+case class DomainAxiom(expr: Expr)(val info: Source.Parser.Info) extends Node
+case class DomainFunc(
+                       name: DomainFuncProxy,
+                       args: Vector[Parameter.In],
+                       results: Parameter.Out
+                     )(val info: Source.Parser.Info) extends Node
 
 
 sealed trait Stmt extends Node
@@ -230,9 +236,13 @@ case class Block(
 
 case class Seqn(stmts: Vector[Stmt])(val info: Source.Parser.Info) extends Stmt
 
+case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
+
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+
+case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assignment extends Stmt
 
@@ -381,6 +391,10 @@ case class Unfolding(acc: Access, in: Expr)(val info: Source.Parser.Info) extend
 
 case class Old(operand: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
+case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = operand.typ
+}
+
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
@@ -403,6 +417,16 @@ case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
+case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission
+case class PermAdd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with Permission
+case class PermSub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with Permission
+case class PermMul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("*") with Permission
+case class PermDiv(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("/") with Permission
+// Comparison expressions
+case class PermLtCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("<") with BoolOperation
+case class PermLeCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("<=") with BoolOperation
+case class PermGtCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">") with BoolOperation
+case class PermGeCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr(">=") with BoolOperation
 
 /* ** Type related expressions */
 
@@ -438,6 +462,7 @@ case class DefinedTExpr(name: String)(val info: Source.Parser.Info) extends Type
 
 
 case class BoolTExpr()(val info: Source.Parser.Info) extends TypeExpr
+case class StringTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends TypeExpr
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
@@ -753,6 +778,7 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
+case class DomainFunctionCall(func: DomainFuncProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 
 case class Deref(exp: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr with Location {
   require(exp.typ.isInstanceOf[PointerT])
@@ -815,6 +841,10 @@ sealed trait IntOperation extends Expr {
   override val typ: Type = IntT(Addressability.rValue)
 }
 
+sealed trait StringOperation extends Expr {
+  override val typ: Type = StringT(Addressability.rValue)
+}
+
 case class Negation(operand: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 sealed abstract class BinaryExpr(val operator: String) extends Expr {
@@ -837,7 +867,7 @@ sealed abstract class BinaryIntExpr(override val operator: String) extends Binar
     // translation to the internal language.
     case (x, IntT(_, UnboundedInteger)) if x.isInstanceOf[DefinedT] => x.withAddressability(Addressability.Exclusive)
     case (IntT(_, UnboundedInteger), y) if y.isInstanceOf[DefinedT] => y.withAddressability(Addressability.Exclusive)
-
+    case (x, y) if x.equalsWithoutMod(y) => x.withAddressability(Addressability.Exclusive)
     case (l, r) => violation(s"cannot merge types $l and $r")
 
   }
@@ -858,12 +888,13 @@ case class AtLeastCmp(left: Expr, right: Expr)(val info: Source.Parser.Info) ext
 case class And(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("&&") with BoolOperation
 case class Or(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("||") with BoolOperation
 
-
 case class Add(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("+")
 case class Sub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("-")
 case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("*")
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
+
+case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = newType
@@ -884,6 +915,10 @@ case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Sou
 
 case class BoolLit(b: Boolean)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = BoolT(Addressability.literal)
+}
+
+case class StringLit(s: String)(val info: Source.Parser.Info) extends Lit {
+  override def typ: Type = StringT(Addressability.literal)
 }
 
 case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
@@ -1015,6 +1050,11 @@ case class BoolT(addressability: Addressability) extends Type {
 case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
+}
+
+case class StringT(addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
+  override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
 }
 
 case object VoidT extends Type {
@@ -1184,6 +1224,16 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
   def isEmpty: Boolean = name == Names.emptyInterface
 }
 
+case class DomainT(name: String, addressability: Addressability) extends Type with TopType {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case o: DomainT => name == o.name
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): DomainT =
+    DomainT(name, newAddressability)
+}
+
 case class ChannelT(elem: Type, addressability: Addressability) extends Type {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: ChannelT => elem == o.elem
@@ -1204,12 +1254,13 @@ sealed trait MemberProxy extends Proxy {
 }
 case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
 case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
+case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
 
 sealed trait PredicateProxy extends Proxy
 case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends PredicateProxy
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
-
+case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
 
 
 

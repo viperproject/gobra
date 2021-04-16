@@ -32,15 +32,20 @@ object GobraStrategy {
       case (n: MethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Block@unchecked])) => MethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (n: PureMethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Expr@unchecked])) => PureMethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
       case (f: Field, Seq()) => Field(f.name, f.typ, f.ghost)(meta)
+      case (d: DomainDefinition, Seq(funcs: Vector[DomainFunc@unchecked], axioms: Vector[DomainAxiom@unchecked])) => DomainDefinition(d.name, funcs, axioms)(meta)
+      case (_: DomainFunc, Seq(name: DomainFuncProxy, args: Vector[Parameter.In@unchecked], res: Parameter.Out)) => DomainFunc(name, args, res)(meta)
+      case (_: DomainAxiom, Seq(expr: Expr)) => DomainAxiom(expr)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
+      case (_: Label, Seq(label: LabelProxy)) => Label(label)(meta)
       case (_: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
       case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
       case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: MakeSlice, Seq(target: LocalVar, typeParam: SliceT, lenArg: Expr, capArg: Option[Expr@unchecked])) => MakeSlice(target, typeParam, lenArg, capArg)(meta)
       case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy, bufferSize: MethodProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel, bufferSize)(meta)
       case (_: MakeMap, Seq(target: LocalVar, typeParam: Type, initialSpaceArg: Option[Expr@unchecked])) => MakeMap(target, typeParam, initialSpaceArg)(meta)
+      case (_: Initialization, Seq(l: AssignableVar)) => Initialization(l)(meta)
       case (_: SingleAss, Seq(l: Assignee, r: Expr)) => SingleAss(l, r)(meta)
       case (_: Assignee.Var, Seq(v: AssignableVar)) => Assignee.Var(v)
       case (_: Assignee.Pointer, Seq(e: Deref)) => Assignee.Pointer(e)
@@ -73,6 +78,7 @@ object GobraStrategy {
         // Expressions
       case (_: Unfolding, Seq(acc: Access, e: Expr)) => Unfolding(acc, e)(meta)
       case (f: PureFunctionCall, Seq(func: FunctionProxy, args: Vector[Expr@unchecked])) => PureFunctionCall(func, args, f.typ)(meta)
+      case (f: DomainFunctionCall, Seq(func: DomainFuncProxy, args: Vector[Expr@unchecked])) => DomainFunctionCall(func, args, f.typ)(meta)
       case (m: PureMethodCall, Seq(recv: Expr, meth: MethodProxy, args: Vector[Expr@unchecked])) => PureMethodCall(recv, meth, args, m.typ)(meta)
       case (d: DfltVal, Seq()) => DfltVal(d.typ)(meta)
       case (_: Tuple, Seq(args: Vector[Expr@unchecked])) => Tuple(args)(meta)
@@ -103,6 +109,7 @@ object GobraStrategy {
       case (e: ToInterface, Seq(exp: Expr)) => ToInterface(exp, e.typ)(meta)
       case (_: IsBehaviouralSubtype, Seq(left: Expr, right: Expr)) => IsBehaviouralSubtype(left, right)(meta)
       case (_: BoolTExpr, Seq()) => BoolTExpr()(meta)
+      case (_: StringTExpr, Seq()) => StringTExpr()(meta)
       case (e: IntTExpr, Seq()) => IntTExpr(e.kind)(meta)
       case (_: PermTExpr, Seq()) => PermTExpr()(meta)
       case (e: DefinedTExpr, Seq()) => DefinedTExpr(e.name)(meta)
@@ -138,6 +145,7 @@ object GobraStrategy {
       case (_: OptionGet, Seq(op : Expr)) => OptionGet(op)(meta)
       case (_: Slice, Seq(base : Expr, low : Expr, high : Expr, max : Option[Expr@unchecked])) => Slice(base, low, high, max)(meta)
       case (e: Old, Seq(op: Expr)) => Old(op, e.typ)(meta)
+      case (_: LabeledOld, Seq(label: LabelProxy, op: Expr)) => LabeledOld(label, op)(meta)
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)
       case (_: Trigger, Seq(exprs: Vector[Expr@unchecked])) => Trigger(exprs)(meta)
       case (_: PureForall, Seq(vars: Vector[BoundVar@unchecked], triggers: Vector[Trigger@unchecked], body: Expr)) => PureForall(vars, triggers, body)(meta)
@@ -167,8 +175,10 @@ object GobraStrategy {
         // Proxy
       case (f: FunctionProxy, Seq()) => FunctionProxy(f.name)(meta)
       case (m: MethodProxy, Seq()) => MethodProxy(m.name, m.uniqueName)(meta)
+      case (f: DomainFuncProxy, Seq()) => DomainFuncProxy(f.name, f.domainName)(meta)
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
+      case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
     }
 
     node.asInstanceOf[N]

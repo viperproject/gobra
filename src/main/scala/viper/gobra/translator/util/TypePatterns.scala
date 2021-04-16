@@ -60,6 +60,11 @@ object TypePatterns {
         underlyingType(arg)(ctx).isInstanceOf[in.BoolT]
     }
 
+    object String {
+      def unapply(arg: in.Type): Boolean =
+        underlyingType(arg)(ctx).isInstanceOf[in.StringT]
+    }
+
     object Int {
       def unapply(arg: in.Type): Boolean =
         underlyingType(arg)(ctx).isInstanceOf[in.IntT]
@@ -158,6 +163,13 @@ object TypePatterns {
       def unapply(arg: in.Type): Boolean = underlyingType(arg)(ctx) match {
         case _ : in.InterfaceT => false
         case _ => true
+      }
+    }
+
+    object Domain {
+      def unapply(arg: in.Type): Option[in.DomainT] = underlyingType(arg)(ctx) match {
+        case t : in.DomainT => Some(t)
+        case _ => None
       }
     }
 

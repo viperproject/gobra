@@ -131,7 +131,7 @@ object ViperWriter {
                       code: Vector[Code]
                     ) extends DataSum
   {
-    def asStatement(body: vpr.Stmt): (vpr.Seqn, Vector[vpr.Declaration], Vector[DataKind]) = {
+    def asStatement(body: vpr.Stmt): (vpr.Stmt, Vector[vpr.Declaration], Vector[DataKind]) = {
       var memberKinds: Vector[DataKind] = Vector.empty
 
       val codeStmts = code map {
@@ -148,11 +148,13 @@ object ViperWriter {
         case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
       }
 
-      val stmt = vpr.Seqn(codeStmts :+ body, local)()
+      val stmt =
+        if (codeStmts.isEmpty && local.isEmpty) body
+        else vpr.Seqn(codeStmts :+ body, local)()
       (stmt, global, memberKinds)
     }
 
-    def asStatement: (vpr.Seqn, Vector[vpr.Declaration], Vector[DataKind]) = {
+    def asStatement: (vpr.Stmt, Vector[vpr.Declaration], Vector[DataKind]) = {
       var memberKinds: Vector[DataKind] = Vector.empty
 
       val codeStmts = code map {
@@ -332,7 +334,7 @@ object ViperWriter {
     def seqns(ws: Vector[Writer[vpr.Stmt]]): Writer[vpr.Seqn] =
       sequence(ws.map(seqn)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Seqn] = {
+    def seqn(w: Writer[vpr.Stmt]): Writer[vpr.Stmt] = {
       val (codeSum, remainder, r) = w.execute
       val (codeStmt, _, remainderAddition) = codeSum.asStatement(r)
       val newSum = codeSum.copy(local = Vector.empty, code = Vector.empty)
@@ -343,7 +345,7 @@ object ViperWriter {
     def seqnUnits(ws: Vector[Writer[Unit]]): Writer[vpr.Seqn] =
       sequence(ws.map(seqnUnit)).map(vpr.Seqn(_, Vector.empty)())
 
-    def seqnUnit(w: Writer[Unit]): Writer[vpr.Seqn] = {
+    def seqnUnit(w: Writer[Unit]): Writer[vpr.Stmt] = {
       val (codeSum, remainder, _) = w.execute
       val (codeStmt, _, remainderAddition) = codeSum.asStatement
       val newSum = codeSum.copy(local = Vector.empty, code = Vector.empty)

@@ -7,7 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PWithBody, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PReturn}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
 import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -17,12 +17,13 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostMember(member: PGhostMember): Messages = member match {
     case PExplicitGhostMember(_) => noMessages
 
-    case n@ PFPredicateDecl(_, _, body) =>
-      body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n))
+    case n@ PFPredicateDecl(_, args, body) =>
+      body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n)) ++ nonVariadicArguments(args)
 
-    case n@ PMPredicateDecl(_, receiver, _, body) =>
+    case n@ PMPredicateDecl(_, receiver, args, body) =>
       body.fold(noMessages)(b => assignableTo.errors(exprType(b), AssertionT)(n)) ++
-        isClassType.errors(miscType(receiver))(member)
+        isClassType.errors(miscType(receiver))(member) ++
+        nonVariadicArguments(args)
 
     case ip: PImplementationProof =>
       error(ip, s"${ip.subT} does not implement ${ip.superT}", !goImplements(symbType(ip.subT), symbType(ip.superT)))
@@ -33,7 +34,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec)
+        isPurePostcondition(member.spec) ++
+        nonVariadicArguments(member.args)
     } else noMessages
   }
 
@@ -47,7 +49,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     if (member.spec.isPure) {
       isSingleResultArg(member) ++
         isSinglePureReturnExpr(member) ++
-        isPurePostcondition(member.spec)
+        isPurePostcondition(member.spec) ++
+        nonVariadicArguments(member.args)
     } else noMessages
   }
 
@@ -71,4 +74,8 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
+
+  private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
+    p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
+  }
 }

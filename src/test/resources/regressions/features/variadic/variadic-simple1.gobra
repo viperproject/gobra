@@ -1,0 +1,79 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package variadic
+
+func Print(a ...int) {
+	// a is treated as a slice; len(a) is supported
+	for i := 0; i < len(a); i++ {
+		// ...
+	}
+}
+
+requires len(a) > 0
+// the cells of a are addressable and a is indexable
+requires acc(&a[0])
+ensures acc(&a[0])
+ensures a[0] == 10
+func Set(a ...int) {
+	a[0] = 10
+}
+
+func test1() {
+	Print()
+	Print(1, 2, 3)
+
+	Set(1, 2, 3)
+
+	s := []int{1,2,3}
+	// a slice is correctly unpacked
+	Set(s...)
+	// the underlying slice is modified, like in Go
+	assert s[0] == 10
+	
+	// the value of a variable remains the same, like in Go
+	x := 1
+	Set(x)
+	assert x == 1
+
+	Set([]int{2, 4}...)
+}
+
+func f0(a ...int)
+func f1(a int, b ...int)
+func f2(...int)
+func f3(int, ...int)
+func f4(int, ...bool)
+func multipleInt() (int, int, int)
+func multipleBool() (int, bool, bool)
+
+// Go function chaining works with variadic functions
+func test2() {
+	f0(multipleInt())
+	f1(multipleInt())
+	f2(multipleInt())
+	f3(multipleInt())
+	f4(multipleBool())
+}
+
+func f5(...[]int)
+func test3() {
+	f5([]int{1}, []int{2})
+}
+
+ghost func SetGhost(ghost a ...int)
+func test4() {
+	SetGhost()
+
+	ghost v1 := []int{1, 2, 3}
+	SetGhost(v1...)
+
+	v2 := []int{1, 2, 3}
+	SetGhost(v2...)
+}
+
+func g(a ...interface{})
+func test5() {
+	g([](interface{}){1, 2, 3})
+	g(true, 1, []int{1, 2})
+}

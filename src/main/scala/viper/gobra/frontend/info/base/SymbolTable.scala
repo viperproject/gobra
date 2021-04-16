@@ -85,9 +85,8 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait ActualVariable extends Variable with ActualDataEntity
 
-  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
+  case class SingleLocalVariable(exp: Option[PExpression], opt: Option[PType], rep: PNode, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     require(exp.isDefined || opt.isDefined)
-    override def rep: PNode = exp.getOrElse(opt.get)
   }
   case class MultiLocalVariable(idx: Int, exp: PExpression, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp
@@ -173,12 +172,6 @@ object SymbolTable extends Environments[Entity] {
     override def ghost: Boolean = false
   }
 
-  case class Label(decl: PLabeledStmt, context: ExternalTypeInfo) extends ActualRegular {
-    override def rep: PNode = decl
-    // TODO: requires check that label is not used in any goto (can still be used for old expressions)
-    override def ghost: Boolean = false
-  }
-
   /**
     * Ghost
     */
@@ -222,6 +215,12 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 
+  case class DomainFunction(decl: PDomainFunction, domain: PDomainType, context: ExternalTypeInfo) extends GhostRegular with WithArguments with WithResult {
+    override def rep: PNode = decl
+    override val args: Vector[PParameter] = decl.args
+    override val result: PResult = decl.result
+  }
+
 
   /**
     * entities for built-in members
@@ -245,4 +244,12 @@ object SymbolTable extends Environments[Entity] {
   case class BuiltInFPredicate(tag: BuiltInFPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity
   case class BuiltInMPredicate(tag: BuiltInMPredicateTag, rep: PNode, context: ExternalTypeInfo) extends BuiltInGhostEntity with BuiltInMethodLike with GhostTypeMember
 
+
+
+
+  /**
+    * Label
+    */
+
+  case class Label(decl: PLabeledStmt, ghost: Boolean) extends Entity with Product
 }

@@ -26,7 +26,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case e: PExpression => exprGhostSeparation(e)
     case t: PType => typeGhostSeparation(t)
     case m: PMisc => miscGhostSeparation(m)
-  }{ n => selfWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
+  }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
     case m: PExplicitGhostMember => m.actual match {
@@ -112,6 +112,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PReference
        | _: PBlankIdentifier
        | _: PPredConstructor
+       | _: PUnpackSlice
     => noMessages
 
     case n@ ( // these are just suggestions for now. We will have to adapt then, when we decide on proper ghost separation rules.
@@ -150,7 +151,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
       entity(id) match {
         case entity: Regular if entity.context != this => LocalMessages(noMessages) // imported entities are assumed to be well-formed
 
-        case SingleLocalVariable(exp, _, _, _, _) => unsafeMessage(! {
+        case SingleLocalVariable(exp, _, _, _, _, _) => unsafeMessage(! {
           // exp has to be well-def if it exists (independently on the existence of opt) as we need it for ghost typing
           exp.forall(wellGhostSeparated.valid)
         })

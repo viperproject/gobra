@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, Embbed, Field, Function, MethodImpl, MethodSpec, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, DomainFunction, Embbed, Field, Function, Label, MethodImpl, MethodSpec, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -23,6 +23,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefGhostExpr(expr: PGhostExpression): Messages = expr match {
 
     case POld(op) => isExpr(op).out ++ isPureExpr(op)
+
+    case PLabeledOld(l, op) =>
+      isExpr(op).out ++ isPureExpr(op) ++ (
+          label(l) match {
+            case _: Label => noMessages
+            case _ => error(l, s"$l is not a label in scope")
+          }
+        )
 
     case PConditional(cond, thn, els) =>
       // check whether all operands are actually expressions indeed
@@ -52,7 +60,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(n.right), AssertionT)(expr)
 
     case n: PAccess =>
-      resolve(n.exp) match {
+      val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
+        !assignableTo(typ(n.perm), PermissionT))
+      val expWellDef = resolve(n.exp) match {
         case Some(_: ap.PredicateCall) => noMessages
         case Some(_: ap.PredExprInstance) => noMessages
         case _ =>
@@ -63,6 +73,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }
+      permWellDef ++ expWellDef
 
     case n: PPredicateAccess => resolve(n.pred) match {
       case Some(_: ap.PredicateCall) => noMessages
@@ -151,17 +162,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr: PPermission => expr match {
       case PFullPerm() => noMessages
-      case PNoPerm() => noMessages
-      case fp@ PFractionalPerm(left, right) =>
-        val intKind = config.typeBounds.UntypedConst
-        assignableTo.errors(exprOrTypeType(left), IntT(intKind))(fp) ++
-          assignableTo.errors(exprOrTypeType(right), IntT(intKind))(fp) ++
-          (intConstantEval(right) match {
-            // Silicon crashes on divisors that are statically known to be zero so catch these cases
-            case Some(divisor) if divisor == 0 => error(right, s"expected a non-zero dividend, but got $right")
-            case _ => noMessages
-          })
       case PWildcardPerm() => noMessages
+      case PNoPerm() => noMessages
     }
   }
 
@@ -173,6 +175,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {
     case POld(op) => exprType(op)
+    case PLabeledOld(_, op) => exprType(op)
 
     case PConditional(_, thn, els) =>
       typeMerge(exprType(thn), exprType(els)).getOrElse(violation("no common supertype found"))
@@ -278,10 +281,15 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
-      case _: PBoolLit | _: PIntLit | _: PNilLit => true
+      case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 
+      // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(_: ap.Conversion)) => false // Might change at some point
+        case (Right(_), Some(c: ap.Conversion)) =>
+          c.typ match {
+            case PPermissionType() => n.args forall go
+            case _ => false
+          }
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong
@@ -312,7 +320,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
       case _: PUnfolding => true
-      case _: POld => true
+      case _: POld | _: PLabeledOld => true
       case _: PForall => true
       case _: PExists => true
 
@@ -362,10 +370,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // Others
       case PReceive(_) => false
 
-      case p: PPermission => p match {
-        case PFractionalPerm(left, right) => go(left) && go(right)
-        case _ => true
-      }
+      case PUnpackSlice(s) => go(s)
+
+      case PFullPerm() | PNoPerm() | PWildcardPerm() => true
     }
   }
 
@@ -381,6 +388,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case Function(decl, _, _) => decl.spec.isPure
       case MethodImpl(decl, _, _) => decl.spec.isPure
       case n: MethodSpec => n.isPure
+      case _: DomainFunction => true
       case _ => false
     }
   }

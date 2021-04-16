@@ -61,6 +61,7 @@ object Names {
 
   // types
   def typesDomain: String = "Types"
+  def stringsDomain: String = "String"
 
   // array
   def sharedArrayDomain: String = "ShArray"
@@ -80,6 +81,9 @@ object Names {
 
   // predicate
   def predDomain: String = "Pred"
+
+  // domain
+  def dfltDomainValue(domainName: String): String = s"dflt$domainName"
 
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"

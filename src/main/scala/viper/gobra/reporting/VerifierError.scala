@@ -212,6 +212,14 @@ case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verif
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
 }
 
+// João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.
+// This has to do with the fact that, in our tests, there are cases where a division by zero occurs but we cannot retrieve
+// a corresponding Source.Verifier.Info. E.g. src/test/resources/regressions/features/fractional_permissions/fields/fail3.gobra
+case class DivisionByZeroReason(node: Option[Source.Verifier.Info]) extends VerificationErrorReason {
+  override def id: String = "division_by_zero"
+  override def message: String = s"Divisor ${node.map(_.origin.tag.trim).getOrElse("expression")} might be zero"
+}
+
 case class OverflowErrorReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "integer_overflow_error"
   override def message: String = s"Expression ${node.origin.tag.trim} might cause integer overflow"

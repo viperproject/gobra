@@ -9,6 +9,7 @@ package viper.gobra.frontend
 import java.io.{File, Reader}
 import java.nio.file.{Files, Path}
 
+import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
@@ -198,7 +199,7 @@ object Parser {
     }
 
     private def translate(content: String): String =
-      content.split("\n").map(translateLine).mkString("\n") ++ "\n"
+      content.split("\r\n|\n").map(translateLine).mkString("\n") ++ "\n"
 
     private def translateLine(line: String): String = {
       val identifier = """[a-zA-Z_][a-zA-Z0-9_]*"""
@@ -221,7 +222,7 @@ object Parser {
       val r = s"($finalTokenRequiringSemicolon)((?:$ignoreComments|$ignoreWhitespace)*)$$".r
       // group(1) contains the finalTokenRequiringSemicolon after which a semicolon should be inserted
       // group(2) contains the line's remainder after finalTokenRequiringSemicolon
-      r.replaceAllIn(line, m => m.group(1) ++ ";" ++ m.group(2))
+      r.replaceAllIn(line, m => StringEscapeUtils.escapeJava(m.group(1) ++ ";" ++ m.group(2)))
     }
   }
 
@@ -311,7 +312,7 @@ object Parser {
 
     val reservedWords: Set[String] = Set(
       "break", "default", "func", "interface", "select",
-      "case", "defer", "go", "map", "struct",
+      "case", "defer", "go", "map", "struct", "domain",
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
@@ -321,7 +322,7 @@ object Parser {
       "memory", "fold", "unfold", "unfolding", "pure",
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
-      "none", "some", "get", "write",
+      "none", "some", "get", "writePerm", "noPerm",
       "typeOf", "isComparable"
     )
 
@@ -458,11 +459,13 @@ object Parser {
         selectStmt |
         block |
         simpleStmt |
+        labeledStmt |
+        expressionStmt |
         emptyStmt
 
 
     lazy val simpleStmt: Parser[PSimpleStmt] =
-      sendStmt | assignmentWithOp | assignment | shortVarDecl | expressionStmt
+      sendStmt | assignmentWithOp | assignment | shortVarDecl // expressionStmt is parsed separately
 
     lazy val simpleStmtWithEmpty: Parser[PSimpleStmt] =
       simpleStmt | emptyStmt
@@ -507,7 +510,10 @@ object Parser {
       }
 
     lazy val labeledStmt: Parser[PLabeledStmt] =
-      (idnDef <~ ":") ~ statement ^^ PLabeledStmt
+      (labelDef <~ ":") ~ statement.? ^^ {
+        case id ~ Some(s) => PLabeledStmt(id, s)
+        case id ~ None    => PLabeledStmt(id, PEmptyStmt().at(id))
+      }
 
     lazy val returnStmt: Parser[PReturn] =
       "return" ~> repsep(expression, ",") ^^ PReturn
@@ -813,8 +819,13 @@ object Parser {
     lazy val call: PackratParser[PInvoke] =
       primaryExp ~ callArguments ^^ PInvoke
 
-    lazy val callArguments: Parser[Vector[PExpression]] =
-      ("(" ~> (rep1sep(expression, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+    lazy val callArguments: Parser[Vector[PExpression]] = {
+      val parseArg: Parser[PExpression] = expression ~ "...".? ^^ {
+        case exp ~ None => exp
+        case exp ~ Some(_) => PUnpackSlice(exp)
+      }
+      ("(" ~> (rep1sep(parseArg, ",") <~ ",".?).? <~ ")") ^^ (opt => opt.getOrElse(Vector.empty))
+    }
 
     lazy val selection: PackratParser[PDot] =
       primaryExp ~ ("." ~> idnUse) ^^ PDot |
@@ -853,7 +864,19 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit)))
+        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
+        stringLit
+
+    lazy val stringLit: Parser[PStringLit] =
+      rawStringLit | interpretedStringLit
+
+    lazy val rawStringLit: Parser[PStringLit] =
+      // unicode characters and newlines are allowed
+      "`" ~> "[^`]*".r <~ "`" ^^ (lit => PStringLit(lit))
+
+    lazy val interpretedStringLit: Parser[PStringLit] =
+    // unicode values and byte values are allowed
+      "\"" ~> """(?:\\"|[^"\n])*""".r <~ "\"" ^^ (lit => PStringLit(lit))
 
     lazy val compositeLit: Parser[PCompositeLit] =
       literalType ~ literalValue ^^ PCompositeLit
@@ -902,7 +925,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType
+      sequenceType | setType | multisetType | optionType | domainType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -941,6 +964,17 @@ object Parser {
 
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
+
+    lazy val domainType: Parser[PDomainType] =
+      "domain" ~> "{" ~> repsep(domainClause, eos) <~ eos.? <~ "}" ^^ { clauses =>
+        val funcs = clauses.collect{ case x: PDomainFunction => x }
+        val axioms = clauses.collect{ case x: PDomainAxiom => x }
+        PDomainType(funcs, axioms)
+      }
+
+    lazy val domainClause: Parser[PDomainClause] =
+      "func" ~> idnDef ~ signature ^^ { case id ~ sig => PDomainFunction(id, sig._1, sig._2) } |
+      "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
@@ -984,6 +1018,8 @@ object Parser {
 
     lazy val predeclaredType: Parser[PPredeclaredType] =
       exactWord("bool") ^^^ PBoolType() |
+        exactWord("string") ^^^ PStringType() |
+        exactWord("perm") ^^^ PPermissionType() |
         // signed integer types
         exactWord("rune") ^^^ PRune() |
         exactWord("int") ^^^ PIntType() |
@@ -1050,11 +1086,22 @@ object Parser {
     lazy val parameterList: Parser[Vector[PParameter]] =
       rep1sep(parameterDecl, ",") ^^ Vector.concat
 
-    lazy val parameterDecl: Parser[Vector[PParameter]] =
-      ghostParameter |
-      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PNamedParameter(id, t.copy).at(id): PParameter)
-      } |  typ ^^ (t => Vector(PUnnamedParameter(t).at(t)))
+    lazy val parameterDecl: Parser[Vector[PParameter]] = {
+      val namedParam = rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ {
+        case ids ~ variadicOpt ~ t =>
+          ids map { id =>
+            val typ = if (variadicOpt.isDefined) PVariadicType(t.copy) else t.copy
+            PNamedParameter(id, typ).at(id)
+          }
+      }
+      val unnamedParam = ("...".? ~ typ) ^^ {
+        case variadicOpt ~ t =>
+          val typ = if (variadicOpt.isDefined) PVariadicType(t) else t
+          Vector(PUnnamedParameter(typ).at(t))
+      }
+
+      ghostParameter | namedParam | unnamedParam
+    }
 
 
     lazy val nestedIdnUse: PackratParser[PIdnUse] =
@@ -1161,10 +1208,24 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold
 
-    lazy val ghostParameter: Parser[Vector[PParameter]] =
-      "ghost" ~> rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        ids map (id => PExplicitGhostParameter(PNamedParameter(id, t.copy).at(id)).at(id): PParameter)
-      } | "ghost" ~> typ ^^ (t => Vector(PExplicitGhostParameter(PUnnamedParameter(t).at(t)).at(t)))
+    lazy val ghostParameter: Parser[Vector[PParameter]] = {
+      val namedParam =
+        "ghost" ~> rep1sep(idnDef, ",") ~ "...".? ~ typ ^^ {
+          case ids ~ variadicOpt ~ t => ids map { id =>
+            val typ = if (variadicOpt.isDefined) PVariadicType(t.copy) else t.copy
+            PExplicitGhostParameter(PNamedParameter(id, typ).at(id)).at(id)
+          }
+        }
+
+      val unnamedParam =
+        "ghost" ~> "...".? ~ typ ^^ {
+          case variadicOpt ~ t =>
+            val typ = if (variadicOpt.isDefined) PVariadicType(t) else t
+            Vector(PExplicitGhostParameter(PUnnamedParameter(typ).at(t)).at(t))
+        }
+
+      namedParam | unnamedParam
+    }
 
     lazy val ghostPrimaryExp : Parser[PGhostExpression] =
       forall |
@@ -1179,7 +1240,7 @@ object Parser {
         sequenceConversion |
         setConversion |
         multisetConversion |
-        optionNone | optionSome | optionGet
+        optionNone | optionSome | optionGet | permission
 
     lazy val forall : Parser[PForall] =
       ("forall" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PForall
@@ -1187,24 +1248,22 @@ object Parser {
     lazy val exists : Parser[PExists] =
       ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
-    lazy val old : Parser[POld] =
-      "old" ~> "(" ~> expression <~ ")" ^^ POld
+    lazy val old : Parser[PGhostExpression] =
+      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+        case Some(l) ~ e => PLabeledOld(l, e)
+        case None ~ e => POld(e)
+      }
 
     lazy val access : Parser[PAccess] =
       "acc" ~> "(" ~> expression <~ ")" ^^ { exp => PAccess(exp, PFullPerm().at(exp)) } |
-      "acc" ~> "(" ~> expression ~ ("," ~> permission <~ ")") ^^ PAccess
+      // parsing wildcard permissions should be done here instead of in [[permission]] to avoid parsing "_"
+      // as an expression in arbitrary parts of the code
+      "acc" ~> "(" ~> expression <~ ("," ~> wildcard <~ ")") ^^ { exp => PAccess(exp, PWildcardPerm().at(exp)) } |
+      "acc" ~> "(" ~> expression ~ ("," ~> expression <~ ")") ^^ PAccess
 
     lazy val permission: Parser[PPermission] =
-      fractionalPermission |
-      "write" ^^^ PFullPerm() |
-      "none" ^^^ PNoPerm() |
-      "_" ^^^ PWildcardPerm()
-
-    lazy val fractionalPermission: Parser[PFractionalPerm] =
-      expression into {
-        case d@PDiv(left, right) => success(PFractionalPerm(left, right).at(d))
-        case e => failure(s"expected a fractional permission amount expressed as a division but got $e")
-      }
+      "writePerm" ^^^ PFullPerm() |
+      "noPerm" ^^^ PNoPerm()
 
     lazy val typeOf: Parser[PTypeOf] =
       "typeOf" ~> "(" ~> expression <~ ")" ^^ PTypeOf
@@ -1299,4 +1358,3 @@ object Parser {
 
 
 }
-

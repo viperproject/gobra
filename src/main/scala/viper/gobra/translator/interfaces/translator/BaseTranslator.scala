@@ -18,7 +18,7 @@ abstract class BaseTranslator[-I, +V] extends Generator {
     *
     * @param x entity to translate
     * @param ctx immutable translation context
-    * @return translated entity
+    * @return translated entity.
     */
   def translate(x: I)(ctx: Context): V
   def translateF(ctx: Context)(x: I): V = translate(x)(ctx)

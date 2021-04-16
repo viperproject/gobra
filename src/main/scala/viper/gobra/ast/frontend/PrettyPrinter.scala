@@ -182,7 +182,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case n: PTypeDecl => showTypeDecl(n)
       case PShortVarDecl(right, left, addressable) =>
         showList(left zip addressable){ case (l, a) => showAddressable(a, l) } <+> ":=" <+> showExprList(right)
-      case PLabeledStmt(label, s) => showId(label) <> ":" <+> showStmt(s)
+      case PLabeledStmt(label, s) => label.name <> ":" <+> showStmt(s)
       case PEmptyStmt() => emptyDoc
       case PExpressionStmt(exp) => showExpr(exp)
       case PSendStmt(channel, msg) => showExpr(channel) <+> "<-" <+> showExpr(msg)
@@ -364,6 +364,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoolLit(lit) => if(lit) "true" else "false"
       case PIntLit(lit) => lit.toString
       case PNilLit() => "nil"
+      case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
       case PFunctionLit(args, result, body) =>
         "func" <> parens(showParameterList(args)) <> showResult(result) <> block(showStmt(body))
@@ -376,6 +377,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         val capP = cap.fold(emptyDoc)(":" <> showExpr(_))
         showExpr(base) <> brackets(lowP <> highP <> capP)
       }
+
+      case PUnpackSlice(exp) => showExpr(exp) <> "..."
 
       case PTypeAssertion(base, typ) => showExpr(base) <> "." <> parens(showType(typ))
       case PEquals(left, right) => showSubExprOrType(expr, left) <+> "==" <+> showSubExprOrType(expr, right)
@@ -406,6 +409,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
+      case PLabeledOld(l, e) => "old" <> brackets(l.name) <> parens(showExpr(e))
       case PConditional(cond, thn, els) => showSubExpr(expr, cond) <> "?" <> showSubExpr(expr, thn) <> ":" <> showSubExpr(expr, els)
       case PForall(vars, triggers, body) =>
         "forall" <+> showList(vars)(showMisc) <+> "::" <+> showList(triggers)(showMisc) <+> showExpr(body)
@@ -451,7 +455,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case expr: PPermission => expr match {
         case PFullPerm() => "write"
         case PNoPerm() => "none"
-        case PFractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
         case PWildcardPerm() => "_"
       }
     }
@@ -492,6 +495,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showActualType(typ : PActualType) : Doc = typ match {
     case PNamedOperand(id) => showId(id)
     case PBoolType() => "bool"
+    case PStringType() => "string"
+    case PPermissionType() => "perm"
     case PIntType() => "int"
     case PInt8Type() => "int8"
     case PInt16Type() => "int16"
@@ -507,6 +512,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUIntPtr() => "uintptr"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
+    case PVariadicType(elem) => "..." <> showType(elem)
     case PMapType(key, elem) => "map" <> brackets(showType(key)) <> showType(elem)
     case PDeref(base) => "*" <> showExprOrType(base)
     case PDot(base, id) => showExprOrType(base) <> "." <>  showId(id)
@@ -533,6 +539,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case POptionType(elem) => "option" <> brackets(showType(elem))
+    case PDomainType(funcs, axioms) =>
+      "domain" <+> block(
+        ssep((funcs ++ axioms) map showMisc, line)
+      )
   }
 
   def showStructClause(c: PStructClause): Doc = c match {
@@ -585,6 +595,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBoundVariable(v, typ) => showId(v) <> ":" <+> showType(typ)
       case PTrigger(exps) => "{" <> showList(exps)(showExpr) <> "}"
       case PExplicitGhostParameter(actual) => showParameter(actual)
+      case PDomainFunction(id, args, res) =>
+        "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case PDomainAxiom(exp) => "axiom" <+> block(showExpr(exp))
       case mip: PMethodImplementationProof =>
         (if (mip.isPure) "pure ": Doc else emptyDoc) <>
           showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>

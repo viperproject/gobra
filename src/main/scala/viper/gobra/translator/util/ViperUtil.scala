@@ -19,6 +19,13 @@ object ViperUtil {
     d.localVar
   }
 
+  def toSeq(s: Stmt): Seqn = {
+    s match {
+      case s: Seqn => s
+      case _ => Seqn(Vector(s), Vector.empty)(s.pos, s.info, s.errT)
+    }
+  }
+
   def bigAnd(it: Iterable[Exp])(pos: Position, info: Info, errT: ErrorTrafo): Exp = {
     it.foldLeft[Exp](TrueLit()(pos, info, errT)){case (l, r) => And(l, r)(pos, info, errT)}
   }

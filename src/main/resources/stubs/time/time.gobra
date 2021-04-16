@@ -1,0 +1,291 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in https://golang.org/LICENSE
+
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/time/time.go
+
+package time
+
+type Time struct {
+	wall uint64
+	ext  int64
+	loc *Location
+}
+
+// After reports whether the time instant t is after u.
+pure func (t Time) After(u Time) bool
+
+// Before reports whether the time instant t is before u.
+pure func (t Time) Before(u Time) bool
+
+// Equal reports whether t and u represent the same time instant.
+func (t Time) Equal(u Time) bool
+
+// A Month specifies a month of the year (January = 1, ...).
+type Month int
+
+const (
+	January Month = 1
+	February Month = 2
+	March Month = 3
+	April Month = 4
+	May Month = 5
+	June Month = 6
+	July Month = 7
+	August Month = 8
+	September Month = 9
+	October Month = 10
+	November Month = 11
+	December Month = 12
+)
+
+// String returns the English name of the month ("January", "February", ...).
+ensures m == January ==> res == "January"
+ensures m == February ==> res == "February"
+ensures m == March ==> res == "March"
+ensures m == April ==> res == "April"
+ensures m == May ==> res == "May"
+ensures m == June ==> res == "June"
+ensures m == July ==> res == "July"
+ensures m == August ==> res == "August"
+ensures m == September ==> res == "September"
+ensures m == October ==> res == "October"
+ensures m == November ==> res == "November"
+ensures m == December ==> res == "December"
+func (m Month) String() (res string)
+
+// A Weekday specifies a day of the week (Sunday = 0, ...).
+type Weekday int
+
+const (
+	// (joao) this used to be defined in terms of iota
+	Sunday Weekday = 0
+	Monday Weekday = 1
+	Tuesday Weekday = 2
+	Wednesday Weekday = 3
+	Thursday Weekday = 4
+	Friday Weekday = 5
+	Saturday Weekday = 6
+)
+
+// String returns the English name of the day ("Sunday", "Monday", ...).
+
+ensures d == Sunday ==> res == "Sunday"
+ensures d == Monday ==> res == "Monday"
+ensures d == Tuesday ==> res == "Tuesday"
+ensures d == Wednesday ==> res == "Wednesday"
+ensures d == Thursday ==> res == "Thursday"
+ensures d == Friday ==> res == "Friday"
+ensures d == Saturday ==> res == "Saturday"
+func (d Weekday) String() (res string)
+
+// IsZero reports whether t represents the zero time instant,
+// January 1, year 1, 00:00:00 UTC.
+pure func (t Time) IsZero() bool
+
+// Date returns the year, month, and day in which t occurs.
+func (t Time) Date() (year int, month Month, day int)
+
+// Year returns the year in which t occurs.
+func (t Time) Year() int
+
+// Month returns the month of the year specified by t.
+func (t Time) Month() Month
+
+// Day returns the day of the month specified by t.
+func (t Time) Day() int
+
+// Weekday returns the day of the week specified by t.
+func (t Time) Weekday() Weekday
+
+func (t Time) ISOWeek() (year, week int)
+
+// Clock returns the hour, minute, and second within the day specified by t.
+func (t Time) Clock() (hour, min, sec int)
+
+// Hour returns the hour within the day specified by t, in the range [0, 23].
+ensures 0 <= res && res <= 23
+pure func (t Time) Hour() (res int)
+
+// Minute returns the minute offset within the hour specified by t, in the range [0, 59].
+ensures 0 <= res && res <= 59
+pure func (t Time) Minute() (res int)
+
+// Second returns the second offset within the minute specified by t, in the range [0, 59].
+ensures 0 <= res && res <= 59
+pure func (t Time) Second() (res int)
+
+// Nanosecond returns the nanosecond offset within the second specified by t,
+// in the range [0, 999999999].
+ensures 0 <= res && res <= 999999999
+pure func (t Time) Nanosecond() (res int)
+
+// YearDay returns the day of the year specified by t, in the range [1,365] for non-leap years,
+// and [1,366] in leap years.
+ensures 1 <= res && res <= 365
+func (t Time) YearDay() (res int)
+
+// A Duration represents the elapsed time between two instants
+// as a nanosecond count.
+type Duration int64
+
+// Common durations
+const (
+	Nanosecond  Duration = 1
+	Microsecond          = 1000 * Nanosecond
+	Millisecond          = 1000 * Microsecond
+	Second               = 1000 * Millisecond
+	Minute               = 60 * Second
+	Hour                 = 60 * Minute
+)
+
+// String returns a string representing the duration in the form "72h3m0.5s".
+func (d Duration) String() string
+
+// Nanoseconds returns the duration as an integer nanosecond count.
+func (d Duration) Nanoseconds() int64 { return int64(d) }
+
+// Microseconds returns the duration as an integer microsecond count.
+func (d Duration) Microseconds() int64 { return int64(d) / 1000 }
+
+// Milliseconds returns the duration as an integer millisecond count.
+func (d Duration) Milliseconds() int64 { return int64(d) / 1000000 }
+
+// Seconds returns the duration as a floating point number of seconds.
+/* (joao) no support for float
+func (d Duration) Seconds() float64
+
+// Minutes returns the duration as a floating point number of minutes.
+func (d Duration) Minutes() float64
+
+// Hours returns the duration as a floating point number of hours.
+func (d Duration) Hours() float64
+*/
+
+// Truncate returns the result of rounding d toward zero to a multiple of m.
+// If m <= 0, Truncate returns d unchanged.
+ensures m <= 0 ==> res == d
+ensures m > 0 ==> res == d - d%m // leads to violation in the desugarer
+pure func (d Duration) Truncate(m Duration) (res Duration)
+
+// Round returns the result of rounding d to the nearest multiple of m.
+pure func (d Duration) Round(m Duration) Duration
+
+// Add returns the time t+d.
+func (t Time) Add(d Duration) Time
+
+// Sub returns the duration t-u.
+func (t Time) Sub(u Time) Duration
+
+// Since returns the time elapsed since t.
+// It is shorthand for time.Now().Sub(t).
+func Since(t Time) Duration
+
+// Until returns the duration until t.
+// It is shorthand for t.Sub(time.Now()).
+func Until(t Time) Duration
+
+// AddDate returns the time corresponding to adding the
+// given number of years, months, and days to t.
+func (t Time) AddDate(years int, months int, days int) Time
+
+// Now returns the current local time.
+func Now() Time
+
+// UTC returns t with the location set to UTC.
+func (t Time) UTC() Time
+
+// Local returns t with the location set to local time.
+func (t Time) Local() Time /*{
+	t.setLoc(Local)
+	return t
+}*/
+
+// In returns a copy of t representing the same time instant, but
+// with the copy's location information set to loc for display
+// purposes.
+requires acc(loc)
+ensures acc(loc)
+func (t Time) In(loc *Location) Time
+
+// Location returns the time zone information associated with t.
+// ensures t.loc == nil ==> res == UTC // UTC is currently commented because it is a global var
+ensures t.loc != nil ==> res == t.loc
+func (t Time) Location() (res *Location)
+
+// Zone computes the time zone in effect at time t, returning the abbreviated
+// name of the zone (such as "CET") and its offset in seconds east of UTC.
+func (t Time) Zone() (name string, offset int) 
+
+// Unix returns t as a Unix time, the number of seconds elapsed
+// since January 1, 1970 UTC.
+func (t Time) Unix() int64
+
+// UnixNano returns t as a Unix time, the number of nanoseconds elapsed
+// since January 1, 1970 UTC.
+func (t Time) UnixNano() int64
+
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
+func (t Time) MarshalBinary() ([]byte, error) 
+
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalBinary(data []byte, ghost p perm) error
+
+// GobEncode implements the gob.GobEncoder interface.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) GobEncode() (res []byte, error)
+
+// GobDecode implements the gob.GobDecoder interface.
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) GobDecode(data []byte, ghost p perm) error
+
+// MarshalJSON implements the json.Marshaler interface.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) MarshalJSON() (res []byte, error)
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalJSON(data []byte, ghost p perm) error
+
+// MarshalText implements the encoding.TextMarshaler interface.
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+func (t Time) MarshalText() (res []byte, error)
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+requires acc(t)
+requires p > 0
+requires forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+ensures acc(t)
+ensures forall i int :: 0 <= i && i < len(data) ==> acc(&data[i], p)
+func (t *Time) UnmarshalText(data []byte, ghost p perm) error
+
+// Unix returns the local Time corresponding to the given Unix time,
+// sec seconds and nsec nanoseconds since January 1, 1970 UTC.
+func Unix(sec int64, nsec int64) Time
+
+// Date returns the Time corresponding to yyyy-mm-dd hh:mm:ss + nsec nanoseconds
+// in the appropriate zone for that time in the given location.
+requires p > 0
+requires acc(loc, p)
+ensures acc(loc, p)
+func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location, ghost p perm) Time
+
+// Truncate returns the result of rounding t down to a multiple of d (since the zero time).
+func (t Time) Truncate(d Duration) Time
+
+// Round returns the result of rounding t to the nearest multiple of d (since the zero time).
+func (t Time) Round(d Duration) Time

@@ -1,0 +1,56 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package variadic
+
+func Set(...int)
+
+func test1() {
+	s := []int{1, 2, 3}
+	//:: ExpectedOutput(type_error)
+	Set(s) // slice must be unpacked
+}
+
+func test2() {
+	//:: ExpectedOutput(type_error)
+	Set(1...) // only slices can be unpacked
+}
+
+func test3() {
+	arr := [5]int{1, 2, 3, 4, 5}
+	//:: ExpectedOutput(type_error)
+	Set(arr...) // only slices can be unpacked
+}
+
+func acceptIntMultipleBool(a int, b ...bool)
+func multipleInt() (int, int, int)
+func test4() {
+	//:: ExpectedOutput(type_error)
+	acceptIntMultipleBool(multipleInt())
+}
+
+//:: ExpectedOutput(type_error)
+func test5(a ...int, b ...int)
+
+//:: ExpectedOutput(type_error)
+func test6(...int, ...int)
+
+//:: ExpectedOutput(type_error)
+func test7(a ...int, ...int)
+
+//:: ExpectedOutput(type_error)
+func test8(...int, b ...int)
+
+//:: ExpectedOutput(type_error)
+func test9(a, b ...int)
+
+func f(...int)
+func test10() {
+	//:: ExpectedOutput(type_error)
+	f(1, multipleInt()) // rejected, as in Go
+}
+
+// pure methods cannot have variadic arguments, given that calling them may cause
+// a slice allocation
+//:: ExpectedOutput(type_error)
+pure func test11(...int)

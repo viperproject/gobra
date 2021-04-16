@@ -9,13 +9,12 @@ package viper.gobra.frontend.info.implementation.resolution
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
-import viper.gobra.frontend.info.base.SymbolTable.isDefinedInScope
 import viper.gobra.frontend.info.base.Type.{ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
-  def isDef[T](n: PIdnUnk): Boolean = !isDefinedInScope(sequentialDefenv.in(n), serialize(n))
+  override def isDef(n: PIdnUnk): Boolean = !isDefinedAt(n,n)
 
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType] = {
     n match {
@@ -55,6 +54,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case s: st.Constant => Some(ap.Constant(n.id, s))
         case s: st.Function => Some(ap.Function(n.id, s))
         case s: st.FPredicate => Some(ap.Predicate(n.id, s))
+        case s: st.DomainFunction => Some(ap.DomainFunction(n.id, s))
         // built-in members
         case s: st.BuiltInFunction => Some(ap.BuiltInFunction(n.id, s))
         case s: st.BuiltInFPredicate => Some(ap.BuiltInPredicate(n.id, s))
@@ -86,6 +86,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(_), Some((s: st.Constant, _))) => Some(ap.Constant(n.id, s))
         case (Right(_), Some((s: st.Function, _))) => Some(ap.Function(n.id, s))
         case (Right(_), Some((s: st.FPredicate, _))) => Some(ap.Predicate(n.id, s))
+        case (Right(_), Some((s: st.DomainFunction, _))) => Some(ap.DomainFunction(n.id, s))
 
         // built-in members
         case (Left(base), Some((s: st.BuiltInMethod, path))) => Some(ap.BuiltInReceivedMethod(base, n.id, path, s))

@@ -1042,7 +1042,7 @@ object Desugar {
             )
           )(src)
 
-        case l@ in.IndexedExp(_: in.MapT, _) if lefts.size == 2 =>
+        case l@ in.IndexedExp(base, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           in.Block(

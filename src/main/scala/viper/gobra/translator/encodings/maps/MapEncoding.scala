@@ -49,11 +49,6 @@ class MapEncoding extends LeafTypeEncoding {
 
   /**
     * Encodes expressions as values that do not occupy some identifiable location in memory.
-    *
-    * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
-    * (1) exclusive operations on T, which includes literals and default values
-    * Super implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
-    *
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
     * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
@@ -125,7 +120,6 @@ class MapEncoding extends LeafTypeEncoding {
 
   /**
     * Encodes the allocation of a new map
-    *
     *  [r := make(map[T1]T2, n)] ->
     *    asserts 0 <= [n]
     *    var a Ref := new(underlyingMapField)

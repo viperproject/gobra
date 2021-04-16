@@ -1067,6 +1067,7 @@ case class PDomainFunction(id: PIdnDef,
 
 case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
 
+
 /**
   * Miscellaneous
   */

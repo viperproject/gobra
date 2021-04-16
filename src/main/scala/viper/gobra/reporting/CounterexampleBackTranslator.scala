@@ -55,7 +55,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 
 		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>(x._1,tranlator(x._2,Util.getType(x._1.pnode,typeinfo))))))													
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
-		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
+		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(_._1.node.toString.contains("$")).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
 		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
 		val ret =  Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
@@ -77,9 +77,9 @@ object Util{
 	}
 
 	def prettyPrint(input:GobraModelEntry,level:Int):String = {
-		val indent = "\t\t" ++ "   ".repeat(level)
-		val postdent = "\t\t" ++ "  ".repeat(level)
-		val predent = "\t\t"++"  ".repeat(level)
+		val indent = "\t\t\t" ++ "\t".repeat(level)
+		val postdent = "\t\t" ++ "\t".repeat(level)
+		val predent = "\t\t"++"\t".repeat(level)
 		input match {
 			case LitStructEntry(_,m) => {
 				val sub = m.map(x=>(x._1,prettyPrint(x._2,level+1)))
@@ -124,8 +124,8 @@ case class GobraModel(entries:Map[(PNode,String),GobraModelEntry]){
 	override def toString :String = {
 		val params = entries.filter(x=>x._1.isInstanceOf[PParameter]) //first we separate the different types of values
 		val rest = entries.filterNot(x=>x._1.isInstanceOf[PParameter])
-		params.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n") ++ "\n" ++
-		rest.map(x=>s"${x._1.toString}\t<- ${x._2.toString}").mkString("\n")
+		params.map(x=>s"${x._1._1.toString}\t<- ${Util.prettyPrint(x._2,0)}").mkString("\n") ++ "\n" ++
+		rest.map(x=>s"${x._1._1.toString}\t<- ${Util.prettyPrint(x._2,0)}").mkString("\n")
 
 	}
 	

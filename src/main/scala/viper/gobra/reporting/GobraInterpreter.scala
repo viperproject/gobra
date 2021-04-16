@@ -83,7 +83,8 @@ case class OptionInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Opt
 	}
 }
 case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[StructT]{
-	def getterFunc(i:Int,n:Int) = s"get${i}of$n" //TODO: find out where they are generated
+	//NOTE: they are just strigs in the implementation with no way of extracting them
+	def getterFunc(i:Int,n:Int) = s"get${i}of$n" //TODO: find out where they are generated 
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
 		if(doms.isDefined){
@@ -106,7 +107,7 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 										)) 
 			LitStructEntry(info,values)
 			}catch{
-				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: $info")
+				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}
 			
 		}else{

@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
+import viper.gobra.util.NumericalBase
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -353,7 +354,9 @@ sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
+// The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
+// only be read by pretty-printers
+case class PIntLit(lit: BigInt, base: NumericalBase = NumericalBase.Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -437,6 +440,8 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
+case class PBitwiseNegation(operand: PExpression) extends PUnaryExp
+
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
   def right: R
@@ -467,6 +472,18 @@ case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {

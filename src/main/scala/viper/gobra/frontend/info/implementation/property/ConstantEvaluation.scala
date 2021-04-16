@@ -64,7 +64,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
   lazy val intConstantEval: PExpression => Option[BigInt] =
     attr[PExpression, Option[BigInt]] {
-      case PIntLit(lit) => Some(lit)
+      case PIntLit(lit, _) => Some(lit)
       case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
           (intConstantEval(l), intConstantEval(r)) match {

@@ -16,7 +16,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions,
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.util.{Constants, NumericalBase, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -864,6 +864,7 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
+        ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), NumericalBase.Hexadecimal)) |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
         stringLit
 

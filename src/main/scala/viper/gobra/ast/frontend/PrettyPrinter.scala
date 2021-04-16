@@ -8,7 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-import viper.gobra.util.Constants
+import viper.gobra.util.{Constants, NumericalBase}
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -362,7 +362,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNegation(operand) => "!" <> showExpr(operand)
       case PNamedOperand(id) => showId(id)
       case PBoolLit(lit) => if(lit) "true" else "false"
-      case PIntLit(lit) => lit.toString
+      case PIntLit(lit, base) => base match {
+        case NumericalBase.Decimal => lit.toString
+        case NumericalBase.Hexadecimal => lit.toString(16)
+      }
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)

@@ -11,9 +11,8 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
-import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, pure, sequence, unit}
+import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 class MathematicalMapEncoding extends LeafTypeEncoding {
@@ -38,7 +37,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
       for {
-        isCompKey <- checkKeyComparability(idx)(ctx)
+        isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
         _ <- assert(isCompKey) // key must be comparable
         stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
       } yield stmt
@@ -56,8 +55,8 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     * R[ (e: mmap[K]V)[idx] ] -> MapLookup([e], [idx])
     * R[ (e: mmap[K]V)[idx = val] ] -> MapUpdate([e], [idx], [val])
     * R[ len(e: mmap[K]V) ] -> MapCardinality([e])
-    * R[ keys(e: mmap[K]V) ] -> MapDomain(e)
-    * R[ values(e: mmap[K]V) ] -> MapRange(e)
+    * R[ keySet(e: mmap[K]V) ] -> MapDomain([e])
+    * R[ valueSet(e: mmap[K]V) ] -> MapRange([e])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -80,7 +79,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          isCompKey <- checkKeyComparability(idx)(ctx)
+          isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
           _ <- assert(isCompKey)
           vE <- goE(e)
           vIdx <- goE(idx)
@@ -105,44 +104,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case n@ in.MapValues(e :: ctx.MathematicalMap(_, _)) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapRange(_)(pos, info, errT))
-    }
-  }
-
-  /**
-    * Encodes whether a value is comparable or not.
-    *   isComp[ e: mmap[T] ] -> forall s :: { s in keys([e]), isComp[s] } s in keys([e]) ==> isComp[s] && isComp[e(s)]
-    */
-  override def isComparable(ctx: Context): in.Expr ==> Either[Boolean, CodeWriter[vpr.Exp]] = {
-    case exp :: ctx.Map(k, _) =>
-      super.isComparable(ctx)(exp).map { _ =>
-        val (pos, info, errT) = exp.vprMeta
-        // if this is executed, then type parameter must have dynamic comparability
-        val s = in.BoundVar("s", k)(exp.info)
-        val vSDecl = ctx.typeEncoding.variable(ctx)(s); val vS = vSDecl.localVar
-        for {
-          vExp <- pure(ctx.expr.translate(exp)(ctx))(ctx)
-          rhs1 <- pure(ctx.typeEncoding.isComparable(ctx)(s)
-            .getOrElse(Violation.violation("An incomparable map entails an incomparable key or value type.")))(ctx)
-          rhs2 <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, s)(exp.info))
-            .getOrElse(Violation.violation("An incomparable map entails an incomparable key or value type.")))(ctx)
-          contains = vpr.SeqContains(vS, vpr.MapDomain(vExp)(pos, info, errT))(pos, info, errT)
-          res = vpr.Forall(
-            variables = Seq(vSDecl),
-            triggers = Seq(vpr.Trigger(Seq(rhs1, contains))(pos, info, errT)),
-            exp = vpr.Implies(contains, vpr.And(rhs1, rhs2)(pos, info, errT))(pos, info, errT)
-          )(pos, info, errT)
-        } yield res
-      }
-  }
-
-  // TODO: unify implementations; this is a copy from the checkKeyComparability method defined
-  //       in in MapEncoding.scala
-  private def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
-    val isComp = ctx.typeEncoding.isComparable(ctx)(key)
-    isComp match {
-      case Left(false) => unit[vpr.Exp](withSrc(vpr.FalseLit(), key))
-      case Left(true) => unit[vpr.Exp](withSrc(vpr.TrueLit(), key))
-      case Right(compExp) => compExp
     }
   }
 }

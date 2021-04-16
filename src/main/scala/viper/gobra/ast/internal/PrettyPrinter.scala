@@ -277,7 +277,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case SafeMapLookup(resTarget, successTarget, mapLookup) =>
-      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(mapLookup)
+      showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
   })
@@ -406,8 +406,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MapKeys(exp) => "keys" <> parens(showExpr(exp))
-    case MapValues(exp) => "values" <> parens(showExpr(exp))
+    case MapKeys(exp) => "keySet" <> parens(showExpr(exp))
+    case MapValues(exp) => "valueSet" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 

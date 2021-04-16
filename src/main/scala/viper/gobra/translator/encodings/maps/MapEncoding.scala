@@ -38,9 +38,6 @@ class MapEncoding extends LeafTypeEncoding {
 
   private val domainName: String = Names.mapsDomain
 
-  // TODO: doc every step in the encoding
-  // TODO: Check for comparability of keys and goequality
-
   /**
     * Translates a type into a Viper type.
     * Both Exclusive and Shared maps are encoded as vpr.Ref because nil is an admissible value for maps
@@ -50,7 +47,21 @@ class MapEncoding extends LeafTypeEncoding {
     case ctx.Map(_, _) / Shared => vpr.Ref
   }
 
-  // TODO: doc
+  /**
+    * Encodes expressions as values that do not occupy some identifiable location in memory.
+    *
+    * To avoid conflicts with other encodings, a leaf encoding for type T should be defined at:
+    * (1) exclusive operations on T, which includes literals and default values
+    * Super implements exclusive variables and constants with [[variable]] and [[globalVar]], respectively.
+    *
+    * R[ nil(map[K]V°) ] -> null
+    * R[ dflt(map[K]V°) ] -> null
+    * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
+    * R[ (e: map[K]V)[idx] ] -> goMapLookup(e[idx])
+    * R[ map[K]V { idx1: v1 ... idxn: vn } ] -> e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] }
+    * R[ keySet(e: map[K]V) ] -> MapDomain(getCorrespondingMap(e))
+    * R[ valueSet(e: map[K]V) ] -> MapRange(getCorrespondingMap(e))
+    */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
@@ -61,10 +72,10 @@ class MapEncoding extends LeafTypeEncoding {
 
       case l@ in.Length(exp :: ctx.Map(keys, values)) =>
         val (pos, info, errT) = l.vprMeta
+        // Encodes
+        // [ len(m) ] -> [ m ] == null? 0 : | getCorrespondingMap([m]) |
         for {
           e <- goE(exp)
-          // [ len(m) ] ->
-          //      [ m ] == null? 0 : | getCorrespondingMap([m]) |
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
           res = vpr.CondExp(
             vpr.EqCmp(e, vpr.NullLit()(pos, info, errT))(pos, info, errT),
@@ -89,9 +100,14 @@ class MapEncoding extends LeafTypeEncoding {
           })
           underlyingMap = vpr.ExplicitMap(mapletList)(pos, info, errT)
           _ <- local(vRes)
-          // doc: acc(getMap(vpr))
           correspondingMap <- getCorrespondingMap(res, keys, values)(ctx)
-          _ <- write(vpr.Inhale(vpr.FieldAccessPredicate(vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx))(pos, info, errT), vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+          // inhale acc(res.underlyingMapField)
+          _ <- write(
+            vpr.Inhale(
+              vpr.FieldAccessPredicate(
+                vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx))(pos, info, errT),
+                vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
+          // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
         } yield vRes.localVar
 
@@ -112,9 +128,9 @@ class MapEncoding extends LeafTypeEncoding {
     *
     *  [r := make(map[T1]T2, n)] ->
     *    asserts 0 <= [n]
-    *    var a Ref := new(val)
-    *    inhales len(getCorrespondingMap(a)) == 0
-    *    r := a
+    *    var a Ref := new(underlyingMapField)
+    *    inhales len(m) == 0, where m is the underlying map of a
+    *    [r] := a
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -205,7 +221,7 @@ class MapEncoding extends LeafTypeEncoding {
         val vRes = ctx.typeEncoding.variable(ctx)(res)
         seqn(
           for {
-            isCompKey <- checkKeyComparability(idx)(ctx)
+            isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
             _ <- assert(isCompKey) // key must be comparable
 
             vRhs <- ctx.expr.translate(rhs)(ctx)
@@ -228,13 +244,9 @@ class MapEncoding extends LeafTypeEncoding {
     }
   }
 
-  /** TODO: redo doc
+  /**
     * Encodes assertions.
-    *
-    * Constraints:
-    * - in.Access with in.PredicateAccess has to encode to vpr.PredicateAccessPredicate.
-    *
-    * [acc(p(e1, ..., en))] -> eval_S([p], [e1], ..., [en]) where p: pred(S)
+    * [acc(m: map[K]V, perm)] -> acc([m].underlyingMapField, [perm])
     */
   override def assertion(ctx: Context): in.Assertion ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -278,13 +290,13 @@ class MapEncoding extends LeafTypeEncoding {
     typ = vpr.MapType(keyParam, valueParam),
   )(domainName = domainName)
 
-  /** TODO: update doc
-    * This field is required in order to differentiate nil map from empty (non-nil) map
+  /**
+    * Field of the corresponding map id
     */
   private def underlyingMapField(ctx: Context): vpr.Field = ctx.field.field(in.IntT(Exclusive))(ctx)
 
-  /** fix odc
-    * Builds the expression `underlyingMap([ exp ].underlyingMapField)`
+  /**
+    * Builds the expression `getMap([exp].underlyingMapField)`
     */
   private def getCorrespondingMap(exp: in.Expr, keys: in.Type, values: in.Type)(ctx: Context): CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -301,13 +313,14 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   /**
-    * Builds the expression `idx in vprMap`
+    * Builds the expression `idx in Domain(vprMap)`
     */
   private def goMapContains(vprMap: vpr.Exp, idx: vpr.Exp)(src: in.Node): vpr.Exp =
     withSrc(vpr.AnySetContains(idx, withSrc(vpr.MapDomain(vprMap), src)), src)
 
-  /** TODO: fix doc
-    * Builds the expression `idx in vprMap ? vprMap[idx] : dfltVal`
+  /**
+    * Computes the result of looking up a value in an indexed expression and a bool expression asserting
+    * whether the key is in the map
     */
   private def goMapLookup(lookupExp: in.IndexedExp)(ctx: Context): CodeWriter[(vpr.Exp, vpr.Exp)] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -316,7 +329,7 @@ class MapEncoding extends LeafTypeEncoding {
       case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx) =>
         for {
           vIdx <- goE(idx)
-          isComp <- checkKeyComparability(idx)(ctx)
+          isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
           _ <- assert(isComp)
           vDflt <- goE(in.DfltVal(values)(l.info))
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
@@ -326,8 +339,10 @@ class MapEncoding extends LeafTypeEncoding {
       case _ => Violation.violation(s"unexpected case reached")
     }
   }
+}
 
-  private def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
+object MapEncoding extends LeafTypeEncoding {
+  protected[maps] def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
     val isComp = ctx.typeEncoding.isComparable(ctx)(key)
     isComp match {
       case Left(false) => unit[vpr.Exp](withSrc(vpr.FalseLit(), key))

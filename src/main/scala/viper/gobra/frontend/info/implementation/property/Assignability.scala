@@ -213,7 +213,6 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             areAllKeysAssignable(elems, keys) and
             areAllElementsAssignable(elems, values)
 
-
         case t => failedProp(s"cannot assign literal to $t")
       }
     case (l, t) => failedProp(s"cannot assign literal $l to $t")

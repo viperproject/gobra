@@ -1042,7 +1042,7 @@ object Desugar {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _) if underlyingType(base.typ).isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(_: in.MapT, _) if lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           in.Block(
@@ -1843,8 +1843,7 @@ object Desugar {
             val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }
-            }
+            }}
 
             for {
               args <- sequence(wArgs)
@@ -1878,12 +1877,12 @@ object Desugar {
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for {elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))}
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
             yield in.ArrayLit(len, typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Slice(in.SliceT(typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
-          for {elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))}
+          for { elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ))) }
             yield in.SliceLit(typ, info.keyElementIndices(lit.elems).zip(elemsD).toMap)(src)
 
         case CompositeKind.Sequence(in.SequenceT(typ, _)) => for {
@@ -1900,37 +1899,31 @@ object Desugar {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
 
-          // TODO: abstract pattern in function
-        case CompositeKind.Map(in.MapT(keys, values, _)) =>
-          for {
-            entriesD <- sequence(lit.elems.map {
-              case PKeyedElement(Some(key), value) => for {
-                entryKey <- key match {
-                  case v: PCompositeVal => compositeValD(ctx)(v, keys)
-                  case _: PIdentifierKey => ??? // violation
-                }
-                entryVal <- compositeValD(ctx)(value, values)
-              } yield (entryKey, entryVal)
+        case CompositeKind.Map(in.MapT(keys, values, _)) => for {
+          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+        } yield in.MapLit(keys, values, entriesD)(src)
 
-              case _ => ??? // violation
-            })
-          } yield in.MapLit(keys, values, entriesD.toMap)(src)
-
-        case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) =>
-          for {
-            entriesD <- sequence(lit.elems.map {
-              case PKeyedElement(Some(key), value) => for {
-                entryKey <- key match {
-                  case v: PCompositeVal => compositeValD(ctx)(v, keys)
-                  case _: PIdentifierKey => ??? // violation
-                }
-                entryVal <- compositeValD(ctx)(value, values)
-              } yield (entryKey, entryVal)
-
-              case _ => ??? // violation
-            })
-        } yield in.MathMapLit(keys, values, entriesD.toMap)(src)
+        case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) => for {
+          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+        } yield in.MathMapLit(keys, values, entriesD)(src)
       }
+    }
+
+    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Map[in.Expr, in.Expr]] = {
+      val listOfPairs = sequence(
+        lit.elems map {
+          case PKeyedElement(Some(key), value) => for {
+            entryKey <- key match {
+              case v: PCompositeVal => compositeValD(ctx)(v, keys)
+              case k: PIdentifierKey => violation(s"unexpected key $k")
+            }
+            entryVal <- compositeValD(ctx)(value, values)
+          } yield (entryKey, entryVal)
+
+          case _ => violation("unexpected pattern, missing key in map literal")
+        })
+
+      listOfPairs map (_.toMap)
     }
 
     // Type
@@ -2770,7 +2763,7 @@ object Desugar {
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
 
-              // TODO: do similarly same for slices (and arrays?)
+            // TODO: do similarly same for slices (issue #238)
             case Single(_: Type.MapT) =>
               goE(acc) map (x => in.Accessible.ExprAccess(x))
 

@@ -261,8 +261,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (StringT, IntT(_)) =>
             error(n, "Indexing a string is currently not supported")
 
-          case (t, indexT) if underlyingType(t).isInstanceOf[MapT] =>
-            val key = underlyingType(t).asInstanceOf[MapT].key
+          case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (MathMapT(key, _), indexT) =>
@@ -495,8 +494,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
       case (VariadicT(elem), IntT(_)) => elem
-      case (mapT, indexT) if underlyingType(mapT).isInstanceOf[MapT] && assignableTo(indexT, underlyingType(mapT).asInstanceOf[MapT].key) =>
-        val elem = underlyingType(mapT).asInstanceOf[MapT].elem
+      case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
@@ -607,6 +605,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
     getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
       case Some(t) => t match {
         case Single(t) => Some(t)
@@ -803,6 +802,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
     }
 
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
     typ match {
       case Single(t) => t
       case UnknownType => UnknownType

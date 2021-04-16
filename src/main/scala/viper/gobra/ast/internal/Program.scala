@@ -322,8 +322,8 @@ case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGiv
 case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**
-  * Map lookup operation that does not only return the result of the lookup or the default value if the key is not in the map,
-  * but also a boolean result stating whether the key is in the map.
+  * Map lookup operation that returns the result of the lookup or default value if the key is not in the map,
+  * and a boolean values stating whether the key is in the map.
   */
 case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
 

@@ -12,11 +12,11 @@ import java.nio.file.{Files, Path}
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.{Constants, NumericalBase, Violation}
+import viper.gobra.reporting.{Source => _, _}
+import viper.gobra.util.{Constants, Hexadecimal, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -864,7 +864,7 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
-        ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), NumericalBase.Hexadecimal)) |
+        ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal)) |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
         stringLit
 

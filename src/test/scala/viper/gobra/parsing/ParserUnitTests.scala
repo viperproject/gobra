@@ -8,12 +8,13 @@ package viper.gobra.parsing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util.{Source, StringSource}
+import org.scalatest.Inside
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.Inside
 import org.scalatest.matchers.should.Matchers
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Parser
+import viper.gobra.util.{Decimal, Hexadecimal}
 
 import scala.reflect.ClassTag
 
@@ -59,7 +60,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: assignment constant to variable") {
     val parseRes = frontend.parseStmtOrFail("p = 5")
     inside (parseRes) {
-      case PAssignment(Vector(PIntLit(value)),
+      case PAssignment(Vector(PIntLit(value, Decimal)),
       Vector(PNamedOperand(PIdnUse("p")))) => value should be (5)
     }
   }
@@ -73,7 +74,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: assignment constant to field") {
     val parseRes = frontend.parseStmtOrFail("p.x = 5")
     inside (parseRes) {
-      case PAssignment(Vector(PIntLit(value)),
+      case PAssignment(Vector(PIntLit(value, Decimal)),
       Vector(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("x")))) => value should be (5)
     }
   }
@@ -142,7 +143,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: imported struct initialization") {
     frontend.parseStmtOrFail("a := b.BarCell{10}") should matchPattern {
       case PShortVarDecl(Vector(PCompositeLit(PDot(PNamedOperand(PIdnUse("b")), PIdnUse("BarCell")),
-        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))), Vector(PIdnUnk("a")), Vector(false))
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))), Vector(PIdnUnk("a")), Vector(false))
           if value == 10 =>
     }
   }
@@ -173,7 +174,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: struct literal") {
     frontend.parseExp("bla{42}") should matchPattern {
-      case Right(PCompositeLit(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+      case Right(PCompositeLit(PNamedOperand(PIdnUse("bla")), PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
     }
   }
 
@@ -183,7 +184,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     res shouldEqual frontend.parseExp("struct {Number int}{42}")
     res should matchPattern {
       case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))))),
-        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+        PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
     }
   }
 
@@ -193,7 +194,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     res shouldEqual frontend.parseExp("struct {Number int}{Number: 42}")
     res should matchPattern {
       case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))))),
-      PLiteralValue(Vector(PKeyedElement(Some(PIdentifierKey(PIdnUse("Number"))), PExpCompositeVal(PIntLit(value))))))) if value == 42 =>
+      PLiteralValue(Vector(PKeyedElement(Some(PIdentifierKey(PIdnUse("Number"))), PExpCompositeVal(PIntLit(value, Decimal))))))) if value == 42 =>
     }
   }
 
@@ -203,7 +204,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     res shouldEqual frontend.parseExp("struct {Number int; Text int}{42, 1}")
     res should matchPattern {
       case Right(PCompositeLit(PStructType(Vector(PFieldDecls(Vector(PFieldDecl(PIdnDef("Number"), PIntType()))), PFieldDecls(Vector(PFieldDecl(PIdnDef("Text"), PIntType()))))),
-      PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(numberValue))), PKeyedElement(None, PExpCompositeVal(PIntLit(textValue))))))) if numberValue == 42 && textValue == 1 =>
+      PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(numberValue, Decimal))), PKeyedElement(None, PExpCompositeVal(PIntLit(textValue, Decimal))))))) if numberValue == 42 && textValue == 1 =>
     }
   }
 
@@ -260,7 +261,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PCompositeLit(
         PSequenceType(PIntType()),
         PLiteralValue(Vector(
-          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
         ))
       ) if n == BigInt(42) =>
     }
@@ -271,9 +272,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PCompositeLit(
         PSequenceType(PIntType()),
         PLiteralValue(Vector(
-          PKeyedElement(None, PExpCompositeVal(PIntLit(a))),
-          PKeyedElement(None, PExpCompositeVal(PIntLit(b))),
-          PKeyedElement(None, PExpCompositeVal(PIntLit(c)))
+          PKeyedElement(None, PExpCompositeVal(PIntLit(a, Decimal))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(b, Decimal))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(c, Decimal)))
         ))
       ) if a == BigInt(3) && b == BigInt(17) && c == BigInt(142) =>
     }
@@ -352,13 +353,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: expressions of the form '+e' should be parsed to '0 + e'") {
     frontend.parseExpOrFail("+x") should matchPattern {
-      case PAdd(PIntLit(n), PNamedOperand(PIdnUse("x"))) if n == BigInt(0) =>
+      case PAdd(PIntLit(n, Decimal), PNamedOperand(PIdnUse("x"))) if n == BigInt(0) =>
     }
   }
 
   test("Parser: expressions of the form '++e' should be parsed to '0 + 0 + e'") {
     frontend.parseExp("++ x") should matchPattern {
-      case Right(PAdd(PIntLit(a), PAdd(PIntLit(b), PNamedOperand(PIdnUse("x")))))
+      case Right(PAdd(PIntLit(a, Decimal), PAdd(PIntLit(b, Decimal), PNamedOperand(PIdnUse("x")))))
         if a == BigInt(0) && b == BigInt(0) =>
     }
   }
@@ -371,7 +372,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: expressions of the form 'e1 + + e2' should be parsed as 'e1 + (+e2)'") {
     frontend.parseExpOrFail("x + + y") should matchPattern {
-      case PAdd(PNamedOperand(PIdnUse("x")), PAdd(PIntLit(n), PNamedOperand(PIdnUse("y"))))
+      case PAdd(PNamedOperand(PIdnUse("x")), PAdd(PIntLit(n, Decimal), PNamedOperand(PIdnUse("y"))))
         if n == BigInt(0) =>
     }
   }
@@ -434,7 +435,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         Vector(
           PSequenceUpdateClause(
             PNamedOperand(PIdnUse("i")),
-            PIntLit(n)
+            PIntLit(n, Decimal)
           )
         )
       ) if n == BigInt(42) =>
@@ -502,7 +503,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
             PKeyedElement(None, PExpCompositeVal(PBoolLit(false)))
           ))
         ),
-        Vector(PSequenceUpdateClause(PIntLit(i), PBoolLit(true)))
+        Vector(PSequenceUpdateClause(PIntLit(i, Decimal), PBoolLit(true)))
       )) if i == BigInt(1) =>
     }
   }
@@ -571,7 +572,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse a simple sequence range expression") {
     frontend.parseExpOrFail("seq[1..5]") should matchPattern {
-      case PRangeSequence(PIntLit(low), PIntLit(high))
+      case PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal))
         if low == BigInt(1) && high == BigInt(5) =>
     }
   }
@@ -670,8 +671,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should parse a membership expression with a sequence range expression") {
     frontend.parseExpOrFail("x + 12 in seq[1..100]") should matchPattern {
       case PIn(
-        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
-        PRangeSequence(PIntLit(b), PIntLit(c))
+        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a, Decimal)),
+        PRangeSequence(PIntLit(b, Decimal), PIntLit(c, Decimal))
       ) if a == BigInt(12) && b == BigInt(1) && c == BigInt(100) =>
     }
   }
@@ -687,9 +688,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PSequenceUpdate(
         PNamedOperand(PIdnUse("xs")),
         Vector(
-          PSequenceUpdateClause(PIntLit(a), PBoolLit(true)),
-          PSequenceUpdateClause(PIntLit(b), PNamedOperand(PIdnUse("b"))),
-          PSequenceUpdateClause(PIntLit(c), PCardinality(PNamedOperand(PIdnUse("xs"))))
+          PSequenceUpdateClause(PIntLit(a, Decimal), PBoolLit(true)),
+          PSequenceUpdateClause(PIntLit(b, Decimal), PNamedOperand(PIdnUse("b"))),
+          PSequenceUpdateClause(PIntLit(c, Decimal), PCardinality(PNamedOperand(PIdnUse("xs"))))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(7) =>
     }
@@ -728,7 +729,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         ),
         PAdd(
           PCardinality(PNamedOperand(PIdnUse("zs"))),
-          PIntLit(n)
+          PIntLit(n, Decimal)
         )
       ) if n == BigInt(2) =>
     }
@@ -783,7 +784,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
             PKeyedElement(None, PExpCompositeVal(PBoolLit(false))),
           ))
         ),
-        PIntLit(n)
+        PIntLit(n, Decimal)
       ) if n == BigInt(1) =>
     }
   }
@@ -791,8 +792,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should parse indexed expression with sequence range expressions") {
     frontend.parseExpOrFail("seq[1..10][2]") should matchPattern {
       case PIndexedExp(
-        PRangeSequence(PIntLit(low), PIntLit(high)),
-        PIntLit(i)
+        PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)),
+        PIntLit(i, Decimal)
       ) if low == BigInt(1) && high == BigInt(10) && i == BigInt(2) =>
     }
   }
@@ -847,7 +848,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PSliceExp(
         PNamedOperand(PIdnUse("zs")),
         None,
-        Some(PIntLit(n)),
+        Some(PIntLit(n, Decimal)),
         None
       ) if n == BigInt(42) =>
     }
@@ -968,7 +969,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PCompositeLit(
         PSetType(PIntType()),
         PLiteralValue(Vector(
-          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
         ))
       ) if n == BigInt(42) =>
     }
@@ -985,7 +986,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PCompositeLit(
         PSetType(PIntType()),
         PLiteralValue(Vector(
-          PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+          PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
         ))
       ) if n == BigInt(42) =>
     }
@@ -1028,7 +1029,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
             PCompositeLit(
               PSetType(PIntType()),
               PLiteralValue(Vector(
-                PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+                PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
               ))
             )
           ))
@@ -1327,7 +1328,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PCompositeLit(
           PSetType(PIntType()),
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
           ))
         )
       ) if n == BigInt(42) =>
@@ -1474,8 +1475,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case PCompositeLit(
         PMultisetType(PIntType()),
         PLiteralValue(Vector(
-          PKeyedElement(None, PExpCompositeVal(PIntLit(a))),
-          PKeyedElement(None, PExpCompositeVal(PIntLit(b)))
+          PKeyedElement(None, PExpCompositeVal(PIntLit(a, Decimal))),
+          PKeyedElement(None, PExpCompositeVal(PIntLit(b, Decimal)))
         ))
       ) if a == BigInt(1) && b == BigInt(2) =>
     }
@@ -1499,7 +1500,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PCompositeLit(
           PMultisetType(PIntType()),
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
           ))
         )
       ) if n == BigInt(2) =>
@@ -1512,7 +1513,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PCompositeLit(
           PMultisetType(PIntType()),
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
           ))
         ),
         PCompositeLit(
@@ -1531,7 +1532,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PCompositeLit(
           PMultisetType(PIntType()),
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
           ))
         ),
         PCompositeLit(
@@ -1550,8 +1551,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PCompositeLit(
           PMultisetType(PIntType()),
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n1))),
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n2)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n1, Decimal))),
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n2, Decimal)))
           ))
         ),
         PCompositeLit(
@@ -1749,9 +1750,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PSequenceAppend(
           PCompositeLit(
             PSequenceType(PIntType()),
-            PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(a)))))
+            PLiteralValue(Vector(PKeyedElement(None, PExpCompositeVal(PIntLit(a, Decimal)))))
           ),
-          PRangeSequence(PIntLit(b), PIntLit(c))
+          PRangeSequence(PIntLit(b, Decimal), PIntLit(c, Decimal))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(3) =>
     }
@@ -1798,7 +1799,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a simple range set") {
     frontend.parseExpOrFail("set[1 .. 10]") should matchPattern {
-      case PSetConversion(PRangeSequence(PIntLit(a), PIntLit(b)))
+      case PSetConversion(PRangeSequence(PIntLit(a, Decimal), PIntLit(b, Decimal)))
         if a == BigInt(1) && b == BigInt(10) =>
     }
   }
@@ -1893,7 +1894,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: should be able to parse a slightly more complex multiplicity expression") {
     frontend.parseExpOrFail("x + 2 # seq[int] { n }") should matchPattern {
       case PMultiplicity(
-        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a)),
+        PAdd(PNamedOperand(PIdnUse("x")), PIntLit(a, Decimal)),
         PCompositeLit(
           PSequenceType(PIntType()),
           PLiteralValue(Vector(
@@ -2047,7 +2048,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a simple multiset range expression") {
     frontend.parseExpOrFail("mset[1..10]") should matchPattern {
-      case PMultisetConversion(PRangeSequence(PIntLit(low), PIntLit(high)))
+      case PMultisetConversion(PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)))
         if low == BigInt(1) && high == BigInt(10) =>
     }
   }
@@ -2118,7 +2119,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse a very simple use of the built-in 'len' function") {
     frontend.parseExpOrFail("len(42)") should matchPattern {
-      case PLength(PIntLit(n)) if n == BigInt(42) =>
+      case PLength(PIntLit(n, Decimal)) if n == BigInt(42) =>
     }
   }
 
@@ -2202,7 +2203,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PLiteralValue(Vector(
           PKeyedElement(None, PLitCompositeVal(
             PLiteralValue(Vector(
-              PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+              PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
             ))
           ))
         ))
@@ -2232,7 +2233,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       PLiteralValue(Vector(
         PKeyedElement(None, PLitCompositeVal(
           PLiteralValue(Vector(
-            PKeyedElement(None, PExpCompositeVal(PIntLit(n)))
+            PKeyedElement(None, PExpCompositeVal(PIntLit(n, Decimal)))
           ))
         ))
       ))
@@ -2246,8 +2247,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PSequenceType(PIntType()),
         PLiteralValue(Vector(
           PKeyedElement(
-            Some(PExpCompositeVal(PIntLit(a))),
-            PExpCompositeVal(PIntLit(b))
+            Some(PExpCompositeVal(PIntLit(a, Decimal))),
+            PExpCompositeVal(PIntLit(b, Decimal))
           )
         ))
       ) if a == BigInt(0) && b == BigInt(42) =>
@@ -2260,7 +2261,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
         PSetType(PBoolType()),
         PLiteralValue(Vector(
           PKeyedElement(
-            Some(PExpCompositeVal(PIntLit(a))),
+            Some(PExpCompositeVal(PIntLit(a, Decimal))),
             PExpCompositeVal(PBoolLit(true))
           )
         ))
@@ -2274,8 +2275,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       PMultisetType(PIntType()),
       PLiteralValue(Vector(
         PKeyedElement(
-          Some(PExpCompositeVal(PIntLit(a))),
-          PExpCompositeVal(PIntLit(b))
+          Some(PExpCompositeVal(PIntLit(a, Decimal))),
+          PExpCompositeVal(PIntLit(b, Decimal))
         )
       ))
       ) if a == BigInt(10) && b == BigInt(12) =>
@@ -2298,10 +2299,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("seq([1]int { 2 + 3 })") should matchPattern {
       case PSequenceConversion(
         PCompositeLit(
-          PArrayType(PIntLit(a), PIntType()),
+          PArrayType(PIntLit(a, Decimal), PIntType()),
           PLiteralValue(Vector(
             PKeyedElement(None, PExpCompositeVal(
-              PAdd(PIntLit(b), PIntLit(c))
+              PAdd(PIntLit(b, Decimal), PIntLit(c, Decimal))
             ))
           ))
         )
@@ -2346,7 +2347,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     frontend.parseExpOrFail("seq(a)[2]") should matchPattern {
       case PIndexedExp(
         PSequenceConversion(PNamedOperand(PIdnUse("a"))),
-        PIntLit(i)
+        PIntLit(i, Decimal)
       ) if i == BigInt(2) =>
     }
   }
@@ -2371,7 +2372,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse a simple 'some' (option type) expression") {
     frontend.parseExpOrFail("some(42)") should matchPattern  {
-      case POptionSome(PIntLit(n)) if n == BigInt(42) =>
+      case POptionSome(PIntLit(n, Decimal)) if n == BigInt(42) =>
     }
   }
 
@@ -2522,7 +2523,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should parse channel send statement with an int literal") {
     frontend.parseStmtOrFail("c <- 5") should matchPattern {
-      case PSendStmt(PNamedOperand(PIdnUse("c")), PIntLit(lit)) if lit == 5 =>
+      case PSendStmt(PNamedOperand(PIdnUse("c")), PIntLit(lit, Decimal)) if lit == 5 =>
     }
   }
 
@@ -2543,13 +2544,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // try to parse it as an expression
     equivalences.foreach(testcase => {
       frontend.parseExpOrFail(testcase) should matchPattern {
-        case PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero), PIntLit(five))) if zero == 0 && five == 5 =>
+        case PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero, Decimal), PIntLit(five, Decimal))) if zero == 0 && five == 5 =>
       }
     })
     // try to parse it as a statement
     equivalences.foreach(testcase => {
       frontend.parseStmtOrFail(testcase) should matchPattern {
-        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero), PIntLit(five)))) if zero == 0 && five == 5 =>
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PSub(PIntLit(zero, Decimal), PIntLit(five, Decimal)))) if zero == 0 && five == 5 =>
       }
     })
   }
@@ -2566,13 +2567,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // try to parse it as an expression
     equivalences1.foreach(testcase => {
       frontend.parseExpOrFail(testcase) should matchPattern {
-        case PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero), PIntLit(five))) if zero == 0 && five == 5 =>
+        case PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero, Decimal), PIntLit(five, Decimal))) if zero == 0 && five == 5 =>
       }
     })
     // try to parse it as a statement
     equivalences1.foreach(testcase => {
       frontend.parseStmtOrFail(testcase) should matchPattern {
-        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero), PIntLit(five)))) if zero == 0 && five == 5 =>
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PAdd(PIntLit(zero, Decimal), PIntLit(five, Decimal)))) if zero == 0 && five == 5 =>
       }
     })
     // it works without plus sign as well:
@@ -2586,13 +2587,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // try to parse it as an expression
     equivalences2.foreach(testcase => {
       frontend.parseExpOrFail(testcase) should matchPattern {
-        case PLess(PNamedOperand(PIdnUse("c")), PIntLit(five)) if five == 5 =>
+        case PLess(PNamedOperand(PIdnUse("c")), PIntLit(five, Decimal)) if five == 5 =>
       }
     })
     // try to parse it as a statement
     equivalences2.foreach(testcase => {
       frontend.parseStmtOrFail(testcase) should matchPattern {
-        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PIntLit(five))) if five == 5 =>
+        case PExpressionStmt(PLess(PNamedOperand(PIdnUse("c")), PIntLit(five, Decimal))) if five == 5 =>
       }
     })
   }
@@ -2601,7 +2602,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     // 0xf8 == 248
     val parseRes = frontend.parseExp("string(248)")
     inside (parseRes) {
-      case Right(PInvoke(PStringType(), Vector(PIntLit(value)))) => value should be (0xf8)
+      case Right(PInvoke(PStringType(), Vector(PIntLit(value, Decimal)))) => value should be (0xf8)
     }
   }
 
@@ -2620,6 +2621,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   test("Parser: interpreted string with a quote") {
     frontend.parseExp("\"\\\"\"") should matchPattern {
       case Right(PStringLit("""\"""")) =>
+    }
+  }
+
+  test("Parser: should parse hexadecimal literal") {
+    frontend.parseExpOrFail("0xBadFace" ) should matchPattern {
+      case PIntLit(n, Hexadecimal) if n == BigInt(195951310) =>
     }
   }
 

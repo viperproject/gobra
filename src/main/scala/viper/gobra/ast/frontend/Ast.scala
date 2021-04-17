@@ -14,7 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
-import viper.gobra.util.NumericalBase
+import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -313,7 +313,7 @@ object PLiteral {
     * and type `typ`, with unkeyed elements `exprs`.
     */
   def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
-    PArrayType(PIntLit(exprs.length), typ),
+    PArrayType(PIntLit(exprs.length, Decimal), typ),
     PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
   )
 
@@ -356,7 +356,7 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
 // The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
 // only be read by pretty-printers
-case class PIntLit(lit: BigInt, base: NumericalBase = NumericalBase.Decimal) extends PBasicLiteral with PNumExpression
+case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 

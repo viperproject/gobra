@@ -150,7 +150,7 @@ object Nodes {
           case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
         case l: Lit => l match {
-          case IntLit(_, _) => Seq.empty
+          case IntLit(_, _, _) => Seq.empty
           case BoolLit(_) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty

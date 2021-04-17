@@ -456,6 +456,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
+    case BitwiseNeg(op) => "^" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)

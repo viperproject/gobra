@@ -91,4 +91,13 @@ object Names {
 
   // built-in members
   def builtInMember: String = "built_in"
+
+  // ints
+  def bitwiseAnd: String = "intBitwiseAnd"
+  def bitwiseOr: String = "intBitwiseOr"
+  def bitwiseXor: String = "intBitwiseXor"
+  def bitClear: String = "intBitClear"
+  def shiftLeft: String = "intShiftLeft"
+  def shiftRight: String = "intShiftRight"
+  def bitwiseNeg: String = "intBitwiseNeg"
 }

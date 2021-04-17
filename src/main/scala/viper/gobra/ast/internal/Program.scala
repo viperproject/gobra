@@ -894,6 +894,19 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
+/* Bitwise Operators */
+case class BitwiseAnd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&")
+case class BitwiseOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("|")
+case class BitwiseXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
+case class BitClear(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&^")
+case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("<<") {
+  override val typ: Type = left.typ
+}
+case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
+  override val typ: Type = left.typ
+}
+case class BitwiseNeg(left: Expr)(val info: Source.Parser.Info) extends IntOperation
+
 case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {

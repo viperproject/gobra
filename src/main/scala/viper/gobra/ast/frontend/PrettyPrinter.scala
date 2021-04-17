@@ -247,6 +247,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMulOp() => "*"
     case PDivOp() => "/"
     case PModOp() => "%"
+    case PBitwiseAndOp() => "&"
+    case PBitwiseOrOp() => "|"
+    case PBitwiseXorOp() => "^"
+    case PBitClearOp() => "&^"
+    case PShiftLeftOp() => "<<"
+    case PShiftRightOp() => ">>"
   }
 
   def showIfClause(n: PIfClause): Doc = n match {
@@ -409,6 +415,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
       // partially applied predicates
       case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
+      case PBitwiseAnd(left, right) => showExpr(left) <+> "&" <+> showExpr(right)
+      case PBitwiseOr(left, right) => showExpr(left) <+> "|" <+> showExpr(right)
+      case PBitwiseXor(left, right) => showExpr(left) <+> "^" <+> showExpr(right)
+      case PBitClear(left, right) => showExpr(left) <+> "&^" <+> showExpr(right)
+      case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
+      case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
+      case PBitwiseNegation(exp) => "^" <> showExpr(exp)
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

@@ -492,7 +492,13 @@ object Parser {
         "-" ^^^ PSubOp() |
         "*" ^^^ PMulOp() |
         "/" ^^^ PDivOp() |
-        "%" ^^^ PModOp()
+        "%" ^^^ PModOp() |
+        "&" ^^^ PBitwiseAndOp() |
+        "|" ^^^ PBitwiseOrOp() |
+        "^" ^^^ PBitwiseXorOp() |
+        "&^" ^^^ PBitClearOp() |
+        "<<" ^^^ PShiftLeftOp() |
+        ">>" ^^^ PShiftRightOp()
 
     lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
@@ -713,12 +719,18 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
+        precedence5 ~ ("|" ~> precedence6) ^^ PBitwiseOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitwiseXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
       precedence6 ~ ("*" ~> precedence7) ^^ PMul |
         precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
+        precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
+        precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
+        precedence6 ~ ("&" ~> precedence7) ^^ PBitwiseAnd |
+        precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =
@@ -728,6 +740,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
+        "^" ~> unaryExp ^^ PBitwiseNegation |
         reference |
         dereference |
         receiveExp |

@@ -201,6 +201,18 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
+case class PBitwiseAndOp() extends PAssOp
+
+case class PBitwiseOrOp() extends PAssOp
+
+case class PBitwiseXorOp() extends PAssOp
+
+case class PBitClearOp() extends PAssOp
+
+case class PShiftLeftOp() extends PAssOp
+
+case class PShiftRightOp() extends PAssOp
+
 case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement

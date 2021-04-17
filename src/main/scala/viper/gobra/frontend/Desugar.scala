@@ -853,6 +853,12 @@ object Desugar {
                   case PMulOp() => in.Mul(l.op, r)(src)
                   case PDivOp() => in.Div(l.op, r)(src)
                   case PModOp() => in.Mod(l.op, r)(src)
+                  case PBitwiseAndOp() => in.BitwiseAnd(l.op, r)(src)
+                  case PBitwiseOrOp() => in.BitwiseOr(l.op, r)(src)
+                  case PBitwiseXorOp() => in.BitwiseXor(l.op, r)(src)
+                  case PBitClearOp() => in.BitClear(l.op, r)(src)
+                  case PShiftLeftOp() => in.ShiftLeft(l.op, r)(src)
+                  case PShiftRightOp() => in.ShiftRight(l.op, r)(src)
                 }
               } yield singleAss(l, rWithOp)(src)
 
@@ -1495,6 +1501,14 @@ object Desugar {
           case PMul(left, right) => for {l <- go(left); r <- go(right)} yield in.Mul(l, r)(src)
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
           case PDiv(left, right) => for {l <- go(left); r <- go(right)} yield in.Div(l, r)(src)
+
+          case PBitwiseAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseAnd(l, r)(src)
+          case PBitwiseOr(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseOr(l, r)(src)
+          case PBitwiseXor(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseXor(l, r)(src)
+          case PBitClear(left, right) => for {l <- go(left); r <- go(right)} yield in.BitClear(l, r)(src)
+          case PShiftLeft(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftLeft(l, r)(src)
+          case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
+          case PBitwiseNegation(exp) => for {e <- go(exp)} yield in.BitwiseNeg(e)(src)
 
           case l: PLiteral => litD(ctx)(l)
 

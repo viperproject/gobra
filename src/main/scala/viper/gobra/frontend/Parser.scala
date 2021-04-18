@@ -719,8 +719,8 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
-        precedence5 ~ (exactWord("|") ~> precedence6) ^^ PBitwiseOr |
-        precedence5 ~ (exactWord("^") ~> precedence6) ^^ PBitwiseXor |
+        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitwiseOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitwiseXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
@@ -729,7 +729,7 @@ object Parser {
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
         precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
         precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
-        precedence6 ~ (exactWord("&") ~> precedence7) ^^ PBitwiseAnd |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitwiseAnd |
         precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
         precedence7
 

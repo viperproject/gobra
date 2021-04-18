@@ -2880,7 +2880,7 @@ object Desugar {
       s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }
 
-    def inverse(n: String): String = n.substring(0, n.length-1)
+    def inverse(n: String): String = n.substring(0, n.length - FIELD_PREFIX.length)
 
     def alias(n: String): String = s"${n}_$COPY_PREFIX$fresh"
 

@@ -105,7 +105,7 @@ object Type {
 
   case class ImportT(decl: PImport) extends PrettyType(decl.formatted)
 
-  case object SortT extends PrettyType("sort")
+  case object SortT extends PrettyType("Type")
 
   sealed trait GhostType extends Type
 

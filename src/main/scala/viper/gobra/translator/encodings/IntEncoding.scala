@@ -112,14 +112,15 @@ class IntEncoding extends LeafTypeEncoding {
     )()
 
   private val shiftLeft: vpr.Function = {
-    val left = vpr.LocalVarDecl("left", vpr.Int)()
-    val right = vpr.LocalVarDecl("right", vpr.Int)()
+    val left = vpr.LocalVarDecl("left", vpr.Int)(info = vpr.Synthesized)
+    val right = vpr.LocalVarDecl("right", vpr.Int)(info = vpr.Synthesized)
+    val preCondInfo = vpr.SimpleInfo(Seq("Precondition to << failed, the argument on the right must be non-negative"))
     vpr.Function(
       name = Names.shiftLeft,
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panicks
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(info = preCondInfo)),
       posts = Seq.empty,
       body = None
     )()
@@ -128,12 +129,13 @@ class IntEncoding extends LeafTypeEncoding {
   private val shiftRight: vpr.Function = {
     val left = vpr.LocalVarDecl("left", vpr.Int)()
     val right = vpr.LocalVarDecl("right", vpr.Int)()
+    val preCondInfo = vpr.SimpleInfo(Seq("Precondition to >> failed, the argument on the right must be non-negative"))
     vpr.Function(
       name = Names.shiftRight,
       formalArgs = Seq(left, right),
       typ = vpr.Int,
       // if the value at the right is < 0, it panicks
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(info = preCondInfo)),
       posts = Seq.empty,
       body = None
     )()

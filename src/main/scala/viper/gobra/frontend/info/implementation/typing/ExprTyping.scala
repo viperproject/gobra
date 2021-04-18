@@ -339,14 +339,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (_: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               error(n, s"invalid operation: $n (mismatched types $l and $r)", typeMerge(l, r).isEmpty)
-          case (_: PBitClear, l, r) => ???
+          case (_: PBitClear, _, _) => ???
           case (_: PShiftLeft | _: PShiftRight, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
                 case Some(v) => error(n, s"constant $r overflows uint", v < 0)
                 case None => noMessages
               })
-          case (_: PBitwiseNegation, l, r) => ???
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 

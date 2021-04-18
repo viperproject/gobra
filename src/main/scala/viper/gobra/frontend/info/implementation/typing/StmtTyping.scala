@@ -49,7 +49,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       rights.flatMap(isExpr(_).out) ++ lefts.flatMap(isExpr(_).out) ++
         lefts.flatMap(a => assignable.errors(a)(a)) ++ multiAssignableTo.errors(rights map exprType, lefts map exprType)(n)
 
-    case n@PAssignmentWithOp(right, op@(_: PShiftLeft | _: PShiftRightOp), left) =>
+    case n@PAssignmentWithOp(right, op@(_: PShiftLeftOp | _: PShiftRightOp), left) =>
       isExpr(right).out ++ isExpr(left).out ++
         assignable.errors(left)(n) ++ compatibleWithAssOp.errors(exprType(left), op)(n) ++
         assignableTo.errors(exprType(right), UNTYPED_INT_CONST)(n)

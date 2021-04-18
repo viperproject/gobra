@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, DomainFunction, Embbed, Field, Function, Label, MethodImpl, MethodSpec, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostType, GhostUnorderedCollectionType, IntT, InternalPredicateType, MultisetT, OptionT, PermissionT, PredT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -240,6 +240,34 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
 
     case _: PPermission => PermissionT
+  }
+
+  private[typing] def ghostCompositeLiteralType(t: GhostType, lit: PLiteralValue): Type = {
+    t match {
+      case predicate: InternalPredicateType =>
+        lazy val argsMap = {
+          val (names, types) = predicate.args.unzip
+          names.zip(types.zipWithIndex).toMap
+        }
+        val wildcards = lit.elems.map{
+          case PKeyedElement(None, _: PWildcard) => Some(None)
+          case PKeyedElement(Some(id: PIdentifierKey), _: PWildcard) => Some(argsMap.get(id.id.name))
+          case _ => None
+        }
+        if (wildcards.forall(_.forall(_.nonEmpty))) {
+          // all elements are keyed
+          val pattern = Array.fill[Option[Type]](predicate.args.size)(None)
+          wildcards.foreach{
+            case Some(Some((t, idx))) => pattern.update(idx, Some(t))
+            case _ =>
+          }
+          PredT(pattern.toVector.collect{ case Some(t) => t })
+        } else {
+          PredT(predicate.args.zip(wildcards).collect{ case ((_, t), Some(_)) => t })
+        }
+
+      case t => t
+    }
   }
 
   /**

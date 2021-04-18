@@ -131,30 +131,81 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val compositeValAssignableTo: Property[(PCompositeVal, Type)] = createProperty[(PCompositeVal, Type)] {
     case (PExpCompositeVal(exp), t) => assignableTo.result(exprType(exp), t)
     case (PLitCompositeVal(lit), t) => literalAssignableTo.result(lit, t)
+    case (_: PWildcard, _) => successProp
   }
 
   lazy val literalAssignableTo: Property[(PLiteralValue, Type)] = createProperty[(PLiteralValue, Type)] {
     case (PLiteralValue(elems), Single(typ)) =>
       underlyingType(typ) match {
         case s: StructT =>
-          if (elems.isEmpty) {
-            successProp
-          } else if (elems.exists(_.key.nonEmpty)) {
-            val tmap = s.embedded ++ s.fields
+          assignableToKeyedComposite(elems, (s.embedded ++ s.fields).toVector) and
+            areNoElementsWildcards(elems)
 
-            failedProp("for struct literals either all or none elements must be keyed"
-              , !elems.forall(_.key.nonEmpty)) and
-              propForall(elems, createProperty[PKeyedElement] { e =>
-                e.key.map {
-                  case PIdentifierKey(id) if tmap.contains(id.name) =>
-                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+        case ArrayT(len, t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllKeysWithinBounds(elems, len) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
 
-                  case v => failedProp(s"got $v but expected field name")
-                }.getOrElse(successProp)
-              })
-          } else if (elems.size == s.embedded.size + s.fields.size) {
-            propForall(
-              elems.map(_.exp).zip((s.embedded ++ s.fields).values),/*
+        case SliceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
+
+        case MapT(key, t) =>
+          areAllElementsKeyed(elems) and
+            areAllKeysAssignable(elems, key) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
+
+        case SequenceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
+
+        case SetT(t) =>
+          areNoElementsKeyed(elems) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
+
+        case MultisetT(t) =>
+          areNoElementsKeyed(elems) and
+            areAllElementsAssignable(elems, t) and
+            areNoElementsWildcards(elems)
+
+        case predicate: InternalPredicateType =>
+          assignableToKeyedComposite(elems, predicate.args)
+
+        case t => failedProp(s"cannot assign literal to $t")
+      }
+    case (l, t) => failedProp(s"cannot assign literal $l to $t")
+  }
+
+  private def assignableToKeyedComposite(elems: Vector[PKeyedElement], composite: Vector[(String, Type)]): PropertyResult = {
+    if (elems.isEmpty) {
+      successProp
+    } else if (elems.exists(_.key.nonEmpty)) {
+      val tmap = composite.toMap
+
+      failedProp("Either all or none of the elements must be keyed"
+        , !elems.forall(_.key.nonEmpty)) and
+        propForall(elems, createProperty[PKeyedElement] { e =>
+          e.key.map {
+            case PIdentifierKey(id) if tmap.contains(id.name) =>
+              compositeValAssignableTo.result(e.exp, tmap(id.name))
+
+            case v => failedProp(s"got $v but expected field name")
+          }.getOrElse(successProp)
+        })
+    } else if (elems.size == composite.size) {
+      propForall(
+        elems.map(_.exp).zip(composite.map(_._2)),/*
               elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
                 def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
                   case PEmbeddedDecl(embeddedType, _) => Vector(context.typ(embeddedType))
@@ -166,47 +217,11 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
                   case c: PActualStructClause => clauseInducedTypes(c)
                 }
               }),*/
-              compositeValAssignableTo
-            )
-          } else {
-            failedProp("number of arguments does not match structure")
-          }
-
-        case ArrayT(len, t) =>
-          areAllKeysConstant(elems) and
-            areAllKeysDisjoint(elems) and
-            areAllKeysNonNegative(elems) and
-            areAllKeysWithinBounds(elems, len) and
-            areAllElementsAssignable(elems, t)
-
-        case SliceT(t) =>
-          areAllKeysConstant(elems) and
-            areAllKeysDisjoint(elems) and
-            areAllKeysNonNegative(elems) and
-            areAllElementsAssignable(elems, t)
-
-        case MapT(key, t) =>
-          areAllElementsKeyed(elems) and
-            areAllKeysAssignable(elems, key) and
-            areAllElementsAssignable(elems, t)
-
-        case SequenceT(t) =>
-          areAllKeysConstant(elems) and
-            areAllKeysDisjoint(elems) and
-            areAllKeysNonNegative(elems) and
-            areAllElementsAssignable(elems, t)
-
-        case SetT(t) =>
-          areNoElementsKeyed(elems) and
-            areAllElementsAssignable(elems, t)
-
-        case MultisetT(t) =>
-          areNoElementsKeyed(elems) and
-            areAllElementsAssignable(elems, t)
-
-        case t => failedProp(s"cannot assign literal to $t")
-      }
-    case (l, t) => failedProp(s"cannot assign literal $l to $t")
+        compositeValAssignableTo
+      )
+    } else {
+      failedProp("number of arguments does not match structure")
+    }
   }
 
   def assignableWithinBounds: Property[(Type, PExpression)] = createFlatProperty[(Type, PExpression)] {
@@ -235,6 +250,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     }
     failedProp("expected integers as keys in the literal", condition)
   }
+
+  private def areNoElementsWildcards(elems: Vector[PKeyedElement]): PropertyResult =
+    failedProp("no elements in the literal must be wildcards", elems.exists(_.exp.isInstanceOf[PWildcard]))
 
   private def areNoElementsKeyed(elems : Vector[PKeyedElement]) : PropertyResult =
     failedProp("no elements in the literal must be keyed", elems.exists(_.key.isDefined))

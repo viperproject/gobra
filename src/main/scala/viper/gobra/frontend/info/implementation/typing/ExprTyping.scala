@@ -787,7 +787,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
-    case t: PType => typeSymbType(t)
+    case t: PType =>
+      typeSymbType(t) match {
+        case t: GhostType => ghostCompositeLiteralType(t, lit.lit)
+        case t => t
+      }
+
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {

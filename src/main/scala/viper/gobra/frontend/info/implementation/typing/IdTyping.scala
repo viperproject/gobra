@@ -129,6 +129,13 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     entity(id) match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
       case Import(decl, _) => ImportT(decl)
+      case predicate: Predicate =>
+        InternalPredicateType(predicate.args.zipWithIndex.map{
+          case (p: PNamedParameter, _) => (p.id.name, predicate.context.typ(p))
+          case (p: PUnnamedParameter, idx) => (s"arg$idx", predicate.context.typ(p))
+          case (PExplicitGhostParameter(p: PNamedParameter), _) => (p.id.name, predicate.context.typ(p))
+          case (PExplicitGhostParameter(p: PUnnamedParameter), idx) => (s"arg$idx", predicate.context.typ(p))
+        }, predicate)
       case _ => violation(s"expected type, but got $id")
     }
   }

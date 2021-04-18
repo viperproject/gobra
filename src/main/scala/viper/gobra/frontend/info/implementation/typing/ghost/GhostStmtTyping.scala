@@ -31,7 +31,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
         error(
           acc,
           s"expected a predicate constructor, but got ${acc.pred.base}",
-          !acc.pred.base.isInstanceOf[PPredConstructor])
+          !acc.pred.base.isInstanceOf[PPredConstructor] && !acc.pred.base.isInstanceOf[PCompositeLit])
       case _ => noMessages
     }
 }

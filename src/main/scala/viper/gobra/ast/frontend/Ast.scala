@@ -551,7 +551,7 @@ case class PImplicitSizeArrayType(elem: PType) extends PLiteralType
 
 case class PSliceType(elem: PType) extends PTypeLit with PLiteralType
 
-case class PVariadicType(elem: PType) extends PTypeLit with PLiteralType
+case class PVariadicType(elem: PType) extends PTypeLit
 
 case class PMapType(key: PType, elem: PType) extends PTypeLit with PLiteralType
 
@@ -661,7 +661,7 @@ case class PPkgDef(name: PPkg) extends PDefLikePkg
 case class PPkgUse(name: PPkg) extends PUseLikePkg
 
 
-case class PWildcard() extends PDefLikeId with PUseLikeId with PUnkLikeId {
+case class PWildcard() extends PDefLikeId with PUseLikeId with PUnkLikeId with PCompositeVal {
   override def name: String = "_"
 }
 

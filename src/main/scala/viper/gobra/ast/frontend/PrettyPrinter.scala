@@ -476,6 +476,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showCompositeVal(n: PCompositeVal): Doc = n match {
     case PExpCompositeVal(exp) => showExpr(exp)
     case PLitCompositeVal(l) => showLiteralValue(l)
+    case _: PWildcard => "_"
   }
 
   def showLiteralValue(lit: PLiteralValue): Doc =

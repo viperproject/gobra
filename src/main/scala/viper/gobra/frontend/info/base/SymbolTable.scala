@@ -182,11 +182,15 @@ object SymbolTable extends Environments[Entity] {
 
   sealed trait GhostDataEntity extends DataEntity with GhostRegular
 
-  sealed trait Predicate extends GhostDataEntity with WithArguments
+  sealed trait Predicate extends GhostDataEntity with WithArguments {
+    def name: String
+    def context: ExternalTypeInfo
+  }
 
   case class FPredicate(decl: PFPredicateDecl, context: ExternalTypeInfo) extends Predicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+    override val name: String = decl.id.name
   }
 
   sealed trait GhostConstant extends Constant with GhostDataEntity
@@ -205,12 +209,14 @@ object SymbolTable extends Environments[Entity] {
   case class MPredicateImpl(decl: PMPredicateDecl, context: ExternalTypeInfo) extends MPredicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
+    override val name: String = decl.id.name
   }
 
   case class MPredicateSpec(decl: PMPredicateSig, itfDef: PInterfaceType, context: ExternalTypeInfo) extends MPredicate {
     override def rep: PNode = decl
     override val args: Vector[PParameter] = decl.args
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
+    override val name: String = decl.id.name
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember

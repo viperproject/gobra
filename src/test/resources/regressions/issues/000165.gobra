@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue165
+
+pred eq(x *int, y *int) {
+	x == y
+}
+
+func test() {
+	x@ := 1
+	fold eq{&x, _}(&x) // Odd syntax!
+}
+

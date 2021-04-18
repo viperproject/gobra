@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import viper.gobra.ast.frontend.{PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.SymbolTable.Predicate
 import viper.gobra.util.TypeBounds
 
 import scala.collection.immutable.ListMap
@@ -75,8 +76,6 @@ object Type {
 
   case class FunctionT(args: Vector[Type], result: Type) extends Type
 
-  case class PredT(args: Vector[Type]) extends Type
-
   // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends Type {
 
@@ -98,6 +97,10 @@ object Type {
   sealed trait GhostType extends Type
 
   case object AssertionT extends GhostType
+
+  case class PredT(args: Vector[Type]) extends GhostType
+
+  case class InternalPredicateType(args: Vector[(String, Type)], pred: Predicate) extends GhostType
 
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type

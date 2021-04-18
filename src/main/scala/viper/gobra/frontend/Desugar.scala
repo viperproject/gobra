@@ -195,6 +195,11 @@ object Desugar {
       in.FPredicateProxy(name)(meta(id))
     }
 
+    def fpredicateProxy(symb: st.FPredicate): in.FPredicateProxy = {
+      val name = idName(symb.decl.id, symb.context.getTypeInfo)
+      in.FPredicateProxy(name)(meta(symb.decl, symb.context.getTypeInfo))
+    }
+
     def mpredicateProxyD(decl: PMPredicateDecl): in.MPredicateProxy = {
       val name = idName(decl.id)
       in.MPredicateProxy(decl.id.name, name)(meta(decl))
@@ -208,6 +213,25 @@ object Desugar {
     def mpredicateProxyD(id: PIdnUse): in.MPredicateProxy = {
       val name = idName(id)
       in.MPredicateProxy(id.name, name)(meta(id))
+    }
+
+    def mpredicateProxy(symb: st.MPredicate): in.MPredicateProxy = {
+      symb match {
+        case symb: st.MPredicateImpl =>
+          val name = idName(symb.decl.id, symb.context.getTypeInfo)
+          in.MPredicateProxy(symb.decl.id.name, name)(meta(symb.decl, symb.context.getTypeInfo))
+
+        case symb: st.MPredicateSpec =>
+          val name = idName(symb.decl.id, symb.context.getTypeInfo)
+          in.MPredicateProxy(symb.decl.id.name, name)(meta(symb.decl, symb.context.getTypeInfo))
+      }
+    }
+
+    def predicateProxy(symb: st.Predicate): in.PredicateProxy = {
+      symb match {
+        case symb: st.FPredicate => fpredicateProxy(symb)
+        case symb: st.MPredicate => mpredicateProxy(symb)
+      }
     }
 
 
@@ -1757,7 +1781,7 @@ object Desugar {
       case l: in.MultisetLit => in.CompositeObject.Multiset(l)
     }
 
-    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
+    def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.Expr] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
         val arrayLen : BigInt = lit.lit.elems.length
@@ -1765,8 +1789,24 @@ object Desugar {
         literalValD(ctx)(lit.lit, in.ArrayT(arrayLen, arrayTyp, Addressability.literal))
 
       case t: PType =>
-        val it = typeD(info.symbType(t), Addressability.literal)(meta(lit))
-        literalValD(ctx)(lit.lit, it)
+        val symT = info.symbType(t)
+        val src = meta(lit)
+
+        symT match {
+          case ipt: InternalPredicateType =>
+            val composite = ipt.args.map{ case (k, v) => (k, typeD(v, Addressability.inParameter)(src))}
+            val wArgs = unkeyCompositeD(ctx)(lit.lit, composite)
+            for {
+              dArgs <- sequence(wArgs.map { x => option(x.toOption) })
+              idT = in.PredT(ipt.args.map(p => typeD(p._2, Addressability.rValue)(src)), Addressability.rValue)
+              proxy = predicateProxy(ipt.pred)
+            } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+
+
+          case symT =>
+            val it = typeD(symT, Addressability.literal)(src)
+            literalValD(ctx)(lit.lit, it)
+        }
 
       case _ => ???
     }
@@ -1820,6 +1860,7 @@ object Desugar {
       val e = expr match {
         case PExpCompositeVal(e) => exprD(ctx)(e)
         case PLitCompositeVal(lit) => literalValD(ctx)(lit, typ)
+        case _: PWildcard => unit(in.DfltVal(typ)(meta(expr)))
       }
       e map { exp => implicitConversion(exp.typ, typ, exp) }
     }
@@ -1829,45 +1870,15 @@ object Desugar {
 
       compositeTypeD(t) match {
 
-        case CompositeKind.Struct(it, ist) => {
-          val fields = ist.fields
-
-          if (lit.elems.exists(_.key.isEmpty)) {
-            // all elements are not keyed
-            val wArgs = fields.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
-              case PExpCompositeVal(ev) => exprD(ctx)(ev)
-              case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
-            }}
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.StructLit(it, args)(src)
-
-          } else { // all elements are keyed
-            // maps field names to fields
-            val fMap = fields.map(f => nm.inverse(f.name) -> f).toMap
-            // maps fields to given value (if one is given)
-            val vMap = lit.elems.map {
-              case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
-                val f = fMap(key.name)
-                exp match {
-                  case PExpCompositeVal(ev) => f -> exprD(ctx)(ev)
-                  case PLitCompositeVal(lv) => f -> literalValD(ctx)(lv, f.typ)
-                }
-
-              case _ => Violation.violation("expected identifier as a key")
-            }.toMap
-            // list of value per field
-            val wArgs = fields.map {
-              case f if vMap.isDefinedAt(f) => vMap(f)
-              case f => unit(in.DfltVal(f.typ)(src))
-            }
-
-            for {
-              args <- sequence(wArgs)
-            } yield in.StructLit(it, args)(src)
+        case CompositeKind.Struct(it, ist) =>
+          val composite = ist.fields.map(f => (f.name, f.typ))
+          val wArgs = unkeyCompositeD(ctx)(lit, composite).map{
+            case Right(w) => w
+            case Left((_, t)) => unit(in.DfltVal(t)(meta(lit)))
           }
-        }
+          for {
+            args <- sequence(wArgs)
+          } yield in.StructLit(it, args)(src)
 
         case CompositeKind.Array(in.ArrayT(len, typ, addressability)) =>
           Violation.violation(addressability == Addressability.literal, "Literals have to be exclusive")
@@ -1892,6 +1903,43 @@ object Desugar {
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
+      }
+    }
+
+    def unkeyCompositeD(ctx: FunctionContext)(lit: PLiteralValue, composite: Vector[(String, in.Type)]): Vector[Either[(String, in.Type), Writer[in.Expr]]] = {
+      if (lit.elems.exists(_.key.isEmpty)) {
+        // all elements are not keyed
+        val wArgs = composite.zip(lit.elems).map { case (f, PKeyedElement(_, exp)) => exp match {
+          case PExpCompositeVal(ev) => Right(exprD(ctx)(ev))
+          case PLitCompositeVal(lv) => Right(literalValD(ctx)(lv, f._2))
+          case _: PWildcard => Left(f)
+        }}
+
+        wArgs
+
+      } else { // all elements are keyed
+        // maps field names to fields
+        val fMap = composite.map(f => f._1 -> f).toMap
+        // maps fields to given value (if one is given)
+        val vMap = lit.elems.map {
+          case PKeyedElement(Some(PIdentifierKey(key)), exp) =>
+            val f = fMap(key.name)
+            exp match {
+              case PExpCompositeVal(ev) => f -> Right(exprD(ctx)(ev))
+              case PLitCompositeVal(lv) => f -> Right(literalValD(ctx)(lv, f._2))
+              case _: PWildcard => f -> Left(f)
+            }
+
+          case _ => Violation.violation("expected identifier as a key")
+        }.toMap
+
+        // list of value per field
+        val wArgs = composite.map {
+          case f if vMap.isDefinedAt(f) => vMap(f)
+          case f => Left(f)
+        }
+
+        wArgs
       }
     }
 

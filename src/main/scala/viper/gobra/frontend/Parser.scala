@@ -897,7 +897,7 @@ object Parser {
       }
 
     lazy val compositeVal: Parser[PCompositeVal] =
-      expCompositeLiteral | litCompositeLiteral
+      expCompositeLiteral | litCompositeLiteral | wildcard
 
     lazy val expCompositeLiteral: Parser[PExpCompositeVal] =
       expression ^^ PExpCompositeVal
@@ -1050,7 +1050,7 @@ object Parser {
         implicitSizeArrayType |
         mapType |
         structType |
-        qualifiedType |
+        selection |
         ghostTypeLit |
         declaredType
 

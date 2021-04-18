@@ -1793,7 +1793,7 @@ object Desugar {
         val src = meta(lit)
 
         symT match {
-          case ipt: InternalPredicateType =>
+          case ipt: InternalNamedPredicateType =>
             val composite = ipt.args.map{ case (k, v) => (k, typeD(v, Addressability.inParameter)(src))}
             val wArgs = unkeyCompositeD(ctx)(lit.lit, composite)
             for {
@@ -1802,6 +1802,16 @@ object Desugar {
               proxy = predicateProxy(ipt.pred)
             } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
 
+          case ipt: InternalReceivedPredicateType =>
+            val composite = ipt.args.map{ case (k, v) => (k, typeD(v, Addressability.inParameter)(src))}
+            val wArgs = unkeyCompositeD(ctx)(lit.lit, composite)
+            val dRecv = pureExprD(ctx)(ipt.recv.recv)
+            val dRecvWithPath = applyMemberPathD(dRecv, ipt.recv.path)(src)
+            for {
+              dArgs <- sequence(wArgs.map { x => option(x.toOption) })
+              idT = in.PredT(dRecvWithPath.typ +: ipt.args.map(p => typeD(p._2, Addressability.rValue)(src)), Addressability.rValue)
+              proxy = predicateProxy(ipt.pred)
+            } yield in.PredicateConstructor(proxy, idT, Some(dRecvWithPath) +: dArgs)(src)
 
           case symT =>
             val it = typeD(symT, Addressability.literal)(src)
@@ -1871,7 +1881,7 @@ object Desugar {
       compositeTypeD(t) match {
 
         case CompositeKind.Struct(it, ist) =>
-          val composite = ist.fields.map(f => (f.name, f.typ))
+          val composite = ist.fields.map(f => (nm.inverse(f.name), f.typ))
           val wArgs = unkeyCompositeD(ctx)(lit, composite).map{
             case Right(w) => w
             case Left((_, t)) => unit(in.DfltVal(t)(meta(lit)))

@@ -1050,9 +1050,10 @@ object Parser {
         implicitSizeArrayType |
         mapType |
         structType |
-        selection |
+        qualifiedType |
         ghostTypeLit |
-        declaredType
+        declaredType |
+        "(" ~> selection <~ ")" // simple solution to avoid ambiguities
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType

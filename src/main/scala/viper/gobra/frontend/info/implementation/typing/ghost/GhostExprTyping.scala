@@ -8,9 +8,10 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, DomainFunction, Embbed, Field, Function, Label, MethodImpl, MethodSpec, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostType, GhostUnorderedCollectionType, IntT, InternalPredicateType, MultisetT, OptionT, PermissionT, PredT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.SymbolTable.{Constant, DomainFunction, Embbed, Field, Function, Label, MPredicate, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Predicate, Variable}
+import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostType, GhostUnorderedCollectionType, IntT, InternalNamedPredicateType, InternalPredicateType, InternalReceivedPredicateType, MultisetT, OptionT, PermissionT, PredT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -245,6 +246,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def ghostCompositeLiteralType(t: GhostType, lit: PLiteralValue): Type = {
     t match {
       case predicate: InternalPredicateType =>
+        // same for received predicates because their base does not contribute to the final type
         lazy val argsMap = {
           val (names, types) = predicate.args.unzip
           names.zip(types.zipWithIndex).toMap
@@ -266,8 +268,71 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           PredT(predicate.args.zip(wildcards).collect{ case ((_, t), Some(_)) => t })
         }
 
+
       case t => t
     }
+  }
+
+  private[typing] def symbPredicateType(pattern: ap.PredicateKind): Type = {
+
+    pattern match {
+      case p: ap.Predicate => symbPredicateType(p.symb)
+
+      case p: ap.ReceivedPredicate =>
+        val argsNameWithType = p.symb.args.map(internalPredicateParameter(_, p.symb.context))
+        InternalReceivedPredicateType(makeInternalPredicateType(argsNameWithType), p)
+
+      case p: ap.PredicateExpr =>
+        // TODO: check that the path is fine (path should be empty except underlying types)
+        val argsNameWithType = p.symb.args.map(internalPredicateParameter(_, p.symb.context))
+        val recvNameWithType = internalPredicateReceiver(p.symb)
+        InternalNamedPredicateType(makeInternalPredicateType(recvNameWithType +: argsNameWithType), p.symb)
+
+      case p: ap.ImplicitlyReceivedInterfacePredicate =>
+        val argsNameWithType = p.symb.args.map(internalPredicateParameter(_, p.symb.context))
+        val recvNameWithType = internalPredicateReceiver(p.symb)
+        InternalNamedPredicateType(makeInternalPredicateType(recvNameWithType +: argsNameWithType), p.symb)
+
+      case _: ap.PredExprInstance => violation("a predicate expression instance is not a type (and cannot be used as the base of another predicate expression)")
+
+      case _: ap.BuiltInPredicateKind => ???
+    }
+  }
+
+  private def internalPredicateParameter(p: PParameter, context: ExternalTypeInfo): (Option[String], Type) = {
+    val name = p match {
+      case p: PNamedParameter => Some(p.id.name)
+      case _: PUnnamedParameter => None
+      case PExplicitGhostParameter(p: PNamedParameter) => Some(p.id.name)
+      case PExplicitGhostParameter(_: PUnnamedParameter) => None
+    }
+    (name, context.typ(p))
+  }
+
+  private def internalPredicateReceiver(p: MPredicate): (Option[String], Type) = {
+    def aux(recv: PReceiver): (Option[String], Type) = {
+      recv match {
+        case recv: PNamedReceiver => (Some(recv.id.name), p.context.typ(recv))
+        case _: PUnnamedReceiver => (None, p.context.typ(recv))
+      }
+    }
+
+    p match {
+      case p: MPredicateImpl => aux(p.decl.receiver)
+      case p: MPredicateSpec => (None, p.itfType)
+    }
+  }
+
+  private def makeInternalPredicateType(nameWithType: Vector[(Option[String], Type)]): Vector[(String, Type)] = {
+    nameWithType.zipWithIndex.map{
+      case ((Some(n), t), _) => (n, t)
+      case ((None, t), idx) => (s"arg$idx", t)
+    }
+  }
+
+  private[typing] def symbPredicateType(predicate: Predicate): Type = {
+    val nameWithType = predicate.args.map(internalPredicateParameter(_, predicate.context))
+    InternalNamedPredicateType(makeInternalPredicateType(nameWithType), predicate)
   }
 
   /**

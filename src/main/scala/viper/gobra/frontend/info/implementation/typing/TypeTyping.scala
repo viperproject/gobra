@@ -133,6 +133,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PDot =>
       resolve(n) match {
         case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
+        case Some(p: ap.PredicateKind) => symbPredicateType(p)
         case _ => violation(s"expected type, but got $n")
       }
   }

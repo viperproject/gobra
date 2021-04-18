@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{AstPattern, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.frontend.info.base.SymbolTable.Predicate
 import viper.gobra.util.TypeBounds
@@ -100,7 +100,14 @@ object Type {
 
   case class PredT(args: Vector[Type]) extends GhostType
 
-  case class InternalPredicateType(args: Vector[(String, Type)], pred: Predicate) extends GhostType
+  sealed trait InternalPredicateType extends GhostType {
+    def args: Vector[(String, Type)]
+    def pred: Predicate
+  }
+  case class InternalNamedPredicateType(args: Vector[(String, Type)], pred: Predicate) extends InternalPredicateType
+  case class InternalReceivedPredicateType(args: Vector[(String, Type)], recv: AstPattern.ReceivedPredicate) extends InternalPredicateType {
+    override def pred: Predicate = recv.symb
+  }
 
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type

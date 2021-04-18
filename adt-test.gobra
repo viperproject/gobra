@@ -1,5 +1,13 @@
 package main
 
+type Test struct {
+    a, b int
+}
+
+type Node struct {
+    a, b, c int
+}
+
 type Tree adt {
 
     Node{
@@ -10,16 +18,9 @@ type Tree adt {
     Leaf{}
 }
 
-
-type Test struct {
-    a, b int
-}
-
-
 func main() {
-    Node := 1
 
-    structTest := Test{1, 2}
+    structTest := Node{1, 2, 3}
     val := structTest.a
     test := Tree.Node{0, Leaf{}, Leaf{}}
     test2 := Tree.Node{20, test, test}

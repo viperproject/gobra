@@ -159,7 +159,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
     case id: PIdnDef if doesAddEntry(id) && !isUnorderedDef(id) =>
 
-      if (isDefinedInEnv(out(id), serialize(id))) {
+      if (isDefinedInScope(out(id), serialize(id))) {
         val ent = lookup(out(id),serialize(id),UnknownEntity())
         ent match {
           case _ : AdtClause =>
@@ -192,16 +192,8 @@ trait NameResolution { this: TypeInfoImpl =>
           case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PFunctionDecl => Vector(d.id)
-          case d: PTypeDecl => Vector(d.left) ++ adtClauses(d.right)
+          case d: PTypeDecl => Vector(d.left)
           case _: PMethodDecl => Vector.empty
-        }
-
-        def adtClauses(t: PType): Vector[PIdnDef] = t match {
-          case t: PAdtType => t.clauses.flatMap(f => {
-            f.args.flatMap(f => f.fields.map(_.id)) :+ f.id
-          })
-
-          case _ => Vector.empty
         }
 
         m match {
@@ -212,7 +204,6 @@ trait NameResolution { this: TypeInfoImpl =>
           case _: PImplementationProof => Vector.empty
         }
       }
-
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
@@ -240,8 +231,34 @@ trait NameResolution { this: TypeInfoImpl =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
     }
 
-    shallowDefs(n).foldLeft(env) {
+    def weakShallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
+      case n: PPackage => n.declarations flatMap { m =>
+
+        def adtClauses(t: PType): Vector[PIdnDef] = t match {
+          case t: PAdtType => t.clauses.flatMap(f => {
+            f.args.flatMap(f => f.fields.map(_.id)) :+ f.id
+          })
+
+          case _ => Vector.empty
+        }
+
+        m match {
+          case t: PTypeDecl => adtClauses(t.right)
+
+          case _ => Vector.empty
+        }
+
+        }
+
+      case _ => Vector.empty
+    }
+
+    val shallowEnv = shallowDefs(n).foldLeft(env) {
       case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
+    }
+
+    weakShallowDefs(n).foldLeft(shallowEnv) {
+      case (e, id) => if (!isDefinedInScope(e, id.name)) defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id)) else e
     }
   }
 

@@ -92,6 +92,9 @@ object Util{
 				} 
 				
 			}
+			case LitSliceEntry(typ, begin, end, values) => {val sbegin = if(begin==0) "" else s"$begin";
+															val send =if(end==values.length-1)""else s"$end";
+															 s"[$sbegin:$send]${prettyPrint(LitSeqEntry(SequenceT(typ),values),0)}"}
 			case v:WithSeq => {
 				v.values.headOption match {//todo figure out why this does not work (maybe we dont even need it...)
 					case Some(LitStructEntry(_,_)) =>  s"[\n$predent${v.values.map(x=>prettyPrint(x,level+1)).mkString(s",\n$predent")}\n$postdent]"
@@ -172,7 +175,7 @@ case class LitMSetEntry(values:Set[LitEntry])extends LitEntry {
 case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry with WithSeq{
 	override def toString(): String = Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
-case class LitSliceEntry(typ:SliceT,values:Seq[LitEntry]) extends LitEntry with WithSeq{
+case class LitSliceEntry(typ:SliceT,begin:BigInt,end:BigInt,values:Seq[LitEntry]) extends LitEntry with WithSeq{
 	override def toString(): String =  Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
 case class LitSeqEntry(typ:SequenceT,values:Seq[LitEntry])extends LitEntry with WithSeq{
@@ -186,7 +189,7 @@ case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEnt
 
 }
 case class LitStringEntry(value:String) extends LitEntry{
-	override def toString() :String =s"\"${value}\""
+	override def toString() :String =s"${'"'}${value}${'"'}"
 }
 case class LitPointerEntry(typ:Type,value:LitEntry)extends LitEntry {
 	override def toString(): String = s"*->$value" 

@@ -25,15 +25,21 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val pointerInterpreter : sil.ModelInterpreter[GobraModelEntry,PointerT] = PointerInterpreter(c)
 	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
 		entry match{
-			case sil.LitIntEntry(v) => LitIntEntry(v)
+			case sil.LitIntEntry(v) => info match {
+												case StringT => StringInterpreter(c).interpret(entry,null)
+												case _ =>LitIntEntry(v)
+										}
 			case sil.LitBoolEntry(b) => LitBoolEntry(b)
 			case sil.LitPermEntry(p) => LitPermEntry(p)
 			case _:sil.NullRefEntry => LitNilEntry()
 			case v:sil.VarEntry => interpret(c.extractVal(v),info)//TODO:make shure this does not pingpong
-			case d:sil.DomainValueEntry => info match {//TODO: More interpreters
+			case d:sil.DomainValueEntry => if(d.getDomainName.contains("Embfn$$")){//TODO: get name from Names
+											boxInterpreter.interpret(d,info)
+										}else{
+											info match {//TODO: More interpreters
 												case t:OptionT => optionInterpreter.interpret(d,t)
 												case t:StructT =>  productInterpreter.interpret(d,t)
-												case t:ArrayT => if(d.getDomainName.contains("$$")) boxInterpreter.interpret(d,t) else indexedInterpreter.interpret(d,t)
+												case t:ArrayT => indexedInterpreter.interpret(d,t)
 												case t:SliceT => sliceInterpreter.interpret(d,t)
 												case DeclaredT(d,c) => val name = d.left.name
 																		val actual = interpret(entry,c.symbType(d.right)) match {
@@ -42,14 +48,21 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		}
 																		LitDeclaredEntry(name,actual)
 												case _ => DummyEntry()
-											}
+											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
 			case r:sil.RefEntry => info match{
 										case p:PointerT => pointerInterpreter.interpret(r,p)
 										case _ => FaultEntry(s"${r.fields}: $info")
 									} 
 			case rr:sil.RecursiveRefEntry => DummyEntry()
-			case s:sil.SeqEntry => FaultEntry("Sequence sould not be unboxed...")
+			case s:sil.SeqEntry => 	info match {
+										case a:ArrayT =>  LitArrayEntry(a,s.values.map(x=> interpret(x,a.elem)
+																						match {case l:LitEntry=> l;
+																								case _ => FaultEntry("Could not resolve Element")
+																						})
+																		)
+										case _ => DummyEntry()
+										}
 			case _ => FaultEntry("illegal call of interpret")
 		}
 	}
@@ -126,34 +139,20 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 }
 //experimental (somehow the thing does not work...)
 case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
+	//TODO: replace with Names
 	def unboxFunc(domain:String) = s"unbox_$domain"
 	def boxFunc(domain:String) = s"box_$domain"
 	def interpret(entry:sil.DomainValueEntry,info:Type):GobraModelEntry={
 		val functions = c.non_domain_functions
 		val unbox = functions.find(_.fname==unboxFunc(entry.domain))
 		val box = functions.find(_.fname==boxFunc(entry.domain))
-		
-		//printf(s"$box \n $unbox")
 		if(unbox.isDefined){
-			//printf(s"$entry")
-			val unboxed = Right(unbox.get.default) match{ //unboxing has some strange behaviour snaps and such
+			val unboxed : sil.ExtractedModelEntry= unbox.get.apply(Seq(entry)) match{ //unboxing has some strange behaviour snaps and such
 					case Right(v:sil.VarEntry) => c.extractVal(v)
 					case Right(x) => x
-					case _ => FaultEntry(s"wrong application of function $unbox")
+					case _ => return FaultEntry(s"wrong application of function $unbox")
 			} 
-			unboxed match{
-				case x:sil.SeqEntry => info match{
-													case a:ArrayT => LitArrayEntry(a,
-																		x.values.map(y=>MasterInterpreter(c).interpret(y,a.elem)  match {
-																			case l:LitEntry => l
-																			case _ => FaultEntry("not a lit entry")
-																		}))
-													case _ => DummyEntry()
-													}
-				case d:sil.DomainValueEntry => MasterInterpreter(c).interpret(d,info) // maybe we unboxed something else
-				case _=> FaultEntry(s"$unboxed not a box entry...")
-			}
-			//MasterInterpreter(c).interpret(unboxed,UnknownType)
+			MasterInterpreter(c).interpret(unboxed,info)
 		}else{
 			FaultEntry(s"${unboxFunc(entry.domain)} not found")
 		}
@@ -241,7 +240,7 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 					case x:LitArrayEntry => x
 					case _=> return FaultEntry("not an array")
 				}
-				LitSliceEntry(info,original.values.drop(offset.toInt).take(length.toInt))
+				LitSliceEntry(info,offset,offset+length,original.values.drop(offset.toInt).take(length.toInt))
 			}else{
 				FaultEntry(s"functions ($sarray ,$soffset, $slen) not found")
 			}
@@ -255,5 +254,40 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 case class PointerInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,PointerT]{
 	def interpret(entry:sil.ExtractedModelEntry,info:PointerT): GobraModelEntry ={
 		DummyEntry()
+	}
+}
+case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,Any]{
+	val stringDomain = "String" //TODO: fix Names
+	val prefix ="stringLit"
+	def interpret(entry:sil.ExtractedModelEntry,info:Any): GobraModelEntry ={
+		val doms = c.domains.find(_.valueName==stringDomain)
+		if(doms.isDefined){
+			val functions:Seq[sil.ExtractedFunction]=doms.get.functions
+			entry match{
+				case e:sil.LitIntEntry => functions.find(x=>x.fname.startsWith(prefix)&&x.default==e) match {
+					case Some(f) => { val hex :String= f.fname.stripPrefix(prefix)
+									val value = hexToChar(toArray(hex))
+									LitStringEntry(value)
+
+								}
+					case _=>  FaultEntry("string literal not found")
+				}
+
+				case _=>  FaultEntry("could not resolve string because not an Int Entry")
+			}
+		}else{
+			FaultEntry("could not resolve string")
+		}
+	}
+	def hexToChar(input:Seq[String]):String ={
+		input.map(Integer.parseInt(_,16)).map(_.toChar).mkString
+	}
+	def toArray(input:String) : Seq[String] ={
+		if(input=="") Seq()
+		else if(input.size<2) throw new IllegalArgumentException()
+		else {
+			val (first,second) = input.splitAt(2)
+			Seq(first)++toArray(second)
+		}
 	}
 }

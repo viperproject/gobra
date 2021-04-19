@@ -118,14 +118,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
       for {
         vLhs <- ctx.expr.translate(lhs)(ctx)
         vRhs <- ctx.expr.translate(rhs)(ctx)
-        _ <- assert(
-          vpr.Or(
-            isComparabeInterface(vLhs)(pos, info, errT)(ctx),
-            isComparabeInterface(vRhs)(pos, info, errT)(ctx)
-          )(pos, info, errT),
-          errorT
-        )
-      } yield vpr.EqCmp(vLhs, vRhs)(pos, info, errT): vpr.Exp
+        cond = vpr.Or(
+          isComparabeInterface(vLhs)(pos, info, errT)(ctx),
+          isComparabeInterface(vRhs)(pos, info, errT)(ctx)
+        )(pos, info, errT)
+        res <- assert(cond, vpr.EqCmp(vLhs, vRhs)(pos, info, errT), errorT)(ctx)
+      } yield  res
   }
 
   /**
@@ -186,12 +184,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
           arg <- goE(exp)
           dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
           staticType = types.typeToExpr(t)(pos, info, errT)(ctx)
-          _ <- assert(types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx), errorT)
+          cond  = types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx)
           res = t match {
             case ctx.Interface(_) => arg
             case _ => valueOf(arg, ctx.typeEncoding.typ(ctx)(t))(pos, info, errT)(ctx)
           }
-        } yield res
+          resWithCheck <- assert(cond, res, errorT)(ctx)
+        } yield resWithCheck
 
       case n@ in.TypeOf(exp :: ctx.Interface(itf)) =>
         val (pos, info, errT) = n.vprMeta

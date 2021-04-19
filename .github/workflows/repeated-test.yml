@@ -7,6 +7,7 @@
 name: repeated-test
 
 on:
+  push: # run this workflow on every push
   workflow_dispatch: # allow to manually trigger this workflow
 
 jobs:

@@ -9,6 +9,11 @@ name: repeated-test
 on:
   push: # run this workflow on every push
   workflow_dispatch: # allow to manually trigger this workflow
+    inputs:
+      iterations:
+        description: 'Number of iterations to be executed'
+        required: true
+        default: 10
 
 jobs:
   setup-and-run:
@@ -79,7 +84,7 @@ jobs:
       - name: Run test
         run: |
           n=0
-          while [ "$n" -lt 10 ]; do
-              sbt run -i src/test/resources/regressions/examples/parallel_search_replace.gobra
+          while [ "$n" -lt ${{ github.event.inputs.iterations }} ]; do
+              sbt "run -i src/test/resources/regressions/examples/parallel_search_replace.gobra"
           done
         working-directory: gobra

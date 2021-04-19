@@ -27,6 +27,7 @@ sealed trait PNode extends Product {
   def pretty(prettyPrinter: PrettyPrinter = PNode.defaultPrettyPrinter): String = prettyPrinter.format(this)
 
   lazy val formatted: String = pretty()
+  lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
 
   override def toString: String = formatted
 }
@@ -34,6 +35,7 @@ sealed trait PNode extends Product {
 object PNode {
   type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
+  val shortPrettyPrinter = new ShortPrettyPrinter
 }
 
 sealed trait PScope extends PNode

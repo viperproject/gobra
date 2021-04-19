@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue134
+
+func bad() {
+  var x interface{} = struct{ left, right int }{1, 2}
+  y := x.(struct{ left, right int })
+}
+
+func bad2() {
+  var x interface{} = struct{ right, left int }{1, 2}
+  //:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+  y := x.(struct{ left, right int })
+}
+
+
+func bad3() {
+  var x interface{} = struct{ left, right int }{1, 2}
+  //:: ExpectedOutput(type_assertion_error:failed_type_assertion)
+  y := x.(struct{ left, middle int })
+}
+

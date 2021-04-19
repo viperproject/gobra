@@ -15,6 +15,9 @@ on:
         required: true
         default: 10
 
+env:
+  ITERATIONS: ${{ github.event.inputs.iterations }}
+
 jobs:
   setup-and-run:
     runs-on: ubuntu-latest
@@ -81,10 +84,14 @@ jobs:
           # disabled caching of compiled source files altogether
           key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
 
+      - name: Get number of iterations
+        if: github.event_name != 'workflow_dispatch'
+        run: echo "ITERATIONS=10" >> $GITHUB_ENV
+
       - name: Run test
         run: |
           n=0
-          while [ "$n" -lt ${{ github.event.inputs.iterations }} ]; do
+          while [ "$n" -lt "$ITERATIONS" ]; do
               sbt "run -i src/test/resources/regressions/examples/parallel_search_replace.gobra"
           done
         working-directory: gobra

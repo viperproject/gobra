@@ -146,3 +146,101 @@ case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
 		}
 	}
 }
+case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[ArrayT] {
+	def lenName(d:String) = s"${d}len" //TODO : replace with Name
+	def index(d:String) = s"${d}loc"
+	def interpret(entry:sil.DomainValueEntry,info:ArrayT) :GobraModelEntry ={
+		val doms = c.domains.find(_.valueName==entry.domain)
+		if(doms.isDefined){
+			//printf(s"${doms.get}")
+			val functions:Seq[sil.ExtractedFunction] =doms.get.functions
+			val lengthFunc = functions.find(_.fname==lenName(doms.get.name))
+			val length = lengthFunc match{
+				case Some(value) => value.apply(Seq(entry)) match{
+					case Right(i:sil.LitIntEntry) => i.value
+					case _=> return FaultEntry("length ill defined")
+				}
+				case None =>  return FaultEntry("length not found")
+			}
+			//require(length==info.length) this cannot be enforced because we do not always know the array length ahead of time
+			val offsetFunc = functions.find(_.fname==index(doms.get.name))
+			if(offsetFunc.isDefined){
+				val indexFunc = offsetFunc.get
+				val values = 0.until(length.toInt-1).map(i=>{
+				val x = indexFunc.apply(Seq(entry,sil.LitIntEntry(i))) match{
+					case Right(x) => MasterInterpreter(c).interpret(x,info.elem) match {
+						case x:LitEntry => x
+						case _ => FaultEntry("not a literal")
+					}
+					case _=> return FaultEntry("could not resolve")
+				}
+				x
+				})
+				LitArrayEntry(info,values)
+			}else{
+				FaultEntry(s"offset not found")
+			}
+			
+		}else{
+			FaultEntry(s"could not relsove domain: ${entry.domain}")
+		}
+	}
+}
+case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[SliceT]{
+	/* function sarray(s : Slice[T]) : ShArray[T]
+    *   function soffset(s : Slice[T]) : Int
+    *   function slen(s : Slice[T]) : Int
+    *   function scap(s : Slice[T]) : Int
+	* */
+	//TODO delegate to Names (src/main/scala/viper/gobra/translator/Names.scala)
+	val sarray = "sarray"
+	val soffset = "soffset"
+	val slen = "slen"
+	def interpret(entry:sil.DomainValueEntry,info:SliceT):GobraModelEntry={
+		val doms = c.domains.find(_.valueName==entry.domain)
+		if(doms.isDefined){
+			val functions = doms.get.functions
+			val funcSarray = functions.find(_.fname==sarray)
+			val funcOffset = functions.find(_.fname==soffset)
+			val funclength = functions.find(_.fname==slen)
+			if(funclength.isDefined && funcOffset.isDefined && funcSarray.isDefined){
+				val length = funclength.get.apply(Seq(entry)) match{
+					case Right(i:sil.LitIntEntry) => i.value
+					case _ => return FaultEntry("length not defined")
+				}
+				val offset = funcOffset.get.apply(Seq(entry)) match{
+					case Right(i:sil.LitIntEntry) => i.value
+					case _ => return FaultEntry("offset not defined")
+				}
+				val (array,arraytyp) = funcSarray.get.apply(Seq(entry)) match{
+					case Right(x) => x match {
+						case v:sil.VarEntry => c.extractVal(v) match {
+														case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem))
+														case _ => return FaultEntry("extracted Value not a sequence")
+													}
+						case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem))
+						case d:sil.DomainValueEntry => (d,ArrayT(0,info.elem)) 
+						case _ => (sil.OtherEntry("internal","error"),UnknownType)
+					}
+					case _ => return FaultEntry(s"$sarray false application")
+				}
+				val original = MasterInterpreter(c).interpret(array,arraytyp) match {
+					case x:LitArrayEntry => x
+					case _=> return FaultEntry("not an array")
+				}
+				LitSliceEntry(info,original.values.drop(offset.toInt).take(length.toInt))
+			}else{
+				FaultEntry(s"functions ($sarray ,$soffset, $slen) not found")
+			}
+
+		}else{
+			FaultEntry(s"${entry.domain} not found")
+		}
+	}
+}
+
+case class PointerInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,PointerT]{
+	def interpret(entry:sil.ExtractedModelEntry,info:PointerT): GobraModelEntry ={
+		DummyEntry()
+	}
+}

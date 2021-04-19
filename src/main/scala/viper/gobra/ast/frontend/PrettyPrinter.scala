@@ -8,7 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-import viper.gobra.util.Constants
+import viper.gobra.util.{Constants, Decimal, Hexadecimal}
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -247,6 +247,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMulOp() => "*"
     case PDivOp() => "/"
     case PModOp() => "%"
+    case PBitwiseAndOp() => "&"
+    case PBitwiseOrOp() => "|"
+    case PBitwiseXorOp() => "^"
+    case PBitClearOp() => "&^"
+    case PShiftLeftOp() => "<<"
+    case PShiftRightOp() => ">>"
   }
 
   def showIfClause(n: PIfClause): Doc = n match {
@@ -362,7 +368,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNegation(operand) => "!" <> showExpr(operand)
       case PNamedOperand(id) => showId(id)
       case PBoolLit(lit) => if(lit) "true" else "false"
-      case PIntLit(lit) => lit.toString
+      case PIntLit(lit, base) => base match {
+        case Decimal => lit.toString()
+        case Hexadecimal => "0x" + lit.toString(base.base)
+      }
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
@@ -406,6 +415,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
       // partially applied predicates
       case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
+      case PBitwiseAnd(left, right) => showExpr(left) <+> "&" <+> showExpr(right)
+      case PBitwiseOr(left, right) => showExpr(left) <+> "|" <+> showExpr(right)
+      case PBitwiseXor(left, right) => showExpr(left) <+> "^" <+> showExpr(right)
+      case PBitClear(left, right) => showExpr(left) <+> "&^" <+> showExpr(right)
+      case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
+      case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
+      case PBitwiseNegation(exp) => "^" <> showExpr(exp)
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

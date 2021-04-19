@@ -12,11 +12,11 @@ import java.nio.file.{Files, Path}
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.reporting.{Source => _, _}
+import viper.gobra.util.{Constants, Hexadecimal, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -492,7 +492,13 @@ object Parser {
         "-" ^^^ PSubOp() |
         "*" ^^^ PMulOp() |
         "/" ^^^ PDivOp() |
-        "%" ^^^ PModOp()
+        "%" ^^^ PModOp() |
+        "&" ^^^ PBitwiseAndOp() |
+        "|" ^^^ PBitwiseOrOp() |
+        "^" ^^^ PBitwiseXorOp() |
+        "&^" ^^^ PBitClearOp() |
+        "<<" ^^^ PShiftLeftOp() |
+        ">>" ^^^ PShiftRightOp()
 
     lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
@@ -713,12 +719,18 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
+        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitwiseOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitwiseXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
       precedence6 ~ ("*" ~> precedence7) ^^ PMul |
         precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
+        precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
+        precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitwiseAnd |
+        precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =
@@ -728,6 +740,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
+        "^" ~> unaryExp ^^ PBitwiseNegation |
         reference |
         dereference |
         receiveExp |
@@ -872,6 +885,7 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
+        ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal)) |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
         stringLit
 

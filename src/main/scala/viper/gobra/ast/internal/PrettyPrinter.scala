@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 import viper.gobra.theory.Addressability
+import viper.gobra.util.{Decimal, Hexadecimal}
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
@@ -457,6 +458,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
+    case BitwiseNeg(op) => "^" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
@@ -471,7 +473,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showLit(l: Lit): Doc = l match {
-    case IntLit(v, _) => v.toString
+    case IntLit(lit, _, base) => base match {
+      case Decimal => lit.toString()
+      case Hexadecimal => "0x" + lit.toString(base.base)
+    }
     case StringLit(s) => "\"" <> s <> "\""
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))

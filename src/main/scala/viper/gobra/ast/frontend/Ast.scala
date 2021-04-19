@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
+import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -202,6 +203,18 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
+case class PBitwiseAndOp() extends PAssOp
+
+case class PBitwiseOrOp() extends PAssOp
+
+case class PBitwiseXorOp() extends PAssOp
+
+case class PBitClearOp() extends PAssOp
+
+case class PShiftLeftOp() extends PAssOp
+
+case class PShiftRightOp() extends PAssOp
+
 case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
@@ -314,7 +327,7 @@ object PLiteral {
     * and type `typ`, with unkeyed elements `exprs`.
     */
   def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
-    PArrayType(PIntLit(exprs.length), typ),
+    PArrayType(PIntLit(exprs.length, Decimal), typ),
     PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
   )
 
@@ -355,7 +368,9 @@ sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
+// The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
+// only be read by pretty-printers
+case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -439,6 +454,8 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
+case class PBitwiseNegation(operand: PExpression) extends PUnaryExp
+
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
   def right: R
@@ -469,6 +486,18 @@ case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitwiseXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {

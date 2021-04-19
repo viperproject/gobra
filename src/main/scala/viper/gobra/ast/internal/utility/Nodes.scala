@@ -139,6 +139,7 @@ object Nodes {
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)
         case Negation(operand) => Seq(operand)
+        case BitwiseNeg(operand) => Seq(operand)
         case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case Old(op, _) => Seq(op)
@@ -155,7 +156,7 @@ object Nodes {
           case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
         case l: Lit => l match {
-          case IntLit(_, _) => Seq.empty
+          case IntLit(_, _, _) => Seq.empty
           case BoolLit(_) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty

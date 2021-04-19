@@ -7,8 +7,7 @@
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
-import viper.gobra.ast.frontend._
-import viper.gobra.ast.frontend.{AstPattern => ap}
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -238,6 +237,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
 
+    case _: PBitwiseNegation => ???
+
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
         ((exprType(base), exprType(index)) match {
@@ -338,6 +339,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
                 numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
             }
+          case (_: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor, l, r) =>
+            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+              error(n, s"invalid operation: $n (mismatched types $l and $r)", typeMerge(l, r).isEmpty)
+          case (_: PBitClear, _, _) => ???
+          case (_: PShiftLeft | _: PShiftRight, l, r) =>
+            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+              (intConstantEval(n.right.asInstanceOf[PExpression]) match {
+                case Some(v) => error(n, s"constant $r overflows uint", v < 0)
+                case None => noMessages
+              })
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 

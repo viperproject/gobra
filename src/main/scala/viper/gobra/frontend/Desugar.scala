@@ -854,6 +854,12 @@ object Desugar {
                   case PMulOp() => in.Mul(l.op, r)(src)
                   case PDivOp() => in.Div(l.op, r)(src)
                   case PModOp() => in.Mod(l.op, r)(src)
+                  case PBitwiseAndOp() => in.BitwiseAnd(l.op, r)(src)
+                  case PBitwiseOrOp() => in.BitwiseOr(l.op, r)(src)
+                  case PBitwiseXorOp() => in.BitwiseXor(l.op, r)(src)
+                  case PBitClearOp() => in.BitClear(l.op, r)(src)
+                  case PShiftLeftOp() => in.ShiftLeft(l.op, r)(src)
+                  case PShiftRightOp() => in.ShiftRight(l.op, r)(src)
                 }
               } yield singleAss(l, rWithOp)(src)
 
@@ -1508,6 +1514,14 @@ object Desugar {
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
           case PDiv(left, right) => for {l <- go(left); r <- go(right)} yield in.Div(l, r)(src)
 
+          case PBitwiseAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseAnd(l, r)(src)
+          case PBitwiseOr(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseOr(l, r)(src)
+          case PBitwiseXor(left, right) => for {l <- go(left); r <- go(right)} yield in.BitwiseXor(l, r)(src)
+          case PBitClear(left, right) => for {l <- go(left); r <- go(right)} yield in.BitClear(l, r)(src)
+          case PShiftLeft(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftLeft(l, r)(src)
+          case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
+          case PBitwiseNegation(exp) => for {e <- go(exp)} yield in.BitwiseNeg(e)(src)
+
           case l: PLiteral => litD(ctx)(l)
 
           case PUnfolding(acc, op) =>
@@ -1751,7 +1765,7 @@ object Desugar {
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
-        case PIntLit(v)  => single(in.IntLit(v))
+        case PIntLit(v, base)  => single(in.IntLit(v, base = base))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool

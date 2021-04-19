@@ -57,7 +57,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
 		val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(_._1.node.toString.contains("$")).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
 		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
-		val ret =  Some(new GobraCounterexample(glabelModel))
+		val ret = Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
 			case Some(CounterexampleConfigs.NativeCounterexamples) => Some(new GobraNativeCounterexample(counterexample.asInstanceOf[SiliconMappedCounterexample]))
 			case _ => ret
@@ -184,6 +184,9 @@ case class LitSparseEntry(full:WithSeq,relevant:Map[Int,LitEntry]){
 case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEntry { //TODO: Pretty printing
 	override def toString(): String = Util.prettyPrint(this,0) //s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
 
+}
+case class LitStringEntry(value:String) extends LitEntry{
+	override def toString() :String =s"\"${value}\""
 }
 case class LitPointerEntry(typ:Type,value:LitEntry)extends LitEntry {
 	override def toString(): String = s"*->$value" 

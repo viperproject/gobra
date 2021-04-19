@@ -611,3 +611,29 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showSequenceUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }
+
+class ShortPrettyPrinter extends DefaultPrettyPrinter {
+  override val defaultIndent = 2
+  override val defaultWidth  = 80
+
+  override def showMember(mem: PMember): Doc = mem match {
+    case mem: PActualMember => mem match {
+      case n: PConstDecl => showConstDecl(n)
+      case n: PVarDecl => showVarDecl(n)
+      case n: PTypeDecl => showTypeDecl(n)
+      case PFunctionDecl(id, args, res, spec, _) =>
+        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+      case PMethodDecl(id, rec, args, res, spec, _) =>
+        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+    }
+    case member: PGhostMember => member match {
+      case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
+      case PFPredicateDecl(id, args, _) =>
+        "pred" <+> showId(id) <> parens(showParameterList(args))
+      case PMPredicateDecl(id, recv, args, _) =>
+        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
+      case ip: PImplementationProof =>
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT)
+    }
+  }
+}

@@ -8,15 +8,24 @@ package viper.gobra.translator.encodings.maps
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.{AssertError, KeyNotComparableReason, Source, VerificationError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
+import viper.silver.verifier.ErrorReason
+import viper.silver.verifier.reasons.AssertionFalse
 import viper.silver.{ast => vpr}
 
 class MathematicalMapEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
+
+  val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
+    case (info, AssertionFalse(_)) => AssertError(info) dueTo KeyNotComparableReason(info)
+    case _ => Violation.violation("Unexpected case reached")
+  }
 
   /**
     * Translates a type into a Viper type.
@@ -38,7 +47,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
       for {
         isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
-        _ <- assert(isCompKey) // key must be comparable
+        _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
         stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
       } yield stmt
   }
@@ -80,7 +89,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         for {
           isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
-          _ <- assert(isCompKey)
+          _ <- assert(isCompKey, isCompKey, comparabilityErrorT)(ctx)
           vE <- goE(e)
           vIdx <- goE(idx)
         } yield vpr.MapLookup(vE, vIdx)(pos, info, errT)

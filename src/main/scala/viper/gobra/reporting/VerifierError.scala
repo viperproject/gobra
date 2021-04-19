@@ -181,7 +181,7 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
 
 case class MakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
-  override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
+  override def localMessage: String = s"Precondition of make might not hold"
 }
 
 sealed trait VerificationErrorReason {
@@ -213,6 +213,16 @@ case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verif
 case class MapKeyNotContained(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "map_key_not_contained"
   override def message: String = s"Key ${index.origin.tag.trim} might not be contained in ${node.origin.tag.trim}"
+}
+
+case class MakePreconditionReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "make_precondition_reason"
+  override def message: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
+}
+
+case class KeyNotComparableReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "key_not_comparable_reason"
+  override def message: String = s"Key in ${info.origin.tag.trim} is not comparable"
 }
 
 // João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.

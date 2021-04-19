@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.maps
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{MakePreconditionError, Source}
+import viper.gobra.reporting._
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -18,7 +18,8 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.Violation
-import viper.silver.verifier.{errors => err}
+import viper.silver.verifier.reasons.AssertionFalse
+import viper.silver.verifier.{ErrorReason, errors => err}
 import viper.silver.{ast => vpr}
 
 /**
@@ -37,6 +38,10 @@ class MapEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   private val domainName: String = Names.mapsDomain
+  private val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
+    case (info, AssertionFalse(_)) => AssertError(info) dueTo KeyNotComparableReason(info)
+    case _ => Violation.violation("unexpected case reached")
+  }
 
   /**
     * Translates a type into a Viper type.
@@ -147,7 +152,7 @@ class MapEncoding extends LeafTypeEncoding {
             _ <- if (checks.length == 1) write(checks(0)) else unit(())
             _ <- errorT {
               case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) =>
-                MakePreconditionError(info)
+                MakePreconditionError(info) dueTo MakePreconditionReason(info)
             }
 
             mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)
@@ -216,7 +221,7 @@ class MapEncoding extends LeafTypeEncoding {
         seqn(
           for {
             isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
-            _ <- assert(isCompKey) // key must be comparable
+            _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
 
             vRhs <- ctx.expr.translate(rhs)(ctx)
             vM <- ctx.expr.translate(m)(ctx)
@@ -322,9 +327,9 @@ class MapEncoding extends LeafTypeEncoding {
     lookupExp match {
       case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx) =>
         for {
-          vIdx <- goE(idx)
+          vIdxCond <- goE(idx)
           isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
-          _ <- assert(isComp)
+          vIdx <- assert(isComp, vIdxCond, comparabilityErrorT)(ctx)
           vDflt <- goE(in.DfltVal(values)(l.info))
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
           containsExp = goMapContains(correspondingMap, vIdx)(l)

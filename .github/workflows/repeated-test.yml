@@ -94,7 +94,7 @@ jobs:
 
       - name: Run test
         run: |
-          shopt -s nullglob
+          set -e
           n=0
           while [ "$n" -lt "$ITERATIONS" ]; do
               sbt "run -i src/test/resources/regressions/examples/parallel_search_replace.gobra"

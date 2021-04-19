@@ -88,8 +88,13 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         run: echo "ITERATIONS=10" >> $GITHUB_ENV
 
+      - name: Print number of iterations
+        if: github.event_name == 'workflow_dispatch'
+        run: echo $ITERATIONS
+
       - name: Run test
         run: |
+          shopt -s nullglob
           n=0
           while [ "$n" -lt "$ITERATIONS" ]; do
               sbt "run -i src/test/resources/regressions/examples/parallel_search_replace.gobra"

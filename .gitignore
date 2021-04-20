@@ -10,8 +10,17 @@ silver
 silicon
 viperserver
 logger.log
-
+*.log
 *.go.*
 *.gobra.*
 
 playground
+.metals
+.vscode
+.vscode/launch.json
+.metals/metals.lock.db
+.metals/readonly/scala/package.scala
+.metals/metals.h2.db
+.metals/metals.log
+.vscode/settings.json
+project/.bloop

@@ -179,11 +179,6 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Expression may cause integer overflow"
 }
 
-case class MakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "make_precondition_error"
-  override def localMessage: String = s"Precondition of make might not hold"
-}
-
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

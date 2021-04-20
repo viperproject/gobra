@@ -152,7 +152,7 @@ class MapEncoding extends LeafTypeEncoding {
             _ <- if (checks.length == 1) write(checks(0)) else unit(())
             _ <- errorT {
               case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) =>
-                MakePreconditionError(info) dueTo MakePreconditionReason(info)
+                PreconditionError(info) dueTo MakePreconditionReason(info)
             }
 
             mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)
@@ -327,14 +327,14 @@ class MapEncoding extends LeafTypeEncoding {
     lookupExp match {
       case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx) =>
         for {
-          vIdxCond <- goE(idx)
+          vIdx <- goE(idx)
           isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
-          vIdx <- assert(isComp, vIdxCond, comparabilityErrorT)(ctx)
           vDflt <- goE(in.DfltVal(values)(l.info))
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
           containsExp = goMapContains(correspondingMap, vIdx)(l)
           lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
-        } yield (lookupRes, containsExp)
+          lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
+        } yield (lookupResCheckComp, containsExp)
       case _ => Violation.violation(s"unexpected case reached")
     }
   }

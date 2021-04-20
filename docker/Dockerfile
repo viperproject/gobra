@@ -42,9 +42,11 @@ RUN echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.lis
 
 
 # Install Z3
-ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
+ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.6/z3-4.8.6-x64-ubuntu-16.04.zip"
+# ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
 # name of the top-level directory after unzipping Z3_ZIP:
-ENV Z3_DIR="z3-4.8.7-x64-ubuntu-16.04"
+ENV Z3_DIR="z3-4.8.6-x64-ubuntu-16.04"
+# ENV Z3_DIR="z3-4.8.7-x64-ubuntu-16.04"
 
 # download z3 release from GitHub and unzip:
 RUN curl -L $Z3_URL --output /z3.zip && \

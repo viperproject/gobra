@@ -24,3 +24,4 @@ playground
 .metals/metals.log
 .vscode/settings.json
 project/.bloop
+project/.bloop/*

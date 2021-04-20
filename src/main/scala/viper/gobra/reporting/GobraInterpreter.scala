@@ -3,7 +3,7 @@ import viper.silicon.{reporting => sil}
 import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.translator.Names
-
+import viper.silver.{ast => vpr}
 
 trait GobraInterpreter extends sil.ModelInterpreter[GobraModelEntry,Type]
 trait GobraDomainInterpreter[T] extends sil.DomainInterpreter[GobraModelEntry,T]
@@ -53,9 +53,15 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
 			case r:sil.RefEntry => info match{
 										case p:PointerT => pointerInterpreter.interpret(r,p)
-										case t => pointerInterpreter.interpret(r,PointerT(t))
+										case t => {val value = pointerInterpreter.interpret(r,PointerT(t))
+													value match {case LitPointerEntry(t,v,_) => v ; case x=> x}	}
 									} 
-			case rr:sil.RecursiveRefEntry => DummyEntry()
+			case rr:sil.RecursiveRefEntry => info match{
+													case t:PointerT => {val address = PointerInterpreter(c).nameToInt(rr.name,PointerInterpreter(c).filedname(t.elem))
+											 			FaultEntry(s"&$address")
+															}
+													case _ => FaultEntry("recursive reference to non pointer... how?")
+												}
 			case s:sil.SeqEntry => 	info match {
 										case a:ArrayT =>  LitArrayEntry(a,s.values.map(x=> interpret(x,a.elem)
 																						match {case l:LitEntry=> l;
@@ -64,7 +70,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		)
 										case _ => DummyEntry()
 										}
-			case _ => FaultEntry("illegal call of interpret")
+			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}
 }
@@ -106,8 +112,7 @@ case class OptionInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Opt
 	}
 }
 case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[StructT]{
-	//NOTE: they are just strigs in the implementation with no way of extracting them
-	def getterFunc(i:Int,n:Int) = Names.getterFunc(i,n) //TODO: find out where they are generated 
+	def getterFunc(i:Int,n:Int) = Names.getterFunc(i,n) 
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
 		if(doms.isDefined){
@@ -138,9 +143,8 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 		}
 	}
 }
-//experimental (somehow the thing does not work...)
+
 case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
-	//TODO: replace with Names
 	def unboxFunc(domain:String) = s"${Names.embeddingUnboxFunc}_$domain"
 	def boxFunc(domain:String) = s"${Names.embeddingBoxFunc}_$domain"
 	def interpret(entry:sil.DomainValueEntry,info:Type):GobraModelEntry={
@@ -159,7 +163,7 @@ case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
 	}
 }
 case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[ArrayT] {
-	def lenName(d:String) = Names.length(d) //TODO : replace with Name
+	def lenName(d:String) = Names.length(d) 
 	def index(d:String) = Names.location(d)
 	def interpret(entry:sil.DomainValueEntry,info:ArrayT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
@@ -199,12 +203,6 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 	}
 }
 case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[SliceT]{
-	/* function sarray(s : Slice[T]) : ShArray[T]
-    *   function soffset(s : Slice[T]) : Int
-    *   function slen(s : Slice[T]) : Int
-    *   function scap(s : Slice[T]) : Int
-	* */
-	//TODO delegate to Names (src/main/scala/viper/gobra/translator/Names.scala)
 	val sarray = Names.sliceArray
 	val soffset = Names.sliceOffset
 	val slen = Names.sliceLength
@@ -252,18 +250,44 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 }
 
 case class PointerInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,PointerT]{
+	
 	def interpret(entry:sil.ExtractedModelEntry,info:PointerT): GobraModelEntry ={
+		val field = filedname(info.elem)
 		entry match {
-			case sil.RefEntry(name,map) => {val kek = c.extractVal(sil.VarEntry(name,viper.silicon.state.terms.sorts.Ref))
-										FaultEntry(s"$kek")
+			case sil.RefEntry(name,map) => {val kek = c.extractVal(sil.VarEntry(name,viper.silicon.state.terms.sorts.Ref)) match{
+											//TODO: what if we don't find it?
+											case sil.RefEntry(name,map) => map.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"in ${map}"),None))
+											case _ => return FaultEntry(s"no such field found ${field}")
+										}
+										val value = MasterInterpreter(c).interpret(kek._1,info.elem) match {
+											case l:LitEntry => l
+										}
+										LitPointerEntry(info.elem,value,nameToInt(name,field))
 									}
 			case _=> DummyEntry()
 		}
 		
 	}
+	def nameToInt(name:String,field:String) :Int ={
+		val id = Integer.parseInt(name.split("!").last)
+		val offset = field.split("$").last.hashCode()
+		(id +1)* 100 + (offset %100)
+	}
+	 
+	def filedname(i:Type) : String ={
+		i match{
+			case _:IntT => Names.pointerField(vpr.Int)
+			case BooleanT => Names.pointerField(vpr.Bool)
+			case StringT => Names.pointerField(vpr.Int)
+			case _:PointerT => Names.pointerField(vpr.Ref)
+			case x => "unknown" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
+		}
+	}
 }
+
+
 case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,Any]{
-	val stringDomain = Names.stringsDomain //TODO: fix Names
+	val stringDomain = Names.stringsDomain 
 	val prefix = Names.stringPrefix
 	def interpret(entry:sil.ExtractedModelEntry,info:Any): GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==stringDomain)

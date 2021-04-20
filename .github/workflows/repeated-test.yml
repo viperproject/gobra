@@ -17,6 +17,7 @@ on:
 
 env:
   ITERATIONS: ${{ github.event.inputs.iterations }}
+  Z3_EXE: /usr/bin/z3
 
 jobs:
   setup-and-run:

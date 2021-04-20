@@ -21,7 +21,12 @@ env:
 jobs:
   setup-and-run:
     runs-on: ubuntu-latest
-    container: gobraverifier/gobra-base:v2
+    strategy:
+      # tests should not be stopped when they fail on one of the OSes:
+      fail-fast: false
+      matrix:
+        container: ["gobraverifier/gobra-base:v3_z3_4.8.6", "gobraverifier/gobra-base:v3_z3_4.8.7"]
+    container: ${{ matrix.container }}
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2

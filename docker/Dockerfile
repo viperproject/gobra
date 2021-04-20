@@ -8,6 +8,9 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND noninteractive
 
+# Z3_URL and Z3_DIR ENV variables are configured further down in this Dockerfile such that changes to them to not
+# affect the first layers of this container
+
 # Install prerequisites
 RUN apt-get update && \
     apt-get install -y \
@@ -15,6 +18,7 @@ RUN apt-get update && \
         git \
         gnupg2 \
         locales \
+        unzip \
     && \
     rm -rf /var/lib/apt/lists/*
 
@@ -36,11 +40,19 @@ RUN echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.lis
     apt-get install -y sbt && \
     rm -rf /var/lib/apt/lists/*
 
+
 # Install Z3
-RUN apt-get update && \
-    apt-get install -y z3 && \
-    rm -rf /var/lib/apt/lists/*
-# executing `which z3` and setting Z3_EXE based on its result is unfortunately not possible, therefore it is hardcoded
-ENV Z3_EXE /usr/bin/z3
+ENV Z3_URL="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
+# name of the top-level directory after unzipping Z3_ZIP:
+ENV Z3_DIR="z3-4.8.7-x64-ubuntu-16.04"
+
+# download z3 release from GitHub and unzip:
+RUN curl -L $Z3_URL --output /z3.zip && \
+    unzip /z3.zip -d /z3/ && \
+    rm /z3.zip
+
+# create sym-link to z3 binary:
+RUN ln -s /z3/$Z3_DIR/bin/z3 /usr/bin/z3
+
 
 WORKDIR /

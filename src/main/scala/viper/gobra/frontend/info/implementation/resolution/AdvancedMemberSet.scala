@@ -57,9 +57,12 @@ class AdvancedMemberSet[M <: TypeMember] private(
   def filter(f: TypeMember => Boolean): AdvancedMemberSet[M] =
     new AdvancedMemberSet[M](internal.filter({ case (key, _) => f(internal(key)._1)}), duplicates)
 
-  def collect[T](f: (String, M) ==> T): Vector[T] = internal.collect {
+  def collectToVector[T](f: (String, M) ==> T): Vector[T] = internal.collect {
     case (n, (m, _, _)) if f.isDefinedAt(n, m) => f(n, m)
   }.toVector
+
+  def forall(f: (String, (M, Vector[MemberPath])) => Boolean): Boolean =
+    internal.forall{ case (s, (m, p, _)) => f(s, (m,p)) }
 
   def containsAll(other: AdvancedMemberSet[M]): Boolean = other.internal.keySet.forall(internal.contains)
 

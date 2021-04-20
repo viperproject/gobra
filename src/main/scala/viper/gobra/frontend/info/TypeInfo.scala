@@ -8,8 +8,9 @@ package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.Regular
+import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.Type
+import viper.gobra.frontend.info.implementation.resolution.AdvancedMemberSet
 import viper.gobra.theory.Addressability
 
 trait TypeInfo extends ExternalTypeInfo {
@@ -30,6 +31,8 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def resolve(n: PExpressionOrType): Option[AstPattern.Pattern]
   def exprOrType(n: PExpressionOrType): Either[PExpression, PType]
+
+  def memberSet(t: Type): AdvancedMemberSet[TypeMember]
 
   def nilType(n: PNilLit): Option[Type]
 }

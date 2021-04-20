@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.PExplicitGhostStructClause
+import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -15,15 +16,32 @@ trait Implements { this: TypeInfoImpl =>
 
   def implements(l: Type, r: Type): Boolean = underlyingType(r) match {
     case itf: Type.InterfaceT =>
-      if (goImplements(l, r)) { _requiredImplements ::= (l, itf); true } else false
+      if (syntaxImplements(l, r)) { _requiredImplements ::= (l, itf); true } else false
     case _ => false
   }
 
   private var _requiredImplements: List[(Type, Type.InterfaceT)] = List.empty
   def requiredImplements: List[(Type, Type.InterfaceT)] = _requiredImplements
 
-  def goImplements(l: Type, r: Type): Boolean = underlyingType(r) match {
-    case _: Type.InterfaceT => supportedSortForInterfaces(l) // TODO: check that l implements all methods of itf
+  def syntaxImplements(l: Type, r: Type): Boolean = underlyingType(r) match {
+    case _: Type.InterfaceT =>
+      supportedSortForInterfaces(l) && {
+        val itfMemberSet = memberSet(r)
+        val implMemberSet = memberSet(l)
+        itfMemberSet.forall{ case (name, (itfMember, _)) =>
+          itfMember match {
+            case _: MPredicateSpec => true // an implementing type does not have to implement all predicates
+            case _ =>
+              implMemberSet.lookup(name) match {
+                case None => false
+                case Some(implMember) =>
+                  // all other members must have an identical signature
+                  identicalTypes(memberType(itfMember), memberType(implMember))
+              }
+          }
+        }
+      }
+
     case _ => false
   }
 

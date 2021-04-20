@@ -62,15 +62,15 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (r, l) => assignableTo.result(r, l)
   }
 
-  lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
+  lazy val assignableTo: Property[(Type, Type)] = createFlatPropertyWithReason[(Type, Type)] {
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
         // for go's types according to go's specification (mostly)
-      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => true
+      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => successProp
       // not part of Go spec, but necessary for the definition of comparability
-      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true
-      case (l, r) if identicalTypes(l, r) => true
+      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => successProp
+      case (l, r) if identicalTypes(l, r) => successProp
       // even though the go language spec states that a value x of type V is assignable to a variable of type T
       // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
       // seems to reject any program that relies on this, e.g. the go compiler rejects the program containing
@@ -79,28 +79,28 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
       case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
         && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
-        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+        && identicalTypes(underlyingType(l), underlyingType(r)) => successProp
 
-      case (l, r) if implements(l, r) => true
-      case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (NilType, r) if isPointerType(r) => true
-      case (VariadicT(t1), VariadicT(t2)) => assignableTo(t1, t2)
-      case (t1, VariadicT(t2)) => assignableTo(t1, t2)
+      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
+      case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
+      case (NilType, r) if isPointerType(r) => successProp
+      case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
+      case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
 
         // for ghost types
-      case (BooleanT, AssertionT) => true
-      case (SortT, SortT) => true
-      case (PermissionT, PermissionT) => true
-      case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
-      case (SetT(l), SetT(r)) => assignableTo(l,r)
-      case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
-      case (OptionT(l), OptionT(r)) => assignableTo(l, r)
-      case (IntT(_), PermissionT) => true
+      case (BooleanT, AssertionT) => successProp
+      case (SortT, SortT) => successProp
+      case (PermissionT, PermissionT) => successProp
+      case (SequenceT(l), SequenceT(r)) => assignableTo.result(l,r) // implies that Sequences are covariant
+      case (SetT(l), SetT(r)) => assignableTo.result(l,r)
+      case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
+      case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
+      case (IntT(_), PermissionT) => successProp
 
         // conservative choice
-      case _ => false
+      case _ => errorProp()
     }
-    case _ => false
+    case _ => errorProp()
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {

@@ -304,7 +304,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         (underlyingType(exprType(base)) match {
           case t: InterfaceT =>
             val at = typeSymbType(typ)
-            error(n, s"type error: expression $base of type $at does not implement $typ", !implements(at, t))
+            implements(at, t).asReason(n, s"type error: type $at does not implement $base")
           case t => error(n, s"type error: got $t expected interface")
         })
 

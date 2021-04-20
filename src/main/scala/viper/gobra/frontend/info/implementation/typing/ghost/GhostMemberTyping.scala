@@ -26,7 +26,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         nonVariadicArguments(args)
 
     case ip: PImplementationProof =>
-      error(ip, s"${ip.subT} does not implement ${ip.superT}", !syntaxImplements(symbType(ip.subT), symbType(ip.superT)))
+      syntaxImplements(symbType(ip.subT), symbType(ip.superT)).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {

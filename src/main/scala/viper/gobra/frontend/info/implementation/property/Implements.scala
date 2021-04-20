@@ -7,47 +7,66 @@
 package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.PExplicitGhostStructClause
-import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
+import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type.{GhostCollectionType, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Implements { this: TypeInfoImpl =>
 
-  def implements(l: Type, r: Type): Boolean = underlyingType(r) match {
+  def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
-      if (syntaxImplements(l, r)) { _requiredImplements ::= (l, itf); true } else false
-    case _ => false
+      val valid = syntaxImplements(l, r)
+      if (valid.holds) {
+        _requiredImplements ::= (l, itf)
+      }
+      valid
+
+    case _ => errorProp()
   }
 
   private var _requiredImplements: List[(Type, Type.InterfaceT)] = List.empty
   def requiredImplements: List[(Type, Type.InterfaceT)] = _requiredImplements
 
-  def syntaxImplements(l: Type, r: Type): Boolean = underlyingType(r) match {
+  def syntaxImplements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case _: Type.InterfaceT =>
-      supportedSortForInterfaces(l) && {
+      supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)
         val implMemberSet = memberSet(l)
-        itfMemberSet.forall{ case (name, (itfMember, _)) =>
+        val counterReasons = itfMemberSet.flatMap{ case (name, (itfMember, _)) =>
           itfMember match {
-            case _: MPredicateSpec => true // an implementing type does not have to implement all predicates
+            case _: MPredicateSpec => Vector.empty // an implementing type does not have to implement all predicates
             case _ =>
               implMemberSet.lookup(name) match {
-                case None => false
+                case None => Vector(s"$l has no member with name $name")
                 case Some(implMember) =>
                   // all other members must have an identical signature
-                  identicalTypes(memberType(itfMember), memberType(implMember))
+                  if (!identicalTypes(memberType(itfMember), memberType(implMember))) {
+                    Vector(s"The member $name has a different signature for implementation and interface")
+                  } else if (implMember.ghost != itfMember.ghost) {
+                    Vector(s"For member $name, the 'ghost' declaration for implementation and interface does not match")
+                  } else if ({
+                    (implMember, itfMember) match {
+                      case (implMember: Method, itfMember: Method) => implMember.isPure != itfMember.isPure
+                      case _ => false
+                    }
+                  }) {
+                    Vector(s"For member $name, the 'pure' annotation for implementation and interface does not match")
+                  } else {
+                    Vector.empty
+                  }
               }
           }
         }
+        failedPropFromMessages(counterReasons)
       }
 
-    case _ => false
+    case _ => failedProp(s"$r is not an interface")
   }
 
   /** Returns true if the type is supported for interfaces. All finite types are supported. */
-  def supportedSortForInterfaces(t: Type): Boolean = {
-    isIdentityPreservingType(t)
+  def supportedSortForInterfaces(t: Type): PropertyResult = {
+    failedProp(s"The type $t is not supported for interface", !isIdentityPreservingType(t))
   }
 
   /** Returns whether values of type 't' satisfy that [x] == [y] in Viper implies x == y in Gobra. */

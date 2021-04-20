@@ -28,7 +28,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
   lazy val comparableType: Property[Type] = createBinaryProperty("comparable") {
     case Single(st) => underlyingType(st) match {
       case t: StructT =>
-        structMemberSet(t).collectToVector {
+        structMemberSet(t).collect {
           case (_, f: Field) => typeSymbType(f.decl.typ)
           case (_, e: Embbed) => miscType(e.decl.typ)
         }.forall(comparableType)

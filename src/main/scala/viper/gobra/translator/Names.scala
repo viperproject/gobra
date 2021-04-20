@@ -58,6 +58,7 @@ object Names {
   // struct
   def sharedStructDomain: String = "ShStruct"
   def sharedStructDfltFunc: String = "shStructDefault"
+  def getterFunc(i:Int,arity:Int): String = s"get${i}of$arity"
 
   // types
   def typesDomain: String = "Types"
@@ -67,6 +68,10 @@ object Names {
   def sharedArrayDomain: String = "ShArray"
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
+  def location(domain:String) = s"${domain}loc" //  function ShArrayloc(a: ShArray[T], i: Int): T
+  def length(domain:String) = s"${domain}len" // function ShArraylen(a: ShArray[T]): Int
+  def first(domain:String) = s"${domain}first" // function ShArrayfirst(r: T): ShArray[T]
+  def second(domain:String) = s"${domain}second" // function ShArraysecond(r: T): Int
 
   // slices
   def fullSliceFromArray: String = "sfullSliceFromArray"
@@ -75,6 +80,10 @@ object Names {
   def sliceDefaultFunc: String = "sliceDefault"
   def sliceFromArray: String = "ssliceFromArray"
   def sliceFromSlice: String = "ssliceFromSlice"
+  def sliceArray :String = "sarray" //function sarray(s: Slice[T]): ShArray[T]
+  def sliceOffset :String = "soffset" // function soffset(s: Slice[T]): Int
+  def sliceLength :String = length("s") // function slen(s: Slice[T]): Int
+  def sliceCapacity :String = "scap" //function scap(s: Slice[T]): Int
 
   // sequences
   def emptySequenceFunc: String = "sequenceEmpty"
@@ -91,4 +100,16 @@ object Names {
 
   // built-in members
   def builtInMember: String = "built_in"
+
+  //strings
+  def stringLength: String = "strLen" //  function strLen(id: Int): Int ---- ? TODO: possibly make this Stinglen aka length("String")?
+  def stringConact: String = "strConcat" //  function strConcat(l: Int, r: Int): Int
+  def stringPrefix: String = "stringLit" 
+  
+
+  //options TODO: maybe extract "opt"
+  def optionSome: String = "optSome" //function optSome(e: T): Option[T]
+  def optionNone: String = "optNone" //function optNone(): Option[T]
+  def optionGet : String = "optGet" //function optGet(o: Option[T]): T
+  def optionIsNone:String= "optIsNone" //function optIsNone(o: Option[T]): Bool
 }

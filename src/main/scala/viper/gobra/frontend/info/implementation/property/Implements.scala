@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.property
 import viper.gobra.ast.frontend.PExplicitGhostStructClause
 import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, Method}
 import viper.gobra.frontend.info.base.Type
-import viper.gobra.frontend.info.base.Type.{GhostCollectionType, Type}
+import viper.gobra.frontend.info.base.Type.{GhostCollectionType, NilType, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait Implements { this: TypeInfoImpl =>
@@ -28,8 +28,9 @@ trait Implements { this: TypeInfoImpl =>
   private var _requiredImplements: List[(Type, Type.InterfaceT)] = List.empty
   def requiredImplements: List[(Type, Type.InterfaceT)] = _requiredImplements
 
-  def syntaxImplements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
-    case _: Type.InterfaceT =>
+  def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
+    case (NilType, _: Type.InterfaceT) => successProp
+    case (_, _: Type.InterfaceT) =>
       supportedSortForInterfaces(l) and {
         val itfMemberSet = memberSet(r)
         val implMemberSet = memberSet(l)

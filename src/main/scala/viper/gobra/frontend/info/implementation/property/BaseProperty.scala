@@ -54,11 +54,17 @@ trait BaseProperty {
         case _ => None
       }
     )
+
+    def distinct: PropertyResult = PropertyResult(opt.map(_.distinct))
+  }
+
+  object PropertyResult {
+    def bigAnd(xs: Vector[PropertyResult]): PropertyResult =
+      xs.foldLeft(successProp) { case (l,r) => l and r }
   }
 
   def propForall[A](base: Iterable[A], prop: Property[A]): PropertyResult =
     base.foldLeft(successProp) { case (l, r) => l and prop.result(r) }
-
 
   def successProp: PropertyResult = PropertyResult(None)
 

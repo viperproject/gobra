@@ -61,13 +61,18 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
 
-      //        case (InternalTupleT(lv), InternalTupleT(rv)) =>
-      //          lv.size == rv.size && lv.zip(rv).forall {
-      //            case (l, r) => identicalTypes(l, r)
-      //          }
+      case (VoidType, VoidType) => true
 
       case _ => false
     }
+
+    case (InternalTupleT(lv), InternalTupleT(rv)) =>
+      lv.size == rv.size && lv.zip(rv).forall {
+        case (l, r) => identicalTypes(l, r)
+      }
+    case (VoidType, InternalTupleT(Vector())) => true
+    case (InternalTupleT(Vector()), VoidType) => true
+
     case _ => false
   }
 }

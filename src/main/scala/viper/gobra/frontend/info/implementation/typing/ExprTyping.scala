@@ -300,13 +300,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case n@PTypeAssertion(base, typ) =>
-      isExpr(base).out ++ isType(typ).out ++
-        (underlyingType(exprType(base)) match {
+      isExpr(base).out ++ isType(typ).out ++ {
+        val baseT = exprType(base)
+        underlyingType(baseT) match {
           case t: InterfaceT =>
             val at = typeSymbType(typ)
-            implements(at, t).asReason(n, s"type error: type $at does not implement $base")
+            implements(at, t).asReason(n, s"type error: type $at does not implement the interface $baseT")
           case t => error(n, s"type error: got $t expected interface")
-        })
+        }
+      }
 
     case n@PReceive(e) => isExpr(e).out ++ (exprType(e) match {
       case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages

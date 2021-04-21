@@ -207,7 +207,7 @@ func isAstNode(n node) (res bool) {
     return true
   } else if c, ok := n.(*constant); ok {
     return true
-  } else if a, ok := n.(addition); ok { // pointer is missing
+  } else if a, ok := n.(*constant); ok { // constant twice
     return true
   } else {
     return false

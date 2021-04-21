@@ -49,7 +49,7 @@ object BackendVerifier {
 
     val verifier = config.backend.create(exePaths)
 
-    val programID = "_programID_" + config.inputFiles.head.getName
+    val programID = s"_programID_${config.inputFiles.head}"
 
     val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
 

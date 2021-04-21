@@ -54,7 +54,7 @@ trait GobraFrontendForTesting extends Frontend {
   override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
   override def reset(files: Seq[Path]): Unit =
-    config = Some(Config(inputFiles = files.map(_.toFile).toVector, reporter = NoopReporter))
+    config = Some(Config(inputFiles = files.toVector, reporter = NoopReporter))
 
   def gobraResult: VerifierResult
 

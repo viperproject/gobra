@@ -7,7 +7,7 @@
 package viper.gobra.frontend
 
 import java.io.File
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
 
 import ch.qos.logback.classic.{Level, Logger}
 import com.typesafe.scalalogging.StrictLogging
@@ -25,8 +25,8 @@ object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 case class Config(
-                 inputFiles: Vector[File],
-                 includeDirs: Vector[File] = Vector(),
+                 inputFiles: Vector[Path],
+                 includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
@@ -221,28 +221,28 @@ class ScallopGobraConfig(arguments: Seq[String])
   def validateInput(inputOption: ScallopOption[List[String]],
                     includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
 
-    def checkConversion(input: List[String], includeDirs: Vector[File]): Either[String, Vector[File]] = {
+    def checkConversion(input: List[String], includeDirs: Vector[Path]): Either[String, Vector[Path]] = {
       val msgs = InputConverter.validate(input)
       if (msgs.isEmpty) Right(InputConverter.convert(input, includeDirs))
       else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
-    def atLeastOneFile(files: Vector[File]): Either[String, Unit] = {
+    def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
       if (files.nonEmpty) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
     }
 
-    def filesExist(files: Vector[File]): Either[String, Unit] = {
-      val notExisting = files.filterNot(_.exists())
+    def filesExist(files: Vector[Path]): Either[String, Unit] = {
+      val notExisting = files.filterNot(Files.exists(_))
       if (notExisting.isEmpty) Right(()) else Left(s"Files '${notExisting.mkString(",")}' do not exist")
     }
 
-    def filesAreFiles(files: Vector[File]): Either[String, Unit] = {
-      val notFiles = files.filterNot(_.isFile())
+    def filesAreFiles(files: Vector[Path]): Either[String, Unit] = {
+      val notFiles = files.filterNot(Files.isRegularFile(_))
       if (notFiles.isEmpty) Right(()) else Left(s"Files '${notFiles.mkString(",")}' are not files")
     }
 
-    def filesAreReadable(files: Vector[File]): Either[String, Unit] = {
-      val notReadable = files.filterNot(file => Files.isReadable(file.toPath))
+    def filesAreReadable(files: Vector[Path]): Either[String, Unit] = {
+      val notReadable = files.filterNot(Files.isReadable)
       if (notReadable.isEmpty) Right(()) else Left(s"Files '${notReadable.mkString(",")}' are not readable")
     }
 
@@ -252,7 +252,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     //  - result should be non-empty, exist, be files and be readable
     val input: List[String] = inputOpt.get // this is a non-optional CLI argument
     for {
-      convertedFiles <- checkConversion(input, includeOpt.map(_.toVector).getOrElse(Vector()))
+      convertedFiles <- checkConversion(input, includeOpt.map(_.map(_.toPath).toVector).getOrElse(Vector()))
       _ <- atLeastOneFile(convertedFiles)
       _ <- filesExist(convertedFiles)
       _ <- filesAreFiles(convertedFiles)
@@ -266,8 +266,8 @@ class ScallopGobraConfig(arguments: Seq[String])
 
   verify()
 
-  lazy val includeDirs: Vector[File] = include.toOption.map(_.toVector).getOrElse(Vector())
-  lazy val inputFiles: Vector[File] = InputConverter.convert(input.toOption.get, includeDirs)
+  lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
+  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.get, includeDirs)
 
   /** set log level */
 
@@ -300,7 +300,7 @@ class ScallopGobraConfig(arguments: Seq[String])
       }
     }
 
-    def convert(input: List[String], includeDirs: Vector[File]): Vector[File] = {
+    def convert(input: List[String], includeDirs: Vector[Path]): Vector[Path] = {
       val res = for {
         i <- identifyInput(input).toRight("invalid input")
         files <- i match {
@@ -310,7 +310,7 @@ class ScallopGobraConfig(arguments: Seq[String])
               // look for files in the current directory, i.e. use an empty importPath
               resolvedResources <- PackageResolver.resolve(RegularImport(""), includeDirs)
               resolvedFiles = resolvedResources.flatMap({
-                case fileResource: FileResource => Some(fileResource.file)
+                case fileResource: FileResource => Some(fileResource.path)
                 case _ => None
               })
               // we do not need the underlying resources anymore as we are only using FileResources:
@@ -343,11 +343,11 @@ class ScallopGobraConfig(arguments: Seq[String])
       * Decides whether the provided input strings should be interpreted as a single package name (Left) or
       * a vector of file paths (Right). If a mix is provided None is returned.
       */
-    private def identifyInput(input: List[String]): Option[Either[String, Vector[File]]] = {
+    private def identifyInput(input: List[String]): Option[Either[String, Vector[Path]]] = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
         case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => pkgs.head.swap.map(Left(_)).toOption
-        case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s))
+        case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s.toPath))
         case _ => None
       }
     }

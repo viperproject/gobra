@@ -6,7 +6,7 @@
 
 package viper.gobra
 
-import java.io.File
+import java.nio.file.{Files, Path}
 
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
@@ -23,7 +23,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.io.Source
 
 
 object GoVerifier {
@@ -53,7 +52,7 @@ trait GoVerifier {
     verify(config.inputFiles, config)(executor)
   }
 
-  protected[this] def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
@@ -62,7 +61,7 @@ trait GoIdeVerifier {
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
 
@@ -104,22 +103,20 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config): Config = {
-    val inFileConfigs = config.inputFiles.flatMap(file => {
-      val bufferedSource = Source.fromFile(file)
-      val content = bufferedSource.mkString
+    val inFileConfigs = config.inputFiles.flatMap(path => {
+      val content = Files.readString(path)
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
-      bufferedSource.close()
       if (configs.isEmpty) {
         None
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val args = configs.flatMap(configString => configString.split(" ")).toList
         // input files are mandatory, therefore we take the inputFiles from the old config:
-        val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
+        val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.toString)
         val inFileConfig = new ScallopGobraConfig(fullArgs).config
         // modify all relative includeDirs such that they are resolved relatively to the current file:
         val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
-          includeDir => file.toPath.getParent.resolve(includeDir.toPath).toFile))
+          includeDir => path.getParent.resolve(includeDir.toString)))
         Some(resolvedConfig)
       }
     })
@@ -128,9 +125,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
-  private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(input: Vector[Path], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(input.map(_.toPath))(config)
+      Parser.parse(input)(config)
     } else {
       Left(Vector())
     }

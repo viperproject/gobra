@@ -6,13 +6,13 @@
 
 package viper.gobra.frontend
 
-import java.io.{File, Reader}
+import java.io.Reader
 import java.nio.file.{Files, Path}
 
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
@@ -50,33 +50,22 @@ object Parser {
   }
 
   private def getSource(path: Path): FromFileSource = {
-    val filename = path.getFileName.toString
     val inputStream = Files.newInputStream(path)
     val bufferedSource = new BufferedSource(inputStream)
     val content = bufferedSource.mkString
     bufferedSource.close()
-    FromFileSource(filename, content)
+    FromFileSource(path, content)
   }
 
-  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+    def parseSource(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
-
-          val filename = source match {
-            case ffs: FromFileSource => Some(new File(ffs.name))
-            case fs: FileSource => Some(new File(fs.name))
-            case _ => None
-          }
-
-          if(filename.isDefined) {
-            config.reporter report ParsedInputMessage(filename.get, () => ast)
-          }
-
+          config.reporter report ParsedInputMessage(source.path, () => ast)
           Right(ast)
 
         case ns@NoSuccess(label, next) =>
@@ -86,7 +75,7 @@ object Parser {
           val messages = message(ns, label)
           val errors = pom.translate(messages, ParserError)
           
-          val groupedErrors = errors.groupBy{ _.position.get.file.toFile }
+          val groupedErrors = errors.groupBy{ _.position.get.file }
           groupedErrors.foreach{ case (p, pErrors) =>
             config.reporter report ParserErrorMessage(p, pErrors)
           }
@@ -125,8 +114,8 @@ object Parser {
     })
   }
 
-  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
-    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
+  def parseProgram(source: Source, specOnly: Boolean = false): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
@@ -187,14 +176,14 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: Source)(config: Config): Source = {
+    def preprocess(source: FromFileSource)(config: Config): FromFileSource = {
       val translatedContent = translate(source.content)
-      config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
-      FromFileSource(source.name, translatedContent)
+      config.reporter report PreprocessedInputMessage(source.path, () => translatedContent)
+      FromFileSource(source.path, translatedContent)
     }
 
-    def preprocess(content: String): Source = {
-      val translatedContent = translate(content)
+    def preprocess(source: Source): Source = {
+      val translatedContent = translate(source.content)
       StringSource(translatedContent)
     }
 
@@ -226,7 +215,8 @@ object Parser {
     }
   }
 
-  case class FromFileSource(name : String, content: String) extends Source {
+  case class FromFileSource(path: Path, content: String) extends Source {
+    override val name: String = path.getFileName.toString
     val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
     def reader : Reader = IO.stringreader(content)
 

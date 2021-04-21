@@ -47,6 +47,7 @@ class TypeComponentImpl extends TypeComponent {
 
     case t: TypeHead.DefinedHD => t.name
     case t: TypeHead.InterfaceHD => t.name
+    case t: TypeHead.DomainHD => t.name
 
     case t: TypeHead.IntHD =>
       // For identical types a representative is picked
@@ -57,8 +58,8 @@ class TypeComponentImpl extends TypeComponent {
       }
 
     case t: TypeHead.StructHD =>
-      val fieldNames = t.fields.collect{ case (n, false) => n }
-      s"struct_${fieldNames.mkString("_")}"
+      val fields = t.fields.map{ case (f, g) => if (g) s"${f}G" else s"${f}A" }
+      s"struct_${fields.mkString("_")}"
   }
 
 

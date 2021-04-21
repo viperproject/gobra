@@ -17,6 +17,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.gobra.util.Violation.LogicException
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
@@ -193,22 +194,34 @@ class GobraFrontend {
 
 object GobraRunner extends GobraFrontend with StrictLogging {
   def main(args: Array[String]): Unit = {
-    val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
-    val config = scallopGobraconfig.config
-    val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
-    val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
-    val verifier = createVerifier()
-    val resultFuture = verifier.verify(config)(executor)
-    val result = Await.result(resultFuture, Duration.Inf)
+    try {
+      val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
+      val config = scallopGobraconfig.config
+      val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
+      val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
+      val verifier = createVerifier()
+      val resultFuture = verifier.verify(config)(executor)
+      val result = Await.result(resultFuture, Duration.Inf)
 
-    result match {
-      case VerifierResult.Success =>
-        logger.info(s"${verifier.name} found no errors")
-        sys.exit(0)
-      case VerifierResult.Failure(errors) =>
-        logger.error(s"${verifier.name} has found ${errors.length} error(s):")
-        errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
+      result match {
+        case VerifierResult.Success =>
+          logger.info(s"${verifier.name} found no errors")
+          sys.exit(0)
+        case VerifierResult.Failure(errors) =>
+          logger.error(s"${verifier.name} has found ${errors.length} error(s):")
+          errors foreach (e => logger.error(s"\t${e.formattedMessage}"))
+          sys.exit(1)
+      }
+    } catch {
+      case e: LogicException =>
+        logger.error("An assumption was violated during execution.")
+        logger.error(e.getLocalizedMessage, e)
+        sys.exit(1)
+      case e: Exception =>
+        logger.error("An unknown Exception was thrown.")
+        logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
     }
+
   }
 }

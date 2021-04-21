@@ -26,7 +26,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case e: PExpression => exprGhostSeparation(e)
     case t: PType => typeGhostSeparation(t)
     case m: PMisc => miscGhostSeparation(m)
-  }{ n => selfWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
+  }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
     case m: PExplicitGhostMember => m.actual match {

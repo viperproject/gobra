@@ -18,9 +18,19 @@ object Names {
     str
   }
 
+  /* sanitizes type name to a valid Viper name */
+  def serializeType(t: vpr.Type): String = {
+    t.toString()
+      .replace('[', '_')
+      .replace("]", "")
+      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
+      .replace(" ", "")
+  }
+
 
   // assert
-  def assertFunc: String = "assertArg"
+  def assertFunc: String = "assertArg1"
+  def typedAssertFunc(t: vpr.Type): String = s"assertArg2_${serializeType(t)}"
 
   // equality
   def equalityDomain: String = "Equality"
@@ -45,14 +55,7 @@ object Names {
 
   // pointer
   def pointerField(t : vpr.Type) : String = {
-    // sanitizes type name to a valid Viper field name
-    val ts = t.toString()
-      .replace('[', '_')
-      .replace("]", "")
-      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
-      .replace(" ", "")
-
-    s"val$$_$ts"
+    s"val$$_${serializeType(t)}"
   }
 
   // struct
@@ -81,6 +84,9 @@ object Names {
 
   // predicate
   def predDomain: String = "Pred"
+
+  // domain
+  def dfltDomainValue(domainName: String): String = s"dflt$domainName"
 
   // unknown values
   def unknownValuesDomain: String = "UnknownValueDomain"

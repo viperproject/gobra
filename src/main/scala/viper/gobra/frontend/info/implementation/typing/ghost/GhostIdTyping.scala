@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend.PIdnNode
-import viper.gobra.frontend.info.base.SymbolTable.{BoundVariable, BuiltInFPredicate, BuiltInMPredicate, GhostRegular, Predicate}
+import viper.gobra.frontend.info.base.SymbolTable.{BoundVariable, BuiltInFPredicate, BuiltInMPredicate, DomainFunction, GhostRegular, Predicate}
 import viper.gobra.frontend.info.base.Type.{AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
@@ -22,6 +22,9 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case predicate: Predicate => unsafeMessage(! {
       predicate.args.forall(wellDefMisc.valid)
     })
+    case f: DomainFunction => unsafeMessage(! {
+      f.result.outs.size == 1 && f.args.forall(wellDefMisc.valid) && wellDefMisc.valid(f.result)
+    })
     case _: BuiltInFPredicate | _: BuiltInMPredicate => LocalMessages(noMessages)
   }
 
@@ -29,6 +32,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
 
     case x: BoundVariable => typeSymbType(x.decl.typ)
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
+    case func: DomainFunction => FunctionT(func.args map func.context.typ, func.context.typ(func.result.outs.head))
     case BuiltInFPredicate(tag, _, _) => tag.typ(config)
     case BuiltInMPredicate(tag, _, _) => tag.typ(config)
     case _ => violation("untypable")

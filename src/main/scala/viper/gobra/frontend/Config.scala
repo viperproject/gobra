@@ -74,7 +74,7 @@ case class Config(
     }
 }
 
-class ScallopGobraConfig(arguments: Seq[String])
+class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false)
     extends ScallopConf(arguments)
     with StrictLogging {
 
@@ -215,7 +215,9 @@ class ScallopGobraConfig(arguments: Seq[String])
     */
 
   /** Argument Dependencies */
-  requireAtLeastOne(input)
+  if (!isInputOptional) {
+    requireAtLeastOne(input)
+  }
 
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
@@ -228,7 +230,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     }
 
     def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
-      if (files.nonEmpty) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
+      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
     }
 
     def filesExist(files: Vector[Path]): Either[String, Unit] = {
@@ -250,7 +252,7 @@ class ScallopGobraConfig(arguments: Seq[String])
     // - validate fileOpt using includeOpt
     // - convert fileOpt using includeOpt
     //  - result should be non-empty, exist, be files and be readable
-    val input: List[String] = inputOpt.get // this is a non-optional CLI argument
+    val input: List[String] = inputOpt.getOrElse(List())
     for {
       convertedFiles <- checkConversion(input, includeOpt.map(_.map(_.toPath).toVector).getOrElse(Vector()))
       _ <- atLeastOneFile(convertedFiles)
@@ -267,7 +269,7 @@ class ScallopGobraConfig(arguments: Seq[String])
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.get, includeDirs)
+  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), includeDirs)
 
   /** set log level */
 
@@ -295,6 +297,7 @@ class ScallopGobraConfig(arguments: Seq[String])
           message(pkgs, s"multiple package names provided: '${concatLeft(pkgs, ",")}'")
         case (pkgs, files) if pkgs.nonEmpty && files.nonEmpty =>
           message(pkgs, s"specific input files and one or more package names were simultaneously provided (files: '${concatRight(files, ",")}'; package names: '${concatLeft(pkgs, ",")}')")
+        case _ if isInputOptional => noMessages
         case (pkgs, files) if pkgs.isEmpty && files.isEmpty => message(null, s"no input specified")
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
@@ -318,7 +321,7 @@ class ScallopGobraConfig(arguments: Seq[String])
             } yield resolvedFiles
         }
       } yield files
-      assert(res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")
+      assert(isInputOptional || res.isRight, s"validate function did not catch this problem: '${res.swap.getOrElse(None)}'")
       res.getOrElse(Vector())
     }
 

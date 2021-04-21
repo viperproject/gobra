@@ -17,16 +17,16 @@ trait Implements { this: TypeInfoImpl =>
   def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
       val valid = syntaxImplements(l, r)
-      if (valid.holds) {
-        _requiredImplements ::= (l, itf)
+      if (valid.holds && l != NilType) {
+        _requiredImplements ++= Set((l, itf))
       }
       valid
 
     case _ => errorProp()
   }
 
-  private var _requiredImplements: List[(Type, Type.InterfaceT)] = List.empty
-  def requiredImplements: List[(Type, Type.InterfaceT)] = _requiredImplements
+  private var _requiredImplements: Set[(Type, Type.InterfaceT)] = Set.empty
+  def requiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp

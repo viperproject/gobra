@@ -119,14 +119,37 @@ useful for specification:
     | sequence types | `seq[T]`, for some `T` |
     | set types | `set[T]`, for some `T` |
     | multi-set types | `mset[T]`, for some `T` |
-- Furthermore, the user can define its own types using the `type` keyword
-  (TODO: maybe pass this one as a first)
+    | domain types | TODO |
+
+- Users can **define new types** using the `type` keyword via *alias declarations* and *type definitions*
+    - Alias declarations bind an identifier to a given type. The identifier acts as an alias for the type
+        ```go
+        type TypeAlias = SomeType
+        ``` 
+        In this example, `TypeAlias` is an alias for `SomeType`. Both
+        identifiers correspond to the same type. 
+    - Type definitions create a new type with the same underlying type
+    and operations as the provided type.
+        ```go
+        type TypeDef SomeType
+        ```
+        In this example, `TypeDef` is a new type whose underlying
+        type is `SomeType`. The two
+        identifiers correspond to different types. 
+
 
 #### Predicates
 
 #### Global Constants
 
+### Statements
 
+### Expressions and Assertions
+TODO: when speaking of `acc(...)`, refer to specific section on 
+permissions
+--------------------------------------
+
+## Not integrated in main text
 Gobra allows additional kinds of functions and methods besides the ones in Gobra. We now present such variations for functions. All considerations also apply to methods.
 
 (TODO: mention that methods consist of statements and specs consist of assertions and refer to the corresponding sections)
@@ -152,9 +175,7 @@ the `ghost` and `pure` modifiers
 
 
 
---------------------------------------
 
-## Not integrated in main text
 ### Member Declarations
 A member can be one of the following:
 1. Functions and Methods

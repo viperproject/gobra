@@ -64,17 +64,28 @@ observations, we will refer only to functions, but they generalize to methods
 as well.
 - The specification for a function is provided as a list of pre- and 
 postcontions.
-    - TODO: Explain preconditions. Preconditions are specified using 
+    - Preconditions consist of the conditions that must hold when
+    the method is called. Preconditions are specified using 
     the `requires` keyword, followed by an [assertion](#assertions)
     parameterized by the function arguments.
-    - TODO: Explain postconditions. Postconditions are specified using 
+    - Postconditions consist of the conditions that must hold when the
+    function terminates, assuming that it started in a state satisfying
+    the preconditions. Postconditions are specified using 
     the `ensures` keyword, followed by an assertion parameterized by
     the function arguments and the return value.
     - If no pre- or postconditions are provided, they default to `true`.
+- Function arguments are specified as pairs of identifiers and types. Gobra
+also supports variadic parameters. Additionally, methods expect a special 
+argument - the *receiver* - which appears before the method name in the 
+method declaration.
+- Functions and function calls are verified modularly: 
+    - function calls assume the specification of the called function to be 
+    true. Thus, changing its body does not affect the verification from the
+    callers perspective, as long as the specification remains the same.
+    - The precondition of the callee is checked before a function call 
+    - The postcondition of the callee is assumed after the method call
+- Gobra allows functions without a body, i.e., *abstract functions*. When present, the body of a function consists of a block of [statements](#statements).
 
-In the snippet before, the variables `argX`, with X ranging from 1 to N, are variable names and `typeX` ... corresponds to names of types. The last argument in the list can be variadic.
-
-Explain pre and postconditions
 
 Gobra allows additional kinds of functions and methods besides the ones in Gobra. We now present such variations for functions. All considerations also apply to methods.
 
@@ -190,3 +201,6 @@ things to talk about
 - Data structures, interfaces, Domains (maybe can be skipped)
 - control flow structures
 - functions, methods, pure functions, method expressions, predicate expressions
+
+
+

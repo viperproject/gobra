@@ -23,7 +23,11 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class GobraPackageTests extends GobraTests {
-  override val testDirectories: Seq[String] = Vector("same_package")
+  val samePackagePropertyName = "GOBRATESTS_SAME_PACKAGE_DIR"
+
+  val samePackageDir: String = System.getProperty(samePackagePropertyName, "same_package")
+
+  override val testDirectories: Seq[String] = Vector(samePackageDir)
 
   override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
     // get package clause of file and collect all other files belonging to this package:
@@ -62,7 +66,8 @@ class GobraPackageTests extends GobraTests {
           logLevel = Level.INFO,
           reporter = NoopReporter,
           inputFiles = input.files.toVector,
-          includeDirs = Vector(currentDir)
+          includeDirs = Vector(currentDir),
+          z3Exe = z3Exe
         )
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()

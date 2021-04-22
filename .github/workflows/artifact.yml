@@ -36,6 +36,7 @@ jobs:
           path: gobra/artifact/gobra_docker_image.tar
 
   test-image:
+    needs: build-image
     runs-on: ubuntu-latest
     steps:
       - name: Download docker image

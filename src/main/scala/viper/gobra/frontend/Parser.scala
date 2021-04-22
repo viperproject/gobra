@@ -687,8 +687,8 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      (predeclaredTypeSeparate | precedence4 | typ) ~ ("==" ~> (predeclaredTypeSeparate | precedence4P1 | typ)) ^^ PEquals |
-          (predeclaredTypeSeparate | precedence4 | typ) ~ ("!=" ~> (predeclaredTypeSeparate | precedence4P1 | typ)) ^^ PUnequals |
+      ((typ <~ guard("==")) | precedence4) ~ ("==" ~> (typMinusExpr | precedence4P1)) ^^ PEquals |
+          ((typ <~ guard("!=")) | precedence4) ~ ("!=" ~> (typMinusExpr | precedence4P1)) ^^ PUnequals |
         // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
         precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
@@ -917,6 +917,15 @@ object Parser {
     /**
       * Types
       */
+
+    lazy val typMinusExpr: Parser[PType] =
+      (
+        ("(" ~> typMinusExpr <~ ")") |
+          ("*" ~> typMinusExpr ^^ PDeref) |
+          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
+          sequenceType | setType | multisetType | optionType | domainType |
+          predeclaredType
+        ) <~ not("(")
 
     lazy val typ : Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit

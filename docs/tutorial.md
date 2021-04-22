@@ -1,20 +1,18 @@
 # A Tutorial on Gobra
 ## Introduction
 *Gobra* is an automated, modular verifier for heap-manipulating, concurrent Go programs. Gobra supports a large subset of Go, including Go’s interfaces and primitive data structures.
+Gobra verifies memory safety, crash safety, data-race freedom, and user-provided specifications.
+It takes as input a `.gobra` file containing a Go program annotated with assertions such as pre- and postconditions and loop invariants.
 
-Gobra verifies memory safety, crash safety, data-race freedom, and user-provided specifications. It takes as input a Go program annotated with assertions such as pre- and postconditions and loop invariants.
-
-This tutorial presents Gobra's features and how they can be used ...
-
-Talk about the extension `.gobra`
+This tutorial provides a practical introduction to Gobra and showcases some of its main features.
 
 ## Overview
-A Gobra program consists of a list of imports followed by a list of member declarations. A member can be one of the following:
+As is the case with Go, Gobra program consists of a package clause followed by a list of imports declarations and followed by a list of member declarations. A member can be one of the following:
 1. Functions and Methods
 2. User-defined type
-3. Proof of implementation
-4. Global const
-5. Global var (? not supported atm)
+3. Implementation Proof
+4. Global constants
+5. Global variables (not supported yet)
 
 The following section describes each kind of member in detail.
 ### Top-Level Declarations

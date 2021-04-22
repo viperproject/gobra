@@ -925,7 +925,7 @@ object Parser {
           sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
           sequenceType | setType | multisetType | optionType | domainType |
           predeclaredType
-        ) <~ not("(")
+        ) <~ not("(" | "{")
 
     lazy val typ : Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit

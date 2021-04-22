@@ -71,13 +71,16 @@ lazy val gobra = (project in file("."))
     Test / assembly / assemblyJarName := "gobra-test.jar",
     Test / assembly / test := {},
     // exclude .gobra test files as we currently do not fully support files stored inside a JAR file:
-    Test / unmanagedResources / excludeFilter := {
-      val regressions = ((resourceDirectory in Test).value / "regressions").getCanonicalPath
-      val same_package = ((resourceDirectory in Test).value / "same_package").getCanonicalPath
-      new SimpleFileFilter(p =>
-        (p.getCanonicalPath startsWith regressions) || (p.getCanonicalPath startsWith same_package)
-      )
-    },
+    // [2021-03-22 LA]
+    //  The following lines have been commented out as they seem to influence running the GobraTests
+    //  with `sbt test`: the .gobra files do not get registered as test cases and thus not executed.
+    // Test / assembly / unmanagedResources / excludeFilter := {
+    //   val regressions = ((resourceDirectory in Test).value / "regressions").getCanonicalPath
+    //   val same_package = ((resourceDirectory in Test).value / "same_package").getCanonicalPath
+    //   new SimpleFileFilter(p =>
+    //     (p.getCanonicalPath startsWith regressions) || (p.getCanonicalPath startsWith same_package)
+    //   )
+    // },
     Test / assembly / assemblyMergeStrategy := {
       case LogbackConfigurationFilePattern() => MergeStrategy.discard
       case n if n.startsWith("LICENSE.txt") => MergeStrategy.discard

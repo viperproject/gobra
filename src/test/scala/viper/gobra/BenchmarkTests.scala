@@ -47,6 +47,9 @@ trait BenchmarkTests extends StatisticalTestSuite {
 }
 
 trait GobraFrontendForTesting extends Frontend {
+  val z3PropertyName = "GOBRATESTS_Z3_EXE"
+  val z3Exe: Option[String] = Option(System.getProperty(z3PropertyName))
+
   protected val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
   protected var config: Option[Config] = None
 
@@ -54,7 +57,7 @@ trait GobraFrontendForTesting extends Frontend {
   override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
   override def reset(files: Seq[Path]): Unit =
-    config = Some(Config(inputFiles = files.toVector, reporter = NoopReporter))
+    config = Some(Config(inputFiles = files.toVector, reporter = NoopReporter, z3Exe = z3Exe))
 
   def gobraResult: VerifierResult
 

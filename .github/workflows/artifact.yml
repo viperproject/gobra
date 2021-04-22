@@ -11,7 +11,7 @@ on:
   pull_request: # run this workflow on every pull_request
 
 jobs:
-  build-and-test:
+  build-image:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Gobra
@@ -19,10 +19,35 @@ jobs:
         with:
           path: gobra
 
-      # build docker container
+      # build docker image
       - name: Docker build
-        run: docker build -t local .
+        run: docker build -t gobraverifier/gobra-artifact:v1 .
         working-directory: gobra/artifact
 
+      # save docker image
+      - name: Docker save
+        run: docker save -o gobra_docker_image.tar gobraverifier/gobra-artifact:v1
+        working-directory: gobra/artifact
+
+      - name: Upload docker image
+        uses: actions/upload-artifact@v2
+        with:
+          name: gobra_docker_image.tar
+          path: gobra/artifact/gobra_docker_image.tar
+
+  test-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download docker image
+        uses: actions/download-artifact@v2
+        with:
+          name: gobra_docker_image.tar
+
+      - name: Load docker image
+        run: docker load -i gobra_docker_image.tar
+
+      - name: Run single file
+        run: docker run gobraverifier/gobra-artifact:v1 /bin/bash gobra.sh /test_suite/regressions/examples/example-2-1.gobra
+
       - name: Run regressions
-        run: docker run local /bin/bash regressions.sh
+        run: docker run gobraverifier/gobra-artifact:v1 /bin/bash regressions.sh

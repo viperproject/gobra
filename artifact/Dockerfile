@@ -72,6 +72,6 @@ RUN cd / && \
 # setup test_suite folder:
 RUN mkdir -p /test_suite/regressions /test_suite/evaluation && \
     # copy regression files:
-    cp -r /gobra/src/test/resources/regressions /test_suite/regressions && \
+    cp -r /gobra/src/test/resources/regressions/* /test_suite/regressions && \
     # copy evaluation files:
-    cp -r /gobra/src/test/resources/regressions/examples /test_suite/evaluation
+    cp -r /gobra/src/test/resources/regressions/examples/* /test_suite/evaluation

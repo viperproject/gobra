@@ -687,8 +687,8 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+      (predeclaredType | precedence4 | typ) ~ ("==" ~> (predeclaredType | precedence4P1 | typ)) ^^ PEquals |
+        (predeclaredType | precedence4 | typ) ~ ("!=" ~> (predeclaredType | precedence4P1 | typ)) ^^ PUnequals |
         // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
         precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
@@ -723,6 +723,10 @@ object Parser {
 
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
+
+    // expressionOrType version
+
+
 
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |

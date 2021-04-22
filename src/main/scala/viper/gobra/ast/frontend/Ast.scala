@@ -1039,6 +1039,7 @@ case class PMultisetType(elem : PType) extends PGhostLiteralType
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
+case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 
 case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
 

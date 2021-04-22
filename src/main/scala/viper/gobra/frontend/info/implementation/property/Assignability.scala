@@ -106,7 +106,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
     case PIndexedExp(b, _) => exprType(b) match {
       case _: ArrayT => assignable(b)
-      case _: SliceT => assignable(b)
+      case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
       case _: MapT => true
       case _ => false
@@ -180,6 +180,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             areAllElementsAssignable(elems, t)
 
         case SliceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllElementsAssignable(elems, t)
+
+        case GhostSliceT(t) =>
           areAllKeysConstant(elems) and
             areAllKeysDisjoint(elems) and
             areAllKeysNonNegative(elems) and

@@ -111,6 +111,8 @@ object Type {
 
   case object AssertionT extends PrettyType("assertion") with GhostType
 
+  case class GhostSliceT(elem: Type) extends PrettyType(s"ghost []$elem") with GhostType
+
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type
   }

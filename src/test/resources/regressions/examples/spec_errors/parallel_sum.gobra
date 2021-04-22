@@ -10,8 +10,8 @@ type Accum struct {
 	m *sync.Mutex
 }
 
-pred AccInv(x *int, seenSlice []int) {
-	acc(x) && (forall i int :: 0 <= i && i < len(seenSlice) ==> (acc(&seenSlice[i], 1/2))) && Sum(seenSlice) == *x
+pred AccInv(x *int, ghost seenSlice ghost []int) {
+	acc(x) && (forall i int :: 0 <= i && i < len(seenSlice) ==> (acc(&seenSlice[i], 1/2))) && GhostSum(seenSlice) == *x
 }
 
 // TODO: change `c.m.state == 0 && c.m.stema == 0` to *(c.m) == sync.Mutex{} after
@@ -22,8 +22,8 @@ requires *c.sum == 0
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
 requires forall i int :: 0 <= i && i < len(seenSlice) ==> seenSlice[i] == 0
 ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv!<c.sum, seenSlice!>)
-func (c *Accum) Init(ghost seenSlice []int) {
-	assume Sum(seenSlice) == 0
+func (c *Accum) Init(ghost seenSlice ghost []int) {
+	assume GhostSum(seenSlice) == 0
 	fold AccInv!<c.sum, seenSlice!>()
 	c.m.SetInv(AccInv!<c.sum, seenSlice!>)
 }
@@ -39,7 +39,7 @@ func ParallelSum(s []int) (res int) {
 	count@ := 0
 	m := &sync.Mutex{}
 	c := &Accum{sum: &count, m: m}
-	seenSlice := make([]int, len(s))
+	ghost seenSlice := make(ghost []int, len(s))
 	c.Init(seenSlice)
 	w := &sync.WaitGroup{}
 	w.Init()
@@ -98,10 +98,10 @@ ghost
 requires len(a) == len(b)
 requires forall j int :: 0 <= j && j < len(a) ==> acc(&a[j], 1/2)
 requires forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4) && b[j] == a[j]
-ensures old(Sum(a) - Sum(b)) == 0
+ensures old(Sum(a) - GhostSum(b)) == 0
 ensures forall j int :: 0 <= j && j < len(a) ==> acc(&a[j], 1/2)
 ensures forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4)
-func sumExtensional(ghost a, b []int) {
+func sumExtensional(ghost a []int, ghost b ghost []int) {
 	if len(a) != 0 {
 		sumExtensional(a[:len(a)-1], b[:len(b)-1])
 	}
@@ -119,14 +119,20 @@ pure func Sum(ghost s []int) int {
 }
 
 ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+pure func GhostSum(ghost s ghost []int) int {
+	return len(s) == 0? 0 : s[len(s) - 1] + GhostSum(s[:len(s)-1])
+}
+
+ghost
 requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/4)
 requires acc(&s[pos], 3/4)
 requires 0 <= pos && pos < len(s)
 ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/4)
 ensures acc(&s[pos], 3/4)
-ensures Sum(s) == old(Sum(s)) + val
+ensures GhostSum(s) == old(GhostSum(s)) + val
 ensures s[pos] == old(s[pos]) + val
-func update(ghost s []int, ghost pos, val int) {
+func update(ghost s ghost []int, ghost pos, val int) {
 	if pos == len(s)-1 {
 		s[pos] += val
 	} else {
@@ -140,7 +146,7 @@ requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum, seen
 requires 0 <= pos && pos < len(seenSlice)
 // we forget to specify the worker's debt (seeded bug):
 // requires w.UnitDebt(locHasVal!<&seenSlice[pos],val!>)
-func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice []int, ghost pos int) {
+func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice ghost []int, ghost pos int) {
 	accum.m.Lock()
 	unfold AccInv!<accum.sum, seenSlice!>()
 	*(accum.sum) += val

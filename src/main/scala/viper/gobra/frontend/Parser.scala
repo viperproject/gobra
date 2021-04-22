@@ -925,13 +925,16 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType | domainType
+      sequenceType | setType | multisetType | optionType | domainType | ghostSliceType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
       ("[" ~ "]") ~> typ ^^ PSliceType
+
+    lazy val ghostSliceType: Parser[PGhostSliceType] =
+      "ghost" ~> ("[" ~ "]") ~> typ ^^ PGhostSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType

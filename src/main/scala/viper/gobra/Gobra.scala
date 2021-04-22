@@ -111,9 +111,11 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       } else {
         // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
         val args = configs.flatMap(configString => configString.split(" ")).toList
-        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true).config
+        // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
+        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
         // modify all relative includeDirs such that they are resolved relatively to the current file:
         val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
           includeDir => path.getParent.resolve(includeDir.toString)))
         Some(resolvedConfig)
       }

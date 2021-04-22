@@ -74,7 +74,7 @@ case class Config(
     }
 }
 
-class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false)
+class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = false, skipIncludeDirChecks: Boolean = false)
     extends ScallopConf(arguments)
     with StrictLogging {
 
@@ -262,8 +262,10 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     } yield ()
   }
 
-  validateFilesExist(include)
-  validateFilesIsDirectory(include)
+  if (!skipIncludeDirChecks) {
+    validateFilesExist(include)
+    validateFilesIsDirectory(include)
+  }
   validateInput(input, include)
 
   verify()

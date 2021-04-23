@@ -65,5 +65,5 @@ jobs:
       - name: Run benchmark
         run: docker run -v $PWD/$SYNC_FOLDER:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=1 ./benchmark.sh
 
-      -name: Print benchmark results
+      - name: Print benchmark results
         run: cat $SYNC_FOLDER/benchmark_*.csv

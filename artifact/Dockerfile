@@ -4,13 +4,17 @@
 #
 # Copyright (c) 2011-2021 ETH Zurich.
 
-# this Dockerfile is based on ../docker/Dockerfile providing sbt, java 11, and Z3 4.8.6:
-FROM gobraverifier/gobra-base:v5_z3_4.8.6
+# this Dockerfile is based on ../docker/Dockerfile providing sbt, java 11, and Z3 4.8.7:
+FROM gobraverifier/gobra-base:v5_z3_4.8.7
 
-# copy scripts:
-ADD benchmark.sh /
-ADD gobra.sh /
-ADD regressions.sh /
+# create a gobra user:
+RUN useradd --create-home --shell /bin/bash gobra
+USER gobra
+ENV HOME "/home/gobra"
+WORKDIR $HOME
+
+# copy content into image:
+ADD content/* /home/gobra/
 
 # can be a
 # - tag (e.g. "v.21.01-release")
@@ -23,55 +27,61 @@ ENV SILICON_COMMIT "v.21.01-release"
 ENV GOBRA_COMMIT "origin/artifact"
 # all commands are executed as part of a single "RUN" command in order that no intermediate layers with
 # temporary files get created
-RUN cd / && \
+RUN cd $HOME && \
     # setup silver
-    git clone https://github.com/viperproject/silver.git /silver && \
-    cd /silver && \
+    git clone https://github.com/viperproject/silver.git $HOME/silver && \
+    cd $HOME/silver && \
     git reset --hard $SILVER_COMMIT && \
-    cd / && \
+    cd $HOME && \
     # setup carbon
-    git clone https://github.com/viperproject/carbon.git /carbon && \
-    cd /carbon && \
+    git clone https://github.com/viperproject/carbon.git $HOME/carbon && \
+    cd $HOME/carbon && \
     git reset --hard $CARBON_COMMIT && \
-    ln --symbolic /silver && \
-    cd / && \
+    ln --symbolic $HOME/silver && \
+    cd $HOME && \
     # setup silicon
-    git clone https://github.com/viperproject/silicon.git /silicon && \
-    cd /silicon && \
+    git clone https://github.com/viperproject/silicon.git $HOME/silicon && \
+    cd $HOME/silicon && \
     git reset --hard $SILICON_COMMIT && \
-    ln --symbolic /silver && \
-    cd / && \
+    ln --symbolic $HOME/silver && \
+    cd $HOME && \
     # setup gobra
-    git clone https://github.com/viperproject/gobra.git /gobra && \
-    cd /gobra && \
+    git clone https://github.com/viperproject/gobra.git $HOME/gobra && \
+    cd $HOME/gobra && \
     git reset --hard $GOBRA_COMMIT && \
-    ln --symbolic /silver && ln --symbolic /silicon && ln --symbolic /carbon && \
+    ln --symbolic $HOME/silver && ln --symbolic $HOME/silicon && ln --symbolic $HOME/carbon && \
     # compile and assemble gobra.jar:
     sbt clean assembly && \
-    # copy target/scala-2.13/gobra.jar to root directory:
-    cp target/scala-2.13/gobra.jar /gobra.jar && \
+    # copy target/scala-2.13/gobra.jar to home directory:
+    cp target/scala-2.13/gobra.jar $HOME/gobra.jar && \
     # compile and assemble gobra-test.jar:
     sbt clean test:assembly && \
-    # copy target/scala-2.13/gobra-test.jar to root directory:
-    cp target/scala-2.13/gobra-test.jar /gobra-test.jar && \
+    # copy target/scala-2.13/gobra-test.jar to home directory:
+    cp target/scala-2.13/gobra-test.jar $HOME/gobra-test.jar && \
     # delete all temporary files (ignored, non-ignored, and directories):
     git clean -fxd && \
     # recreate symlink:
-    ln --symbolic /silver && ln --symbolic /silicon && ln --symbolic /carbon && \
+    ln --symbolic $HOME/silver && ln --symbolic $HOME/silicon && ln --symbolic $HOME/carbon && \
     # cleanup silver, silicon, and carbon as well:
-    cd /silver && \
+    cd $HOME/silver && \
     git clean -fxd && \
-    cd /carbon && \
+    cd $HOME/carbon && \
     git clean -fxd && \
-    ln --symbolic /silver && \
-    cd /silicon && \
+    ln --symbolic $HOME/silver && \
+    cd $HOME/silicon && \
     git clean -fxd && \
-    ln --symbolic /silver && \
-    cd /
+    ln --symbolic $HOME/silver && \
+    cd $HOME
 
 # setup test_suite folder:
-RUN mkdir -p /test_suite/regressions /test_suite/evaluation && \
+RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation && \
     # copy regression files:
-    cp -r /gobra/src/test/resources/regressions/* /test_suite/regressions && \
+    cp -r $HOME/gobra/src/test/resources/regressions/* $HOME/test_suite/regressions && \
     # copy evaluation files:
-    cp -r /gobra/src/test/resources/regressions/examples/* /test_suite/evaluation
+    cp -r $HOME/gobra/src/test/resources/regressions/examples/* $HOME/test_suite/evaluation
+
+ENV MOUNT_DIR $HOME/sync
+
+RUN mkdir -p $MOUNT_DIR
+# `$@` corresponds to the arguments passed to docker run:
+ENTRYPOINT cp $HOME/README.md $MOUNT_DIR && /bin/bash "$@"

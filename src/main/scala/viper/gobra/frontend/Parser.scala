@@ -687,8 +687,8 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+      ((typ <~ guard("==")) | precedence4) ~ ("==" ~> (typMinusExpr | precedence4P1)) ^^ PEquals |
+          ((typ <~ guard("!=")) | precedence4) ~ ("!=" ~> (typMinusExpr | precedence4P1)) ^^ PUnequals |
         // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
         precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
@@ -723,6 +723,10 @@ object Parser {
 
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
+
+    // expressionOrType version
+
+
 
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
@@ -794,7 +798,7 @@ object Parser {
     // current format: declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
       (idnUse ~ predConstructArgs) ^^ {
-        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args)
       }
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
@@ -913,6 +917,15 @@ object Parser {
     /**
       * Types
       */
+
+    lazy val typMinusExpr: Parser[PType] =
+      (
+        ("(" ~> typMinusExpr <~ ")") |
+          ("*" ~> typMinusExpr ^^ PDeref) |
+          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
+          sequenceType | setType | multisetType | optionType | domainType |
+          predeclaredType
+        ) <~ not("(" | "{")
 
     lazy val typ : Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
@@ -1038,6 +1051,26 @@ object Parser {
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
         exactWord("uintptr") ^^^ PUIntPtr()
+
+    lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
+      exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |
+        exactWord("string") ~ not("(" | ".") ^^^ PStringType() |
+        exactWord("perm") ~ not("(" | ".") ^^^ PPermissionType() |
+        // signed integer types
+        exactWord("rune") ~ not("(" | ".") ^^^ PRune() |
+        exactWord("int") ~ not("(" | ".") ^^^ PIntType() |
+        exactWord("int8") ~ not("(" | ".") ^^^ PInt8Type() |
+        exactWord("int16") ~ not("(" | ".") ^^^ PInt16Type() |
+        exactWord("int32") ~ not("(" | ".") ^^^ PInt32Type() |
+        exactWord("int64") ~ not("(" | ".") ^^^ PInt64Type() |
+        // unsigned integer types
+        exactWord("byte") ~ not("(" | ".") ^^^ PByte() |
+        exactWord("uint") ~ not("(" | ".") ^^^ PUIntType() |
+        exactWord("uint8") ~ not("(" | ".") ^^^ PUInt8Type() |
+        exactWord("uint16") ~ not("(" | ".") ^^^ PUInt16Type() |
+        exactWord("uint32") ~ not("(" | ".") ^^^ PUInt32Type() |
+        exactWord("uint64") ~ not("(" | ".") ^^^ PUInt64Type() |
+        exactWord("uintptr") ~ not("(" | ".") ^^^ PUIntPtr()
 
     private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
 

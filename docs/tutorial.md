@@ -24,7 +24,9 @@ ensures ... /* postconditions */
 func funcName(arg1 type1, ..., argN typeN) typeRet {
     ... /* function body */
 }
+```
 
+```go
 /* Methods */
 requires ... /* preconditions */
 ensures ... /* postconditions */
@@ -130,23 +132,27 @@ that must hold when executions of the function starting from a state satisfying 
 precondition terminate. They are parameterized by the function parameters and the result 
 variables.
 
- The postcondition is the only information that a caller of the method sum can use to correlate the call result and argument. In particular, in absence of post-condition a caller of method sum cannot make use of the fact that the result is non-negative. This would be required, for example, in order to be able to call sum on its own result. Method preconditions and postconditions together make up a method’s specification.
+Verification of loops also requires specification in the form of **loop invariants**,
+following the `invariant` keyword.
+The loop invariant in `sum` could also be written in one line with the operator 
+`&&` placed between the two assertions.
 
+If omitted, preconditions, postconditions, and loop invariants default to `true`,
+which is typically not enough to prove interesting properties of the program such as memory
+safety and functional correctness.
 
-
+TODO: client
 
 ------
 
-- **loop invariants** (assertions following the `invariant` keyword).
-
-Viper verifies partial correctness of program statements; that is, verification guarantees that if a program state is reached, then the properties specified at that program state are guaranteed to hold. For example, the postcondition of sum is guaranteed to hold whenever a call to sum terminates. Verification of loops also requires specification: the loop in sum’s body needs a loop invariant (if omitted, the default loop invariant is true, which is typically not strong enough to prove interesting properties of the program). The loop invariant in sum could also be written in one line with the boolean operator && placed between the two assertions.
+### Heap-Manipulation
 
 
-TODO: cliente
-explain pre and postconditions and loop invariants.
+Viper verifies partial correctness of program statements; that is, verification guarantees that if a program state is reached, then the properties specified at that program state are guaranteed to hold. For example, the postcondition of sum is guaranteed to hold whenever a call to sum terminates. 
 
 Permissions
 Pointer Permission
+```go
 package preliminaries
 
 type pair struct {
@@ -161,22 +167,27 @@ func (x *pair) incr(n int) {
   x.left += n
   y.left += n
 }
+```
 
-
+```go
 func client1() {
   p := &pair{1,2}
   incr(x, 42)
   assert x.left == 43
 }
+```
 
 
+```go
 func client2() {
   x@ := pair{1,2} // if the reference of an address is taken, then add @
   incr(&x, 42)
   assert x.left == 43
 }
+```
 
 Predicate Permission
+```go
 package preliminaries
 
 type node struct {
@@ -204,24 +215,77 @@ func insert(ptr *node, value interface{}) (ghost idx int) {
  }
  fold list(ptr)
 }
+```
 
 
-
-Quantified Permission
-[Example from the paper]
+#### Quantified Permissions
+```go
+requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k < len(s) ==> s[k] == old(s[k]) + n
+func incr(s []int, n int) {
+    invariant 0 <= i <= len(s)
+    invariant forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+    invariant forall k int :: i <= k < len(s) ==> s[k] == old(s[k])
+    invariant forall k int :: 0 <= k < i ==> s[k] == old(s[k]) + n
+    for i := 0; i < len(s); i += 1 {
+        s[i] = s[i] + n
+    }
+}
+```
 
 [also show client that allocates slice]
-Interfaces
+
+### Interfaces
 stream example from the paper
+```go
+type stream interface{
+    pred memory ()
+    requires acc(memory(), _) // arbitrary fraction of memory(x)
+    pure hasNext () bool
+    requires memory () && hasNext () ensures memory()
+    next() interface{}
+}
+
+type counter struct { 
+    f, max int
+}
+
+requires acc(&x.f, _) && acc(&x.max, _)
+pure func (x *counter) hasNext() bool {
+    return x.f < x.max
+}
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1
+ensures typeOf(y) == int && y.(int) == old(x.f)
+func (x *counter) next() (y interface{}) {
+    x.f++;return x.f-1
+}
+
+pred (x *counter) memory() {
+    acc(&x.f) && acc(&x.max)
+}
+
+(*counter) implements stream {
+    pure (x *counter) hasNextProof() bool {
+        return unfolding acc(x.memory(), _) in x.hasNext()
+    }
+
+    (x *counter) nextProof() (res interface{}) {
+        ...
+    }
+}
+```
 
 Comparability
 look at the list example with value as an interface
-Concurrency
+### Concurrency
 Goroutine
 First-class Predicates
 Lock example
 Channel
-More examples
+### More examples ?
 
 
 ## Structure of Gobra Programs

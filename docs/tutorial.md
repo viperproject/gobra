@@ -10,7 +10,167 @@ all functions and methods according to their specifications. If one of the
 methods fails to meet its specification, the verification fails and Gobra 
 reports the error.
 
-This tutorial provides a practical introduction to Gobra and showcases some of its main features. TODO: OUTLINE
+This tutorial provides a practical introduction to Gobra and showcases some of its main features. 
+
+TODO: OUTLINE: Brief introduction: Say what this section shows: “First, we will introduce Gobra’s top-level declarations. This tutorial will provide more details for their use in the subsequent sections”
+
+
+## Top Level Declarations
+TODO
+must be short, not more than a page, ideally less.
+
+## Examples
+### Basic Annotations
+We start with a simple function that computes the sum of the first `n` natural numbers.
+In Go, this could be written as follows.
+
+
+<table>
+<tr>
+<td> Status </td> <td> Response </td>
+</tr>
+<tr>
+<td> 
+
+
+
+</td>
+<td>
+
+```go
+package tutorial
+
+requires 0 <= n // precondition
+ensures sum == n * (n+1)/2 // postcondition
+func sum(n int) (sum int) {
+    sum := 0
+
+    invariant 0 <= i && i <= n + 1
+    invariant sum == i * (i-1)/2
+    for i := 0; i <= n; i++ {
+            sum += i
+    }
+    return sum
+}
+```
+
+</td>
+</tr>
+</table>
+
+
+```go
+package tutorial
+
+func sum(n int) (sum int) {
+    sum := 0
+
+    for i := 0; i <= n; i++ {
+            sum += i
+    }
+    return sum
+}
+```
+
+
+
+```go
+package tutorial
+
+requires 0 <= n // precondition
+ensures sum == n * (n+1)/2 // postcondition
+func sum(n int) (sum int) {
+    sum := 0
+
+    invariant 0 <= i && i <= n + 1
+    invariant sum == i * (i-1)/2
+    for i := 0; i <= n; i++ {
+            sum += i
+    }
+    return sum
+}
+```
+
+explain pre and postconditions and loop invariants.
+
+Permissions
+Pointer Permission
+package preliminaries
+
+type pair struct {
+  left, right int
+}
+
+requires acc(&x.left) && acc(&x.right)
+ensures acc(&x.left) && acc(&x.right)
+ensures x.left == old(x.left) + n
+ensures x.right == old(x.right) + n
+func (x *pair) incr(n int) {
+  x.left += n
+  y.left += n
+}
+
+
+func client1() {
+  p := &pair{1,2}
+  incr(x, 42)
+  assert x.left == 43
+}
+
+
+func client2() {
+  x@ := pair{1,2} // if the reference of an address is taken, then add @
+  incr(&x, 42)
+  assert x.left == 43
+}
+
+Predicate Permission
+package preliminaries
+
+type node struct {
+  value int
+  next *node
+}
+
+pred listPerm(ptr *node) {
+  ptr != nil ⇒ acc(ptr) && listPerm(ptr.next)
+}
+
+requires list(ptr) && isComparable(value)
+ensures list(ptr)
+ensures idx >= 0
+ensures contains(ptr, value)
+func insert(ptr *node, value interface{}) (ghost idx int) {
+ unfold list(ptr)
+ if (ptr.next == nil) {
+   newNode := &node{value: value}
+   fold list(newNode)
+   ptr.next = newNode
+   idx = 1
+ } else {
+   idx = insert(ptr.next, value) + 1
+ }
+ fold list(ptr)
+}
+
+
+
+Quantified Permission
+[Example from the paper]
+
+[also show client that allocates slice]
+Interfaces
+stream example from the paper
+
+Comparability
+look at the list example with value as an interface
+Concurrency
+Goroutine
+First-class Predicates
+Lock example
+Channel
+More examples
+
 
 ## Structure of Gobra Programs
 As is the case with Go, Gobra programs consist of a *package clause* followed
@@ -139,8 +299,20 @@ useful for specification:
 
 
 #### Predicates
-
+```go
+pred predName(arg1 type1, ..., argN typeN) {
+    ... // any assertion parameterized by `arg1`, ..., `argN`
+}
+```
 #### Global Constants
+```go
+const untypedConst = 0 // untyped integer constant
+const typedConst1 type1 = 1 // typed integer constant
+const (
+    const 
+
+)
+```
 
 ### Statements
 

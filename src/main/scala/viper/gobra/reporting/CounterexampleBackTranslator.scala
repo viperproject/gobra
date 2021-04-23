@@ -75,6 +75,18 @@ object Util{
 			case _ => UnknownType
 		}
 	}
+	def getDefault(t:Type):GobraModelEntry = {
+		t match {
+			case _:IntT => LitIntEntry(0)
+			case BooleanT => LitBoolEntry(false)
+			case _:PointerT => LitNilEntry()
+			case a:ArrayT => LitArrayEntry(a,Seq())
+			case OptionT(elem) => LitOptionEntry(None)
+			case s:StructT => LitStructEntry(s,s.fields.map(x=>(x._1,getDefault(x._2).asInstanceOf[LitEntry])))
+			case StringT => LitStringEntry("")
+			case _ => LitNilEntry()
+		}
+	}
 
 	def prettyPrint(input:GobraModelEntry,level:Int):String = {
 		val indent = "\t\t\t" ++ "\t".repeat(level)
@@ -152,7 +164,7 @@ sealed trait WithSeq {
 case class DummyEntry() extends LitEntry
 case class FaultEntry(message:String)extends LitEntry {override def toString = message}
 case class LitNilEntry() extends LitEntry{//TODO: Think of a way to implement pretty printing
-	override def toString(): String = "null"	
+	override def toString(): String = "nil"	
 }
 case class LitIntEntry(value:BigInt) extends LitEntry {
 	override def toString(): String = s"$value"

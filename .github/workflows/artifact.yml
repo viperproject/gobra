@@ -50,6 +50,7 @@ jobs:
       - name: Create a unique sync folder name
         shell: bash
         run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
 
       - name: Create sync folder
         run: mkdir -p $SYNC_PATH
@@ -63,14 +64,30 @@ jobs:
           test -d $SYNC_PATH
           ls -1qA $SYNC_PATH | grep -q .
 
-      - name: Clear sync folder
-        run: rm -r $SYNC_PATH/*
+      # - name: Clear sync folder
+      #   run: rm -r $SYNC_PATH/*
+      # create a new sync folder instead:
+      - name: Create a unique sync folder name
+        shell: bash
+        run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
+
+      - name: Create sync folder
+        run: mkdir -p $SYNC_PATH
 
       - name: Run regressions
         run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
 
-      - name: Clear sync folder
-        run: rm -r $SYNC_PATH/*
+      # - name: Clear sync folder
+      #   run: rm -r $SYNC_PATH/*
+      # create a new sync folder instead:
+      - name: Create a unique sync folder name
+        shell: bash
+        run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
+
+      - name: Create sync folder
+        run: mkdir -p $SYNC_PATH
 
       - name: Run benchmark
         run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=1 ./benchmark.sh

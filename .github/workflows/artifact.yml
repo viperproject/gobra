@@ -52,10 +52,11 @@ jobs:
         run: |
           echo "SYNC_FOLDER=sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
           mkdir -p $PWD/$SYNC_FOLDER
+          echo "SYNC_PATH=$PWD/$SYNC_FOLDER" >> $GITHUB_ENV
 
       # use sync file according to https://stackoverflow.com/a/54787364/1990080
       - name: Run single file
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/$SYNC_FOLDER gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
 
       - name: Sync folder exists and is non empty
         run: |

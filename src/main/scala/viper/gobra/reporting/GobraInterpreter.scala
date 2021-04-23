@@ -253,6 +253,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		info match{
 			case PointerT(elem )=>{
 					val field = filedname(entry,elem)
+					val address = nameToInt(entry.name,field)
 					val extracted: sil.RefEntry = c.extractVal(sil.VarEntry(entry.name,viper.silicon.state.terms.sorts.Ref)) match{
 										//TODO: what if we don't find it?
 								case r:sil.RefEntry =>r 
@@ -260,22 +261,19 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
 					val value = kek._1 match {
-						case x:sil.OtherEntry => if(extracted.fields.isEmpty) FaultEntry(s"$x, empty heap") else extracted.fields.head._2._1 match {
-																													case r:sil.RefEntry => interpret(r,info) //problem this happens on the last tep and therefore we cannot distinguish
+						case x:sil.OtherEntry => if(extracted.fields.isEmpty) return Util.getDefault(elem) else extracted.fields.head._2._1 match {
+																													case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
 																													case _ => LitNilEntry() 																												
 						}
-							// issue pointer to pointer
 						case r:sil.RefEntry => interpret(r,elem) //this we could potentially handle internally
 						case v:sil.VarEntry => LitNilEntry()
 						case d:sil.DomainValueEntry => FaultEntry(s"$d") //TODO: resolve recursive entries
 						case s:sil.SeqEntry=> LitNilEntry()
-						case t => MasterInterpreter(c).interpret(t,elem)  match {
-											case l:LitEntry => l
-							}//we know we don't have recursion
+						case t => MasterInterpreter(c).interpret(t,elem)  //we know we don't have recursion
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
 											case l:LitEntry => l
 							} */
-					LitPointerEntry(elem,value.asInstanceOf[LitEntry],nameToInt(entry.name,field))
+					LitPointerEntry(elem,value.asInstanceOf[LitEntry],address)
 					}				
 			case t => {
 				//printf(s"halleluja:$t\n")
@@ -303,7 +301,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case PointerT(elem) => elem match{
 				case _ => Names.pointerField(vpr.Ref)
 			} 
-			case _:ArrayT => "val$_ShStruct2_RefRef"
+			case _:ArrayT => "val$_ShArray_fRef"
 			case _:DeclaredT => "val$_ShStruct2_RefRef"
 			case x => s"$x" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
 		}

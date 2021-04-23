@@ -52,21 +52,27 @@ jobs:
         run: |
           echo "SYNC_FOLDER=sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
           mkdir -p $PWD/$SYNC_FOLDER
-          chmod u=rw,g=rx,o=rw $PWD/$SYNC_FOLDER
 
+      # use sync file according to https://stackoverflow.com/a/54787364/1990080
       - name: Run single file
-        run: docker run -v $PWD/$SYNC_FOLDER:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/$SYNC_FOLDER gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
 
       - name: Sync folder exists and is non empty
         run: |
           test -d $SYNC_FOLDER
           ls -1qA $SYNC_FOLDER | grep -q .
 
+      - name: Clear sync folder
+        run: rm -r $PWD/$SYNC_FOLDER/*
+
       - name: Run regressions
-        run: docker run -v $PWD/$SYNC_FOLDER:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/$SYNC_FOLDER gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
+
+      - name: Clear sync folder
+        run: rm -r $PWD/$SYNC_FOLDER/*
 
       - name: Run benchmark
-        run: docker run -v $PWD/$SYNC_FOLDER:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=1 ./benchmark.sh
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/$SYNC_FOLDER gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=1 ./benchmark.sh
 
       - name: Print benchmark results
         run: cat $SYNC_FOLDER/benchmark_*.csv

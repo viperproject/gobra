@@ -32,3 +32,8 @@ The full steps are as follows:
             ```
 Note that the non-interactive docker commands will automatically return after executing the specified commands.
 In the interactive sessions, `exit` can be used in the container to exit and stop the container.
+
+In case of permission errors while using `--volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync` the following command line option can be used instead. Note however that `$PWD/sync` has to already exist on the host:
+```
+--mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync
+```

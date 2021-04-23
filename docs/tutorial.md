@@ -16,14 +16,62 @@ TODO: OUTLINE: Brief introduction: Say what this section shows: “First, we wil
 
 
 ## Top Level Declarations
-TODO
-must be short, not more than a page, ideally less.
+#### Functions and Methods
+```go
+/* Functions */
+requires ... /* preconditions */
+ensures ... /* postconditions */
+func funcName(arg1 type1, ..., argN typeN) typeRet {
+    ... /* function body */
+}
+
+/* Methods */
+requires ... /* preconditions */
+ensures ... /* postconditions */
+func (receiver type0) methodName(arg1 type1, ..., argN typeN) typeRet {
+    ... /* method body */
+}
+```
+
+#### Predicates
+```go
+pred predName(arg1 type1, ..., argN typeN) {
+    ... // any assertion parameterized by `arg1`, ..., `argN`
+}
+```
+#### Type Declarations
+##### Alias Declarations 
+```go
+type TypeAlias = SomeType
+``` 
+- binds an identifier to a given type. Both identifiers correspond to the same type. 
+- The identifier acts as an alias for the type. In this example, `TypeAlias` is an alias for 
+`SomeType`. 
+
+##### Type Definitions 
+```go
+type TypeDef SomeType
+```
+- create a new type with the same underlying type and operations as the provided type.
+- The two identifiers correspond to different types. 
+- In this example, `TypeDef` is a new type whose underlying type is `SomeType`. 
+
+
+#### Global Constants
+```go
+const untypedConst = 0 // untyped integer constant
+const typedConst1 type1 = 1 // typed integer constant
+const (
+    const 
+
+)
+```
 
 ## Examples
 ### Basic Annotations
-We start with a simple function that computes the sum of the first `n` natural numbers.
-In Go, this could be written as follows.
-
+We start with a simple function that computes the sum of the first `n` positive integers.
+The following table shows how the program would be written in Go (on the left) and
+how it would be written and specified in Gobra (on the right).
 
 <table>
 <tr>
@@ -56,7 +104,7 @@ ensures sum == n * (n+1)/2 // postcondition
 func sum(n int) (sum int) {
     sum := 0
 
-    invariant 0 <= i && i <= n + 1
+    invariant 0 <= i && i <= n + 1 
     invariant sum == i * (i-1)/2
     for i := 0; i <= n; i++ {
             sum += i
@@ -69,39 +117,32 @@ func sum(n int) (sum int) {
 </tr>
 </table>
 
+Besides the code present in the Go code, the Gobra version contains a **function specification**
+in the form of pre- and postconditions:
+- **preconditions** (assertion following the `requires` keyword): restricts the argument `n`
+to non-negative values. Thus, `sum` can only be assumed to behave correctly for non-negative 
+values. In general, preconditions are assertions parameterized by the function parameters
+that must hold when a function is called.
 
-```go
-package tutorial
+- **postconditions** (assertion following the `ensures` keyword): defines the contents of the
+result variable `res` when the program terminates. In general, postconditions are properties
+that must hold when executions of the function starting from a state satisfying the 
+precondition terminate. They are parameterized by the function parameters and the result 
+variables.
 
-func sum(n int) (sum int) {
-    sum := 0
-
-    for i := 0; i <= n; i++ {
-            sum += i
-    }
-    return sum
-}
-```
+ The postcondition is the only information that a caller of the method sum can use to correlate the call result and argument. In particular, in absence of post-condition a caller of method sum cannot make use of the fact that the result is non-negative. This would be required, for example, in order to be able to call sum on its own result. Method preconditions and postconditions together make up a method’s specification.
 
 
 
-```go
-package tutorial
 
-requires 0 <= n // precondition
-ensures sum == n * (n+1)/2 // postcondition
-func sum(n int) (sum int) {
-    sum := 0
+------
 
-    invariant 0 <= i && i <= n + 1
-    invariant sum == i * (i-1)/2
-    for i := 0; i <= n; i++ {
-            sum += i
-    }
-    return sum
-}
-```
+- **loop invariants** (assertions following the `invariant` keyword).
 
+Viper verifies partial correctness of program statements; that is, verification guarantees that if a program state is reached, then the properties specified at that program state are guaranteed to hold. For example, the postcondition of sum is guaranteed to hold whenever a call to sum terminates. Verification of loops also requires specification: the loop in sum’s body needs a loop invariant (if omitted, the default loop invariant is true, which is typically not strong enough to prove interesting properties of the program). The loop invariant in sum could also be written in one line with the boolean operator && placed between the two assertions.
+
+
+TODO: cliente
 explain pre and postconditions and loop invariants.
 
 Permissions
@@ -214,22 +255,7 @@ library, or by path. In the second case, the path must be relative to the
 - Gobra provides an incomplete but growing support for the Go standard library. Currently, it has partial support for the packages 
 `encoding/binary`, `net`, `strconv`, `strings`, `sync`, and `time`.
 ### Top-level declarations
-#### Functions and Methods
-```go
-/* Functions */
-requires ... /* preconditions */
-ensures ... /* postconditions */
-func funcName(arg1 type1, ..., argN typeN) typeRet {
-    ... /* function body */
-}
 
-/* Methods */
-requires ... /* preconditions */
-ensures ... /* postconditions */
-func (receiver type0) methodName(arg1 type1, ..., argN typeN) typeRet {
-    ... /* method body */
-}
-```
 - Gobra supports Go's syntax for functions and methods.
 In the following observations, we will refer only to functions, 
 but they generalize to methods as well.
@@ -292,38 +318,9 @@ useful for specification:
     | multi-set types | `mset[T]`, for some `T` |
     | domain types | TODO |
 
+
 - Users can **define new types** using the `type` keyword via *alias declarations* and *type definitions*
-    - Alias declarations bind an identifier to a given type. The identifier acts as an alias for the type
-        ```go
-        type TypeAlias = SomeType
-        ``` 
-        In this example, `TypeAlias` is an alias for `SomeType`. Both
-        identifiers correspond to the same type. 
-    - Type definitions create a new type with the same underlying type
-    and operations as the provided type.
-        ```go
-        type TypeDef SomeType
-        ```
-        In this example, `TypeDef` is a new type whose underlying
-        type is `SomeType`. The two
-        identifiers correspond to different types. 
 
-
-#### Predicates
-```go
-pred predName(arg1 type1, ..., argN typeN) {
-    ... // any assertion parameterized by `arg1`, ..., `argN`
-}
-```
-#### Global Constants
-```go
-const untypedConst = 0 // untyped integer constant
-const typedConst1 type1 = 1 // typed integer constant
-const (
-    const 
-
-)
-```
 
 ### Statements
 

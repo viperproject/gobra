@@ -83,5 +83,9 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation && \
 ENV MOUNT_DIR $HOME/sync
 
 RUN mkdir -p $MOUNT_DIR
-# `$@` corresponds to the arguments passed to docker run:
-ENTRYPOINT cp $HOME/README.md $MOUNT_DIR && /bin/bash "$@"
+
+ENTRYPOINT \
+    # copy all resources that should be available in the mounted sync folder:
+    cp $HOME/README.md $MOUNT_DIR && \
+    # `$@` corresponds to the arguments passed to docker run:
+    /bin/bash "$@"

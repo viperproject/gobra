@@ -49,7 +49,10 @@ jobs:
 
       - name: Create a unique sync folder name
         shell: bash
-        run: echo "SYNC_FOLDER=sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+        run: |
+          echo "SYNC_FOLDER=sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+          mkdir -p $PWD/$SYNC_FOLDER
+          chmod u=rw,g=rx,o=rw $PWD/$SYNC_FOLDER
 
       - name: Run single file
         run: docker run -v $PWD/$SYNC_FOLDER:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra

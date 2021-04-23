@@ -1223,13 +1223,23 @@ object Parser {
       }
 
     lazy val implementationProof: Parser[PImplementationProof] =
-      (typ <~ "implements") ~ typ ~ ("{" ~> (methodImplementationProof <~ eos).* <~ "}").? ^^ {
-        case subT ~ superT ~ memberProofOpt => PImplementationProof(subT, superT, memberProofOpt.getOrElse(Vector.empty))
+      (typ <~ "implements") ~ typ ~ ("{" ~> (implementationProofPredicateAlias <~ eos).* ~ (methodImplementationProof <~ eos).* <~ "}").? ^^ {
+        case subT ~ superT ~ Some(predAlias ~ memberProof) =>PImplementationProof(subT, superT, predAlias, memberProof)
+        case subT ~ superT ~ None => PImplementationProof(subT, superT, Vector.empty, Vector.empty)
       }
 
+    lazy val implementationProofPredicateAlias: Parser[PImplementationProofPredicateAlias] =
+      ("pred" ~> idnUse <~ ":=") ~ (selection | namedOperand) ^^ PImplementationProofPredicateAlias
+
     lazy val methodImplementationProof: Parser[PMethodImplementationProof] =
-      "pure".? ~ receiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
+      "pure".? ~ nonLocalReceiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
         case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body)
+      }
+
+    lazy val nonLocalReceiver: PackratParser[PParameter] =
+      "(" ~> idnDef.? ~ typ <~ ")" ^^ {
+        case None ~ t => PUnnamedParameter(t)
+        case Some(id) ~ t => PNamedParameter(id, t)
       }
 
     lazy val predicateBody: Parser[Option[PExpression]] =

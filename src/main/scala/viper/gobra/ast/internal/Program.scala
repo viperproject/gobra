@@ -37,7 +37,8 @@ class LookupTable(
                  definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
                  definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
                  val memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
-                 val interfaceImplementations: Map[InterfaceT, Set[Type]] // empty interface does not have to be included
+                 val interfaceImplementations: Map[InterfaceT, Set[Type]], // empty interface does not have to be included
+                 implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy]
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
@@ -54,6 +55,12 @@ class LookupTable(
   def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
+
+  def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
+    lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
+      implementationProofPredicateAliases.get(impl, itf, name)
+    }
+  }
 }
 
 sealed trait Member extends Node
@@ -135,7 +142,7 @@ case class MethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Block]
+                               body: Option[Block] // empty if it is generated
                              )(val info: Source.Parser.Info) extends Member
 
 case class PureMethodSubtypeProof(
@@ -145,7 +152,7 @@ case class PureMethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Expr]
+                               body: Option[Expr] // empty if it is generated
                              )(val info: Source.Parser.Info) extends Member {
   require(results.size <= 1)
 }
@@ -1252,8 +1259,10 @@ sealed trait Proxy extends Node {
 sealed trait MemberProxy extends Proxy {
   def uniqueName: String
 }
-case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
-case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
+sealed trait CallProxy extends Proxy
+
+case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy with CallProxy
+case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy with CallProxy
 case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
 
 sealed trait PredicateProxy extends Proxy

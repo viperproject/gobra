@@ -66,7 +66,10 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
     case p: in.MPredicate if hasFamily(p.name)(ctx) =>
-      predicate(p)(ctx)
+      mpredicate(p)(ctx)
+
+    case p: in.FPredicate if hasFamily(p.name)(ctx) =>
+      fpredicate(p)(ctx)
 
     case p: in.PureMethod if p.receiver.typ.isInstanceOf[in.InterfaceT] =>
       function(p)(ctx)
@@ -230,7 +233,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case n@ in.Access(in.Accessible.Predicate(in.MPredicateAccess(recv, p, args)), perm) if hasFamily(p)(ctx) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          instance <- predicateInstance(recv, p, args)(n)(ctx)
+          instance <- mpredicateInstance(recv, p, args)(n)(ctx)
+          perm <- goE(perm)
+        } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
+
+      case n@ in.Access(in.Accessible.Predicate(in.FPredicateAccess(p, args)), perm) if hasFamily(p)(ctx) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          instance <- fpredicateInstance(p, args)(n)(ctx)
           perm <- goE(perm)
         } yield vpr.PredicateAccessPredicate(instance, perm)(pos, info, errT): vpr.Exp
     }
@@ -456,7 +466,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private var typeOfWithSubtypeFactFuncMap: Map[String, vpr.Function] = Map.empty
 
 
-  private def predicate(p: in.MPredicate)(ctx: Context): MemberWriter[Vector[vpr.Predicate]] = {
+  private def mpredicate(p: in.MPredicate)(ctx: Context): MemberWriter[Vector[vpr.Predicate]] = {
+    val id = familyID(p.name)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+    genPredicate(id)(ctx)
+    ml.unit(Vector.empty)
+  }
+
+  private def fpredicate(p: in.FPredicate)(ctx: Context): MemberWriter[Vector[vpr.Predicate]] = {
     val id = familyID(p.name)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
     genPredicate(id)(ctx)
     ml.unit(Vector.empty)
@@ -481,23 +497,29 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val recvDecl = vpr.LocalVarDecl("i", vprInterfaceType(ctx))()
         val recv = recvDecl.localVar
 
-        val rep = ctx.lookup(family.head)
-        val inArgTypes = rep.args.map(_.typ)
+        val (_, inArgTypes) = predicateFamilySignature(id)(ctx)
         val argTypes = inArgTypes.map(ctx.typeEncoding.typ(ctx))
         val argDecls = argTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }
         val args = argDecls.map(_.localVar)
 
-        def clause(p: in.MPredicateProxy): Option[(vpr.Exp, vpr.Exp)] = {
-          val symb = ctx.lookup(p)
-          symb.body.map{ _ =>
-            val typ = symb.receiver.typ
-            // generate precise equality acioms to prove inequality
+        def clause(p: in.PredicateProxy): Option[(vpr.Exp, vpr.Exp)] = {
+          val (typ, vPred) = p match {
+            case p: in.MPredicateProxy =>
+              val symb = ctx.lookup(p)
+              (symb.receiver.typ, ctx.predicate.mpredicate(symb)(ctx).res)
+
+            case p: in.FPredicateProxy =>
+              val symb = ctx.lookup(p)
+              (symb.args.head.typ, ctx.predicate.fpredicate(symb)(ctx).res)
+          }
+
+          vPred.body.map{ _ =>
+            // generate precise equality axioms to prove inequality
             types.genPreciseEqualityAxioms(typ)(ctx)
             // typeOf(i) == T
             val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
             // Body[p(valueOf(i): [T], args)]
             val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(typ))()(ctx) +: args
-            val vPred = ctx.predicate.mpredicate(symb)(ctx).res
             val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
             (lhs, vpr.utility.Simplifier.simplify(rhs))
           }
@@ -540,36 +562,42 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private var genPredicates: List[vpr.Predicate] = List.empty
 
 
-  private def hasFamily(p: in.MPredicateProxy)(ctx: Context): Boolean = familyID(p)(ctx).isDefined
-  private def familyID(p: in.MPredicateProxy)(ctx: Context): Option[Int] = predicateFamilyTuple(ctx)._1.get(p)
-  private def predicateFamily(id: Int)(ctx: Context): Set[in.MPredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
-  private def predicateFamilyTuple(ctx: Context): (Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]]) = {
+  private def hasFamily(p: in.PredicateProxy)(ctx: Context): Boolean = familyID(p)(ctx).isDefined
+  private def familyID(p: in.PredicateProxy)(ctx: Context): Option[Int] = predicateFamilyTuple(ctx)._1.get(p)
+  private def predicateFamily(id: Int)(ctx: Context): Set[in.PredicateProxy] = predicateFamilyTuple(ctx)._2.getOrElse(id, Set.empty)
+  private def predicateFamilySignature(id: Int)(ctx: Context): (String, Vector[in.Type]) = predicateFamilyTuple(ctx)._3(id)
+  private def predicateFamilyTuple(ctx: Context): (Map[in.PredicateProxy, Int], Map[Int, Set[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])]) = {
     predicateFamilyTupleRes.getOrElse{
       val itfNodes = for {
         (itf, impls) <- ctx.table.interfaceImplementations.toSet
         itfProxy <- ctx.table.members(itf).collect{ case m: in.MPredicateProxy => m }
-      } yield (itfProxy, impls)
+      } yield (itfProxy, itf, impls)
 
       val edges = for {
-        (itfProxy, impls) <- itfNodes
+        (itfProxy, itf, impls) <- itfNodes
         impl <- impls
-        implProxy = ctx.table.lookup(impl, itfProxy.name).collect{ case m: in.MPredicateProxy => m }
+        implProxy = ctx.table.lookupImplementationPredicate(impl, itf, itfProxy.name)
           .getOrElse(Violation.violation(s"Did not find predicate ${itfProxy.name} for type $impl."))
       } yield (itfProxy, implProxy)
 
       val nodes = itfNodes.map(_._1) ++ edges.map(_._2)
 
-      val res = Algorithms.unionFind[in.MPredicateProxy](nodes){ union =>
+      val (nodesId, families) = Algorithms.unionFind[in.PredicateProxy](nodes){ union =>
         for ( (itfProxy, implProxy) <- edges ) union(itfProxy, implProxy)
       }
-      predicateFamilyTupleRes = Some(res)
-      res
+
+      val sigs = itfNodes.map{
+        case (itfProxy, _, _) => nodesId(itfProxy) -> (itfProxy.name, ctx.lookup(itfProxy).args.map(_.typ))
+      }.toMap
+
+      predicateFamilyTupleRes = Some((nodesId, families, sigs))
+      (nodesId, families, sigs)
     }
   }
-  private var predicateFamilyTupleRes: Option[(Map[in.MPredicateProxy, Int], Map[Int, Set[in.MPredicateProxy]])] = None
+  private var predicateFamilyTupleRes: Option[(Map[in.PredicateProxy, Int], Map[Int, Set[in.PredicateProxy]], Map[Int, (String, Vector[in.Type])])] = None
 
 
-  private def predicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
+  private def mpredicateInstance(recv: in.Expr, proxy: in.MPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
     val (pos, info, errT) = src.vprMeta
     val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -581,6 +609,21 @@ class InterfaceEncoding extends LeafTypeEncoding {
         boxInterface(dynValue, typ)(pos, info, errT)(ctx)
       } else dynValue
       vArgs <- sequence(args map goE)
+    } yield vpr.PredicateAccess(vRecv +: vArgs, predicateName = genPredicateName(id))(pos, info, errT)
+  }
+
+  private def fpredicateInstance(proxy: in.FPredicateProxy, args: Vector[in.Expr])(src: in.Node)(ctx: Context): CodeWriter[vpr.PredicateAccess] = {
+    val (pos, info, errT) = src.vprMeta
+    val id = familyID(proxy)(ctx).getOrElse(Violation.violation("expected dynamic predicate"))
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    for {
+      dynValue <- goE(args.head)
+      vRecv = if (!ctx.lookup(proxy).args.head.typ.isInstanceOf[in.InterfaceT]) {
+        val typ = types.typeToExpr(args.head.typ)(pos, info, errT)(ctx)
+        boxInterface(dynValue, typ)(pos, info, errT)(ctx)
+      } else dynValue
+      vArgs <- sequence(args.tail map goE)
     } yield vpr.PredicateAccess(vRecv +: vArgs, predicateName = genPredicateName(id))(pos, info, errT)
   }
 

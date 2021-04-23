@@ -89,6 +89,7 @@ object Desugar {
     val combinedMPredicates = combineTableField(_.definedMPredicates)
     val combinedImplementations = combineTableField(_.interfaceImplementations)
     val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations)
+    val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(
       combineTableField(_.definedTypes),
       combinedMethods ++ builtInMethods,
@@ -96,7 +97,8 @@ object Desugar {
       combinedMPredicates ++ builtInMPredicates,
       combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
       combinedMemberProxies,
-      combinedImplementations
+      combinedImplementations,
+      combineImpProofPredAliases
       )
     val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
     (table, builtInMembers)
@@ -181,14 +183,21 @@ object Desugar {
       in.MethodProxy(decl.id.name, name)(meta(decl, context))
     }
 
+    def methodProxyFromSymb(symb: st.Method): in.MethodProxy = {
+      symb match {
+        case symb: st.MethodImpl => in.MethodProxy(symb.decl.id.name, idName(symb.decl.id, symb.context.getTypeInfo))(meta(symb.decl, symb.context.getTypeInfo))
+        case symb: st.MethodSpec => in.MethodProxy(symb.spec.id.name, idName(symb.spec.id, symb.context.getTypeInfo))(meta(symb.spec, symb.context.getTypeInfo))
+      }
+    }
+
     def methodProxy(id: PIdnUse): in.MethodProxy = {
       val name = idName(id)
       in.MethodProxy(id.name, name)(meta(id))
     }
 
-    def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
-      val name = idName(decl.id)
-      in.FPredicateProxy(name)(meta(decl))
+    def fpredicateProxyD(decl: PFPredicateDecl, context: TypeInfo = info): in.FPredicateProxy = {
+      val name = idName(decl.id, context)
+      in.FPredicateProxy(name)(meta(decl, context))
     }
 
     def fpredicateProxy(id: PIdnUse): in.FPredicateProxy = {
@@ -335,7 +344,8 @@ object Desugar {
         definedMPredicates,
         definedFPredicates,
         computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations),
-        interfaceImplementations
+        interfaceImplementations,
+        implementationProofPredicateAliases
       )
 
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
@@ -2042,15 +2052,23 @@ object Desugar {
 
       interfaceImplementations += (dSuperT -> (interfaceImplementations.getOrElse(dSuperT, Set.empty) + dSubT))
 
+      decl.alias foreach { al =>
+        info.resolve(al.right) match {
+          case Some(p: ap.Predicate) =>
+            implementationProofPredicateAliases += ((dSubT, dSuperT, al.left.name) -> fpredicateProxyD(p.symb.decl))
+          case _ => violation("Right-hand side of an predicate assignment in an implementation proof must be a predicate")
+        }
+      }
+
       decl.memberProofs foreach { mp =>
 
-        val subSymb = info.tryNonAddressableMethodLikeLookup(subT, mp.id).get._1.asInstanceOf[st.MethodImpl]
-        val subProxy = methodProxyD(subSymb.decl)
-        val superSymb = info.tryNonAddressableMethodLikeLookup(superT, mp.id).get._1.asInstanceOf[st.MethodSpec]
-        val superProxy = methodProxyD(superSymb.spec)
+        val subSymb = info.getMember(subT, mp.id.name).get._1.asInstanceOf[st.MethodImpl]
+        val subProxy = methodProxyFromSymb(subSymb)
+        val superSymb = info.getMember(superT, mp.id.name).get._1.asInstanceOf[st.MethodSpec]
+        val superProxy = methodProxyFromSymb(superSymb)
 
         val src = meta(mp)
-        val recvWithSubs = receiverD(mp.receiver)
+        val recvWithSubs = inParameterD(mp.receiver, 0)
         val (recv, _) = recvWithSubs
         val argsWithSubs = mp.args.zipWithIndex map { case (p, i) => inParameterD(p, i) }
         val (args, _) = argsWithSubs.unzip
@@ -2077,6 +2095,7 @@ object Desugar {
     }
 
     var interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = Map.empty
+    var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
 
     def registerMethod(decl: PMethodDecl): in.MethodMember = {

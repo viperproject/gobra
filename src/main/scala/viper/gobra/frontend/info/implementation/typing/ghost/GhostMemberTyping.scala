@@ -7,7 +7,8 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
-import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
+import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
 import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -26,13 +27,29 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         nonVariadicArguments(args)
 
     case ip: PImplementationProof =>
-      syntaxImplements(symbType(ip.subT), symbType(ip.superT)).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}") ++
+      val subType = symbType(ip.subT)
+      val superType = symbType(ip.superT)
+
+      syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}") ++
       {
-        val implementationType = symbType(ip.subT)
         val badReceiverTypes = ip.memberProofs.map(m => miscType(m.receiver))
-          .filter(t => !identicalTypes(t, implementationType))
-        error(ip, s"The receiver of all methods included in the implementation proof must be $implementationType, " +
+          .filter(t => !identicalTypes(t, subType))
+        error(ip, s"The receiver of all methods included in the implementation proof must be $subType, " +
           s"but encountered: ${badReceiverTypes.distinct.mkString(", ")}", cond = badReceiverTypes.nonEmpty)
+      } ++ {
+        val superPredNames = memberSet(superType).collect{ case (n, m: MPredicateSpec) => (n, m) }
+        val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
+          val valid = tryMethodLikeLookup(subType, PIdnUse(name)).isDefined ||
+            ip.alias.exists(al => al.left.name == name)
+          failedProp({
+            val argTypes = symb.args map symb.context.typ
+
+            s"predicate $name is not defined for type $subType. " +
+              s"Either declare a predicate 'pred ($subType) $name(${argTypes.mkString(", ")})' " +
+              s"or declare a predicate 'pred p($subType${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
+          }, !valid)
+        })
+        allPredicatesDefined.asReason(ip, "Some predicate definitions are missing")
       }
   }
 

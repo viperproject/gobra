@@ -55,42 +55,19 @@ jobs:
       - name: Create sync folder
         run: mkdir -p $SYNC_PATH
 
-      # use sync file according to https://stackoverflow.com/a/54787364/1990080
       - name: Run single file
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+        run: docker run --volume $SYNC_PATH:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
 
       - name: Sync folder exists and is non empty
         run: |
           test -d $SYNC_PATH
           ls -1qA $SYNC_PATH | grep -q .
 
-      # - name: Clear sync folder
-      #   run: rm -r $SYNC_PATH/*
-      # create a new sync folder instead:
-      - name: Create a unique sync folder name
-        shell: bash
-        run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
-        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
-
-      - name: Create sync folder
-        run: mkdir -p $SYNC_PATH
-
       - name: Run regressions
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
-
-      # - name: Clear sync folder
-      #   run: rm -r $SYNC_PATH/*
-      # create a new sync folder instead:
-      - name: Create a unique sync folder name
-        shell: bash
-        run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
-        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
-
-      - name: Create sync folder
-        run: mkdir -p $SYNC_PATH
+        run: docker run --volume $SYNC_PATH:/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
 
       - name: Run benchmark
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
+        run: docker run --volume $SYNC_PATH:/home/gobra/sync --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
 
       - name: Print benchmark results
         run: cat $SYNC_PATH/benchmark_*.csv

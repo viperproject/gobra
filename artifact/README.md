@@ -15,20 +15,20 @@ The full steps are as follows:
         ```
     - If you want to share a folder between your host and the container, use the following command that creates a new folder in the current directory on your host and mounts it to the container (it will be mounted at `/home/gobra/sync`):
         ```
-        docker run -it -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1
+        docker run -it --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1
         ```
     - Alternatively, Gobra can be run in preconfigured ways:
         - Verify `example-2-1.gobra` (the file has to be accessible from within the container):
             ```
-            docker run -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+            docker run --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
             ```
         - Run the regression test suite:
             ```
-            docker run -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
+            docker run --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
             ```
         - Benchmark Gobra by verifying each file in the benchmark suite 5 times:
             ```
-            docker run -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync --env GOBRATESTS_REPETITIONS=5 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
+            docker run --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync --env GOBRATESTS_REPETITIONS=5 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
             ```
 Note that the non-interactive docker commands will automatically return after executing the specified commands.
 In the interactive sessions, `exit` can be used in the container to exit and stop the container.

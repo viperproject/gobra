@@ -1576,7 +1576,8 @@ object Desugar {
               arg1 = argsD.lift(1)
 
               make: in.MakeStmt = info.symbType(t) match {
-                case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
                   val channelType = elemD(c).asInstanceOf[in.ChannelT]
                   val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
@@ -2120,6 +2121,7 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
+      case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))

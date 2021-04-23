@@ -4,6 +4,7 @@ import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
+import javax.lang.model.`type`.DeclaredType
 
 trait GobraInterpreter extends sil.ModelInterpreter[GobraModelEntry,Type]
 trait GobraDomainInterpreter[T] extends sil.DomainInterpreter[GobraModelEntry,T]
@@ -23,7 +24,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val boxInterpreter:GobraDomainInterpreter[Type] = BoxInterpreter(c)
 	val indexedInterpreter:GobraDomainInterpreter[ArrayT] = IndexedInterpreter(c)
 	val sliceInterpreter: GobraDomainInterpreter[SliceT]= SliceInterpreter(c)
-	val pointerInterpreter : sil.ModelInterpreter[GobraModelEntry,PointerT] = PointerInterpreter(c)
+	val pointerInterpreter : sil.AbstractInterpreter[sil.RefEntry,Type,GobraModelEntry] = PointerInterpreter(c)
 	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
 		entry match{
 			case sil.LitIntEntry(v) => info match {
@@ -51,14 +52,10 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 												case _ => DummyEntry()
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
-			case r:sil.RefEntry => info match{
-										case p:PointerT => pointerInterpreter.interpret(r,p)
-										case t => {val value = pointerInterpreter.interpret(r,PointerT(t))
-													value match {case LitPointerEntry(t,v,_) => v ; case x=> x}	}
-									} 
+			case r:sil.RefEntry => pointerInterpreter.interpret(r,info) 
 			case rr:sil.RecursiveRefEntry => info match{
-													case t:PointerT => {val address = PointerInterpreter(c).nameToInt(rr.name,PointerInterpreter(c).filedname(t.elem))
-											 			FaultEntry(s"&$address")
+													case t:PointerT => {val address = PointerInterpreter(c).nameToInt(rr.name,PointerInterpreter(c).filedname(rr,t.elem))
+											 			LitAdressedEntry(FaultEntry(s"recursive call"),address)
 															}
 													case _ => FaultEntry("recursive reference to non pointer... how?")
 												}
@@ -121,7 +118,7 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 			val fields = info.fields
 			val numFields = fields.size
 			val getterNames = Seq.range(0,numFields).map(getterFunc(_,numFields))
-			val getterfuncs = getterNames.map(x=>functions.find(_.fname==x)).collect({case Some(v)=> v})
+			val getterfuncs = getterNames.map(x=>functions.find(n=>(n.fname==x||n.fname==s"ShStruct$x"))).collect({case Some(v)=> v})
 			val fieldToVals = (fields.keys.toSeq.zip(getterfuncs).map(
 												x=>(x._1,x._2.apply(Seq(entry)) match {case Right(v)=> v; 
 																				case _ => return FaultEntry(s"${entry}: could not relsove (${x._1})")
@@ -249,38 +246,66 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 	}
 }
 
-case class PointerInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,PointerT]{
+case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.RefEntry,Type,GobraModelEntry]{
 	
-	def interpret(entry:sil.ExtractedModelEntry,info:PointerT): GobraModelEntry ={
-		val field = filedname(info.elem)
-		entry match {
-			case sil.RefEntry(name,map) => {val kek = c.extractVal(sil.VarEntry(name,viper.silicon.state.terms.sorts.Ref)) match{
-											//TODO: what if we don't find it?
-											case sil.RefEntry(name,map) => map.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"in ${map}"),None))
-											case _ => return FaultEntry(s"no such field found ${field}")
-										}
-										val value = MasterInterpreter(c).interpret(kek._1,info.elem) match {
+	def interpret(entry:sil.RefEntry,info:Type): GobraModelEntry ={
+		
+		info match{
+			case PointerT(elem )=>{
+					val field = filedname(entry,elem)
+					val extracted: sil.RefEntry = c.extractVal(sil.VarEntry(entry.name,viper.silicon.state.terms.sorts.Ref)) match{
+										//TODO: what if we don't find it?
+								case r:sil.RefEntry =>r 
+								case _ => return FaultEntry("false extraction")
+					}
+					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
+					val value = kek._1 match {
+						case x:sil.OtherEntry => if(extracted.fields.isEmpty) FaultEntry(s"$x, empty heap") else extracted.fields.head._2._1 match {
+																													case r:sil.RefEntry => interpret(r,info) //problem this happens on the last tep and therefore we cannot distinguish
+																													case _ => LitNilEntry() 																												
+						}
+							// issue pointer to pointer
+						case r:sil.RefEntry => interpret(r,elem) //this we could potentially handle internally
+						case v:sil.VarEntry => LitNilEntry()
+						case d:sil.DomainValueEntry => FaultEntry(s"$d") //TODO: resolve recursive entries
+						case s:sil.SeqEntry=> LitNilEntry()
+						case t => MasterInterpreter(c).interpret(t,elem)  match {
 											case l:LitEntry => l
-										}
-										LitPointerEntry(info.elem,value,nameToInt(name,field))
-									}
-			case _=> DummyEntry()
+							}//we know we don't have recursion
+					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
+											case l:LitEntry => l
+							} */
+					LitPointerEntry(elem,value.asInstanceOf[LitEntry],nameToInt(entry.name,field))
+					}				
+			case t => {
+				//printf(s"halleluja:$t\n")
+				val address = nameToInt(entry.name,filedname(entry,t))
+				val value = interpret(entry,PointerT(t))
+				value match {
+						case p:LitPointerEntry =>  LitAdressedEntry(p.value,address)
+						case x:LitEntry => LitAdressedEntry(x,address)
+					}	
+				}
 		}
 		
 	}
 	def nameToInt(name:String,field:String) :Int ={
 		val id = Integer.parseInt(name.split("!").last)
-		val offset = field.split("$").last.hashCode()
+		val offset = field.hashCode()
 		(id +1)* 100 + (offset %100)
 	}
 	 
-	def filedname(i:Type) : String ={
+	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={
 		i match{
 			case _:IntT => Names.pointerField(vpr.Int)
 			case BooleanT => Names.pointerField(vpr.Bool)
 			case StringT => Names.pointerField(vpr.Int)
-			case _:PointerT => Names.pointerField(vpr.Ref)
-			case x => "unknown" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
+			case PointerT(elem) => elem match{
+				case _ => Names.pointerField(vpr.Ref)
+			} 
+			case _:ArrayT => "val$_ShStruct2_RefRef"
+			case _:DeclaredT => "val$_ShStruct2_RefRef"
+			case x => s"$x" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
 		}
 	}
 }

@@ -28,7 +28,7 @@ The full steps are as follows:
             ```
         - Benchmark Gobra by verifying each file in the benchmark suite 5 times:
             ```
-            docker run -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=5 ./benchmark.sh
+            docker run -v $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync --env GOBRATESTS_REPETITIONS=5 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
             ```
 Note that the non-interactive docker commands will automatically return after executing the specified commands.
 In the interactive sessions, `exit` can be used in the container to exit and stop the container.

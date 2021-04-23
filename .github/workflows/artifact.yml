@@ -90,7 +90,7 @@ jobs:
         run: mkdir -p $SYNC_PATH
 
       - name: Run benchmark
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash GOBRATESTS_REPETITIONS=1 ./benchmark.sh
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
 
       - name: Print benchmark results
         run: cat $SYNC_PATH/benchmark_*.csv

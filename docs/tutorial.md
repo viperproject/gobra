@@ -27,12 +27,23 @@ In Go, this could be written as follows.
 
 <table>
 <tr>
-<td> Status </td> <td> Response </td>
+<td> Go code </td> <td> Gobra code </td>
 </tr>
 <tr>
 <td> 
 
+```go
+package tutorial
 
+func sum(n int) (sum int) {
+    sum := 0
+
+    for i := 0; i <= n; i++ {
+            sum += i
+    }
+    return sum
+}
+```
 
 </td>
 <td>

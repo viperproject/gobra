@@ -28,7 +28,7 @@ trait BenchmarkTests extends StatisticalTestSuite {
   override val inclusionFilePropertyName = "GOBRATESTS_INCL_FILE"
   val timeoutPropertyName = "GOBRATESTS_TIMEOUT"
 
-  val timeoutSec: Int = System.getProperty(timeoutPropertyName, "180").toInt /* timeout in seconds */
+  val timeoutSec: Int = System.getProperty(timeoutPropertyName, "600").toInt /* timeout in seconds */
 
   override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
 

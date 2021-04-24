@@ -16,6 +16,12 @@ This tutorial provides a practical introduction to Gobra and showcases some of i
 
 TODO: OUTLINE: Brief introduction: Say what this section shows: “First, we will introduce Gobra’s top-level declarations. This tutorial will provide more details for their use in the subsequent sections”
 
+## Structure of Gobra Programs
+As is the case with Go, Gobra programs consist of a *package clause* followed
+by a list of *imports declarations*, finally followed by a list of 
+*top-level declarations*.
+The following section lists the available Top-level declarations in Gobra.
+TODO: we delegate the treatment of package ...
 
 ## Top Level Declarations
 #### Functions and Methods
@@ -36,6 +42,14 @@ func (receiver type0) methodName(arg1 type1, ..., argN typeN) typeRet {
     ... /* method body */
 }
 ```
+- functions and methods can be annotated with pre- and postconditions. If ommited, they default to `true`
+- function and method calls are verified modularly
+    - the body is ignored at call site (changing the body does not affect client code)
+    - the precondition is checked before the function call
+    - the postcondition is assumed after the function call
+- functions and methods may not have bodies, in which case they are not verified. Nonetheless, their specifications
+are still used to verify calls to these methods.
+
 
 #### Predicates
 ```go
@@ -70,6 +84,8 @@ const (
 
 )
 ```
+
+#### Implementation Proofs
 
 ## Examples
 ### Basic Annotations
@@ -151,7 +167,7 @@ In this model, each heap location is associated with an *access permission*.
 Access permissions are held by method executions and transferred
 between functions upon call and return.
 A method may access a location only if it holds the associated permission.
-Permission to a shared location `v` is denoted in Gobra by the access predicate `acc(v)`.
+Permission to a shared location `v` is denoted in Gobra by the accessbility predicate `acc(v)`.
 
 Gobra's permission model is expressive enough to allow concurrent read accesses while still
 ensuring exclusive writes. Furthermore, the concept of permissons extends to
@@ -161,14 +177,14 @@ This section demonstrates how the permissions and the access predicate are used 
 memory locations (through pointers) and predicates. Furthermore, it also describes
 how to allow multiple ... // TODO: fractional permissions
 
-#### Access to heap locations via pointers
+#### Accessability Predicate
 In pre- and postconditions, and generally in assertions, permission to a location `l`
 is denoted by an accessibility predicate: an assertion which is written `acc(l)`.
 Besides, `acc(l)` implies that l is not `nil`.
 
 An accessibility predicate in a function’s precondition can be interpreted as
 an obligation for a caller to transfer the permission to the callee,
-thereby giving it up. Consersely, an accessibility predicate in a 
+thereby giving it up. Conversely, an accessibility predicate in a 
 postcondition can be understood as a permission transfer
 in the opposite direction: from callee to calleer.
 
@@ -201,33 +217,77 @@ Furthermore, *postcondition 2* and *postcondition 3* ensure that the fields `x.l
 are both incremented by `n`, respectively. Both postconditions make use of the `old` operator whose value
 is the value of its operand in the beggining of the method execution.
 
-
 As a short-hand,
 one could have written `requires acc(x)` to require access to all fields of `x`.
-acc(x) implies x is not null
 
-
-TODO:
-- talk about constructors giving permissions
+Given the implementation and specification of `incr`, one can call it from other functions and methods.
+For example, `client1` allocates a new `pair`. When a function allocates a new value on the heap, it also aquires
+permissions to all of its fields. It then passes the location `p` of the newly created pair to method `incr`, which
+intuitively  
+1. obtains the permissions to `p.left` and `p.right`
+2. modifies its values according to the specifcation of `incr`
+3. returns the permissions of `p.left` and `p.right` back to `client1`
 
 ```go
+package tutorial
+
 func client1() {
   p := &pair{1,2}
-  incr(x, 42)
+  x.incr(42)
   assert x.left == 43
 }
 ```
+The assertion at the end of `client1` checks that `x.left == 43` at the end of its execution. If this was not
+the case, verification would fail.
 
-
+Similar to `client1`, `client2` also allocates a `pair`. However, it stores the new `pair` in a variable `x`
+instead of storing a pointer to it, like in `client1`. Because we obtain its location in the call to `incr`,
+the variable `x` must be followed by a `@` in its declaration. In general, every variable whose address is obtained
+using `&` needs to be annotated with `@` at declaration site. 
 ```go
+package tutorial
+
 func client2() {
   x@ := pair{1,2} // if the reference of an address is taken, then add @
-  incr(&x, 42)
+  (&x).incr(42)
   assert x.left == 43
 }
 ```
 
-Predicate Permission
+#### Fractional Permissions
+#### Quantified Permissions
+```go
+requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k < len(s) ==> s[k] == old(s[k]) + n
+func incr(s []int, n int) {
+    invariant 0 <= i <= len(s)
+    invariant forall k int :: 0 <= k < len(s) ==> acc(&s[k])
+    invariant forall k int :: i <= k < len(s) ==> s[k] == old(s[k])
+    invariant forall k int :: 0 <= k < i ==> s[k] == old(s[k]) + n
+    for i := 0; i < len(s); i += 1 {
+        s[i] = s[i] + n
+    }
+}
+```
+
+[also show client that allocates slice]
+
+
+### Predicates
+In general, listing the heap locations modified by a function via access predicates with pointers can
+only be done with structures of bounded size. 
+
+listing the access permissions to locations is always bounded. That limitation is overcome
+TODO:
+by using predicates
+- predicates
+- predicates don't mean the same thing as their body, they require an explicit unfolding
+- fold
+- unfold
+- unfolding
+
+
 ```go
 package preliminaries
 
@@ -258,24 +318,8 @@ func insert(ptr *node, value interface{}) (ghost idx int) {
 }
 ```
 
-#### Fractional Permissions
-#### Quantified Permissions
-```go
-requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k < len(s) ==> s[k] == old(s[k]) + n
-func incr(s []int, n int) {
-    invariant 0 <= i <= len(s)
-    invariant forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-    invariant forall k int :: i <= k < len(s) ==> s[k] == old(s[k])
-    invariant forall k int :: 0 <= k < i ==> s[k] == old(s[k]) + n
-    for i := 0; i < len(s); i += 1 {
-        s[i] = s[i] + n
-    }
-}
-```
 
-[also show client that allocates slice]
+
 
 ### Interfaces
 stream example from the paper
@@ -321,6 +365,7 @@ pred (x *counter) memory() {
 
 Comparability
 look at the list example with value as an interface
+
 ### Concurrency
 Goroutine
 First-class Predicates
@@ -328,14 +373,9 @@ Lock example
 Channel
 ### More examples ?
 
+-----------------
 
-## Structure of Gobra Programs
-As is the case with Go, Gobra programs consist of a *package clause* followed
-by a list of *imports declarations*, finally followed by a list of 
-*top-level declarations*.
-The following sections describe in detail each component of a Gobra program.
-
-## Language Overview
+## Not integrated in main text
 ### Package Clauses
 ```go
 package pkgName
@@ -359,6 +399,7 @@ library, or by path. In the second case, the path must be relative to the
 `GOPATH` environment variable.
 - Gobra provides an incomplete but growing support for the Go standard library. Currently, it has partial support for the packages 
 `encoding/binary`, `net`, `strconv`, `strings`, `sync`, and `time`.
+
 ### Top-level declarations
 
 - Gobra supports Go's syntax for functions and methods.
@@ -398,43 +439,8 @@ func sumToN(n int) (res int)
 
 TODO: mention ghost and pure functions, ghost arguments
 
-#### Type Declarations
-- Currently, Gobra supports the following types from Go:
-    | Description      | Type Identifiers |
-    | ----------- | ----------- |
-    | integer types| `int8`, `int16`, `int32`, `int64`, `int`, `uint8`, `uint16`, `uint32`, `uint64`, `uint`, `uintptr`, `byte`, `rune`|
-    | boolean type | `bool` |
-    | string type | `string` |
-    | array types | `[n]T`, for some natural number `n` and some type `T` |
-    | slice types | `[]T`, for some type `T` |
-    | bidirectional channel types | `chan T`, for some type `T` |
-    | send-only channel types | `chan<- T`, for some type `T` |
-    | receive-only channel types | `<-chan T`, for some type `T` |
-    | pointer types | `*T`, for some type `T` |
-    | struct types | `struct { field1 T1, ..., fieldN TN}`, where `field1` .. `fieldN` correspond to identifiers and `T1`..`TN` are types |
-    | interface types | `interface { m1, ..., mN}`, where `m1`..`mN` are method specifications|
-
-- Additionaly, Gobra introduces mathematical data types, which are 
-useful for specification:
-    | Description      | Type Identifiers |
-    | ----------- | ----------- |
-    | sequence types | `seq[T]`, for some `T` |
-    | set types | `set[T]`, for some `T` |
-    | multi-set types | `mset[T]`, for some `T` |
-    | domain types | TODO |
 
 
-- Users can **define new types** using the `type` keyword via *alias declarations* and *type definitions*
-
-
-### Statements
-
-### Expressions and Assertions
-TODO: when speaking of `acc(...)`, refer to specific section on 
-permissions
---------------------------------------
-
-## Not integrated in main text
 Gobra allows additional kinds of functions and methods besides the ones in Gobra. We now present such variations for functions. All considerations also apply to methods.
 
 (TODO: mention that methods consist of statements and specs consist of assertions and refer to the corresponding sections)
@@ -459,85 +465,18 @@ Besides pre and postconditions, functions and methods can be qualified with
 the `ghost` and `pure` modifiers
 
 
-
-
-### Member Declarations
-A member can be one of the following:
-1. Functions and Methods
-2. User-defined types (TODO: mention in this section the already supported types)
-2. Predicates
-4. Global constants
-5. Global variables (not supported yet)
-3. Implementation Proofs
-This section presents each component of Gobra programs in order.
-The following section describes each kind of member in detail.
-
-TODO: after top-level declarations: statements, assertions(maybe explain permissions here), expressions
-
-- Ghost
-- Ghost arguments
-- Pure (mention thesis to extend syntax of ...)
-- Spec
-- Abstract
-
-
-include specifications
-
-### Built-in types
-## Type Definitions
-- in the interface section, mention interface proofs
-
-### Imports and Support for the Std Lib
-
-### Statements
-
-### Expressions
-#### Assertions
-
-## Examples
-### 1. ???
-```go
-package preliminaries
-
-requires 0 <= n
-ensures sum == n * (n+1)/2
-func sum(n int) (sum int) {
-    sum := 0
-    invariant 0 <= i && i <= n + 1
-    invariant sum == i * (i-1)/2
-    for i := 0; i <= n; i++ {
-            sum += i
-    }
-    return sum
-}
-```
-
-### 2. ???
-
-### 3. Concurrency
-
-## Language Summary
-### Members
-### Expressions
-(ghost and non-ghost)
-### Statements
+- Additionaly, Gobra introduces mathematical data types, which are 
+useful for specification:
+    | Description      | Type Identifiers |
+    | ----------- | ----------- |
+    | sequence types | `seq[T]`, for some `T` |
+    | set types | `set[T]`, for some `T` |
+    | multi-set types | `mset[T]`, for some `T` |
+    | domain types | TODO |
 
 ## Running Gobra
 
-## Other Features
-### Go-ifying Printer
-### Overflow Checker
-
-
-
-
-
-
-
-
-Keep structure of viper tutorial
-
-things to talk about
-- Annotations, including acc(), predicates, pre-conditions, post-conditions, invariants
-- Support for Go's default types: slices, channels
-- Ghost types
+## other things to talk about
+- verification is method modular
+- Ghost Code
+- after top-level declarations: statements, assertions(maybe explain permissions here), expressions

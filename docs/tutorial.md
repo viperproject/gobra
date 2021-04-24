@@ -1,8 +1,10 @@
 # A Tutorial on Gobra
 ## Introduction
-*Gobra* is an automated, modular verifier for heap-manipulating, concurrent Go programs. Gobra supports a large subset of Go, including Go’s interfaces and primitive data structures.
-Gobra verifies memory safety, crash safety, data-race freedom, and user-provided specifications.
-It takes as input a `.gobra` file containing a Go program annotated with 
+*Gobra* is an automated, modular verifier for heap-manipulating, concurrent Go programs. 
+Gobra supports a large subset of Go, including Go’s interfaces and primitive data structures.
+Gobra verifies memory safety, crash safety, data-race freedom, and partial 
+correctness based on user-provided specifications.
+Gobra takes as input a `.gobra` file containing a Go program annotated with 
 specifications such as function pre- and postconditions and loop invariants.
 
 In order to prove the correctness of a program, Gobra verifies
@@ -143,31 +145,70 @@ safety and functional correctness.
 
 TODO: client
 
-------
-
 ### Heap-Manipulation
+Gobra uses a variant of *separation logic* to support reasoning about the mutable heap data. 
+In this model, each heap location is associated with an *access permission*.
+Access permissions are held by method executions and transferred
+between functions upon call and return.
+A method may access a location only if it holds the associated permission.
+Permission to a shared location `v` is denoted in Gobra by the access predicate `acc(v)`.
 
+Gobra's permission model is expressive enough to allow concurrent read accesses while still
+ensuring exclusive writes. Furthermore, the concept of permissons extends to
+(recursive) predicates to denote access to unbounded data structures.
 
-Viper verifies partial correctness of program statements; that is, verification guarantees that if a program state is reached, then the properties specified at that program state are guaranteed to hold. For example, the postcondition of sum is guaranteed to hold whenever a call to sum terminates. 
+This section demonstrates how the permissions and the access predicate are used with
+memory locations (through pointers) and predicates. Furthermore, it also describes
+how to allow multiple ... // TODO: fractional permissions
 
-Permissions
-Pointer Permission
+#### Access to heap locations via pointers
+In pre- and postconditions, and generally in assertions, permission to a location `l`
+is denoted by an accessibility predicate: an assertion which is written `acc(l)`.
+Besides, `acc(l)` implies that l is not `nil`.
+
+An accessibility predicate in a function’s precondition can be interpreted as
+an obligation for a caller to transfer the permission to the callee,
+thereby giving it up. Consersely, an accessibility predicate in a 
+postcondition can be understood as a permission transfer
+in the opposite direction: from callee to calleer.
+
+The following code snippet shows the declaration of a new type `pair`, containing
+two integer fields, and a method `incr` that increments both fields of a `pair` by `n`.
 ```go
-package preliminaries
+package tutorial
 
 type pair struct {
   left, right int
 }
 
-requires acc(&x.left) && acc(&x.right)
+// precondition
+requires acc(&x.left) && acc(&x.right) 
+// postcondition 1
 ensures acc(&x.left) && acc(&x.right)
+// postcondition 2
 ensures x.left == old(x.left) + n
+// postcondition 3
 ensures x.right == old(x.right) + n
 func (x *pair) incr(n int) {
   x.left += n
-  y.left += n
+  x.left += n
 }
 ```
+Because `incr` changes the values of `x.left` and `x.right`, the function must state in
+its precondition that it requires permissions to both of these fields. After the execution of
+`incr`, the permissions to both fields are given back to the caller (*postcondition 1*).
+Furthermore, *postcondition 2* and *postcondition 3* ensure that the fields `x.left` and `x.right`
+are both incremented by `n`, respectively. Both postconditions make use of the `old` operator whose value
+is the value of its operand in the beggining of the method execution.
+
+
+As a short-hand,
+one could have written `requires acc(x)` to require access to all fields of `x`.
+acc(x) implies x is not null
+
+
+TODO:
+- talk about constructors giving permissions
 
 ```go
 func client1() {
@@ -217,7 +258,7 @@ func insert(ptr *node, value interface{}) (ghost idx int) {
 }
 ```
 
-
+#### Fractional Permissions
 #### Quantified Permissions
 ```go
 requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
@@ -273,7 +314,7 @@ pred (x *counter) memory() {
     }
 
     (x *counter) nextProof() (res interface{}) {
-        ...
+        ... // TODO: put full proof here
     }
 }
 ```
@@ -500,21 +541,3 @@ things to talk about
 - Annotations, including acc(), predicates, pre-conditions, post-conditions, invariants
 - Support for Go's default types: slices, channels
 - Ghost types
-- concurrency features, standard library, first-order predicates
-- Data structures, interfaces, Domains (maybe can be skipped)
-- control flow structures
-- functions, methods, pure functions, method expressions, predicate expressions
-
-
-
- - all signed and unsigned integer types: `int8`, `int16`, `int32`, 
-    `int64`, `int`, `uint8`, `uint16`, `uint32`, 
-    `uint64`, `uint`, `uintptr`, `byte`, `rune`
-    - boolean: `bool`
-    - arrays: `[n]T` for some non-negative length `n` and some type `T`
-    - slices: `[]T` for some type `T`
-    - strings: `string`
-    - channels: 
-    - pointers
-    - structs
-    - interfaces

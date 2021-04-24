@@ -23,7 +23,7 @@ by a list of *imports declarations*, finally followed by a list of
 The following section lists the available Top-level declarations in Gobra.
 TODO: we delegate the treatment of package ...
 
-## Top Level Declarations
+### Top Level Declarations
 #### Functions and Methods
 ```go
 /* Functions */
@@ -87,8 +87,7 @@ const (
 
 #### Implementation Proofs
 
-## Examples
-### Basic Annotations
+## Basic Annotations
 We start with a simple function that computes the sum of the first `n` positive integers.
 The following table shows how the program would be written in Go (on the left) and
 how it would be written and specified in Gobra (on the right).
@@ -161,7 +160,7 @@ safety and functional correctness.
 
 TODO: client
 
-### Heap-Manipulation
+## Permissions and Heap-Manipulation
 Gobra uses a variant of *separation logic* to support reasoning about the mutable heap data. 
 In this model, each heap location is associated with an *access permission*.
 Access permissions are held by method executions and transferred
@@ -177,7 +176,7 @@ This section demonstrates how the permissions and the access predicate are used 
 memory locations (through pointers) and predicates. Furthermore, it also describes
 how to allow multiple ... // TODO: fractional permissions
 
-#### Accessability Predicate
+### Accessability Predicate
 In pre- and postconditions, and generally in assertions, permission to a location `l`
 is denoted by an accessibility predicate: an assertion which is written `acc(l)`.
 Besides, `acc(l)` implies that l is not `nil`.
@@ -254,8 +253,8 @@ func client2() {
 }
 ```
 
-#### Fractional Permissions
-#### Quantified Permissions
+### Fractional Permissions
+### Quantified Permissions
 ```go
 requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
 ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
@@ -274,7 +273,7 @@ func incr(s []int, n int) {
 [also show client that allocates slice]
 
 
-### Predicates
+## Predicates
 In general, listing the heap locations modified by a function via access predicates with pointers can
 only be done with structures of bounded size. 
 
@@ -321,7 +320,7 @@ func insert(ptr *node, value interface{}) (ghost idx int) {
 
 
 
-### Interfaces
+## Interfaces
 stream example from the paper
 ```go
 type stream interface{
@@ -366,12 +365,13 @@ pred (x *counter) memory() {
 Comparability
 look at the list example with value as an interface
 
-### Concurrency
+## Concurrency
 Goroutine
 First-class Predicates
 Lock example
 Channel
-### More examples ?
+
+## More examples ?
 
 -----------------
 

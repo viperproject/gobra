@@ -253,9 +253,46 @@ func client2() {
 }
 ```
 
+### Inhaling and Exhaling (?)
+
+### Exclusive Permissions (?)
+Permissions to memory locations as described so far are exclusive;
+in particular, it is not possible for two functions to hold permissions for the same location in simultaneous,
+even if they only require read access.
+
+This built-in principle can indirectly guarantee 
+non-aliasing between references: inhaling the assertions acc(x.f) and acc(y.f) implies x != y because otherwise, the 
+exclusive permission to acc(x.f) would be held twice. This is demonstrated by the following program:
+
+In Viper, accessibility predicates can be conjoined via &&; the resulting assertion requires the sum of the permissions required by its two conjuncts. Therefore, the two statements inhale acc(x.f); inhale acc(y.f) (semicolons are required in Viper only if statements are on the same line) are equivalent to the single statement inhale acc(x.f) && acc(y.f). In both cases, the obtained permissions imply that x and y cannot be aliases. Intuitively, the statement inhale acc(x.f) && acc(y.f) can be understood as inhaling permission to acc(x.f), and in addition to that, inhaling the permission to acc(y.f). Technically, this conjunction between resource assertions is strongly related to the separating conjunction from separation logic; formal details of the connection (and how to encode standard separation logic into Viper) can be found in this paper.
+
+--
+
 ### Fractional Permissions
+Exclusive permissions are too restrictive for some applications. For instance, it is typically safe for multiple
+threads of a source program to concurrently access the same heap location as long as all accesses are reads.
+That is, read access can safely be shared. However, if any thread potentially writes to a heap location, no other 
+should typically be allowed to concurrently read it (otherwise, the program has a data race). To support encoding 
+such scenarios, Gobra supports *fractional permissions* with a permission amount between 0 and 1.
+
+Any non-zero permission amount allows read access to the corresponding heap location, but only the exclusive 
+permission (1) allows modifications.
+
+The general form of an accessibility predicate for a memory location `l` is `acc(l, p)`,
+where `p` is a permission amount. Permission amounts are denoted by write for exclusive permissions, none for zero permission, quotients of two Int-typed expressions i1/i2 to denote a fractional permission; any Perm-typed expression may be used here. Perm is the type of permission amounts, which is a built-in type that can be used like any other type. The permission amount parameter p is optional and defaults to write. For example, acc(e.f), acc(e.f, write) and acc(e.f, 1/1) all have the same meaning.
+
+The next example illustrates the usage of fractional permissions to distinguish between read and write access: there, method copyAndInc requires write permission to x.f, but only read permission (we arbitrarily chose 1/2, but any non-zero fraction would suffice) to y.f.
+
+```go
+EXAMPLE
+```
+
+Fractional permissions to the same location are summed up: inhaling acc(x.f, p1) && acc(x.f, p2) is equivalent to inhaling acc(x.f, p1 + p2), and analogously for exhaling. As before, inhaling permissions maintains the invariant that write permission to a location are exclusive. With fractional permission in mind, this can be rephrased as maintaining the invariant that the permission amount to a location never exceeds 1.
+
 ### Quantified Permissions
 ```go
+package tutorial
+
 requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
 ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
 ensures forall k int :: 0 <= k < len(s) ==> s[k] == old(s[k]) + n
@@ -271,6 +308,17 @@ func incr(s []int, n int) {
 ```
 
 [also show client that allocates slice]
+
+```go
+package tutorial
+
+func incrClient() {
+    s := make([]int, 10)
+    assert forall i int :: 0 <= i && i < 10 ==> s[i] == 0
+    incr(s, 10)
+    assert forall i int :: 0 <= i && i < 10 ==> s[i] == 10
+}
+```
 
 
 ## Predicates
@@ -366,10 +414,128 @@ Comparability
 look at the list example with value as an interface
 
 ## Concurrency
-Goroutine
-First-class Predicates
-Lock example
-Channel
+the following examples are enough to show:
+- Goroutines
+- First-class Predicates
+- Lock example
+
+```go
+package tutorial
+
+requires acc(x)
+ensures acc(x)
+func inc(x *int) {
+	*x = *x + 1
+}
+
+func main() {
+    x@ := 1
+    go inc(x)
+    // fails, race condition
+    go inc(x)
+}
+```
+
+
+```go
+package pkg
+
+import "sync"
+
+pred mutexInvariant(x *int) {
+	acc(x)
+}
+
+// For now, requires parentheses surrounding exp!<...!>
+requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+ensures acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+func inc(pmutex *sync.Mutex, x *int) {
+	pmutex.Lock()
+	unfold mutexInvariant!<x!>()
+	*x = *x + 1
+	fold mutexInvariant!<x!>()
+	pmutex.Unlock()
+}
+
+func ex1() {
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = sync.Mutex{}
+	var pmutex *sync.Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.SetInv(mutexInvariant!<px!>)
+	inc(pmutex, px)
+}
+
+func ex2() {
+	var x@ int = 0
+	var px *int = &x
+	var mutex@ = sync.Mutex{}
+	var pmutex *sync.Mutex = &mutex
+	fold mutexInvariant!<px!>()
+	pmutex.SetInv(mutexInvariant!<px!>)
+	go inc(pmutex, px)
+	go inc(pmutex, px)
+	go inc(pmutex, px)
+}
+```
+
+### Channels
+```go
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+pred sendInvariant(v *int) {
+    acc(v) && *v == 42
+}
+
+func main() {
+  var c@ = make(chan *int)
+  var pc *chan *int = &c
+  (*pc).Init(sendInvariant!<_!>, PredTrue!<!>)
+  go foo(pc)
+
+  var x@ int = 42
+  var p *int = &x
+
+  fold sendInvariant!<_!>(p)
+  *pc <- p
+
+  fold PredTrue!<!>()
+  res, ok := <- *pc
+  if (ok) {
+    unfold sendInvariant!<_!>(res)
+    assert *res == 42
+    // we have regained write access:
+    *res = 1
+  }
+}
+
+requires acc(pc, 1/2)
+requires acc((*pc).SendChannel(), 1/2)
+requires acc((*pc).RecvChannel(), 1/2)
+requires (*pc).SendGivenPerm() == sendInvariant!<_!>;
+requires (*pc).SendGotPerm() == PredTrue!<!>;
+requires (*pc).RecvGivenPerm() == PredTrue!<!>;
+requires (*pc).RecvGotPerm() == sendInvariant!<_!>;
+func foo(pc *chan *int) {
+    fold PredTrue!<!>()
+    res, ok := <- *pc
+    if (ok) {
+        unfold sendInvariant!<_!>(res)
+        assert *res == 42
+        // we should have write access and thus can write to it
+        *res = 0
+        // before being able to fold again, we have to revert the value:
+        *res = 42
+        // send pointer and permission back:
+        fold sendInvariant!<_!>(res)
+        *pc <- res
+    }
+}
+```
 
 ## More examples ?
 

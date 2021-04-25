@@ -4,13 +4,19 @@ import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
-import javax.lang.model.`type`.DeclaredType
+
 
 trait GobraInterpreter extends sil.ModelInterpreter[GobraModelEntry,Type]
 trait GobraDomainInterpreter[T] extends sil.DomainInterpreter[GobraModelEntry,T]
 
 case class DefaultGobraInterpreter() extends GobraInterpreter{
 	override def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry = DummyEntry()
+}
+object InterpreterCache{
+	private var heap: Seq[(BigInt,Type)] = Seq()
+	def isDefined(address:BigInt,typ:Type):Boolean = heap.contains((address,typ))
+	def addAddress(address:BigInt,typ:Type):Unit = {heap=(address,typ)+:heap}
+	def clearCache():Unit ={heap = Seq()}
 }
 
 /**
@@ -254,20 +260,26 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case PointerT(elem )=>{
 					val field = filedname(entry,elem)
 					val address = nameToInt(entry.name,field)
+					if(InterpreterCache.isDefined(address,info)){
+						return LitRecursive(address)
+					}
 					val extracted: sil.RefEntry = c.extractVal(sil.VarEntry(entry.name,viper.silicon.state.terms.sorts.Ref)) match{
 										//TODO: what if we don't find it?
 								case r:sil.RefEntry =>r 
 								case _ => return FaultEntry("false extraction")
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
-					val value = kek._1 match {
-						case x:sil.OtherEntry => if(extracted.fields.isEmpty) return Util.getDefault(elem) else extracted.fields.head._2._1 match {
-																													case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
-																													case _ => LitNilEntry() 																												
+					val fieldval = if(extracted.fields.isEmpty) return Util.getDefault(elem) 
+						else if(kek._1.isInstanceOf[sil.OtherEntry]) extracted.fields.head._2._1 match {
+												case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
+												case x => x 
 						}
-						case r:sil.RefEntry => interpret(r,elem) //this we could potentially handle internally
+					InterpreterCache.addAddress(address,info);
+					val value = kek._1 match {
+						case x:sil.OtherEntry => FaultEntry(s"$fieldval,$field")																												
+						case r:sil.RefEntry =>  interpret(r,elem) //this we could potentially handle internally
 						case v:sil.VarEntry => LitNilEntry()
-						case d:sil.DomainValueEntry => FaultEntry(s"$d") //TODO: resolve recursive entries
+						case d:sil.DomainValueEntry => MasterInterpreter(c).interpret(d,elem)//FaultEntry(s"$d") //TODO: resolve recursive entries
 						case s:sil.SeqEntry=> LitNilEntry()
 						case t => MasterInterpreter(c).interpret(t,elem)  //we know we don't have recursion
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
@@ -299,10 +311,13 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case BooleanT => Names.pointerField(vpr.Bool)
 			case StringT => Names.pointerField(vpr.Int)
 			case PointerT(elem) => elem match{
+				case x:StructT => "val$_ShStruct2_RefRef"
+				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 				case _ => Names.pointerField(vpr.Ref)
 			} 
-			case _:ArrayT => "val$_ShArray_fRef"
+			//case _:ArrayT => "val$_ShArray_fRef"
 			case _:DeclaredT => "val$_ShStruct2_RefRef"
+			case x:StructT => "val$_ShStruct2_RefRef"
 			case x => s"$x" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
 		}
 	}

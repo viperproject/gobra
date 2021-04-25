@@ -18,7 +18,6 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
-import viper.silver.ast.Exp
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
@@ -29,8 +28,24 @@ class InterfaceEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.gobra.translator.util.TypePatterns._
 
-  private val poly: PolymorphValueComponent = new PolymorphValueComponentImpl
+  private val interfaces: InterfaceComponent = new InterfaceComponent {
+    def typ(polyType: vpr.Type, dynTypeType: vpr.Type)(ctx: Context): vpr.Type = ctx.tuple.typ(Vector(polyType, dynTypeType))
+    def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.create(Vector(polyVal, dynType))(pos, info, errT)
+    def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.get(itf, 1, 2)(pos, info, errT)
+    def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = ctx.tuple.get(itf, 0, 2)(pos, info, errT)
+  }
   private val types: TypeComponent = new TypeComponentImpl
+  private val poly: PolymorphValueComponent = {
+    val handle = new PolymorphValueInterfaceHandle {
+      def typ(polyType: vpr.Type)(ctx: Context): vpr.Type = interfaces.typ(polyType, types.typ()(ctx))(ctx)
+      def create(polyVal: vpr.Exp, dynType: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.create(polyVal, dynType)(pos, info, errT)(ctx)
+      def dynTypeOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.dynTypeOf(itf)(pos, info, errT)(ctx)
+      def polyValOf(itf: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = interfaces.polyValOf(itf)(pos, info, errT)(ctx)
+      def typeToExpr(typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = types.typeToExpr(typ)(pos, info, errT)(ctx)
+    }
+    new PolymorphValueComponentImpl(handle)
+  }
+
 
   private var genMembers: List[vpr.Member] = List.empty
 
@@ -61,7 +76,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   private def vprInterfaceType(ctx: Context): vpr.Type = {
-    ctx.tuple.typ(Vector(poly.typ()(ctx), types.typ()(ctx)))
+    interfaces.typ(poly.typ()(ctx), types.typ()(ctx))(ctx)
   }
 
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
@@ -113,7 +128,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
 
   /** also checks that the compared interface is comparable. */
-  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[Exp] = default(super.goEqual(ctx)) {
+  override def goEqual(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = default(super.goEqual(ctx)) {
     case (lhs :: ctx.Interface(_), rhs :: ctx.Interface(_), src) =>
       val (pos, info, errT) = src.vprMeta
       val errorT = (x: Source.Verifier.Info, _: ErrorReason) =>
@@ -154,7 +169,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         val value = poly.box(vpr.NullLit()(pos, info, errT))(pos, info, errT)(ctx)
         val typ = types.typeApp(TypeHead.NilHD)(pos, info, errT)(ctx)
-        unit(ctx.tuple.create(Vector(value, typ))(pos, info, errT)): CodeWriter[vpr.Exp]
+        unit(interfaces.create(value, typ)(pos, info, errT)(ctx)): CodeWriter[vpr.Exp]
 
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
@@ -190,7 +205,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
           cond  = types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx)
           res = t match {
             case ctx.Interface(_) => arg
-            case _ => valueOf(arg, ctx.typeEncoding.typ(ctx)(t))(pos, info, errT)(ctx)
+            case _ => valueOf(arg, t)(pos, info, errT)(ctx)
           }
           resWithCheck <- assert(cond, res, errorT)(ctx)
         } yield resWithCheck
@@ -274,18 +289,18 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
   /** returns dynamic type of an interface expression. */
   private def typeOf(arg: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
-    ctx.tuple.get(arg, 1, 2)(pos, info, errT)
+    interfaces.dynTypeOf(arg)(pos, info, errT)(ctx)
   }
 
   /** Returns dynamic value of an interface expression as a type 'typ'. */
-  private def valueOf(arg: vpr.Exp, typ: vpr.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
-    val polyVal = ctx.tuple.get(arg, 0, 2)(pos, info, errT)
+  private def valueOf(arg: vpr.Exp, typ: in.Type)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
+    val polyVal = interfaces.polyValOf(arg)(pos, info, errT)(ctx)
     poly.unbox(polyVal, typ)(pos, info, errT)(ctx)
   }
 
   private def boxInterface(value: vpr.Exp, typ: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos)(ctx: Context): vpr.Exp = {
     val polyVar = poly.box(value)(pos, info, errT)(ctx)
-    ctx.tuple.create(Vector(polyVar, typ))(pos, info, errT)
+    interfaces.create(polyVar, typ)(pos, info ,errT)(ctx)
   }
 
 
@@ -396,7 +411,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
             vDflt <- ctx.expr.translate(in.DfltVal(resTarget.typ)(n.info))(ctx)
             res = vpr.If(
               vSuccessTarget,
-              vpr.Seqn(Seq(vpr.LocalVarAssign(vResTarget, valueOf(arg, ctx.typeEncoding.typ(ctx)(typ))(pos, info, errT)(ctx))(pos, info, errT)), Seq.empty)(pos, info, errT),
+              vpr.Seqn(Seq(vpr.LocalVarAssign(vResTarget, valueOf(arg, typ)(pos, info, errT)(ctx))(pos, info, errT)), Seq.empty)(pos, info, errT),
               vpr.Seqn(Seq(vpr.LocalVarAssign(vResTarget, vDflt)(pos, info, errT)), Seq.empty)(pos, info, errT)
             )(pos, info, errT)
           } yield res
@@ -519,7 +534,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
             // typeOf(i) == T
             val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(typ)()(ctx))()
             // Body[p(valueOf(i): [T], args)]
-            val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(typ))()(ctx) +: args
+            val fullArgs = valueOf(recv, typ)()(ctx) +: args
             val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
             (lhs, vpr.utility.Simplifier.simplify(rhs))
           }
@@ -656,7 +671,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       // typeOf(i) == T
       val lhs = vpr.EqCmp(typeOf(recv)()(ctx), types.typeToExpr(impl)()(ctx))()
       // proof_T_I_F(valueOf(itf, T), args)
-      val fullArgs = valueOf(recv, ctx.typeEncoding.typ(ctx)(impl))()(ctx) +: args
+      val fullArgs = valueOf(recv, impl)()(ctx) +: args
       val call = vpr.FuncApp(funcname = proofName(proxy, p.name), fullArgs)(vpr.NoPosition, vpr.NoInfo, typ = resultType, vpr.NoTrafos)
       // typeOf(i) == T ==> result == proof_T_I_F(valueOf(itf, T), args)
       vpr.Implies(lhs, vpr.EqCmp(result, call)())()

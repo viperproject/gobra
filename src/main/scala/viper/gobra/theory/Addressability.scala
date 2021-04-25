@@ -41,7 +41,7 @@ object Addressability {
   /** Addressability modifier. Expressions of exclusive type cannot be aliased. */
   case object Exclusive extends Addressability {
     override val isShared: Boolean = false
-    override val pretty: String = "°"
+    override val pretty: String = "."
   }
 
 

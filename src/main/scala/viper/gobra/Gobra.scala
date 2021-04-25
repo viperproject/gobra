@@ -130,7 +130,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage)(config)
+      Info.check(parsedPackage, isMainContext = true)(config)
     } else {
       Left(Vector())
     }

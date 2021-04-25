@@ -8,8 +8,8 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{PBlock, PCodeRootWithResult, PExplicitGhostMember, PFPredicateDecl, PFunctionDecl, PFunctionSpec, PGhostMember, PIdnUse, PImplementationProof, PMPredicateDecl, PMethodDecl, PMethodImplementationProof, PParameter, PReturn, PVariadicType, PWithBody}
-import viper.gobra.frontend.info.base.SymbolTable.MPredicateSpec
-import viper.gobra.frontend.info.base.Type.AssertionT
+import viper.gobra.frontend.info.base.SymbolTable.{MPredicateSpec, MethodImpl, MethodSpec}
+import viper.gobra.frontend.info.base.Type.{AssertionT, InterfaceT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -102,4 +102,81 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])
   }
+
+  override lazy val localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])] = {
+    val implementationProofs = tree.root.programs.flatMap(_.declarations.collect{ case m: PImplementationProof => m})
+    implementationProofs.flatMap { ip =>
+      val z = (symbType(ip.subT), underlyingType(symbType(ip.superT)))
+      z match {
+        case (UnknownType, _) => None
+        case (subT, superT: InterfaceT) =>
+          Some((subT, superT, ip.alias.map(_.left.name), ip.memberProofs.map(_.id.name)))
+        case _ => None
+      }
+    }
+  }
+
+  /**
+    * Depends on which packages are loaded. Only call at the end of type checking.
+    * Either returns a set of errors caused by missing implementation proofs
+    * or a set of implementation proofs that have to be generated.
+    **/
+  def wellImplementationProofs: Either[Messages, Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]] = {
+    if (isMainContext && requiredImplements.nonEmpty) {
+      // For every required implementation, check that there is at most one proof
+      // and if not all predicates are defined, then check that there is a proof.
+
+      val providedImplProofs = localImplementationProofs ++ context.getContexts.flatMap(_.localImplementationProofs)
+      val groupedProofs = requiredImplements.toVector.map{ case (impl, itf) =>
+        (impl, itf, providedImplProofs.collect{ case (`impl`, `itf`, alias, proofs) => (alias, proofs) })
+      }
+      val multiples = groupedProofs.collect{ case (impl, itf, ls) if ls.size > 1 => (impl, itf) }
+      val msgs = if (multiples.nonEmpty) {
+        error(tree.root, s"There is more than one proof for ${multiples.mkString(", ")}")
+      } else {
+        // check that all predicates are defined
+        groupedProofs.flatMap{ case (impl, itf, ls) =>
+          if (ls.nonEmpty) noMessages //
+          else {
+            val superPredNames = memberSet(itf).collect{ case (n, m: MPredicateSpec) => (n, m) }
+            val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
+              val valid = tryMethodLikeLookup(impl, PIdnUse(name)).isDefined
+              failedProp({
+                val argTypes = symb.args map symb.context.typ
+
+                s"predicate $name is not defined for type $impl. " +
+                  s"Either declare a predicate 'pred ($impl) $name(${argTypes.mkString(", ")})' " +
+                  s"or declare a predicate 'pred p($impl${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
+              }, !valid)
+            })
+            allPredicatesDefined.asReason(tree.root,
+              s"The code requires that $impl implements the interface $itf. An implementation proof cannot be inferred because predicate definitions are missing."
+            )
+          }
+        }
+      }
+      if (msgs.nonEmpty) Left(msgs)
+      else {
+        Right(
+          // missing implementation proofs
+          groupedProofs.flatMap{ case (impl, itf, ls) =>
+            val superMethNames = memberSet(itf).collect{ case (n, m: MethodSpec) => (n, m) }
+            val proofs = if (ls.isEmpty) Vector.empty else ls.head._2
+            val missingSuperMethNames = superMethNames.flatMap{
+              case (n, itfSymb) if !proofs.contains(n) =>
+                getMember(impl, n) match {
+                  case Some((implSymb: MethodImpl, _)) =>
+                    // println(s"Generating proof for $n for ($impl, $itf)")
+                    Some((itfSymb, implSymb))
+                  case _ => None
+                }
+              case _ => None
+            }
+            missingSuperMethNames.map{ case (itfSymb, implSymb) => (impl, itf, implSymb, itfSymb) }
+          }
+        )
+      }
+    } else Left(noMessages)
+  }
+
 }

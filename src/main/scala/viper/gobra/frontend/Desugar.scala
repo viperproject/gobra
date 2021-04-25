@@ -13,6 +13,7 @@ import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
+import viper.gobra.reporting.Source.AutoImplProofAnnotation
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -331,7 +332,7 @@ object Desugar {
         case _ =>
       }
 
-      val additionalMembers = AdditionalMembers.finalizedMembers
+      val additionalMembers = AdditionalMembers.finalizedMembers ++ missingImplProofs
 
       // built-in members are not (yet) added to the program's members or the lookup table
       // instead, they remain only accessible via this desugarer's getter function.
@@ -2050,8 +2051,6 @@ object Desugar {
       val superT = info.symbType(decl.superT)
       val dSuperT = interfaceType(typeD(superT, Addressability.Exclusive)(src)).get
 
-      interfaceImplementations += (dSuperT -> (interfaceImplementations.getOrElse(dSuperT, Set.empty) + dSubT))
-
       decl.alias foreach { al =>
         info.resolve(al.right) match {
           case Some(p: ap.Predicate) =>
@@ -2094,7 +2093,30 @@ object Desugar {
       }
     }
 
-    var interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = Map.empty
+    lazy val interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = {
+      info.interfaceImplementations.map{ case (itfT, implTs) =>
+        (
+          interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
+          implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced))
+        )
+      }
+    }
+    def missingImplProofs: Vector[in.Member] = {
+
+      info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
+        val subProxy = methodProxyFromSymb(implSymb)
+        val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
+        val superProxy = methodProxyFromSymb(itfSymb)
+        val receiver = receiverD(implSymb.decl.receiver, implSymb.context.getTypeInfo)._1
+        val args = implSymb.args.zipWithIndex.map{ case (arg, idx) => inParameterD(arg, idx, implSymb.context.getTypeInfo)._1 }
+        val results = implSymb.result.outs.zipWithIndex.map{ case (res, idx) => outParameterD(res, idx, implSymb.context.getTypeInfo)._1 }
+
+        val src = meta(implSymb.decl, implSymb.context.getTypeInfo).createAnnotatedInfo(AutoImplProofAnnotation(implT.toString, itfT.toString))
+
+        if (itfSymb.isPure) in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
+        else in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
+      }
+    }
     var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
 
@@ -2314,16 +2336,16 @@ object Desugar {
       }
     }
 
-    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = {
+    def receiverD(p: PReceiver, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
       val src: Meta = meta(p)
       p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
-          val local = Some(localAlias(localVarContextFreeD(id)))
+          val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)
+          val local = Some(localAlias(localVarContextFreeD(id, context)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
+          val param = in.Parameter.In(nm.receiver(context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)
           val local = None
           (param, local)
       }
@@ -2793,7 +2815,7 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode, context: TypeInfo = info): Meta = {
+    private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {
       val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get

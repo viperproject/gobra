@@ -17,7 +17,7 @@ trait Implements { this: TypeInfoImpl =>
   def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
       val valid = syntaxImplements(l, r)
-      if (valid.holds && l != NilType) {
+      if (valid.holds && l != NilType && !itf.isEmpty) {
         _requiredImplements ++= Set((l, itf))
       }
       valid
@@ -27,6 +27,9 @@ trait Implements { this: TypeInfoImpl =>
 
   private var _requiredImplements: Set[(Type, Type.InterfaceT)] = Set.empty
   def requiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
+  override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
+    requiredImplements.groupMap(_._2)(_._1)
+  }
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp

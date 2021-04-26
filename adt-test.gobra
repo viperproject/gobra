@@ -19,12 +19,8 @@ type Test struct {
 func main() {
     Node := 1
 
-    testVar := "Hello"
-
     structTest := Test{1, 2}
     val := structTest.a
-    var test Tree = Tree.Node{0, Leaf{}, Leaf{}}
-    test2 := Node{20, test, test}
-
-    assert Node == 1
+    test := Tree.Node{0, Leaf{}, Leaf{}}
+    test2 := Tree.Node{20, test, test}
 }

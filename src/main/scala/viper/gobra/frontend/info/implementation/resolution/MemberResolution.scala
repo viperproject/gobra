@@ -277,10 +277,6 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     Option((ent, Vector()))
   }
-  /*
-  def tryAdtUtilityLookup(use: PIdnUse, adtType: AdtT) : Option[(Entity, Vector[MemberPath])] = {
-
-  }*/
 
 
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
@@ -289,14 +285,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else {
-          underlyingType(exprType(expr)) match {
-            case t: StructT => tryFieldLookup(t, id)
-            //case t: AdtT => tryAdtUtilityLookup(t, id)
-            case _ => None
-          }
-
-        }
+        else tryFieldLookup(exprType(expr), id)
 
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)

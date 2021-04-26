@@ -198,23 +198,6 @@ object SymbolTable extends Environments[Entity] {
     override def addressable: Boolean = false
   }
 
-  sealed trait GhostAdtBuiltIn extends GhostRegular
-
-  /**
-  case class AdtDiscriminator(decl:) extends GhostAdtBuiltIn {
-    override def rep: PNode = ???
-
-    override def context: ExternalTypeInfo = ???
-  }
-  */
-  /**
-  case class AdtDeconstructor() extends GhostAdtBuiltIn {
-    override def rep: PNode = ???
-
-    override def context: ExternalTypeInfo = ???
-  }
-  */
-
   sealed trait GhostTypeMember extends TypeMember with GhostRegular
 
   sealed trait MPredicate extends MethodLike with GhostTypeMember with Predicate
@@ -230,7 +213,7 @@ object SymbolTable extends Environments[Entity] {
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
-  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostTypeMember with TypeEntity {
+  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostTypeMember {
     override def rep: PNode = decl
 
     val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)

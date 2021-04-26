@@ -186,20 +186,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PIntLit => numExprWithinTypeBounds(n)
 
     case n@PCompositeLit(t : PLiteralType, lit) =>
-      val typeErrors = t match {
-        case PImplicitSizeArrayType(_) => noMessages
-        case t: PType => isType(t).out
+      val simplifiedT = t match {
+        case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
+        case t: PType => typeSymbType(t)
       }
-      if (typeErrors.isEmpty) {
-        val simplifiedT = t match {
-          case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
-          case t: PType => typeSymbType(t)
-        }
-        literalAssignableTo.errors(lit, simplifiedT)(n)
-      } else {
-        typeErrors
-      }
-
+      literalAssignableTo.errors(lit, simplifiedT)(n)
 
     case _: PFunctionLit => noMessages
 

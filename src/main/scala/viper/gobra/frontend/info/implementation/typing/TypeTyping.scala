@@ -19,7 +19,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
 
   lazy val isType: WellDefinedness[PExpressionOrType] = createWellDef[PExpressionOrType] { n: PExpressionOrType =>
     val isTypeCondition = exprOrType(n).isRight
-    error(n, s"expected type, but got $n", !isTypeCondition)
+    error(n, s"expected expression, but got $n", !isTypeCondition)
   }
 
   lazy val wellDefAndType: WellDefinedness[PType] = createWellDef { n =>

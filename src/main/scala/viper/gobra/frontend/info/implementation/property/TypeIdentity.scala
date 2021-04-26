@@ -62,8 +62,6 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (l: AdtT, r: AdtT) => l == r
 
-      case (l: AdtClauseT, r: AdtClauseT) => l == r
-
       //        case (InternalTupleT(lv), InternalTupleT(rv)) =>
       //          lv.size == rv.size && lv.zip(rv).forall {
       //            case (l, r) => identicalTypes(l, r)

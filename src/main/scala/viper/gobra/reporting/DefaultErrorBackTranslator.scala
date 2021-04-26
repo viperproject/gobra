@@ -101,8 +101,6 @@ class DefaultErrorBackTranslator(
         ExhaleError(info) dueTo translate(reason)
       case vprerr.InhaleFailed(CertainSource(info), reason, _) =>
         InhaleError(info) dueTo translate(reason)
-      case vprerr.IfFailed(CertainSource(info), reason, _) =>
-        IfError(info) dueTo translate(reason)
       case vprerr.WhileFailed(CertainSource(info), reason, _) =>
         ForLoopError(info) dueTo translate(reason)
       case vprerr.AssertFailed(CertainSource(info), reason, _) =>
@@ -126,7 +124,11 @@ class DefaultErrorBackTranslator(
       // meaning that the above case for `IfFailed` doesn't catch all errors...
       // This extra case provides a workaround for this issue.
       // Nevertheless, this should eventually be solved on the Viper level I think.
-      case vprerr.IfFailed(Not(CertainSource(info)), reason, _) =>
+      case vprerr.IfFailed(Source(info), reason, _) =>
+        IfError(info) dueTo translate(reason)
+      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
+        IfError(info) dueTo translate(reason)
+      case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
     }
 

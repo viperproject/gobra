@@ -57,11 +57,15 @@ pred predName(arg1 type1, ..., argN typeN) {
     ... // any assertion parameterized by `arg1`, ..., `argN`
 }
 ```
+- Typically used to abstract over assertions and to specify the shape of recursive data structures
+- See the [section on predicates](#predicates) for details
+
 #### Type Declarations
+
 ##### Alias Declarations 
 ```go
 type TypeAlias = SomeType
-``` 
+```
 - binds an identifier to a given type. Both identifiers correspond to the same type. 
 - The identifier acts as an alias for the type. In this example, `TypeAlias` is an alias for 
 `SomeType`. 
@@ -166,7 +170,7 @@ In this model, each heap location is associated with an *access permission*.
 Access permissions are held by method executions and transferred
 between functions upon call and return.
 A method may access a location only if it holds the associated permission.
-Permission to a shared location `v` is denoted in Gobra by the accessbility predicate `acc(v)`.
+Permission to a shared location `v` is denoted in Gobra by the accessbility predicate `acc(v, p)`, where p is a value of type `perm` representing a rational number between 0 and 1.
 
 Gobra's permission model is expressive enough to allow concurrent read accesses while still
 ensuring exclusive writes. Furthermore, the concept of permissons extends to
@@ -204,9 +208,9 @@ ensures acc(&x.left) && acc(&x.right)
 ensures x.left == old(x.left) + n
 // postcondition 3
 ensures x.right == old(x.right) + n
-func (x *pair) incr(n int) {
+func (x *pair) sumPair(n int) {
   x.left += n
-  x.left += n
+  x.right += n
 }
 ```
 Because `incr` changes the values of `x.left` and `x.right`, the function must state in
@@ -232,8 +236,8 @@ package tutorial
 
 func client1() {
   p := &pair{1,2}
-  x.incr(42)
-  assert x.left == 43
+  p.sumPair(42)
+  assert p.left == 43
 }
 ```
 The assertion at the end of `client1` checks that `x.left == 43` at the end of its execution. If this was not
@@ -248,7 +252,7 @@ package tutorial
 
 func client2() {
   x@ := pair{1,2} // if the reference of an address is taken, then add @
-  (&x).incr(42)
+  (&x).sumPair(42)
   assert x.left == 43
 }
 ```
@@ -293,17 +297,17 @@ Fractional permissions to the same location are summed up: inhaling acc(x.f, p1)
 ```go
 package tutorial
 
-requires forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-ensures forall k int :: 0 <= k < len(s) ==> s[k] == old(s[k]) + n
-func incr(s []int, n int) {
-    invariant 0 <= i <= len(s)
-    invariant forall k int :: 0 <= k < len(s) ==> acc(&s[k])
-    invariant forall k int :: i <= k < len(s) ==> s[k] == old(s[k])
-    invariant forall k int :: 0 <= k < i ==> s[k] == old(s[k]) + n
-    for i := 0; i < len(s); i += 1 {
-        s[i] = s[i] + n
-    }
+requires forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+ensures forall k int :: 0 <= k && k < len(s) ==> s[k] == old(s[k]) + n
+func addToSlice(s []int, n int) {
+	invariant 0 <= i && i <= len(s)
+	invariant forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])
+	invariant forall k int :: i <= k && k < len(s) ==> s[k] == old(s[k])
+	invariant forall k int :: 0 <= k && k < i ==> s[k] == old(s[k]) + n
+	for i := 0; i < len(s); i += 1 {
+		s[i] = s[i] + n
+	}
 }
 ```
 
@@ -312,10 +316,10 @@ func incr(s []int, n int) {
 ```go
 package tutorial
 
-func incrClient() {
+func addToSliceClient() {
     s := make([]int, 10)
     assert forall i int :: 0 <= i && i < 10 ==> s[i] == 0
-    incr(s, 10)
+    addToSlice(s, 10)
     assert forall i int :: 0 <= i && i < 10 ==> s[i] == 10
 }
 ```
@@ -336,32 +340,20 @@ by using predicates
 
 
 ```go
-package preliminaries
+package tutorial
 
 type node struct {
   value int
   next *node
 }
 
-pred listPerm(ptr *node) {
-  ptr != nil ⇒ acc(ptr) && listPerm(ptr.next)
+pred list(ptr *node) {
+  acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
 }
 
-requires list(ptr) && isComparable(value)
-ensures list(ptr)
-ensures idx >= 0
-ensures contains(ptr, value)
-func insert(ptr *node, value interface{}) (ghost idx int) {
- unfold list(ptr)
- if (ptr.next == nil) {
-   newNode := &node{value: value}
-   fold list(newNode)
-   ptr.next = newNode
-   idx = 1
- } else {
-   idx = insert(ptr.next, value) + 1
- }
- fold list(ptr)
+requires list(ptr)
+pure func contains(ptr *node, value int) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }
 ```
 
@@ -369,6 +361,29 @@ func insert(ptr *node, value interface{}) (ghost idx int) {
 
 
 ## Interfaces
+
+Comparability
+look at the list example with value as an interface
+
+```go
+package tutorial
+
+type node struct {
+  value interface{}
+  next *node
+}
+
+pred list(ptr *node) {
+  acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
+}
+
+requires list(ptr)
+pure func contains(ptr *node, value interface{}) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+```
+
+TODO: remove myBox after the PR
 stream example from the paper
 ```go
 type stream interface{
@@ -410,8 +425,6 @@ pred (x *counter) memory() {
 }
 ```
 
-Comparability
-look at the list example with value as an interface
 
 ## Concurrency
 the following examples are enough to show:
@@ -457,17 +470,7 @@ func inc(pmutex *sync.Mutex, x *int) {
 	pmutex.Unlock()
 }
 
-func ex1() {
-	var x@ int = 0
-	var px *int = &x
-	var mutex@ = sync.Mutex{}
-	var pmutex *sync.Mutex = &mutex
-	fold mutexInvariant!<px!>()
-	pmutex.SetInv(mutexInvariant!<px!>)
-	inc(pmutex, px)
-}
-
-func ex2() {
+func client() {
 	var x@ int = 0
 	var px *int = &x
 	var mutex@ = sync.Mutex{}
@@ -482,24 +485,22 @@ func ex2() {
 
 ### Channels
 ```go
-// Any copyright is dedicated to the Public Domain.
-// http://creativecommons.org/publicdomain/zero/1.0/
-
-package pkg
+package tutorial
 
 pred sendInvariant(v *int) {
-    acc(v) && *v == 42
+    acc(v) && *v > 0
 }
 
 func main() {
   var c@ = make(chan *int)
   var pc *chan *int = &c
-  (*pc).Init(sendInvariant!<_!>, PredTrue!<!>)
-  go foo(pc)
+
 
   var x@ int = 42
   var p *int = &x
-
+  (*pc).Init(sendInvariant!<_!>, PredTrue!<!>)
+  go inc(pc, x)
+  assert *p == 42
   fold sendInvariant!<_!>(p)
   *pc <- p
 
@@ -507,7 +508,7 @@ func main() {
   res, ok := <- *pc
   if (ok) {
     unfold sendInvariant!<_!>(res)
-    assert *res == 42
+    assert *res > 0
     // we have regained write access:
     *res = 1
   }
@@ -520,16 +521,14 @@ requires (*pc).SendGivenPerm() == sendInvariant!<_!>;
 requires (*pc).SendGotPerm() == PredTrue!<!>;
 requires (*pc).RecvGivenPerm() == PredTrue!<!>;
 requires (*pc).RecvGotPerm() == sendInvariant!<_!>;
-func foo(pc *chan *int) {
+func inc(pc *chan *int, ghost x int) {
     fold PredTrue!<!>()
     res, ok := <- *pc
     if (ok) {
         unfold sendInvariant!<_!>(res)
-        assert *res == 42
         // we should have write access and thus can write to it
-        *res = 0
         // before being able to fold again, we have to revert the value:
-        *res = 42
+        *res = *res + 1
         // send pointer and permission back:
         fold sendInvariant!<_!>(res)
         *pc <- res
@@ -574,14 +573,14 @@ but they generalize to methods as well.
 - The specification for a function is provided as a list of pre- and 
 postcontions.
     - Preconditions consist of the conditions that must hold when
-    the method is called. Preconditions are specified using 
-    the `requires` keyword, followed by an [assertion](#assertions)
-    parameterized by the function arguments.
+      the method is called. Preconditions are specified using 
+      the `requires` keyword, followed by an [assertion](#assertions)
+      parameterized by the function arguments.
     - Postconditions consist of the conditions that must hold when the
-    function terminates, assuming that it started in a state satisfying
-    the preconditions. Postconditions are specified using 
-    the `ensures` keyword, followed by an assertion parameterized by
-    the function arguments and the return value.
+      function terminates, assuming that it started in a state satisfying
+      the preconditions. Postconditions are specified using 
+      the `ensures` keyword, followed by an assertion parameterized by
+      the function arguments and the return value.
     - If no pre- or postconditions are provided, they default to `true`.
 - Function arguments are specified as pairs of identifiers and types. Gobra
 also supports variadic parameters. Additionally, methods expect a special 
@@ -633,12 +632,12 @@ the `ghost` and `pure` modifiers
 
 - Additionaly, Gobra introduces mathematical data types, which are 
 useful for specification:
-    | Description      | Type Identifiers |
-    | ----------- | ----------- |
-    | sequence types | `seq[T]`, for some `T` |
-    | set types | `set[T]`, for some `T` |
-    | multi-set types | `mset[T]`, for some `T` |
-    | domain types | TODO |
+  | Description      | Type Identifiers |
+  | ----------- | ----------- |
+  | sequence types | `seq[T]`, for some `T` |
+  | set types | `set[T]`, for some `T` |
+  | multi-set types | `mset[T]`, for some `T` |
+  | domain types | TODO |
 
 ## Running Gobra
 

@@ -1,0 +1,14 @@
+package tutorial
+
+requires 0 <= n // precondition
+ensures sum == n * (n+1)/2 // postcondition
+func sum(n int) (sum int) {
+	sum := 0
+
+	invariant 0 <= i && i <= n + 1 
+	invariant sum == i * (i-1)/2
+	for i := 0; i <= n; i++ {
+			sum += i
+	}
+	return sum
+}

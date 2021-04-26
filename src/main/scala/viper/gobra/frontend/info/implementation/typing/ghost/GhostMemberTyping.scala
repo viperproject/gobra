@@ -30,26 +30,31 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       val subType = symbType(ip.subT)
       val superType = symbType(ip.superT)
 
-      syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}") ++
-      {
-        val badReceiverTypes = ip.memberProofs.map(m => miscType(m.receiver))
-          .filter(t => !identicalTypes(t, subType))
-        error(ip, s"The receiver of all methods included in the implementation proof must be $subType, " +
-          s"but encountered: ${badReceiverTypes.distinct.mkString(", ")}", cond = badReceiverTypes.nonEmpty)
-      } ++ {
-        val superPredNames = memberSet(superType).collect{ case (n, m: MPredicateSpec) => (n, m) }
-        val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
-          val valid = tryMethodLikeLookup(subType, PIdnUse(name)).isDefined ||
-            ip.alias.exists(al => al.left.name == name)
-          failedProp({
-            val argTypes = symb.args map symb.context.typ
+      val syntaxImplementsMsgs = syntaxImplements(subType, superType).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}")
+      if (syntaxImplementsMsgs.nonEmpty) syntaxImplementsMsgs
+      else {
+        addDemandedImplements(subType, superType)
 
-            s"predicate $name is not defined for type $subType. " +
-              s"Either declare a predicate 'pred ($subType) $name(${argTypes.mkString(", ")})' " +
-              s"or declare a predicate 'pred p($subType${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
-          }, !valid)
-        })
-        allPredicatesDefined.asReason(ip, "Some predicate definitions are missing")
+        {
+          val badReceiverTypes = ip.memberProofs.map(m => miscType(m.receiver))
+            .filter(t => !identicalTypes(t, subType))
+          error(ip, s"The receiver of all methods included in the implementation proof must be $subType, " +
+            s"but encountered: ${badReceiverTypes.distinct.mkString(", ")}", cond = badReceiverTypes.nonEmpty)
+        } ++ {
+          val superPredNames = memberSet(superType).collect{ case (n, m: MPredicateSpec) => (n, m) }
+          val allPredicatesDefined = PropertyResult.bigAnd(superPredNames.map{ case (name, symb) =>
+            val valid = tryMethodLikeLookup(subType, PIdnUse(name)).isDefined ||
+              ip.alias.exists(al => al.left.name == name)
+            failedProp({
+              val argTypes = symb.args map symb.context.typ
+
+              s"predicate $name is not defined for type $subType. " +
+                s"Either declare a predicate 'pred ($subType) $name(${argTypes.mkString(", ")})' " +
+                s"or declare a predicate 'pred p($subType${if (argTypes.isEmpty) "" else ", "}${argTypes.mkString(", ")})' with some name p and add 'pred $name := p' to the implementation proof."
+            }, !valid)
+          })
+          allPredicatesDefined.asReason(ip, "Some predicate definitions are missing")
+        }
       }
   }
 
@@ -166,7 +171,6 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
               case (n, itfSymb) if !proofs.contains(n) =>
                 getMember(impl, n) match {
                   case Some((implSymb: MethodImpl, _)) =>
-                    // println(s"Generating proof for $n for ($impl, $itf)")
                     Some((itfSymb, implSymb))
                   case _ => None
                 }

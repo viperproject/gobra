@@ -51,7 +51,6 @@ class LookupTable(
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
-
   def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)

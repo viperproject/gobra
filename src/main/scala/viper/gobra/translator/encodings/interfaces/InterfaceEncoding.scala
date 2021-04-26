@@ -10,7 +10,7 @@ import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.internal.theory.{Comparability, TypeHead}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterfaces, DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
+import viper.gobra.reporting.{ComparisonError, ComparisonOnIncomparableInterfaces, DiamondError, DynamicValueNotASubtypeReason, SafeTypeAssertionsToInterfaceNotSucceedingReason, Source, TypeAssertionError}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -512,12 +512,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
         val recvDecl = vpr.LocalVarDecl("i", vprInterfaceType(ctx))()
         val recv = recvDecl.localVar
 
-        val (_, inArgTypes) = predicateFamilySignature(id)(ctx)
+        val (sigName, inArgTypes) = predicateFamilySignature(id)(ctx)
         val argTypes = inArgTypes.map(ctx.typeEncoding.typ(ctx))
         val argDecls = argTypes.zipWithIndex map { case (t, idx) => vpr.LocalVarDecl(s"x$idx", t)() }
         val args = argDecls.map(_.localVar)
 
-        def clause(p: in.PredicateProxy): Option[(vpr.Exp, vpr.Exp)] = {
+        def clause(p: in.PredicateProxy): Option[(in.Type, vpr.Exp, vpr.Exp)] = {
           val (typ, vPred) = p match {
             case p: in.MPredicateProxy =>
               val symb = ctx.lookup(p)
@@ -536,7 +536,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
             // Body[p(valueOf(i): [T], args)]
             val fullArgs = valueOf(recv, typ)()(ctx) +: args
             val rhs = vpr.utility.Expressions.instantiateVariables(vPred.body.get, vPred.formalArgs, fullArgs, Set.empty)
-            (lhs, vpr.utility.Simplifier.simplify(rhs))
+            (typ, lhs, vpr.utility.Simplifier.simplify(rhs))
           }
         }
 
@@ -553,21 +553,33 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
         }
 
+        val clauses = family.flatMap(clause)
+        val clauseTypes = clauses.map(_._1)
+
+        if (clauseTypes.size != clauses.size) {
+          // detecting this error in the type checking phase is challenging.
+          throw new Violation.UglyErrorMessage(DiamondError(
+            s"Detected an inheritance diamond for predicate $sigName. " +
+              s"\nThat means that there exists a subtype S and three interfaces A, B, and C, together with " +
+              s"\nthe implementation proofs (S implements A), (S implements B), (A implements C), and (B implements C)," +
+              s"\nwhere the predicate $sigName is aliased with different predicates in the proofs (S implements A) and (S implements B)."
+          ))
+        }
+
+
         val res = vpr.Predicate(
           name = name,
           formalArgs = recvDecl +: argDecls,
           body = Some(
-            family.foldRight(default: vpr.Exp){ // default
-              case (p, res) =>
-                clause(p)
-                  .map{ case (l, r) => vpr.CondExp(l, r, res)() }
-                  .getOrElse(res)
+            clauses.foldRight(default: vpr.Exp){
+              case ((_, l, r), res) => vpr.CondExp(l, r, res)()
             }
           )
         )()
         genPredicates ::= res
         res
       }
+
       genPredicateMap += (id -> res)
       res
     })
@@ -596,10 +608,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
       } yield (itfProxy, implProxy)
 
       val nodes = itfNodes.map(_._1) ++ edges.map(_._2)
+      val graphEdges = edges.flatMap{ case (l,r) => Vector((l,r),(r,l)) }
 
-      val (nodesId, families) = Algorithms.unionFind[in.PredicateProxy](nodes){ union =>
-        for ( (itfProxy, implProxy) <- edges ) union(itfProxy, implProxy)
-      }
+      val (nodesId, families) = Algorithms.connected(nodes, graphEdges)
 
       val sigs = itfNodes.map{
         case (itfProxy, _, _) => nodesId(itfProxy) -> (itfProxy.name, ctx.lookup(itfProxy).args.map(_.typ))

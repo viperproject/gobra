@@ -27,6 +27,14 @@ trait Implements { this: TypeInfoImpl =>
 
   private var _requiredImplements: Set[(Type, Type.InterfaceT)] = Set.empty
   def requiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
+  def addDemandedImplements(subT: Type, superT: Type): Unit = {
+    underlyingType(superT) match {
+      case itf: Type.InterfaceT if !itf.isEmpty && subT != NilType =>
+        _requiredImplements ++= Set((subT, itf))
+      case _ =>
+    }
+  }
+
   override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
     requiredImplements.groupMap(_._2)(_._1)
   }
@@ -89,6 +97,7 @@ trait Implements { this: TypeInfoImpl =>
         case _: Type.SliceT => true
         case ut: Type.OptionT => go(ut.elem)
         case ut: GhostCollectionType => go(ut.elem)
+        case _: Type.InterfaceT => true
         case _ => false
       }
     }

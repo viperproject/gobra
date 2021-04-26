@@ -20,7 +20,7 @@ import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, Violation}
 
-import scala.annotation.unused
+import scala.annotation.{tailrec, unused}
 import scala.collection.Iterable
 import scala.reflect.ClassTag
 
@@ -86,13 +86,14 @@ object Desugar {
     val builtInMPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
     val builtInFPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
 
+    val combinedDefinedT = combineTableField(_.definedTypes)
     val combinedMethods = combineTableField(_.definedMethods)
     val combinedMPredicates = combineTableField(_.definedMPredicates)
     val combinedImplementations = combineTableField(_.interfaceImplementations)
-    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations)
+    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
     val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(
-      combineTableField(_.definedTypes),
+      combinedDefinedT,
       combinedMethods ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
       combinedMPredicates ++ builtInMPredicates,
@@ -106,13 +107,31 @@ object Desugar {
   }
 
   /** For now, the memberset is computed in an inefficient way. */
-  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]]): Map[in.Type, Set[in.MemberProxy]] = {
+  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]], definedT: Map[(String, Addressability), in.Type]): Map[in.Type, Set[in.MemberProxy]] = {
     val keys = itfImpls.flatMap{ case (k, v) => v + k }.toSet
     val pairs: Set[(in.Type, Set[in.MemberProxy])] = keys.map{ key =>
+
+      val underlyingRecv = {
+        @tailrec
+        def underlyingItf(t: in.Type): Option[in.InterfaceT] = {
+          t match {
+            case t: in.InterfaceT => Some(t)
+            case t: in.DefinedT =>
+              definedT.get(t.name, t.addressability) match {
+                case Some(ut) => underlyingItf(ut)
+                case None => None
+              }
+            case _ => None
+          }
+        }
+
+        underlyingItf(key).getOrElse(key)
+      }
+
       key -> decls.collect{
-        case m: in.Method if m.receiver.typ == key => m.name
-        case m: in.PureMethod if m.receiver.typ == key => m.name
-        case m: in.MPredicate if m.receiver.typ == key => m.name
+        case m: in.Method if m.receiver.typ == underlyingRecv => m.name
+        case m: in.PureMethod if m.receiver.typ == underlyingRecv => m.name
+        case m: in.MPredicate if m.receiver.typ == underlyingRecv => m.name
       }.toSet
     }
     pairs.toMap[in.Type, Set[in.MemberProxy]]
@@ -344,7 +363,7 @@ object Desugar {
         definedFunctions,
         definedMPredicates,
         definedFPredicates,
-        computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations),
+        computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations, definedTypes),
         interfaceImplementations,
         implementationProofPredicateAliases
       )
@@ -2043,7 +2062,6 @@ object Desugar {
     var registeredDomains: Set[String] = Set.empty
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
-      // TODO: 'interfaceImplementations' should be populated based on 'requiredImplements'
 
       val src = meta(decl)
       val subT = info.symbType(decl.subT)

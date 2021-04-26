@@ -1,7 +1,7 @@
 # A Tutorial on Gobra
 ## Introduction
 *Gobra* is an automated, modular verifier for heap-manipulating, concurrent Go programs. 
-Gobra supports a large subset of Go, including Go’s interfaces and primitive data structures.
+It supports a large subset of Go, including Go’s interfaces and primitive data structures.
 Gobra verifies memory safety, crash safety, data-race freedom, and partial 
 correctness based on user-provided specifications.
 Gobra takes as input a `.gobra` file containing a Go program annotated with 
@@ -20,10 +20,37 @@ TODO: OUTLINE: Brief introduction: Say what this section shows: “First, we wil
 As is the case with Go, Gobra programs consist of a *package clause* followed
 by a list of *imports declarations*, finally followed by a list of 
 *top-level declarations*.
-The following section lists the available Top-level declarations in Gobra.
-TODO: we delegate the treatment of package ...
+In the following sections, we briefly describe each of these components.
+
+### Package Clauses
+
+```go
+package pkgName
+```
+
+- The `package` keyword defines the package to which the file belongs.
+- Every Gobra file belongs necessarily to one and only one package.
+
+### Import Declarations
+
+```go
+import (
+    "pkg1"
+    "pkg2"
+    ...
+    "pkgN"
+)
+```
+
+- Import Declarations begin with the `import` keyword and state that the enclosing Gobra file depends on the imported packages
+- The imported packages are specified by name if they belong to the standard
+  library, or by path. In the second case, the path must be relative to the
+  `GOPATH` environment variable.
+- Gobra provides an incomplete but growing support for the Go standard library. Currently, it has partial support for the packages 
+  `encoding/binary`, `net`, `strconv`, `strings`, `sync`, and `time`.
 
 ### Top Level Declarations
+
 #### Functions and Methods
 ```go
 /* Functions */
@@ -81,15 +108,19 @@ type TypeDef SomeType
 
 #### Global Constants
 ```go
-const untypedConst = 0 // untyped integer constant
-const typedConst1 type1 = 1 // typed integer constant
-const (
-    const 
-
-)
+const untypedConst = constExpr // untyped constant
+const typedConst type = consExpr // constExpr must be known at compile-time
 ```
 
 #### Implementation Proofs
+
+```go
+(t Type) implements InterfaceType {
+	...
+}
+```
+
+- Explained in [the section on interfaces](#interfaces)
 
 ## Basic Annotations
 We start with a simple function that computes the sum of the first `n` positive integers.
@@ -170,20 +201,19 @@ In this model, each heap location is associated with an *access permission*.
 Access permissions are held by method executions and transferred
 between functions upon call and return.
 A method may access a location only if it holds the associated permission.
-Permission to a shared location `v` is denoted in Gobra by the accessbility predicate `acc(v, p)`, where p is a value of type `perm` representing a rational number between 0 and 1.
-
-Gobra's permission model is expressive enough to allow concurrent read accesses while still
-ensuring exclusive writes. Furthermore, the concept of permissons extends to
-(recursive) predicates to denote access to unbounded data structures.
-
-This section demonstrates how the permissions and the access predicate are used with
-memory locations (through pointers) and predicates. Furthermore, it also describes
-how to allow multiple ... // TODO: fractional permissions
+Permission to a shared location `v` is denoted in Gobra by the accessbility predicate, discussed in the next section. 
 
 ### Accessability Predicate
 In pre- and postconditions, and generally in assertions, permission to a location `l`
-is denoted by an accessibility predicate: an assertion which is written `acc(l)`.
-Besides, `acc(l)` implies that l is not `nil`.
+is denoted by an accessibility predicate: an assertion which is written `acc(l, p)`.
+
+In general, `p` is a rational number between 0 and 1.  If the value of `p` is 1, then the predicate can be written as `acc(l)` and represents the permission to read and modify the value of the memory location. If the value of `p` is more than 0, it represents the permission to read the memory location `l` but no permission to modify. A non-zero permission to `l` may be split using the `*` operator and the following equality
+
+```
+acc(l, p1) * acc(l, p2) == acc(l, p1 + p2), if p1 >= 0 and p2 >= 0
+```
+
+`acc(l, p)` implies that `l` is not `nil` when `p > 0`.
 
 An accessibility predicate in a function’s precondition can be interpreted as
 an obligation for a caller to transfer the permission to the callee,
@@ -201,7 +231,8 @@ type pair struct {
 }
 
 // precondition
-requires acc(&x.left) && acc(&x.right) 
+// the field requires permission to modify both fields
+requires acc(&x.left) && acc(&x.right)
 // postcondition 1
 ensures acc(&x.left) && acc(&x.right)
 // postcondition 2
@@ -221,7 +252,7 @@ are both incremented by `n`, respectively. Both postconditions make use of the `
 is the value of its operand in the beggining of the method execution.
 
 As a short-hand,
-one could have written `requires acc(x)` to require access to all fields of `x`.
+one could have written `acc(x)` instead of `acc(x.left) && acc(x.right)`  to require access to all fields of `x`.
 
 Given the implementation and specification of `incr`, one can call it from other functions and methods.
 For example, `client1` allocates a new `pair`. When a function allocates a new value on the heap, it also aquires
@@ -257,43 +288,14 @@ func client2() {
 }
 ```
 
-### Inhaling and Exhaling (?)
-
-### Exclusive Permissions (?)
-Permissions to memory locations as described so far are exclusive;
-in particular, it is not possible for two functions to hold permissions for the same location in simultaneous,
-even if they only require read access.
-
-This built-in principle can indirectly guarantee 
-non-aliasing between references: inhaling the assertions acc(x.f) and acc(y.f) implies x != y because otherwise, the 
-exclusive permission to acc(x.f) would be held twice. This is demonstrated by the following program:
-
-In Viper, accessibility predicates can be conjoined via &&; the resulting assertion requires the sum of the permissions required by its two conjuncts. Therefore, the two statements inhale acc(x.f); inhale acc(y.f) (semicolons are required in Viper only if statements are on the same line) are equivalent to the single statement inhale acc(x.f) && acc(y.f). In both cases, the obtained permissions imply that x and y cannot be aliases. Intuitively, the statement inhale acc(x.f) && acc(y.f) can be understood as inhaling permission to acc(x.f), and in addition to that, inhaling the permission to acc(y.f). Technically, this conjunction between resource assertions is strongly related to the separating conjunction from separation logic; formal details of the connection (and how to encode standard separation logic into Viper) can be found in this paper.
-
---
-
-### Fractional Permissions
-Exclusive permissions are too restrictive for some applications. For instance, it is typically safe for multiple
-threads of a source program to concurrently access the same heap location as long as all accesses are reads.
-That is, read access can safely be shared. However, if any thread potentially writes to a heap location, no other 
-should typically be allowed to concurrently read it (otherwise, the program has a data race). To support encoding 
-such scenarios, Gobra supports *fractional permissions* with a permission amount between 0 and 1.
-
-Any non-zero permission amount allows read access to the corresponding heap location, but only the exclusive 
-permission (1) allows modifications.
-
-The general form of an accessibility predicate for a memory location `l` is `acc(l, p)`,
-where `p` is a permission amount. Permission amounts are denoted by write for exclusive permissions, none for zero permission, quotients of two Int-typed expressions i1/i2 to denote a fractional permission; any Perm-typed expression may be used here. Perm is the type of permission amounts, which is a built-in type that can be used like any other type. The permission amount parameter p is optional and defaults to write. For example, acc(e.f), acc(e.f, write) and acc(e.f, 1/1) all have the same meaning.
-
-The next example illustrates the usage of fractional permissions to distinguish between read and write access: there, method copyAndInc requires write permission to x.f, but only read permission (we arbitrarily chose 1/2, but any non-zero fraction would suffice) to y.f.
-
-```go
-EXAMPLE
-```
-
-Fractional permissions to the same location are summed up: inhaling acc(x.f, p1) && acc(x.f, p2) is equivalent to inhaling acc(x.f, p1 + p2), and analogously for exhaling. As before, inhaling permissions maintains the invariant that write permission to a location are exclusive. With fractional permission in mind, this can be rephrased as maintaining the invariant that the permission amount to a location never exceeds 1.
-
 ### Quantified Permissions
+
+Gobra provides two main mechanisms for specifying permission to a (potentially unbounded) number of heap locations: recursive [predicates](#predicates) and *quantified permissions*.
+
+While predicates can be a natural choice for modelling entire data  structures which are traversed in an orderly top-down fashion,  quantified permissions enable point-wise specifications, suitable for modelling heap structures which can be traversed in multiple directions, random-access data structures such as arrays, and unordered data structures such as graphs.
+
+The basic idea is to allow resource assertions to occur within the body of a `forall` quantifier. In our example, function `addToSlice` receives a slice `s` and adds `n` to each element of the slice. 
+
 ```go
 package tutorial
 
@@ -311,7 +313,7 @@ func addToSlice(s []int, n int) {
 }
 ```
 
-[also show client that allocates slice]
+To be able to change the contents of the slice, the function must have access to all elements of `s`. This is guaranteed by the pre-condition `forall k int :: 0 <= k && k < len(s) ==> acc(&s[k])` asserting access to all elements of the form `acc(&s[k])`, where `k` is a valid index of the array. 
 
 ```go
 package tutorial
@@ -326,18 +328,13 @@ func addToSliceClient() {
 
 
 ## Predicates
-In general, listing the heap locations modified by a function via access predicates with pointers can
-only be done with structures of bounded size. 
+Until now, listing the heap locations accessed by a function could only be done with structures of bounded size or by using quantified permissions.
 
-listing the access permissions to locations is always bounded. That limitation is overcome
-TODO:
-by using predicates
-- predicates
-- predicates don't mean the same thing as their body, they require an explicit unfolding
-- fold
-- unfold
-- unfolding
+Alternatively, one can use *Preidcates*, which abstract parameterised assertions; a predicate can have any number of parameters, and its body can be any self-framing Gobra assertion using only these parameters as variable names.
 
+Predicate  definitions can be recursive, allowing them to denote permission to and properties of recursive heap structures such as linked lists and trees.
+
+For example, the following snippet
 
 ```go
 package tutorial
@@ -350,6 +347,25 @@ type node struct {
 pred list(ptr *node) {
   acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
 }
+```
+
+
+
+Like functions, Gobra predicates can also be abstract, i.e. have no body.
+
+
+
+listing the access permissions to locations is always bounded. That limitation is overcome
+TODO:
+by using predicates
+- predicates
+- predicates don't mean the same thing as their body, they require an explicit unfolding
+- fold
+- unfold
+- unfolding
+
+
+```go
 
 requires list(ptr)
 pure func contains(ptr *node, value int) bool {
@@ -536,34 +552,13 @@ func inc(pc *chan *int, ghost x int) {
 }
 ```
 
-## More examples ?
+## Running Gobra
 
------------------
+
+
+
 
 ## Not integrated in main text
-### Package Clauses
-```go
-package pkgName
-```
-- The `package` keyword defines the package to which the file belongs.
-- A package clause begins must appear at the beginning of a source file.
-- Every Gobra file belongs necessarily to one and only one package.
-
-### Import Declarations
-```go
-import (
-    "pkg1"
-    "pkg2"
-    ...
-    "pkgN"
-)
-```
-- Import Declarations begin with the `import` keyword and state that the enclosing Gobra file depends on the imported packages
-- The imported packages are specified by name if they belong to the standard
-library, or by path. In the second case, the path must be relative to the
-`GOPATH` environment variable.
-- Gobra provides an incomplete but growing support for the Go standard library. Currently, it has partial support for the packages 
-`encoding/binary`, `net`, `strconv`, `strings`, `sync`, and `time`.
 
 ### Top-level declarations
 

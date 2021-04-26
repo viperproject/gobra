@@ -6,6 +6,8 @@
 
 package viper.gobra.reporting
 
+import java.nio.file.Paths
+
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
@@ -70,6 +72,12 @@ object Source {
       }
     }
 
+    val noInfo: Info = Info(
+      frontend.PLabelDef("unknown"),
+      internal.LabelProxy("unknown")(Source.Parser.Internal),
+      Origin(SourcePosition(Paths.get("."), 0, 0), "unknown")
+    )
+
     object / {
       def unapply(arg: Info): Option[(Info, Annotation)] = arg.origin match {
         case ann: AnnotatedOrigin => Some((arg, ann.annotation))
@@ -85,9 +93,21 @@ object Source {
     }
   }
 
+  object CertainSynthesized {
+    def unapply(node: vpr.Node): Option[Verifier.Info] = {
+      Synthesized.unapply(node) orElse Some(Verifier.noInfo)
+    }
+  }
+
   def unapply(node: vpr.Node): Option[Verifier.Info] = {
     val info = node.getPrettyMetadata._2
     info.getUniqueInfo[Verifier.Info]
+  }
+
+  object CertainSource {
+    def unapply(node: vpr.Node): Option[Verifier.Info] = {
+      Source.unapply(node) orElse Some(Verifier.noInfo)
+    }
   }
 
   def withInfo[N <: vpr.Node](n: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => N)(source: internal.Node): N = {

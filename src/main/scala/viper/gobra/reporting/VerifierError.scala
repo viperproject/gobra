@@ -200,6 +200,16 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
   override def localMessage: String = "Method contract is not well-formed"
 }
 
+case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "predicate_not_well_defined"
+  override def localMessage: String  ="Predicate body is not well-formed"
+}
+
+case class ImpreciseContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "imprecise_contract_not_well_formed"
+  override def localMessage: String  ="Contract is not well-formed"
+}
+
 case class IfError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "conditional_error"
   override def localMessage: String = "Conditional statement might fail"

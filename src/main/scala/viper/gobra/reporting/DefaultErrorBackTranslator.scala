@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, OverflowCheckAnnotation, Synthesized}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -35,18 +35,18 @@ object DefaultErrorBackTranslator {
 
   val defaultReasonTransformer: BackTranslator.ReasonTransformer = {
     val defaultReasonTransformerAux: BackTranslator.ReasonTransformer = {
-      case vprrea.InsufficientPermission(Source(info)) =>
+      case vprrea.InsufficientPermission(CertainSource(info)) =>
         InsufficientPermissionError(info)
-      case vprrea.AssertionFalse(Source(info)) =>
+      case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
-      case vprrea.AssertionFalse(Synthesized(info)) =>
+      case vprrea.AssertionFalse(CertainSynthesized(info)) =>
         SynthesizedAssertionFalseError(info)
-      case vprrea.SeqIndexExceedsLength(Source(node), Source(index)) =>
+      case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
         SeqIndexExceedsLengthError(node, index)
-      case vprrea.SeqIndexNegative(Source(node), Source(index)) =>
+      case vprrea.SeqIndexNegative(CertainSource(node), CertainSource(index)) =>
         SeqIndexNegativeError(node, index)
       case vprrea.DivisionByZero(info) =>
-        DivisionByZeroReason(Source.unapply(info))
+        DivisionByZeroReason(CertainSource.unapply(info))
       //      case vprrea.DummyReason =>
       //      case vprrea.InternalReason(offendingNode, explanation) =>
       //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>
@@ -58,7 +58,7 @@ object DefaultErrorBackTranslator {
       //      case vprrea.EpsilonAsParam(offendingNode) =>
       //      case vprrea.ReceiverNull(offendingNode) =>
       //      case vprrea.DivisionByZero(offendingNode) =>
-      case vprrea.NegativePermission(Source(info)) =>
+      case vprrea.NegativePermission(CertainSource(info)) =>
         NegativePermissionError(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
@@ -85,33 +85,37 @@ class DefaultErrorBackTranslator(
     // same order as they are declared in VerificationError.scala
     // errors regarding wellformedness, termination, magic wands, and heuristics are currently not transformed
     val errorMapper: BackTranslator.ErrorTransformer = {
-      case vprerr.AssignmentFailed(Source(info), reason, _) =>
+      case vprerr.AssignmentFailed(CertainSource(info), reason, _) =>
         AssignmentError(info) dueTo translate(reason)
-      case vprerr.CallFailed(Source(info), reason, _) =>
+      case vprerr.CallFailed(CertainSource(info), reason, _) =>
         CallError(info) dueTo translate(reason)
-      case vprerr.PreconditionInCallFalse(Source(info), reason, _) =>
+      case vprerr.PreconditionInCallFalse(CertainSource(info), reason, _) =>
         PreconditionError(info) dueTo translate(reason)
-      case vprerr.PreconditionInAppFalse(Source(info), reason, _) =>
+      case vprerr.PreconditionInAppFalse(CertainSource(info), reason, _) =>
         PreconditionError(info) dueTo translate(reason)
-      case vprerr.ExhaleFailed(Source(info), reason, _) =>
+      case vprerr.PredicateNotWellformed(CertainSource(info), reason, _) =>
+        PredicateNotWellFormedError(info) dueTo translate(reason)
+      case vprerr.ContractNotWellformed(CertainSource(info), reason, _) =>
+        ImpreciseContractNotWellFormedError(info) dueTo translate(reason)
+      case vprerr.ExhaleFailed(CertainSource(info), reason, _) =>
         ExhaleError(info) dueTo translate(reason)
-      case vprerr.InhaleFailed(Source(info), reason, _) =>
+      case vprerr.InhaleFailed(CertainSource(info), reason, _) =>
         InhaleError(info) dueTo translate(reason)
-      case vprerr.IfFailed(Source(info), reason, _) =>
+      case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
-      case vprerr.WhileFailed(Source(info), reason, _) =>
+      case vprerr.WhileFailed(CertainSource(info), reason, _) =>
         ForLoopError(info) dueTo translate(reason)
-      case vprerr.AssertFailed(Source(info), reason, _) =>
+      case vprerr.AssertFailed(CertainSource(info), reason, _) =>
         AssertError(info) dueTo translate(reason)
-      case vprerr.PostconditionViolated(Source(info), _, reason, _) =>
+      case vprerr.PostconditionViolated(CertainSource(info), _, reason, _) =>
         PostconditionError(info) dueTo translate(reason)
-      case vprerr.FoldFailed(Source(info), reason, _) =>
+      case vprerr.FoldFailed(CertainSource(info), reason, _) =>
         FoldError(info) dueTo translate(reason)
-      case vprerr.UnfoldFailed(Source(info), reason, _) =>
+      case vprerr.UnfoldFailed(CertainSource(info), reason, _) =>
         UnfoldError(info) dueTo translate(reason)
-      case vprerr.LoopInvariantNotPreserved(Source(info), reason, _) =>
+      case vprerr.LoopInvariantNotPreserved(CertainSource(info), reason, _) =>
         LoopInvariantPreservationError(info) dueTo translate(reason)
-      case vprerr.LoopInvariantNotEstablished(Source(info), reason, _) =>
+      case vprerr.LoopInvariantNotEstablished(CertainSource(info), reason, _) =>
         LoopInvariantEstablishmentError(info) dueTo translate(reason)
 
       // Wytse (2020-05-22):
@@ -122,7 +126,7 @@ class DefaultErrorBackTranslator(
       // meaning that the above case for `IfFailed` doesn't catch all errors...
       // This extra case provides a workaround for this issue.
       // Nevertheless, this should eventually be solved on the Viper level I think.
-      case vprerr.IfFailed(Not(Source(info)), reason, _) =>
+      case vprerr.IfFailed(Not(CertainSource(info)), reason, _) =>
         IfError(info) dueTo translate(reason)
     }
 

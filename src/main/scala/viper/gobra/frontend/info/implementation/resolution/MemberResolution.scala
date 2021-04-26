@@ -70,6 +70,12 @@ trait MemberResolution { this: TypeInfoImpl =>
     receiverMethodSetMap.getOrElse(recv, AdvancedMemberSet.empty) union
       builtInReceiverMethodSet(recv)
 
+  def adtClauseFields(decl: PAdtClause, adtDecl: PAdtType, ctx: ExternalTypeInfo): AdvancedMemberSet[AdtMember] = {
+    val fields = decl.args.flatMap(_.fields).map(f => AdtDestructor(f, adtDecl, ctx))
+    val desciminator: AdvancedMemberSet[AdtMember] = AdvancedMemberSet.init(Vector(AdtDiscriminator(decl, adtDecl, ctx)))
+    AdvancedMemberSet.init[AdtMember](fields).union(desciminator)
+  }
+
   private lazy val receiverPredicateSetMap: Map[Type, AdvancedMemberSet[TypeMember]] = {
     tree.root.declarations
       .collect { case m: PMPredicateDecl => createMPredImpl(m) }
@@ -184,6 +190,14 @@ trait MemberResolution { this: TypeInfoImpl =>
       case _ => AdvancedMemberSet.empty
     }
 
+  val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
+    attr[Type, AdvancedMemberSet[AdtMember]] {
+      case t: AdtT =>
+        t.decl.clauses.map(adtClauseFields(_, t.decl, t.context)).foldLeft(AdvancedMemberSet.empty[AdtMember]) {
+          case (ms1, ms2) => ms1.union(ms2)
+        }
+      case _ => AdvancedMemberSet.empty
+    }
 
 
 
@@ -272,10 +286,16 @@ trait MemberResolution { this: TypeInfoImpl =>
 
     val ent: Entity = clauseOpt match {
       case Some(c) => AdtClause(c, adtType, typeSymbType(adtType).asInstanceOf[AdtT].context)
-      case None => ErrorMsgEntity(message(use, s"No ADT Clause ${use} found"))
+      case None => ErrorMsgEntity(message(use, s"No ADT Clause $use found"))
     }
 
     Option((ent, Vector()))
+  }
+
+  def tryAdtFieldLookup(t: AdtT, use: PIdnUse) : Option[(AdtMember, Vector[MemberPath])] = {
+    val member = adtMemberSet(t).lookup(use.name)
+    if (member.isDefined) Some((member.get, Vector.empty))
+    else None
   }
 
 
@@ -285,7 +305,11 @@ trait MemberResolution { this: TypeInfoImpl =>
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else tryFieldLookup(exprType(expr), id)
+        else underlyingType(exprType(expr)) match {
+          case t: StructT => tryFieldLookup(t, id)
+          case t: AdtT => tryAdtFieldLookup(t, id)
+          case _ => None
+        }
 
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)

@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
+import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator}
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
@@ -1061,6 +1062,27 @@ object Desugar {
       } yield in.FieldRef(base, f)(src)
     }
 
+
+    def adtSelectionD(ctx: FunctionContext)(p: ap.AdtSelection)(src: Meta): Writer[in.Expr] = {
+      for {
+        base <- exprD(ctx)(p.base)
+      } yield p.symb match {
+        case AdtDestructor(decl, adtDecl, context) =>
+          val adtT : AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+          in.AdtDestructor(base, in.Field(
+            nm.adtField(decl.id.name, adtT),
+            typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
+            true
+          )(src))(src)
+        case AdtDiscriminator(decl, adtDecl, context) =>
+          val adtT : AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
+          in.AdtDiscriminator(
+            base,
+            adtClauseProxy(nm.adt(adtT), decl)
+          )(src)
+      }
+    }
+
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
         val abstractType = f.symb.tag.typ(config)
@@ -1402,6 +1424,7 @@ object Desugar {
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
+            case Some(p: ap.AdtSelection) => adtSelectionD(ctx)(p)(src)
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }
@@ -2141,6 +2164,17 @@ object Desugar {
       }
     }
 
+    def getAdtClauseTagMap(t: Type.AdtT) : Map[String, BigInt] = {
+      t.decl.clauses
+        .map(c => idName(c.id, t.context.getTypeInfo))
+        .sortBy(s => s)
+        .zipWithIndex
+        .map {
+          case (s, i) => s -> BigInt(i)
+        }
+        .toMap
+    }
+
     def embeddedTypeD(t: PEmbeddedType, addrMod: Addressability)(src: Meta): in.Type = t match {
       case PEmbeddedName(typ) => typeD(info.symbType(typ), addrMod)(src)
       case PEmbeddedPointer(typ) =>
@@ -2171,13 +2205,13 @@ object Desugar {
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t)
-        val res = registerType(in.AdtT(adtName, addrMod))
+        val res = registerType(in.AdtT(adtName, addrMod, getAdtClauseTagMap(t)))
         registerAdt(t, res)
         res
 
       case t: Type.AdtClauseT =>
         val tAdt = Type.AdtT(t.adtT, t.context)
-        val adt : in.AdtT = in.AdtT(nm.adt(tAdt), addrMod)
+        val adt : in.AdtT = in.AdtT(nm.adt(tAdt), addrMod, getAdtClauseTagMap(tAdt))
         val fields : Vector[in.Field] = (t.clauses map {case (key: String, typ: Type) => {
           in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }}).toVector

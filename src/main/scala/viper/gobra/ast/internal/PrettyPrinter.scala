@@ -449,6 +449,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
+    case AdtDiscriminator(base, clause) => showExpr(base) <> "." <> showProxy(clause)
+    case AdtDestructor(base, field) => showExpr(base) <> "." <> showField(field)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
   })
@@ -531,7 +533,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
-    case AdtT(name, _) => "adt" <> parens(name)
+    case AdtT(name, _, _) => "adt" <> parens(name)
     case AdtClauseT(name, adtT, _, _) => showType(adtT) <+> "::" <+> name
   }
 

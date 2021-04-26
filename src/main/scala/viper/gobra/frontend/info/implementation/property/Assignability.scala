@@ -105,11 +105,15 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo(l, r)
       case (IntT(_), PermissionT) => true
+      case (t: DeclaredT, c: AdtT) if underlyingType(t).isInstanceOf[AdtT] =>
+        underlyingType(t).asInstanceOf[AdtT] == c
+      case (c: AdtT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
+        underlyingType(t).asInstanceOf[AdtT] == c
       case (t: DeclaredT, c: AdtClauseT) if underlyingType(t).isInstanceOf[AdtT] =>
         underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
       case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
         underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
-      case (a: AdtClauseT, b: AdtClauseT) => a.decl == b.decl
+      //case (a: AdtClauseT, b: AdtClauseT) => a.decl == b.decl
 
         // conservative choice
       case _ => false

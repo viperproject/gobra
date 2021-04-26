@@ -137,6 +137,8 @@ object Nodes {
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
+        case AdtDiscriminator(base, clause) => Seq(base, clause)
+        case AdtDestructor(base, field) => Seq(base, field)
         case p: Permission => p match {
           case _: FullPerm => Seq.empty
           case _: NoPerm => Seq.empty

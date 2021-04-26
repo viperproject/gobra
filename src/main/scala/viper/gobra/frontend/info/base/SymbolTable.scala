@@ -213,10 +213,26 @@ object SymbolTable extends Environments[Entity] {
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
-  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostTypeMember {
+  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {
     override def rep: PNode = decl
 
     val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)
+  }
+
+  sealed trait AdtMember extends GhostTypeMember {
+    def getName: String
+  }
+
+  case class AdtDestructor(decl: PFieldDecl, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = decl.id.name
+  }
+
+  case class AdtDiscriminator(decl: PAdtClause, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = s"is${decl.id.name}"
   }
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember

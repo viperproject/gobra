@@ -29,6 +29,7 @@ object AstPattern {
   case class LocalVariable(id: PIdnUse, symb: st.Variable) extends Expr with Symbolic // In the future: with FunctionKind
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
+  case class AdtSelection(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr

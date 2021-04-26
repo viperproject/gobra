@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
 import viper.gobra.ast.frontend.{PFieldDecl, PIdnNode}
-import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, GhostRegular, Predicate}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, GhostRegular, Predicate}
 import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
@@ -26,6 +26,8 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case c: AdtClause => unsafeMessage(! {
       c.decl.args.forall(decls => decls.fields.forall {case PFieldDecl(_, typ) => wellDefAndType.valid(typ)})
     })
+    case c: AdtDestructor => wellDefAndType(c.decl.typ)
+    case _: AdtDiscriminator => LocalMessages(noMessages)
   }
 
   private[typing] def ghostEntityType(entity: GhostRegular, @unused id: PIdnNode): Type = entity match {

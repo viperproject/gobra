@@ -88,8 +88,8 @@ object Names {
   // adt
   def dfltAdtValue(adtName: String): String = s"adtDflt_$adtName"
   def tagAdtFunction(adtName: String): String = s"adtTag_$adtName"
-  def destructorAdtName(adtName: String, clauseName: String, argumentName: String) =
-    s"get_${adtName}_${clauseName}_${argumentName}"
+  def destructorAdtName(adtName: String, argumentName: String) =
+    s"get_${adtName}_${argumentName}"
   def constructorAdtName(adtName: String, clause: String) =
     s"${adtName}_${clause}"
 

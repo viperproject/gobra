@@ -8,7 +8,7 @@ import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, DomainFuncApp, Forall}
+import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, Forall}
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -51,7 +51,7 @@ class AdtEncoding extends LeafTypeEncoding {
         clause.args.map(a => {
           val (argPos, argInfo, argErrT) = a.vprMeta
           DomainFunc(
-            Names.destructorAdtName(adtName, clause.name.name, a.name),
+            Names.destructorAdtName(adtName, a.name),
             Seq(localVarTDecl(argPos, argInfo, argErrT)),
             ctx.typeEncoding.typ(ctx)(a.typ)
           )(argPos, argInfo, adtName, argErrT)
@@ -91,10 +91,10 @@ class AdtEncoding extends LeafTypeEncoding {
         )(_,_, vpr.Int, adtName, _)
       }
 
-      def deconstructorCall(clause: String, field: String, arg: vpr.Exp, retTyp: vpr.Type) =
+      def deconstructorCall(field: String, arg: vpr.Exp, retTyp: vpr.Type) =
         {
-          DomainFuncApp(
-            Names.destructorAdtName(adtName, clause, field),
+          vpr.DomainFuncApp(
+            Names.destructorAdtName(adtName, field),
             Seq(arg),
             Map.empty
           )(_, _, retTyp, adtName, _)
@@ -130,7 +130,20 @@ class AdtEncoding extends LeafTypeEncoding {
         val clauseTag = vpr.IntLit(tagF(c))(cPos, cInfo, cErrT)
 
         if (c.args.nonEmpty) {
-          AnonymousDomainAxiom(Forall(triggerVars, Seq(trigger), vpr.EqCmp(lhs, clauseTag)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT))(cPos, cInfo, adtName, cErrT)
+          val destructOverConstruct : vpr.Exp = (destructors.zip(args).map {
+            case (d, a) => vpr.EqCmp(
+              vpr.DomainFuncApp(d, Seq(construct), Map.empty)(cPos, cInfo, cErrT),
+              a
+            )(cPos, cInfo, cErrT) : vpr.Exp
+          }: Seq[vpr.Exp]).reduceLeft {
+            (l: vpr.Exp, r: vpr.Exp) => vpr.And(l, r)(cPos, cInfo, cErrT) : vpr.Exp
+          }
+
+          AnonymousDomainAxiom(Forall(triggerVars, Seq(trigger), vpr.And(
+            vpr.EqCmp(lhs, clauseTag)(cPos, cInfo, cErrT),
+            destructOverConstruct
+          )(cPos, cInfo, cErrT)
+          )(cPos, cInfo, cErrT))(cPos, cInfo, adtName, cErrT)
         } else {
           AnonymousDomainAxiom(vpr.EqCmp(lhs, clauseTag)(cPos, cInfo, cErrT))(cPos, cInfo, adtName, cErrT)
         }
@@ -142,10 +155,10 @@ class AdtEncoding extends LeafTypeEncoding {
         val localVar = localVarT(cPos, cInfo, cErrT)
 
         val destructors = c.args.map(a =>
-          deconstructorCall(c.name.name, a.name, localVar, ctx.typeEncoding.typ(ctx)(a.typ))(cPos, cInfo, cErrT)
+          deconstructorCall(a.name, localVar, ctx.typeEncoding.typ(ctx)(a.typ))(cPos, cInfo, cErrT)
         )
 
-        val trigger = vpr.Trigger(destructors)(cPos, cInfo, cErrT)
+        val trigger = destructors.map(d => vpr.Trigger(Seq(d))(cPos, cInfo, cErrT))
         val clauseTag = vpr.IntLit(tagF(c))(cPos, cInfo, cErrT)
         val triggerTagApp = tagApp(localVar)(cPos, cInfo, cErrT)
         val implicationLhs = vpr.EqCmp(triggerTagApp, clauseTag)(aPos, aInfo, aErrT)
@@ -156,7 +169,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
         val implication = vpr.Implies(implicationLhs, implicationRhs)(cPos, cInfo, cErrT)
 
-        vpr.AnonymousDomainAxiom(vpr.Forall(Seq(variable), Seq(trigger), implication)(cPos, cInfo, cErrT))(cPos,
+        vpr.AnonymousDomainAxiom(vpr.Forall(Seq(variable), trigger, implication)(cPos, cInfo, cErrT))(cPos,
           cInfo, adtName, cErrT)
       })
 
@@ -168,7 +181,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
         def destructors(clause: AdtClause) = clause.args map(a => {
           val (argPos, argInfo, argErrT) = a.vprMeta
-          deconstructorCall(clause.name.name, a.name, variable, ctx.typeEncoding.typ(ctx)(a.typ))(argPos, argInfo, argErrT)
+          deconstructorCall(a.name, variable, ctx.typeEncoding.typ(ctx)(a.typ))(argPos, argInfo, argErrT)
         })
 
         val equalities = adt.clauses.map(c => {
@@ -178,7 +191,7 @@ class AdtEncoding extends LeafTypeEncoding {
           .map(c => {
               vpr.EqCmp(variable, c)(c.pos, c.info, c.errT)
           })
-          .foldLeft(vpr.TrueLit()(aPos, aInfo, aErrT) : vpr.Exp)({ (acc, next) => vpr.Or(acc, next)(aPos, aInfo, aErrT) : vpr.Exp })
+          .foldLeft(vpr.FalseLit()(aPos, aInfo, aErrT) : vpr.Exp)({ (acc, next) => vpr.Or(acc, next)(aPos, aInfo, aErrT) : vpr.Exp })
 
         vpr.AnonymousDomainAxiom(
           vpr.Forall(Seq(variableDecl), Seq(trigger), equalities)(aPos, aInfo, aErrT)
@@ -193,7 +206,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
 
     def defaultVal(e: in.DfltVal, a: in.AdtT) = {
       val (pos, info, errT) = e.vprMeta
@@ -209,17 +222,49 @@ class AdtEncoding extends LeafTypeEncoding {
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.Adt(a) / Exclusive => defaultVal(e, a)
       case (e: in.DfltVal) :: ctx.AdtClause(a) / Exclusive => defaultVal(e, a.adtT)
-      case ac: in.AdtConstructorLit => {
-        val (pos, info, errT) = ac.vprMeta
-        for {
-          args <- sequence(ac.args map goE)
-        } yield vpr.DomainFuncApp(
-          funcname = Names.constructorAdtName(ac.clause.adtName, ac.clause.name),
-          args,
-          Map.empty
-        )(pos, info, adtType(ac.clause.adtName), ac.clause.adtName, errT)
-      }
+      case ac: in.AdtConstructorLit => adtConstructor(ac, ctx)
+      case ad: in.AdtDiscriminator => adtDiscriminator(ad, ctx)
+      case ad: in.AdtDestructor => adtDestructor(ad, ctx)
     }
+  }
+
+  def adtConstructor(ac: in.AdtConstructorLit, ctx: Context) = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    val (pos, info, errT) = ac.vprMeta
+    for {
+      args <- sequence(ac.args map goE)
+    } yield vpr.DomainFuncApp(
+      funcname = Names.constructorAdtName(ac.clause.adtName, ac.clause.name),
+      args,
+      Map.empty
+    )(pos, info, adtType(ac.clause.adtName), ac.clause.adtName, errT)
+  }
+
+  def adtDiscriminator(ac: in.AdtDiscriminator, ctx: Context) = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    val adtType = ac.base.typ.asInstanceOf[in.AdtT]
+    val (pos, info, errT) = ac.vprMeta
+    for {
+      value <- goE(ac.base)
+    } yield vpr.EqCmp(vpr.DomainFuncApp(
+        Names.tagAdtFunction(adtType.name),
+        Seq(value), Map.empty)(pos, info, vpr.Int, adtType.name, errT),
+      vpr.IntLit(adtType.clauseToTag(ac.clause.name))(pos, info, errT)
+    )(pos, info, errT)
+  }
+
+  def adtDestructor(ac: in.AdtDestructor, ctx: Context) = {
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+
+    val adtType = ac.base.typ.asInstanceOf[in.AdtT]
+    val (pos, info, errT) = ac.vprMeta
+    for {
+      value <- goE(ac.base)
+    } yield vpr.DomainFuncApp(
+      Names.destructorAdtName(adtType.name, ac.field.name),
+      Seq(value), Map.empty)(pos, info, ctx.typeEncoding.typ(ctx)(ac.field.typ), adtType.name, errT)
   }
 
 

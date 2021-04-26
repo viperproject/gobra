@@ -823,6 +823,14 @@ case class FieldRef(recv: Expr, field: Field)(val info: Source.Parser.Info) exte
   override val typ: Type = field.typ
 }
 
+case class AdtDestructor(base: Expr, field: Field)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = field.typ
+}
+
+case class AdtDiscriminator(base: Expr, clause: AdtClauseProxy)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = BoolT(Addressability.literal)
+}
+
 /** Updates struct 'base' at field 'field' with value 'newVal', i.e. base[field -> newVal]. */
 case class StructUpdate(base: Expr, field: Field, newVal: Expr)(val info: Source.Parser.Info) extends Expr {
   require(base.typ.addressability == Addressability.Exclusive)
@@ -1231,14 +1239,14 @@ case class ChannelT(elem: Type, addressability: Addressability) extends Type {
     ChannelT(elem, newAddressability)
 }
 
-case class AdtT(name: String, addressability: Addressability) extends Type with TopType {
+case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[String, BigInt]) extends Type with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtT => name == o.name
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtT(name, newAddressability)
+    AdtT(name, newAddressability, clauseToTag)
 }
 
 case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {

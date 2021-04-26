@@ -92,8 +92,9 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
         case (Right(base), Some((s: st.BuiltInMethod, path))) =>   Some(ap.BuiltInMethodExpr(base, n.id, path, s))
         case (Right(base), Some((s: st.BuiltInMPredicate, path))) =>   Some(ap.BuiltInPredicateExpr(base, n.id, path, s))
 
-        // qualified adt access
+        // adts
         case (Right(base), Some((s: st.AdtClause, _))) => Some(ap.QualifiedAdtType(base, s))
+        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtSelection(base, n.id, s))
 
         case _ => None
       }

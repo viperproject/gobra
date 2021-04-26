@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2011-2021 ETH Zurich.
+
 function quit_or_continue() {
   read -p "Press Q to abort, any other key to continue ..." -n 1 -s KEY
   echo

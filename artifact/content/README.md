@@ -5,13 +5,16 @@ Gobra comes as a ready-to-use docker image called `gobra_docker_image.tar` (TODO
 It can be loaded into docker by using `docker load -i gobra_docker_image.tar`.
 The loaded image is named `gobraverifier/gobra-artifact:v1`.
 
+Docker should be configured that at least 6GB of memory is available to containers.
+This can be configured in Docker Preferences (use the whale icon in the status bar) > Resources > Advanced > Memory.
+
 We recommend to use a shared folder to directly access files provided by the image on your host:
 - Create a new folder in your current directory.
   Let us assume that it is called `gobra_sync` for the following commands.
 
 - Start an interactive version of the Gobra artifact using the following command:
   ```commandline
-  docker run -it --volume $PWD/gobra_sync:/home/gobra/sync gobraverifier/gobra-artifact:v1
+  docker run -it --memory=6g --volume $PWD/gobra_sync:/home/gobra/sync gobraverifier/gobra-artifact:v1
   ```
   You can now find this README, our paper, the Dockerfile used to create the artifact image, and our evaluation and regression examples in the shared folder `gobra_sync`.
   

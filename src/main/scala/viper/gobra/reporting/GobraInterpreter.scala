@@ -55,7 +55,10 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case _ => DummyEntry()
+												case InterfaceT(decl,context) => FaultEntry("TODO: Interfaces")
+												case FunctionT(args,res) => FaultEntry("TODO: Functions")
+												case p:PointerT => interpret(entry,p.elem)
+												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
 			case r:sil.RefEntry => pointerInterpreter.interpret(r,info) 
@@ -269,7 +272,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 								case _ => return FaultEntry("false extraction")
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
-					val fieldval = if(extracted.fields.isEmpty) return Util.getDefault(elem) 
+					val fieldval = if(extracted.fields.isEmpty) return Util.getDefault(info) 
 						else if(kek._1.isInstanceOf[sil.OtherEntry]) extracted.fields.head._2._1 match {
 												case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
 												case x => x 
@@ -293,6 +296,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 				val value = interpret(entry,PointerT(t))
 				value match {
 						case p:LitPointerEntry =>  LitAdressedEntry(p.value,address)
+						case n:LitNilEntry => Util.getDefault(t)
 						case x:LitEntry => LitAdressedEntry(x,address)
 					}	
 				}
@@ -311,14 +315,18 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case BooleanT => Names.pointerField(vpr.Bool)
 			case StringT => Names.pointerField(vpr.Int)
 			case PointerT(elem) => elem match{
-				case x:StructT => "val$_ShStruct2_RefRef"
+				case x:StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
 				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 				case _ => Names.pointerField(vpr.Ref)
 			} 
 			//case _:ArrayT => "val$_ShArray_fRef"
-			case _:DeclaredT => "val$_ShStruct2_RefRef"
-			case x:StructT => "val$_ShStruct2_RefRef"
-			case x => s"$x" //TODO: resolve all types or find a better way of doing it (maybe go through all fields and find one you like)
+			case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
+			case x:StructT => entry match {
+				case r:sil.RefEntry=>s"val$$_ShStruct${x.fields.size}_${"Ref".repeat(x.fields.size)}" //ISSUE: can be val$_Tuple{n}_{Types} or val$_Tuple{n}_{Types}
+				case _ => s"val$$_Tuple${x.fields.size}_${"Ref".repeat(x.fields.size)}"
+			}
+			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general
+			case x => s"$x" //TODO: resolve all types 
 		}
 	}
 }

@@ -163,6 +163,8 @@ object GobraStrategy {
       case (_: SetLit, Seq(t: Type, args: Vector[Expr@unchecked])) => SetLit(t, args)(meta)
       case (_: MultisetLit, Seq(t: Type, args: Vector[Expr@unchecked])) => MultisetLit(t, args)(meta)
       case (a: AdtConstructorLit, Seq(args: Vector[Expr@unchecked])) => AdtConstructorLit(a.typ, a.clause, args)(meta)
+      case (_: AdtDiscriminator, Seq(base: Expr, clause: AdtClauseProxy)) => AdtDiscriminator(base, clause)(meta)
+      case (_: AdtDestructor, Seq(base: Expr, clause: Field)) => AdtDestructor(base, clause)(meta)
       case (p: Parameter.In, Seq()) => Parameter.In(p.id, p.typ)(meta)
       case (p: Parameter.Out, Seq()) => Parameter.Out(p.id, p.typ)(meta)
       case (l: LocalVar, Seq()) => LocalVar(l.id, l.typ)(meta)

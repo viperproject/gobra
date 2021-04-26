@@ -292,10 +292,15 @@ trait MemberResolution { this: TypeInfoImpl =>
     Option((ent, Vector()))
   }
 
-  def tryAdtFieldLookup(t: AdtT, use: PIdnUse) : Option[(AdtMember, Vector[MemberPath])] = {
-    val member = adtMemberSet(t).lookup(use.name)
-    if (member.isDefined) Some((member.get, Vector.empty))
-    else None
+  def tryAdtFieldLookup(typ: Type, use: PIdnUse) : Option[(AdtMember, Vector[MemberPath])] = {
+    underlyingType(typ) match {
+      case t: AdtT =>
+        val member = adtMemberSet(t).lookup(use.name)
+        if (member.isDefined) Some((member.get, Vector.empty))
+        else None
+      case _ => None
+    }
+
   }
 
 
@@ -304,12 +309,10 @@ trait MemberResolution { this: TypeInfoImpl =>
     exprOrType(b) match {
       case Left(expr) =>
         val methodLikeAttempt = tryMethodLikeLookup(expr, id)
+        val fieldLookupAttempt = tryFieldLookup(exprType(expr), id)
         if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else underlyingType(exprType(expr)) match {
-          case t: StructT => tryFieldLookup(t, id)
-          case t: AdtT => tryAdtFieldLookup(t, id)
-          case _ => None
-        }
+        else if (fieldLookupAttempt.isDefined) fieldLookupAttempt
+        else tryAdtFieldLookup(exprType(expr), id)
 
       case Right(typ) =>
         val methodLikeAttempt = tryMethodLikeLookup(typ, id)

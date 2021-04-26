@@ -1,0 +1,38 @@
+package main
+
+//import "foo"
+
+type Test struct {
+    a, b int
+}
+
+type Node struct {
+    a, b, c int
+}
+
+
+type Tree adt {
+
+    Node{
+        value int
+        left, right Tree
+    }
+
+    Leaf{}
+}
+
+func main() {
+
+    //list := foo.List.Nil{}
+
+    structTest := Node{1, 2, 3}
+    val := structTest.a
+    test := Tree.Node{0, Leaf{}, Leaf{}}
+    test2 := Tree.Node{20, test, test}
+
+    var n int = test.value
+
+    assert test.isNode
+
+    assert n == 0
+}

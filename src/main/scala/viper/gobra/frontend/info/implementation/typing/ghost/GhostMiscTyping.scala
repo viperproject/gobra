@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, PredT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
@@ -44,6 +44,28 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       error(f, s"Uninterpreted functions must have exactly one return argument", f.result.outs.size != 1) ++
         nonVariadicArguments(f.args)
 
+    case n: PImplementationProofPredicateAlias =>
+      n match {
+        case tree.parent(ip: PImplementationProof) =>
+          entity(n.left) match {
+            case itfPred: MPredicateSpec =>
+              resolve(n.right) match {
+                case Some(implPred: ap.Predicate) =>
+                  val expectedTyp = PredT(symbType(ip.subT) +: (itfPred.args map itfPred.context.typ))
+                  val actualTyp = PredT(implPred.symb.args map implPred.symb.context.typ)
+                  message(n.right,
+                    s"Right-hand side must have signature $expectedTyp, but has signature $actualTyp",
+                    cond = !identicalTypes(expectedTyp, actualTyp)
+                  )
+
+                case _ => error(n.right, "Right-hand side must be a predicate (without a receiver)")
+              }
+            case _ => error(n.left, "Left-hand side must be a predicate of the super type interface")
+          }
+
+        case _ => violation("Encountered ill-formed program AST")
+      }
+
     case n: PMethodImplementationProof =>
       val validPureCheck = wellDefIfPureMethodImplementationProof(n)
       if (validPureCheck.nonEmpty) validPureCheck
@@ -67,7 +89,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
             // check that the receiver has the method
             val receiverHasMethod = failedProp(
               s"The type ${n.receiver.typ} does not have member ${n.id}",
-              cond = tryNonAddressableMethodLikeLookup(miscType(n.receiver), n.id).isEmpty
+              cond = tryMethodLikeLookup(miscType(n.receiver), n.id).isEmpty
             )
             // check that the body has the right shape
             val rightShape = {
@@ -76,8 +98,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                 case Some((_, block)) =>
 
                   val expectedReceiverOpt = n.receiver match {
-                    case _: PUnnamedReceiver => None
-                    case p: PNamedReceiver => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case _: PUnnamedParameter => None
+                    case p: PNamedParameter => Some(PNamedOperand(PIdnUse(p.id.name)))
+                    case PExplicitGhostParameter(_: PUnnamedParameter) => None
+                    case PExplicitGhostParameter(p: PNamedParameter) => Some(PNamedOperand(PIdnUse(p.id.name)))
                   }
 
                   val expectedArgs = n.args.flatMap {
@@ -223,6 +247,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     case _: PDomainAxiom | _: PDomainFunction => UnknownType
     case _: PMethodImplementationProof => UnknownType
+    case _: PImplementationProofPredicateAlias => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {

@@ -132,9 +132,9 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation && \
     cp -r $HOME/gobra/src/test/resources/regressions/examples/* $HOME/test_suite/evaluation
 
 # copy content into image:
-ADD content/* $HOME
-ADD Dockerfile $HOME
-ADD evaluation/* $HOME/test_suite/evaluation
+ADD content/* $HOME/
+ADD Dockerfile $HOME/
+ADD evaluation/* $HOME/test_suite/evaluation/
 
 ENV MOUNT_DIR $HOME/sync
 

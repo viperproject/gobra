@@ -2489,14 +2489,40 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a fpredicate constructor") {
-    frontend.parseExpOrFail("mutexInvariant!<x!>") should matchPattern {
-      case PPredConstructor(PFPredBase(PIdnUse("mutexInvariant")), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
+    frontend.parseExpOrFail("mutexInvariant{x}") should matchPattern {
+      case PCompositeLit(PNamedOperand(PIdnUse("mutexInvariant")), PLiteralValue(Vector(
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x"))))))) =>
     }
   }
 
   test("Parser: should be able to parse a mpredicate constructor") {
-    frontend.parseExpOrFail("p.mutexInvariant!<x!>") should matchPattern {
-      case PPredConstructor(PDottedBase(PDot( PNamedOperand(PIdnUse("p")), PIdnUse("mutexInvariant"))), Vector(Some(PNamedOperand(PIdnUse("x"))))) =>
+    frontend.parseExpOrFail("p.mutexInvariant{x}") should matchPattern {
+      case PCompositeLit(PDot(PNamedOperand(PIdnUse("p")), PIdnUse("mutexInvariant")), PLiteralValue(Vector(
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x"))))))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a mpredicate constructor with a reference") {
+    frontend.parseExpOrFail("((&s).lessThan){x}") should matchPattern {
+      case PCompositeLit(PDot(PReference(PNamedOperand(PIdnUse("s"))), PIdnUse("lessThan")), PLiteralValue(Vector(
+        PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x"))))))) =>
+    }
+  }
+
+  test("Parser: should be able to parse a constructed mpredicate call") {
+    frontend.parseExpOrFail("((&s).lessThan){x}()") should matchPattern {
+      case PInvoke(PCompositeLit(PDot(PReference(PNamedOperand(PIdnUse("s"))), PIdnUse("lessThan")), PLiteralValue(Vector(
+      PKeyedElement(None, PExpCompositeVal(PNamedOperand(PIdnUse("x"))))))), Vector()) =>
+    }
+  }
+
+  test("Parser: fold predicate constructor") {
+    frontend.parseStmtOrFail("fold eq{&x, _}(&y)") should matchPattern {
+      case PFold(PPredicateAccess(PInvoke(
+        PCompositeLit(PNamedOperand(PIdnUse("eq")), PLiteralValue(Vector(
+          PKeyedElement(None, PExpCompositeVal(PReference(PNamedOperand(PIdnUse("x"))))),
+          PKeyedElement(None, PWildcard())))),
+        Vector(PReference(PNamedOperand(PIdnUse("y"))))), PFullPerm())) =>
     }
   }
 

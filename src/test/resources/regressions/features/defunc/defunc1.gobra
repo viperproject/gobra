@@ -11,14 +11,14 @@ func foldTest() {
 	x@ := 1
 	y@ := 2
 	// partial application works as expected
-	fold eq!<&x, _!>(&x)
-	fold eq!<_, &y!>(&y)
-	fold eq!<_, _!>(&x, &x)
-	fold eq!<&x, &x!>()
+	fold eq{&x, _}(&x)
+	fold eq{_, &y}(&y)
+	fold eq{_, _}(&x, &x)
+	fold eq{&x, &x}()
 
 	// should fail because &x and &y are different 
 	//:: ExpectedOutput(fold_error)
-	fold eq!<&x, _!>(&y)
+	fold eq{&x, _}(&y)
 }
 
 type Pair struct {
@@ -33,12 +33,12 @@ pred (p *Pair) pairSum(sum int) {
 func foldPairSum() {
 	x@ := Pair{1, 1}
 	// predicate expression instances with mpredicate bases are also supported
-	fold (&x).pairSum!<3!>()
-	unfold (&x).pairSum!<3!>()
+	fold ((&x).pairSum){3}()
+	unfold ((&x).pairSum){3}()
 
 	// the following should fail because p.x + p.y == 2
 	//:: ExpectedOutput(fold_error)
-	fold (&x).pairSum!<2!>()
+	fold ((&x).pairSum){2}()
 }
 
 type Singleton struct {
@@ -52,12 +52,12 @@ pred (s *Singleton) lessThan(bound int) {
 requires x >= 0
 func foldSingletonLessThan(x int) {
 	s@ := Singleton{}
-	fold (&s).lessThan!<x!>()
+	fold ((&s).lessThan){x}()
 }
 
 // error: x may be less than the value of the singleton
 func foldSingletonLessThanError(x int) {
 	s@ := Singleton{0}
 	//:: ExpectedOutput(fold_error)
-	fold (&s).lessThan!<x!>()
+	fold ((&s).lessThan){x}() // additional parentheses around `(&s).lessThan` are required for the current version of our parser
 }

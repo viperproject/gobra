@@ -6,10 +6,10 @@ package pkg
 import "sync"
 
 func problemWithCollect() {
-	fold acc(PredTrue!<!>(), 1/2)
-	fold sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{1/2})
-	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{1/2})
-	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{2/4})
+	fold acc(PredTrue{}(), 1/2)
+	fold sync.CollectFractions(seq[pred()]{ PredTrue{} }, seq[perm]{1/2})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue{} }, seq[perm]{1/2})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue{} }, seq[perm]{2/4})
 	//:: ExpectedOutput(assert_error:permission_error)
-	assert sync.CollectFractions(seq[pred()]{ PredTrue!<!> }, seq[perm]{3/4})
+	assert sync.CollectFractions(seq[pred()]{ PredTrue{} }, seq[perm]{3/4})
 }

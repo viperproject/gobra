@@ -50,13 +50,13 @@ func (g *WaitGroup) SetWaitMode(ghost p perm, ghost q perm)
 // latest proposal for WaitGroups (as of 21/01/2021)
 ghost
 requires P() && g.UnitDebt(P)
-ensures g.UnitDebt(PredTrue!<!>)
+ensures g.UnitDebt(PredTrue{})
 func (g *WaitGroup) PayDebt(ghost P pred())
 
-// Simplified version of the debt redistribution rule, instantiated with P == { PredTrue!<!> } and Q == { R }.
+// Simplified version of the debt redistribution rule, instantiated with P == { PredTrue{} } and Q == { R }.
 // This is the only rule that generates a Token.
 ghost
-requires g.UnitDebt(PredTrue!<!>)
+requires g.UnitDebt(PredTrue{})
 ensures g.UnitDebt(R) && g.Token(R)
 func (g *WaitGroup) GenerateTokenAndDebt(ghost R pred())
 
@@ -69,15 +69,15 @@ func (g *WaitGroup) GenerateToken(ghost R pred())
 requires p >= 0
 requires n > 0 && p > 0 ==> acc(g.WaitGroupP(), p) && !g.WaitMode()
 requires (n > 0 && p == 0) ==> g.UnitDebt(P)
-requires n < 0 ==> acc(g.UnitDebt(PredTrue!<!>), -n/1)
+requires n < 0 ==> acc(g.UnitDebt(PredTrue{}), -n/1)
 ensures (n > 0 && p > 0) ==> acc(g.WaitGroupP(), p)
 ensures (n > 0 && p == 0) ==> g.UnitDebt(P)
-ensures n > 0 ==> acc(g.UnitDebt(PredTrue!<!>), n/1)
+ensures n > 0 ==> acc(g.UnitDebt(PredTrue{}), n/1)
 // this is actually necessary, otherwise Gobra cannot prove that Add does not modify the wait mode
 ensures (n > 0 && p > 0) ==> g.WaitMode() == old(g.WaitMode())
 func (g *WaitGroup) Add(n int, ghost p perm, ghost P pred())
 
-requires g.UnitDebt(PredTrue!<!>)
+requires g.UnitDebt(PredTrue{})
 func (g *WaitGroup) Done()
 
 requires p > 0
@@ -105,9 +105,9 @@ pred CollectFractions(ghost P seq[pred()], ghost perms seq[perm]) {
 ghost
 requires len(P) == len(permsP)
 requires len(Q) == len(permsQ)
-requires g.UnitDebt(CollectFractions!<P ++ Q, permsP ++ permsQ!>)
-requires g.UnitDebt(PredTrue!<!>)
-ensures g.UnitDebt(CollectFractions!<P, permsP!>) && g.UnitDebt(CollectFractions!<Q, permsQ!>)
+requires g.UnitDebt(CollectFractions{P ++ Q, permsP ++ permsQ})
+requires g.UnitDebt(PredTrue{})
+ensures g.UnitDebt(CollectFractions{P, permsP}) && g.UnitDebt(CollectFractions{Q, permsQ})
 func (g *WaitGroup) SplitSequence(ghost P seq[pred()], ghost Q seq[pred()], ghost permsP seq[perm], ghost permsQ seq[perm])
 
 // Special case of the debt redistribution rule
@@ -117,9 +117,9 @@ requires len(P) == len(permsQ)
 requires len(P) == len(permsR)
 requires forall i int :: 0 <= i && i < len(P) ==> permsP[i] >= 0
 requires forall i int :: 0 <= i && i < len(P) ==> permsQ[i] >= 0
-requires g.UnitDebt(CollectFractions!<P, permsR!>)
-requires g.UnitDebt(PredTrue!<!>)
+requires g.UnitDebt(CollectFractions{P, permsR})
+requires g.UnitDebt(PredTrue{})
 requires forall i int :: 0 <= i && i < len(P) ==> permsP[i] + permsQ[i] == permsR[i]
-ensures g.UnitDebt(CollectFractions!<P, permsP!>)
-ensures g.UnitDebt(CollectFractions!<P, permsQ!>)
+ensures g.UnitDebt(CollectFractions{P, permsP})
+ensures g.UnitDebt(CollectFractions{P, permsQ})
 func (g *WaitGroup) SplitFractions(ghost P seq[pred()], ghost permsP seq[perm], ghost permsQ seq[perm], ghost permsR seq[perm])

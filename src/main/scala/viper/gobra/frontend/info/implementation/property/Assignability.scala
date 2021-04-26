@@ -182,6 +182,9 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case predicate: InternalPredicateType =>
           assignableToKeyedComposite(elems, predicate.args)
 
+        case predicate: AbstractPredicateType =>
+          PropertyResult(Some(src => predicate.tag.typ(config).messages(src, elems.map(miscType))))
+
         case t => failedProp(s"cannot assign literal to $t")
       }
     case (l, t) => failedProp(s"cannot assign literal $l to $t")

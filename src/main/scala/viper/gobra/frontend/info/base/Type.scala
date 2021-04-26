@@ -8,8 +8,9 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{AstPattern, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{AstPattern, PCompositeLit, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag.BuildInPredicateTag
 import viper.gobra.frontend.info.base.SymbolTable.Predicate
 import viper.gobra.util.TypeBounds
 
@@ -21,6 +22,10 @@ object Type {
 
   sealed trait ContextualType extends Type {
     val context: ExternalTypeInfo
+  }
+
+  sealed trait WithArgs extends Type {
+    val args: Vector[Type]
   }
 
   case object UnknownType extends Type
@@ -74,7 +79,7 @@ object Type {
     private def removeFieldIndicator(clause: (String, (Boolean, Type))): (String, Type) = (clause._1, clause._2._2)
   }
 
-  case class FunctionT(args: Vector[Type], result: Type) extends Type
+  case class FunctionT(args: Vector[Type], result: Type) extends WithArgs
 
   // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends Type {
@@ -98,7 +103,7 @@ object Type {
 
   case object AssertionT extends GhostType
 
-  case class PredT(args: Vector[Type]) extends GhostType
+  case class PredT(args: Vector[Type]) extends GhostType with WithArgs
 
   sealed trait InternalPredicateType extends GhostType {
     def args: Vector[(String, Type)]
@@ -108,6 +113,12 @@ object Type {
   case class InternalReceivedPredicateType(args: Vector[(String, Type)], recv: AstPattern.ReceivedPredicate) extends InternalPredicateType {
     override def pred: Predicate = recv.symb
   }
+
+  sealed trait AbstractPredicateType extends GhostType {
+    def tag: BuildInPredicateTag
+  }
+  case class AbstractNamedPredicateType(tag: BuildInPredicateTag, args: PCompositeLit => Vector[(String, Type)]) extends AbstractPredicateType
+  case class AbstractReceivedPredicateType(tag: BuildInPredicateTag, args: Vector[(String, Type)], recv: AstPattern.BuiltInReceivedPredicate) extends AbstractPredicateType
 
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type
@@ -165,5 +176,5 @@ object Type {
     * Note that Vector[Type] represents the types of arguments for functions and fpredicates but is a singleton
     * vector storing the receiver's type for methods and mpredicates.
     */
-  case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
+  case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> WithArgs) extends Type
 }

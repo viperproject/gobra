@@ -19,15 +19,15 @@ pred (m Mutex) isValue(vState int32, vStema uint32) {
 func test1() {
 	m := Mutex{0, 0}
 	// predicate expressions are supported in predicate constructor
-	fold Mutex.isZero!<_!>(m)
-	fold Mutex.isZero!<m!>()
+	fold Mutex.isZero{_}(m)
+	fold Mutex.isZero{m}()
 }
 
 func test2() {
 	m := Mutex{1, 1}
 	// should fail, the predicate is not true for `m`
 	//:: ExpectedOutput(fold_error)
-	fold Mutex.isZero!<_!>(m)
+	fold Mutex.isZero{_}(m)
 }
 
 func test3() {

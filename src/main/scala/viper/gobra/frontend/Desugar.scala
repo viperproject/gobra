@@ -1098,7 +1098,7 @@ object Desugar {
             Vector(info.symbType(base.typ))
         }
         Violation.violation(abstractType.typing.isDefinedAt(argsForTyping), s"cannot type built-in member ${f.symb.tag} as it is not defined for arguments $argsForTyping")
-        abstractType.typing(argsForTyping)
+        abstractType.typing(argsForTyping).asInstanceOf[FunctionT] // TODO change architecture that cast is not necessary
       }
 
       def getFunctionProxy(f: ap.FunctionKind, args: Vector[in.Expr]): in.FunctionProxy = f match {
@@ -1812,6 +1812,25 @@ object Desugar {
               idT = in.PredT(dRecvWithPath.typ +: ipt.args.map(p => typeD(p._2, Addressability.rValue)(src)), Addressability.rValue)
               proxy = predicateProxy(ipt.pred)
             } yield in.PredicateConstructor(proxy, idT, Some(dRecvWithPath) +: dArgs)(src)
+
+          case apt: AbstractNamedPredicateType =>
+            val composite = apt.args(lit).map{
+              case (key, typ) => (key, typeD(typ, Addressability.rValue)(src))
+            } // ipt.args.map{ case (k, v) => (k, typeD(v, Addressability.inParameter)(src))}
+            val wArgs = unkeyCompositeD(ctx)(lit.lit, composite)
+            for {
+              dArgs <- sequence(wArgs.map { x => option(x.toOption) })
+              dArgsFlatten = dArgs.flatten
+              dArgsT = dArgsFlatten.map(_.typ)
+              idT = in.PredT(dArgsT, Addressability.rValue)
+              // idT = apt.tag.typ(config).typing(dArgsFlatten.map(_.typ))
+              proxy = apt.tag match {
+                case tag: BuiltInFPredicateTag => fpredicateProxy(tag, dArgsT)(src)
+                case tag: BuiltInMPredicateTag => ??? // mpredicateProxy(tag, dArgsT)(src)
+              }
+            } yield in.PredicateConstructor(proxy, idT, dArgs)(src)
+
+          case apt: AbstractReceivedPredicateType => violation("AbstractReceivedPredicateType not handled")
 
           case symT =>
             val it = typeD(symT, Addressability.literal)(src)

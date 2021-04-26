@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AbstractType, AssertionT, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AbstractType, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType, WithArgs}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
@@ -63,9 +63,12 @@ object BuiltInMemberTag {
       */
     def returnGhostTyping(args: Vector[Type])(config: Config): GhostType =
       if (typ(config).typing.isDefinedAt(args)) {
-        typ(config).typing(args).result match {
-          case VoidType => ghostArgs(0)
-          case _ => ghostArgs(1) // as a default, we pick a single ghost result.
+        typ(config).typing(args) match {
+          case fn: FunctionT => fn.result match {
+            case VoidType => ghostArgs(0)
+            case _ => ghostArgs(1) // as a default, we pick a single ghost result.
+          }
+          case _: PredT => ghostArgs(1) // as a default, we pick a single ghost result.
         }
       } else {
         Violation.violation(s"returnGhostTyping not defined for $name")
@@ -75,11 +78,12 @@ object BuiltInMemberTag {
   sealed trait BuiltInFunctionTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInFPredicateTag extends GhostBuiltInMember
+  sealed trait BuildInPredicateTag extends GhostBuiltInMember
+  sealed trait BuiltInFPredicateTag extends BuildInPredicateTag
   sealed trait BuiltInMethodTag extends BuiltInMemberTag {
     def isPure: Boolean
   }
-  sealed trait BuiltInMPredicateTag extends GhostBuiltInMember
+  sealed trait BuiltInMPredicateTag extends BuildInPredicateTag
 
 
   /** Built-in Function Tags */
@@ -117,7 +121,7 @@ object BuiltInMemberTag {
         case (_, _) => noMessages // it is well-defined for arbitrary arguments
       },
       {
-        case args => FunctionT(args, AssertionT)
+        case args => PredT(args)
       })
   }
 
@@ -222,7 +226,7 @@ object BuiltInMemberTag {
     override def name: String = "IsChannelMPredTag"
 
     override def typ(config: Config): AbstractType =
-      channelReceiverType(allDirections, _ => FunctionT(Vector(), AssertionT))
+      channelReceiverType(allDirections, _ => PredT(Vector()))
   }
 
   case object SendChannelMPredTag extends BuiltInMPredicateTag {
@@ -230,7 +234,7 @@ object BuiltInMemberTag {
     override def name: String = "SendChannelMPredTag"
 
     override def typ(config: Config): AbstractType =
-      channelReceiverType(sendAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+      channelReceiverType(sendAndBiDirections, _ => PredT(Vector()))
   }
 
   case object RecvChannelMPredTag extends BuiltInMPredicateTag {
@@ -238,7 +242,7 @@ object BuiltInMemberTag {
     override def name: String = "RecvChannelMPredTag"
 
     override def typ(config: Config): AbstractType =
-      channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+      channelReceiverType(recvAndBiDirections, _ => PredT(Vector()))
   }
 
   case object ClosedMPredTag extends BuiltInMPredicateTag {
@@ -246,7 +250,7 @@ object BuiltInMemberTag {
     override def name: String = "ClosedMPredTag"
 
     override def typ(config: Config): AbstractType =
-      channelReceiverType(recvAndBiDirections, _ => FunctionT(Vector(), AssertionT))
+      channelReceiverType(recvAndBiDirections, _ => PredT(Vector()))
   }
 
   case object ClosureDebtMPredTag extends BuiltInMPredicateTag {
@@ -258,7 +262,7 @@ object BuiltInMemberTag {
       val dividend = IntT(UnboundedInteger)
       val divisor = IntT(UnboundedInteger)
       // val amountArgType = PermissionT
-      FunctionT(Vector(predArgType, dividend, divisor /* amountArgType */), AssertionT)
+      PredT(Vector(predArgType, dividend, divisor /* amountArgType */))
     })
   }
 
@@ -268,7 +272,7 @@ object BuiltInMemberTag {
 
     override def typ(config: Config): AbstractType = channelReceiverType(allDirections, _ => {
       val predArgType = PredT(Vector())
-      FunctionT(Vector(predArgType), AssertionT)
+      PredT(Vector(predArgType))
     })
   }
 
@@ -307,7 +311,7 @@ object BuiltInMemberTag {
   /**
     * Simplifies creation of an AbstracType specialized to a channel being the (method or mpredicate) receiver
     */
-  private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): AbstractType = AbstractType(
+  private def channelReceiverType(permittedModi: Set[ChannelModus], typing: ChannelT => WithArgs): AbstractType = AbstractType(
     channelReceiverMessages(permittedModi),
     channelReceiverTyping(permittedModi, typing)
   )
@@ -316,7 +320,7 @@ object BuiltInMemberTag {
       case (_, Vector(c: ChannelT)) if permittedModi.contains(c.mod) => noMessages
       case (n, ts) => error(n, s"type error: expected a single argument of channel type (permitted channel modi: $permittedModi) but got $ts")
     }
-  private def channelReceiverTyping(permittedModi: Set[ChannelModus], typing: ChannelT => FunctionT): Vector[Type] ==> FunctionT =
+  private def channelReceiverTyping(permittedModi: Set[ChannelModus], typing: ChannelT => WithArgs): Vector[Type] ==> WithArgs =
     {
       case Vector(c: ChannelT) if permittedModi.contains(c.mod) => typing(c)
     }

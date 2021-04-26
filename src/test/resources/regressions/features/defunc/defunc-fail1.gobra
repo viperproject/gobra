@@ -22,9 +22,9 @@ func error2(ghost inv pred()) {
 	x@ := 1
 	fold accPred(&x)
 	// y := unfolding accPred(&x) in x
-	fold accPred!<&x!>()
+	fold accPred{&x}()
 	//:: ExpectedOutput(type_error)
-	y := unfolding accPred!<&x!>() in x
+	y := unfolding accPred{&x}() in x
 }
 
 pred eq(x *int, y *int) {
@@ -37,13 +37,13 @@ func error3() {
 	x@ := 1
 	y@ := 2
 	//:: ExpectedOutput(type_error)
-	fold eq!<&x, &x, &x!>()
+	fold eq{&x, &x, &x}()
 	//:: ExpectedOutput(type_error)
-	fold eq!<&x!>(&x)
+	fold eq{&x}(&x)
 	//:: ExpectedOutput(type_error)
-	fold eq!<&x, _!>()
+	fold eq{&x, _}()
 	//:: ExpectedOutput(type_error)
-	fold eq!<&x, _!>(&x, &y)
+	fold eq{&x, _}(&x, &y)
 }
 
 type Singleton struct {
@@ -59,9 +59,9 @@ pred (s *Singleton)isVal(val int) {
 
 func error4() {
 	s@ := Singleton{0}
-	fold (&s).isVal!<0!>()
+	fold ((&s).isVal){0}()
 	e@ := Empty{}
 	// error: isVal expects a Singleton receiver
 	//:: ExpectedOutput(type_error)
-	fold (&e).isVal!<0!>()
+	fold ((&e).isVal){0}()
 }

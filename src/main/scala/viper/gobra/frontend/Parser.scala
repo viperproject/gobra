@@ -781,7 +781,7 @@ object Parser {
     lazy val primaryExp: Parser[PExpression] =
       conversion |
         call |
-        predConstruct |
+        // predConstruct |
         selection |
         indexedExp |
         sliceExp |
@@ -789,7 +789,7 @@ object Parser {
         typeAssertion |
         ghostPrimaryExp |
         operand
-
+    /*
     // TODO: change delimiters to { and } and implement required ambiguity resolution
     // current format: declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
@@ -810,7 +810,7 @@ object Parser {
 
     lazy val predConstructArg: Parser[Option[PExpression]] =
       (expression ^^ Some[PExpression]) | ("_" ^^^ None)
-
+    */
     lazy val conversion: Parser[PInvoke] =
       typ ~ ("(" ~> expression <~ ",".? <~ ")") ^^ {
         case t ~ e => PInvoke(t, Vector(e))
@@ -1309,7 +1309,7 @@ object Parser {
       primaryExp into { // this is somehow not equivalent to `call ^^ PPredicateAccess` as the latter cannot parse "b.RectMem(&r)"
         case invoke: PInvoke => success(PPredicateAccess(invoke, PFullPerm().at(invoke)))
         case PAccess(invoke: PInvoke, perm) => success(PPredicateAccess(invoke, perm))
-        case e => failure(s"expected invoke but got ${e.getClass}")
+        case e => failure(s"expected invoke but got $e (class ${e.getClass})")
       }
 
     lazy val boundVariables: Parser[Vector[PBoundVariable]] =

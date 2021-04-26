@@ -8,10 +8,11 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{Constant, DomainFunction, Embbed, Field, Function, Label, MPredicate, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Predicate, Variable}
-import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostType, GhostUnorderedCollectionType, IntT, InternalNamedPredicateType, InternalPredicateType, InternalReceivedPredicateType, MultisetT, OptionT, PermissionT, PredT, SequenceT, SetT, Single, SortT, Type}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInPredicate, Constant, DomainFunction, Embbed, Field, Function, Label, MPredicate, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Predicate, Variable}
+import viper.gobra.frontend.info.base.Type.{AbstractNamedPredicateType, AbstractPredicateType, AbstractReceivedPredicateType, ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostType, GhostUnorderedCollectionType, IntT, InternalNamedPredicateType, InternalPredicateType, InternalReceivedPredicateType, MultisetT, OptionT, PermissionT, PredT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.BuiltInMemberTag.BuildInPredicateTag
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -268,6 +269,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           PredT(predicate.args.zip(wildcards).collect{ case ((_, t), Some(_)) => t })
         }
 
+      case predicate: AbstractPredicateType =>
+        // partially apply non-wildcard values in lit and return an AbstractType
+        // wildcards are not permitted since we would not know how to resolve the abstract type:
+        // in addition, we do not support keyed arguments since built-in do now have keys
+        val argTypes = lit.elems.map{
+          case PKeyedElement(_, _: PWildcard) => violation(s"wildcard in predicate constructor of built-in predicate is not supported")
+          case PKeyedElement(Some(_), _) => violation(s"key in predicate constructor of built-in predicate is not supported")
+          case PKeyedElement(_, exp) => miscType(exp)
+        }
+        predicate.tag.typ(config).typing(argTypes)
 
       case t => t
     }
@@ -295,7 +306,27 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case _: ap.PredExprInstance => violation("a predicate expression instance is not a type (and cannot be used as the base of another predicate expression)")
 
-      case _: ap.BuiltInPredicateKind => ???
+      case p: ap.BuiltInPredicate => symbBuiltInPredicateType(p.symb)
+
+      case p: ap.BuiltInReceivedPredicate =>
+        // use receiver to determine specific built-in predicate:
+        // TODO check that built-in predicate exists for this receiver
+        val predType = p.symb.tag.typ(config).typing(Vector(typ(p.recv)))
+        val argsNameWithType = makeInternalPredicateType(predType.args.map(argT => (None, argT)))
+        AbstractReceivedPredicateType(p.symb.tag, argsNameWithType, p)
+
+      case p: ap.BuiltInPredicateExpr => ??? /*
+        // use first argument to determine specific built-in predicate:
+        // TODO check that built-in predicate exists for this receiver and has at least one argument passed to it
+        def getArgs(lit: PCompositeLit): Vector[(String, Type)] = {
+          // take first arg as receiver
+          val nameWithType = lit.lit.elems.map(elem => (None, typ(elem.exp)))
+          makeInternalPredicateType(nameWithType)
+        }
+        AbstractNamedPredicateType(predicate.tag, getArgs)
+        val predType = p.symb.tag.typ(config).typing(Vector(typ(p.)))
+        InternalNamedPredicateType(makeInternalPredicateType(p.symb.tag.typ(config).typing(Vector(typOfExprOrType(p.typ))).args.map(t => (None, t))))
+        */
     }
   }
 
@@ -333,6 +364,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def symbPredicateType(predicate: Predicate): Type = {
     val nameWithType = predicate.args.map(internalPredicateParameter(_, predicate.context))
     InternalNamedPredicateType(makeInternalPredicateType(nameWithType), predicate)
+  }
+
+  private[typing] def symbBuiltInPredicateType(predicate: BuiltInPredicate): Type = {
+    def getArgs(lit: PCompositeLit): Vector[(String, Type)] = {
+      val nameWithType = lit.lit.elems.map(elem => (None, typ(elem.exp)))
+      makeInternalPredicateType(nameWithType)
+    }
+    AbstractNamedPredicateType(predicate.tag, getArgs)
   }
 
   /**

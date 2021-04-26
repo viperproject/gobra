@@ -125,15 +125,25 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("untypable")
   }
 
-  lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
+  lazy val idSymType: Typing[PIdnNode] = createTyping({ id: PIdnNode =>
     entity(id) match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
       case Import(decl, _) => ImportT(decl)
       case predicate: Predicate => symbPredicateType(predicate)
-      case _: BuiltInFPredicate => ???
+      case bp: BuiltInPredicate => symbBuiltInPredicateType(bp)
       case _ => violation(s"expected type, but got $id")
     }
-  }
+  })(createWellDef({id: PIdnNode =>
+    // make well definedness stronger:
+    val msgs = wellDefID.apply(id)
+    if (msgs.out.nonEmpty) { msgs.out }
+    else entity(id) match {
+      case _: TypeEntity => noMessages
+      case _: Predicate => noMessages
+      case _: BuiltInPredicate => noMessages
+      case entity => error(id, s"expected a type or predicate but got $entity")
+    }
+  }))
 
   lazy val idType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {

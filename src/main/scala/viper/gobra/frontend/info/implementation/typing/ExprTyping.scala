@@ -137,14 +137,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.BuiltInMethodExpr) => memberType(p.symb) match {
           case t: AbstractType =>
             val recvType = typeSymbType(p.typ)
-            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)), recvType)
+            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)).asInstanceOf[FunctionT], recvType)
             else violation(s"expected AbstractType to be defined for $recvType")
           case t => violation(s"a built-in method should be typed to a AbstractType, but got $t")
         }
         case Some(p: ap.BuiltInPredicateExpr) => memberType(p.symb) match {
           case t: AbstractType =>
             val recvType = typeSymbType(p.typ)
-            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)), recvType)
+            if (t.typing.isDefinedAt(Vector(recvType))) extendFunctionType(t.typing(Vector(recvType)).asInstanceOf[FunctionT], recvType)
             else violation(s"expected AbstractType to be defined for $recvType")
           case t => violation(s"a built-in mpredicate should be typed to a AbstractType, but got $t")
         }

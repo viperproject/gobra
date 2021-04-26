@@ -369,7 +369,7 @@ pred list(ptr *node) {
 }
 ```
 
-Predicate instances can occur in function specifications. Predicate instances are not equivalent to their body. As such, the following program does not verify
+Predicate instances can occur in function specifications. Predicate instances are not equivalent to their body. As such, the following program does not verify:
 
 ```go
 package tutorial
@@ -382,7 +382,7 @@ func testPred(ptr * node) {
 }
 ```
 
-In order to make this verify, Gobra requires an additional `unfold` operation that replaces a predicate instance with its body. Using `unfold`, the following addapted version of the previous example verifies
+In order to make this verify, Gobra requires an additional `unfold` operation that replaces a predicate instance with its body. Conversely, the `fold` operation exchanges the assertion that is the body of a predicate `P` by the corresponding instance of `P`. Using `unfold`, the following addapted version of the previous example verifies:
 
 ```go
 package tutorial
@@ -393,16 +393,11 @@ func testPred(ptr * node) {
   assert list(ptr)
   unfold list(ptr) // replaces list(ptr) by its body
   assert acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next)) // succeeds
+  fold list(ptr)
 }
 ```
 
-In cases where an unfold statement is not allowed (e.g. specifications and bodies of pure functions), it is possible to unfold a predicate in the context of an expression.
-
-
-
-reverse operation `fold`
-
-For example, expects `ptr` to be a list, represented by the precondition `list(ptr)` and returns the first element of the list. `header` is a `pure` function. As such, all predicate instances and access permissions in the precondition are implicitly part of the function post-condition.
+In cases where an unfold statement is not allowed (e.g. specifications and bodies of pure functions), it is possible to unfold a predicate in the context of an expression.  For example, in the body of the `header` function, the only way to acquire access to `ptr.value` is by `unfolding list(ptr)`.
 
 ```go
 package tutorial
@@ -413,26 +408,40 @@ pure func head(ptr *node) int {
 }
 ```
 
+In the previous example, the precondition requires write permissions to the list, which is more restricitve than necessary because the function does not modify the values of the list. For that reason, predicates may also be used as arguments to access predicates
 
 
-
-
-Access
 
 ```go
 package tutorial
 
-requires acc(list(ptr), _)
-pure func contains(ptr *node, value int) bool {
+requires p > 0
+requires acc(list(ptr), p)
+pure func contains(ptr *node, value int, ghost p perm) bool {
     return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }
 ```
 
 
 
-TODO: predicates can occur in assertions and inside `acc`, fold, unfold and unfolding
 
-- predicates don't mean the same thing as their body, they require an explicit unfolding
+
+```go
+package tutorial
+
+requires acc(list(ptr), _)
+pure func contains(ptr *node, value int, ghost p perm) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+```
+
+
+
+As such, all predicate instances and access permissions in the precondition are implicitly part of the function post-condition.
+
+Because pure functions do not modify the state of the program, every predicate instance and access predicate in their preconditions are assumed to hold after they terminate, i.e., all resources stated in their preconditions are implicitly 
+
+
 
 
 
@@ -440,21 +449,72 @@ Like functions, Gobra predicates can also be abstract, i.e. have no body.
 
 
 
-listing the access permissions to locations is always bounded. That limitation is overcome
-TODO:
-by using predicates
-
-- predicates
-- fold
-- unfold
-- unfolding
-
-
-
 
 
 
 ## Interfaces
+
+TODO: remove myBox after the PR
+stream example from the paper
+
+```go
+package tutorial
+
+type stream interface {
+		pred mem()
+
+		requires acc(mem(), 1/2)
+		pure hasNext() bool
+
+		requires mem() && hasNext()
+		ensures  mem()
+		next() interface{}
+}
+
+// implementation
+type counter struct{ f, max int }
+
+requires acc(x, 1/2)
+pure func (x *counter) hasNext() bool {
+	return x.f < x.max
+}
+
+type myBox struct{ i int }
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == myBox
+ensures  y.(myBox) == myBox{old(x.f)}
+func (x *counter) next() (y interface{}) {
+	y = myBox{x.f}
+	x.f += 1
+	return
+}
+
+
+// implementation proof
+pred (x *counter) mem() { acc(x) }
+
+(*counter) implements stream {
+	pure (x *counter) hasNext() bool {
+		return unfolding acc(x.mem(), 1/2) in x.hasNext()
+	}
+
+	(x *counter) next() (res interface{}) {
+		unfold x.mem()
+		res = x.next()
+		fold x.mem()
+	}
+}
+
+
+// client code
+func client() {
+	x := &counter{0, 50}
+	var y stream = x
+	fold y.mem()
+	var z interface{} = y.next()
+}
+```
 
 Comparability
 look at the list example with value as an interface
@@ -477,50 +537,8 @@ pure func contains(ptr *node, value interface{}) bool {
 }
 ```
 
-TODO: remove myBox after the PR
-stream example from the paper
-```go
-type stream interface{
-    pred memory ()
-    requires acc(memory(), _) // arbitrary fraction of memory(x)
-    pure hasNext () bool
-    requires memory () && hasNext () ensures memory()
-    next() interface{}
-}
-
-type counter struct { 
-    f, max int
-}
-
-requires acc(&x.f, _) && acc(&x.max, _)
-pure func (x *counter) hasNext() bool {
-    return x.f < x.max
-}
-
-requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
-ensures acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1
-ensures typeOf(y) == int && y.(int) == old(x.f)
-func (x *counter) next() (y interface{}) {
-    x.f++;return x.f-1
-}
-
-pred (x *counter) memory() {
-    acc(&x.f) && acc(&x.max)
-}
-
-(*counter) implements stream {
-    pure (x *counter) hasNextProof() bool {
-        return unfolding acc(x.memory(), _) in x.hasNext()
-    }
-
-    (x *counter) nextProof() (res interface{}) {
-        ... // TODO: put full proof here
-    }
-}
-```
-
-
 ## Concurrency
+
 the following examples are enough to show:
 - Goroutines
 - First-class Predicates
@@ -638,52 +656,6 @@ func inc(pc *chan *int, ghost x int) {
 
 ## Not integrated in main text
 
-### Top-level declarations
-
-- Gobra supports Go's syntax for functions and methods.
-In the following observations, we will refer only to functions, 
-but they generalize to methods as well.
-- The specification for a function is provided as a list of pre- and 
-postcontions.
-    - Preconditions consist of the conditions that must hold when
-      the method is called. Preconditions are specified using 
-      the `requires` keyword, followed by an [assertion](#assertions)
-      parameterized by the function arguments.
-    - Postconditions consist of the conditions that must hold when the
-      function terminates, assuming that it started in a state satisfying
-      the preconditions. Postconditions are specified using 
-      the `ensures` keyword, followed by an assertion parameterized by
-      the function arguments and the return value.
-    - If no pre- or postconditions are provided, they default to `true`.
-- Function arguments are specified as pairs of identifiers and types. Gobra
-also supports variadic parameters. Additionally, methods expect a special 
-argument - the *receiver* - which appears before the method name in the 
-method declaration.
-- Functions and function calls are verified modularly: 
-    - function calls assume the specification of the called function to be 
-    true. Thus, changing its body does not affect the verification from the
-    callers perspective, as long as the specification remains the same.
-    - The precondition of the callee is checked before a function call 
-    - The postcondition of the callee is assumed after the method call
-- Gobra allows functions without a body, i.e., *abstract functions*. 
-For example, the following abstract function computes the sum of the
-first `n` naturals, according to its specification:
-```go
-requires n >= 0
-ensures res == n * (n+1)/2
-func sumToN(n int) (res int)
-```
-- When present, the body of a function consists of a block of [statements](#statements).
-
-TODO: mention ghost and pure functions, ghost arguments
-
-
-
-Gobra allows additional kinds of functions and methods besides the ones in Gobra. We now present such variations for functions. All considerations also apply to methods.
-
-(TODO: mention that methods consist of statements and specs consist of assertions and refer to the corresponding sections)
-##### Pure Functions
-
 ##### Ghost Functions
 Gobra supports *ghost code*, i.e., code introduced only for the purposes of
 verification. Ghost code cannot influence the result of non-ghost code, which we call *actual code*.
@@ -698,9 +670,12 @@ func funcName(arg1 type1, ..., argN typeN) {
 ```
 Ghost arguments in all kinds of functions.
 
-
 Besides pre and postconditions, functions and methods can be qualified with
 the `ghost` and `pure` modifiers
+
+
+
+#### Additional datatypes
 
 
 - Additionaly, Gobra introduces mathematical data types, which are 
@@ -712,9 +687,7 @@ useful for specification:
   | multi-set types | `mset[T]`, for some `T` |
   | domain types | TODO |
 
-## Running Gobra
-
 ## other things to talk about
 - verification is method modular
-- Ghost Code
+- Ghost Code and ghost values
 - after top-level declarations: statements, assertions(maybe explain permissions here), expressions

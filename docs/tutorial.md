@@ -195,6 +195,26 @@ safety and functional correctness.
 
 TODO: client
 
+
+
+When a function or method does not have side effects such as changing the contents of heap-allocated structures, it may be annotated with the `pure` modifier. 
+
+```go
+package tutorial
+
+// Computes the square of the binomium a + b
+ensures res == (a+b) * (a+b)
+pure func squareBin(a, b int) (res int) {
+    return a * a + 2 * a * b + b * b
+}
+```
+
+Pure functions may be used in the specifications of functions and methods. This is not true for non-`pure` functions. Currently, the implementation of Gobra limits `pure` functions to functions that return a side-effect-free expression.
+
+
+
+TODO: exemplify occurrence in specification
+
 ## Permissions and Heap-Manipulation
 Gobra uses a variant of *separation logic* to support reasoning about the mutable heap data. 
 In this model, each heap location is associated with an *access permission*.
@@ -334,7 +354,7 @@ Alternatively, one can use *Preidcates*, which abstract parameterised assertions
 
 Predicate  definitions can be recursive, allowing them to denote permission to and properties of recursive heap structures such as linked lists and trees.
 
-For example, the following snippet
+For example, the following snippet defines a type `node` which represents a node of a linked list. Furthermore, it defines the predicate `list`, parameterised by `ptr`. The predicate `list` abstracts the access to the value of the head of the list (implying that the head is not `nil`) and, recursively, abstracts the access to the rest of the the values in the list if the tail is not empty, that is, if `ptr.next != nil`
 
 ```go
 package tutorial
@@ -349,6 +369,71 @@ pred list(ptr *node) {
 }
 ```
 
+Predicate instances can occur in function specifications. Predicate instances are not equivalent to their body. As such, the following program does not verify
+
+```go
+package tutorial
+
+requires list(ptr)
+ensures list(ptr)
+func testPred(ptr * node) {
+  assert list(ptr) // succeeds
+  assert acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next)) // fails
+}
+```
+
+In order to make this verify, Gobra requires an additional `unfold` operation that replaces a predicate instance with its body. Using `unfold`, the following addapted version of the previous example verifies
+
+```go
+package tutorial
+
+requires list(ptr)
+ensures list(ptr)
+func testPred(ptr * node) {
+  assert list(ptr)
+  unfold list(ptr) // replaces list(ptr) by its body
+  assert acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next)) // succeeds
+}
+```
+
+In cases where an unfold statement is not allowed (e.g. specifications and bodies of pure functions), it is possible to unfold a predicate in the context of an expression.
+
+
+
+reverse operation `fold`
+
+For example, expects `ptr` to be a list, represented by the precondition `list(ptr)` and returns the first element of the list. `header` is a `pure` function. As such, all predicate instances and access permissions in the precondition are implicitly part of the function post-condition.
+
+```go
+package tutorial
+
+requires list(ptr)
+pure func head(ptr *node) int {
+  return unfolding list(ptr) in ptr.value
+}
+```
+
+
+
+
+
+Access
+
+```go
+package tutorial
+
+requires acc(list(ptr), _)
+pure func contains(ptr *node, value int) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+```
+
+
+
+TODO: predicates can occur in assertions and inside `acc`, fold, unfold and unfolding
+
+- predicates don't mean the same thing as their body, they require an explicit unfolding
+
 
 
 Like functions, Gobra predicates can also be abstract, i.e. have no body.
@@ -358,20 +443,13 @@ Like functions, Gobra predicates can also be abstract, i.e. have no body.
 listing the access permissions to locations is always bounded. That limitation is overcome
 TODO:
 by using predicates
+
 - predicates
-- predicates don't mean the same thing as their body, they require an explicit unfolding
 - fold
 - unfold
 - unfolding
 
 
-```go
-
-requires list(ptr)
-pure func contains(ptr *node, value int) bool {
-    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
-}
-```
 
 
 

@@ -13,3 +13,18 @@ requires list(ptr)
 pure func contains(ptr *node, value int) bool {
     return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
 }
+
+requires acc(list(ptr))
+pure func contains2(ptr *node, value int) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+
+requires acc(list(ptr), _)
+pure func contains3(ptr *node, value int) bool {
+    return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}
+
+requires list(ptr)
+pure func head(ptr *node) int {
+  return unfolding list(ptr) in ptr.value
+}

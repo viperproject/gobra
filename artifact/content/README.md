@@ -63,3 +63,7 @@ docker build -t gobraverifier/gobra-artifact:v1 .
 ```
 Note that building the artifact image and executing the instructions given in the first section are performed and tested as part of our continuous integration to ensure that Gobra remains reusable by the community in the future.
 The CI status can be checked [here](https://github.com/viperproject/gobra/actions?query=workflow%3Aartifact+branch%3Amaster).
+
+Gobra and its sources are licensed under the [Mozilla Public License Version 2.0](http://www.mozilla.org/MPL/2.0/) with the following exceptions:
+- The `.gobra` files used for regression testing are in [Public Domain](http://creativecommons.org/publicdomain/zero/1.0/)
+- Certain files containing stubs for Go built-ins or the Go standard library (located in `src/main/resources/builtin` and `src/main/resources/stubs/sync`, respectively) are copyrighted by The Go Authors because only minor changes have been performed to their counterparts in the Go source code.

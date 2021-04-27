@@ -9,9 +9,11 @@ import b "bar"
 func foo() {
     r@ := b.Rectangle{Width: 2, Height: 5}
     fold r.RectMem()
-    assert r.Area() == 10
+    res0 := r.Area()
+    assert res0 == 10
     unfold (*(b.Rectangle)).RectMem(&r)
     fold (*(b.Rectangle)).RectMem(&r)
-    assert (*(b.Rectangle)).Area(&r) == 10
+    res1 := (*(b.Rectangle)).Area(&r)
+    assert res1 == 10
     unfold r.RectMem()
 }

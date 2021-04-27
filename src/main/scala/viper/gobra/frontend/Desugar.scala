@@ -2628,7 +2628,7 @@ object Desugar {
 
     def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       val condition = assertionD(ctx)(ass)
-      Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
+      Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
       condition.res
     }
 

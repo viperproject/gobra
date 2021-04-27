@@ -9,8 +9,8 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 
 ## Compile and Run Gobra
 ### Preliminaries
-- Java 64-Bit (tested with version 11)
-- SBT (tested with version 1.2.6)
+- Java 64-Bit (tested with version 11 and 15)
+- SBT (tested with version 1.4.4)
 - Git
 
 ### Installation
@@ -20,7 +20,6 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
     - [silver](https://github.com/viperproject/silver)
     - [silicon](https://github.com/viperproject/silicon)
     - [carbon](https://github.com/viperproject/carbon)
-    - [viperserver](https://github.com/viperproject/viperserver)
     - Gobra
 3. Add symbolic links
     - To create a symbolic link from A to B, you have to run
@@ -30,19 +29,14 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silver -> ..\silver
     - Change directory to `gobraHome/carbon` and create the symbolic links:
         - silver -> ..\silver
-    - Change directory to `gobraHome/viperserver` and create the links:
-        - silver -> ..\silver
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
     - Change to `gobraHome/gobra-one` and create the links:
         - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
-        - viperserver -> ..\viperserver
 4. Install Z3 and Boogie. 
-    Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend.
+    Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
     1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
-      We tested version 4.8.6 64-Bit.
+      We tested version 4.8.7 64-Bit.
     2. Set the environment variable `Z3_EXE` to the path of your Z3 executable.
     3. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
         [Mono](https://www.mono-project.com/download/stable/) is required on Linux and macOS to run Boogie.

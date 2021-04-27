@@ -13,13 +13,14 @@ import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
+import viper.gobra.reporting.Source.AutoImplProofAnnotation
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, Violation}
 
-import scala.annotation.unused
+import scala.annotation.{tailrec, unused}
 import scala.collection.Iterable
 import scala.reflect.ClassTag
 
@@ -85,31 +86,52 @@ object Desugar {
     val builtInMPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInMPredicate) => m.name)
     val builtInFPredicates = combineTableFieldForBuiltInMember((m: in.BuiltInFPredicate) => m.name)
 
+    val combinedDefinedT = combineTableField(_.definedTypes)
     val combinedMethods = combineTableField(_.definedMethods)
     val combinedMPredicates = combineTableField(_.definedMPredicates)
     val combinedImplementations = combineTableField(_.interfaceImplementations)
-    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations)
+    val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
+    val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(
-      combineTableField(_.definedTypes),
+      combinedDefinedT,
       combinedMethods ++ builtInMethods,
       combineTableField(_.definedFunctions) ++ builtInFunctions,
       combinedMPredicates ++ builtInMPredicates,
       combineTableField(_.definedFPredicates) ++ builtInFPredicates      ,
       combinedMemberProxies,
-      combinedImplementations
+      combinedImplementations,
+      combineImpProofPredAliases
       )
     val builtInMembers = builtInMethods.values ++ builtInFunctions.values ++ builtInMPredicates.values ++ builtInFPredicates.values
     (table, builtInMembers)
   }
 
   /** For now, the memberset is computed in an inefficient way. */
-  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]]): Map[in.Type, Set[in.MemberProxy]] = {
+  def computeMemberProxies(decls: Iterable[in.Member], itfImpls: Map[in.InterfaceT, Set[in.Type]], definedT: Map[(String, Addressability), in.Type]): Map[in.Type, Set[in.MemberProxy]] = {
     val keys = itfImpls.flatMap{ case (k, v) => v + k }.toSet
     val pairs: Set[(in.Type, Set[in.MemberProxy])] = keys.map{ key =>
+
+      val underlyingRecv = {
+        @tailrec
+        def underlyingItf(t: in.Type): Option[in.InterfaceT] = {
+          t match {
+            case t: in.InterfaceT => Some(t)
+            case t: in.DefinedT =>
+              definedT.get(t.name, t.addressability) match {
+                case Some(ut) => underlyingItf(ut)
+                case None => None
+              }
+            case _ => None
+          }
+        }
+
+        underlyingItf(key).getOrElse(key)
+      }
+
       key -> decls.collect{
-        case m: in.Method if m.receiver.typ == key => m.name
-        case m: in.PureMethod if m.receiver.typ == key => m.name
-        case m: in.MPredicate if m.receiver.typ == key => m.name
+        case m: in.Method if m.receiver.typ == underlyingRecv => m.name
+        case m: in.PureMethod if m.receiver.typ == underlyingRecv => m.name
+        case m: in.MPredicate if m.receiver.typ == underlyingRecv => m.name
       }.toSet
     }
     pairs.toMap[in.Type, Set[in.MemberProxy]]
@@ -181,14 +203,21 @@ object Desugar {
       in.MethodProxy(decl.id.name, name)(meta(decl, context))
     }
 
+    def methodProxyFromSymb(symb: st.Method): in.MethodProxy = {
+      symb match {
+        case symb: st.MethodImpl => in.MethodProxy(symb.decl.id.name, idName(symb.decl.id, symb.context.getTypeInfo))(meta(symb.decl, symb.context.getTypeInfo))
+        case symb: st.MethodSpec => in.MethodProxy(symb.spec.id.name, idName(symb.spec.id, symb.context.getTypeInfo))(meta(symb.spec, symb.context.getTypeInfo))
+      }
+    }
+
     def methodProxy(id: PIdnUse): in.MethodProxy = {
       val name = idName(id)
       in.MethodProxy(id.name, name)(meta(id))
     }
 
-    def fpredicateProxyD(decl: PFPredicateDecl): in.FPredicateProxy = {
-      val name = idName(decl.id)
-      in.FPredicateProxy(name)(meta(decl))
+    def fpredicateProxyD(decl: PFPredicateDecl, context: TypeInfo = info): in.FPredicateProxy = {
+      val name = idName(decl.id, context)
+      in.FPredicateProxy(name)(meta(decl, context))
     }
 
     def fpredicateProxy(id: PIdnUse): in.FPredicateProxy = {
@@ -322,7 +351,7 @@ object Desugar {
         case _ =>
       }
 
-      val additionalMembers = AdditionalMembers.finalizedMembers
+      val additionalMembers = AdditionalMembers.finalizedMembers ++ missingImplProofs
 
       // built-in members are not (yet) added to the program's members or the lookup table
       // instead, they remain only accessible via this desugarer's getter function.
@@ -334,8 +363,9 @@ object Desugar {
         definedFunctions,
         definedMPredicates,
         definedFPredicates,
-        computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations),
-        interfaceImplementations
+        computeMemberProxies(dMembers ++ additionalMembers, interfaceImplementations, definedTypes),
+        interfaceImplementations,
+        implementationProofPredicateAliases
       )
 
       in.Program(types.toVector, dMembers ++ additionalMembers, table)(meta(p))
@@ -1576,7 +1606,8 @@ object Desugar {
               arg1 = argsD.lift(1)
 
               make: in.MakeStmt = info.symbType(t) match {
-                case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
                   val channelType = elemD(c).asInstanceOf[in.ChannelT]
                   val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
@@ -2031,7 +2062,6 @@ object Desugar {
     var registeredDomains: Set[String] = Set.empty
 
     def registerImplementationProof(decl: PImplementationProof): Unit = {
-      // TODO: 'interfaceImplementations' should be populated based on 'requiredImplements'
 
       val src = meta(decl)
       val subT = info.symbType(decl.subT)
@@ -2039,17 +2069,23 @@ object Desugar {
       val superT = info.symbType(decl.superT)
       val dSuperT = interfaceType(typeD(superT, Addressability.Exclusive)(src)).get
 
-      interfaceImplementations += (dSuperT -> (interfaceImplementations.getOrElse(dSuperT, Set.empty) + dSubT))
+      decl.alias foreach { al =>
+        info.resolve(al.right) match {
+          case Some(p: ap.Predicate) =>
+            implementationProofPredicateAliases += ((dSubT, dSuperT, al.left.name) -> fpredicateProxyD(p.symb.decl))
+          case _ => violation("Right-hand side of an predicate assignment in an implementation proof must be a predicate")
+        }
+      }
 
       decl.memberProofs foreach { mp =>
 
-        val subSymb = info.tryNonAddressableMethodLikeLookup(subT, mp.id).get._1.asInstanceOf[st.MethodImpl]
-        val subProxy = methodProxyD(subSymb.decl)
-        val superSymb = info.tryNonAddressableMethodLikeLookup(superT, mp.id).get._1.asInstanceOf[st.MethodSpec]
-        val superProxy = methodProxyD(superSymb.spec)
+        val subSymb = info.getMember(subT, mp.id.name).get._1.asInstanceOf[st.MethodImpl]
+        val subProxy = methodProxyFromSymb(subSymb)
+        val superSymb = info.getMember(superT, mp.id.name).get._1.asInstanceOf[st.MethodSpec]
+        val superProxy = methodProxyFromSymb(superSymb)
 
         val src = meta(mp)
-        val recvWithSubs = receiverD(mp.receiver)
+        val recvWithSubs = inParameterD(mp.receiver, 0)
         val (recv, _) = recvWithSubs
         val argsWithSubs = mp.args.zipWithIndex map { case (p, i) => inParameterD(p, i) }
         val (args, _) = argsWithSubs.unzip
@@ -2075,7 +2111,31 @@ object Desugar {
       }
     }
 
-    var interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = Map.empty
+    lazy val interfaceImplementations: Map[in.InterfaceT, Set[in.Type]] = {
+      info.interfaceImplementations.map{ case (itfT, implTs) =>
+        (
+          interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get,
+          implTs.map(implT => typeD(implT, Addressability.Exclusive)(Source.Parser.Unsourced))
+        )
+      }
+    }
+    def missingImplProofs: Vector[in.Member] = {
+
+      info.missingImplProofs.map{ case (implT, itfT, implSymb, itfSymb) =>
+        val subProxy = methodProxyFromSymb(implSymb)
+        val superT = interfaceType(typeD(itfT, Addressability.Exclusive)(Source.Parser.Unsourced)).get
+        val superProxy = methodProxyFromSymb(itfSymb)
+        val receiver = receiverD(implSymb.decl.receiver, implSymb.context.getTypeInfo)._1
+        val args = implSymb.args.zipWithIndex.map{ case (arg, idx) => inParameterD(arg, idx, implSymb.context.getTypeInfo)._1 }
+        val results = implSymb.result.outs.zipWithIndex.map{ case (res, idx) => outParameterD(res, idx, implSymb.context.getTypeInfo)._1 }
+
+        val src = meta(implSymb.decl, implSymb.context.getTypeInfo).createAnnotatedInfo(AutoImplProofAnnotation(implT.toString, itfT.toString))
+
+        if (itfSymb.isPure) in.PureMethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
+        else in.MethodSubtypeProof(subProxy, superT, superProxy, receiver, args, results, None)(src)
+      }
+    }
+    var implementationProofPredicateAliases: Map[(in.Type, in.InterfaceT, String), in.FPredicateProxy] = Map.empty
 
 
     def registerMethod(decl: PMethodDecl): in.MethodMember = {
@@ -2120,6 +2180,7 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
+      case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
@@ -2293,16 +2354,16 @@ object Desugar {
       }
     }
 
-    def receiverD(p: PReceiver): (in.Parameter.In, Option[in.LocalVar]) = {
+    def receiverD(p: PReceiver, context: TypeInfo = info): (in.Parameter.In, Option[in.LocalVar]) = {
       val src: Meta = meta(p)
       p match {
         case PNamedReceiver(id, typ, _) =>
-          val param = in.Parameter.In(idName(id), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
-          val local = Some(localAlias(localVarContextFreeD(id)))
+          val param = in.Parameter.In(idName(id, context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)
+          val local = Some(localAlias(localVarContextFreeD(id, context)))
           (param, local)
 
         case PUnnamedReceiver(typ) =>
-          val param = in.Parameter.In(nm.receiver(info.codeRoot(p), info), typeD(info.symbType(typ), Addressability.receiver)(src))(src)
+          val param = in.Parameter.In(nm.receiver(context.codeRoot(p), context), typeD(context.symbType(typ), Addressability.receiver)(src))(src)
           val local = None
           (param, local)
       }
@@ -2567,7 +2628,7 @@ object Desugar {
 
     def specificationD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       val condition = assertionD(ctx)(ass)
-      Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"assertion is not supported as a condition $ass")
+      Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not an assertion")
       condition.res
     }
 
@@ -2772,7 +2833,7 @@ object Desugar {
 //      in.Origin(code, pos)
 //    }
 
-    private def meta(n: PNode, context: TypeInfo = info): Meta = {
+    private def meta(n: PNode, context: TypeInfo = info): Source.Parser.Single = {
       val pom = context.getTypeInfo.tree.originalRoot.positions
       val start = pom.positions.getStart(n).get
       val finish = pom.positions.getFinish(n).get

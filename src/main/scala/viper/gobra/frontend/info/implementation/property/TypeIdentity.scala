@@ -28,6 +28,7 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
+      case (GhostSliceT(l), GhostSliceT(r)) => identicalTypes(l, r)
       case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
       case (SetT(l), SetT(r)) => identicalTypes(l, r)
       case (MultisetT(l), MultisetT(r)) => identicalTypes(l, r)
@@ -61,13 +62,18 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
 
-      //        case (InternalTupleT(lv), InternalTupleT(rv)) =>
-      //          lv.size == rv.size && lv.zip(rv).forall {
-      //            case (l, r) => identicalTypes(l, r)
-      //          }
+      case (VoidType, VoidType) => true
 
       case _ => false
     }
+
+    case (InternalTupleT(lv), InternalTupleT(rv)) =>
+      lv.size == rv.size && lv.zip(rv).forall {
+        case (l, r) => identicalTypes(l, r)
+      }
+    case (VoidType, InternalTupleT(Vector())) => true
+    case (InternalTupleT(Vector()), VoidType) => true
+
     case _ => false
   }
 }

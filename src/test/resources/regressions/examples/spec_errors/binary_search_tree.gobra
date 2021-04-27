@@ -90,7 +90,7 @@ pure func (t *Tree) IsEmpty() (res bool) {
 requires dividend > 0
 requires acc(t.tree(), 1/dividend)
 ensures acc(t.tree(), 1/dividend)
-ensures res == unfolding acc(t.tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
+ensures res == t.pureContains(value, dividend)
 func (t *Tree) Contains(value, dividend int) (res bool) {
     unfold acc(t.tree(), 1/dividend)
     if (t.root == nil) {
@@ -100,6 +100,12 @@ func (t *Tree) Contains(value, dividend int) (res bool) {
     }
     fold acc(t.tree(), 1/dividend)
     return res
+}
+
+ghost
+requires dividend > 0 && acc(t.tree(), 1/dividend)
+pure func (t *Tree) pureContains(value, dividend int) bool {
+  return unfolding acc(t.tree(), 1/dividend) in t.root != nil && value in t.root.sortedValues(none[int], none[int])
 }
 
 requires dividend > 0
@@ -305,12 +311,12 @@ func main() {
 ensures t.tree()
 func client0(value int) (t *Tree) {
     t = NewTree()
-    assert !t.Contains(value, 2)
+    assert !t.pureContains(value, 2)
     t.Insert(value)
     //:: ExpectedOutput(assert_error:assertion_error)
     assert t.sortedValues() == seq[int]{ value }
     t.Delete(value)
-    assert !t.Contains(value, 2)
+    assert !t.pureContains(value, 2)
     return t
 }
 
@@ -331,7 +337,7 @@ func client2(t *Tree, value int) {
     t.Insert(value)
     var newValues = t.sortedValues()
     //:: ExpectedOutput(assert_error:assertion_error)
-    assert t.Contains(value, 2)
+    assert t.pureContains(value, 2)
     ghost if (value in oldValues) {
         assert oldValues == newValues
     } else {

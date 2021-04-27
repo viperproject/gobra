@@ -9,3 +9,7 @@ import b "bar"
 func foo() {
   b.bar()
 }
+
+func foo2() {
+  go b.bar()
+}

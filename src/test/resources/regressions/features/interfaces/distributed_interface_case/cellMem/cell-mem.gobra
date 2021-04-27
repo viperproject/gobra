@@ -1,0 +1,7 @@
+package cellMem
+
+// ##(-I ../)
+
+import "cell"
+
+pred cellMem(c *cell.cell) { acc(c) }

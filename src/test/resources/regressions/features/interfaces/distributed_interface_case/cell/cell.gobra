@@ -1,0 +1,16 @@
+package cell
+
+type cell struct { v int }
+
+// implementation of cell
+requires acc(c, 1/2)
+ensures res == c.v
+pure func (c *cell) GetVal() (res int) {
+    return c.v
+}
+
+requires acc(c)
+ensures acc(c) && c.v == v
+func (c *cell) SetVal(v int) {
+    c.v = v
+}

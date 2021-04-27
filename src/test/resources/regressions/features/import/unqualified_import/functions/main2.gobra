@@ -3,7 +3,7 @@
 
 package main2
 
-// ##(-I src/test/resources/regressions/features/import/unqualified_import/functions)
+// ##(-I ./)
 import . "bar2_1"
 import . "bar2_2"
 

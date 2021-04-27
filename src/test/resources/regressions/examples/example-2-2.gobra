@@ -25,13 +25,11 @@ pure func (x *counter) hasNext() bool {
   return x.f < x.max
 }
 
-type myBox struct{ i int }
-
 requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
-ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == myBox
-ensures  y.(myBox) == myBox{old(x.f)}
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == int
+ensures  y.(int) == old(x.f)
 func (x *counter) next() (y interface{}) {
-  y = myBox{x.f}
+  y = x.f
   x.f += 1
   return
 }

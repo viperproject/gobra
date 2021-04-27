@@ -72,13 +72,13 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source match {
-      case FileSource(filename, _) => filename
-      case FromFileSource(filename, _) => filename
+    val path = start.source match {
+      case FileSource(filename, _) => Paths.get(filename)
+      case FromFileSource(path, _) => path
       case _ => ???
     }
     new SourcePosition(
-      Paths.get(filename),
+      path,
       LineColumnPosition(start.line, start.column),
       Some(LineColumnPosition(end.line, end.column))
     )
@@ -302,7 +302,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PNameOrDot{
   override val name : String = id.name
 }
 
@@ -385,7 +385,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -774,16 +774,24 @@ case class PMPredicateDecl(
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
 
-case class PImplementationProof(subT: PType, superT: PType, memberProofs: Vector[PMethodImplementationProof]) extends PGhostMember
+case class PImplementationProof(
+                                 subT: PType, superT: PType,
+                                 alias: Vector[PImplementationProofPredicateAlias],
+                                 memberProofs: Vector[PMethodImplementationProof]
+                               ) extends PGhostMember
 
 case class PMethodImplementationProof(
                                        id: PIdnUse, // references the method definition of the super type
-                                       receiver: PReceiver,
+                                       receiver: PParameter, // can have type from other package
                                        args: Vector[PParameter],
                                        result: PResult,
                                        isPure: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
                                      ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
+
+case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
+
+sealed trait PNameOrDot extends PExpression
 
 /**
   * Ghost Statement
@@ -1039,6 +1047,7 @@ case class PMultisetType(elem : PType) extends PGhostLiteralType
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
+case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 
 case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
 

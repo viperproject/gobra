@@ -23,10 +23,6 @@ pure func (self *variable) accept(v visitor, ghost u int) int {
 
 pred (self *variable) mem() { acc(self) && 0 <= self.id && self.id < 10 }
 
-(*variable) implements node {
-    pure (self *variable) accept(v visitor, ghost u int) int { return self.accept(v, u) }
-}
-
 // constant
 
 type constant struct {
@@ -40,9 +36,6 @@ pure func (self *constant) accept(v visitor, ghost u int) int {
 
 pred (self *constant) mem() { acc(self) }
 
-(*constant) implements node {
-    pure (self *constant) accept(v visitor, ghost u int) int { return self.accept(v, u) }
-}
 
 // addition
 
@@ -58,9 +51,6 @@ pure func (self *addition) accept(v visitor, ghost u int) int {
 
 pred (self *addition) mem() { acc(self) && self.left.mem() && self.right.mem() }
 
-(*addition) implements node {
-    pure (self *addition) accept(v visitor, ghost u int) int { return self.accept(v, u) }
-}
 
 
 // visitor
@@ -97,11 +87,6 @@ pure func (self *childrenCounter) visitAddition(a *addition, ghost u int) int {
   return unfolding acc(a.mem(), 1/u) in (a.left.accept(self, u) + a.right.accept(self, u))
 }
 
-(*childrenCounter) implements visitor {
-  pure (self *childrenCounter) visitVariable(v *variable, ghost u int) int { return self.visitVariable(v, u) }
-  pure (self *childrenCounter) visitConstant(c *constant, ghost u int) int { return self.visitConstant(c, u) }
-  pure (self *childrenCounter) visitAddition(c *addition, ghost u int) int { return self.visitAddition(c, u) }
-}
 
 func childrenCounter_client() {
 
@@ -146,11 +131,6 @@ pure func (self *evaluator) visitAddition(a *addition, ghost u int) int {
 }
 
 
-(*evaluator) implements visitor {
-  pure (self *evaluator) visitVariable(v *variable, ghost u int) int { return self.visitVariable(v, u) }
-  pure (self *evaluator) visitConstant(c *constant, ghost u int) int { return self.visitConstant(c, u) }
-  pure (self *evaluator) visitAddition(c *addition, ghost u int) int { return self.visitAddition(c, u) }
-}
 
 func evaluator_client() {
 
@@ -201,13 +181,13 @@ func evaluator_client() {
 //  }
 
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant || typeOf(n) == *addition)
+ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant) // removed option that it might be *addition
 func isAstNode(n node) (res bool) {
   if v, ok := n.(*variable); ok {
     return true
   } else if c, ok := n.(*constant); ok {
     return true
-  } else if a, ok := n.(addition); ok { // pointer is missing
+  } else if a, ok := n.(*addition); ok {
     return true
   } else {
     return false

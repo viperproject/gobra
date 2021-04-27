@@ -6,7 +6,7 @@
 
 package viper.gobra
 
-import java.io.File
+import java.nio.file.{Files, Path}
 import java.util.concurrent.ExecutionException
 
 import com.typesafe.scalalogging.StrictLogging
@@ -18,13 +18,12 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
-import viper.gobra.util.Violation.{KnownZ3BugException, LogicException}
+import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.io.Source
 
 
 object GoVerifier {
@@ -54,7 +53,7 @@ trait GoVerifier {
     verify(config.inputFiles, config)(executor)
   }
 
-  protected[this] def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
 trait GoIdeVerifier {
@@ -63,7 +62,7 @@ trait GoIdeVerifier {
 
 class Gobra extends GoVerifier with GoIdeVerifier {
 
-  override def verify(input: Vector[File], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
+  override def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
 
@@ -124,25 +123,31 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * The current config merged with the newly created config is then returned
     */
   def getAndMergeInFileConfig(config: Config): Config = {
-    val inFileConfigStrings = config.inputFiles.flatMap(file => {
-      val bufferedSource = Source.fromFile(file)
-      val content = bufferedSource.mkString
+    val inFileConfigs = config.inputFiles.flatMap(path => {
+      val content = Files.readString(path)
       val configs = for (m <- inFileConfigRegex.findAllMatchIn(content)) yield m.group(1)
-      bufferedSource.close()
-      configs
+      if (configs.isEmpty) {
+        None
+      } else {
+        // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
+        val args = configs.flatMap(configString => configString.split(" ")).toList
+        // skip include dir checks as the include should only be parsed and is not resolved yet based on the current directory
+        val inFileConfig = new ScallopGobraConfig(args, isInputOptional = true, skipIncludeDirChecks = true).config
+        // modify all relative includeDirs such that they are resolved relatively to the current file:
+        val resolvedConfig = inFileConfig.copy(includeDirs = inFileConfig.includeDirs.map(
+          // it's important to convert includeDir to a string first as `path` might be a ZipPath and `includeDir` might not
+          includeDir => path.getParent.resolve(includeDir.toString)))
+        Some(resolvedConfig)
+      }
     })
 
-    // our current "merge" strategy for potentially different, duplicate, or even contradicting configurations is to concatenate them:
-    val args = inFileConfigStrings.flatMap(configString => configString.split(" "))
-    // input files are mandatory, therefore we take the inputFiles from the old config:
-    val fullArgs = (args :+ "-i") ++ config.inputFiles.map(_.getPath)
-    val inFileConfig = new ScallopGobraConfig(fullArgs).config
-    config.merge(inFileConfig)
+    // start with original config `config` and merge in every in file config:
+    inFileConfigs.foldLeft(config){ case (oldConfig, fileConfig) => oldConfig.merge(fileConfig) }
   }
 
-  private def performParsing(input: Vector[File], config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def performParsing(input: Vector[Path], config: Config): Either[Vector[VerifierError], PPackage] = {
     if (config.shouldParse) {
-      Parser.parse(input.map(_.toPath))(config)
+      Parser.parse(input)(config)
     } else {
       Left(Vector())
     }
@@ -150,7 +155,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage)(config)
+      Info.check(parsedPackage, isMainContext = true)(config)
     } else {
       Left(Vector())
     }
@@ -225,13 +230,20 @@ object GobraRunner extends GobraFrontend with StrictLogging {
           sys.exit(1)
       }
     } catch {
+      case e: UglyErrorMessage =>
+        logger.error(s"Gobra has found 1 error(s):")
+        logger.error(s"\t${e.error.formattedMessage}")
+        sys.exit(1)
+
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
         logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
+
       case e: KnownZ3BugException =>
         logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
+
       case e: Exception =>
         logger.error("An unknown Exception was thrown.")
         logger.error(e.getLocalizedMessage, e)

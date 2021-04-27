@@ -184,8 +184,14 @@ trait MemberResolution { this: TypeInfoImpl =>
       case _ => AdvancedMemberSet.empty
     }
 
+  override def localMemberSet(t: Type): AdvancedMemberSet[TypeMember] = {
+    nonAddressableMethodSet(t)
+  }
 
-
+  override def memberSet(t: Type): AdvancedMemberSet[TypeMember] = {
+    val context = getMethodReceiverContext(t)
+    context.localMemberSet(t)
+  }
 
   def tryFieldLookup(t: Type, id: PIdnUse): Option[(StructMember, Vector[MemberPath])] =
     structMemberSet(t).lookupWithPath(id.name)

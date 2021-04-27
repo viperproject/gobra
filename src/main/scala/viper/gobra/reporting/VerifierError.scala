@@ -6,6 +6,8 @@
 
 package viper.gobra.reporting
 
+import viper.gobra.ast.frontend
+import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
 sealed trait VerifierError {
@@ -39,6 +41,11 @@ case class TypeError(message: String, position: Option[SourcePosition]) extends 
 case class CyclicImportError(message: String) extends VerifierError {
   val position: Option[SourcePosition] = None
   val id = "cyclic_import_error"
+}
+
+case class DiamondError(message: String) extends VerifierError {
+  val position: Option[SourcePosition] = None
+  val id = "diamond_error"
 }
 
 
@@ -89,6 +96,35 @@ sealed trait VerificationError extends VerifierError {
   }
 }
 
+abstract class ErrorExtension(error: VerificationError) extends VerificationError {
+  def extensionMessage: String
+  def extensionId: String
+
+  override def localId: String = s"$extensionId:${error.localId}"
+  override def localMessage: String = s"$extensionMessage. ${error.localMessage}"
+  override def info: Source.Verifier.Info = error.info
+  override def reasons: List[VerificationErrorReason] = super.reasons ::: error.reasons
+  override def details: List[VerificationErrorClarification] = super.details ::: error.details
+}
+
+case class UncaughtError(viperError: viper.silver.verifier.VerificationError) extends VerificationError {
+  val infoOpt: Option[Source.Verifier.Info] = Source.unapply(viperError.offendingNode)
+  override def info: Source.Verifier.Info = violation("Uncaught errors do not have a Gobra source.")
+  override def position: Option[SourcePosition] = infoOpt.map(_.origin.pos)
+  override def localId: String = "uncaught_error"
+  override def localMessage: String =
+    s"""
+       |Encountered an unexpected Viper error. This is a bug. The following information is for debugging purposes:
+       |  ${viperError.readableMessage}
+       |    error is ${viperError.getClass.getSimpleName}
+       |    error offending node = ${viperError.offendingNode}
+       |    error offending node src = ${Source.unapply(viperError.offendingNode)}
+       |    reason is ${viperError.reason.getClass.getSimpleName}
+       |    reason offending node = ${viperError.reason.offendingNode}
+       |    reason offending node src = ${Source.unapply(viperError.reason.offendingNode)}
+        """.stripMargin
+}
+
 case class AssignmentError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "assignment_error"
   override def localMessage: String = "Assignment might fail"
@@ -116,7 +152,7 @@ case class PostconditionError(info: Source.Verifier.Info) extends VerificationEr
 
 case class PreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "precondition_error"
-  override def localMessage: String = "Precondition of call might not hold"
+  override def localMessage: String = s"Precondition of call ${info.trySrc[frontend.PInvoke](" ")}might not hold"
 }
 
 case class AssertError(info: Source.Verifier.Info) extends VerificationError {
@@ -164,6 +200,16 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
   override def localMessage: String = "Method contract is not well-formed"
 }
 
+case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "predicate_not_well_defined"
+  override def localMessage: String  ="Predicate body is not well-formed"
+}
+
+case class ImpreciseContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "imprecise_contract_not_well_formed"
+  override def localMessage: String  ="Contract is not well-formed"
+}
+
 case class IfError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "conditional_error"
   override def localMessage: String = "Conditional statement might fail"
@@ -184,10 +230,32 @@ case class MakePreconditionError(info: Source.Verifier.Info) extends Verificatio
   override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
 }
 
+case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {
+  override def extensionId: String = "generated_implementation_proof"
+  override def extensionMessage: String = s"Generated implementation proof ($subT implements $superT) failed"
+  override def localMessage: String = error match {
+    case _: PreconditionError => s"$extensionMessage. Precondition of call to implementation method might not hold"
+    case _: PostconditionError => s"$extensionMessage. Postcondition of interface method might not hold"
+    case _ => super.localMessage
+  }
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
   override def toString: String = message
+}
+
+case class UncaughtReason(viperReason: viper.silver.verifier.ErrorReason) extends VerificationErrorReason {
+  override def id: String = "uncaught_reason"
+  override def message: String =
+    s"""
+       |Encountered an unexpected Viper reason. This is a bug. The following information is for debugging purposes:
+       |  ${viperReason.readableMessage}
+       |    error is ${viperReason.getClass.getSimpleName}
+       |    error offending node = ${viperReason.offendingNode}
+       |    error offending node src = ${Source.unapply(viperReason.offendingNode)}
+        """.stripMargin
 }
 
 case class InsufficientPermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {

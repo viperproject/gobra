@@ -3,7 +3,7 @@
 
 package main
 
-// ##(-I src/test/resources/regressions/issues/000124/)
+// ##(-I ./000124/)
 import "github.com/gobra"
 
 func main() {

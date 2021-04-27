@@ -9,6 +9,7 @@ package viper.gobra.translator.encodings.interfaces
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.interfaces.translator.Generator
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 
 /** Polymorphic value that can fit all countable types. */
 trait PolymorphValueComponent extends Generator {
@@ -20,5 +21,5 @@ trait PolymorphValueComponent extends Generator {
   def box(arg: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp
 
   /** Extracts an expression from the polymorphic value. */
-  def unbox(arg: vpr.Exp, typ: vpr.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp
+  def unbox(arg: vpr.Exp, typ: in.Type)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp
 }

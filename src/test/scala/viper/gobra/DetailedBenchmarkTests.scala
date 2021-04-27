@@ -18,6 +18,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Desugar, Parser}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
+import viper.silver.{ast=>vpr}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -105,30 +106,31 @@ class DetailedBenchmarkTests extends BenchmarkTests {
         Info.check(parsedPackage)(config.get).map(typeInfo => (parsedPackage, typeInfo))
       })
 
-    private val desugaring: NextStep[(PPackage, TypeInfo), Program, Vector[VerifierError]] =
-      NextStep("desugaring", typeChecking, { case (parsedPackage: PPackage, typeInfo: TypeInfo) =>
+    private val desugaring: NextStep[(PPackage, TypeInfo), (Program,TypeInfo), Vector[VerifierError]] =
+      NextStep("desugaring", typeChecking, { case (parsedPackage: PPackage, typeInfo: TypeInfo) =>{
         assert(config.isDefined)
-        Right(Desugar.desugar(parsedPackage, typeInfo)(config.get))
-      })
+        Right((Desugar.desugar(parsedPackage, typeInfo)(config.get),typeInfo))
+    }})
 
-    private val internalTransforming = NextStep("internal transforming", desugaring, (program: Program) => {
+    private val internalTransforming : NextStep[(Program, TypeInfo), (Program,TypeInfo), Vector[VerifierError]]= NextStep("internal transforming", desugaring, { case (program: Program, typeInfo: TypeInfo) =>{
       assert(config.isDefined)
       val c = config.get
       if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
         c.reporter report AppliedInternalTransformsMessage(c.inputFiles.head, () => result)
-        Right(result)
+        Right((result,typeInfo))
       } else {
-        Right(program)
+        Right((program,typeInfo))
       }
-    })
+    }})
 
-    private val encoding = NextStep("Viper encoding", internalTransforming, (program: Program) => {
+    private val encoding:NextStep[(Program, TypeInfo), ((vpr.Program,BackTranslator.VerificationBackTrackInfo),TypeInfo), Vector[VerifierError]] = NextStep("Viper encoding", internalTransforming, { case (program: Program, typeInfo: TypeInfo) =>{
       assert(config.isDefined)
-      Right(Translator.translate(program)(config.get))
-    })
+      Right((Translator.translate(program)(config.get),typeInfo))
+    }})
 
-    private val verifying = NextStep("Viper verification", encoding, (viperTask: BackendVerifier.Task) => {
+    private val verifying : NextStep[((vpr.Program,BackTranslator.VerificationBackTrackInfo),TypeInfo),VerifierResult , Vector[VerifierError]] = NextStep("Viper verification", encoding, { case ((program:Program, info:BackTranslator.VerificationBackTrackInfo),typs:TypeInfo) => 
+      val viperTask: BackendVerifier.Task = BackendVerifier.Task(program,BackTranslator.BackTrackInfo(info.errorT,info.reasonT,program,typs,config.get))
       assert(config.isDefined)
       val c = config.get
       val resultFuture = BackendVerifier.verify(viperTask)(c)(executor)

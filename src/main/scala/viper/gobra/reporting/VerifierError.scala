@@ -7,6 +7,7 @@
 package viper.gobra.reporting
 
 import viper.gobra.ast.frontend
+import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
 
@@ -202,7 +203,12 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
 
 case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "predicate_not_well_defined"
-  override def localMessage: String  ="Predicate body is not well-formed"
+  override def localMessage: String = "Predicate body is not well-formed"
+}
+
+case class PureFunctionNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "pure_function_not_well_defined"
+  override def localMessage: String = "The pure function is not well-formed"
 }
 
 case class ImpreciseContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
@@ -225,9 +231,14 @@ case class OverflowError(info: Source.Verifier.Info) extends VerificationError {
   override def localMessage: String = "Expression may cause integer overflow"
 }
 
-case class MakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
+case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
+}
+
+case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "make_precondition_error"
+  override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
 case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {
@@ -239,6 +250,18 @@ case class GeneratedImplementationProofError(subT: String, superT: String, error
     case _ => super.localMessage
   }
 }
+
+case class ChannelReceiveError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "receive_error"
+  override def localMessage: String = s"The receive expression ${info.trySrc[PReceive](" ")}might fail"
+}
+
+case class ChannelSendError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "send_error"
+  override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
+}
+
+
 
 sealed trait VerificationErrorReason {
   def id: String
@@ -261,6 +284,11 @@ case class UncaughtReason(viperReason: viper.silver.verifier.ErrorReason) extend
 case class InsufficientPermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "permission_error"
   override def message: String = s"permission to ${info.origin.tag.trim} might not suffice"
+}
+
+case class InsufficientPermissionFromTagError(tag: String) extends VerificationErrorReason {
+  override def id: String = "permission_error"
+  override def message: String = s"permission to $tag might not suffice"
 }
 
 case class AssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {

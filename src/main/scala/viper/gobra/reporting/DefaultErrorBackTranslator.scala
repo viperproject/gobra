@@ -97,6 +97,8 @@ class DefaultErrorBackTranslator(
         PredicateNotWellFormedError(info) dueTo translate(reason)
       case vprerr.ContractNotWellformed(CertainSource(info), reason, _) =>
         ImpreciseContractNotWellFormedError(info) dueTo translate(reason)
+      case vprerr.FunctionNotWellformed(CertainSource(info), reason, _) =>
+        PureFunctionNotWellFormedError(info) dueTo translate(reason)
       case vprerr.ExhaleFailed(CertainSource(info), reason, _) =>
         ExhaleError(info) dueTo translate(reason)
       case vprerr.InhaleFailed(CertainSource(info), reason, _) =>

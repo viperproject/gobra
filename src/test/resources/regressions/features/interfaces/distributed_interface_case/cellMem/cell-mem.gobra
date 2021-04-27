@@ -1,15 +1,10 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package main
+package cellMem
 
-// ##(-I ./)
-import b "bar"
+// ##(-I ../)
 
-func foo() {
-  b.bar()
-}
+import "cell"
 
-func foo2() {
-  go b.bar()
-}
+pred cellMem(c *cell.cell) { acc(c) }

@@ -60,7 +60,8 @@ class ChannelEncoding extends LeafTypeEncoding {
         val res = in.LocalVar(Names.freshName, typeParam.withAddressability(Addressability.Exclusive))(exp.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(exp.info))
-        val recvChannelWildcard = in.Access(recvChannelPred, in.WildcardPerm(exp.info))(exp.info)
+        val permission = in.PermDiv(in.CurrentPerm(recvChannelPred)(exp.info), in.IntLit(2)(exp.info))(exp.info)
+        val recvChannelWildcard = in.Access(recvChannelPred, permission)(exp.info)
         for {
           // exhale acc([c].RecvChannel(), wildcard)
           vprRecvChannelWildcard <- ctx.ass.translate(recvChannelWildcard)(ctx)
@@ -170,7 +171,8 @@ class ChannelEncoding extends LeafTypeEncoding {
       case stmt@in.Send(channel :: ctx.Channel(typeParam), message, sendChannel, sendGivenPerm, sendGotPerm) if message.typ == typeParam =>
         val (pos, info, errT) = stmt.vprMeta
         val sendChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, sendChannel, Vector())(stmt.info))
-        val sendChannelWildcard = in.Access(sendChannelPred, in.WildcardPerm(stmt.info))(stmt.info)
+        val permission = in.PermDiv(in.CurrentPerm(sendChannelPred)(stmt.info), in.IntLit(2)(stmt.info))(stmt.info)
+        val sendChannelWildcard = in.Access(sendChannelPred, permission)(stmt.info)
         seqn(
           for {
             // assert acc(SendChannel([c], wildcard)
@@ -198,7 +200,8 @@ class ChannelEncoding extends LeafTypeEncoding {
         val ok = in.LocalVar(Names.freshName, in.BoolT(Addressability.Exclusive))(stmt.info)
         val vprOk = ctx.typeEncoding.variable(ctx)(ok)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(stmt.info))
-        val recvChannelWildcard = in.Access(recvChannelPred, in.WildcardPerm(stmt.info))(stmt.info)
+        val permission = in.PermDiv(in.CurrentPerm(recvChannelPred)(stmt.info), in.IntLit(2)(stmt.info))(stmt.info)
+        val recvChannelWildcard = in.Access(recvChannelPred, permission)(stmt.info)
         seqn(
           for {
             // exhale acc([c].RecvChannel(), wildcard)

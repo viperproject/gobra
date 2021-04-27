@@ -16,6 +16,18 @@ type stream interface {
 }
 
 
+type safeStream interface {
+    pred mem()
+
+    requires acc(mem())
+    pure safe() bool
+
+    requires acc(mem()) && safe()
+    pure hasNext() bool
+}
+
+
+
 // implementation
 
 type counter struct{ f, max int }
@@ -23,6 +35,11 @@ type counter struct{ f, max int }
 requires acc(x, 1/2)
 pure func (x *counter) hasNext() bool {
   return x.f < x.max
+}
+
+requires acc(x, 1/2)
+pure func (x *counter) safe() bool {
+  return true
 }
 
 requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
@@ -34,8 +51,7 @@ func (x *counter) next() (y interface{}) {
   return
 }
 
-
-// implementation proof
+// implementation proofs
 
 pred (x *counter) mem() { acc(x) }
 
@@ -52,12 +68,15 @@ pred (x *counter) mem() { acc(x) }
   }
 }
 
+(*counter) implements safeStream {
 
-// client code
+  pure (x *counter) hasNext() bool {
+    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+  }
 
-func client() {
-  x := &counter{0, 50}
-  var y stream = x
-  fold y.mem()
-  var z interface{} = y.next()
+  pure (x *counter) safe() bool {
+    return unfolding acc(x.mem(), 1/2) in x.safe()
+  }
 }
+
+

@@ -12,6 +12,7 @@ import viper.gobra.ast.frontend.{PDomainType, PImport, PInterfaceType, PNode, PS
 import viper.gobra.frontend.info.ExternalTypeInfo
 import viper.gobra.util.TypeBounds
 
+import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
 
 object Type {
@@ -94,7 +95,7 @@ object Type {
     }
 
     override lazy val toString: String = {
-      if (isEmpty) "interface{}" else "interface{...}"
+      if (isEmpty) "interface{}" else s"interface{ ${decl.methSpecs.map(_.id.name).mkString(", ")} }"
     }
   }
 
@@ -111,6 +112,8 @@ object Type {
 
   case object AssertionT extends PrettyType("assertion") with GhostType
 
+  case class GhostSliceT(elem: Type) extends PrettyType(s"ghost []$elem") with GhostType
+
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type
   }
@@ -124,6 +127,25 @@ object Type {
   case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
 
   case object PermissionT extends PrettyType(s"perm") with GhostType
+
+  @tailrec
+  def source(t: Type): Option[(PNode, ExternalTypeInfo)] = {
+    t match {
+      case t: DeclaredT => Some((t.decl, t.context))
+      case t: ArrayT => source(t.elem)
+      case t: SliceT => source(t.elem)
+      case t: VariadicT => source(t.elem)
+      case t: OptionT => source(t.elem)
+      case t: DomainT => Some((t.decl, t.context))
+      case t: PointerT => source(t.elem)
+      case t: ChannelT => source(t.elem)
+      case t: StructT => Some((t.decl, t.context))
+      case t: InterfaceT => Some((t.decl, t.context))
+      case t: GhostSliceT => source(t)
+      case t: GhostCollectionType => source(t)
+      case _ => None
+    }
+  }
 
 
   /**

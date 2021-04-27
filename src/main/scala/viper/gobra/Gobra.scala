@@ -17,7 +17,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
-import viper.gobra.util.Violation.LogicException
+import viper.gobra.util.Violation.{LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
@@ -130,7 +130,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
   private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage)(config)
+      Info.check(parsedPackage, isMainContext = true)(config)
     } else {
       Left(Vector())
     }
@@ -205,10 +205,16 @@ object GobraRunner extends GobraFrontend with StrictLogging {
           sys.exit(1)
       }
     } catch {
+      case e: UglyErrorMessage =>
+        logger.error(s"Gobra has found 1 error(s):")
+        logger.error(s"\t${e.error.formattedMessage}")
+        sys.exit(1)
+
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
         logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
+
       case e: Exception =>
         logger.error("An unknown Exception was thrown.")
         logger.error(e.getLocalizedMessage, e)

@@ -64,12 +64,12 @@ object Info {
     def getExternalErrors: Vector[VerifierError] = contextMap.values.collect { case Left(errs) => errs }.flatten.toVector
   }
 
-  def check(pkg: PPackage, context: Context = new Context)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
+  def check(pkg: PPackage, context: Context = new Context, isMainContext: Boolean = false)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
     val tree = new GoTree(pkg)
     //    println(program.declarations.head)
     //    println("-------------------")
     //    println(tree)
-    val info = new TypeInfoImpl(tree, context)(config: Config)
+    val info = new TypeInfoImpl(tree, context, isMainContext)(config: Config)
 
     val errors = info.errors
     config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))

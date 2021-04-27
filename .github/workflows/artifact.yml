@@ -57,7 +57,7 @@ jobs:
 
       # use sync file according to https://stackoverflow.com/a/54787364/1990080
       - name: Run single file
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/gobra.sh /home/gobra/sync/test_suite/evaluation/example-2-1.gobra
 
       - name: Sync folder exists and is non empty
         run: |
@@ -65,10 +65,10 @@ jobs:
           ls -1qA $SYNC_PATH | grep -q .
 
       - name: Run regressions
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash ./regressions.sh
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/regressions.sh
 
       - name: Run benchmark
-        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash ./benchmark.sh
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/benchmark.sh
 
       - name: Print benchmark results
         run: cat $SYNC_PATH/benchmark_*.csv

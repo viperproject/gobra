@@ -243,64 +243,65 @@ object Desugar {
 
     // proxies to built-in members
     def methodProxy(tag: BuiltInMethodTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MethodProxy = {
-      val inRecv = recv.withAddressability(Addressability.inParameter)
-      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
-
-      def create(): in.BuiltInMethod = {
+      def create(tag: BuiltInMethodTag, inRecvWithArgs: Vector[in.Type]): in.BuiltInMethod = {
+        violation(inRecvWithArgs.nonEmpty, "receiver has to be among args")
+        val inRecv = inRecvWithArgs.head
+        val inArgs = inRecvWithArgs.tail
         val proxy = in.MethodProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
         in.BuiltInMethod(inRecv, tag, proxy, inArgs)(src)
       }
 
-      memberProxy(tag, inArgs, create).name
+      val inRecv = recv.withAddressability(Addressability.inParameter)
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+      memberProxy(tag, inRecv +: inArgs, create).name
     }
 
     def functionProxy(tag: BuiltInFunctionTag, args: Vector[in.Type])(src: Meta): in.FunctionProxy = {
-      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
-
-      def create(): in.BuiltInFunction = {
+      def create(tag: BuiltInFunctionTag, inArgs: Vector[in.Type]): in.BuiltInFunction = {
         val proxy = in.FunctionProxy(nm.builtInMember(tag, inArgs))(src)
         in.BuiltInFunction(tag, proxy, inArgs)(src)
       }
 
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
       memberProxy(tag, inArgs, create).name
     }
 
-    var builtInFPredicates: Map[(BuiltInFPredicateTag, Vector[in.Type]), in.BuiltInFPredicate] = Map.empty
     def fpredicateProxy(tag: BuiltInFPredicateTag, args: Vector[in.Type])(src: Meta): in.FPredicateProxy = {
-      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
-
-      def create(): in.BuiltInFPredicate = {
+      def create(tag: BuiltInFPredicateTag, inArgs: Vector[in.Type]): in.BuiltInFPredicate = {
         val proxy = in.FPredicateProxy(nm.builtInMember(tag, inArgs))(src)
         in.BuiltInFPredicate(tag, proxy, inArgs)(src)
       }
 
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
       memberProxy(tag, inArgs, create).name
     }
 
-    var builtInMPredicates: Map[(BuiltInMPredicateTag, Vector[in.Type]), in.BuiltInMPredicate] = Map.empty
     def mpredicateProxy(tag: BuiltInMPredicateTag, recv: in.Type, args: Vector[in.Type])(src: Meta): in.MPredicateProxy = {
-      val inRecv = recv.withAddressability(Addressability.inParameter)
-      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
-
-      def create(): in.BuiltInMPredicate = {
+      def create(tag: BuiltInMPredicateTag, inRecvWithArgs: Vector[in.Type]): in.BuiltInMPredicate = {
+        violation(inRecvWithArgs.nonEmpty, "receiver has to be among args")
+        val inRecv = inRecvWithArgs.head
+        val inArgs = inRecvWithArgs.tail
         val proxy = in.MPredicateProxy(tag.identifier, nm.builtInMember(tag, Vector(inRecv)))(src)
         in.BuiltInMPredicate(inRecv, tag, proxy, inArgs)(src)
       }
 
-      memberProxy(tag, Vector(inRecv), create).name
+      val inRecv = recv.withAddressability(Addressability.inParameter)
+      val inArgs = args.map(_.withAddressability(Addressability.inParameter))
+      memberProxy(tag, inRecv +: inArgs, create).name
     }
 
 
     var builtInMembers: Map[(BuiltInMemberTag, Vector[in.Type]), in.BuiltInMember] = Map.empty
-    def memberProxy[M <: in.BuiltInMember](tag: BuiltInMemberTag, args: Vector[in.Type], createMember: () => M): M = {
+    /** createMember function is only allowed to depend on its arguments, otherwise caching of members and subsequently generating members are unsound */
+    def memberProxy[T <: BuiltInMemberTag, M <: in.BuiltInMember](tag: T, args: Vector[in.Type], createMember: (T, Vector[in.Type]) => M): M = {
       def genAndStore(): M = {
-        val member = createMember()
+        val member = createMember(tag, args)
         builtInMembers += (tag, args) -> member
         member
       }
 
-      val filteredMembers: Map[(BuiltInMemberTag, Vector[in.Type]), M] = builtInMembers.collect {
-        case ((t, as), m: M@unchecked) => (t, as) -> m
+      val filteredMembers: Map[(T, Vector[in.Type]), M] = builtInMembers.collect {
+        case ((t: T@unchecked, as), m: M@unchecked) => (t, as) -> m
       }
       filteredMembers.getOrElse((tag, args), genAndStore())
     }

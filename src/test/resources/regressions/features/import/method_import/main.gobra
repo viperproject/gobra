@@ -13,9 +13,3 @@ func foo() {
     res1 := (*(b.Rectangle)).Area(&r)
     assert res1 == 10
 }
-
-func foo2() {
-    r@ := b.Rectangle{Width: 2, Height: 5}
-    go r.Area()
-    go (*(b.Rectangle)).Area(&r)
-}

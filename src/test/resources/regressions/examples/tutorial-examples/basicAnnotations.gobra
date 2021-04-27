@@ -16,8 +16,18 @@ func sum(n int) (sum int) {
 	return sum
 }
 
-// Computes the square of the binomium a + b
-ensures res == (a+b) * (a+b)
-pure func squareBin(a, b int) (res int) {
-	return a * a + 2 * a * b + b * b
+ensures res == (n % 2 == 0)
+pure func isEven(n int) (res bool) {
+	return n % 2 == 0
+}
+
+ensures isEven(n) ==> res == n / 2
+ensures !isEven(n) ==> res == n / 2 + 1
+func halfRoundedUp(n int) (res int) {
+	if isEven(n) {
+		res = n / 2
+	} else {
+		res = n / 2 + 1
+	}
+	return res
 }

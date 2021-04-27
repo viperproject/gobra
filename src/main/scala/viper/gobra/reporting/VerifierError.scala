@@ -203,7 +203,12 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
 
 case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "predicate_not_well_defined"
-  override def localMessage: String  ="Predicate body is not well-formed"
+  override def localMessage: String = "Predicate body is not well-formed"
+}
+
+case class PureFunctionNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "pure_function_not_well_defined"
+  override def localMessage: String = "The pure function is not well-formed"
 }
 
 case class ImpreciseContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {

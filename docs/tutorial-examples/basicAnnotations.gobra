@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+requires 0 <= n // precondition
+ensures sum == n * (n+1)/2 // postcondition
+func sum(n int) (sum int) {
+	sum := 0
+
+	invariant 0 <= i && i <= n + 1 
+	invariant sum == i * (i-1)/2
+	for i := 0; i <= n; i++ {
+			sum += i
+	}
+	return sum
+}
+
+// Computes the square of the binomium a + b
+ensures res == (a+b) * (a+b)
+pure func squareBin(a, b int) (res int) {
+	return a * a + 2 * a * b + b * b
+}

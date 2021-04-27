@@ -27,10 +27,12 @@ object InterpreterCache{
 case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val optionInterpreter: GobraDomainInterpreter[OptionT] = OptionInterpreter(c)
 	val productInterpreter: GobraDomainInterpreter[StructT] = ProductInterpreter(c)
+	val sharedStructInterpreter : GobraDomainInterpreter[StructT] = SharedStructInterpreter(c)
 	val boxInterpreter:GobraDomainInterpreter[Type] = BoxInterpreter(c)
 	val indexedInterpreter:GobraDomainInterpreter[ArrayT] = IndexedInterpreter(c)
 	val sliceInterpreter: GobraDomainInterpreter[SliceT]= SliceInterpreter(c)
 	val pointerInterpreter : sil.AbstractInterpreter[sil.RefEntry,Type,GobraModelEntry] = PointerInterpreter(c)
+	val interfaceInterpreter :GobraDomainInterpreter[InterfaceT] = InterfaceInterpreter(c)
 	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
 		entry match{
 			case sil.LitIntEntry(v) => info match {
@@ -46,7 +48,10 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 										}else{
 											info match {//TODO: More interpreters
 												case t:OptionT => optionInterpreter.interpret(d,t)
-												case t:StructT =>  productInterpreter.interpret(d,t)
+												case t:StructT =>  if(d.getDomainName.startsWith("ShStruct"))
+																		 sharedStructInterpreter.interpret(d,t) 
+																	else 
+																		productInterpreter.interpret(d,t)
 												case t:ArrayT => indexedInterpreter.interpret(d,t)
 												case t:SliceT => sliceInterpreter.interpret(d,t)
 												case DeclaredT(d,c) => val name = d.left.name
@@ -55,7 +60,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case InterfaceT(decl,context) => FaultEntry("TODO: Interfaces")
+												case i:InterfaceT => interfaceInterpreter.interpret(d,i)
 												case FunctionT(args,res) => FaultEntry("TODO: Functions")
 												case p:PointerT => interpret(entry,p.elem)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
@@ -128,6 +133,38 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 			val numFields = fields.size
 			val getterNames = Seq.range(0,numFields).map(getterFunc(_,numFields))
 			val getterfuncs = getterNames.map(x=>functions.find(n=>(n.fname==x||n.fname==s"ShStruct$x"))).collect({case Some(v)=> v})
+			val fieldToVals = (fields.keys.toSeq.zip(getterfuncs).map(
+												x=>(x._1,x._2.apply(Seq(entry)) match {case Right(v)=> v; 
+																				case _ => return FaultEntry(s"${entry}: could not relsove (${x._1})")
+																			})
+												)).toMap
+			try{
+			val values = fields.map(x=>(x._1,MasterInterpreter(c).interpret(fieldToVals.apply(x._1),x._2) match{
+																										case l:LitEntry=> l;
+																										case _ => return FaultEntry("internal error struct")
+																									}
+										)) 
+			LitStructEntry(info,values)
+			}catch{
+				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
+			}
+			
+		}else{
+			FaultEntry(s"could not relsove domain: ${entry.domain}")
+		}
+	}
+}
+case class SharedStructInterpreter(c:sil.Converter) extends GobraDomainInterpreter[StructT]{
+def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n) 
+	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
+		val doms = c.domains.find(_.valueName==entry.domain)
+		if(doms.isDefined){
+			//printf(s"${doms.get}")
+			val functions:Seq[sil.ExtractedFunction] =doms.get.functions
+			val fields = info.fields
+			val numFields = fields.size
+			val getterNames = Seq.range(0,numFields).map(getterFunc(_,numFields))
+			val getterfuncs = getterNames.map(x=>functions.find(n=>n.fname==x)).collect({case Some(v)=> v})
 			val fieldToVals = (fields.keys.toSeq.zip(getterfuncs).map(
 												x=>(x._1,x._2.apply(Seq(entry)) match {case Right(v)=> v; 
 																				case _ => return FaultEntry(s"${entry}: could not relsove (${x._1})")
@@ -279,12 +316,9 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 						}
 					InterpreterCache.addAddress(address,info);
 					val value = kek._1 match {
-						case x:sil.OtherEntry => FaultEntry(s"$fieldval,$field")																												
-						case r:sil.RefEntry =>  interpret(r,elem) //this we could potentially handle internally
-						case v:sil.VarEntry => LitNilEntry()
-						case d:sil.DomainValueEntry => MasterInterpreter(c).interpret(d,elem)//FaultEntry(s"$d") //TODO: resolve recursive entries
-						case s:sil.SeqEntry=> LitNilEntry()
-						case t => MasterInterpreter(c).interpret(t,elem)  //we know we don't have recursion
+						case x:sil.OtherEntry => FaultEntry(s"not Found Field:$field but found $fieldval")																												
+						case r:sil.RefEntry =>  interpret(r,elem) //this we could potentially handle internally		
+						case t => MasterInterpreter(c).interpret(t,elem) 
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
 											case l:LitEntry => l
 							} */
@@ -365,5 +399,10 @@ case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[Gobra
 			val (first,second) = input.splitAt(2)
 			Seq(first)++toArray(second)
 		}
+	}
+}
+case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[InterfaceT]{
+	def interpret(entry:sil.DomainValueEntry,info:InterfaceT): GobraModelEntry ={
+		FaultEntry("TODO: Interfaces")
 	}
 }

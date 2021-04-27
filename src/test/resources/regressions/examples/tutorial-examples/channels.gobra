@@ -13,7 +13,7 @@ requires c.SendGivenPerm() == sendInvariant!<_!>;
 requires c.SendGotPerm() == PredTrue!<!>;
 requires c.RecvGivenPerm() == PredTrue!<!>;
 requires c.RecvGotPerm() == sendInvariant!<_!>;
-func incChannel(c chan *int, ghost x int) {
+func incChannel(c chan *int) {
 	fold PredTrue!<!>()
 	res, ok := <- c
 	if (ok) {
@@ -33,7 +33,7 @@ func clientChannel() {
 	var x@ int = 42
 	var p *int = &x
 	c.Init(sendInvariant!<_!>, PredTrue!<!>)
-	go incChannel(c, x)
+	go incChannel(c)
 	assert *p == 42
 	fold sendInvariant!<_!>(p)
 	c <- p

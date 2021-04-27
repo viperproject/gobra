@@ -8,13 +8,14 @@ package viper.gobra.translator.encodings.channels
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
+import viper.gobra.reporting.{ChannelMakePreconditionError, ChannelReceiveError, ChannelSendError, InsufficientPermissionError2, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation.violation
 import viper.silver.{ast => vpr}
 
 class ChannelEncoding extends LeafTypeEncoding {
@@ -60,19 +61,19 @@ class ChannelEncoding extends LeafTypeEncoding {
         val res = in.LocalVar(Names.freshName, typeParam.withAddressability(Addressability.Exclusive))(exp.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(exp.info))
-        val permission = in.PermDiv(in.CurrentPerm(recvChannelPred)(exp.info), in.IntLit(2)(exp.info))(exp.info)
-        val recvChannelWildcard = in.Access(recvChannelPred, permission)(exp.info)
         for {
-          // exhale acc([c].RecvChannel(), wildcard)
-          vprRecvChannelWildcard <- ctx.ass.translate(recvChannelWildcard)(ctx)
-          vprExhaleRecvChannelWildcard = vpr.Exhale(vprRecvChannelWildcard)(pos, info, errT)
-          _ <- write(vprExhaleRecvChannelWildcard)
+          // assert acc([c].RecvChannel(), wildcard)
+          sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(recvChannelPred)(exp.info))(ctx)
+          _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
+            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvChannel()")
+          )
 
           // exhale [c].RecvGivenPerm()()
           recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(exp.info)
           vprRecvGivenPermInst <- ctx.ass.translate(recvGivenPermInst)(ctx)
-          vprExhaleRecvGivenPermInst = vpr.Exhale(vprRecvGivenPermInst)(pos, info, errT)
-          _ <- write(vprExhaleRecvGivenPermInst)
+          _ <- exhale(vprRecvGivenPermInst,
+            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvGivenPerm()()")
+          )
 
           // var res [ T ]
           _ <- local(vprRes)
@@ -144,8 +145,7 @@ class ChannelEncoding extends LeafTypeEncoding {
 
             // assert 0 <= [bufferSize]
             vprIsBufferSizePositive = vpr.LeCmp(vpr.IntLit(0)(pos, info, errT), vprBufferSize)(pos, info, errT)
-            vprAssert = vpr.Assert(vprIsBufferSizePositive)(pos, info, errT)
-            _ <- write(vprAssert)
+            _ <- assert(vprIsBufferSizePositive, (info, _) => ChannelMakePreconditionError(info) )
 
             // inhale [a].isChannel()
             isChannelInst = in.Access(
@@ -168,23 +168,24 @@ class ChannelEncoding extends LeafTypeEncoding {
           } yield ass
         )
 
-      case stmt@in.Send(channel :: ctx.Channel(typeParam), message, sendChannel, sendGivenPerm, sendGotPerm) if message.typ == typeParam =>
+      case stmt@in.Send(channel :: ctx.Channel(typeParam), message, sendChannel, sendGivenPerm, sendGotPerm) =>
+        violation(message.typ == typeParam, s"message type ${message.typ} has to be the same as the channel element type $typeParam")
         val (pos, info, errT) = stmt.vprMeta
         val sendChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, sendChannel, Vector())(stmt.info))
-        val permission = in.PermDiv(in.CurrentPerm(sendChannelPred)(stmt.info), in.IntLit(2)(stmt.info))(stmt.info)
-        val sendChannelWildcard = in.Access(sendChannelPred, permission)(stmt.info)
         seqn(
           for {
             // assert acc(SendChannel([c], wildcard)
-            vprSendChannelWildcard <- ctx.ass.translate(sendChannelWildcard)(ctx)
-            vprAssertSendChannelWildcard = vpr.Assert(vprSendChannelWildcard)(pos, info, errT)
-            _ <- write(vprAssertSendChannelWildcard)
+            sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(sendChannelPred)(stmt.info))(ctx)
+            _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
+              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.SendChannel()")
+            )
 
             // exhale [c].SendGivenPerm()([m])
             sendGivenPermInst = getChannelInvariantAccess(channel, sendGivenPerm, Vector(message))(stmt.info)
             vprSendGivenPermInst <- ctx.ass.translate(sendGivenPermInst)(ctx)
-            vprExhaleSendGivenPermInst = vpr.Exhale(vprSendGivenPermInst)(pos, info, errT)
-            _ <- write(vprExhaleSendGivenPermInst)
+            _ <- exhale(vprSendGivenPermInst,
+              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.SendGivenPerm()(${message.info.tag})")
+            )
 
             // inhale [c].SendGotPerm()()
             sendGotPermInst = getChannelInvariantAccess(channel, sendGotPerm, Vector())(stmt.info)
@@ -200,20 +201,20 @@ class ChannelEncoding extends LeafTypeEncoding {
         val ok = in.LocalVar(Names.freshName, in.BoolT(Addressability.Exclusive))(stmt.info)
         val vprOk = ctx.typeEncoding.variable(ctx)(ok)
         val recvChannelPred = in.Accessible.Predicate(in.MPredicateAccess(channel, recvChannel, Vector())(stmt.info))
-        val permission = in.PermDiv(in.CurrentPerm(recvChannelPred)(stmt.info), in.IntLit(2)(stmt.info))(stmt.info)
-        val recvChannelWildcard = in.Access(recvChannelPred, permission)(stmt.info)
         seqn(
           for {
-            // exhale acc([c].RecvChannel(), wildcard)
-            vprRecvChannelWildcard <- ctx.ass.translate(recvChannelWildcard)(ctx)
-            vprExhaleRecvChannelWildcard = vpr.Exhale(vprRecvChannelWildcard)(pos, info, errT)
-             _ <- write(vprExhaleRecvChannelWildcard)
+            // assert acc([c].RecvChannel(), wildcard)
+            sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(recvChannelPred)(stmt.info))(ctx)
+            _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
+              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvChannel()")
+            )
 
             // exhale [c].RecvGivenPerm()()
             recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(stmt.info)
             vprRecvGivenPermInst <- ctx.ass.translate(recvGivenPermInst)(ctx)
-            vprExhaleRecvGivenPermInst = vpr.Exhale(vprRecvGivenPermInst)(pos, info, errT)
-            _ <- write(vprExhaleRecvGivenPermInst)
+            _ <- exhale(vprRecvGivenPermInst,
+              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvGivenPerm()()")
+            )
 
             // var res [ T ]
             _ <- local(vprRes)

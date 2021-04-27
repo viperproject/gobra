@@ -32,6 +32,7 @@ object Source {
     sealed trait Info {
       def origin: Option[AbstractOrigin]
       def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo)
+      def tag: String = origin.map(_.tag.trim).getOrElse("unknown")
     }
 
     object Unsourced extends Info {

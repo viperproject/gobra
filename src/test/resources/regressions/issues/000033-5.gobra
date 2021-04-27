@@ -5,7 +5,8 @@ package main
 
 func foo() {
   r := Rectangle{Width: 5, Height: 5}
-  assert Square(5) == r
+  res := Square(5)
+  assert res == r
 }
 
 type Rectangle struct {

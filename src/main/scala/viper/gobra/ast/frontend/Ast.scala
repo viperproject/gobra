@@ -72,13 +72,13 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source match {
-      case FileSource(filename, _) => filename
-      case FromFileSource(filename, _) => filename
+    val path = start.source match {
+      case FileSource(filename, _) => Paths.get(filename)
+      case FromFileSource(path, _) => path
       case _ => ???
     }
     new SourcePosition(
-      Paths.get(filename),
+      path,
       LineColumnPosition(start.line, start.column),
       Some(LineColumnPosition(end.line, end.column))
     )

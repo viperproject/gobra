@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend
 
-import java.io.{Closeable, File, InputStream}
+import java.io.{Closeable, InputStream}
 import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems, Files, Path, Paths}
 import java.util.Collections
 
@@ -43,7 +43,7 @@ object PackageResolver {
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolve(importTarget: AbstractImport, includeDirs: Vector[File]): Either[String, Vector[InputResource]] = {
+  def resolve(importTarget: AbstractImport, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, includeDirs)
@@ -63,7 +63,7 @@ object PackageResolver {
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[File]): Either[String, String] = {
+  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[Path]): Either[String, String] = {
     val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
@@ -77,7 +77,7 @@ object PackageResolver {
     } yield pkgName
   }
 
-  private def getIncludeResources(includeDirs: Vector[File]): Vector[InputResource] = {
+  private def getIncludeResources(includeDirs: Vector[Path]): Vector[InputResource] = {
     includeDirs.map(FileResource)
   }
 
@@ -94,7 +94,7 @@ object PackageResolver {
       // BaseJarResource provides an abstraction that internally uses an adhoc filesystem to enable file-like access
       // to these resources.
       resource <- resourceUri.getScheme match {
-        case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri).toFile))
+        case s if s == fileUriScheme => Some(FileResource(Paths.get(resourceUri)))
         case s if s == jarUriScheme =>
           val fs = try {
             FileSystems.newFileSystem(resourceUri, Collections.emptyMap[String, Any]())
@@ -115,14 +115,14 @@ object PackageResolver {
       .map(Paths.get(_))
       // for now, we restrict our search to the "src" subdirectory:
       .map(_.resolve("src"))
-      .map(p => FileResource(p.toFile))
+      .map(p => FileResource(p))
       .toVector
   }
 
   /**
     * Resolves import target using includeDirs to a directory which exists and from which source files should be retrieved
     */
-  private def getLookupPath(importTarget: AbstractImport, includeDirs: Vector[File]): Either[String, InputResource] = {
+  private def getLookupPath(importTarget: AbstractImport, includeDirs: Vector[Path]): Either[String, InputResource] = {
     importTarget match {
       case BuiltInImport => getBuiltInResource.toRight(s"Loading builtin package has failed")
       case RegularImport(importPath) =>
@@ -235,15 +235,14 @@ object PackageResolver {
     }
   }
 
-  case class FileResource(file: File) extends InputResource {
-    override lazy val path: Path = file.toPath
+  case class FileResource(path: Path) extends InputResource {
 
     override def resolve(pathComponent: String): FileResource =
-      FileResource(path.resolve(pathComponent).toFile)
+      FileResource(path.resolve(pathComponent))
 
     override def listContent(): Vector[FileResource] = {
       Files.newDirectoryStream(path).asScala.toVector
-        .map(p => FileResource(p.toFile))
+        .map(p => FileResource(p))
     }
   }
 

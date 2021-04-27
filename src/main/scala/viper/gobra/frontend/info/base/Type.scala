@@ -51,7 +51,7 @@ object Type {
 
   case class OptionT(elem : Type) extends PrettyType(s"option[$elem]")
 
-  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}")
+  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 
   case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
 
@@ -87,7 +87,7 @@ object Type {
   case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
 
   // TODO: at least add type info
-  case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends Type {
+  case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends ContextualType {
 
     lazy val isEmpty: Boolean = {
       decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&

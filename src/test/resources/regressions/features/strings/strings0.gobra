@@ -30,7 +30,8 @@ func lenTest() {
 
 func sharedStrTest() {
 	s@ := "test"
-	assert getStr(&s) == "test"
+	res := getStr(&s)
+	assert res == "test"
 }
 
 func stringEqTest() {

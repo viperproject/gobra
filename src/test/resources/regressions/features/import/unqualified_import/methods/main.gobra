@@ -8,6 +8,8 @@ import . "bar"
 
 func foo() {
     r@ := Rectangle{Width: 2, Height: 5}
-    assert r.Area() == 10
-    assert (*(Rectangle)).Area(&r) == 10
+    res0 := r.Area()
+    assert res0 == 10
+    res1 := (*(Rectangle)).Area(&r)
+    assert res1 == 10
 }

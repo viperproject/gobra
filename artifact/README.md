@@ -17,6 +17,14 @@ The full steps are as follows:
         ```
         docker run -it --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1
         ```
+      This command only works on macOS and linux and uses the current time to construct a folder in the current
+      directory with a kind-of-unique folder name.
+      Instead, a folder can also be manually created and used in this command. Note however that an absolute path to the
+      created folder has to be used.
+      The command using an existing empty folder would look as follows:
+      ```commandline
+      docker run -it --volume <absolute path to empty folder>:/home/gobra/sync gobraverifier/gobra-artifact:v1
+      ```
     - Alternatively, Gobra can be run in preconfigured ways:
         - Verify `example-2-1.gobra` (the file has to be accessible from within the container):
             ```

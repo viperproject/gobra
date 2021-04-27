@@ -28,7 +28,7 @@ import scala.concurrent.{Await, Future}
 
 object GoVerifier {
 
-  val copyright = "(c) Copyright ETH Zurich 2012 - 2020"
+  val copyright = "(c) Copyright ETH Zurich 2012 - 2021"
 
   val name = "Gobra"
 

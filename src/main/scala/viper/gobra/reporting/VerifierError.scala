@@ -286,7 +286,7 @@ case class InsufficientPermissionError(info: Source.Verifier.Info) extends Verif
   override def message: String = s"permission to ${info.origin.tag.trim} might not suffice"
 }
 
-case class InsufficientPermissionError2(tag: String) extends VerificationErrorReason {
+case class InsufficientPermissionFromTagError(tag: String) extends VerificationErrorReason {
   override def id: String = "permission_error"
   override def message: String = s"permission to $tag might not suffice"
 }

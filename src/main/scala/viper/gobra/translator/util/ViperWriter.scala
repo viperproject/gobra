@@ -395,7 +395,7 @@ object ViperWriter {
     }
 
     /* Emits Viper statements. */
-    def exhaleWithDefault(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
+    def exhaleWithDefaultReason(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
       val res = vpr.Exhale(cond)(cond.pos, cond.info, cond.errT)
       for {
         _ <- write(res)

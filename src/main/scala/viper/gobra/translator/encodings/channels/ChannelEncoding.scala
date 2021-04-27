@@ -8,7 +8,7 @@ package viper.gobra.translator.encodings.channels
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{ChannelMakePreconditionError, ChannelReceiveError, ChannelSendError, InsufficientPermissionError2, Source}
+import viper.gobra.reporting.{ChannelMakePreconditionError, ChannelReceiveError, ChannelSendError, InsufficientPermissionFromTagError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -65,14 +65,14 @@ class ChannelEncoding extends LeafTypeEncoding {
           // assert acc([c].RecvChannel(), wildcard)
           sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(recvChannelPred)(exp.info))(ctx)
           _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
-            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvChannel()")
+            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvChannel()")
           )
 
           // exhale [c].RecvGivenPerm()()
           recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(exp.info)
           vprRecvGivenPermInst <- ctx.ass.translate(recvGivenPermInst)(ctx)
           _ <- exhale(vprRecvGivenPermInst,
-            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvGivenPerm()()")
+            (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvGivenPerm()()")
           )
 
           // var res [ T ]
@@ -177,14 +177,14 @@ class ChannelEncoding extends LeafTypeEncoding {
             // assert acc(SendChannel([c], wildcard)
             sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(sendChannelPred)(stmt.info))(ctx)
             _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
-              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.SendChannel()")
+              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.SendChannel()")
             )
 
             // exhale [c].SendGivenPerm()([m])
             sendGivenPermInst = getChannelInvariantAccess(channel, sendGivenPerm, Vector(message))(stmt.info)
             vprSendGivenPermInst <- ctx.ass.translate(sendGivenPermInst)(ctx)
             _ <- exhale(vprSendGivenPermInst,
-              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.SendGivenPerm()(${message.info.tag})")
+              (info, _) => ChannelSendError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.SendGivenPerm()(${message.info.tag})")
             )
 
             // inhale [c].SendGotPerm()()
@@ -206,14 +206,14 @@ class ChannelEncoding extends LeafTypeEncoding {
             // assert acc([c].RecvChannel(), wildcard)
             sendChannelPerm <- ctx.expr.translate(in.CurrentPerm(recvChannelPred)(stmt.info))(ctx)
             _ <- assert(vpr.PermGtCmp(sendChannelPerm, vpr.NoPerm()(pos, info, errT))(pos, info, errT),
-              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvChannel()")
+              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvChannel()")
             )
 
             // exhale [c].RecvGivenPerm()()
             recvGivenPermInst = getChannelInvariantAccess(channel, recvGivenPerm, Vector())(stmt.info)
             vprRecvGivenPermInst <- ctx.ass.translate(recvGivenPermInst)(ctx)
             _ <- exhale(vprRecvGivenPermInst,
-              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionError2(s"${channel.info.tag}.RecvGivenPerm()()")
+              (info, _) => ChannelReceiveError(info) dueTo InsufficientPermissionFromTagError(s"${channel.info.tag}.RecvGivenPerm()()")
             )
 
             // var res [ T ]

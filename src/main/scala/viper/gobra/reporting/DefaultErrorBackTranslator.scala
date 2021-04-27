@@ -6,9 +6,8 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.ast.internal.transform.OverflowChecksTransform.OverflowCheckAnnotation
-import viper.gobra.reporting.Source.{AnnotatedOrigin, Synthesized}
-import viper.gobra.util.Violation.violation
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, OverflowCheckAnnotation, Synthesized}
+import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
@@ -19,21 +18,7 @@ object DefaultErrorBackTranslator {
                                 viperError: viper.silver.verifier.VerificationError,
                                 transformer: BackTranslator.ErrorTransformer
                               ): VerificationError = {
-    val gobraError = transformer.lift.apply(viperError).getOrElse{
-      val message: String =
-        s"""
-           |Failed to back-translate a Viper error
-           |  ${viperError.readableMessage}
-           |    error is ${viperError.getClass.getSimpleName}
-           |    error off. node = ${viperError.offendingNode}
-           |    error off. node src = ${Source.unapply(viperError.offendingNode)}
-           |    reason is ${viperError.reason.getClass.getSimpleName}
-           |    reason off. node = ${viperError.reason.offendingNode}
-           |    reason off. node src = ${Source.unapply(viperError.reason.offendingNode)}
-        """.stripMargin
-
-      throw new java.lang.IllegalStateException(message)
-    }
+    val gobraError = transformer.lift.apply(viperError).getOrElse{ UncaughtError(viperError) }
     if (viperError.cached) gobraError.cached = true
     gobraError
   }
@@ -42,18 +27,7 @@ object DefaultErrorBackTranslator {
                                 viperReason: silver.verifier.ErrorReason,
                                 transformer: BackTranslator.ReasonTransformer
                               ): VerificationErrorReason = {
-    transformer.lift.apply(viperReason).getOrElse{
-      val message: String =
-        s"""
-           |Failed to back-translate a Viper reason
-           |  ${viperReason.readableMessage}
-           |    error is ${viperReason.getClass.getSimpleName}
-           |    error off. node = ${viperReason.offendingNode}
-           |    error off. node src = ${Source.unapply(viperReason.offendingNode)}
-        """.stripMargin
-
-      throw new java.lang.IllegalStateException(message)
-    }
+    transformer.lift.apply(viperReason).getOrElse{ UncaughtReason(viperReason) }
   }
 
   def defaultTranslate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason =
@@ -95,15 +69,11 @@ object DefaultErrorBackTranslator {
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
-      case a@AssertionFalseError(info) if info.origin.isInstanceOf[AnnotatedOrigin] =>
-        info.origin.asInstanceOf[AnnotatedOrigin].annotation match {
-          case OverflowCheckAnnotation => OverflowErrorReason(info)
-          case _ => a
-        }
+      case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
       case x => x
     }
 
-    { case x => transformVerificationErrorReason(defaultReasonTransformerAux(x)) }
+    defaultReasonTransformerAux.andThen(transformVerificationErrorReason)
   }
 }
 
@@ -156,26 +126,23 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
     }
 
-    val transformAnnotatedError: VerificationError => VerificationError = x => {
-      x.info.origin match {
-        case origin: AnnotatedOrigin =>
-          // errorMapper assigns a reason to every error. as such, at this point, every error should have one error reason
-          violation(x.reasons.size == 1, "Error expected to have one and only one reason.")
-          origin.annotation match {
-            case OverflowCheckAnnotation =>
-              OverflowError(x.info) dueTo x.reasons.head
-            case _ => ???
-          }
-        case _ => x
-      }
+    val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
+      case _ / OverflowCheckAnnotation =>
+        x.reasons.foldLeft(OverflowError(x.info): VerificationError){ case (err, reason) => err dueTo reason }
+
+      case _ / AutoImplProofAnnotation(subT, superT) =>
+        GeneratedImplementationProofError(subT, superT, x)
+
+      case _ => x
     }
 
-    { case x => transformAnnotatedError(errorMapper(x)) }
+    errorMapper.andThen(transformAnnotatedError)
   }
 
   private val errorTransformer = backtrack.errorT.foldRight(defaultErrorTransformer){
     case (l, r) => l orElse r
   }
+
   private val reasonTransformer = backtrack.reasonT.foldRight(DefaultErrorBackTranslator.defaultReasonTransformer){
     case (l, r) => l orElse r
   }

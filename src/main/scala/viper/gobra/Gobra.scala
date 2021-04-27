@@ -7,6 +7,7 @@
 package viper.gobra
 
 import java.io.File
+import java.util.concurrent.ExecutionException
 
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
@@ -17,7 +18,7 @@ import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
 import viper.gobra.translator.Translator
-import viper.gobra.util.Violation.LogicException
+import viper.gobra.util.Violation.{KnownZ3BugException, LogicException}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import viper.silver.{ast => vpr}
 
@@ -94,6 +95,25 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     val viperTask = BackendVerifier.Task(ast, backtrack)
     performVerification(viperTask, config)
       .map(BackTranslator.backTranslate(_)(config))
+      .recoverWith {
+        case e: ExecutionException if isKnownZ3Bug(e) =>
+          // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
+          Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
+      }
+  }
+
+  @scala.annotation.tailrec
+  private def isKnownZ3Bug(e: ExecutionException): Boolean = {
+    def causedByFile(st: Array[StackTraceElement], filename: String): Boolean = {
+      if (st.isEmpty) false
+      else st.head.getFileName == filename
+    }
+
+    e.getCause match {
+      case c: ExecutionException => isKnownZ3Bug(c) // follow nested exception
+      case npe: NullPointerException if causedByFile(npe.getStackTrace, "Z3ProverStdIO.scala") => true
+      case _ => false
+    }
   }
 
   private val inFileConfigRegex = """##\((.*)\)""".r
@@ -207,6 +227,9 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     } catch {
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
+        logger.error(e.getLocalizedMessage, e)
+        sys.exit(1)
+      case e: KnownZ3BugException =>
         logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
       case e: Exception =>

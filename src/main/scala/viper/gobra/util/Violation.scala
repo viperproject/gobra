@@ -10,6 +10,8 @@ object Violation {
 
   abstract class GobraException(msg: String) extends RuntimeException(msg)
 
+  class KnownZ3BugException(msg: String) extends GobraException(msg)
+
   class LogicException(msg: String) extends GobraException(msg)
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)

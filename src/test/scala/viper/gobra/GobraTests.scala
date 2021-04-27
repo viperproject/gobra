@@ -46,7 +46,7 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = Vector(input.file.toFile)
+          inputFiles = Vector(input.file)
         )
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()

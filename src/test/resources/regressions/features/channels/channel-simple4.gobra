@@ -3,7 +3,7 @@
 
 package pkg
 
-// ##(-I src/test/resources/regressions/features/channels)
+// ##(-I ./)
 import b "bar"
 
 // "c.IsChannel()" should work across packages, i.e. the mpredicate maps to the same Viper predicate independently of

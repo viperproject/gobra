@@ -61,8 +61,8 @@ class GobraPackageTests extends GobraTests {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = input.files.map(_.toFile).toVector,
-          includeDirs = Vector(currentDir.toFile)
+          inputFiles = input.files.toVector,
+          includeDirs = Vector(currentDir)
         )
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
@@ -101,7 +101,7 @@ class GobraPackageTests extends GobraTests {
   }
 
   private def equalConfigs(config1: Config, config2: Config): Vector[GobraTestOuput] = {
-    def equalFiles(v1: Vector[File], v2: Vector[File]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
+    def equalFiles(v1: Vector[Path], v2: Vector[Path]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
 
     val equal = (equalFiles(config1.inputFiles, config2.inputFiles)
       && equalFiles(config1.includeDirs, config2.includeDirs)

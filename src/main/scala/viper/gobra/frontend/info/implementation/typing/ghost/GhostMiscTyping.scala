@@ -100,6 +100,16 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case Some(measure) =>
             measure match {
               case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
+              case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
+                case  PConditionalMeasureExpression(tuple) => tuple match {
+                  case(expression,condition) => expression.flatMap (p => assignableTo.errors (exprType (p), AssertionT) (n) )++ assignableTo.errors (exprType (condition), AssertionT) (n)
+                }
+                case PConditionalMeasureUnderscore(tuple) => tuple match {
+                  case (underscore,condition)=>assignableTo.errors (exprType (condition), AssertionT) (n)
+                }
+              })
+
+
             }
         })
   }

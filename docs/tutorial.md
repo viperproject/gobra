@@ -235,7 +235,7 @@ Similar to `client1`, `client2` allocates a `pair` pointer, as well. However, th
 
 ```go
 func client2() {
-  x@ := pair{1,2} // if the reference of an address is taken, then add @
+  x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
   (&x).sumPair(42)
   assert x.left == 43
 }
@@ -391,7 +391,7 @@ ensures len(res) == len(s)
 ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
 pure func toSeq(s []int) (res seq[int]) {
   return (len(s) == 0 ? seq[int]{} :
-                        toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
+      toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
 }
 ```
 
@@ -634,10 +634,9 @@ func incChannel(c chan *int) {
   res, ok := <- c
   if (ok) {
     unfold sendInvariant!<_!>(res)
-    // we should have write access and thus can write to it
-    // before being able to fold again, we have to revert the value:
+    // we now have write access after unfolding the invariant: 
     *res = *res + 1
-    // send pointer and permission back:
+    // fold the invariant and send pointer and permission back:
     fold sendInvariant!<_!>(res)
     c <- res
   }

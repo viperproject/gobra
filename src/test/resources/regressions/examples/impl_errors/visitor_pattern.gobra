@@ -201,13 +201,13 @@ func evaluator_client() {
 //  }
 
 //:: ExpectedOutput(postcondition_error:assertion_error)
-ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant) // removed option that it might be *addition
+ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant || typeOf(n) == *addition)
 func isAstNode(n node) (res bool) {
   if v, ok := n.(*variable); ok {
     return true
   } else if c, ok := n.(*constant); ok {
     return true
-  } else if a, ok := n.(*addition); ok {
+  } else if a, ok := n.(addition); ok { // pointer is missing
     return true
   } else {
     return false

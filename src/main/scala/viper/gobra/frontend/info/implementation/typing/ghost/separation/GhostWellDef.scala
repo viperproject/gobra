@@ -95,12 +95,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
-    case e if enclosingGhostContext(e) =>
-      e match {
-        case PMake(_: PGhostSliceType, _) => noMessages
-        case _: PMake | _: PNew | PReference(_: PCompositeLit) => error(e, "Allocating memory within ghost code is forbidden")
-        case _ => noMessages
-      }
+    case e if enclosingGhostContext(e) => noMessages
 
     case _: PDot
        | _: PDeref

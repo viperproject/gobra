@@ -13,11 +13,7 @@ import viper.silver.{ast => vpr}
 
 class EqualityImpl extends Equality {
 
-  override def finalize(col: Collector): Unit = {
-    if (isUsed) {
-      col.addMember(equalityDomain)
-    }
-  }
+  override def finalize(col: Collector): Unit = col.addMember(equalityDomain)
 
   /**
     * Generates:
@@ -58,12 +54,10 @@ class EqualityImpl extends Equality {
 
     (domain, eqFunc, typeVar)
   }
-  private var isUsed: Boolean = false
 
 
   /** Return eq('l', 'r'), where eq(x,y) <==> x == y holds. */
   def eq(l: vpr.Exp, r: vpr.Exp)(pos: vpr.Position = vpr.NoPosition, info: vpr.Info = vpr.NoInfo, errT: vpr.ErrorTrafo = vpr.NoTrafos): vpr.Exp = {
-    isUsed = true
     val typeVarMap = Map(typeVar -> l.typ)
     vpr.DomainFuncApp(equalityFunc, Seq(l, r), typeVarMap)(pos, info, errT)
   }

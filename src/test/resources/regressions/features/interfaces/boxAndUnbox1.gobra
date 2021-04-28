@@ -68,10 +68,11 @@ func definedTest() {
   assert y == b
 
   c := x.(pair)
+  //:: UnexpectedOutput(type_assertion_error:failed_type_assertion, /gobra/issue/134/)
   d := y.(struct{ left, right int })
 
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert false
+  // //:: ExpectedOutput(assert_error:assertion_error)
+  // assert false
 }
 
 func definedTestFailing1() {

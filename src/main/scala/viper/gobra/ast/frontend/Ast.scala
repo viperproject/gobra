@@ -26,7 +26,6 @@ sealed trait PNode extends Product {
   def pretty(prettyPrinter: PrettyPrinter = PNode.defaultPrettyPrinter): String = prettyPrinter.format(this)
 
   lazy val formatted: String = pretty()
-  lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
 
   override def toString: String = formatted
 }
@@ -34,7 +33,6 @@ sealed trait PNode extends Product {
 object PNode {
   type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
-  val shortPrettyPrinter = new ShortPrettyPrinter
 }
 
 sealed trait PScope extends PNode
@@ -727,12 +725,34 @@ object PGhostifier {
 /**
   * Specification
   */
+sealed trait PTerminationMeasure extends PNode
+
+case class PStarCharacter() extends PTerminationMeasure
+case class PUnderscoreCharacter() extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
+
+
+case class PConditionalMeasureCollection(tuple:Vector[PConditionalMeasure]) extends PTerminationMeasure
+
+sealed trait PConditionalMeasure
+
+case class PConditionalMeasureExpression(tuple:(Vector[PExpression],PExpression)) extends PConditionalMeasure
+case class PConditionalMeasureUnderscore(tuple:(PUnderscoreCharacter,PExpression))extends PConditionalMeasure
+
+
+
+
+
+
+
+
 
 sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
                       pres: Vector[PExpression],
                       posts: Vector[PExpression],
+                      terminationMeasure: Option[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
@@ -747,13 +767,17 @@ case class PBodyParameterInfo(
 
 
 case class PLoopSpec(
-                    invariants: Vector[PExpression]
+                    invariants: Vector[PExpression],
+                    terminationMeasure:Option[PTerminationMeasure],
                     ) extends PSpecification
 
 
 /**
   * Ghost Member
   */
+
+
+
 
 sealed trait PGhostMember extends PMember with PGhostNode
 
@@ -1039,7 +1063,6 @@ case class PMultisetType(elem : PType) extends PGhostLiteralType
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
-case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 
 case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
 

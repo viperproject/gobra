@@ -432,9 +432,40 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~ "pure".? ^^ {
-        case pres ~ posts ~ isPure => PFunctionSpec(pres, posts, isPure.nonEmpty)
+      ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~  ("decreases" ~>  measures ).?  ~ "pure".? ^^{
+        case pres ~ posts ~ terminationMeasure ~ isPure =>  PFunctionSpec(pres, posts,terminationMeasure, isPure.nonEmpty)
       }
+
+    lazy val measures:Parser[PTerminationMeasure]=
+      firstConditionalMeasure|("*" <~eos) ^^^ PStarCharacter() | ("_" <~eos) ^^^ PUnderscoreCharacter() | repsep(expression,",") <~eos ^^ PTupleTerminationMeasure
+
+
+    lazy val firstConditionalMeasure:Parser[PConditionalMeasureCollection]=
+      repsep(expression,",") ~ ("if" ~> expression <~eos ) ~  bothConditionalMeasureAllowed.?  ^^{
+        case expression ~ condition ~Some( PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression((expression,condition))) ++ tuple)
+        case expression ~ condition ~None => PConditionalMeasureCollection( Vector(PConditionalMeasureExpression((expression,condition) )))
+      }
+
+    lazy val bothConditionalMeasureAllowed: Parser[PConditionalMeasureCollection]=
+      ("decreases" ~> repsep(expression,",") ) ~ ("if" ~> expression<~eos ) ~ bothConditionalMeasureAllowed.?  ^^ {
+        case expression ~ condition ~ Some(PConditionalMeasureCollection(tuple) )=>PConditionalMeasureCollection( Vector(PConditionalMeasureExpression((expression,condition))) ++ tuple )
+        case expression ~ condition ~ None=>PConditionalMeasureCollection( Vector(PConditionalMeasureExpression((expression,condition))))
+      }|("decreases" ~> "_") ~ ("if" ~> expression <~eos) ~ noMoreConditionalUnderscore.? ^^ {
+        case expression ~ condition ~Some( PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore((PUnderscoreCharacter(),condition)))++ tuple)
+        case expression ~ condition ~ None=>PConditionalMeasureCollection( Vector(PConditionalMeasureUnderscore((PUnderscoreCharacter(),condition))))
+      }
+
+    lazy val noMoreConditionalUnderscore: Parser[PConditionalMeasureCollection]=
+      ("decreases" ~> repsep(expression,",") ) ~ ("if" ~> expression<~ eos ) ~ noMoreConditionalUnderscore.?  ^^ {
+        case expression ~ condition ~Some( PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression((expression, condition))) ++ tuple)
+        case expression ~ condition ~ None=>PConditionalMeasureCollection( Vector(PConditionalMeasureExpression((expression,condition))))
+      }
+
+
+
+
+
+
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
@@ -652,8 +683,13 @@ object Parser {
         }
 
 
+
+
     lazy val loopSpec: Parser[PLoopSpec] =
-      ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
+      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> measures ).? ^^ {
+        case invariants ~ terminationMeasure => PLoopSpec(invariants,terminationMeasure)
+      }
+
 
     lazy val assForRange: Parser[PAssForRange] =
       ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^
@@ -666,6 +702,12 @@ object Parser {
     /**
       * Expressions
       */
+
+
+
+
+
+
 
     lazy val expression: Parser[PExpression] =
       precedence1
@@ -687,8 +729,8 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      ((typ <~ guard("==")) | precedence4) ~ ("==" ~> (typMinusExpr | precedence4P1)) ^^ PEquals |
-          ((typ <~ guard("!=")) | precedence4) ~ ("!=" ~> (typMinusExpr | precedence4P1)) ^^ PUnequals |
+      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
+        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
         // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
         precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
@@ -723,10 +765,6 @@ object Parser {
 
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
-
-    // expressionOrType version
-
-
 
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
@@ -798,7 +836,7 @@ object Parser {
     // current format: declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
       (idnUse ~ predConstructArgs) ^^ {
-        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args)
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
       }
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
@@ -918,15 +956,6 @@ object Parser {
       * Types
       */
 
-    lazy val typMinusExpr: Parser[PType] =
-      (
-        ("(" ~> typMinusExpr <~ ")") |
-          ("*" ~> typMinusExpr ^^ PDeref) |
-          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
-          sequenceType | setType | multisetType | optionType | domainType |
-          predeclaredType
-        ) <~ not("(" | "{")
-
     lazy val typ : Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
 
@@ -938,16 +967,13 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType | domainType | ghostSliceType
+      sequenceType | setType | multisetType | optionType | domainType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
       ("[" ~ "]") ~> typ ^^ PSliceType
-
-    lazy val ghostSliceType: Parser[PGhostSliceType] =
-      "ghost" ~> ("[" ~ "]") ~> typ ^^ PGhostSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
@@ -1051,26 +1077,6 @@ object Parser {
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
         exactWord("uintptr") ^^^ PUIntPtr()
-
-    lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
-      exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |
-        exactWord("string") ~ not("(" | ".") ^^^ PStringType() |
-        exactWord("perm") ~ not("(" | ".") ^^^ PPermissionType() |
-        // signed integer types
-        exactWord("rune") ~ not("(" | ".") ^^^ PRune() |
-        exactWord("int") ~ not("(" | ".") ^^^ PIntType() |
-        exactWord("int8") ~ not("(" | ".") ^^^ PInt8Type() |
-        exactWord("int16") ~ not("(" | ".") ^^^ PInt16Type() |
-        exactWord("int32") ~ not("(" | ".") ^^^ PInt32Type() |
-        exactWord("int64") ~ not("(" | ".") ^^^ PInt64Type() |
-        // unsigned integer types
-        exactWord("byte") ~ not("(" | ".") ^^^ PByte() |
-        exactWord("uint") ~ not("(" | ".") ^^^ PUIntType() |
-        exactWord("uint8") ~ not("(" | ".") ^^^ PUInt8Type() |
-        exactWord("uint16") ~ not("(" | ".") ^^^ PUInt16Type() |
-        exactWord("uint32") ~ not("(" | ".") ^^^ PUInt32Type() |
-        exactWord("uint64") ~ not("(" | ".") ^^^ PUInt64Type() |
-        exactWord("uintptr") ~ not("(" | ".") ^^^ PUIntPtr()
 
     private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
 

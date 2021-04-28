@@ -109,14 +109,40 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
 
+
+
+  def showConditionalMeasureCollection[T <: PConditionalMeasure](tuple:Vector[T]):Doc = showList(tuple)(showConditionalMeasure)
+
+  def showConditionalMeasure(conditionalMeasure:PConditionalMeasure) : Doc = conditionalMeasure match {
+       case PConditionalMeasureExpression((expression, condition)) =>
+      "decreases" <+> showExprList(expression) <+> "if" <+>showExpr(condition)
+       case PConditionalMeasureUnderscore((underscore,condition)) =>
+      "decreases" <+> "_" <+> "if" <+>showExpr(condition)
+  }
+
+
+      def showTerminationmeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+      case Some(terminationMeasure) => terminationMeasure match {
+      case  PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
+      case PStarCharacter() =>"decreases" <+> "*"
+      case PUnderscoreCharacter()=>"decreases" <+> "_"
+      case PConditionalMeasureCollection(tuple)=> showConditionalMeasureCollection(tuple)
+    }
+    case None=>""
+  }
+
+
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, posts,terminationMeasure,isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line))
+        hcat(posts map (showPost(_) <> line))  <>
+        showTerminationmeasure(terminationMeasure) <> line
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (showInv(_) <> line))
+
+    case PLoopSpec(inv,termination_measures) =>
+      hcat(inv map (showInv(_) <> line)) <>
+        showTerminationmeasure(termination_measures) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {
@@ -539,7 +565,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case POptionType(elem) => "option" <> brackets(showType(elem))
-    case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(
         ssep((funcs ++ axioms) map showMisc, line)
@@ -608,30 +633,4 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
-}
-
-class ShortPrettyPrinter extends DefaultPrettyPrinter {
-  override val defaultIndent = 2
-  override val defaultWidth  = 80
-
-  override def showMember(mem: PMember): Doc = mem match {
-    case mem: PActualMember => mem match {
-      case n: PConstDecl => showConstDecl(n)
-      case n: PVarDecl => showVarDecl(n)
-      case n: PTypeDecl => showTypeDecl(n)
-      case PFunctionDecl(id, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-      case PMethodDecl(id, rec, args, res, spec, _) =>
-        showSpec(spec) <> "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
-    }
-    case member: PGhostMember => member match {
-      case PExplicitGhostMember(m) => "ghost" <+> showMember(m)
-      case PFPredicateDecl(id, args, _) =>
-        "pred" <+> showId(id) <> parens(showParameterList(args))
-      case PMPredicateDecl(id, recv, args, _) =>
-        "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args))
-      case ip: PImplementationProof =>
-        showType(ip.subT) <+> "implements" <+> showType(ip.superT)
-    }
-  }
 }

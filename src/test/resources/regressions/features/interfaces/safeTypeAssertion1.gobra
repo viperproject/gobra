@@ -113,8 +113,9 @@ func definedTest() {
   assert !ok
 
   d, ok := y.(struct{ left, right int })
+  //:: UnexpectedOutput(assert_error:assertion_error, /gobra/issue/134/)
   assert ok
 
-  //:: ExpectedOutput(assert_error:assertion_error)
-  assert false
+  // //:: ExpectedOutput(assert_error:assertion_error)
+  // assert false
 }

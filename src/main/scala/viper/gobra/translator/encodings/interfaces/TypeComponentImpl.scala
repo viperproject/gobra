@@ -58,8 +58,8 @@ class TypeComponentImpl extends TypeComponent {
       }
 
     case t: TypeHead.StructHD =>
-      val fields = t.fields.map{ case (f, g) => if (g) s"${f}G" else s"${f}A" }
-      s"struct_${fields.mkString("_")}"
+      val fieldNames = t.fields.collect{ case (n, false) => n }
+      s"struct_${fieldNames.mkString("_")}"
   }
 
 

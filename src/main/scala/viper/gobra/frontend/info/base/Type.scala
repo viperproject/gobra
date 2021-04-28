@@ -18,55 +18,52 @@ object Type {
 
   sealed trait Type
 
-  abstract class PrettyType(pretty: => String) extends Type {
-    override lazy val toString: String = pretty
-  }
-
   sealed trait ContextualType extends Type {
     val context: ExternalTypeInfo
   }
 
-  case object UnknownType extends PrettyType("unknown")
+  case object UnknownType extends Type
 
-  case object VoidType extends PrettyType("void")
+  case object VoidType extends Type
 
-  case object NilType extends PrettyType("nil")
+  case object NilType extends Type
 
-  case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends PrettyType(decl.left.name) with ContextualType
+  case class DeclaredT(decl: PTypeDecl, context: ExternalTypeInfo) extends ContextualType
 
-  case object BooleanT extends PrettyType("bool")
+  case object BooleanT extends Type
 
-  case object StringT extends PrettyType("string")
+  case object StringT extends Type
 
-  case class IntT(kind: TypeBounds.IntegerKind) extends PrettyType(kind.name)
+  case class IntT(kind: TypeBounds.IntegerKind) extends Type
 
-  case class ArrayT(length: BigInt, elem: Type) extends PrettyType(s"[$length]$elem") {
+  case class ArrayT(length: BigInt, elem: Type) extends Type {
     require(length >= 0, "The length of an array must be non-negative")
   }
 
-  case class SliceT(elem: Type) extends PrettyType(s"[]$elem")
+  case class SliceT(elem: Type) extends Type
 
-  case class VariadicT(elem: Type) extends PrettyType(s"...$elem")
+  case class VariadicT(elem: Type) extends Type
 
-  case class OptionT(elem : Type) extends PrettyType(s"option[$elem]")
+  case class OptionT(elem : Type) extends Type
 
-  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}")
+  case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends Type
 
-  case class MapT(key: Type, elem: Type) extends PrettyType(s"map[$key]$elem")
+  case class MapT(key: Type, elem: Type) extends Type
 
-  case class PointerT(elem: Type) extends PrettyType(s"*$elem")
+  case class PointerT(elem: Type) extends Type
 
-  case class ChannelT(elem: Type, mod: ChannelModus) extends PrettyType(s"$mod $elem")
+  case class ChannelT(elem: Type, mod: ChannelModus) extends Type
 
-  sealed abstract class ChannelModus(override val toString: String)
+  sealed trait ChannelModus
 
   object ChannelModus {
 
-    case object Bi extends ChannelModus("chan")
+    case object Bi extends ChannelModus
 
-    case object Recv extends ChannelModus("<-chan")
+    case object Recv extends ChannelModus
 
-    case object Send extends ChannelModus("chan<-")
+    case object Send extends ChannelModus
+
   }
 
   case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
@@ -74,16 +71,11 @@ object Type {
     lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(removeFieldIndicator)
     private def isField(clause: (String, (Boolean, Type))): Boolean = clause._2._1
     private def removeFieldIndicator(clause: (String, (Boolean, Type))): (String, Type) = (clause._1, clause._2._2)
-
-    override lazy val toString: String = {
-      val fields = clauses.map{ case (n, (_, t)) => s"$n: $t" }
-      s"struct{ ${fields.mkString("; ")}}"
-    }
   }
 
-  case class FunctionT(args: Vector[Type], result: Type) extends PrettyType(s"func(${args.mkString(",")}) $result")
+  case class FunctionT(args: Vector[Type], result: Type) extends Type
 
-  case class PredT(args: Vector[Type]) extends PrettyType(s"pred(${args.mkString(",")})")
+  case class PredT(args: Vector[Type]) extends Type
 
   // TODO: at least add type info
   case class InterfaceT(decl: PInterfaceType, context: ExternalTypeInfo) extends Type {
@@ -92,40 +84,34 @@ object Type {
       decl.methSpecs.isEmpty && decl.predSpec.isEmpty &&
         decl.embedded.isEmpty
     }
-
-    override lazy val toString: String = {
-      if (isEmpty) "interface{}" else "interface{...}"
-    }
   }
 
 
-  case class InternalTupleT(ts: Vector[Type]) extends PrettyType(s"(${ts.mkString(",")})")
+  case class InternalTupleT(ts: Vector[Type]) extends Type
 
   case class InternalSingleMulti(sin: Type, mul: InternalTupleT) extends Type
 
-  case class ImportT(decl: PImport) extends PrettyType(decl.formatted)
+  case class ImportT(decl: PImport) extends Type
 
-  case object SortT extends PrettyType("Type")
+  case object SortT extends Type
 
   sealed trait GhostType extends Type
 
-  case object AssertionT extends PrettyType("assertion") with GhostType
-
-  case class GhostSliceT(elem: Type) extends PrettyType(s"ghost []$elem") with GhostType
+  case object AssertionT extends GhostType
 
   sealed trait GhostCollectionType extends GhostType {
     def elem : Type
   }
 
-  case class SequenceT(elem : Type) extends PrettyType(s"seq[$elem]") with GhostCollectionType
+  case class SequenceT(elem : Type) extends GhostCollectionType
 
   sealed trait GhostUnorderedCollectionType extends GhostCollectionType
 
-  case class SetT(elem : Type) extends PrettyType(s"set[$elem]") with GhostUnorderedCollectionType
+  case class SetT(elem : Type) extends GhostUnorderedCollectionType
 
-  case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
+  case class MultisetT(elem : Type) extends GhostUnorderedCollectionType
 
-  case object PermissionT extends PrettyType(s"perm") with GhostType
+  case object PermissionT extends GhostType
 
 
   /**
@@ -169,5 +155,5 @@ object Type {
     * Note that Vector[Type] represents the types of arguments for functions and fpredicates but is a singleton
     * vector storing the receiver's type for methods and mpredicates.
     */
-  case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends PrettyType("abstract")
+  case class AbstractType(messages: (PNode, Vector[Type]) => Messages, typing: Vector[Type] ==> FunctionT) extends Type
 }

@@ -26,14 +26,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         nonVariadicArguments(args)
 
     case ip: PImplementationProof =>
-      syntaxImplements(symbType(ip.subT), symbType(ip.superT)).asReason(ip, s"${ip.subT} does not implement the interface ${ip.superT}") ++
-      {
-        val implementationType = symbType(ip.subT)
-        val badReceiverTypes = ip.memberProofs.map(m => miscType(m.receiver))
-          .filter(t => !identicalTypes(t, implementationType))
-        error(ip, s"The receiver of all methods included in the implementation proof must be $implementationType, " +
-          s"but encountered: ${badReceiverTypes.distinct.mkString(", ")}", cond = badReceiverTypes.nonEmpty)
-      }
+      error(ip, s"${ip.subT} does not implement ${ip.superT}", !goImplements(symbType(ip.subT), symbType(ip.superT)))
   }
 
   private[typing] def wellDefIfPureMethod(member: PMethodDecl): Messages = {

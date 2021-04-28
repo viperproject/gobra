@@ -29,13 +29,8 @@ class StringEncoding extends LeafTypeEncoding {
     * Translates a type into a Viper type.
     */
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
-    case ctx.String() / Exclusive => stringType
+    case ctx.String() / Exclusive => vpr.Int
     case ctx.String() / Shared => vpr.Ref
-  }
-
-  private lazy val stringType: vpr.Type = {
-    isUsed = true
-    vpr.Int
   }
 
   /**
@@ -52,11 +47,11 @@ class StringEncoding extends LeafTypeEncoding {
     default(super.expr(ctx)) {
       case (e: in.DfltVal) :: ctx.String() / Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
-      case (lit: in.StringLit) :: _ / Exclusive =>
+      case lit: in.StringLit if lit.typ.addressability == Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
       case len@in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
-      case concat@ in.Concat(l :: ctx.String(), r :: ctx.String()) =>
+      case concat@in.Concat(l :: ctx.String(), r :: ctx.String()) =>
         for {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
@@ -65,11 +60,8 @@ class StringEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(col: Collector): Unit = {
-    if (isUsed) {
-      col.addMember(genDomain())
-    }
+    col.addMember(genDomain())
   }
-  private var isUsed: Boolean = false
 
   /** Every string literal in the program is encoded as a unique domain function in the String domain,
     * whose value corresponds to the string id.
@@ -80,7 +72,7 @@ class StringEncoding extends LeafTypeEncoding {
     val func = vpr.DomainFunc(
       name = genLitFuncName(name),
       formalArgs = Seq(),
-      typ = stringType,
+      typ = vpr.Int,
       unique = true
     )(domainName = domainName)
     encodedStrings += name -> func
@@ -92,9 +84,9 @@ class StringEncoding extends LeafTypeEncoding {
     *   function strLen(id: Int): Int
     */
   private val lenFuncName: String = "strLen"
-  private lazy val lenFunc: vpr.DomainFunc = vpr.DomainFunc(
+  private val lenFunc: vpr.DomainFunc = vpr.DomainFunc(
     name = lenFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl("id", stringType)()),
+    formalArgs = Seq(vpr.LocalVarDecl("id", vpr.Int)()),
     typ = vpr.Int,
   )(domainName = domainName)
 
@@ -104,10 +96,10 @@ class StringEncoding extends LeafTypeEncoding {
     * where l and r are string ids
     */
   private val concatFuncName: String = "strConcat"
-  private lazy val concatFunc: vpr.DomainFunc = vpr.DomainFunc(
+  private val concatFunc: vpr.DomainFunc = vpr.DomainFunc(
     name = concatFuncName,
-    formalArgs = Seq(vpr.LocalVarDecl("l", stringType)(), vpr.LocalVarDecl("r", stringType)()),
-    typ = stringType,
+    formalArgs = Seq(vpr.LocalVarDecl("l", vpr.Int)(), vpr.LocalVarDecl("r", vpr.Int)()),
+    typ = vpr.Int,
   )(domainName = domainName)
 
   private def genDomain(): vpr.Domain = {
@@ -134,8 +126,8 @@ class StringEncoding extends LeafTypeEncoding {
       *   where l and r correspond to string ids
       */
     val appAxiom: vpr.DomainAxiom = vpr.AnonymousDomainAxiom {
-      val var1 = vpr.LocalVarDecl("l", stringType)()
-      val var2 = vpr.LocalVarDecl("r", stringType)()
+      val var1 = vpr.LocalVarDecl("l", vpr.Int)()
+      val var2 = vpr.LocalVarDecl("r", vpr.Int)()
       val lenConcat = vpr.DomainFuncApp(lenFunc, Seq(vpr.DomainFuncApp(concatFunc, Seq(var1.localVar, var2.localVar), Map.empty)()), Map.empty)()
       val trigger = vpr.Trigger(Seq(lenConcat))()
       val exp = vpr.EqCmp(lenConcat, vpr.Add(

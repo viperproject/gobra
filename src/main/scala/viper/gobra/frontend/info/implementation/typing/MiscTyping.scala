@@ -25,7 +25,7 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
   private[typing] def wellDefActualMisc(misc: PActualMisc): Messages = misc match {
 
     case n@PRange(exp) => isExpr(exp).out ++ (exprType(exp) match {
-      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT | _: GhostSliceT |
+      case _: ArrayT | PointerT(_: ArrayT) | _: SliceT |
            _: MapT | ChannelT(_, ChannelModus.Recv | ChannelModus.Bi) => noMessages
       case t => message(n, s"type error: got $t but expected rangeable type")
     })
@@ -54,7 +54,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case ArrayT(_, elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case PointerT(ArrayT(_, elem)) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case SliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
-      case GhostSliceT(elem) => InternalSingleMulti(elem, InternalTupleT(Vector(IntT(config.typeBounds.Int), elem)))
       case MapT(key, elem) => InternalSingleMulti(key, InternalTupleT(Vector(key, elem)))
       case ChannelT(elem, ChannelModus.Recv | ChannelModus.Bi) => elem
       case t => violation(s"unexpected range type $t")
@@ -88,7 +87,6 @@ trait MiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case tree.parent.pair(e: PKeyedElement, lv: PLiteralValue) => underlyingType(expectedMiscType(lv)) match {
         case t: ArrayT => t.elem
         case t: SliceT => t.elem
-        case t: GhostSliceT => t.elem
         case t: MapT  => t.elem
         case t: StructT =>
           e.key match {

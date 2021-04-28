@@ -19,7 +19,6 @@ import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, Violation}
 
-import scala.annotation.unused
 import scala.collection.Iterable
 import scala.reflect.ClassTag
 
@@ -1576,8 +1575,7 @@ object Desugar {
               arg1 = argsD.lift(1)
 
               make: in.MakeStmt = info.symbType(t) match {
-                case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
-                case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
+                case s@SliceT(_) => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
                   val channelType = elemD(c).asInstanceOf[in.ChannelT]
                   val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
@@ -2121,7 +2119,6 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
-      case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
       case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
@@ -2846,7 +2843,7 @@ object Desugar {
     def variable(n: String, s: PScope, context: ExternalTypeInfo): String = name(VARIABLE_PREFIX)(n, s, context)
     def global  (n: String, context: ExternalTypeInfo): String = nameWithoutScope(GLOBAL_PREFIX)(n, context)
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
-    def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
+    def field   (n: String, s: StructT): String = nameWithoutScope(s"$FIELD_PREFIX${struct(s)}")(n, s.context)
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
@@ -2882,7 +2879,7 @@ object Desugar {
       s"${tag.identifier}_$BUILTIN_PREFIX$FUNCTION_PREFIX$typeString"
     }
 
-    def inverse(n: String): String = n.substring(0, n.length - FIELD_PREFIX.length)
+    def inverse(n: String): String = n.substring(0, n.indexOf('_'))
 
     def alias(n: String): String = s"${n}_$COPY_PREFIX$fresh"
 

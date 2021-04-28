@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{Constant, Variable, Wildcard}
-import viper.gobra.frontend.info.base.Type.{ArrayT, GhostSliceT, MapT, SequenceT, SliceT, VariadicT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, MapT, SequenceT, SliceT, VariadicT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
@@ -36,7 +36,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   lazy val goAddressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
     case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
-    case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
+    case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
       case _ => false
@@ -55,7 +55,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case PIndexedExp(base, _) =>
         val baseType = exprType(base)
         baseType match {
-          case _: SliceT | _: GhostSliceT => AddrMod.sliceLookup
+          case _: SliceT => AddrMod.sliceLookup
           case _: VariadicT => AddrMod.variadicLookup
           case _: ArrayT => AddrMod.arrayLookup(addressability(base))
           case _: SequenceT => AddrMod.mathDataStructureLookup

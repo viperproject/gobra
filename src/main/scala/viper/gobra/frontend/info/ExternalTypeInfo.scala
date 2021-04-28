@@ -10,7 +10,7 @@ import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNod
 import viper.gobra.frontend.info.base.Type.StructT
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.base.Type.Type
-import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
+import viper.gobra.frontend.info.implementation.resolution.MemberPath
 
 trait ExternalTypeInfo {
 
@@ -71,7 +71,4 @@ trait ExternalTypeInfo {
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt]
 
   def getTypeInfo: TypeInfo
-
-  /* memberset within a specific context */
-  def localMemberSet(t: Type): AdvancedMemberSet[TypeMember]
 }

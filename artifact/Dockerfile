@@ -130,13 +130,13 @@ RUN cd $HOME && \
     cd $HOME
 
 # setup test_suite folder:
-RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test_suite/examples && \
+RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test_suite/tutorial-examples && \
     # copy regression files:
     cp -r $HOME/gobra/src/test/resources/regressions/* $HOME/test_suite/regressions && \
     # copy evaluation files:
     cp -r $HOME/gobra/src/test/resources/regressions/examples/evaluation/* $HOME/test_suite/evaluation && \
     # copy tutorial files:
-    cp -r $HOME/gobra/src/test/resources/regressions/examples/tutorial-examples/* $HOME/test_suite/examples
+    cp -r $HOME/gobra/src/test/resources/regressions/examples/tutorial-examples/* $HOME/test_suite/tutorial-examples
 
 # copy content into image:
 ADD content/* $HOME/

@@ -14,7 +14,7 @@ To run the artifact, we recommend the use of a shared folder to access files pro
   ```commandline
   docker run -it --memory=6g --volume $PWD/gobra_sync:/home/gobra/sync gobraverifier/gobra-artifact:v1
   ```
-  In the shared folder `gobra_sync` on your host machine, you can now find this README (`README.md`), a tutorial (`tutorial.md`), our paper (`paper.pdf`), the Dockerfile used to create the artifact image (`Dockerfile`), and our evaluation, regression, and tutorial examples (`test_suite/evaluation`, `test_suite/regressions`, and `test_suite/tutorial-examples`, respectively). The `gobra_sync` folder on your host machine is now synced with `/home/gobra/sync/` folder on the Docker container. If you change a file on the host, then the corresponding file on the Docker container will change, as well.
+  In the shared folder `gobra_sync` on your host machine, you can now find this README (`README.md`), a tutorial (`tutorial.md`), our paper (`paper.pdf`), the Dockerfile used to create the artifact image (`Dockerfile`), and our evaluation, regression, and tutorial examples (`test_suite/evaluation`, `test_suite/regressions`, and `test_suite/tutorial-examples`, respectively). The `gobra_sync` folder on your host machine is now synced with `/home/gobra/sync/` folder on the Docker container. If you change a file on the host, then the corresponding file on the Docker container will change, as well. If you encounter permission errors when running the previous command, please consult the [troubleshooting section](#troubleshooting).
  
   To run the container without a shared folder, drop the `--volume` option:
   ```commandline
@@ -58,6 +58,15 @@ To run the artifact, we recommend the use of a shared folder to access files pro
 
 
 ## Troubleshooting
+
+### Permission error on `docker run`
+
+If executing `docker run` with a mounted folder causes a permissions error, then use the following command instead:
+
+```commandline
+docker run -it --memory=6g --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/gobra_sync gobraverifier/gobra-artifact:v1
+```
+
 
 ### Non-Termination and OutOfMemoryError
 If you experience an `OutOfMemoryError` exception or the benchmark suite does not terminate, then increase the amount of RAM provided to the container by modifying the value of the `memory` parameter of the `docker run` command. For example, if you want to run the container with 10GB of RAM instead of 6, run Docker as follows:

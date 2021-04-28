@@ -19,9 +19,8 @@ func incChannel(c chan *int) {
 	if (ok) {
 		unfold sendInvariant!<_!>(res)
 		// we now have write access after unfolding the invariant:
-		// before being able to fold again, we have to revert the value:
 		*res = *res + 1
-		// send pointer and permission back:
+		// fold the invariant and send pointer and permission back:
 		fold sendInvariant!<_!>(res)
 		c <- res
 	}

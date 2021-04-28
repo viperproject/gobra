@@ -141,8 +141,6 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test
 # copy content into image:
 ADD content/* $HOME/
 ADD Dockerfile $HOME/
-# copy tutorial into image:
-ADD ../docs/tutorial.md $HOME/
 # copy evaluation log files:
 ADD evaluation/* $HOME/test_suite/evaluation/
 

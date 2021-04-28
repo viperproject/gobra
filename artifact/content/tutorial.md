@@ -107,7 +107,7 @@ const minScore int = 10 // typed constant
 
 ## Basic Annotations
 
-All examples shown in this tutorial can be found [here](../src/test/resources/regressions/examples/tutorial-examples/). We start with a simple function `sum` computing the sum of the integers from 0 to `n`. The table below shows a Go implementation (left) and a corresponding annotated version (right).
+All examples shown in this tutorial can be found [here](https://github.com/viperproject/gobra/tree/master/src/test/resources/regressions/examples/tutorial-examples). We start with a simple function `sum` computing the sum of the integers from 0 to `n`. The table below shows a Go implementation (left) and a corresponding annotated version (right).
 
 <table>
 <tr>

@@ -28,7 +28,7 @@ The full steps are as follows:
     - Alternatively, Gobra can be run in preconfigured ways:
         - Verify `example-2-1.gobra` (the file has to be accessible from within the container):
             ```
-            docker run --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/regressions/examples/example-2-1.gobra
+            docker run --volume $PWD/sync_$(date +%Y-%m-%d_%H-%M):/home/gobra/sync gobraverifier/gobra-artifact:v1 /bin/bash ./gobra.sh ./test_suite/evaluation/example-2-1.gobra
             ```
         - Run the regression test suite:
             ```

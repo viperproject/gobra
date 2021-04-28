@@ -62,7 +62,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		LitDeclaredEntry(name,actual)
 												case i:InterfaceT => interfaceInterpreter.interpret(d,i)
 												case FunctionT(args,res) => FaultEntry("TODO: Functions")
-												case p:PointerT => interpret(entry,p.elem)
+												case p:PointerT => LitPointerEntry(p.elem,interpret(entry,p.elem).asInstanceOf[LitEntry],scala.util.Random.nextInt(1000))
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)

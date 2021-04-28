@@ -237,16 +237,15 @@ object GobraRunner extends GobraFrontend with StrictLogging {
 
       case e: LogicException =>
         logger.error("An assumption was violated during execution.")
-        logger.error(e.getLocalizedMessage, e)
+        logger.error(e.msg)
         sys.exit(1)
 
       case e: KnownZ3BugException =>
-        logger.error(e.getLocalizedMessage, e)
+        logger.error(e.msg)
         sys.exit(1)
 
-      case e: Exception =>
+      case _: Exception =>
         logger.error("An unknown Exception was thrown.")
-        logger.error(e.getLocalizedMessage, e)
         sys.exit(1)
     }
 

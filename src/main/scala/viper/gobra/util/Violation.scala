@@ -12,9 +12,9 @@ object Violation {
 
   abstract class GobraException(msg: String) extends RuntimeException(msg)
 
-  class KnownZ3BugException(msg: String) extends GobraException(msg)
+  class KnownZ3BugException(val msg: String) extends GobraException(msg)
 
-  class LogicException(msg: String) extends GobraException(msg)
+  class LogicException(val msg: String) extends GobraException(msg)
 
   class UglyErrorMessage(val error: VerifierError) extends GobraException(error.message)
 

@@ -24,8 +24,9 @@ pure func (m *DenseMatrix) lenX() int {
 
 // number of columns
 requires acc(denseMatrix(m), _)
+requires m.lenX() != 0
 pure func (m *DenseMatrix) lenY() int {
-    return unfolding acc(denseMatrix(m), _) in len(m.values) == 0 ? 0 : len((m.values)[0])
+    return unfolding acc(denseMatrix(m), _) in len((m.values)[0])
 }
 
 requires acc(denseMatrix(m), _)
@@ -35,7 +36,7 @@ pure func (m *DenseMatrix) lookup(i, j int) (res int) {
     return unfolding acc(denseMatrix(m), _) in (m.values)[i][j]
 }
 
-requires denseMatrix(m)
+requires denseMatrix(m) && m.lenX() != 0
 ensures denseMatrix(m)
 ensures m.lenX() == old(m.lenX()) && m.lenY() == old(m.lenY())
 ensures forall i, j int :: (0 <= i && i < m.lenX() && 0 <= j && j < m.lenY() ==> m.lookup(i, j) == old(m.lookup(i, j)) * z)
@@ -86,6 +87,7 @@ pred sparseMatrix(m *SparseMatrix, maxRow, maxColumn int) {
         acc(&m.next) && sparseMatrix(m.next, maxRow, maxColumn)
 }
 
+ghost
 requires acc(sparseMatrix(m, maxRow, maxColumn), _)
 pure func LookupL(m *SparseMatrix, maxRow, maxColumn, i, j int) int {
     return unfolding acc(sparseMatrix(m, maxRow, maxColumn), _) in (m == nil ? 0 : unfolding acc(entry(m.entry, maxRow, maxColumn), _) in (m.entry.row == i && m.entry.column == j) ? m.entry.value : LookupL(m.next, maxRow, maxColumn, i, j))
@@ -123,28 +125,28 @@ func (m *SparseMatrix) transpose(maxRow, maxColumn int) {
     fold sparseMatrix(m, maxColumn, maxRow)
 }
 
-requires acc(denseMatrix(dm), 1/2)
-ensures acc(denseMatrix(dm), 1/2) && sparseMatrix(sm, dm.lenX(), dm.lenY())
+requires acc(denseMatrix(dm), 1/2) && dm.lenX() != 0
+ensures acc(denseMatrix(dm), 1/2) && dm.lenX() != 0 && sparseMatrix(sm, dm.lenX(), dm.lenY())
 ensures forall i, j int :: (0 <= i && i < dm.lenX() && 0 <= j && j < dm.lenY() ==> dm.lookup(i, j) == LookupL(sm, dm.lenX(), dm.lenY(), i, j))
 func (dm *DenseMatrix)toSparse() (sm *SparseMatrix) {
     sm = nil
     lenX, lenY := dm.lenX(), dm.lenY()
     fold sparseMatrix(sm, lenX, lenY)
-    invariant acc(denseMatrix(dm), 1/2) && sparseMatrix(sm, lenX, lenY)
+    invariant acc(denseMatrix(dm), 1/4) && sparseMatrix(sm, lenX, lenY)
     invariant 0 <= x && x <= lenX && lenX == dm.lenX() && lenY == dm.lenY()
     invariant forall i, j int :: (0 <= i && i < x && 0 <= j && j < lenY ==> dm.lookup(i, j) == LookupL(sm, lenX, lenY, i, j))
     for x := 0; x < lenX; x++ {
-        invariant acc(denseMatrix(dm), 1/2) && sparseMatrix(sm, lenX, lenY)
-        invariant 0 <= x && x < lenX && 0 <= y && y <= dm.lenY() && lenX == dm.lenX() && lenY == dm.lenY()
+        invariant acc(denseMatrix(dm), 1/8) && sparseMatrix(sm, lenX, lenY)
+        invariant 0 <= x && x < lenX && lenX == dm.lenX() && 0 <= y && y <= dm.lenY() && lenY == dm.lenY()
         invariant forall i, j int :: (0 <= i && i < x && 0 <= j && j < lenY ==> dm.lookup(i, j) == LookupL(sm, lenX, lenY, i, j))
         invariant forall j int :: (0 <= j && j < y ==> dm.lookup(x, j) == LookupL(sm, lenX, lenY, x, j))
         for y := 0; y < lenY; y++ {
-            unfold acc(denseMatrix(dm), 1/2)
+            unfold acc(denseMatrix(dm), 1/8)
             e := &Entry{row: x, column: y, value: (dm.values)[x][y]}
             fold entry(e, lenX, lenY)
             sm = &SparseMatrix{entry: e, next: sm}
             fold sparseMatrix(sm, lenX, lenY)
-            fold acc(denseMatrix(dm), 1/2)
+            fold acc(denseMatrix(dm), 1/8)
         }
         // the following assert statement is necessary to preserve the outer loop's invariants:
         assert forall i, j int :: (0 <= i && i <= x && 0 <= j && j < dm.lenY() ==> dm.lookup(i, j) == LookupL(sm, lenX, lenY, i, j))

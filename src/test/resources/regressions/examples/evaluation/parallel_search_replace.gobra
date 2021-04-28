@@ -47,6 +47,7 @@ func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
       if(s[i] == x) { s[i] = y }
     }
     fold replacedPerm!<s0,s,x,y!>()
+    // Gobra can detect automatically that this call is ghost. In these cases, the `ghost` annotation is not necessary
     wg.PayDebt(replacedPerm!<s0,s,x,y!>)
     wg.Done()
     fold PredTrue!<!>()

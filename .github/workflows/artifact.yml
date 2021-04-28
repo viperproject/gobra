@@ -8,7 +8,7 @@ name: artifact
 
 on:
   push: # run this workflow on every push
-  pull_request: # run this workflow on every pull_request
+  # do not run on PRs  as building the artifact fails as the commit on which a PR is based on cannot be checked out
 
 jobs:
   build-image:
@@ -21,7 +21,7 @@ jobs:
 
       # build docker image
       - name: Docker build
-        run: docker build -t gobraverifier/gobra-artifact:v1 .
+        run: docker build --build-arg GOBRA_COMMIT=$GITHUB_SHA -t gobraverifier/gobra-artifact:v1 .
         working-directory: gobra/artifact
 
       # save docker image

@@ -2,7 +2,7 @@
 
 The `Dockerfile` in this directory creates a ready-to-use Docker container with compiled versions of Gobra.
 The full steps are as follows:
-1. Build the image:
+1. Executing the following command in the `artifact` directory of this repository (i.e. the directory in which this README is located) builds the image:
     ```
     docker build -t gobraverifier/gobra-artifact:v1 .
     ```

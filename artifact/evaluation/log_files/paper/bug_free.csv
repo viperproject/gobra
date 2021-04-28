@@ -1,0 +1,15 @@
+File,Outputs,Mean [ms],StdDev [ms],RelStdDev [%],Best [ms],Median [ms],Worst [ms]
+Tree.gobra,0,2089,41,1,2045,2081,2174
+binary_search_tree.gobra,0,10885,84,0,10767,10904,11079
+dense_sparse_matrix.gobra,0,10457,731,6,9382,10557,11905
+dutchflag.gobra,0,2016,31,1,1984,2008,2092
+example-2-1.gobra,0,1713,27,1,1678,1709,1785
+example-2-2.gobra,0,1041,62,5,969,1072,1123
+finite_list.gobra,0,1449,96,6,1322,1447,1627
+heapsort.gobra,0,16724,2960,17,13547,16689,24045
+pair_insertion_sort.gobra,0,15552,3453,22,12010,14276,22329
+parallel_search_replace.gobra,0,53178,3354,6,48483,52547,58674
+parallel_sum.gobra,0,58393,17161,29,30448,63978,85310
+relaxed_prefix.gobra,0,7084,321,4,6515,7172,7682
+visitor_pattern.gobra,0,4377,92,2,4248,4380,4581
+zune.gobra,0,1085,71,6,996,1089,1209

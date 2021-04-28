@@ -134,7 +134,7 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test
     # copy regression files:
     cp -r $HOME/gobra/src/test/resources/regressions/* $HOME/test_suite/regressions && \
     # copy evaluation files:
-    cp -r $HOME/gobra/src/test/resources/regressions/examples/evaluation/* $HOME/test_suite/evaluation
+    cp -r $HOME/gobra/src/test/resources/regressions/examples/evaluation/* $HOME/test_suite/evaluation && \
     # copy tutorial files:
     cp -r $HOME/gobra/src/test/resources/regressions/examples/tutorial-examples/* $HOME/test_suite/examples
 

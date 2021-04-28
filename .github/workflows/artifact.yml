@@ -8,7 +8,7 @@ name: artifact
 
 on:
   push: # run this workflow on every push
-  pull_request: # run this workflow on every pull_request
+  # do not run on PRs  as building the artifact fails as the commit on which a PR is based on cannot be checked out
 
 jobs:
   build-image:

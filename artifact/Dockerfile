@@ -130,7 +130,7 @@ RUN cd $HOME && \
     cd $HOME
 
 # setup test_suite folder:
-RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test_suite/tutorial-examples && \
+RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation/log_files $HOME/test_suite/tutorial-examples && \
     # copy regression files:
     cp -r $HOME/gobra/src/test/resources/regressions/* $HOME/test_suite/regressions && \
     # copy evaluation files:
@@ -142,7 +142,7 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test
 ADD content/* $HOME/
 ADD Dockerfile $HOME/
 # copy evaluation log files:
-ADD evaluation/* $HOME/test_suite/evaluation/
+ADD evaluation/* $HOME/test_suite/evaluation/log_files/
 
 ENV MOUNT_DIR $HOME/sync
 

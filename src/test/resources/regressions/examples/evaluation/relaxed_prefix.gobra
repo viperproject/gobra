@@ -5,11 +5,6 @@
 
 package pkg
 
-ghost
-requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-ensures len(s) == len(xs)
-ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
-pure func toseq (s []int) (xs seq[int])
 
 requires len(pat) <= len(s) + 1
 requires forall i int :: 0 <= i && i < len(pat) ==> acc(&pat[i])
@@ -69,3 +64,11 @@ func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
   }
   return
 }
+
+// Proof Utility: dump a slice into a sequence.
+// parallel_search_and_replace has a complete version.
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures len(s) == len(xs)
+ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+pure func toseq (s []int) (xs seq[int])

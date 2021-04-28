@@ -151,34 +151,6 @@ func evaluator_client() {
 }
 
 
-//  // aggregator (work in progress, will not be included in the paper)
-//
-//  type aggregator struct {
-//    sum int
-//  }
-//
-//  requires 1 <= u && acc(self) && acc(ev.mem2(), 1/u) && acc(n.mem(), 1/u)
-//  ensures  acc(self) && acc(ev.mem2(), 1/u) && acc(n.mem(), 1/u) && self.sum == old(self.sum) + n.accept(ev, u)
-//  func (self *aggregator) aggregate(ev *evaluator, n node, ghost u int) {
-//    if v, ok := n.(*variable); ok {
-//      self.sum += (unfolding acc(ev.mem2(), 1/u) in (ev.store)[unfolding acc(n.mem(), 1/u) in v.id])
-//    } else if c, ok := n.(*constant); ok {
-//      self.sum += (unfolding acc(n.mem(), 1/u) in c.value)
-//    } else if a, ok := n.(*addition); ok {
-//      unfold acc(n.mem(), 1/u)
-//      assert acc(a, 1/u)
-//
-//      self.aggregate(ev, a.left, u)
-//      assert self.sum == old(self.sum) + a.left.accept(ev, u)
-//
-//      self.aggregate(ev, a.right, u)
-//      assert self.sum == old(self.sum) + a.left.accept(ev, u) + a.right.accept(ev, u)
-//
-//      fold acc(n.mem(), 1/u)
-//    } else {
-//      assume false
-//    }
-//  }
 
 //:: ExpectedOutput(postcondition_error:assertion_error)
 ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant) // removed option that it might be *addition

@@ -41,7 +41,7 @@ To run the artifact, we recommend the use of a shared folder to access files pro
   <27:3> Assert might fail.
   Assertion false might not hold
   ```
-  Please consult Section ["Syntax"](#gobra-syntax) for information on how to change existing examples in a more meaningful way and how to write your own Gobra programs from scratch.
+  Please consult Section ["Gobra Syntax"](#gobra-syntax) for information on how to change existing examples in a more meaningful way and how to write your own Gobra programs from scratch.
 
 - In addition to single file verification, the container provides scripts to execute our regression test suite and the benchmarks:
   ```commandline
@@ -68,7 +68,7 @@ docker run -it --memory=10g --volume $PWD/gobra_sync:/home/gobra/sync gobraverif
 
 ### Strange Syntax Errors and Type Errors
 
-We reimplemented the parser and type checker of Gobra. At this point in time, parser errors and type checker errors can be misleading. For instance, if an opening bracket `{` is not put on the same line as the function definition (which is mandatory in Go), then Gobra will output `'ghost' expected but '{' found`. As another example, if a call has an incorrect number of arguments, Gobra will complain that it expected the last parameter of the function to have a variadic type. If the parser fails, then often adding more parentheses can solve the problem. As a concrete example, `x.f.g()` should be written as `(x.f).g()`. For writing new examples, we recommend inspecting existing examples to see how a feature is concretely.
+We reimplemented the parser and type checker of Gobra. At this point in time, parser errors and type checker errors can be misleading. For instance, if an opening bracket `{` is not put on the same line as the function definition (which is mandatory in Go), then Gobra will output `'ghost' expected but '{' found`. As another example, if a call has an incorrect number of arguments, Gobra will complain that it expected the last parameter of the function to have a variadic type. If the parser fails, then often adding more parentheses can solve the problem. As a concrete example, `x.f.g()` should be written as `(x.f).g()`. For writing new examples, we recommend inspecting existing examples to see how a feature concretely works.
 
 
 
@@ -86,13 +86,13 @@ Another, more ambitious, way to exercise the tool on new inputs is to take an ex
 
 ## Log Files
 
-We have included two sets of log files in the Docker container. The folder `/home/gobra/test_suite/evaluation/paper` on the Docker container has the log files that we produced for the evaluation section of the paper. Please note that the names of some examples are slightly different and that not all measured examples were used in the paper. The folder `/home/gobra/test_suite/evaluation/contains` contains measurements that we have taken with the submitted Docker image on the same machine as the origin evaluation. There, we use the same names as in the paper.
+We have included two sets of log files in the Docker container. The folder `/home/gobra/test_suite/evaluation/log_files/paper` on the Docker container has the log files that we produced for the evaluation section of the paper. Please note that the names of some examples are slightly different and that not all measured examples were used in the paper. The folder `/home/gobra/test_suite/evaluation/log_files/docker` contains measurements that we have taken with the submitted Docker image on the same machine as the origin evaluation. There, we use the same names as in the paper.
 
 
 
 ## Relevant Source Code
 
-Gobra consists of a parser, type checker, a transformation from parse AST to internal AST, an encoding into Viper, and a back translation of Viper errors. We believe that the encoding is the most interesting part of the code base. The encoding is split into several parts. The folder `/home/gobra/src/main/scala/viper/gobra/translator/encodings` contains the encodings of different types. For instance, `PointerEncoding` implements the encoding of pointer types. Many encodings are extensively documented with comments describing what is computed. We do not guarantee that all comments are completely accurate. The folder `/home/gobra/src/main/scala/viper/gobra/translator/implementations/components` contains the encoding of auxiliary data structures such as tuples, options, or arrays. Lastly, the folder `/home/gobra/src/main/scala/viper/gobra/translator/implementations/translator` contains the encoding of basic assertions and statements, which is not well documented.
+Gobra consists of a parser, type checker, a transformation from parse AST to internal AST, an encoding into Viper, and a back translation of Viper errors. We believe that the encoding is the most interesting part of the code base. The encoding is split into several parts. The folder `/home/gobra/gobra/src/main/scala/viper/gobra/translator/encodings` contains the encodings of different types. For instance, `PointerEncoding` implements the encoding of pointer types. Many encodings are extensively documented with comments describing what is computed. We do not guarantee that all comments are completely accurate. The folder `/home/gobra/gobra/src/main/scala/viper/gobra/translator/implementations/components` contains the encoding of auxiliary data structures such as tuples, options, or arrays. Lastly, the folder `/home/gobra/gobra/src/main/scala/viper/gobra/translator/implementations/translator` contains the encoding of basic assertions and statements, which is not well documented.
 
 
 
@@ -114,6 +114,5 @@ Our GitHub repository also has instructions on how to install Gobra from scratch
 
 Gobra and its sources are licensed under the [Mozilla Public License Version 2.0](http://www.mozilla.org/MPL/2.0/) with the following exceptions:
 - The `.gobra` files used for regression testing are in [Public Domain](http://creativecommons.org/publicdomain/zero/1.0/)
-- Certain files containing stubs for Go built-ins or the Go standard library (located in `src/main/resources/builtin` and `src/main/resources/stubs/sync`, respectively) are copyrighted by the Go Authors ([license](https://golang.org/LICENSE)) because these files are largely inspired by their counterparts in the Go source code.
-
+- Certain files containing stubs for Go built-ins or the Go standard library (located in `/home/gobra/gobra/src/main/resources/builtin` and `/home/gobra/gobra/src/main/resources/stubs/sync`, respectively) are copyrighted by the Go Authors ([license](https://golang.org/LICENSE)) because these files are largely inspired by their counterparts in the Go source code.
 

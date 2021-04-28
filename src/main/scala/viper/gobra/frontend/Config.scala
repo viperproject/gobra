@@ -115,7 +115,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "backend",
     descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
-    noshort = true
+    noshort = true,
+    hidden = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
@@ -189,7 +190,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     name = "boogieExe",
     descr = "The Boogie executable",
     default = None,
-    noshort = true
+    noshort = true,
+    hidden = true
   )
 
   val checkOverflows: ScallopOption[Boolean] = toggle(

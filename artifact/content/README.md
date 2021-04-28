@@ -62,10 +62,10 @@ To run the artifact, we recommend the use of a shared folder to access files pro
 ### Permission error on `docker run`
 
 If executing `docker run` with a mounted folder causes a permissions error, then use the following command instead:
-
 ```commandline
 docker run -it --memory=6g --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/gobra_sync gobraverifier/gobra-artifact:v1
 ```
+**Note: `$PWD/gobra_sync` has to already exist on the host.**
 
 
 ### Non-Termination and OutOfMemoryError

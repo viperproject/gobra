@@ -27,7 +27,7 @@ func client1() {
 }
 
 func client2() {
-	x@ := pair{1,2} // if the reference of an address is taken, then add @
+	x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
 	(&x).sumPair(42)
 	assert x.left == 43
 }

@@ -74,8 +74,12 @@ WORKDIR $HOME
 ENV SILVER_COMMIT "v.21.01-release"
 ENV CARBON_COMMIT "v.21.01-release"
 ENV SILICON_COMMIT "v.21.01-release"
-# TODO: fix to a particular commit or tag:
-ENV GOBRA_COMMIT "origin/artifact"
+# GOBRA_COMMIT can be set while building the docker image by using `docker build --build-arg GOBRA_COMMIT=<some branch>`
+# by default, "origin/master" is used:
+ARG GOBRA_COMMIT="origin/master"
+# store GOBRA_COMMIT ARG in an environment variable with the same name such that it is still available after building
+# the container:
+ENV GOBRA_COMMIT $GOBRA_COMMIT
 # all commands are executed as part of a single "RUN" command in order that no intermediate layers with
 # temporary files get created
 RUN cd $HOME && \
@@ -100,6 +104,7 @@ RUN cd $HOME && \
     git clone https://github.com/viperproject/gobra.git $HOME/gobra && \
     cd $HOME/gobra && \
     git reset --hard $GOBRA_COMMIT && \
+    echo "Switched to Gobra commit $GOBRA_COMMIT" && \
     ln --symbolic $HOME/silver && ln --symbolic $HOME/silicon && ln --symbolic $HOME/carbon && \
     # compile and assemble gobra.jar:
     sbt clean assembly && \

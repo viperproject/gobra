@@ -37,7 +37,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 			case c:SiliconMappedCounterexample => c.converter
 			case _ => return None
 		}
-		val viperModel :Map[String,sil.ExtractedModel] = converter.modelAtLabel
+		val viperModel :Map[String,sil.ExtractedModel] = converter.modelAtLabel ++ Seq(("return",converter.extractedModel))
 		val fi = viperModel.keys.head
 		val viperVars : Seq[String] = viperModel.apply(fi).entries.keys.toSeq 
 		val viperProgram = backtrack.viperprogram

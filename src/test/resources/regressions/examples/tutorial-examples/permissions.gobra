@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+type pair struct {
+	left, right int
+}
+
+// precondition
+requires acc(&x.left) && acc(&x.right) 
+// postcondition 1
+ensures acc(&x.left) && acc(&x.right)
+// postcondition 2
+ensures x.left == old(x.left) + n
+// postcondition 3
+ensures x.right == old(x.right) + n
+func (x *pair) sumPair(n int) {
+	x.left += n
+	x.right += n
+}
+
+func client1() {
+	p := &pair{1,2}
+	p.sumPair(42)
+	assert p.left == 43
+}
+
+func client2() {
+	x@ := pair{1,2} // if taking the reference of a variable should be possible, then add @
+	(&x).sumPair(42)
+	assert x.left == 43
+}

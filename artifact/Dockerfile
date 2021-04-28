@@ -136,11 +136,13 @@ RUN mkdir -p $HOME/test_suite/regressions $HOME/test_suite/evaluation $HOME/test
     # copy evaluation files:
     cp -r $HOME/gobra/src/test/resources/regressions/examples/evaluation/* $HOME/test_suite/evaluation
     # copy tutorial files:
-    # cp -r $HOME/gobra/src/test/resources/regressions/examples/tutorial-examples/* $HOME/test_suite/examples
+    cp -r $HOME/gobra/src/test/resources/regressions/examples/tutorial-examples/* $HOME/test_suite/examples
 
 # copy content into image:
 ADD content/* $HOME/
 ADD Dockerfile $HOME/
+# copy tutorial into image:
+ADD ../docs/tutorial.md $HOME/
 # copy evaluation log files:
 ADD evaluation/* $HOME/test_suite/evaluation/
 
@@ -152,6 +154,8 @@ ENTRYPOINT \
     # copy all resources that should be available in the mounted sync folder:
     cp $HOME/README.md $MOUNT_DIR && \
     cp $HOME/Dockerfile $MOUNT_DIR && \
+    cp $HOME/tutorial.md $MOUNT_DIR && \
+    cp $HOME/paper.pdf $MOUNT_DIR && \
     cp -r $HOME/test_suite $MOUNT_DIR && \
     # `$@` corresponds to the arguments passed to docker run:
     /bin/bash "$@"

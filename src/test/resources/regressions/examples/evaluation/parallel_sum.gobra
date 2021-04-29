@@ -1,0 +1,157 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "sync"
+
+type Accum struct {
+	sum *int
+	m *sync.Mutex
+}
+
+pred AccInv(x *int, ghost seenSlice ghost []int) {
+	acc(x) && (forall i int :: 0 <= i && i < len(seenSlice) ==> (acc(&seenSlice[i], 1/2))) && GhostSum(seenSlice) == *x
+}
+
+ghost
+requires acc(c) && acc(c.sum) && acc(c.m) && c.m.state == 0 && c.m.stema == 0
+requires *c.sum == 0
+requires forall i int :: 0 <= i && i < len(seenSlice) ==> acc(&seenSlice[i], 1/2)
+requires forall i int :: 0 <= i && i < len(seenSlice) ==> seenSlice[i] == 0
+ensures acc(c) && c.m.LockP() && c.m.LockInv() == (AccInv!<c.sum, seenSlice!>)
+func (c *Accum) Init(ghost seenSlice ghost []int) {
+	assume GhostSum(seenSlice) == 0
+	fold AccInv!<c.sum, seenSlice!>()
+	c.m.SetInv(AccInv!<c.sum, seenSlice!>)
+}
+
+/* Creates a worker thread per element in the slice and concurrently computes the sum of all the elements */
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures res == old(Sum(s))
+func ParallelSum(s []int) (res int) {
+	if len(s) == 0 {
+		return 0
+	}
+
+	count@ := 0
+	m := &sync.Mutex{}
+	c := &Accum{sum: &count, m: m}
+	ghost seenSlice := make(ghost []int, len(s))
+	c.Init(seenSlice)
+	w := &sync.WaitGroup{}
+	w.Init()
+	n := len(s)
+	ghost tokens := seq[pred()]{}
+
+	invariant 0 <= i && i <= n
+	invariant len(tokens) == i
+	invariant i == 0 ==> w.WaitGroupP()
+	// Martin suggested the following line instead of the previous one, with the goal of
+	// deleting the invariant `i >= 0`. However, that is insufficient to prove the loop invariant
+	// invariant i != 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	invariant i > 0 ==> acc(w.WaitGroupP(), 1/2) && acc(w.WaitGroupStarted(), 1/2)
+	invariant forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/2)
+	invariant forall j int :: 0 <= j && j < i ==> tokens[j] == locHasVal!<&seenSlice[j],s[j]!>;
+	invariant forall j int :: 0 <= j && j < i ==> w.TokenById(tokens[j], j)
+	invariant !w.WaitMode()
+	invariant acc(c, _)
+	invariant acc(c.m.LockP(), _) && c.m.LockInv() == AccInv!<c.sum, seenSlice!>;
+	invariant forall j int :: i <= j && j < n ==> acc(&seenSlice[j], 1/2)
+	invariant forall j int :: i <= j && j < n ==> seenSlice[j] == 0
+	for i := 0; i < n; i++ {
+		w.Add(1, 1/2, PredTrue!<!>)
+		ghost if i == 0 {
+			w.Start(1/2, PredTrue!<!>)
+		}
+		tokens = tokens ++ seq[pred()]{ locHasVal!<&seenSlice[i], s[i]!> }
+		w.GenerateTokenAndDebt(tokens[i])
+		fold w.TokenById(tokens[i], i)
+		go worker(w, c, s[i], seenSlice, i)
+	}
+
+	w.SetWaitMode(1/2, 1/2)
+	w.Wait(1/1, tokens)
+	ghost {
+		invariant 0 <= i && i <= n
+		invariant forall j int :: 0 <= j && j < n ==> acc(&s[j], 1/2)
+		invariant forall j int :: 0 <= j && j < n ==> tokens[j] == locHasVal!<&seenSlice[j],s[j]!>;
+		invariant forall j int :: 0 <= j && j < n ==> (j < i ? acc(&seenSlice[j], 1/2) && seenSlice[j] == s[j] : sync.InjEval(tokens[j], j))
+		for i:=0; i < n; i++ {
+			unfold sync.InjEval(tokens[i], i)
+			unfold locHasVal!<&seenSlice[i],s[i]!>()
+		}
+	}
+
+	c.m.Lock()
+	unfold AccInv!<c.sum, seenSlice!>()
+	res = *(c.sum)
+	fold AccInv!<c.sum, seenSlice!>()
+	c.m.Unlock()
+	sumExtensional(s, seenSlice)
+
+	return res
+}
+
+ghost
+requires len(a) == len(b)
+requires forall j int :: 0 <= j && j < len(a) ==> acc(&a[j], 1/2)
+requires forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4) && b[j] == a[j]
+ensures old(Sum(a) - GhostSum(b)) == 0
+ensures forall j int :: 0 <= j && j < len(a) ==> acc(&a[j], 1/2)
+ensures forall j int :: 0 <= j && j < len(b) ==> acc(&b[j], 1/4)
+func sumExtensional(ghost a []int, ghost b ghost []int) {
+	if len(a) != 0 {
+		sumExtensional(a[:len(a)-1], b[:len(b)-1])
+	}
+}
+
+pred locHasVal(loc *int, val int) {
+	acc(loc, 1/2) && *loc == val
+}
+
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+pure func Sum(ghost s []int) int {
+	return len(s) == 0? 0 : s[len(s) - 1] + Sum(s[:len(s)-1])
+}
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+pure func GhostSum(ghost s ghost []int) int {
+	return len(s) == 0? 0 : s[len(s) - 1] + GhostSum(s[:len(s)-1])
+}
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/4)
+requires acc(&s[pos], 3/4)
+requires 0 <= pos && pos < len(s)
+ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/4)
+ensures acc(&s[pos], 3/4)
+ensures GhostSum(s) == old(GhostSum(s)) + val
+ensures s[pos] == old(s[pos]) + val
+func update(ghost s ghost []int, ghost pos, val int) {
+	if pos == len(s)-1 {
+		s[pos] += val
+	} else {
+		update(s[:len(s)-1], pos, val)
+	}
+}
+
+requires acc(accum, _)
+requires acc(&seenSlice[pos], 1/2) && seenSlice[pos] == 0
+requires acc(accum.m.LockP(), _) && accum.m.LockInv() == AccInv!<accum.sum, seenSlice!>;
+requires 0 <= pos && pos < len(seenSlice)
+requires w.UnitDebt(locHasVal!<&seenSlice[pos],val!>)
+func worker(w *sync.WaitGroup, accum *Accum, val int, ghost seenSlice ghost []int, ghost pos int) {
+	accum.m.Lock()
+	unfold AccInv!<accum.sum, seenSlice!>()
+	*(accum.sum) += val
+	update(seenSlice, pos, val)
+	fold AccInv!<accum.sum, seenSlice!>()
+	accum.m.Unlock()
+	fold locHasVal!<&seenSlice[pos],val!>()
+	w.PayDebt(locHasVal!<&seenSlice[pos],val!>)
+	w.Done()
+}

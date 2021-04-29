@@ -1,0 +1,98 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type stream interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure hasNext() bool
+
+    requires mem() && hasNext()
+    ensures  mem()
+    next() interface{}
+}
+
+
+type cell interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure value() int
+
+    requires acc(mem())
+    ensures  acc(mem()) && value() == i
+    setValue(i int)
+}
+
+
+
+// implementation
+
+type counter struct{ f, max int }
+
+requires acc(x, 1/2)
+pure func (x *counter) hasNext() bool {
+  return x.f < x.max
+}
+
+requires acc(x, 1/2)
+pure func (x *counter) value() int {
+  return x.f
+}
+
+requires acc(x)
+ensures  acc(x) && x.f == i
+func (x *counter) setValue(i int) {
+  x.f = i
+}
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == int
+ensures  y.(int) == old(x.f)
+func (x *counter) next() (y interface{}) {
+  y = x.f
+  x.f += 1
+  return
+}
+
+// implementation proofs
+
+pred counterMem(x *counter) { acc(x) }
+
+(*counter) implements stream {
+
+  pred mem := counterMem
+
+  pure (x *counter) hasNext() bool {
+    return unfolding acc(counterMem(x), 1/2) in x.hasNext()
+  }
+
+  (x *counter) next() (res interface{}) {
+    unfold counterMem(x)
+    res = x.next()
+    fold counterMem(x)
+  }
+}
+
+pred counterMem2(x *counter) { acc(x) }
+
+(*counter) implements cell {
+
+  pred mem := counterMem2
+
+  pure (x *counter) value() int {
+    return unfolding acc(counterMem2(x), 1/2) in x.value()
+  }
+
+  (x *counter) setValue(i int) {
+    unfold counterMem2(x)
+    x.setValue(i)
+    fold counterMem2(x)
+  }
+}
+
+
+

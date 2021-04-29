@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package counterImpl
+
+// implementation
+type counter struct{ f, max int }
+
+requires acc(x, 1/2)
+ensures  res == (x.f < x.max) // necessary, because the body of imported functions is removed
+pure func (x *counter) hasNext() (res bool) {
+	return x.f < x.max
+}
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == int
+ensures  y.(int) == old(x.f)
+func (x *counter) next() (y interface{}) {
+	y = x.f
+	x.f += 1
+	return
+}

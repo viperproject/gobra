@@ -6,6 +6,8 @@
 
 package viper.gobra.reporting
 
+import java.nio.file.Paths
+
 import viper.silver.ast.SourcePosition
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{frontend, internal}
@@ -13,18 +15,24 @@ import viper.gobra.util.Violation
 import viper.silver.ast.utility.rewriter.{SimpleContext, Strategy, StrategyBuilder, Traverse}
 import viper.silver.ast.utility.rewriter.Traverse.Traverse
 
+import scala.reflect.ClassTag
+
 object Source {
 
   sealed abstract class AbstractOrigin(val pos: SourcePosition, val tag: String)
   case class Origin(override val pos: SourcePosition, override val tag: String) extends AbstractOrigin(pos, tag)
   case class AnnotatedOrigin(origin: AbstractOrigin, annotation: Annotation) extends AbstractOrigin(origin.pos, origin.tag)
-  trait Annotation
+
+  sealed trait Annotation
+  case object OverflowCheckAnnotation extends Annotation
+  case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
 
   object Parser {
 
     sealed trait Info {
       def origin: Option[AbstractOrigin]
       def vprMeta(node: internal.Node): (vpr.Position, vpr.Info, vpr.ErrorTrafo)
+      def tag: String = origin.map(_.tag.trim).getOrElse("unknown")
     }
 
     object Unsourced extends Info {
@@ -58,6 +66,24 @@ object Source {
     case class Info(pnode: frontend.PNode, node: internal.Node, origin: AbstractOrigin, comment: Seq[String] = Vector.empty) extends vpr.Info {
       override def isCached: Boolean = false
       def addComment(cs : Seq[String]) : Info = Info(pnode, node, origin, comment ++ cs)
+
+      def trySrc[T <: frontend.PNode: ClassTag](postfix: String = ""): String = pnode match {
+        case _: T => origin.tag.trim + postfix
+        case _ => ""
+      }
+    }
+
+    val noInfo: Info = Info(
+      frontend.PLabelDef("unknown"),
+      internal.LabelProxy("unknown")(Source.Parser.Internal),
+      Origin(SourcePosition(Paths.get("."), 0, 0), "unknown")
+    )
+
+    object / {
+      def unapply(arg: Info): Option[(Info, Annotation)] = arg.origin match {
+        case ann: AnnotatedOrigin => Some((arg, ann.annotation))
+        case _ => None
+      }
     }
   }
 
@@ -68,9 +94,21 @@ object Source {
     }
   }
 
+  object CertainSynthesized {
+    def unapply(node: vpr.Node): Option[Verifier.Info] = {
+      Synthesized.unapply(node) orElse Some(Verifier.noInfo)
+    }
+  }
+
   def unapply(node: vpr.Node): Option[Verifier.Info] = {
     val info = node.getPrettyMetadata._2
     info.getUniqueInfo[Verifier.Info]
+  }
+
+  object CertainSource {
+    def unapply(node: vpr.Node): Option[Verifier.Info] = {
+      Source.unapply(node) orElse Some(Verifier.noInfo)
+    }
   }
 
   def withInfo[N <: vpr.Node](n: (vpr.Position, vpr.Info, vpr.ErrorTrafo) => N)(source: internal.Node): N = {

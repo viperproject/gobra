@@ -1,0 +1,141 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "sync"
+
+// Proof Utility: dump a slice into a sequence
+ghost
+requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j],_)
+ensures len(res) == len(s)
+ensures forall j int :: {s[j]} {res[j]} 0 <= j && j < len(s) ==> s[j] == res[j]
+pure func toSeq(ghost s []int) (res seq[int]) {
+  return (len(s) == 0 ? seq[int]{} :
+                        toSeq(s[:len(s)-1]) ++ seq[int]{s[len(s) - 1]})
+}
+
+pred replacedPerm(ghost s0 seq[int], ghost s [] int, ghost x, y int) {
+  len(s0) == len(s) &&
+  (forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])) &&
+  forall i int :: {s[i]} 0 <= i && i < len(s) ==>
+    s[i] == (s0[i] == x ? y : s0[i])
+}
+
+pred messagePerm(ghost wg *sync.WaitGroup, s []int, ghost x, y int) {
+  (forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])) &&
+  wg.UnitDebt(replacedPerm!<toSeq(s),s,x,y!>)
+}
+
+requires acc(c.RecvChannel(),_)
+requires c.RecvGivenPerm() == PredTrue!<!>;
+requires c.RecvGotPerm() == messagePerm!<wg,_,x,y!>;
+func worker(c <- chan[]int, wg *sync.WaitGroup, x, y int) {
+  fold acc(PredTrue!<!>(),2/1);
+  invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
+  invariant c.RecvGivenPerm() == PredTrue!<!>;
+  invariant c.RecvGotPerm() == messagePerm!<wg,_,x,y,!>;
+  invariant ok ==> messagePerm!<wg,_,x,y!>(s)
+  for s, ok := <- c; ok; s, ok = <-c {
+    unfold messagePerm!<wg,_,x,y!>(s)
+    ghost s0 := toSeq(s)
+    invariant 0 <= i && i <= len(s)
+    invariant forall j int :: 0 <= j && j < len(s) ==> acc(&s[j])
+    invariant forall j int :: {s[j]} 0 <= j && j < len(s) ==>
+      s[j] == (s0[j] == x && j < i ? y : s0[j])
+    for i := 0; i != len(s); i++ {
+      if(s[i] == x) { s[i] = y }
+    }
+    fold replacedPerm!<s0,s,x,y!>()
+    // Gobra can detect automatically that this call is ghost. In these cases, the `ghost` annotation is not necessary
+    wg.PayDebt(replacedPerm!<s0,s,x,y!>)
+    wg.Done()
+    fold PredTrue!<!>()
+  }
+}
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures forall i int :: {s[i]} 0 <= i && i < len(s) ==>
+  s[i] == (old(s[i]) == x ? y : old(s[i]))
+func SearchReplace(s []int, x, y int) {
+  if(len(s) == 0) {
+    return
+  }
+  workers := 8
+  workRange := 1000
+  assert workers > 0
+  assert workRange > 0
+  ghost s0 := toSeq(s)
+  c := make(chan []int,4)
+  var wg@ sync.WaitGroup
+  ghost pr := messagePerm!<&wg,_,x,y!>;
+  c.Init(pr,PredTrue!<!>)
+  wg.Init()
+  ghost seqs := seq[seq[int]] {}
+  ghost pseqs := seq[pred()] {}
+  invariant acc(c.RecvChannel(),_)
+  invariant c.RecvGivenPerm() == PredTrue!<!> && c.RecvGotPerm() == pr
+  for i := 0; i != workers; i++ {
+    go worker(c,&wg,x,y)
+  }
+  invariant acc(c.SendChannel()) && c.SendGivenPerm() == pr
+  invariant acc(wg.WaitGroupP(),1/2) && !wg.WaitMode()
+  invariant (offset == 0 ? acc(wg.WaitGroupP(),1/2) : acc(wg.WaitGroupStarted(),1/2))
+  invariant 0 <= offset && offset <= len(s)
+  invariant forall i int :: offset <= i && i < len(s) ==> acc(&s[i])
+  invariant forall i int :: offset <= i && i < len(s) ==> s[i] == s0[i]
+  invariant offset != len(s) ==> offset == len(seqs) * workRange
+  invariant offset == len(s) ==> len(seqs) > 0 &&
+    len(s) == (len(seqs) - 1) * workRange + len(seqs[len(seqs) - 1])
+  invariant forall i int :: {seqs[i]} 0 <= i &&
+    i < len(seqs) - (offset == len(s) ? 1 : 0) ==> len(seqs[i]) == workRange
+  invariant forall i, j int :: {seqs[i][j]} 0 <= i && i < len(seqs) &&
+    0 <= j && j < len(seqs[i]) ==> seqs[i][j] == s0[i * workRange + j]
+  invariant len(pseqs) == len(seqs)
+  invariant forall i int :: {pseqs[i]} 0 <= i && i < len(pseqs) ==>
+    pseqs[i] == replacedPerm!<seqs[i],s[i * workRange:i * workRange + len(seqs[i])],x,y!>;
+  invariant forall i int :: 0 <= i && i < len(pseqs) ==> wg.TokenById(pseqs[i],i)
+  for offset := 0; offset != len(s); {
+    nextOffset := offset + workRange;
+    if(nextOffset > len(s)) {
+      nextOffset = len(s)
+    }
+    section := s[offset:nextOffset]
+    assert forall i int :: {&section[i]} 0 <= i && i < len(s) ==>
+      &section[i] == &s[i + offset]
+    ghost s1 := toSeq(section)
+    ghost wpr := replacedPerm!<s1,section,x,y!>;
+    wg.Add(1,1/2,PredTrue!<!>)
+    ghost if(offset == 0) {
+      wg.Start(1/2,PredTrue!<!>)
+    }
+    wg.GenerateTokenAndDebt(wpr)
+    fold wg.TokenById(wpr,len(pseqs))
+    seqs = seqs ++ seq[seq[int]]{ s1 }
+    pseqs = pseqs ++ seq[pred()] { wpr }
+    fold messagePerm!<&wg,_,x,y!>(section)
+    c <- section
+    offset = nextOffset
+  }
+  wg.SetWaitMode(1/2,1/2)
+  wg.Wait(1/2,pseqs)
+  ghost {
+    invariant 0 <= i && i <= len(seqs)
+    invariant forall j int :: i <= j && j < len(seqs) ==>
+      sync.InjEval(pseqs[j],j)
+    invariant forall j int :: 0 <= j &&
+      j < (i == len(seqs) ? len(s) : i * workRange) ==>
+      acc(&s[j]) && s[j] == (s0[j] == x ? y : s0[j])
+    for i := 0; i != len(pseqs); i++ {
+      unfold sync.InjEval(pseqs[i],i)
+      low := i * workRange
+      up := low + len(seqs[i])
+      s1 := s[low:up]
+      unfold replacedPerm!<seqs[i],s1,x,y!>()
+      assert forall j int :: {&s[j]} low <= j && j < up ==> &s[j] == &s1[j-low]
+    }
+  }
+}
+
+

@@ -1,0 +1,33 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+requires 0 <= n // precondition
+ensures sum == n * (n+1)/2 // postcondition
+func sum(n int) (sum int) {
+	sum := 0
+
+	invariant 0 <= i && i <= n + 1 
+	invariant sum == i * (i-1)/2
+	for i := 0; i <= n; i++ {
+			sum += i
+	}
+	return sum
+}
+
+ensures res == (n % 2 == 0)
+pure func isEven(n int) (res bool) {
+	return n % 2 == 0
+}
+
+ensures isEven(n) ==> res == n / 2
+ensures !isEven(n) ==> res == n / 2 + 1
+func halfRoundedUp(n int) (res int) {
+	if isEven(n) {
+		res = n / 2
+	} else {
+		res = n / 2 + 1
+	}
+	return res
+}

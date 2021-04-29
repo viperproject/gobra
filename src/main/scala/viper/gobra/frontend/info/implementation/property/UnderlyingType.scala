@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{PDeref, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, GhostSliceT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -130,7 +130,7 @@ trait UnderlyingType { this: TypeInfoImpl =>
     underlyingType(t) match {
       case NilType => true
       case _: PointerT => true
-      case _: SliceT => true
+      case _: SliceT | _: GhostSliceT => true
       case _: MapT => true
       case _: ChannelT => true
       case _: FunctionT => true

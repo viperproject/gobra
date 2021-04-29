@@ -252,7 +252,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SequenceT(_), IntT(_)) =>
             noMessages
 
-          case (SliceT(_), IntT(_)) =>
+          case (_: SliceT | _: GhostSliceT, IntT(_)) =>
             noMessages
 
           case (VariadicT(_), IntT(_)) =>
@@ -295,7 +295,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             error(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
 
-        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
+        case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
           val lowOpt = low.map(intConstantEval)
           error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
 
@@ -303,13 +303,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case n@PTypeAssertion(base, typ) =>
-      isExpr(base).out ++ isType(typ).out ++
-        (underlyingType(exprType(base)) match {
+      isExpr(base).out ++ isType(typ).out ++ {
+        val baseT = exprType(base)
+        underlyingType(baseT) match {
           case t: InterfaceT =>
             val at = typeSymbType(typ)
-            error(n, s"type error: expression $base of type $at does not implement $typ", !implements(at, t))
+            implements(at, t).asReason(n, s"type error: type $at does not implement the interface $baseT")
           case t => error(n, s"type error: got $t expected interface")
-        })
+        }
+      }
 
     case n@PReceive(e) => isExpr(e).out ++ (exprType(e) match {
       case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages
@@ -349,7 +351,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -357,7 +359,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PCapacity(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }
@@ -369,7 +371,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
           error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
       } ++ (typ match {
-        case _: PSliceType =>
+        case _: PSliceType | _: PGhostSliceType =>
           error(m, s"too many arguments to make($typ)", args.length > 2) ++
             error(m, s"missing len argument to make($typ)", args.isEmpty) ++
             check(args){
@@ -493,6 +495,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
+      case (GhostSliceT(elem), IntT(_)) => elem
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
@@ -505,6 +508,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
       case (SequenceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None) => SequenceT(elem)
       case (SliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+      case (GhostSliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => GhostSliceT(elem)
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
@@ -763,6 +767,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                     case PSetType(elem) => Some(typeSymbType(elem))
                     case PMultisetType(elem) => Some(typeSymbType(elem))
                     case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PGhostSliceType(elem) => Some(typeSymbType(elem))
                     case PArrayType(_, elem) => Some(typeSymbType(elem))
                     case _ => None // conservative choice
                   }

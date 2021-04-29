@@ -1,0 +1,74 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2011-2020 ETH Zurich.
+
+name: artifact
+
+on:
+  push: # run this workflow on every push
+  # do not run on PRs  as building the artifact fails as the commit on which a PR is based on cannot be checked out
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Gobra
+        uses: actions/checkout@v2
+        with:
+          path: gobra
+
+      # build docker image
+      - name: Docker build
+        run: docker build --build-arg GOBRA_COMMIT=$GITHUB_SHA -t gobraverifier/gobra-artifact:v1 .
+        working-directory: gobra/artifact
+
+      # save docker image
+      - name: Docker save
+        run: docker save -o gobra_docker_image.tar gobraverifier/gobra-artifact:v1
+        working-directory: gobra/artifact
+
+      - name: Upload docker image
+        uses: actions/upload-artifact@v2
+        with:
+          name: gobra_docker_image.tar
+          path: gobra/artifact/gobra_docker_image.tar
+
+  test-image:
+    needs: build-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download docker image
+        uses: actions/download-artifact@v2
+        with:
+          name: gobra_docker_image.tar
+
+      - name: Load docker image
+        run: docker load -i gobra_docker_image.tar
+
+      - name: Create a unique sync folder name
+        shell: bash
+        run: echo "SYNC_PATH=$PWD/sync_$(date +%Y-%m-%d_%H-%M)" >> $GITHUB_ENV
+        # note that the SYNC_PATH ENV variable can be used the earliest in the next step
+
+      - name: Create sync folder
+        run: mkdir -p $SYNC_PATH
+
+      # use sync file according to https://stackoverflow.com/a/54787364/1990080
+      - name: Run single file
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/gobra.sh /home/gobra/sync/test_suite/evaluation/example-2-1.gobra
+
+      - name: Sync folder exists and is non empty
+        run: |
+          test -d $SYNC_PATH
+          ls -1qA $SYNC_PATH | grep -q .
+
+      - name: Run regressions
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/regressions.sh
+
+      - name: Run benchmark
+        run: docker run --mount type=volume,dst=/home/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$SYNC_PATH --env GOBRATESTS_REPETITIONS=1 gobraverifier/gobra-artifact:v1 /bin/bash /home/gobra/benchmark.sh
+
+      - name: Print benchmark results
+        run: cat $SYNC_PATH/benchmark_*.csv

@@ -6,11 +6,17 @@
 
 package viper.gobra.util
 
+import viper.gobra.reporting.VerifierError
+
 object Violation {
 
   abstract class GobraException(msg: String) extends RuntimeException(msg)
 
+  class KnownZ3BugException(msg: String) extends GobraException(msg)
+
   class LogicException(msg: String) extends GobraException(msg)
+
+  class UglyErrorMessage(val error: VerifierError) extends GobraException(error.message)
 
   @scala.annotation.elidable(scala.annotation.elidable.ASSERTION)
   @inline

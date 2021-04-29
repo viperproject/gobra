@@ -20,7 +20,8 @@
   },
   {
     "include": [
-      "**/Dockerfile"
+      "**/Dockerfile",
+      "**/*.sh"
     ],
     "exclude": [
       "carbon/**",
@@ -81,7 +82,10 @@
       ".github/check-license/**",
       "**/README.md",
       "**/LICENSE",
-      "docs/**"
+      "docs/**",
+      "artifact/content/paper.pdf",
+      "artifact/content/tutorial.md",
+      "artifact/evaluation/**"
     ]
   },
   {

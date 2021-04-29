@@ -381,6 +381,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case _: NoPerm => "none"
     case FractionalPerm(left, right) => showExpr(left) <> "/" <> showExpr(right)
     case _: WildcardPerm => "_"
+    case c: CurrentPerm => "perm" <> parens(showAcc(c.acc))
     case PermMinus(exp) => "-" <> showExpr(exp)
 
     case PureFunctionCall(func, args, _) =>

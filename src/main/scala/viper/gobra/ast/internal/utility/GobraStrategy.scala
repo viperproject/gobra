@@ -155,6 +155,7 @@ object GobraStrategy {
       case (_: NoPerm, Seq()) => NoPerm(meta)
       case (_: FractionalPerm, Seq(left: Expr, right: Expr)) => FractionalPerm(left, right)(meta)
       case (_: WildcardPerm, Seq()) => WildcardPerm(meta)
+      case (_: CurrentPerm, Seq(acc: Accessible.Predicate)) => CurrentPerm(acc)(meta)
       case (i: IntLit, Seq()) => IntLit(i.v)(meta)
       case (b: BoolLit, Seq()) => BoolLit(b.b)(meta)
       case (n: NilLit, Seq()) => NilLit(n.typ)(meta)

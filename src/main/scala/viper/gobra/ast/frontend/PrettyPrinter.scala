@@ -99,8 +99,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PMPredicateDecl(id, recv, args, body) =>
         "pred" <+> showReceiver(recv) <+> showId(id) <> parens(showParameterList(args)) <> opt(body)(b => space <> block(showExpr(b)))
       case ip: PImplementationProof =>
-        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <>
-          (if (ip.memberProofs.isEmpty) emptyDoc else block(ssep(ip.memberProofs map showMisc, line)))
+        showType(ip.subT) <+> "implements" <+> showType(ip.superT) <> (
+            if (ip.alias.isEmpty && ip.memberProofs.isEmpty) emptyDoc
+            else block(ssep(ip.alias map showMisc, line) <> line <> ssep(ip.memberProofs map showMisc, line))
+          )
     }
   }
 
@@ -542,6 +544,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case PMathematicalMapType(keys, values) => "mmap" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
+    case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(
         ssep((funcs ++ axioms) map showMisc, line)
@@ -603,8 +606,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDomainAxiom(exp) => "axiom" <+> block(showExpr(exp))
       case mip: PMethodImplementationProof =>
         (if (mip.isPure) "pure ": Doc else emptyDoc) <>
-          showReceiver(mip.receiver) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
+          parens(showParameter(mip.receiver)) <+> showId(mip.id) <> parens(showParameterList(mip.args)) <> showResult(mip.result) <>
           opt(mip.body)(b => space <> showBodyParameterInfoWithBlock(b._1, b._2))
+      case ipa: PImplementationProofPredicateAlias =>
+        "pred" <+> showId(ipa.left) <+> ":=" <+> showExprOrType(ipa.right)
     }
   }
 

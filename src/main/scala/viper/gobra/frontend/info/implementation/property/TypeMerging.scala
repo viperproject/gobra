@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
+import viper.gobra.frontend.info.base.Type.{ArrayT, ChannelT, GhostSliceT, IntT, InternalSingleMulti, InternalTupleT, MapT, MultisetT, PermissionT, PointerT, SequenceT, SetT, Single, SliceT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
 trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
@@ -30,6 +30,7 @@ trait TypeMerging extends BaseProperty { this: TypeInfoImpl =>
             case (MultisetT(l), MultisetT(r)) => typeMerge(l,r) map MultisetT
             case (ArrayT(len1, l), ArrayT(len2, r)) if len1 == len2 => typeMerge(l,r) map (ArrayT(len1, _))
             case (SliceT(l), SliceT(r)) => typeMerge(l,r) map SliceT
+            case (GhostSliceT(l), GhostSliceT(r)) => typeMerge(l,r) map GhostSliceT
             case (MapT(k1, v1), MapT(k2, v2)) => for {
               k <- typeMerge(k1, k2)
               v <- typeMerge(v1, v2)

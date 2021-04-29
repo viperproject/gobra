@@ -8,6 +8,7 @@ package viper.gobra.ast.internal.transform
 
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.OverflowCheckAnnotation
 import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
@@ -180,9 +181,6 @@ object OverflowChecksTransform extends InternalTransform {
     val obligations = ExprAssertion(computeAssertions(intSubExprsWithType))(info)
     Implication(assumptions, obligations)(info)
   }
-
-  // should this be moved to Source class?
-  case object OverflowCheckAnnotation extends Source.Annotation
 
   private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {

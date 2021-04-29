@@ -9,7 +9,7 @@ package viper.gobra.translator.encodings.slices
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{MakePreconditionReason, PreconditionError, Source}
+import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
@@ -187,8 +187,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             exhale = vpr.Exhale(runtimeChecks)(pos, info, errT)
             _ <- write(exhale)
             _ <- errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale =>
-                PreconditionError(info) dueTo MakePreconditionReason(info)
+              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => ArrayMakePreconditionError(info)
             }
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]

@@ -1,0 +1,175 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type node interface {
+    pred mem()
+
+    requires 1 <= u && acc(mem(), 1/u) && acc(v.mem2(), 1/u)
+    pure accept(v visitor, ghost u int) int
+}
+
+// variable
+
+type variable struct {
+  id int
+}
+
+requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+pure func (self *variable) accept(v visitor, ghost u int) int {
+  return v.visitVariable(self, u)
+}
+
+pred (self *variable) mem() { acc(self) && 0 <= self.id && self.id < 10 }
+
+
+
+// constant
+
+type constant struct {
+  value int
+}
+
+requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+pure func (self *constant) accept(v visitor, ghost u int) int {
+  return v.visitConstant(self, u)
+}
+
+pred (self *constant) mem() { acc(self) }
+
+
+// addition
+
+
+type addition struct {
+  left, right node
+}
+
+requires 1 <= u && acc(self.mem(), 1/u) && acc(v.mem2(), 1/u)
+pure func (self *addition) accept(v visitor, ghost u int) int {
+  return v.visitAddition(self, u)
+}
+
+pred (self *addition) mem() { acc(self) && self.left.mem() && self.right.mem() }
+
+
+// visitor
+
+type visitor interface {
+  pred mem2()
+
+  requires 1 <= u && acc(mem2(), 1/u) && acc(v.mem(), 1/u)
+  pure visitVariable(v *variable, ghost u int) int
+
+  requires 1 <= u && acc(mem2(), 1/u) && acc(c.mem(), 1/u)
+  pure visitConstant(c *constant, ghost u int) int
+
+  requires 1 <= u && acc(mem2(), 1/u)
+  pure visitAddition(a *addition, ghost u int) int
+}
+
+// children count
+
+type childrenCounter struct{ f int }
+
+pred (self *childrenCounter) mem2() { true }
+
+pure func (self *childrenCounter) visitVariable(v *variable, ghost u int) int {
+  return 1
+}
+
+pure func (self *childrenCounter) visitConstant(c *constant, ghost u int) int {
+  return 1
+}
+
+requires 1 <= u && acc(self.mem2(), 1/u) && acc(a.mem(), 1/u)
+pure func (self *childrenCounter) visitAddition(a *addition, ghost u int) int {
+  return unfolding acc(a.mem(), 1/u) in (a.left.accept(self, u) + a.right.accept(self, u))
+}
+
+(*childrenCounter) implements visitor {
+  //:: ExpectedOutput(precondition_error)
+  pure (self *childrenCounter) visitAddition(c *addition, ghost u int) int { return self.visitAddition(c, u) }
+}
+
+func childrenCounter_client() {
+
+  ev := &childrenCounter{}
+  fold ev.mem2()
+
+  var a node = &variable{0}
+  fold a.mem()
+
+  var b node = &constant{42}
+  fold b.mem()
+
+  c := &addition{a, b}
+  fold c.mem()
+
+  res := ev.visitAddition(c, 2)
+}
+
+
+// evaluator
+
+type evaluator struct {
+    store [10]int
+}
+
+pred (self *evaluator) mem2() { acc(self) }
+
+requires 1 <= u && acc(self.mem2(), 1/u) && acc(v.mem(), 1/u)
+pure func (self *evaluator) visitVariable(v *variable, ghost u int) int {
+  return unfolding acc(self.mem2(), 1/u) in (self.store)[unfolding acc(v.mem(), 1/u) in v.id]
+}
+
+requires 1 <= u && acc(c.mem(), 1/u)
+pure func (self *evaluator) visitConstant(c *constant, ghost u int) int {
+  return unfolding acc(c.mem(), 1/u) in c.value
+}
+
+
+requires 1 <= u && acc(self.mem2(), 1/u) && acc(a.mem(), 1/u)
+pure func (self *evaluator) visitAddition(a *addition, ghost u int) int {
+  return unfolding acc(a.mem(), 1/(u+1)) in (a.left.accept(self, u+1) + a.right.accept(self, u+1))
+}
+
+
+(*evaluator) implements visitor {
+  //:: ExpectedOutput(precondition_error)
+  pure (self *evaluator) visitAddition(c *addition, ghost u int) int { return self.visitAddition(c, u) }
+}
+
+func evaluator_client() {
+
+  ev := &evaluator{store: [10]int{0: 7, 4: 99}}
+  fold ev.mem2()
+
+  var a node = &variable{0}
+  fold a.mem()
+
+  var b node = &constant{42}
+  fold b.mem()
+
+  c := &addition{a, b}
+  fold c.mem()
+
+  res := ev.visitAddition(c, 2)
+  assert res == 49
+}
+
+
+
+ensures res ==> (typeOf(n) == *variable || typeOf(n) == *constant || typeOf(n) == *addition)
+func isAstNode(n node) (res bool) {
+  if v, ok := n.(*variable); ok {
+    return true
+  } else if c, ok := n.(*constant); ok {
+    return true
+  } else if a, ok := n.(*addition); ok {
+    return true
+  } else {
+    return false
+  }
+}

@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ./)
+
+import g "getterSetter" // contains the interface declaration
+import c "cell" // contains struct cell and the implementation of the interface
+// import "cellMem" // contains the memory predicate for cell
+import p "cellImplProof" // contains the implementation proof
+
+// access a member in p in order that Gobra picks up the implementation proof located in p:
+const dummy = p.USE_IMPLEMENTATION_PROOF
+
+// client code
+func client() {
+    c := &c.cell{5}
+    var i g.GetterSetter = c
+    fold i.mem()
+    v := i.GetVal()
+    assert v == 5
+    i.SetVal(42)
+    v = i.GetVal()
+    assert v == 42
+}

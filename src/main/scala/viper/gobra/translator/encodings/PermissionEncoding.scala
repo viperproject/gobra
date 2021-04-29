@@ -45,11 +45,18 @@ class PermissionEncoding extends LeafTypeEncoding {
       case fp: in.FullPerm => unit(withSrc(vpr.FullPerm(), fp))
       case np: in.NoPerm => unit(withSrc(vpr.NoPerm(), np))
       case wp: in.WildcardPerm => unit(withSrc(vpr.WildcardPerm(), wp))
+      case cp: in.CurrentPerm =>
+        val (pos, info, errT) = cp.vprMeta
+        for {
+          arg <- ctx.predicate.predicateAccess(ctx)(cp.acc.op, in.FullPerm(cp.info))
+          res = vpr.CurrentPerm(arg.loc)(pos, info, errT)
+        } yield res
       case pm@ in.PermMinus(exp) => for { e <- goE(exp) } yield withSrc(vpr.PermMinus(e), pm)
       case fp@ in.FractionalPerm(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FractionalPerm(vl, vr), fp)
       case pa@ in.PermAdd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermAdd(vl, vr), pa)
       case ps@ in.PermSub(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermSub(vl, vr), ps)
       case pm@ in.PermMul(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermMul(vl, vr), pm)
+      case pd@ in.PermDiv(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.PermDiv(vl, vr), pd)
 
       // Perm comparisons
       case lt@in.PermLtCmp(l, r) => for { vl <- goE(l); vr <- goE(r) } yield withSrc(vpr.PermLtCmp(vl, vr), lt)

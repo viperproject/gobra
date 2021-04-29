@@ -7,6 +7,8 @@ ensures res == struct {Number int}{Number: 42}
 func foo() (res struct {Number int})
 
 func main() {
-    assert foo() == struct {Number int}{42}
-    assert foo() == struct {Number int;}{42}
+    res1 := foo()
+    assert res1 == struct {Number int}{42}
+    res2 := foo()
+    assert res2 == struct {Number int;}{42}
 }

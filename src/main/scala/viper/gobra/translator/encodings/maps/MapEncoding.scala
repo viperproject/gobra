@@ -152,7 +152,7 @@ class MapEncoding extends LeafTypeEncoding {
             _ <- if (checks.length == 1) write(checks(0)) else unit(())
             _ <- errorT {
               case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) =>
-                PreconditionError(info) dueTo MakePreconditionReason(info)
+                MapMakePreconditionError(info)
             }
 
             mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)

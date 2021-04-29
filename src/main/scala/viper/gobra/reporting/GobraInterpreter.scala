@@ -69,9 +69,14 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																	}
 																	val adress = PointerInterpreter(c).nameToInt("*!1000",p.elem.toString)
 																	//InterpreterCache.addAddress(adress,info)
-																	val value = interpret(entry,p.elem).asInstanceOf[LitEntry]
+																	interpret(entry,p.elem) match {
+																		case LitAdressedEntry(value, address) => LitPointerEntry(p.elem,value,address)
+																		case p:LitPointerEntry => p
+																		case LitDeclaredEntry(name,LitAdressedEntry(value,address)) => LitPointerEntry(p.elem,LitDeclaredEntry(name,value),address)
+																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
+																	}
 																	
-																	LitPointerEntry(p.elem,value,adress)
+																	
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
@@ -294,7 +299,7 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 														case s:sil.SeqEntry => (s,ArrayT(s.values.size,PointerT(info.elem))) // they shuld always be ppointers
 														case _ => return FaultEntry("extracted Value not a sequence")
 													}
-						case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem))
+						case s:sil.SeqEntry => (s,ArrayT(s.values.size,PointerT(info.elem))) // same here
 						case d:sil.DomainValueEntry => (d,ArrayT(0,info.elem)) 
 						case _ => (sil.OtherEntry("internal","error"),UnknownType)
 					}

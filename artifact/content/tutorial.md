@@ -61,7 +61,7 @@ func (xs *list) contains(value int) bool {
 - The body (including `{}`) may be omitted. In this case, Gobra assumes that the specification holds.
 
 
-#### Predicates Declarations
+#### Predicate Declarations
 
 ```go
 pred listPermissions(xs *list) {

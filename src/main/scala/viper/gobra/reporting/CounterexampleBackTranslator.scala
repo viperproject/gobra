@@ -100,6 +100,7 @@ object Util{
 			case LitDeclaredEntry(name,value) => {
 				value match {
 					case LitStructEntry(_,_) => prettyPrint(value,level).replaceFirst("struct",name)
+					case LitAdressedEntry(value, address) => prettyPrint(LitDeclaredEntry(name,value),level) ++ s"@$address"
 					case _ => s"$name(${value.toString()})"  // can we assum that only structs show theit name?
 				} 
 				

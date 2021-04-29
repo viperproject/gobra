@@ -62,7 +62,16 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		LitDeclaredEntry(name,actual)
 												case i:InterfaceT => interfaceInterpreter.interpret(d,i)
 												case FunctionT(args,res) => FaultEntry("TODO: Functions")
-												case p:PointerT => LitPointerEntry(p.elem,interpret(entry,p.elem).asInstanceOf[LitEntry],scala.util.Random.nextInt(1000))
+												case p:PointerT => 	val newType =  p.elem match {
+																				case a:ArrayT => sharedTypify(a) //TODO handle slices and such
+																				
+																				case x => x
+																	}
+																	val adress = PointerInterpreter(c).nameToInt("*!1000",p.elem.toString)
+																	//InterpreterCache.addAddress(adress,info)
+																	val value = interpret(entry,p.elem).asInstanceOf[LitEntry]
+																	
+																	LitPointerEntry(p.elem,value,adress)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
@@ -82,6 +91,16 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 										case _ => DummyEntry()
 										}
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
+		}
+	}
+	def sharedTypify(old:Type):Type ={
+		old match {
+			case DeclaredT(d,c) => 	val actual = sharedTypify(c.symbType(d.right))
+								//DeclaredT(viper.gobra.ast.frontend.PTypeDef(actual, d.left),c)
+								actual
+			case ArrayT(l,elem) => ArrayT(l,PointerT(elem))
+			case StructT(clauses, decl, context) =>StructT(clauses.map(x=>(x._1,(x._2._1,PointerT(x._2._2)))), decl, context)
+			case x=> x
 		}
 	}
 }
@@ -170,13 +189,17 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 																				case _ => return FaultEntry(s"${entry}: could not relsove (${x._1})")
 																			})
 												)).toMap
+			var address = BigInt(128)
 			try{
-			val values = fields.map(x=>(x._1,MasterInterpreter(c).interpret(fieldToVals.apply(x._1),x._2) match{
+				
+			val values = fields.map(x=>(x._1,MasterInterpreter(c).interpret(fieldToVals.apply(x._1),PointerT(x._2)) match{
+																										case p:LitPointerEntry => address = p.address;p.value
 																										case l:LitEntry=> l;
 																										case _ => return FaultEntry("internal error struct")
 																									}
 										)) 
-			LitStructEntry(info,values)
+			
+			LitAdressedEntry(LitStructEntry(info,values),address)
 			}catch{
 				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}
@@ -268,7 +291,7 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 				val (array,arraytyp) = funcSarray.get.apply(Seq(entry)) match{
 					case Right(x) => x match {
 						case v:sil.VarEntry => c.extractVal(v) match {
-														case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem))
+														case s:sil.SeqEntry => (s,ArrayT(s.values.size,PointerT(info.elem))) // they shuld always be ppointers
 														case _ => return FaultEntry("extracted Value not a sequence")
 													}
 						case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem))
@@ -316,7 +339,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 						}
 					InterpreterCache.addAddress(address,info);
 					val value = kek._1 match {
-						case x:sil.OtherEntry => FaultEntry(s"not Found Field:$field but found $fieldval")																												
+						case x:sil.OtherEntry => FaultEntry(s"not Found Field:$field but found $fieldval in ${extracted.fields.head._1}")																												
 						case r:sil.RefEntry =>  interpret(r,elem) //this we could potentially handle internally		
 						case t => MasterInterpreter(c).interpret(t,elem) 
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {

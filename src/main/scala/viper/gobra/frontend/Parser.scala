@@ -14,7 +14,6 @@ import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, S
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
-import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Constants, Hexadecimal, Violation}

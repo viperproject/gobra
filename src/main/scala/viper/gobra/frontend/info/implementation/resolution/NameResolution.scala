@@ -269,6 +269,9 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PMethodImplementationProof, ip: PImplementationProof)) =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference method of the super type
 
+      case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
+        tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
+
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 
       case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)

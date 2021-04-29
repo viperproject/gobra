@@ -6,8 +6,8 @@
 
 package viper.gobra.reporting
 
-import java.io.File
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.Path
 
 import ch.qos.logback.classic.Level
 import org.apache.commons.io.FileUtils
@@ -53,8 +53,12 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case _ => // ignore
   }
 
-  private def write(file: File, fileExt: String, content: String): Unit = {
-    val outputFile = OutputUtil.postfixFile(file, fileExt)
-    FileUtils.writeStringToFile(outputFile, content, UTF_8)
+  private def write(input: Path, fileExt: String, content: String): Unit = {
+    val outputFile = OutputUtil.postfixFile(input, fileExt)
+    try {
+      FileUtils.writeStringToFile(outputFile.toFile, content, UTF_8)
+    } catch {
+      case _: UnsupportedOperationException => println(s"cannot write output to file $outputFile")
+    }
   }
 }

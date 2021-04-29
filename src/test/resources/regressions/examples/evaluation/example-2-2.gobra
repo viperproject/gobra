@@ -1,0 +1,63 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+
+type stream interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure hasNext() bool
+
+    requires mem() && hasNext()
+    ensures  mem()
+    next() interface{}
+}
+
+
+// implementation
+
+type counter struct{ f, max int }
+
+requires acc(x, 1/2)
+pure func (x *counter) hasNext() bool {
+  return x.f < x.max
+}
+
+requires acc(&x.f) && acc(&x.max, 1/2) && x.hasNext()
+ensures  acc(&x.f) && acc(&x.max, 1/2) && x.f == old(x.f)+1 && typeOf(y) == int
+ensures  y.(int) == old(x.f)
+func (x *counter) next() (y interface{}) {
+  y = x.f
+  x.f += 1
+  return
+}
+
+
+// implementation proof
+
+pred (x *counter) mem() { acc(x) }
+
+(*counter) implements stream {
+
+  pure (x *counter) hasNext() bool {
+    return unfolding acc(x.mem(), 1/2) in x.hasNext()
+  }
+
+  (x *counter) next() (res interface{}) {
+    unfold x.mem()
+    res = x.next()
+    fold x.mem()
+  }
+}
+
+
+// client code
+
+func client() {
+  x := &counter{0, 50}
+  var y stream = x
+  fold y.mem()
+  var z interface{} = y.next()
+}

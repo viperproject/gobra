@@ -1,0 +1,16 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+requires acc(x)
+ensures acc(x)
+func inc(x *int) {
+	*x = *x + 1
+}
+
+func concurrentInc() {
+	x@ := 1
+	go inc(&x)
+	// go inc(&x) // fails if uncommented, permission error due to a race condition
+}

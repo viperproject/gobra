@@ -1,0 +1,30 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package cellImplProof
+
+// ##(-I ../)
+
+import "cell"
+import m "cellMem"
+import g "getterSetter"
+
+// this member has to be accessed in order that Gobra picks up the implementation proof located in this file:
+const USE_IMPLEMENTATION_PROOF = true
+
+// implementation proof
+
+(*cell.cell) implements g.GetterSetter {
+
+  pred mem := m.cellMem
+
+  pure (c *cell.cell) GetVal() int {
+    return unfolding acc(m.cellMem(c), 1/2) in c.GetVal()
+  }
+
+  (c *cell.cell) SetVal(v int) {
+    unfold m.cellMem(c)
+    c.SetVal(v)
+    fold m.cellMem(c)
+  }
+}

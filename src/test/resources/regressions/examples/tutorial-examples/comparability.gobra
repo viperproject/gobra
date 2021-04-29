@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+type node struct {
+	value interface{}
+	next *node
+}
+
+pred list(ptr *node) {
+	acc(&ptr.value) && isComparable(ptr.value) && acc(&ptr.next) && 
+	(ptr.next != nil ==> list(ptr.next))
+}
+
+requires list(ptr)
+pure func contains(ptr *node, value interface{}) bool {
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && contains(ptr.next, value))
+}

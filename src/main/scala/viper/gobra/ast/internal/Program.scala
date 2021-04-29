@@ -37,7 +37,8 @@ class LookupTable(
                  definedMPredicates: Map[MPredicateProxy, MPredicateLikeMember],
                  definedFPredicates: Map[FPredicateProxy, FPredicateLikeMember],
                  val memberProxies: Map[Type, Set[MemberProxy]], // only has to be defined on types that implement an interface // might change depending on how embedding support changes
-                 val interfaceImplementations: Map[InterfaceT, Set[Type]] // empty interface does not have to be included
+                 val interfaceImplementations: Map[InterfaceT, Set[Type]], // empty interface does not have to be included
+                 implementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy]
                  ) {
   def lookup(t: DefinedT): Type = definedTypes(t.name, t.addressability)
   def lookup(m: MethodProxy): MethodLikeMember = definedMethods(m)
@@ -50,10 +51,15 @@ class LookupTable(
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
-
   def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
+
+  def lookupImplementationPredicate(impl: Type, itf: InterfaceT, name: String): Option[PredicateProxy] = {
+    lookup(impl, name).collect{ case m: MPredicateProxy => m }.orElse{
+      implementationProofPredicateAliases.get(impl, itf, name)
+    }
+  }
 }
 
 sealed trait Member extends Node
@@ -135,7 +141,7 @@ case class MethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Block]
+                               body: Option[Block] // empty if it is generated
                              )(val info: Source.Parser.Info) extends Member
 
 case class PureMethodSubtypeProof(
@@ -145,7 +151,7 @@ case class PureMethodSubtypeProof(
                                receiver: Parameter.In,
                                args: Vector[Parameter.In],
                                results: Vector[Parameter.Out],
-                               body: Option[Expr]
+                               body: Option[Expr] // empty if it is generated
                              )(val info: Source.Parser.Info) extends Member {
   require(results.size <= 1)
 }
@@ -417,6 +423,7 @@ case class FullPerm(info: Source.Parser.Info) extends Permission
 case class NoPerm(info: Source.Parser.Info) extends Permission
 case class FractionalPerm(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Permission
 case class WildcardPerm(info: Source.Parser.Info) extends Permission
+case class CurrentPerm(acc: Accessible.Predicate)(val info: Source.Parser.Info) extends Permission
 case class PermMinus(exp: Expr)(val info: Source.Parser.Info) extends Permission
 case class PermAdd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with Permission
 case class PermSub(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("-") with Permission
@@ -1055,34 +1062,38 @@ sealed trait Type {
   def withAddressability(newAddressability: Addressability): Type
 }
 
-case class BoolT(addressability: Addressability) extends Type {
+sealed abstract class PrettyType(pretty: => String) extends Type {
+  override lazy val toString: String = s"$pretty${addressability.pretty}"
+}
+
+case class BoolT(addressability: Addressability) extends PrettyType("bool") {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[BoolT]
   override def withAddressability(newAddressability: Addressability): BoolT = BoolT(newAddressability)
 }
 
-case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends Type {
+case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInteger) extends PrettyType(kind.name) {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[IntT] && t.asInstanceOf[IntT].kind == kind
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
-case class StringT(addressability: Addressability) extends Type {
+case class StringT(addressability: Addressability) extends PrettyType("string") {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
   override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)
 }
 
-case object VoidT extends Type {
+case object VoidT extends PrettyType("void") {
   override val addressability: Addressability = Addressability.unit
   override def equalsWithoutMod(t: Type): Boolean = t == VoidT
   override def withAddressability(newAddressability: Addressability): VoidT.type = VoidT
 }
 
-case class PermissionT(addressability: Addressability) extends Type {
+case class PermissionT(addressability: Addressability) extends PrettyType("perm") {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[PermissionT]
   override def withAddressability(newAddressability: Addressability): PermissionT = PermissionT(newAddressability)
 }
 
 /** The type of types. For now, we have a single sort. */
-case object SortT extends Type {
+case object SortT extends PrettyType("sort") {
   override val addressability: Addressability = Addressability.mathDataStructureElement
   override def equalsWithoutMod(t: Type): Boolean = t == SortT
   override def withAddressability(newAddressability: Addressability): SortT.type = SortT
@@ -1091,7 +1102,7 @@ case object SortT extends Type {
 /**
   * The type of `length`-sized arrays of elements of type `typ`.
   */
-case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends Type {
+case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) extends PrettyType(s"[$length]$elems") {
   /** (Deeply) converts the current type to a `SequenceT`. */
   lazy val sequence : SequenceT = SequenceT(elems match {
     case t: ArrayT => t.sequence
@@ -1110,7 +1121,7 @@ case class ArrayT(length: BigInt, elems: Type, addressability: Addressability) e
 /**
   * The (composite) type of slices of type `elems`.
   */
-case class SliceT(elems : Type, addressability: Addressability) extends Type {
+case class SliceT(elems : Type, addressability: Addressability) extends PrettyType(s"[]$elems") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case SliceT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false
@@ -1123,7 +1134,7 @@ case class SliceT(elems : Type, addressability: Addressability) extends Type {
 /**
   * The type of mathematical sequences with elements of type `t`.
   */
-case class SequenceT(t : Type, addressability: Addressability) extends Type {
+case class SequenceT(t : Type, addressability: Addressability) extends PrettyType(s"seq[$t]")  {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case SequenceT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false
@@ -1136,7 +1147,7 @@ case class SequenceT(t : Type, addressability: Addressability) extends Type {
 /**
   * The type of mathematical sets with elements of type `t`.
   */
-case class SetT(t : Type, addressability: Addressability) extends Type {
+case class SetT(t : Type, addressability: Addressability) extends PrettyType(s"set[$t]") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case SetT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false
@@ -1148,7 +1159,7 @@ case class SetT(t : Type, addressability: Addressability) extends Type {
 /**
   * The type of mathematical multisets with elements of type `t`.
   */
-case class MultisetT(t : Type, addressability: Addressability) extends Type {
+case class MultisetT(t : Type, addressability: Addressability) extends PrettyType(s"mset[$t]") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MultisetT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false
@@ -1161,7 +1172,7 @@ case class MultisetT(t : Type, addressability: Addressability) extends Type {
 /**
   * The (mathematical) type encapsulating an optional value of type `t`.
   */
-case class OptionT(t : Type, addressability: Addressability) extends Type {
+case class OptionT(t : Type, addressability: Addressability) extends PrettyType(s"option[$t]") {
   override def equalsWithoutMod(t : Type): Boolean = t match {
     case OptionT(otherT, _) => t.equalsWithoutMod(otherT)
     case _ => false
@@ -1171,7 +1182,7 @@ case class OptionT(t : Type, addressability: Addressability) extends Type {
     OptionT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
 }
 
-case class DefinedT(name: String, addressability: Addressability) extends Type with TopType {
+case class DefinedT(name: String, addressability: Addressability) extends PrettyType(name) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case DefinedT(otherName, _) => name == otherName
     case _ => false
@@ -1181,7 +1192,7 @@ case class DefinedT(name: String, addressability: Addressability) extends Type w
     DefinedT(name, newAddressability)
 }
 
-case class PointerT(t: Type, addressability: Addressability) extends Type with TopType {
+case class PointerT(t: Type, addressability: Addressability) extends PrettyType(s"*$t") with TopType {
   require(t.addressability.isShared)
 
   override def equalsWithoutMod(t: Type): Boolean = t match {
@@ -1193,7 +1204,7 @@ case class PointerT(t: Type, addressability: Addressability) extends Type with T
     PointerT(t.withAddressability(Addressability.pointerBase), newAddressability)
 }
 
-case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type with TopType {
+case class TupleT(ts: Vector[Type], addressability: Addressability) extends PrettyType(ts.mkString("(", ", ", ")")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case TupleT(otherTs, _) => ts.zip(otherTs).forall{ case (l,r) => l.equalsWithoutMod(r) }
     case _ => false
@@ -1203,7 +1214,7 @@ case class TupleT(ts: Vector[Type], addressability: Addressability) extends Type
     TupleT(ts.map(_.withAddressability(Addressability.mathDataStructureElement)), newAddressability)
 }
 
-case class PredT(args: Vector[Type], addressability: Addressability) extends Type with TopType {
+case class PredT(args: Vector[Type], addressability: Addressability) extends PrettyType(args.mkString("pred(", ", ", ")")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case PredT(otherTs, _) => args.zip(otherTs).forall{ case (l,r) => l.equalsWithoutMod(r) }
     case _ => false
@@ -1215,7 +1226,7 @@ case class PredT(args: Vector[Type], addressability: Addressability) extends Typ
 
 
 // TODO: Maybe remove name
-case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends Type with TopType {
+case class StructT(name: String, fields: Vector[Field], addressability: Addressability) extends PrettyType(fields.mkString("struct{", ", ", "}")) with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case StructT(_, otherFields, _) => fields.zip(otherFields).forall{ case (l, r) => l.typ.equalsWithoutMod(r.typ) }
     case _ => false
@@ -1225,7 +1236,7 @@ case class StructT(name: String, fields: Vector[Field], addressability: Addressa
     StructT(name, fields.map(f => Field(f.name, f.typ.withAddressability(Addressability.field(newAddressability)), f.ghost)(f.info)), newAddressability)
 }
 
-case class InterfaceT(name: String, addressability: Addressability) extends Type with TopType {
+case class InterfaceT(name: String, addressability: Addressability) extends PrettyType(s"interface{ name is $name }") with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: InterfaceT => name == o.name
     case _ => false
@@ -1237,7 +1248,7 @@ case class InterfaceT(name: String, addressability: Addressability) extends Type
   def isEmpty: Boolean = name == Names.emptyInterface
 }
 
-case class DomainT(name: String, addressability: Addressability) extends Type with TopType {
+case class DomainT(name: String, addressability: Addressability) extends PrettyType(s"domain{ name is $name }") with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: DomainT => name == o.name
     case _ => false
@@ -1247,7 +1258,7 @@ case class DomainT(name: String, addressability: Addressability) extends Type wi
     DomainT(name, newAddressability)
 }
 
-case class ChannelT(elem: Type, addressability: Addressability) extends Type {
+case class ChannelT(elem: Type, addressability: Addressability) extends PrettyType(s"chan $elem") {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: ChannelT => elem == o.elem
     case _ => false
@@ -1265,8 +1276,10 @@ sealed trait Proxy extends Node {
 sealed trait MemberProxy extends Proxy {
   def uniqueName: String
 }
-case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy
-case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy
+sealed trait CallProxy extends Proxy
+
+case class FunctionProxy(name: String)(val info: Source.Parser.Info) extends Proxy with CallProxy
+case class MethodProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends MemberProxy with CallProxy
 case class DomainFuncProxy(name: String, domainName: String)(val info: Source.Parser.Info) extends Proxy
 
 sealed trait PredicateProxy extends Proxy

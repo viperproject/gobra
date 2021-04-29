@@ -89,7 +89,7 @@ We reimplemented the parser and type checker of Gobra. At this point in time, pa
 
 ## Gobra Syntax
 
-We have created a tutorial for Gobra, introducing Gobra's syntax and features in several examples. The tutorial can be found in the Docker container (at `home/gobra/tutorial.md`), in the shared holder of the host, or online in our repository ([here](https://github.com/viperproject/gobra/blob/artifact1/docs/tutorial.md)).
+We have created a tutorial for Gobra, introducing Gobra's syntax and features in several examples. The tutorial can be found in the Docker container (at `home/gobra/tutorial.md`), in the shared holder of the host, or online in our repository ([here](https://github.com/viperproject/gobra/blob/artifact1/artifact/content/tutorial.md)).
 
 There are several ways to exercise the tool on new inputs. One way of doing so is to seed errors, as we did for our evaluation: there, we deliberately broke loop invariants, postconditions, predicate definitions, and the code itself, to trigger verification failures. Such transformations can be applied on examples from the tutorial or the evaluation. These examples are at `home/gobra/test_suite/tutorial_examples` and `home/gobra/test_suite/evaluation` in the Docker container. If a shared folder is used, then you can modify the examples in `/test_suite/tutorial_examples` and `/test_suite/evaluation` in your shared folder on the host, but you will have to target the corresponding files in the Docker container, meaning a file in `home/gobra/sync/test_suite/tutorial_examples` or `home/gobra/sync/test_suite/evaluation`.
 

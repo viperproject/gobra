@@ -284,7 +284,7 @@ func addToSliceClient() {
 ```
 
 
-## Predicate Declarations
+## Predicate
 
 Predicates give a name to a parameterized assertion. A predicate can have any number of parameters, and its body can be any self-framing Gobra assertion using only these parameters as variable names. Predicate  definitions can be recursive, allowing them to denote permission to and properties of recursive heap structures such as linked lists and trees.
 
@@ -506,7 +506,7 @@ func client() {
 }
 ```
 
-Implementation proofs can be placed in a different package than the orginal type definition. In this case, the syntax for the predicate is slightly different. You can find such an example [here](https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/examples/tutorial-examples/external-interface).
+Implementation proofs can be placed in a different package than the original type definition. In this case, the syntax for the predicate is slightly different. You can find such an example in the Docker container at `/home/gobra/test_suite/tutorial_examples/external-interface` or online [here](https://github.com/viperproject/gobra/tree/artifact1/src/test/resources/regressions/examples/tutorial-examples/external-interface).
 
 ### Comparability
 

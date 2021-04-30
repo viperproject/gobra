@@ -9,6 +9,7 @@ package viper.gobra.frontend.info.implementation
 import com.typesafe.scalalogging.StrictLogging
 import org.bitbucket.inkytonik.kiama.attribution.Attribution
 import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.info.base.SymbolTable.{Regular, TypeMember, UnknownEntity, lookup}
 import viper.gobra.frontend.info.base.{SymbolTable, Type}
@@ -87,8 +88,50 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   private var externallyAccessedMembers: Vector[PNode] = Vector()
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
-    if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    if (!externallyAccessedMembers.contains(r.rep)) {
+      externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+      addTransitiveDeps(r)
+    }
     r
+  }
+
+  private def addTransitiveDeps(r: SymbolTable.Regular): Unit = {
+    def checkedNodesFromFuncSpec(spec: PFunctionSpec): Vector[PNode] =
+      spec.pres ++ spec.posts ++ (spec.pres ++ spec.posts) flatMap allChildren
+
+    def handleNodes(checkedNodes: Vector[PNode]): Unit = {
+      checkedNodes.foreach {
+        case n: PExpressionOrType => resolve(n) match {
+          case Some(ap.PredicateCall(p: ap.Symbolic, _)) if !p.isInstanceOf[ap.BuiltInPredicateKind] =>
+            registerExternallyAccessedEntity(p.symb)
+          case Some(pred: ap.PredicateKind with ap.Symbolic) if !pred.isInstanceOf[ap.BuiltInPredicateKind] =>
+            registerExternallyAccessedEntity(pred.symb)
+          case Some(ap.FunctionCall(f: ap.Symbolic, _)) if !f.isInstanceOf[ap.BuiltInFunctionKind] =>
+            registerExternallyAccessedEntity(f.symb)
+          case Some(func: ap.FunctionKind with ap.Symbolic) if !func.isInstanceOf[ap.BuiltInFunctionKind] =>
+            registerExternallyAccessedEntity(func.symb)
+          case Some(const: ap.Constant) =>
+            // assumes that all constants are global. True for now but may change in the future
+            registerExternallyAccessedEntity(const.symb)
+          case _ =>
+        }
+        case _ =>
+      }
+    }
+
+    r match {
+      case SymbolTable.Function(decl, _, _) =>
+        handleNodes(checkedNodesFromFuncSpec(decl.spec))
+      case SymbolTable.MethodSpec(sig, _, _, _) =>
+        handleNodes(checkedNodesFromFuncSpec(sig.spec))
+      case SymbolTable.MethodImpl(decl, _, _) =>
+        handleNodes(checkedNodesFromFuncSpec(decl.spec))
+      case SymbolTable.FPredicate(decl, _) =>
+        decl.body.foreach { body => handleNodes(body +: allChildren(body)) }
+      case SymbolTable.MPredicateImpl(decl, _) =>
+        decl.body.foreach { body => handleNodes(body +: allChildren(body)) }
+      case _ =>
+    }
   }
 
   override def externalRegular(n: PIdnNode): Option[SymbolTable.Regular] = {

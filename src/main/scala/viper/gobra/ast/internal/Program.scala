@@ -534,7 +534,7 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
 
 /**
   * Denotes the length of `exp`, which is expected to be either
-  * of an array type or a sequence type.
+  * of an array type or a sequence type or a set.
   */
 case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT(Addressability.rValue)
@@ -714,14 +714,6 @@ case class SetMinus(left : Expr, right : Expr)(val info : Source.Parser.Info) ex
   */
 case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) extends BinaryExpr("subset") {
   override val typ : Type = BoolT(Addressability.rValue)
-}
-
-/**
-  * Represents the cardinality of `exp`, which is assumed
-  * to be either a set or a multiset.
-  */
-case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = IntT(Addressability.rValue)
 }
 
 /**

@@ -103,11 +103,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-      case PCardinality(op) => isExpr(op).out ++ {
-        val t = exprType(op)
-        error(op,s"expected a set or multiset, but got $t", !t.isInstanceOf[GhostUnorderedCollectionType])
-      }
-
       case PMultiplicity(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         (exprType(left), exprType(right)) match {
           case (t1, t2 : GhostCollectionType) => comparableTypes.errors(t1, t2.elem)(expr)
@@ -200,7 +195,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
-      case PCardinality(_) => IntT(config.typeBounds.UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
       case PIn(_, _) => BooleanT
       case expr : PSequenceExp => expr match {
@@ -332,7 +326,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSequenceConversion(op) => go(op)
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
-        case PCardinality(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
         case PSequenceUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
       }

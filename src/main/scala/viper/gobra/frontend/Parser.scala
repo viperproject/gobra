@@ -743,7 +743,6 @@ object Parser {
         newExp |
         len |
         cap |
-        ghostUnaryExp |
         primaryExp
 
     lazy val make : Parser[PMake] =
@@ -772,9 +771,6 @@ object Parser {
 
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
-
-    lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
       "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion

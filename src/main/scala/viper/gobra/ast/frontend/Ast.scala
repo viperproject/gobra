@@ -420,6 +420,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * Gobra extends this with:
   *
   * - Sequence: the number of elements in `exp`.
+  * - Set: the cardinality of `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
@@ -911,12 +912,6 @@ sealed trait PGhostCollectionExp extends PGhostExpression
   * that is, membership of a ghost collection.
   */
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
-
-/**
-  * Denotes the cardinality of `exp`, which is expected
-  * to be either a set or a multiset.
-  */
-case class PCardinality(exp : PExpression) extends PGhostCollectionExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

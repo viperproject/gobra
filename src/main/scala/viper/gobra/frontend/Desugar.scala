@@ -2502,13 +2502,6 @@ object Desugar {
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
         }
 
-        case PCardinality(op) => for {
-          dop <- go(op)
-        } yield dop.typ match {
-          case _: in.SetT | _: in.MultisetT => in.Cardinality(dop)(src)
-          case t => violation(s"expected a sequence or (multi)set type, but got $t")
-        }
-
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)

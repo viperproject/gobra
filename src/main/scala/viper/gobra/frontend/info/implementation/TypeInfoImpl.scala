@@ -87,7 +87,9 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   private var externallyAccessedMembers: Vector[PNode] = Vector()
   private def registerExternallyAccessedEntity(r: SymbolTable.Regular): SymbolTable.Regular = {
-    if (!externallyAccessedMembers.contains(r.rep)) externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    if (!externallyAccessedMembers.contains(r.rep)) {
+      externallyAccessedMembers = externallyAccessedMembers :+ r.rep
+    }
     r
   }
 

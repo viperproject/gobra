@@ -360,7 +360,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => noMessages
-        case _: SequenceT => isPureExpr(op)
+        case _: SequenceT | _: SetT | _: MultisetT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
     }
@@ -536,7 +536,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case _: PLength => INT_TYPE
+    case PLength(exp) =>
+      exprType(exp) match {
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => INT_TYPE
+        case _: SequenceT | _: SetT | _: MultisetT => UNTYPED_INT_CONST
+      }
 
     case _: PCapacity => INT_TYPE
 
@@ -793,7 +797,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   private def intExprType(expr: PNumExpression): Type = expr match {
     case _: PIntLit => UNTYPED_INT_CONST
 
-    case _: PLength | _: PCapacity => INT_TYPE
+    case PLength(exp) =>
+      exprType(exp) match {
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => INT_TYPE
+        case _: SequenceT | _: SetT | _: MultisetT => UNTYPED_INT_CONST
+      }
+    case _: PCapacity => INT_TYPE
 
     case bExpr: PBinaryExp[_,_] =>
       val typeLeft = exprOrTypeType(bExpr.left)

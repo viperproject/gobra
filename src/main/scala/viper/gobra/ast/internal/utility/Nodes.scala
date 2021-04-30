@@ -125,7 +125,6 @@ object Nodes {
         case SequenceDrop(left, right) => Seq(left, right)
         case SequenceTake(left, right) => Seq(left, right)
         case SequenceConversion(expr) => Seq(expr)
-        case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
         case Length(expr) => Seq(expr)

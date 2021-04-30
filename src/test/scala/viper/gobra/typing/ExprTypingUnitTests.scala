@@ -743,17 +743,17 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT(DefaultInt) =>
+      case Type.IntT(UnboundedInteger) =>
     }
   }
 
   test("TypeChecker: should not typecheck any seq/set size operator when no sequence of (multi)set is provided") {
-    val expr = PCardinality(PIntLit(42))
+    val expr = PLength(PIntLit(42))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should classify a set cardinality operator as ghost") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
 
@@ -761,7 +761,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should classify the set cardinality operator as well-defined when given a proper set") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
 
@@ -769,7 +769,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should assign the correct type to a set cardinality operator") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.set(PIntType(), Vector(PIntLit(1), PIntLit(2), PIntLit(3)))
     )
 
@@ -1201,22 +1201,22 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should mark the use of a multiset cardinality as ghost") {
-    val expr = PCardinality(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PLength(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
     assert (frontend.isGhostExpr(expr)())
   }
 
   test("TypeChecker: should classify a normal use of the multiset cardinality as well-defined") {
-    val expr = PCardinality(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PLength(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
     assert (frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should not classify a multiset cardinality as well-defined if there is a typing error in the operand") {
-    val expr = PCardinality(PLiteral.multiset(PBoolType(), Vector(PIntLit(42))))
+    val expr = PLength(PLiteral.multiset(PBoolType(), Vector(PIntLit(42))))
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should classify the cardinality of a nested multiset as well-defined") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.multiset(PMultisetType(PIntType()), Vector(
         PLiteral.multiset(PIntType(), Vector(PIntLit(42)))
       ))
@@ -1226,7 +1226,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a standard use of the multiset cardinality") {
-    val expr = PCardinality(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
+    val expr = PLength(PLiteral.multiset(PBoolType(), Vector(PBoolLit(false))))
 
     frontend.exprType(expr)() should matchPattern {
       case Type.IntT(UnboundedInteger) =>
@@ -1234,7 +1234,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("TypeChecker: should correctly type a 'nested' multiset cardinality") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.multiset(PMultisetType(PIntType()), Vector(
         PLiteral.multiset(PIntType(), Vector(PIntLit(42)))
       ))
@@ -1988,7 +1988,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     val expr = PLength(PLiteral.sequence(PBoolType(), Vector()))
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT(DefaultInt) =>
+      case Type.IntT(UnboundedInteger) =>
     }
   }
 
@@ -2001,15 +2001,8 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     )
 
     frontend.exprType(expr)() should matchPattern {
-      case Type.IntT(DefaultInt) =>
+      case Type.IntT(UnboundedInteger) =>
     }
-  }
-
-  test("TypeChecker: should not type check a cardinality operation applied on a sequence") {
-    val expr = PCardinality(
-      PLiteral.sequence(PBoolType(), Vector())
-    )
-    assert (!frontend.wellDefExpr(expr)().valid)
   }
 
   test("TypeChecker: should let a sequence range expression be pure") {

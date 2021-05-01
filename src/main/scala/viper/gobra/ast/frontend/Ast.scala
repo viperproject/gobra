@@ -738,12 +738,7 @@ sealed trait PConditionalMeasure
 
 case class PConditionalMeasureExpression(tuple:(Vector[PExpression],PExpression)) extends PConditionalMeasure
 case class PConditionalMeasureUnderscore(tuple:(PUnderscoreCharacter,PExpression))extends PConditionalMeasure
-
-
-
-
-
-
+case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
 
 
 

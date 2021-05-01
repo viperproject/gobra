@@ -1,10 +1,14 @@
 package termination
 
 
-decreases n if n==0
-decreases x if x>1
-decreases _ if x<0
-decreases x if n>1
+
+
+
+decreases x if x<1
+decreases _ if x>1
+decreases *
+
+
 
 func factorial(n int) int {
     if n == 0 {
@@ -15,7 +19,7 @@ func factorial(n int) int {
 }
 
 
-decreases 
+decreases *
 func sum(s seq[int]) int {
     res := 0
     decreases len(s)-i

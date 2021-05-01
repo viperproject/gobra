@@ -118,6 +118,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       "decreases" <+> showExprList(expression) <+> "if" <+>showExpr(condition)
        case PConditionalMeasureUnderscore((underscore,condition)) =>
       "decreases" <+> "_" <+> "if" <+>showExpr(condition)
+       case PConditionalMeasureAdditionalStar() =>
+         "decreases" <+> "*"
   }
 
 

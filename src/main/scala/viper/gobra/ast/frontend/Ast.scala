@@ -28,6 +28,12 @@ sealed trait PNode extends Product {
   lazy val formatted: String = pretty()
   lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
 
+  def subNodes(): Vector[PNode] = {
+    val directSubNodes = this.productIterator.toVector.filter(_.isInstanceOf[PNode]).map(_.asInstanceOf[PNode])
+    val childrenSubNodes = directSubNodes flatMap (_.subNodes())
+    this +: (directSubNodes ++ childrenSubNodes)
+  }
+
   override def toString: String = formatted
 }
 

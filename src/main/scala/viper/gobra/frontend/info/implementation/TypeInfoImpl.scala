@@ -97,9 +97,12 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   private def addTransitiveDeps(r: SymbolTable.Regular): Unit = {
     def checkedNodesFromFuncSpec(spec: PFunctionSpec): Vector[PNode] =
-      spec.pres ++ spec.posts ++ (spec.pres ++ spec.posts) flatMap allChildren
+      spec.pres ++ spec.posts ++ (spec.pres ++ spec.posts).flatMap(_.subNodes)
+        // TODO: check why this causes node not in tree exception
+        // (try { (spec.pres ++ spec.posts) flatMap allChildren } catch { case e => Seq.empty })
 
     def handleNodes(checkedNodes: Vector[PNode]): Unit = {
+      println(s"Before Exploding: $checkedNodes")
       checkedNodes.foreach {
         case n: PExpressionOrType => resolve(n) match {
           case Some(ap.PredicateCall(p: ap.Symbolic, _)) if !p.isInstanceOf[ap.BuiltInPredicateKind] =>

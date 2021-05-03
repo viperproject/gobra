@@ -63,7 +63,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 												case i:InterfaceT => interfaceInterpreter.interpret(d,i)
 												case FunctionT(args,res) => FaultEntry("TODO: Functions")
 												case p:PointerT => 	val newType =  p.elem match {
-																				case a:ArrayT => sharedTypify(a) //TODO handle slices and such
+																				case a:ArrayT => sharedTypify(a) //TODO handle slices and such (move to concrete interpreter)
 																				
 																				case x => x
 																	}
@@ -73,6 +73,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		case LitAdressedEntry(value, address) => LitPointerEntry(p.elem,value,address)
 																		case p:LitPointerEntry => p
 																		case LitDeclaredEntry(name,LitAdressedEntry(value,address)) => LitPointerEntry(p.elem,LitDeclaredEntry(name,value),address)
+																		//case LitDeclaredEntry(_,LitNilEntry()) | LitNilEntry() => LitNilEntry()
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
 																	
@@ -182,6 +183,7 @@ case class SharedStructInterpreter(c:sil.Converter) extends GobraDomainInterpret
 def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n) 
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
+		//val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
 		if(doms.isDefined){
 			//printf(s"${doms.get}")
 			val functions:Seq[sil.ExtractedFunction] =doms.get.functions
@@ -205,6 +207,7 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 										)) 
 			
 			LitAdressedEntry(LitStructEntry(info,values),address)
+						
 			}catch{
 				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}
@@ -337,9 +340,10 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 								case _ => return FaultEntry("false extraction")
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
-					val fieldval = if(extracted.fields.isEmpty) return Util.getDefault(info) 
+					val fieldval = if(extracted.fields.isEmpty) return  LitNilEntry()
 						else if(kek._1.isInstanceOf[sil.OtherEntry]) extracted.fields.head._2._1 match {
 												case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
+												case n:sil.NullRefEntry => return LitNilEntry() 
 												case x => x 
 						}
 					InterpreterCache.addAddress(address,info);
@@ -371,7 +375,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		(id +1)* 100 + (offset %100)
 	}
 	 
-	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={
+	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={ //TODO: improve
 		i match{
 			case _:IntT => Names.pointerField(vpr.Int)
 			case BooleanT => Names.pointerField(vpr.Bool)
@@ -379,12 +383,15 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case PointerT(elem) => elem match{
 				case x:StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
 				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
+				case _:IntT => Names.pointerField(vpr.Int)
+				case BooleanT => Names.pointerField(vpr.Bool)
+				case StringT => Names.pointerField(vpr.Int)
 				case _ => Names.pointerField(vpr.Ref)
 			} 
 			//case _:ArrayT => "val$_ShArray_fRef"
 			case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 			case x:StructT => entry match {
-				case r:sil.RefEntry=>s"val$$_ShStruct${x.fields.size}_${"Ref".repeat(x.fields.size)}" //ISSUE: can be val$_Tuple{n}_{Types} or val$_Tuple{n}_{Types}
+				case r:sil.RefEntry=>s"val$$_ShStruct${x.fields.size}${if(x.fields.size==0)""else "_"}${"Ref".repeat(x.fields.size)}" //ISSUE: can be val$_Tuple{n}_{Types} or val$_Tuple{n}_{Types}
 				case _ => s"val$$_Tuple${x.fields.size}_${"Ref".repeat(x.fields.size)}"
 			}
 			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general

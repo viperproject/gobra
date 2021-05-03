@@ -101,7 +101,7 @@ object Util{
 				value match {
 					case LitStructEntry(_,_) => prettyPrint(value,level).replaceFirst("struct",name)
 					case LitAdressedEntry(value, address) => prettyPrint(LitDeclaredEntry(name,value),level) ++ s"@$address"
-					case _ => s"$name(${value.toString()})"  // can we assum that only structs show theit name?
+					case _ => s"$name(${prettyPrint(value,level)})"  // can we assum that only structs show theit name?
 				} 
 				
 			}
@@ -115,6 +115,7 @@ object Util{
 				}
 			}
 			case LitPointerEntry(_,v,a) => s"&$a* -> " ++ prettyPrint(v,level)
+			case LitAdressedEntry(value, address) => "(" ++prettyPrint(value,level) ++ s") @$address"
 			case x => x.toString()
 		}
 	}

@@ -375,7 +375,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		(id +1)* 100 + (offset %100)
 	}
 	 
-	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={ //TODO: improve
+	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={ //TODO: improve (especially shared structs with more than one type (Ref,Shstruct))
 		i match{
 			case _:IntT => Names.pointerField(vpr.Int)
 			case BooleanT => Names.pointerField(vpr.Bool)
@@ -392,7 +392,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 			case x:StructT => entry match {
 				case r:sil.RefEntry=>s"val$$_ShStruct${x.fields.size}${if(x.fields.size==0)""else "_"}${"Ref".repeat(x.fields.size)}" //ISSUE: can be val$_Tuple{n}_{Types} or val$_Tuple{n}_{Types}
-				case _ => s"val$$_Tuple${x.fields.size}_${"Ref".repeat(x.fields.size)}"
+				case _ => s"val$$_Tuple${x.fields.size}_${x.fields.map(x=>filedname(null,x._2).replaceFirst("val$$_Tuple",""))}"
 			}
 			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general
 			case x => s"$x" //TODO: resolve all types 

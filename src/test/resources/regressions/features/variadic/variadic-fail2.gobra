@@ -18,12 +18,3 @@ func test2() {
     //:: ExpectedOutput(precondition_error)
     SetFirst()
 }
-
-requires forall j int :: 0 <= j && j < len(s) ==> acc(&s[j]) && s[j] > 0
-func f(i int, s ...int)
-func test3() {
-    f(-1, 1) // this one is ok
-    f(-1) // this one too
-    //:: ExpectedOutput(precondition_error)
-    f(1, -1) // this one is not
-}

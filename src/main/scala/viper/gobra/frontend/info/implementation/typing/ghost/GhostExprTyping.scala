@@ -288,7 +288,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (Right(_), Some(c: ap.Conversion)) =>
           c.typ match {
             case PPermissionType() => n.args forall go
-            case _: PIntegerType => n.args forall go
             case _ => false
           }
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)

@@ -33,14 +33,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           }
         case AssignMode.Multi => right.head match {
           case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
-          case t =>
-            if (left.length == right.length + 1 && left.last.isInstanceOf[VariadicT]) {
-              // this handles the case when all parameters but the last are passed in a function call and the last parameter
-              // is variadic
-              multiAssignableTo.result(right, left.init)
-            } else {
-              failedProp(s"got $t but expected tuple type of size ${left.size}")
-            }
+          case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
         case AssignMode.Variadic => variadicAssignableTo.result(right, left)
 
@@ -73,9 +66,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
-      // every type is assignable to interface{}
-      case (_, i: InterfaceT) if i.isEmpty => true
-      // for go's types according to go's specification (mostly)
+        // for go's types according to go's specification (mostly)
       case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => true
       // not part of Go spec, but necessary for the definition of comparability
       case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true

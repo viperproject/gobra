@@ -94,8 +94,12 @@ object Util{
 		val predent = "\t\t"++"\t".repeat(level)
 		input match {
 			case LitStructEntry(_,m) => {
+				if(m.isEmpty){
+					"struct{}"
+				}else{
 				val sub = m.map(x=>(x._1,prettyPrint(x._2,level+1)))
 				s"struct{\n${sub.map(x=>s"$indent${x._1}=${x._2}").mkString(";\n")}\n${postdent}}"
+				}
 			}
 			case LitDeclaredEntry(name,value) => {
 				value match {
@@ -119,11 +123,15 @@ object Util{
 			case x => x.toString()
 		}
 	}
+	def removeWhitespace(in:String) :String ={
+		in.replace(" ","").replace("\t","").replace("\n","")
+	}
 }
 
 
 class GobraCounterexample(gModel:GobraModelAtLabel) extends Counterexample{
 	override def toString:String = gModel.toString
+	def testString :String = gModel.labeledEntries.head._2.entries.map(Util.removeWhitespace(_.toString)).mkString(";")
 	val model =null
 }
 //for debugging purposes 

@@ -1074,6 +1074,7 @@ object Desugar {
             typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
             true
           )(src))(src)
+
         case AdtDiscriminator(decl, adtDecl, context) =>
           val adtT : AdtT = context.symbType(adtDecl).asInstanceOf[AdtT]
           in.AdtDiscriminator(
@@ -1891,6 +1892,7 @@ object Desugar {
           val proxy = in.AdtClauseProxy(t.name, t.adtT.name)(src)
 
           if (lit.elems.exists(_.key.isEmpty)) {
+            //All elements are unkeyed
             val wArgs = fields.zip(lit.elems).map  { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)
@@ -2136,8 +2138,6 @@ object Desugar {
       in.Field(fieldName, typ, true)(src)
     }
 
-    var clauseToAdt : Map[String, String] = Map.empty
-
     def registerAdt(t: Type.AdtT, aT: in.AdtT): Unit = {
       if(!registeredAdts.contains(aT.name) && info == t.context.getTypeInfo) {
         registeredAdts += aT.name
@@ -2151,10 +2151,6 @@ object Desugar {
             val fields = c.args.flatMap(_.fields).map(f => fieldDeclAdtD(f, t.context, t)(src))
 
             in.AdtClause(proxy, fields)(src)
-          }
-
-          t.decl.clauses.foreach { c =>
-            clauseToAdt += (c.id.name -> aT.name)
           }
 
           AdditionalMembers.addMember(

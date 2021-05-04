@@ -281,7 +281,7 @@ trait MemberResolution { this: TypeInfoImpl =>
     )
   }
 
-  def tryAdtLookup(use: PIdnUse, adtType: PAdtType) : Option[(Entity, Vector[MemberPath])] = {
+  def tryAdtClauseLookup(use: PIdnUse, adtType: PAdtType) : Option[(Entity, Vector[MemberPath])] = {
     val clauseOpt: Option[PAdtClause] = adtType.clauses.find(c => c.id.name == use.name)
 
     val ent: Entity = clauseOpt match {
@@ -319,7 +319,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         if (methodLikeAttempt.isDefined) methodLikeAttempt
         else underlyingType(typeSymbType(typ)) match {
           case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
-          case adt: AdtT => tryAdtLookup(id, adt.decl)
+          case adt: AdtT => tryAdtClauseLookup(id, adt.decl)
           case _ => None
         }
     }

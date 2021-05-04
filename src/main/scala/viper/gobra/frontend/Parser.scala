@@ -966,7 +966,7 @@ object Parser {
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
     lazy val adtType : Parser[PAdtType] =
-      "adt" ~> "{" ~> repsep(adtClause, eos) <~ eos.? <~ "}" ^^ PAdtType
+      "adt" ~> "{" ~> repsep(adtClause, eos) <~ eos.? <~ "}" ^^ {case clauses => PAdtType(clauses)}
 
     lazy val adtClause: Parser[PAdtClause] =
       idnDef ~ ("{" ~> repsep(fieldDecls, eos) <~ eos.? <~ "}") ^^ PAdtClause
@@ -1039,8 +1039,8 @@ object Parser {
     lazy val declaredType: Parser[PNamedOperand] =
       idnUse ^^ PNamedOperand
 
-    lazy val literalType: Parser[PLiteralType] =
-      sliceType |
+    lazy val literalType: Parser[PLiteralType] = {
+        sliceType |
         arrayType |
         implicitSizeArrayType |
         mapType |
@@ -1048,6 +1048,7 @@ object Parser {
         qualifiedType |
         ghostTypeLit |
         declaredType
+    }
 
     lazy val implicitSizeArrayType: Parser[PImplicitSizeArrayType] =
       "[" ~> "..." ~> "]" ~> typ ^^ PImplicitSizeArrayType

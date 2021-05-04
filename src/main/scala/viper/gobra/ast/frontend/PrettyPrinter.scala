@@ -278,6 +278,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp)
 
+
   // expressions
 
   def showExprOrType(expr: PExpressionOrType): Doc = expr match {

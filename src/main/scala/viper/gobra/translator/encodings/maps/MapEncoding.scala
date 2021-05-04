@@ -48,8 +48,13 @@ class MapEncoding extends LeafTypeEncoding {
     * Both Exclusive and Shared maps are encoded as vpr.Ref because nil is an admissible value for maps
     */
   override def typ(ctx : Context) : in.Type ==> vpr.Type = {
-    case ctx.Map(_, _) / Exclusive => vpr.Ref
+    case ctx.Map(_, _) / Exclusive => mapType
     case ctx.Map(_, _) / Shared => vpr.Ref
+  }
+
+  private lazy val mapType: vpr.Type = {
+    isUsed = true
+    vpr.Ref
   }
 
   /**
@@ -261,8 +266,12 @@ class MapEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(col: Collector): Unit = {
-    col.addMember(genDomain())
+    if (isUsed) {
+      col.addMember(genDomain())
+    }
   }
+
+  private var isUsed: Boolean = false
 
   private val keyParam = vpr.TypeVar("K")
   private val valueParam = vpr.TypeVar("V")

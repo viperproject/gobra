@@ -1153,6 +1153,7 @@ case class MapT(keys: Type, values: Type, addressability: Addressability) extend
   // this check must be done here instead of at the type system level because the concrete AST does not support
   // ghost fields yet
   require(!hasGhostField(keys))
+  
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1331,6 +1332,5 @@ case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends P
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
-
 
 

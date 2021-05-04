@@ -290,7 +290,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     //   uint uint8 uint16 uint32 uint64 uintptr
     t match {
       // should be extended as new types are added to the language
-      case IntT(_) | BooleanT | DeclaredT(_, _) | StringT => true
+      case _: IntT | BooleanT | _: DeclaredT | StringT => true
       case _ => false
     }
   }

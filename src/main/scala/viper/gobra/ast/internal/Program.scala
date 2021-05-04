@@ -1146,6 +1146,13 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   * The (composite) type of maps from type `keys` to type `values`.
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  def hasGhostField(k: Type): Boolean = k match {
+    case StructT(_, fields, _) => fields exists (_.ghost)
+    case _ => false
+  }
+  // this check must be done here instead of at the type system level because the concrete AST does not support
+  // ghost fields yet
+  require(!hasGhostField(keys))
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false

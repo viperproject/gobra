@@ -5,5 +5,5 @@ package pkg
 
 func foo(ghost xs seq[int]) {
   //:: ExpectedOutput(type_error)
-  ghost ys := |seq(xs)|
+  ghost ys := len(seq(xs))
 }

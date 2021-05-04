@@ -31,7 +31,7 @@ func example3() {
 }
 
 func example4() {
-  assert |mset[1 .. 4]| == 3
+  assert len(mset[1 .. 4]) == 3
 }
 
 func example5() {

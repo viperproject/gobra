@@ -73,7 +73,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		case LitAdressedEntry(value, address) => LitPointerEntry(p.elem,value,address)
 																		case p:LitPointerEntry => p
 																		case LitDeclaredEntry(name,LitAdressedEntry(value,address)) => LitPointerEntry(p.elem,LitDeclaredEntry(name,value),address)
-																		//case LitDeclaredEntry(_,LitNilEntry()) | LitNilEntry() => LitNilEntry()
+																		case LitDeclaredEntry(_,LitNilEntry())  => LitNilEntry()
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
 																	
@@ -183,7 +183,8 @@ case class SharedStructInterpreter(c:sil.Converter) extends GobraDomainInterpret
 def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n) 
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
-		//val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
+		val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
+		//if(entry==default) return LitNilEntry()
 		if(doms.isDefined){
 			//printf(s"${doms.get}")
 			val functions:Seq[sil.ExtractedFunction] =doms.get.functions
@@ -196,18 +197,21 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 																				case _ => return FaultEntry(s"${entry}: could not relsove (${x._1})")
 																			})
 												)).toMap
-			var address = BigInt(128)
+			val mem =  Integer.parseInt(entry.id)
+			val offset =  (entry.domain).hashCode %100
+			var address =BigInt( mem * 100 + (if(mem!=0) offset else 0) ) // shuld be 0 if we are dealing with the default value
 			try{
 				
 			val values = fields.map(x=>(x._1,MasterInterpreter(c).interpret(fieldToVals.apply(x._1),PointerT(x._2)) match{
-																										case p:LitPointerEntry => address = p.address;p.value
+																										case p:LitPointerEntry => if(address==0){address = offset}; p.value
 																										case l:LitEntry=> l;
 																										case _ => return FaultEntry("internal error struct")
 																									}
 										)) 
-			
+			//if(address!=0)
 			LitAdressedEntry(LitStructEntry(info,values),address)
-						
+			//else
+			//FaultEntry("unknown")//LitNilEntry()			
 			}catch{
 				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}

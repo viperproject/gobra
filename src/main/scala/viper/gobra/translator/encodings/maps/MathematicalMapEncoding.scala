@@ -23,7 +23,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
-    case (info, AssertionFalse(_)) => AssertError(info) dueTo KeyNotComparableReason(info)
+    case (info, _: AssertionFalse) => AssertError(info) dueTo KeyNotComparableReason(info)
     case _ => Violation.violation("Unexpected case reached")
   }
 

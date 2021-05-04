@@ -239,7 +239,8 @@ class MapEncoding extends LeafTypeEncoding {
             correspondingMapRes = vpr.DomainFuncApp(
               func = getMapFunc,
               args = Seq(vRes.localVar),
-              typVarMap = Map(keyParam -> goT(keys), valueParam -> goT(values)))(pos, info, errT)
+              typVarMap = Map(keyParam -> goT(keys), valueParam -> goT(values))
+            )(pos, info, errT)
 
             inhale = vpr.Inhale(vpr.EqCmp(correspondingMapRes, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT))(pos, info, errT)
             _ <- write(inhale)
@@ -349,7 +350,7 @@ class MapEncoding extends LeafTypeEncoding {
   }
 }
 
-object MapEncoding extends LeafTypeEncoding {
+object MapEncoding {
   protected[maps] def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
     val isComp = ctx.typeEncoding.isComparable(ctx)(key)
     isComp match {

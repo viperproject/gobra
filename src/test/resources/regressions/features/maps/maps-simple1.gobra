@@ -35,11 +35,11 @@ func test6() {
 	m := make(map[int]int, 1)
 	assert acc(m) && len(m) == 0
 
-	// multi assignement supported
+	// multi assignment supported
 	v1, ok1 := m[3]
 	assert !ok1 && v1 == 0
 
-	// single assignement supported
+	// single assignment supported
 	v2 := m[3]
 	assert v2 == 0
 

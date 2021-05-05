@@ -110,7 +110,7 @@ class MapEncoding extends LeafTypeEncoding {
           _ <- write(
             vpr.Inhale(
               vpr.FieldAccessPredicate(
-                vpr.FieldAccess(vRes.localVar, underlyingMapField(ctx))(pos, info, errT),
+                vpr.FieldAccess(vRes.localVar, underlyingMapField)(pos, info, errT),
                 vpr.FullPerm()(pos, info, errT))(pos, info, errT))(pos, info, errT))
           // inhale getCorrespondingMap(res) == underlyingMap; recall that underlyingMap == ExplicitMap(mapletList)
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
@@ -135,9 +135,19 @@ class MapEncoding extends LeafTypeEncoding {
     *    var a Ref := new(underlyingMapField)
     *    inhales len(m) == 0, where m is the underlying map of a
     *    [r] := a
+    *
+    *  [v, ok := exp[idx] ->
+    *     var res [T1]
+    *     var ok' Bool
+    *     let (lookupVal, okCond) be the result of goMapLookup(exp[idx])
+    *     res := lookupVal
+    *     ok' := okCond
+    *     [v] := res
+    *     [ok] := ok'
     */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.statement(ctx)) {
       case makeStmt@in.MakeMap(target, t@in.MapT(keys, values, _), makeArg) =>
@@ -154,20 +164,19 @@ class MapEncoding extends LeafTypeEncoding {
         seqn(
           for {
             checks <- sequence(runtimeCheck)
-            _ <- if (checks.length == 1) write(checks(0)) else unit(())
-            _ <- errorT {
+            _ <- write(checks: _*)
+            _ <- if (checks.nonEmpty) errorT {
               case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) =>
                 MapMakePreconditionError(info)
-            }
+            } else unit(())
 
             mapVar = in.LocalVar(Names.freshName, t.withAddressability(Exclusive))(makeStmt.info)
             mapVarVpr = ctx.typeEncoding.variable(ctx)(mapVar)
             _ <- local(mapVarVpr)
 
-            zeroLit = vpr.IntLit(BigInt(0))(pos, info, errT)
             correspondingMap <- getCorrespondingMap(mapVar, keys, values)(ctx)
-            _ <- write(vpr.NewStmt(mapVarVpr.localVar, Seq(underlyingMapField(ctx)))(pos, info, errT))
-            _ <- write(vpr.Inhale(vpr.EqCmp(vpr.MapCardinality(correspondingMap)(pos, info, errT), zeroLit)(pos, info, errT))(pos, info, errT))
+            _ <- write(vpr.NewStmt(mapVarVpr.localVar, Seq(underlyingMapField))(pos, info, errT))
+            _ <- write(vpr.Inhale(vpr.EqCmp(correspondingMap, vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT))(pos, info, errT))(pos, info, errT))
             ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), mapVar, makeStmt)
           } yield ass
         )
@@ -244,7 +253,7 @@ class MapEncoding extends LeafTypeEncoding {
 
             inhale = vpr.Inhale(vpr.EqCmp(correspondingMapRes, vpr.MapUpdate(correspondingMapM, vIdx, vRhs)(pos, info, errT))(pos, info, errT))(pos, info, errT)
             _ <- write(inhale)
-          } yield vpr.FieldAssign(vpr.FieldAccess(vM, underlyingMapField(ctx))(pos, info, errT), vRes.localVar)(pos, info, errT)
+          } yield vpr.FieldAssign(vpr.FieldAccess(vM, underlyingMapField)(pos, info, errT), vRes.localVar)(pos, info, errT)
         )
     }
   }
@@ -262,7 +271,7 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           vE <- goE(exp)
           vP <- goE(perm)
-        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField(ctx))(pos, info, errT), vP)(pos, info, errT)
+        } yield vpr.FieldAccessPredicate(vpr.FieldAccess(vE, underlyingMapField)(pos, info, errT), vP)(pos, info, errT)
     }
   }
 
@@ -302,7 +311,8 @@ class MapEncoding extends LeafTypeEncoding {
   /**
     * Field of the corresponding map id
     */
-  private def underlyingMapField(ctx: Context): vpr.Field = ctx.field.field(in.IntT(Exclusive))(ctx)
+  private val underlyingMapFieldName: String = "underlyingMapField"
+  private def underlyingMapField: vpr.Field = vpr.Field(underlyingMapFieldName, vpr.Int)()
 
   /**
     * Builds the expression `getMap([exp].underlyingMapField)`
@@ -315,7 +325,7 @@ class MapEncoding extends LeafTypeEncoding {
       vExp <- goE(exp)
       res = withSrc(vpr.DomainFuncApp(
         func = getMapFunc,
-        args = Seq(withSrc(vpr.FieldAccess(vExp, underlyingMapField(ctx)), exp)),
+        args = Seq(withSrc(vpr.FieldAccess(vExp, underlyingMapField), exp)),
         typVarMap = Map(keyParam -> goT(keys), valueParam -> goT(values))
       ), exp)
     } yield res

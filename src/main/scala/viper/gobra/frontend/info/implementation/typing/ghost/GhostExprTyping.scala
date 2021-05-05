@@ -361,7 +361,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PMultisetConversion(op) => go(op)
         case PCardinality(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
-        case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
+        case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureGhostColUpdClause)
         case PMapKeys(exp) => go(exp)
         case PMapValues(exp) => go(exp)
       }
@@ -403,7 +403,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     res
   }
 
-  private def isPureSeqUpdClause(clause : PGhostCollectionUpdateClause) : Boolean =
+  private def isPureGhostColUpdClause(clause : PGhostCollectionUpdateClause) : Boolean =
     isPureExprAttr(clause.left) && isPureExprAttr(clause.right)
 
   private def isPureId(id: PIdnNode, strong: Boolean): Boolean = {

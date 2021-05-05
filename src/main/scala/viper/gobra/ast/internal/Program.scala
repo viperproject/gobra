@@ -780,9 +780,8 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
 
 /**
   * Represents a mathematical map literal "mmap[`keys`]`values` { k_0: e_0, ..., k_n: e_n }",
-  * where `keyExprs` constitutes the vector "k_0, ..., k_n" of members of `keys` type
-  * and `valExprs` constitutes the vector "e_0, ..., e_n" of members,
-  * which should all be of type `values`.
+  * where `entries` constitutes the map "{k_0: e_0, ..., k_n: e_n}". The expressions `k_i` should have type `keys`
+  * and the expressions `e_i` should have type `values`.
   */
 case class MathMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
   override val typ : Type = MathMapT(keys, values, Addressability.literal)

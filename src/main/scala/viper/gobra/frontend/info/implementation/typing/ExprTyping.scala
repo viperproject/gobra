@@ -499,7 +499,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
+      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
+        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 

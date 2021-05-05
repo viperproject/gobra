@@ -69,21 +69,26 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.expr(ctx)){
       case (e: in.DfltVal) :: ctx.MathematicalMap(k, v) / Exclusive =>
         unit(withSrc(vpr.EmptyMap(ctx.typeEncoding.typ(ctx)(k), ctx.typeEncoding.typ(ctx)(v)), e))
 
-      case (lit: in.MathMapLit) :: ctx.MathematicalMap(_, _) / Exclusive =>
+      case (lit: in.MathMapLit) :: ctx.MathematicalMap(keyT, valT) / Exclusive =>
         val (pos, info, errT) = lit.vprMeta
+        val vprKeyT = goT(keyT)
+        val vprValT = goT(valT)
         for {
           mapletList <- sequence(lit.entries.toVector.map {
-            case (key, value) => for {
-              k <- goE(key)
-              v <- goE(value)
-            } yield vpr.Maplet(k, v)(pos, info, errT)
+            case (key, value) => for { k <- goE(key); v <- goE(value) } yield vpr.Maplet(k, v)(pos, info, errT)
           })
-        } yield vpr.ExplicitMap(mapletList)(pos, info, errT)
+        } yield if (mapletList.nonEmpty) {
+          // silver implicitly expects its argument list to not be empty
+          vpr.ExplicitMap(mapletList)(pos, info, errT)
+        } else {
+          vpr.EmptyMap(vprKeyT, vprValT)(pos, info, errT)
+        }
 
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta

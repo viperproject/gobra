@@ -1950,7 +1950,11 @@ object Desugar {
           case PKeyedElement(Some(key), value) => for {
             entryKey <- key match {
               case v: PCompositeVal => compositeValD(ctx)(v, keys)
-              case k: PIdentifierKey => violation(s"unexpected key $k")
+              case k: PIdentifierKey => info.regular(k.id) match {
+                case _: st.Variable => unit(varD(ctx)(k.id))
+                case c: st.Constant => unit(globalConstD(c)(meta(k)))
+                case _ => violation(s"unexpected key $key")
+              }
             }
             entryVal <- compositeValD(ctx)(value, values)
           } yield (entryKey, entryVal)

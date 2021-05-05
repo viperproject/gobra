@@ -69,6 +69,7 @@ class MapEncoding extends LeafTypeEncoding {
     */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.expr(ctx)) {
       case (exp: in.DfltVal) :: ctx.Map(_, _) / Exclusive => unit(withSrc(vpr.NullLit(), exp))
@@ -103,7 +104,12 @@ class MapEncoding extends LeafTypeEncoding {
               v <- goE(value)
             } yield vpr.Maplet(k, v)(pos, info, errT)
           })
-          underlyingMap = vpr.ExplicitMap(mapletList)(pos, info, errT)
+          underlyingMap = if (mapletList.nonEmpty) {
+            // silver implicitly expects its argument list to not be empty
+            vpr.ExplicitMap(mapletList)(pos, info, errT)
+          } else {
+            vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT)
+          }
           _ <- local(vRes)
           correspondingMap <- getCorrespondingMap(res, keys, values)(ctx)
           // inhale acc(res.underlyingMapField)

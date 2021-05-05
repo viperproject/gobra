@@ -353,9 +353,11 @@ class MapEncoding extends LeafTypeEncoding {
 object MapEncoding {
   protected[maps] def checkKeyComparability(key: in.Expr)(ctx: Context): CodeWriter[vpr.Exp] = {
     val isComp = ctx.typeEncoding.isComparable(ctx)(key)
+    val (pos, info, errT) = key.vprMeta
+
     isComp match {
-      case Left(false) => unit[vpr.Exp](withSrc(vpr.FalseLit(), key))
-      case Left(true) => unit[vpr.Exp](withSrc(vpr.TrueLit(), key))
+      case Left(false) => unit[vpr.Exp](vpr.FalseLit()(pos, info, errT))
+      case Left(true) => unit[vpr.Exp](vpr.TrueLit()(pos, info, errT))
       case Right(compExp) => compExp
     }
   }

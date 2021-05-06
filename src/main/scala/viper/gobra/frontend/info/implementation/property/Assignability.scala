@@ -198,7 +198,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case MapT(key, t) =>
           areAllElementsKeyed(elems) and
             areAllKeysAssignable(elems, key) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t) and
+            areAllConstantKeysDifferent(elems, key)
 
         case SequenceT(t) =>
           areAllKeysConstant(elems) and
@@ -217,7 +218,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case MathMapT(keys, values) =>
           areAllElementsKeyed(elems) and
             areAllKeysAssignable(elems, keys) and
-            areAllElementsAssignable(elems, values)
+            areAllElementsAssignable(elems, values) and
+            areAllConstantKeysDifferent(elems, keys)
 
         case t => failedProp(s"cannot assign literal to $t")
       }
@@ -273,6 +275,21 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   private def areAllElementsAssignable(elems : Vector[PKeyedElement], typ : Type) =
     propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, typ)))
+
+  private def areAllConstantKeysDifferent(elems: Vector[PKeyedElement], typ: Type) = {
+    def constVal[T](eval: PExpression => Option[T])(keyed: PKeyedElement) : Option[T] = keyed.key match {
+      case Some(PExpCompositeVal(exp)) => eval(exp)
+      case _ => None
+    }
+    val eval = underlyingType(typ) match {
+      case _: IntT => intConstantEval
+      case BooleanT => boolConstantEval
+      case StringT => stringConstantEval
+      case _ => _: PExpression => None
+    }
+    val constKeys = elems map constVal(eval) filter (_.isDefined) map (_.get)
+    failedProp("duplicate keys in map literal", constKeys.distinct.size != constKeys.size)
+  }
 
 
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt] = {

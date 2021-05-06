@@ -105,7 +105,7 @@ class MapEncoding extends LeafTypeEncoding {
             } yield vpr.Maplet(k, v)(pos, info, errT)
           })
           underlyingMap = if (mapletList.nonEmpty) {
-            // silver implicitly expects its argument list to not be empty
+            // silver assumes that the argument of ExplicitMap is not empty
             vpr.ExplicitMap(mapletList)(pos, info, errT)
           } else {
             vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT)

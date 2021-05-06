@@ -84,7 +84,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
             case (key, value) => for { k <- goE(key); v <- goE(value) } yield vpr.Maplet(k, v)(pos, info, errT)
           })
         } yield if (mapletList.nonEmpty) {
-          // silver implicitly expects its argument list to not be empty
+          // silver assumes that the argument to ExplicitMap is not empty
           vpr.ExplicitMap(mapletList)(pos, info, errT)
         } else {
           vpr.EmptyMap(vprKeyT, vprValT)(pos, info, errT)

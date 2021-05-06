@@ -780,10 +780,10 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
 
 /**
   * Represents a mathematical map literal "mmap[`keys`]`values` { k_0: e_0, ..., k_n: e_n }",
-  * where `entries` constitutes the map "{k_0: e_0, ..., k_n: e_n}". The expressions `k_i` should have type `keys`
+  * where `entries` constitutes the sequence of entries of the map "{(k_0: e_0), ..., (k_n: e_n)}". The expressions `k_i` should have type `keys`
   * and the expressions `e_i` should have type `values`.
   */
-case class MathMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class MathMapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
   override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
@@ -984,7 +984,7 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
-case class MapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class MapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
   override val typ : Type = MapT(keys, values, Addressability.literal)
 }
 

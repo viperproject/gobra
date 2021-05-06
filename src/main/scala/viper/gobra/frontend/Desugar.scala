@@ -1944,8 +1944,8 @@ object Desugar {
       }
     }
 
-    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Map[in.Expr, in.Expr]] = {
-      val listOfPairs = sequence(
+    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      sequence(
         lit.elems map {
           case PKeyedElement(Some(key), value) => for {
             entryKey <- key match {
@@ -1961,8 +1961,6 @@ object Desugar {
 
           case _ => violation("unexpected pattern, missing key in map literal")
         })
-
-      listOfPairs map (_.toMap)
     }
 
     // Type

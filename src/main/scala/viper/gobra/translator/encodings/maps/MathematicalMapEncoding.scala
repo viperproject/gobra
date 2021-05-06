@@ -8,24 +8,16 @@ package viper.gobra.translator.encodings.maps
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{AssertError, KeyNotComparableReason, Source, VerificationError}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.LeafTypeEncoding
+import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
-import viper.gobra.util.Violation
-import viper.silver.verifier.ErrorReason
-import viper.silver.verifier.reasons.AssertionFalse
 import viper.silver.{ast => vpr}
 
 class MathematicalMapEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
-
-  val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
-    case (info, _: AssertionFalse) => AssertError(info) dueTo KeyNotComparableReason(info)
-    case _ => Violation.violation("Unexpected case reached")
-  }
 
   /**
     * Translates a type into a Viper type.
@@ -46,7 +38,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
       for {
-        isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
+        isCompKey <- checkKeyComparability(idx)(ctx)
         _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
         stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
       } yield stmt
@@ -60,7 +52,8 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     *
     * Most cases are a one-to-one mapping to Viper's sequence operations.
     * R[ dflt(mmap[K]V°) ] -> EmptyMap([K], [V])
-    * R[ mmapLit(E) ] -> ExplicitMap([E])
+    * R[ mmapLit(E) ] -> if E.isEmpty then EmptyMap else ExplicitMap([E]) (also checks that the values of keys are all
+    * *   distinct and throws an error if not)
     * R[ (e: mmap[K]V)[idx] ] -> MapLookup([e], [idx])
     * R[ (e: mmap[K]V)[idx = val] ] -> MapUpdate([e], [idx], [val])
     * R[ len(e: mmap[K]V) ] -> MapCardinality([e])
@@ -83,17 +76,24 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
           mapletList <- sequence(lit.entries.toVector.map {
             case (key, value) => for { k <- goE(key); v <- goE(value) } yield vpr.Maplet(k, v)(pos, info, errT)
           })
-        } yield if (mapletList.nonEmpty) {
-          // silver assumes that the argument to ExplicitMap is not empty
-          vpr.ExplicitMap(mapletList)(pos, info, errT)
-        } else {
-          vpr.EmptyMap(vprKeyT, vprValT)(pos, info, errT)
-        }
+          mmapVal <- if (mapletList.nonEmpty) {
+            // silver assumes that the argument to ExplicitMap is not empty
+            val keySeq = mapletList map (_.key)
+            // checks whether all keys are distinct
+            val checkAllDiffKeys = vpr.EqCmp(
+              vpr.AnySetCardinality(vpr.ExplicitSet(keySeq)(pos, info, errT))(pos, info, errT),
+              vpr.SeqLength(vpr.ExplicitSeq(keySeq)(pos, info, errT))(pos, info, errT)
+            )(pos, info, errT)
+            assert(checkAllDiffKeys, vpr.ExplicitMap(mapletList)(pos, info, errT), repeatedKeyErrorT)(ctx)
+          } else {
+            unit(vpr.EmptyMap(vprKeyT, vprValT)(pos, info, errT))
+          }
+        } yield mmapVal
 
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          isCompKey <- MapEncoding.checkKeyComparability(idx)(ctx)
+          isCompKey <- checkKeyComparability(idx)(ctx)
           _ <- assert(isCompKey, isCompKey, comparabilityErrorT)(ctx)
           vE <- goE(e)
           vIdx <- goE(idx)

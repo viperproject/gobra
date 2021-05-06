@@ -14,6 +14,7 @@ import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
+import viper.gobra.translator.encodings.maps.MapEncoding.{comparabilityErrorT, repeatedKeyErrorT}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -38,10 +39,6 @@ class MapEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
 
   private val domainName: String = Names.mapsDomain
-  private val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
-    case (info, AssertionFalse(_)) => AssertError(info) dueTo KeyNotComparableReason(info)
-    case _ => Violation.violation("unexpected case reached")
-  }
 
   /**
     * Translates a type into a Viper type.
@@ -63,7 +60,9 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ dflt(map[K]V°) ] -> null
     * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
     * R[ (e: map[K]V)[idx] ] -> goMapLookup(e[idx])
-    * R[ map[K]V { idx1: v1 ... idxn: vn } ] -> e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] }
+    * R[ map[K]V { idx1: v1 ... idxn: vn } ] ->
+    *   e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] } (also checks that the values of keys are all
+    *   distinct and throws an error if not)
     * R[ keySet(e: map[K]V) ] -> MapDomain(getCorrespondingMap(e))
     * R[ valueSet(e: map[K]V) ] -> MapRange(getCorrespondingMap(e))
     */
@@ -104,11 +103,18 @@ class MapEncoding extends LeafTypeEncoding {
               v <- goE(value)
             } yield vpr.Maplet(k, v)(pos, info, errT)
           })
-          underlyingMap = if (mapletList.nonEmpty) {
+
+          underlyingMap <- if (mapletList.nonEmpty) {
             // silver assumes that the argument of ExplicitMap is not empty
-            vpr.ExplicitMap(mapletList)(pos, info, errT)
+            val keySeq = mapletList map (_.key)
+            // checks whether all keys are distinct
+            val checkAllDiffKeys = vpr.EqCmp(
+              vpr.AnySetCardinality(vpr.ExplicitSet(keySeq)(pos, info, errT))(pos, info, errT),
+              vpr.SeqLength(vpr.ExplicitSeq(keySeq)(pos, info, errT))(pos, info, errT)
+            )(pos, info, errT)
+            assert(checkAllDiffKeys, vpr.ExplicitMap(mapletList)(pos, info, errT), repeatedKeyErrorT)(ctx)
           } else {
-            vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT)
+            unit(vpr.EmptyMap(goT(keys), goT(values))(pos, info, errT))
           }
           _ <- local(vRes)
           correspondingMap <- getCorrespondingMap(res, keys, values)(ctx)
@@ -376,5 +382,15 @@ object MapEncoding {
       case Left(true) => unit[vpr.Exp](vpr.TrueLit()(pos, info, errT))
       case Right(compExp) => compExp
     }
+  }
+
+  protected[maps] val comparabilityErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
+    case (info, AssertionFalse(_)) => AssertError(info) dueTo KeyNotComparableReason(info)
+    case _ => Violation.violation("unexpected case reached")
+  }
+
+  protected[maps] val repeatedKeyErrorT: (Source.Verifier.Info, ErrorReason) => VerificationError = {
+    case (info, AssertionFalse(_)) => AssertError(info) dueTo RepeatedMapKeyReason(info)
+    case _ => Violation.violation("unexpected case reached")
   }
 }

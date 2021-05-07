@@ -131,7 +131,8 @@ object Util{
 
 class GobraCounterexample(gModel:GobraModelAtLabel) extends Counterexample{
 	override def toString:String = gModel.toString
-	def testString :String = gModel.labeledEntries.head._2.entries.map(x=>Util.removeWhitespace(s"${x._1._1.toString}\t<- ${Util.prettyPrint(x._2,0)}")).mkString(";")
+	//TODO ensure the counterexamples are sorted alphabetically
+	def testString :String =  gModel.labeledEntries.head._2.entries.toSeq.sortBy(_._1._1.toString).map(x=>Util.removeWhitespace(s"${x._1._1.toString}\t<- ${Util.prettyPrint(x._2,0)}")).mkString(";")
 	val model =null
 }
 //for debugging purposes 

@@ -18,6 +18,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   import viper.gobra.util.Violation._
 
   val INT_TYPE: Type = IntT(config.typeBounds.Int)
+  val UINT_TYPE: Type = IntT(config.typeBounds.UInt)
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
   // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
@@ -660,8 +661,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val index = r.exps.indexOf(expr)
           Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
 
-        case n: PShiftLeft => Some(INT_TYPE)
-        case n: PShiftRight => Some(INT_TYPE)
+        case n: PShiftLeft  => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
+        case n: PShiftRight => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

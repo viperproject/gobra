@@ -25,9 +25,9 @@ func test3() {
 }
 
 
-// cannot compute keySet(m), no permission to m
+// cannot compute domain(m), no permission to m
 //:: ExpectedOutput(contract_not_well_formed)
-requires "key" in keySet(m)
+requires "key" in domain(m)
 func test4(m map[string]string) (r string){
 	return m["key"]
 }

@@ -36,30 +36,32 @@ object TypeBounds {
   object UnboundedInteger extends IntegerKind("integer")
 
   sealed abstract class BoundedIntegerKind(override val name: String, val lower: BigInt, val upper: BigInt) extends IntegerKind(name)
+  sealed trait Signed extends BoundedIntegerKind
+  sealed trait Unsigned extends BoundedIntegerKind
 
-  object SignedInteger8 extends BoundedIntegerKind("int8", -128, 127)
-  object SignedInteger16 extends BoundedIntegerKind("int16", -32768, 32767)
+  object SignedInteger8 extends BoundedIntegerKind("int8", -128, 127) with Signed
+  object SignedInteger16 extends BoundedIntegerKind("int16", -32768, 32767) with Signed
 
-  sealed abstract class AbstractSignedInteger32(override val name: String) extends BoundedIntegerKind(name, -2147483648, 2147483647)
+  sealed abstract class AbstractSignedInteger32(override val name: String) extends BoundedIntegerKind(name, -2147483648, 2147483647) with Signed
   object DefaultInt extends AbstractSignedInteger32("int") // int definition when Gobra runs in 32-bit (i.e. default) mode
   object SignedInteger32 extends AbstractSignedInteger32("int32")
   object Rune extends AbstractSignedInteger32("rune")
 
-  sealed abstract class AbstractSignedInteger64(override val name: String) extends BoundedIntegerKind(name, -9223372036854775808L, 9223372036854775807L)
+  sealed abstract class AbstractSignedInteger64(override val name: String) extends BoundedIntegerKind(name, -9223372036854775808L, 9223372036854775807L) with Signed
   object SignedInteger64 extends AbstractSignedInteger64("int64")
   object IntWith64Bit extends AbstractSignedInteger64("int") // int definition when Gobra runs in 64-bit mode
 
-  sealed abstract class AbstractUnsignedInteger8(override val name: String) extends BoundedIntegerKind(name, 0, 255)
-  object Byte extends AbstractUnsignedInteger8("byte")
-  object UnsignedInteger8 extends AbstractUnsignedInteger8("uint8")
+  sealed abstract class AbstractUnsignedInteger8(override val name: String) extends BoundedIntegerKind(name, 0, 255) with Unsigned
+  object Byte extends AbstractUnsignedInteger8("byte") with Unsigned
+  object UnsignedInteger8 extends AbstractUnsignedInteger8("uint8") with Unsigned
 
-  object UnsignedInteger16 extends BoundedIntegerKind("uint16", 0, 65535)
+  object UnsignedInteger16 extends BoundedIntegerKind("uint16", 0, 65535) with Unsigned
 
-  sealed abstract class AbstractUnsignedInteger32(override val name: String) extends BoundedIntegerKind(name, 0, 4294967295L)
+  sealed abstract class AbstractUnsignedInteger32(override val name: String) extends BoundedIntegerKind(name, 0, 4294967295L) with Unsigned
   object UnsignedInteger32 extends AbstractUnsignedInteger32("uint32")
   object DefaultUInt extends AbstractUnsignedInteger32("uint") // uint definition when Gobra runs in 32-bit mode
 
-  sealed abstract class AbstractUnsignedInteger64(override val name: String) extends BoundedIntegerKind(name, 0, BigInt("18446744073709551615"))
+  sealed abstract class AbstractUnsignedInteger64(override val name: String) extends BoundedIntegerKind(name, 0, BigInt("18446744073709551615")) with Unsigned
   object UnsignedInteger64 extends AbstractUnsignedInteger64("uint64")
   object UIntWith64Bit extends AbstractUnsignedInteger64("uint") // uint definition when Gobra runs in 64-bit mode
   object UIntPtr extends AbstractUnsignedInteger64("uintptr")

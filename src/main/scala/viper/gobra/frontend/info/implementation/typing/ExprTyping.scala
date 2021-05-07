@@ -660,6 +660,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val index = r.exps.indexOf(expr)
           Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
 
+        case n: PShiftLeft => Some(INT_TYPE)
+        case n: PShiftRight => Some(INT_TYPE)
+
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
           // then p can either occur as the base or as an argument of `inv`. However, a numeric expression is not a valid base of a
@@ -805,9 +808,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PCapacity => INT_TYPE
 
     case bExpr: PBinaryExp[_,_] =>
-      val typeLeft = exprOrTypeType(bExpr.left)
-      val typeRight = exprOrTypeType(bExpr.right)
-      typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+      bExpr match {
+        case _: PShiftLeft | _: PShiftRight => exprOrTypeType(bExpr.left)
+        case _ =>
+          val typeLeft = exprOrTypeType(bExpr.left)
+          val typeRight = exprOrTypeType(bExpr.right)
+          typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+      }
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

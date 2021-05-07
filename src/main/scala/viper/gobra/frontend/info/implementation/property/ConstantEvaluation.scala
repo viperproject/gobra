@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds.{DefaultInt, DefaultUInt, IntWith64Bit, Signed, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntWith64Bit, UnboundedInteger, Unsigned, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
@@ -65,6 +66,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
   lazy val intConstantEval: PExpression => Option[BigInt] =
     attr[PExpression, Option[BigInt]] {
       case PIntLit(lit, _) => Some(lit)
+      case e: PBitwiseNegation => ???
       case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
           (intConstantEval(l), intConstantEval(r)) match {
@@ -81,6 +83,82 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PMul => aux(l, r)(x => y => x * y)
             case _: PMod => aux(l, r)(x => y => x % y)
             case _: PDiv => aux(l, r)(x => y => x / y)
+            case _: PShiftLeft =>
+              for {
+                constL <- intConstantEval(l)
+                constR <- intConstantEval(r)
+                v = underlyingType(typ(l)) match {
+                  case IntT(t: Signed) => t match {
+                    case SignedInteger8 =>
+                      constL.byteValue << constR.intValue
+                    case SignedInteger16 =>
+                      constL.shortValue << constR.intValue
+                    case SignedInteger32 | DefaultInt =>
+                      constL.intValue << constR.intValue
+                    case SignedInteger64 | IntWith64Bit =>
+                      constL.longValue << constR.intValue
+                  }
+                  case IntT(t: Unsigned) => t match {
+                    case UnsignedInteger8 =>
+                      constL.byteValue << constR.intValue
+                    case UnsignedInteger16 =>
+                      constL.shortValue << constR.intValue
+                    case UnsignedInteger32 | DefaultUInt =>
+                      constL.intValue << constR.intValue
+                    case UnsignedInteger64 | UIntWith64Bit =>
+                      constL.longValue << constR.intValue
+                  }
+                  case IntT(UnboundedInteger) => ??? // should be violation
+                    /*
+                    if (config.int32bit) {
+                      constL.intValue << constR.longValue
+                    } else {
+                      constL.longValue << constR.longValue
+                    }
+                     */
+                }
+              } yield BigInt(v)
+
+            case _: PShiftRight =>
+              for {
+                constL <- intConstantEval(l)
+                constR <- intConstantEval(r)
+                v = underlyingType(typ(l)) match {
+                  case IntT(t: Signed) => t match {
+                    case SignedInteger8 =>
+                      constL.byteValue >> constR.intValue
+                    case SignedInteger16 =>
+                      constL.shortValue >> constR.intValue
+                    case SignedInteger32 | DefaultInt =>
+                      constL.intValue >> constR.intValue
+                    case SignedInteger64 | IntWith64Bit =>
+                      constL.longValue >> constR.intValue
+                  }
+                  case IntT(t: Unsigned) => t match {
+                    case UnsignedInteger8 =>
+                      constL.byteValue >>> constR.intValue
+                    case UnsignedInteger16 =>
+                      constL.shortValue >>> constR.intValue
+                    case UnsignedInteger32 | DefaultUInt =>
+                      constL.intValue >>> constR.intValue
+                    case UnsignedInteger64 | UIntWith64Bit =>
+                      constL.longValue >>> constR.intValue
+                  }
+                  case _ => ???
+                    /*
+                    if (config.int32bit) {
+                      constL.intValue >> constR.longValue
+                    } else {
+                      constL.longValue >> constR.longValue
+                    }
+                     */
+                }
+              } yield BigInt(v)
+            case _: PBitwiseAnd => ???
+            case _: PBitwiseOr => ???
+            case _: PBitwiseXor => ???
+            case _: PBitClear => ???
+
             case _ => None
           }
         } yield res

@@ -13,7 +13,7 @@ requires acc(m)
 func test2(m map[interface{}]int) int {
 	var m1 interface{} = make(map[int]int)
 	// runtime type of m1 is not comparable
-	//:: ExpectedOutput(assert_error)
+	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
 	return m[m1]
 }
 
@@ -39,4 +39,10 @@ func test5() {
 	// makes use of undefined behaviour in Go
 	//:: ExpectedOutput(assert_error:repeated_map_key_reason)
 	m := map[int]int{1: x, y: 2}
+}
+
+func test6() {
+	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
+	var m1 interface{} = make(map[int]int)
+	m2 := map[interface{}]int{ m1: 1 }
 }

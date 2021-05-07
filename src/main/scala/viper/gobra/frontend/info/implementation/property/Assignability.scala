@@ -288,7 +288,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case _ => _: PExpression => None
     }
     val constKeys = elems map constVal(eval) filter (_.isDefined) map (_.get)
-    failedProp("duplicate keys in map literal", constKeys.distinct.size != constKeys.size)
+    failedProp("key appears twice in map literal", constKeys.distinct.size != constKeys.size)
   }
 
 

@@ -74,7 +74,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case _: AdtT => noMessages
           case t => error(n, s"expected an AdtClauseT for QualifiedAdtType but got $t")
         }
-        case Some(p: ap.AdtSelection) => underlyingType(exprType(p.base)) match {
+        case Some(p: ap.AdtField) => underlyingType(exprType(p.base)) match {
           case _: AdtT => noMessages
           case t => error(n, s"expected adt value but got $t")
         }
@@ -124,9 +124,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.QualifiedAdtType) =>
-          val fields = p.symb.fields.map(f => f.id.name -> symbType(f.typ)).toMap
+          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
           AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
-        case Some(p: ap.AdtSelection) =>
+        case Some(p: ap.AdtField) =>
           p.symb match {
             case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
             case AdtDiscriminator(_, _, _) => BooleanT

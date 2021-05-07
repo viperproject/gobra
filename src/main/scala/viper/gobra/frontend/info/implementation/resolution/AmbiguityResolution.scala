@@ -94,7 +94,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
         // adts
         case (Right(base), Some((s: st.AdtClause, _))) => Some(ap.QualifiedAdtType(base, s))
-        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtSelection(base, n.id, s))
+        case (Left(base), Some((s: st.AdtMember, _))) => Some(ap.AdtField(base, n.id, s))
 
         case _ => None
       }

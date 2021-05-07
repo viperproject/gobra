@@ -46,8 +46,9 @@ trait BaseTyping { this: TypeInfoImpl =>
 
   trait WellDefinedness[-A] extends Error[A]
 
-  private[typing] def children[T <: PNode](n: T): Vector[PNode] =
+  private[typing] def children[T <: PNode](n: T): Vector[PNode] = {
     tree.child(n)
+  }
 
   private[typing] def childrenWellDefined(n: PNode): Boolean = children(n) forall selfWellDefined
 

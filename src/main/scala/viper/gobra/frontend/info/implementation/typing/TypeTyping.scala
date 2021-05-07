@@ -134,7 +134,8 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
       resolve(n) match {
         case Some(p: ap.NamedType) => DeclaredT(p.symb.decl, p.symb.context)
         case Some(p: ap.QualifiedAdtType) =>
-          val types = p.symb.fields.map(f => f.id.name -> symbType(f.typ)).toMap
+          println(s"fields for $n: ${p.symb.fields} with decl ${p.symb}")
+          val types = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
           AdtClauseT(types, p.symb.decl, p.symb.adtDecl, p.symb.context)
         case _ => violation(s"expected type, but got $n")
       }

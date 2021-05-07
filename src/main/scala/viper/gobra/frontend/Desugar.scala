@@ -1063,7 +1063,7 @@ object Desugar {
     }
 
 
-    def adtSelectionD(ctx: FunctionContext)(p: ap.AdtSelection)(src: Meta): Writer[in.Expr] = {
+    def adtSelectionD(ctx: FunctionContext)(p: ap.AdtField)(src: Meta): Writer[in.Expr] = {
       for {
         base <- exprD(ctx)(p.base)
       } yield p.symb match {
@@ -1425,7 +1425,7 @@ object Desugar {
             case Some(_: ap.NamedType) =>
               val name = typeD(info.symbType(n), Addressability.Exclusive)(src).asInstanceOf[in.DefinedT].name
               unit(in.DefinedTExpr(name)(src))
-            case Some(p: ap.AdtSelection) => adtSelectionD(ctx)(p)(src)
+            case Some(p: ap.AdtField) => adtSelectionD(ctx)(p)(src)
             case Some(p) => Violation.violation(s"only field selections, global constants, and types can be desugared to an expression, but got $p")
             case _ => Violation.violation(s"could not resolve $n")
           }

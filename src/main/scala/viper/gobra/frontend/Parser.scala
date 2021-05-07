@@ -878,8 +878,14 @@ object Parser {
     // unicode values and byte values are allowed
       "\"" ~> """(?:\\"|[^"\n])*""".r <~ "\"" ^^ (lit => PStringLit(lit))
 
-    lazy val compositeLit: Parser[PCompositeLit] =
-      literalType ~ literalValue ^^ PCompositeLit
+    lazy val qualifiedAdtImport: Parser[PDot] = {
+      idnUse ~ ("." ~> idnUse) ~ ("." ~> idnUse) ^^ {case pck ~ adt ~ clause => PDot(PDot(PNamedOperand(pck), adt), clause)}
+    }
+
+    lazy val compositeLit: Parser[PCompositeLit] = {
+      (("(" ~> qualifiedAdtImport <~ ")") ~ literalValue |
+      literalType ~ literalValue) ^^ PCompositeLit
+    }
 
     lazy val literalValue: Parser[PLiteralValue] =
       "{" ~> (rep1sep(keyedElement, ",") <~ ",".?).? <~ "}" ^^ {

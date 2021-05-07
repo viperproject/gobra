@@ -958,11 +958,11 @@ case class PSequenceAppend(left : PExpression, right : PExpression) extends PSeq
 case class PSequenceConversion(exp : PExpression) extends PSequenceExp
 
 /**
-  * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
-  * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
+  * Denotes a ghost-collection update expression "`T`[e_0 = e'_0, ..., e_n = e'_n]",
+  * consisting of a vector `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PGhostCollectionUpdate(seq : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PGhostCollectionExp {
+case class PGhostCollectionUpdate(col : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PGhostCollectionExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
     this(seq, Vector(PGhostCollectionUpdateClause(left, right)))

@@ -19,6 +19,7 @@ func test1() {
 
 	// mathematical map length (size of the domain, same as regular maps)
 	assert len(m2) == 3
+	assert len(mmap[int]int{}) == 0
 
 	// keySet and valueSet obtain the set of keys and values, respectively
 	assert |keySet(m2)| == 3

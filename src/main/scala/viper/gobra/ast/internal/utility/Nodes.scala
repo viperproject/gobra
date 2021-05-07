@@ -163,12 +163,12 @@ object Nodes {
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
-          case MapLit(_, _, entries) => entries.keys.toSeq ++ entries.values.toSeq
+          case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
           case StructLit(_, args) => args
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
-          case MathMapLit(_, _, entries) => entries.keys.toSeq ++ entries.values.toSeq
+          case MathMapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
         }
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty

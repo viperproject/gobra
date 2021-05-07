@@ -121,7 +121,7 @@ trait Enclosing { this: TypeInfoImpl =>
             // no cardinality
             // no sequence append, sequence conversion
           case PGhostCollectionUpdateClause(_, `n`) => p match {
-            case tree.parent(pp: PGhostCollectionUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
+            case tree.parent(pp: PGhostCollectionUpdate) => Some(typ(pp.col).asInstanceOf[Type.SequenceT].elem)
             case c => Violation.violation(s"Only the root has not parent, but got $c")
           }
             // no range sequence

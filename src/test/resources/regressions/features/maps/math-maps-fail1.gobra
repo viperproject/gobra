@@ -16,3 +16,12 @@ func test2() {
 	//:: ExpectedOutput(assert_error:map_key_not_contained)
 	assert m["X"] == 0
 }
+
+func test3() {
+	x@ := 1
+	y := 1
+	// we treat map literals with repeated keys as bugs because it
+	// makes use of undefined behaviour in Go
+	//:: ExpectedOutput(assert_error:repeated_map_key_reason)
+	m := mmap[int]int{1: x, y: 2}
+}

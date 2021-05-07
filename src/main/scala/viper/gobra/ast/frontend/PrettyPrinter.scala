@@ -36,7 +36,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PPackageNode => showPackageId(n)
     case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
-    case n: PGhostCollectionUpdateClause => showSequenceUpdateClause(n)
+    case n: PGhostCollectionUpdateClause => showGhostCollectionUpdateClause(n)
     case n: PAssOp => showAssOp(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
@@ -454,7 +454,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
         case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
-          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
+          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showGhostColUpdateClause)))
         case expr : PSequenceExp => expr match {
           case PSequenceConversion(exp) => "seq" <> parens(showExpr(exp))
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
@@ -480,7 +480,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSeqUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
+  def showGhostColUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
@@ -629,7 +629,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSequenceUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
+  def showGhostCollectionUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }
 

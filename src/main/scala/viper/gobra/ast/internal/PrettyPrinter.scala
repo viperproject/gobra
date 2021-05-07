@@ -496,7 +496,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
 
     case lit@MapLit(_, _, entries) =>
-      showType(lit.typ) <+> braces(space <> showMap(entries)(showExpr, showExpr) <> (if (entries.nonEmpty) space else emptyDoc))
+      val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
 
     case SequenceLit(_, typ, elems) => {
       val exprsP = braces(space <> showIndexedExprMap(elems) <> (if (elems.nonEmpty) space else emptyDoc))
@@ -507,7 +508,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
     case lit@MathMapLit(_, _, entries) =>
-      showType(lit.typ) <+> braces(space <> showMap(entries)(showExpr, showExpr) <> (if (entries.nonEmpty) space else emptyDoc))
+      val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
+      showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
   }
 
   // variables
@@ -558,7 +560,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   private def showTypeList[T <: Type](list: Vector[T]): Doc =
     showList(list)(showType)
 
-  def showList[T](list: Vector[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
+  def showList[T](list: Seq[T])(f: T => Doc): Doc = ssep(list map f, comma <> space)
 
   def showMap[K, V](map : Map[K, V])(f : K => Doc, g : V => Doc) : Doc =
     ssep(map.map { case (k, v) => f(k) <> ":" <> g(v) }.toVector, comma <> space)

@@ -780,11 +780,10 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
 
 /**
   * Represents a mathematical map literal "mmap[`keys`]`values` { k_0: e_0, ..., k_n: e_n }",
-  * where `keyExprs` constitutes the vector "k_0, ..., k_n" of members of `keys` type
-  * and `valExprs` constitutes the vector "e_0, ..., e_n" of members,
-  * which should all be of type `values`.
+  * where `entries` constitutes the sequence of entries of the map "{(k_0: e_0), ..., (k_n: e_n)}". The expressions `k_i` should have type `keys`
+  * and the expressions `e_i` should have type `values`.
   */
-case class MathMapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class MathMapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
   override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
@@ -998,7 +997,7 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
-case class MapLit(keys : Type, values : Type, entries : Map[Expr, Expr])(val info : Source.Parser.Info) extends CompositeLit {
+case class MapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
   override val typ : Type = MapT(keys, values, Addressability.literal)
 }
 
@@ -1159,6 +1158,14 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
   * The (composite) type of maps from type `keys` to type `values`.
   */
 case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  def hasGhostField(k: Type): Boolean = k match {
+    case StructT(_, fields, _) => fields exists (_.ghost)
+    case _ => false
+  }
+  // this check must be done here instead of at the type system level because the concrete AST does not support
+  // ghost fields yet
+  require(!hasGhostField(keys))
+  
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
     case _ => false
@@ -1337,6 +1344,5 @@ case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends P
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
-
 
 

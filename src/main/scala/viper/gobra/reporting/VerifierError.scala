@@ -321,6 +321,11 @@ case class KeyNotComparableReason(info: Source.Verifier.Info) extends Verificati
   override def message: String = s"Key in ${info.origin.tag.trim} is not comparable"
 }
 
+case class RepeatedMapKeyReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "repeated_map_key_reason"
+  override def message: String = s"Map might contain repeated keys"
+}
+
 // João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.
 // This has to do with the fact that, in our tests, there are cases where a division by zero occurs but we cannot retrieve
 // a corresponding Source.Verifier.Info. E.g. src/test/resources/regressions/features/fractional_permissions/fields/fail3.gobra

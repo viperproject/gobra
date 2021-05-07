@@ -24,3 +24,9 @@ func test3() {
 	//:: ExpectedOutput(type_error)
 	z := &m[10]
 }
+
+func test4() {
+	// Multiple keys with the same constant value in map literal are not allowed
+	//:: ExpectedOutput(type_error)
+	_ = map[int]int {1: 2, 1: 3}
+}

@@ -397,7 +397,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case PMapType(k, _) =>
           error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
-            error(m, s"key type $k is not comparable", !comparableType(symbType(k)))
+            error(m, s"key type $k is not comparable", !comparableType(symbType(k))) // TODO: add check that type does not contain ghost
 
         case _ => error(typ, s"cannot make type $typ")
       })
@@ -510,7 +510,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
-      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) => elem
+      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
+        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 

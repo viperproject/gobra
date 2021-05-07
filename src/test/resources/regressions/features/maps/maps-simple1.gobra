@@ -3,6 +3,9 @@
 
 package gomaps
 
+const C1 = 1
+const C2 = 2
+
 func test1() {
 	var m1 map[string]int
 	assert m1 == nil && len(m1) == 0 
@@ -35,11 +38,11 @@ func test6() {
 	m := make(map[int]int, 1)
 	assert acc(m) && len(m) == 0
 
-	// multi assignement supported
+	// multi assignment supported
 	v1, ok1 := m[3]
 	assert !ok1 && v1 == 0
 
-	// single assignement supported
+	// single assignment supported
 	v2 := m[3]
 	assert v2 == 0
 
@@ -65,6 +68,7 @@ func test8() {
 	m := map[string]int { "hello": 5, "bye": 3 }
 	v, ok := m["hello"]
 	assert ok && v == 5
+	assert len(map[int]int{}) == 0
 }
 
 func test9() {
@@ -111,4 +115,16 @@ requires acc(m, _)
 requires "value" in valueSet(m)
 func test13(m map[string]string) {
     assert exists k string :: m[k] == "value"
+}
+
+func test14() (res map[int]int) {
+	x := 1
+	y := 2
+    m := map[int]int{x: y, y: x}
+	return m
+}
+
+func test15() (res map[int]int) {
+    m := map[int]int{C1: C2, C2: C1}
+	return m
 }

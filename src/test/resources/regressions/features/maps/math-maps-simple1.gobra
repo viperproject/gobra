@@ -4,8 +4,8 @@
 package mathmaps
 
 func test1() {
-	// mathematical map literals
-	m1 := mmap[string]int{ "hello": 5, "bye": 3 }
+	// mathematical map literals, a.k.a dictionaries
+	m1 := dict[string]int{ "hello": 5, "bye": 3 }
 
 	// indexed mathematical map
 	assert m1["hello"] == 5
@@ -19,12 +19,12 @@ func test1() {
 
 	// mathematical map length (size of the domain, same as regular maps)
 	assert len(m2) == 3
-	assert len(mmap[int]int{}) == 0
+	assert len(dict[int]int{}) == 0
 
-	// keySet and valueSet obtain the set of keys and values, respectively
-	assert |keySet(m2)| == 3
-	assert !("Y" in keySet(m2))
-	assert 5 in valueSet(m1)
+	// domain and range obtain the set of keys and values, respectively
+	assert |domain(m2)| == 3
+	assert !("Y" in domain(m2))
+	assert 5 in range(m1)
 
 	// map update via assignment
 	m1["Y"] = 1

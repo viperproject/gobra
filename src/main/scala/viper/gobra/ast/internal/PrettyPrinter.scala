@@ -407,8 +407,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MapKeys(exp) => "keySet" <> parens(showExpr(exp))
-    case MapValues(exp) => "valueSet" <> parens(showExpr(exp))
+    case MapKeys(exp) => "domain" <> parens(showExpr(exp))
+    case MapValues(exp) => "range" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -446,7 +446,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceTExpr(elem) => "seq" <> brackets(showExpr(elem))
     case SetTExpr(elem) => "set" <> brackets(showExpr(elem))
     case MultisetTExpr(elem) => "mset" <> brackets(showExpr(elem))
-    case MathMapTExpr(key, elem) => "mmap" <> brackets(showExpr(key) <> comma <+> showExpr(elem))
+    case MathMapTExpr(key, elem) => "dict" <> brackets(showExpr(key) <> comma <+> showExpr(elem))
     case OptionTExpr(elem) => "option" <> brackets(showExpr(elem))
     case TupleTExpr(elem) => parens(showExprList(elem))
     case DefinedTExpr(name) => name
@@ -546,7 +546,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceT(elem, _) => "seq" <> brackets(showType(elem))
     case SetT(elem, _) => "set" <> brackets(showType(elem))
     case MultisetT(elem, _) => "mset" <> brackets(showType(elem))
-    case MathMapT(keys, values, _)  => "mmap" <> brackets(showType(keys)) <> showType(values)
+    case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)

@@ -106,13 +106,13 @@ func test11() {
 }
 
 requires acc(m, _)
-requires "key" in keySet(m)
+requires "key" in domain(m)
 func test12(m map[string]string) (r string){
     return m["key"]
 }
 
 requires acc(m, _)
-requires "value" in valueSet(m)
+requires "value" in range(m)
 func test13(m map[string]string) {
     assert exists k string :: m[k] == "value"
 }

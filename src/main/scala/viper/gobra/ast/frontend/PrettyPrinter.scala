@@ -451,8 +451,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-          case PMapKeys(exp) => "keys" <> parens(showExpr(exp))
-          case PMapValues(exp) => "values" <> parens(showExpr(exp))
+          case PMapKeys(exp) => "domain" <> parens(showExpr(exp))
+          case PMapValues(exp) => "range" <> parens(showExpr(exp))
         }
       }
 
@@ -542,7 +542,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
-    case PMathematicalMapType(keys, values) => "mmap" <> brackets(showType(keys)) <> showType(values)
+    case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>

@@ -52,7 +52,12 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		 sharedStructInterpreter.interpret(d,t) 
 																	else 
 																		productInterpreter.interpret(d,t)
-												case t:ArrayT => indexedInterpreter.interpret(d,t)
+												case t:ArrayT => if(d.getDomainName.startsWith("Slice")){
+													sliceInterpreter.interpret(d,SliceT(PointerT(t.elem)))
+												}else{
+														indexedInterpreter.interpret(d,t)
+												}
+													
 												case t:SliceT => sliceInterpreter.interpret(d,t)
 												case DeclaredT(d,c) => val name = d.left.name
 																		val actual = interpret(entry,c.symbType(d.right)) match {
@@ -183,7 +188,7 @@ case class SharedStructInterpreter(c:sil.Converter) extends GobraDomainInterpret
 def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n) 
 	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
-		val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
+		//val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
 		//if(entry==default) return LitNilEntry()
 		if(doms.isDefined){
 			//printf(s"${doms.get}")
@@ -353,7 +358,10 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 					InterpreterCache.addAddress(address,info);
 					val value = kek._1 match {
 						case x:sil.OtherEntry => FaultEntry(s"not Found Field:$field but found $fieldval in ${extracted.fields.head._1}")																												
-						case r:sil.RefEntry =>  interpret(r,elem) //this we could potentially handle internally		
+						case r:sil.RefEntry =>  interpret(r,elem) match {
+							case LitAdressedEntry(value, a) => return LitAdressedEntry(LitPointerEntry(elem,value.asInstanceOf[LitEntry],a),address)
+							case x=> x
+						} //this we could potentially handle internally		
 						case t => MasterInterpreter(c).interpret(t,elem) 
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
 											case l:LitEntry => l
@@ -387,7 +395,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case PointerT(elem) => elem match{
 				case x:StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
 				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
-				case _:IntT => Names.pointerField(vpr.Int)
+				//case _:IntT => Names.pointerField(vpr.Int)
 				case BooleanT => Names.pointerField(vpr.Bool)
 				case StringT => Names.pointerField(vpr.Int)
 				case _ => Names.pointerField(vpr.Ref)

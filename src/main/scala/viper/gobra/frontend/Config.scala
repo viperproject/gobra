@@ -171,6 +171,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val profiling: ScallopOption[Boolean] = toggle(
+    name = "profiling",
+    descrYes = "Print the time it takes to verify each function and method",
+    default = Some(debug()),
+    noshort = true
+  )
+
   val parseOnly: ScallopOption[Boolean] = toggle(
     name = "parseOnly",
     descrYes = "Perform only the parsing step",
@@ -367,7 +374,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       goify = goify(),
       debug = debug(),
       printInternal = printInternal(),
-      printVpr = printVpr()),
+      printVpr = printVpr(),
+      profiling = profiling()),
     backend = backend(),
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,

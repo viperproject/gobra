@@ -39,7 +39,8 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
                               goify: Boolean = false,
                               debug: Boolean = false,
                               printInternal: Boolean = false,
-                              printVpr: Boolean = false) extends GobraReporter {
+                              printVpr: Boolean = false,
+                              profiling: Boolean = false) extends GobraReporter {
   override def report(msg: GobraMessage): Unit = msg match {
     case ParsedInputMessage(file, program) if unparse => write(file, "unparsed", program().formatted)
     case TypeCheckSuccessMessage(file, _, erasedGhostCode, goifiedGhostCode) =>
@@ -50,6 +51,8 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case AppliedInternalTransformsMessage(file, internal) if printInternal => write(file, "internal", internal().formatted)
     case m@GeneratedViperMessage(file, _, _) if printVpr => write(file, "vpr", m.vprAstFormatted)
     case CopyrightReport(text) => println(text)
+    case msg: GobraEntitySuccessMessage if profiling => println(msg.toString) // TODO: write to file instead?
+    case msg: GobraEntityFailureMessage if profiling => println(msg.toString)
     case _ => // ignore
   }
 

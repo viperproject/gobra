@@ -14,7 +14,7 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
-import viper.silver.reporter.Message
+import viper.silver.reporter.{Message, Time}
 
 /**
   * Messages reported by GobraReporter
@@ -46,20 +46,22 @@ case class GobraOverallFailureMessage(verifier: String, result: VerifierResult) 
     s"failure=${result.toString})"
 }
 
-case class GobraEntitySuccessMessage(verifier: String, concerning: Source.Verifier.Info) extends GobraVerificationResultMessage {
+case class GobraEntitySuccessMessage(verifier: String, time: Time, concerning: Source.Verifier.Info) extends GobraVerificationResultMessage {
   override val name: String = s"entity_success_message"
   val result: VerifierResult = Success
 
   override def toString: String = s"entity_success_message(" +
     s"verifier=${verifier}, " +
-    s"concerning=${concerning.toString})"
+    s"time=${time} ms, " +
+    s"concerning=${concerning.pnode.formattedSpecLessShort})"
 }
 
-case class GobraEntityFailureMessage(verifier: String, concerning: Source.Verifier.Info, result: VerifierResult) extends GobraVerificationResultMessage {
+case class GobraEntityFailureMessage(verifier: String, time: Time, concerning: Source.Verifier.Info, result: VerifierResult) extends GobraVerificationResultMessage {
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +
     s"verifier=${verifier}, " +
+    s"time=${time} ms, " +
     s"concerning=${concerning.toString}, " +
     s"failure=${result.toString})"
 }

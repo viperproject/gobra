@@ -22,8 +22,7 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PMultisetType(elem) => isType(elem).out ++
       error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out ++
-      error(typ, s"maps of custom defined types are currently not supported", key.isInstanceOf[PNamedOperand] || value.isInstanceOf[PNamedOperand]) ++
-      error(typ, s"map key $key is not comparable", !comparableType(typeSymbType(key)))
+      error(typ, s"maps of custom defined types are currently not supported", key.isInstanceOf[PNamedOperand] || value.isInstanceOf[PNamedOperand])
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case n: PGhostSliceType => isType(n.elem).out

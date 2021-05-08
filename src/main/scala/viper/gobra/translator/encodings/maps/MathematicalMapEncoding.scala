@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.encodings.LeafTypeEncoding
-import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
+import viper.gobra.translator.encodings.maps.MapEncoding.repeatedKeyErrorT
 import viper.gobra.translator.interfaces.Context
 import viper.gobra.translator.util.ViperWriter.CodeLevel.{assert, sequence, unit}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -38,8 +38,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
     case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
       for {
-        isCompKey <- checkKeyComparability(idx)(ctx)
-        _ <- assert(isCompKey, comparabilityErrorT) // key must be comparable
         stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
       } yield stmt
   }
@@ -93,8 +91,6 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
       case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
         val (pos, info, errT) = n.vprMeta
         for {
-          isCompKey <- checkKeyComparability(idx)(ctx)
-          _ <- assert(isCompKey, isCompKey, comparabilityErrorT)(ctx)
           vE <- goE(e)
           vIdx <- goE(idx)
         } yield vpr.MapLookup(vE, vIdx)(pos, info, errT)

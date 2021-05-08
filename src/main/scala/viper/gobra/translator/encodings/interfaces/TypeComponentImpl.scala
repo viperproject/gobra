@@ -42,7 +42,7 @@ class TypeComponentImpl extends TypeComponent {
     case SeqHD => "seq"
     case SetHD => "set"
     case MSetHD => "mset"
-    case MathMapHD => "mmap"
+    case MathMapHD => "dict"
     case OptionHD => "option"
     case t: TupleHD => s"tuple${t.arity}"
     case t: PredHD => s"pred${t.arity}"

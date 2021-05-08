@@ -950,7 +950,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | mmapType | optionType | domainType  | ghostSliceType
+      sequenceType | setType | multisetType | dictType | optionType | domainType  | ghostSliceType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -990,7 +990,7 @@ object Parser {
     lazy val multisetType : Parser[PMultisetType] =
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
 
-    lazy val mmapType: Parser[PMathematicalMapType] =
+    lazy val dictType: Parser[PMathematicalMapType] =
       ("dict" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMathematicalMapType
 
     lazy val optionType : Parser[POptionType] =

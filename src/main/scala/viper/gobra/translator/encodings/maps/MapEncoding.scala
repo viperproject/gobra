@@ -14,7 +14,7 @@ import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
-import viper.gobra.translator.encodings.maps.MapEncoding.{comparabilityErrorT, repeatedKeyErrorT}
+import viper.gobra.translator.encodings.maps.MapEncoding.{checkKeyComparability, comparabilityErrorT, repeatedKeyErrorT}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
@@ -99,7 +99,9 @@ class MapEncoding extends LeafTypeEncoding {
         for {
           mapletList <- sequence(lit.entries.toVector.map {
             case (key, value) => for {
-              k <- goE(key)
+              kVpr <- goE(key)
+              isCompKey <- checkKeyComparability(key)(ctx)
+              k <- assert(isCompKey, kVpr, comparabilityErrorT)(ctx) // key must be comparable
               v <- goE(value)
             } yield vpr.Maplet(k, v)(pos, info, errT)
           })

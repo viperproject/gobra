@@ -31,3 +31,7 @@ func test5() {
     //:: ExpectedOutput(precondition_error)
     pkg.Test7(2)
 }
+
+func test6() {
+    pkg.Test8()
+}

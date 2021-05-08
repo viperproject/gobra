@@ -658,3 +658,17 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     }
   }
 }
+
+// TODO: Compress with previous one
+class SpecLessShortPrettyPrinter extends ShortPrettyPrinter {
+  override val defaultIndent = 2
+  override val defaultWidth = 80
+
+  override def showMember(mem: PMember): Doc = mem match {
+    case PFunctionDecl(id, args, res, _, _) =>
+      "func" <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+    case PMethodDecl(id, rec, args, res, _, _) =>
+      "func" <+> showReceiver(rec) <+> showId(id) <> parens(showParameterList(args)) <> showResult(res)
+    case _ => super.showMember(mem)
+  }
+}

@@ -50,3 +50,9 @@ pred P5(x int)
 
 requires P4(x)
 func Test7(x int)
+
+func usedInBody()
+
+func Test8() {
+    usedInBody()
+}

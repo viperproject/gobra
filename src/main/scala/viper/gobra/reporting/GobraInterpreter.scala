@@ -37,9 +37,13 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 		entry match{
 			case sil.LitIntEntry(v) => info match {
 												case StringT => StringInterpreter(c).interpret(entry,null)
+												case DeclaredT(d,c) => val name = d.left.name; LitDeclaredEntry(name,LitIntEntry(v))
 												case _ =>LitIntEntry(v)
 										}
-			case sil.LitBoolEntry(b) => LitBoolEntry(b)
+			case sil.LitBoolEntry(b) => info match{
+				case DeclaredT(d,c) => val name = d.left.name; LitDeclaredEntry(name,LitBoolEntry(b))
+				case _ =>LitBoolEntry(b)
+			}
 			case sil.LitPermEntry(p) => LitPermEntry(p)
 			case _:sil.NullRefEntry => LitNilEntry()
 			case v:sil.VarEntry => interpret(c.extractVal(v),info)//TODO:make shure this does not pingpong

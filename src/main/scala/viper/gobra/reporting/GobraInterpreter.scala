@@ -396,8 +396,8 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 				case x:StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
 				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 				//case _:IntT => Names.pointerField(vpr.Int)
-				case BooleanT => Names.pointerField(vpr.Bool)
-				case StringT => Names.pointerField(vpr.Int)
+				//case BooleanT => Names.pointerField(vpr.Bool)
+				//case StringT => Names.pointerField(vpr.Int)
 				case _ => Names.pointerField(vpr.Ref)
 			} 
 			//case _:ArrayT => "val$_ShArray_fRef"

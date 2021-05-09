@@ -126,6 +126,8 @@ object Type {
 
   case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
 
+  case class MathMapT(key : Type, elem : Type) extends PrettyType(s"mmap[$key]$elem") with GhostUnorderedCollectionType
+
   case object PermissionT extends PrettyType(s"perm") with GhostType
 
   @tailrec

@@ -37,7 +37,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a sequence update expression") {
-    val expr = SequenceUpdate(
+    val expr = GhostCollectionUpdate(
       LocalVar("xs", sequenceT(boolT))(Internal),
       IntLit(BigInt(4))(Internal),
       BoolLit(false)(Internal)

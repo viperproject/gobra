@@ -12,6 +12,7 @@ import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFun
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.util.Violation.violation
@@ -69,7 +70,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val argT = exprType(n.exp)
           // Not all pointer types are supported currently. Later, we can just check isPointerType.
           underlyingType(argT) match {
-            case Single(Type.NilType | _: Type.PointerT) => noMessages
+            case Single(Type.NilType | _: Type.PointerT | _: Type.MapT) => noMessages
             case _ => error(n, s"expected expression with pointer or predicate type, but got $argT")
           }
       }
@@ -110,6 +111,12 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
+      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
+        case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
+        case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
+        case t => error(seq, s"expected a sequence or mathematical map, but got $t")
+      })
+
       case expr : PSequenceExp => expr match {
         case PRangeSequence(low, high) => isExpr(low).out ++ isExpr(high).out ++ {
           val lowT = exprType(low)
@@ -124,10 +131,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(right, s"expected a sequence, but got $t2", !t2.isInstanceOf[SequenceT]) ++
             mergeableTypes.errors(t1, t2)(expr)
         }
-        case PSequenceUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
-          case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
-          case t => error(seq, s"expected a sequence, but got $t")
-        })
         case PSequenceConversion(op) => exprType(op) match {
           case _: SequenceT => isExpr(op).out
           case _: ArrayT => isExpr(op).out ++ error(op, s"exclusive array expected, but shared array $op found", addressable(op))
@@ -152,6 +155,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
+        case PMapKeys(exp) => exprType(exp) match {
+          case _: MathMapT | _: MapT => isExpr(exp).out
+          case t => error(expr, s"expected a map, but got $t")
+        }
+        case PMapValues(exp) => exprType(exp) match {
+          case _: MathMapT | _: MapT => isExpr(exp).out
+          case t => error(expr, s"expected a map, but got $t")
+        }
       }
     }
 
@@ -162,7 +173,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PSequenceUpdateClause) : Messages = exprType(clause.left) match {
+  private[typing] def wellDefMapUpdClause(keys: Type, values : Type, clause : PGhostCollectionUpdateClause) : Messages = {
+    isExpr(clause.left).out ++ isExpr(clause.right).out ++
+      assignableTo.errors(exprType(clause.left), keys)(clause.left) ++
+      assignableTo.errors(exprType(clause.right), values)(clause.right)
+  }
+
+  private[typing] def wellDefSeqUpdClause(seqTyp : Type, clause : PGhostCollectionUpdateClause) : Messages = exprType(clause.left) match {
     case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
       assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
     case t => error(clause.left, s"expected an integer type but got $t")
@@ -197,6 +214,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       // The result of integer ghost expressions is unbounded (UntypedConst)
       case PMultiplicity(_, _) => IntT(config.typeBounds.UntypedConst)
       case PIn(_, _) => BooleanT
+      case PGhostCollectionUpdate(seq, _) => exprType(seq)
       case expr : PSequenceExp => expr match {
         case PRangeSequence(_, _) => SequenceT(IntT(config.typeBounds.UntypedConst))
 
@@ -207,7 +225,6 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case Some(seq@SequenceT(_)) => seq
             case _ => violation(s"types $lType and $rType cannot be merged.")
           }
-        case PSequenceUpdate(seq, _) => exprType(seq)
         case PSequenceConversion(op) => exprType(op) match {
           case t: SequenceT => t
           case t: ArrayT => SequenceT(t.elem)
@@ -229,6 +246,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t : GhostCollectionType => MultisetT(t.elem)
           case t: OptionT => MultisetT(t.elem)
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
+        }
+        case PMapKeys(exp) => exprType(exp) match {
+          case t: MathMapT => SetT(t.key)
+          case t: MapT => SetT(t.key)
+          case t => violation(s"expected a map, but got $t")
+        }
+        case PMapValues(exp) => exprType(exp) match {
+          case t: MathMapT => SetT(t.elem)
+          case t: MapT => SetT(t.key)
+          case t => violation(s"expected a map, but got $t")
         }
       }
     }
@@ -327,7 +354,9 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSetConversion(op) => go(op)
         case PMultisetConversion(op) => go(op)
         case PRangeSequence(low, high) => go(low) && go(high)
-        case PSequenceUpdate(seq, clauses) => go(seq) && clauses.forall(isPureSeqUpdClause)
+        case PGhostCollectionUpdate(seq, clauses) => go(seq) && clauses.forall(isPureGhostColUpdClause)
+        case PMapKeys(exp) => go(exp)
+        case PMapValues(exp) => go(exp)
       }
 
       case _: PAccess | _: PPredicateAccess => !strong
@@ -367,7 +396,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     res
   }
 
-  private def isPureSeqUpdClause(clause : PSequenceUpdateClause) : Boolean =
+  private def isPureGhostColUpdClause(clause : PGhostCollectionUpdateClause) : Boolean =
     isPureExprAttr(clause.left) && isPureExprAttr(clause.right)
 
   private def isPureId(id: PIdnNode, strong: Boolean): Boolean = {

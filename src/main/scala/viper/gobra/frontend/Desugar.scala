@@ -1080,6 +1080,17 @@ object Desugar {
             )
           )(src)
 
+        case l@ in.IndexedExp(base, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+          val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
+          val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
+          in.Block(
+            Vector(resTarget, successTarget),
+            Vector(
+              in.SafeMapLookup(resTarget, successTarget, l)(l.info),
+              singleAss(lefts(0), resTarget)(src),
+              singleAss(lefts(1), successTarget)(src)
+            )
+          )(src)
 
         case _ => Violation.violation(s"Multi assignment of $right to $lefts is not supported")
       }
@@ -1630,7 +1641,7 @@ object Desugar {
                   val isChannelProxy = mpredicateProxy(BuiltInMemberTag.IsChannelMPredTag, channelType, Vector())(src)
                   val bufferSizeProxy = methodProxy(BuiltInMemberTag.BufferSizeMethodTag, channelType, Vector())(src)
                   in.MakeChannel(target, channelType, arg0, isChannelProxy, bufferSizeProxy)(src)
-                case m@MapT(_, _) => in.MakeMap(target, elemD(m), arg0)(src)
+                case m@MapT(_, _) => in.MakeMap(target, elemD(m).asInstanceOf[in.MapT], arg0)(src)
                 case c => Violation.violation(s"This case should be unreachable, but got $c")
               }
               _ <- write(make)
@@ -1797,15 +1808,6 @@ object Desugar {
       }
     }
 
-    def compositeLitToObject(lit : in.CompositeLit) : in.CompositeObject = lit match {
-      case l: in.ArrayLit => in.CompositeObject.Array(l)
-      case l: in.SliceLit => in.CompositeObject.Slice(l)
-      case l: in.StructLit => in.CompositeObject.Struct(l)
-      case l: in.SequenceLit => in.CompositeObject.Sequence(l)
-      case l: in.SetLit => in.CompositeObject.Set(l)
-      case l: in.MultisetLit => in.CompositeObject.Multiset(l)
-    }
-
     def compositeLitD(ctx: FunctionContext)(lit: PCompositeLit): Writer[in.CompositeLit] = lit.typ match {
 
       case t: PImplicitSizeArrayType =>
@@ -1833,6 +1835,8 @@ object Desugar {
       case class Multiset(t : in.MultisetT) extends CompositeKind
       case class Sequence(t : in.SequenceT) extends CompositeKind
       case class Set(t : in.SetT) extends CompositeKind
+      case class Map(t : in.MapT) extends CompositeKind
+      case class MathematicalMap(t : in.MathMapT) extends CompositeKind
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
@@ -1843,6 +1847,8 @@ object Desugar {
       case t: in.SequenceT => CompositeKind.Sequence(t)
       case t: in.SetT => CompositeKind.Set(t)
       case t: in.MultisetT => CompositeKind.Multiset(t)
+      case t: in.MapT => CompositeKind.Map(t)
+      case t: in.MathMapT => CompositeKind.MathematicalMap(t)
       case _ => Violation.violation(s"expected composite type but got $t")
     }
 
@@ -1941,7 +1947,34 @@ object Desugar {
         case CompositeKind.Multiset(in.MultisetT(typ, _)) => for {
           elemsD <- sequence(lit.elems.map(e => compositeValD(ctx)(e.exp, typ)))
         } yield in.MultisetLit(typ, elemsD)(src)
+
+        case CompositeKind.Map(in.MapT(keys, values, _)) => for {
+          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+        } yield in.MapLit(keys, values, entriesD)(src)
+
+        case CompositeKind.MathematicalMap(in.MathMapT(keys, values, _)) => for {
+          entriesD <- handleMapEntries(ctx)(lit, keys, values)
+        } yield in.MathMapLit(keys, values, entriesD)(src)
       }
+    }
+
+    private def handleMapEntries(ctx: FunctionContext)(lit: PLiteralValue, keys: in.Type, values: in.Type): Writer[Seq[(in.Expr, in.Expr)]] = {
+      sequence(
+        lit.elems map {
+          case PKeyedElement(Some(key), value) => for {
+            entryKey <- key match {
+              case v: PCompositeVal => compositeValD(ctx)(v, keys)
+              case k: PIdentifierKey => info.regular(k.id) match {
+                case _: st.Variable => unit(varD(ctx)(k.id))
+                case c: st.Constant => unit(globalConstD(c)(meta(k)))
+                case _ => violation(s"unexpected key $key")
+              }
+            }
+            entryVal <- compositeValD(ctx)(value, values)
+          } yield (entryKey, entryVal)
+
+          case _ => violation("unexpected pattern, missing key in map literal")
+        })
     }
 
     // Type
@@ -2197,14 +2230,21 @@ object Desugar {
       case Type.IntT(x) => in.IntT(addrMod, x)
       case Type.ArrayT(length, elem) => in.ArrayT(length, typeD(elem, Addressability.arrayElement(addrMod))(src), addrMod)
       case Type.SliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
+      case Type.MapT(keys, values) =>
+        val keysD = typeD(keys, Addressability.mapKey)(src)
+        val valuesD = typeD(values, Addressability.mapValue)(src)
+        in.MapT(keysD, valuesD, addrMod)
       case Type.GhostSliceT(elem) => in.SliceT(typeD(elem, Addressability.sliceElement)(src), addrMod)
-      case Type.MapT(_, _) => ???
       case Type.OptionT(elem) => in.OptionT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case PointerT(elem) => registerType(in.PointerT(typeD(elem, Addressability.pointerBase)(src), addrMod))
       case Type.ChannelT(elem, _) => in.ChannelT(typeD(elem, Addressability.channelElement)(src), addrMod)
       case Type.SequenceT(elem) => in.SequenceT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.SetT(elem) => in.SetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
       case Type.MultisetT(elem) => in.MultisetT(typeD(elem, Addressability.mathDataStructureElement)(src), addrMod)
+      case Type.MathMapT(keys, values) =>
+        val keysD = typeD(keys, Addressability.mathDataStructureElement)(src)
+        val valuesD = typeD(values, Addressability.mathDataStructureElement)(src)
+        in.MathMapT(keysD, valuesD, addrMod)
 
       case t: Type.StructT =>
         val inFields: Vector[in.Field] = structD(t, addrMod)(src)
@@ -2526,11 +2566,11 @@ object Desugar {
           dright <- go(right)
         } yield in.SequenceAppend(dleft, dright)(src)
 
-        case PSequenceUpdate(seq, clauses) => clauses.foldLeft(go(seq)) {
-          case (dseq, clause) => for {
+        case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
+          case (dcol, clause) => for {
             dleft <- go(clause.left)
             dright <- go(clause.right)
-          } yield in.SequenceUpdate(dseq.res, dleft, dright)(src)
+          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright)(src)
         }
 
         case PSequenceConversion(op) => for {
@@ -2592,6 +2632,14 @@ object Desugar {
         case POptionGet(op) => for {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
+
+        case PMapKeys(exp) => for {
+          e <- go(exp)
+        } yield in.MapKeys(e)(src)
+
+        case PMapValues(exp) => for {
+          e <- go(exp)
+        } yield in.MapValues(e)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }
@@ -2788,6 +2836,10 @@ object Desugar {
                 case _ =>
                   goE(acc) map (x => in.Accessible.Address(in.Deref(x, typeD(ut.elem, Addressability.dereference)(src))(src)))
               }
+
+            // TODO: do similarly same for slices (issue #238)
+            case Single(_: Type.MapT) =>
+              goE(acc) map (x => in.Accessible.ExprAccess(x))
 
             case _ => Violation.violation(s"expected pointer type or a predicate, but got $argT")
           }

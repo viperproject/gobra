@@ -42,7 +42,7 @@ func test5() {
 }
 
 func test6() {
-	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
 	var m1 interface{} = make(map[int]int)
+	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
 	m2 := map[interface{}]int{ m1: 1 }
 }

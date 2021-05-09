@@ -124,10 +124,15 @@ object OverflowChecksTransform extends InternalTransform {
     case m@MakeMap(_, _, optArg) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
+    case m@SafeMapLookup(_, _, IndexedExp(base, idx)) =>
+      Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
+
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization ) => x
+
+    case _ => violation("Unexpected case reached.")
   }
 
   private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =

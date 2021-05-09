@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package gomap
+
+// no access to m granted
+func test1(m map[int]int) int {
+	//:: ExpectedOutput(assignment_error:permission_error)
+	return len(m)
+}
+
+requires acc(m)
+func test2(m map[interface{}]int) int {
+	var m1 interface{} = make(map[int]int)
+	// runtime type of m1 is not comparable
+	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
+	return m[m1]
+}
+
+func test3() {
+	x := -100
+	// x is negative (determined dynamically)
+	//:: ExpectedOutput(make_precondition_error)
+	m := make(map[int]int, x)
+}
+
+
+// cannot compute domain(m), no permission to m
+//:: ExpectedOutput(contract_not_well_formed)
+requires "key" in domain(m)
+func test4(m map[string]string) (r string){
+	return m["key"]
+}
+
+func test5() {
+	x@ := 1
+	y := 1
+	// we treat map literals with repeated keys as bugs because it
+	// makes use of undefined behaviour in Go
+	//:: ExpectedOutput(assert_error:repeated_map_key_reason)
+	m := map[int]int{1: x, y: 2}
+}
+
+func test6() {
+	var m1 interface{} = make(map[int]int)
+	//:: ExpectedOutput(assert_error:key_not_comparable_reason)
+	m2 := map[interface{}]int{ m1: 1 }
+}

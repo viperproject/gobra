@@ -730,6 +730,8 @@ object Parser {
         newExp |
         len |
         cap |
+        keys |
+        values |
         ghostUnaryExp |
         primaryExp
 
@@ -747,6 +749,12 @@ object Parser {
 
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
+
+    lazy val keys : Parser[PMapKeys] =
+      "domain" ~> ("(" ~> expression <~ ")") ^^ PMapKeys
+
+    lazy val values : Parser[PMapValues] =
+      "range" ~> ("(" ~> expression <~ ")") ^^ PMapValues
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -836,11 +844,11 @@ object Parser {
     lazy val sliceExp: PackratParser[PSliceExp] =
       primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
 
-    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
-      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+    lazy val seqUpdExp : PackratParser[PGhostCollectionUpdate] =
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PGhostCollectionUpdate
 
-    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
-      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
+    lazy val seqUpdClause : Parser[PGhostCollectionUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PGhostCollectionUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
@@ -928,7 +936,7 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType | domainType | ghostSliceType
+      sequenceType | setType | multisetType | dictType | optionType | domainType  | ghostSliceType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
@@ -967,6 +975,9 @@ object Parser {
 
     lazy val multisetType : Parser[PMultisetType] =
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
+
+    lazy val dictType: Parser[PMathematicalMapType] =
+      ("dict" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMathematicalMapType
 
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType

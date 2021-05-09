@@ -66,6 +66,7 @@ object Addressability {
   def field(structAddressability: Addressability): Addressability = structAddressability
   def arrayElement(arrayAddressability: Addressability): Addressability = arrayAddressability
   val sliceElement: Addressability = arrayElement(pointerBase)
+  val mapKey: Addressability = Exclusive
   val mapValue: Addressability = Exclusive
   val mathDataStructureElement: Addressability = Exclusive
   val channelElement: Addressability = Exclusive

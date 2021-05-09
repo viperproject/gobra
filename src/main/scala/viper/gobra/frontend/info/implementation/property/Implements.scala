@@ -88,13 +88,14 @@ trait Implements { this: TypeInfoImpl =>
     } else {
       def go(t: Type): Boolean = isIdentityPreservingType(t, encounteredTypes + t)
       underlyingType(t) match {
-        case Type.NilType | Type.BooleanT | _: Type.IntT => true
+        case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
           ut.decl.clauses.forall(!_.isInstanceOf[PExplicitGhostStructClause]) &&
             ut.clauses.forall{ case (_, (_, fieldType)) => go(fieldType) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
+        case _: Type.MapT => true
         case ut: Type.OptionT => go(ut.elem)
         case ut: GhostCollectionType => go(ut.elem)
         case _: Type.InterfaceT => true

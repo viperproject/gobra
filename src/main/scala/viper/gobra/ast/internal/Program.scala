@@ -282,26 +282,9 @@ sealed trait MakeStmt extends Stmt {
 
 case class MakeSlice(override val target: LocalVar, override val typeParam: SliceT, lenArg: Expr, capArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 case class MakeChannel(override val target: LocalVar, override val typeParam: ChannelT, bufferSizeArg: Option[Expr], isChannel: MPredicateProxy, bufferSize: MethodProxy)(val info: Source.Parser.Info) extends MakeStmt
-// TODO: change type of typeParam to MapT when MapT is implemented
-case class MakeMap(override val target: LocalVar, override val typeParam: Type, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
+case class MakeMap(override val target: LocalVar, override val typeParam: MapT, initialSpaceArg: Option[Expr])(val info: Source.Parser.Info) extends MakeStmt
 
 case class New(target: LocalVar, expr: Expr)(val info: Source.Parser.Info) extends Stmt
-
-sealed trait CompositeObject extends Node {
-  def op: CompositeLit
-  override def info: Parser.Info = op.info
-}
-
-object CompositeObject {
-  def unapply(arg: CompositeObject): Some[CompositeLit] = Some(arg.op)
-
-  case class Array(op : ArrayLit) extends CompositeObject
-  case class Slice(op : SliceLit) extends CompositeObject
-  case class Struct(op : StructLit) extends CompositeObject
-  case class Sequence(op : SequenceLit) extends CompositeObject
-  case class Set(op : SetLit) extends CompositeObject
-  case class Multiset(op : MultisetLit) extends CompositeObject
-}
 
 /**
   * Type assertion that does not fail.
@@ -344,6 +327,12 @@ case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGiv
   */
 case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
 
+/**
+  * Map lookup operation that returns the result of the lookup or default value if the key is not in the map,
+  * and a boolean values stating whether the key is in the map.
+  */
+case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
+
 
 sealed trait Assertion extends Node
 
@@ -364,6 +353,7 @@ sealed trait Accessible extends Node {
 
 object Accessible {
   case class Predicate(op: PredicateAccess) extends Accessible
+  case class ExprAccess(op: Expr) extends Accessible
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
   }
@@ -474,10 +464,12 @@ case class IntTExpr(kind: IntegerKind)(val info: Source.Parser.Info) extends Typ
 case class StructTExpr(fields: Vector[(String, Expr, Boolean)])(val info: Source.Parser.Info) extends TypeExpr
 case class ArrayTExpr(length: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SliceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class PermTExpr()(val info: Source.Parser.Info) extends TypeExpr
 case class SequenceTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class SetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class MultisetTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
+case class MathMapTExpr(keys: Expr, elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class OptionTExpr(elems: Expr)(val info: Source.Parser.Info) extends TypeExpr
 case class TupleTExpr(elems: Vector[Expr])(val info: Source.Parser.Info) extends TypeExpr
 
@@ -558,7 +550,9 @@ case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) 
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
-    case t => Violation.violation(s"expected an array or sequence type, but got $t")
+    case t: MapT => t.values
+    case t: MathMapT => t.values
+    case t => Violation.violation(s"expected an array, map or sequence type, but got $t")
   }
 }
 
@@ -604,13 +598,13 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 }
 
 /**
-  * Denotes a sequence update "`seq`[`left` = `right`]", which results in a
-  * sequence equal to `seq` but 'updated' to have `right` at the `left` position.
+  * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
+  * collection equal to `col` but 'updated' to have `right` at the `left` position.
   */
-case class SequenceUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
+case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
   /** Is equal to the type of `base`. */
-  require(base.typ.isInstanceOf[SequenceT], s"expected sequence, but got ${base.typ} (${info.origin})")
-  override val typ : Type = SequenceT(base.typ.asInstanceOf[SequenceT].t, Addressability.rValue)
+  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
+  override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
 /**
@@ -782,6 +776,32 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
   }
 }
 
+/* ** Mathematical Map expressions */
+
+/**
+  * Represents a mathematical map literal "mmap[`keys`]`values` { k_0: e_0, ..., k_n: e_n }",
+  * where `entries` constitutes the sequence of entries of the map "{(k_0: e_0), ..., (k_n: e_n)}". The expressions `k_i` should have type `keys`
+  * and the expressions `e_i` should have type `values`.
+  */
+case class MathMapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = MathMapT(keys, values, Addressability.literal)
+}
+
+case class MapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = exp.typ match {
+    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case _ => violation(s"unexpected type ${exp.typ}")
+  }
+}
+
+case class MapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = exp.typ match {
+    case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
+    case t: MapT => SetT(t.keys, Addressability.rValue)
+    case _ => violation(s"unexpected type ${exp.typ}")
+  }
+}
 
 case class PureFunctionCall(func: FunctionProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
 case class PureMethodCall(recv: Expr, meth: MethodProxy, args: Vector[Expr], typ: Type)(val info: Source.Parser.Info) extends Expr
@@ -964,6 +984,9 @@ case class SliceLit(memberType : Type, elems : Map[BigInt, Expr])(val info : Sou
 
 case class StructLit(typ: Type, args: Vector[Expr])(val info: Source.Parser.Info) extends CompositeLit
 
+case class MapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(val info : Source.Parser.Info) extends CompositeLit {
+  override val typ : Type = MapT(keys, values, Addressability.literal)
+}
 
 sealed trait Declaration extends Node
 
@@ -1119,6 +1142,27 @@ case class SliceT(elems : Type, addressability: Addressability) extends PrettyTy
 }
 
 /**
+  * The (composite) type of maps from type `keys` to type `values`.
+  */
+case class MapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  def hasGhostField(k: Type): Boolean = k match {
+    case StructT(_, fields, _) => fields exists (_.ghost)
+    case _ => false
+  }
+  // this check must be done here instead of at the type system level because the concrete AST does not support
+  // ghost fields yet
+  require(!hasGhostField(keys))
+  
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case MapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): MapT =
+    MapT(keys.withAddressability(Addressability.mapKey), values.withAddressability(Addressability.mapValue), newAddressability)
+}
+
+/**
   * The type of mathematical sequences with elements of type `t`.
   */
 case class SequenceT(t : Type, addressability: Addressability) extends PrettyType(s"seq[$t]")  {
@@ -1154,6 +1198,19 @@ case class MultisetT(t : Type, addressability: Addressability) extends PrettyTyp
 
   override def withAddressability(newAddressability: Addressability): MultisetT =
     MultisetT(t.withAddressability(Addressability.mathDataStructureElement), newAddressability)
+}
+
+/**
+  * The type of mathematical maps from `keys` to `values`
+  */
+case class MathMapT(keys: Type, values: Type, addressability: Addressability) extends Type {
+  override def equalsWithoutMod(t: Type): Boolean = t match {
+    case MathMapT(otherKeys, otherValues, _) => keys.equalsWithoutMod(otherKeys) && values.equalsWithoutMod(otherValues)
+    case _ => false
+  }
+
+  override def withAddressability(newAddressability: Addressability): MathMapT =
+    MathMapT(keys.withAddressability(Addressability.mathDataStructureElement), values.withAddressability(Addressability.mathDataStructureElement), newAddressability)
 }
 
 /**
@@ -1274,6 +1331,5 @@ case class FPredicateProxy(name: String)(val info: Source.Parser.Info) extends P
 case class MPredicateProxy(name: String, uniqueName: String)(val info: Source.Parser.Info) extends PredicateProxy with MemberProxy
 
 case class LabelProxy(name: String)(val info: Source.Parser.Info) extends Proxy with BlockDeclaration
-
 
 

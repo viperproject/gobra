@@ -241,6 +241,11 @@ case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends Veri
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
+case class MapMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "make_precondition_error"
+  override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
+}
+
 case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {
   override def extensionId: String = "generated_implementation_proof"
   override def extensionMessage: String = s"Generated implementation proof ($subT implements $superT) failed"
@@ -304,6 +309,21 @@ case class SeqIndexExceedsLengthError(node: Source.Verifier.Info, index: Source.
 case class SeqIndexNegativeError(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "seq_index_negative_error"
   override def message: String = s"Index ${index.origin.tag.trim} into ${node.origin.tag.trim} might be negative"
+}
+
+case class MapKeyNotContained(node: Source.Verifier.Info, index: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "map_key_not_contained"
+  override def message: String = s"Key ${index.origin.tag.trim} might not be contained in ${node.origin.tag.trim}"
+}
+
+case class KeyNotComparableReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "key_not_comparable_reason"
+  override def message: String = s"Key in ${info.origin.tag.trim} is not comparable"
+}
+
+case class RepeatedMapKeyReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "repeated_map_key_reason"
+  override def message: String = s"Map literal ${info.origin.tag.trim} might contain the key twice"
 }
 
 // João, 06/03/2021: unlike the other subtypes of VerificationErrorReason, DivisionByZeroReason has an Optional argument.

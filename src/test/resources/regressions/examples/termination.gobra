@@ -4,11 +4,9 @@ package termination
 
 
 
-decreases x if x<1
+decreases n if x<1
 decreases _ if x>1
 decreases *
-
-
 
 func factorial(n int) int {
     if n == 0 {
@@ -18,8 +16,7 @@ func factorial(n int) int {
     }
 }
 
-
-decreases *
+decreases
 func sum(s seq[int]) int {
     res := 0
     decreases len(s)-i

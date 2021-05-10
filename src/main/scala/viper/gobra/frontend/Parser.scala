@@ -431,10 +431,6 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-
-
-
-
     lazy val functionSpec: Parser[PFunctionSpec] =
       ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~  ("decreases" ~>  measures ).? ~ "pure".? ^^{
         case pres ~ posts ~ terminationMeasure ~ isPure =>  PFunctionSpec(pres, posts,terminationMeasure, isPure.nonEmpty)

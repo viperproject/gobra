@@ -72,6 +72,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
 
 
+
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
     case n@ PFunctionSpec(pres, posts,terminationMeasure, _) =>
       pres.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n)) ++
@@ -80,10 +81,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         (terminationMeasure match {
         case Some(measure) =>
           measure match {
-            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
+            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(n) ++ isPureExpr(p) )
             case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
               case  PConditionalMeasureExpression(tuple) => tuple match {
-             case(expression,condition) => expression.flatMap (p => assignableTo.errors (exprType (p), AssertionT) (n) )++ assignableTo.errors (exprType (condition), AssertionT) (n)
+             case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(n) ++ isPureExpr(p) )++ assignableTo.errors (exprType (condition), AssertionT) (n)
               }
               case PConditionalMeasureUnderscore(tuple) => tuple match {
                 case (underscore,condition)=>assignableTo.errors (exprType (condition), AssertionT) (n)
@@ -93,23 +94,20 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
 
-
     case n@ PLoopSpec(invariants,terminationMeasure) =>
       invariants.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n)) ++
         (terminationMeasure match {
           case Some(measure) =>
             measure match {
-              case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => assignableTo.errors(exprType(p), AssertionT)(n))
+              case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(n) ++ isPureExpr(p) )
               case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
                 case  PConditionalMeasureExpression(tuple) => tuple match {
-                  case(expression,condition) => expression.flatMap (p => assignableTo.errors (exprType (p), AssertionT) (n) )++ assignableTo.errors (exprType (condition), AssertionT) (n)
+                  case(expression,condition) => expression.flatMap (p => comparableType.errors (exprType (p))(n) ++ isPureExpr(p))++ assignableTo.errors (exprType (condition), AssertionT) (n)
                 }
                 case PConditionalMeasureUnderscore(tuple) => tuple match {
                   case (underscore,condition)=>assignableTo.errors (exprType (condition), AssertionT) (n)
                 }
               })
-
-
             }
         })
   }
@@ -120,5 +118,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => noMessages
     }
   }
+
+
 
 }

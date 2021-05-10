@@ -548,8 +548,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(exp) =>
       exprType(exp) match {
-        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => INT_TYPE
-        case _: SequenceT | _: SetT | _: MultisetT => UNTYPED_INT_CONST
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
+        case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT => UNTYPED_INT_CONST
       }
 
     case _: PCapacity => INT_TYPE

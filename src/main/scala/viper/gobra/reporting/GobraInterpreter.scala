@@ -454,6 +454,16 @@ case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[Gobra
 }
 case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[InterfaceT]{
 	def interpret(entry:sil.DomainValueEntry,info:InterfaceT): GobraModelEntry ={
-		FaultEntry("TODO: Interfaces")
+		 val doms = c.domains.find(_.valueName==entry.domain)
+		 if(doms.isDefined){
+			val valuefunc = doms.get.functions.find(_==Names.getterFunc(0,2))
+			val typfunc   = doms.get.functions.find(_==Names.getterFunc(0,2))
+			val value = valuefunc.get.apply(Seq(entry)) match{case Right(v) => v}
+			val typ = typfunc.get.apply(Seq(entry)) match{case Right(v) => v}
+			FaultEntry("interface not implemented")
+
+		 }else{
+			FaultEntry(s"${entry.domain} not found")
+		 }
 	}
 }

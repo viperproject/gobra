@@ -129,6 +129,7 @@ class IntEncoding extends LeafTypeEncoding {
   private val shiftRight: vpr.Function = {
     val left = vpr.LocalVarDecl("left", vpr.Int)()
     val right = vpr.LocalVarDecl("right", vpr.Int)()
+    // TODO: Fix issue with >>= message
     val preCondInfo = vpr.SimpleInfo(Seq("Precondition to >> failed, the argument on the right must be non-negative"))
     vpr.Function(
       name = Names.shiftRight,

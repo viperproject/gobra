@@ -99,7 +99,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       exprOrType(n.base) match {
-        case Right(t) => Some(ap.Conversion(t, n.args))
+        case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
         case Left(e) =>
           resolve(e) match {
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
@@ -107,6 +107,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args))
             case _ => None
           }
+        case _ => ??? // TODO: violation, did not expect conversion with more than 1 arg
       }
 
     case n: PIndexedExp => exprOrType(n.base) match {

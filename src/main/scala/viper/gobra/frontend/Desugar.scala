@@ -1734,11 +1734,7 @@ object Desugar {
         case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
         case Some(ap.Conversion(typ, arg)) =>
           val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
-          if (arg.length == 1) {
-            for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
-          } else {
-            Violation.violation(s"desugarer: conversion $expr is not supported")
-          }
+          for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
         case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }

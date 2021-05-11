@@ -455,7 +455,7 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
-case class PBitwiseNegation(operand: PExpression) extends PUnaryExp
+case class PBitwiseNegation(operand: PExpression) extends PUnaryExp with PNumExpression
 
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L

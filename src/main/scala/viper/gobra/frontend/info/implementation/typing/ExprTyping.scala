@@ -193,9 +193,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
 
       case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
-        val msgs = error(n, "expected a single argument", p.arg.size != 1)
-        if (msgs.nonEmpty) msgs
-        else convertibleTo.errors(exprType(p.arg.head), typeSymbType(p.typ))(n) ++ isExpr(p.arg.head).out
+        val msgs = error(n, s"expected a single argument to conversion $n", n.args.size != 1)
+        if (msgs.nonEmpty) msgs else convertibleTo.errors(exprType(p.arg), typeSymbType(p.typ))(n) ++ isExpr(p.arg).out
 
       case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {
@@ -238,7 +237,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
 
-    case _: PBitwiseNegation => ???
+    case PBitwiseNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
@@ -342,10 +341,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
                 numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
             }
-          case (_: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor, l, r) =>
+          case (_: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor | _: PBitClear, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               error(n, s"invalid operation: $n (mismatched types $l and $r)", typeMerge(l, r).isEmpty)
-          case (_: PBitClear, _, _) => ???
           case (_: PShiftLeft | _: PShiftRight, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
@@ -680,6 +678,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case n: PShiftLeft  => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
         case n: PShiftRight => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
+        case _: PBitwiseNegation => Some(INT_TYPE)
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,
@@ -826,6 +825,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
 
       case _: PCapacity => INT_TYPE
+
+      case PBitwiseNegation(op) => exprOrTypeType(op)
 
       case bExpr: PBinaryExp[_, _] =>
         bExpr match {

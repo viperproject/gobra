@@ -719,8 +719,8 @@ object Parser {
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
         precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
         precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
-        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitwiseAnd |
         precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitwiseAnd |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =

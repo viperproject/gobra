@@ -1,0 +1,26 @@
+package termination
+
+
+
+decreases n if x<1
+decreases _ if x>1
+decreases *
+
+func factorial(n int) int {
+    if n == 0 {
+        return 1
+    } else {
+        return factorial(n-1)
+    }
+}
+
+decreases
+func sum(s seq[int]) int {
+    res := 0
+    decreases len(s)-i
+    for i := 0; i < len(s); i++ {
+        res += s[i]
+    }
+}
+
+

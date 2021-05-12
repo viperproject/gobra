@@ -2622,6 +2622,45 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
       case Right(PStringLit("""\"""")) =>
     }
   }
+  
+  
+   test("Parser: should be able to parse normal termination measure") {
+
+    frontend.parseMember("decreases n\n func factorial (n int) int") should matchPattern {
+
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter("n", PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Some(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n")))) ),false), None)) =>
+    }
+
+  }
+
+  test("Parser: should be able to parse underscore termination measure") {
+
+    frontend.parseMember("decreases _\n func factorial (n int) int") should matchPattern {
+
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter("n", PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Some(PUnderscoreCharacter()),false), None)) =>
+    }
+
+  }
+
+  test("Parser: should be able to parse star termination measure") {
+
+    frontend.parseMember("decreases *\n func factorial (n int) int") should matchPattern {
+
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter("n", PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Some( PStarCharacter()),false), None)) =>
+    }
+
+  }
+
+  test("Parser: should be able to parse conditional termination measure" ){
+
+    frontend.parseMember("decreases n if n>1\n decreases _ if n<1\n decreases *\n func factorial (n int) int") should matchPattern {
+
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter("n", PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Some( PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(PNamedOperand(PIdnUse("n")), PGreater(PNamedOperand(PIdnUse("n")),PIntLit(1)) ),  PConditionalMeasureUnderscore(PUnderscoreCharacter(),PLess(PNamedOperand(PIdnUse("n")),PIntLit(1))), PConditionalMeasureAdditionalStar())))),false), None) =>
+    }
+
+  }
+
+
 
 
   /* ** Stubs, mocks and other test setup */

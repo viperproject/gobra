@@ -3,7 +3,7 @@
 
 package pkg
 
-// ##(-I src/test/resources/regressions/issues/000166/)
+// ##(-I ./000166/)
 
 import "bug"
 

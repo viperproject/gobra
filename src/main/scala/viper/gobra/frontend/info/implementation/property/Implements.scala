@@ -17,7 +17,7 @@ trait Implements { this: TypeInfoImpl =>
   def implements(l: Type, r: Type): PropertyResult = underlyingType(r) match {
     case itf: Type.InterfaceT =>
       val valid = syntaxImplements(l, r)
-      if (valid.holds && l != NilType) {
+      if (valid.holds && l != NilType && !itf.isEmpty) {
         _requiredImplements ++= Set((l, itf))
       }
       valid
@@ -27,6 +27,17 @@ trait Implements { this: TypeInfoImpl =>
 
   private var _requiredImplements: Set[(Type, Type.InterfaceT)] = Set.empty
   def requiredImplements: Set[(Type, Type.InterfaceT)] = _requiredImplements
+  def addDemandedImplements(subT: Type, superT: Type): Unit = {
+    underlyingType(superT) match {
+      case itf: Type.InterfaceT if !itf.isEmpty && subT != NilType =>
+        _requiredImplements ++= Set((subT, itf))
+      case _ =>
+    }
+  }
+
+  override def interfaceImplementations: Map[Type.InterfaceT, Set[Type]] = {
+    requiredImplements.groupMap(_._2)(_._1)
+  }
 
   def syntaxImplements(l: Type, r: Type): PropertyResult = (l, underlyingType(r)) match {
     case (NilType, _: Type.InterfaceT) => successProp
@@ -77,15 +88,17 @@ trait Implements { this: TypeInfoImpl =>
     } else {
       def go(t: Type): Boolean = isIdentityPreservingType(t, encounteredTypes + t)
       underlyingType(t) match {
-        case Type.NilType | Type.BooleanT | _: Type.IntT => true
+        case Type.NilType | Type.BooleanT | _: Type.IntT | Type.StringT => true
         case ut: Type.PointerT => go(ut.elem)
         case ut: Type.StructT =>
           ut.decl.clauses.forall(!_.isInstanceOf[PExplicitGhostStructClause]) &&
             ut.clauses.forall{ case (_, (_, fieldType)) => go(fieldType) }
         case ut: Type.ArrayT => go(ut.elem)
         case _: Type.SliceT => true
+        case _: Type.MapT => true
         case ut: Type.OptionT => go(ut.elem)
         case ut: GhostCollectionType => go(ut.elem)
+        case _: Type.InterfaceT => true
         case _ => false
       }
     }

@@ -120,8 +120,8 @@ trait Enclosing { this: TypeInfoImpl =>
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion
-          case PSequenceUpdateClause(_, `n`) => p match {
-            case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
+          case PGhostCollectionUpdateClause(_, `n`) => p match {
+            case tree.parent(pp: PGhostCollectionUpdate) => Some(typ(pp.col).asInstanceOf[Type.SequenceT].elem)
             case c => Violation.violation(s"Only the root has not parent, but got $c")
           }
             // no range sequence

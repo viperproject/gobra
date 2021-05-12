@@ -3,7 +3,7 @@
 
 package main
 
-// ##(-I src/test/resources/regressions/features/import/multi_import)
+// ##(-I ./)
 // unqualified import of same package is forbidden:
 import . "bar"
 import . "bar"

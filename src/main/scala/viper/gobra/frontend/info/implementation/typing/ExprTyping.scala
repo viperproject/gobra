@@ -264,6 +264,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (MapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
+          case (MathMapT(key, _), indexT) =>
+            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
         })
 
@@ -348,7 +351,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -378,8 +381,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
             }
 
-        case _: PChannelType | _: PMapType =>
+        case _: PChannelType =>
           error(m, s"too many arguments passed to make($typ)", args.length > 1)
+
+        case PMapType(k, _) =>
+          error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
+            error(m, s"key type $k is not comparable", !comparableType(symbType(k))) // TODO: add check that type does not contain ghost
 
         case _ => error(typ, s"cannot make type $typ")
       })
@@ -492,6 +499,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
+        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
@@ -601,7 +610,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface)
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+      case Some(t) => t match {
+        case Single(t) => Some(t)
+        case UnknownType => Some(UnknownType)
+        case _ => violation(s"unexpected case reached $t")
+      }
+      case None => None
+    }
   }
 
   /** Returns the type that is implied by the context of a numeric expression. */
@@ -779,15 +796,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
-  private def intExprType(expr: PNumExpression): Type = expr match {
-    case _: PIntLit => UNTYPED_INT_CONST
+  private def intExprType(expr: PNumExpression): Type = {
+    val typ = expr match {
+      case _: PIntLit => UNTYPED_INT_CONST
 
-    case _: PLength | _: PCapacity => INT_TYPE
+      case _: PLength | _: PCapacity => INT_TYPE
 
-    case bExpr: PBinaryExp[_,_] =>
-      val typeLeft = exprOrTypeType(bExpr.left)
-      val typeRight = exprOrTypeType(bExpr.right)
-      typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+      case bExpr: PBinaryExp[_,_] =>
+        val typeLeft = exprOrTypeType(bExpr.left)
+        val typeRight = exprOrTypeType(bExpr.right)
+        typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+    }
+
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
+    typ match {
+      case Single(t) => t
+      case UnknownType => UnknownType
+      case _ => violation(s"unexpected type $typ")
+    }
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

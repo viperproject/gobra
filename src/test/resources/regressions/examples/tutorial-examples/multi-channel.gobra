@@ -1,0 +1,103 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+package pkg
+
+type query struct {
+	ret chan <- int
+	loc *int
+}
+
+pred answer(x int,y * int,r int) { acc(y) && *y == x + 1 && r == x * x }
+
+pred isQuery(q query) {
+	acc(q.loc) &&
+	acc(q.ret.SendChannel(),_) &&
+	q.ret.SendGotPerm() == PredTrue!<!> &&
+	q.ret.SendGivenPerm() == answer!<*q.loc,q.loc,_!>
+}
+
+pred QueryHandler(c chan <- query) {
+	acc(c.SendChannel(),_) &&
+	c.SendGotPerm() == PredTrue!<!> &&
+	c.SendGivenPerm() == isQuery!<_!>
+}
+
+pred ResultHandler(h <- chan int,x int,y * int) {
+	acc(h.RecvChannel(),_) &&
+	h.RecvGivenPerm() == PredTrue!<!> &&
+	h.RecvGotPerm() == answer!<x,y,_!>
+}
+
+requires acc(c.RecvChannel(),_)
+requires c.RecvGivenPerm() == PredTrue!<!>;
+requires c.RecvGotPerm() == isQuery!<_!>;
+func slave(c <- chan query) {
+	fold acc(PredTrue!<!>(),2/1);
+	invariant PredTrue!<!>() && acc(c.RecvChannel(),_)
+	invariant c.RecvGivenPerm() == PredTrue!<!>;
+	invariant c.RecvGotPerm() == isQuery!<_!>;
+	invariant ok ==> isQuery!<_!>(q)
+	for q, ok := <-c; ok; q, ok = <-c {
+		unfold isQuery!<_!>(q);
+		y := *q.loc
+		r := y * y
+		*q.loc = y+1
+		fold answer!<y,q.loc,_!>(r)
+		q.ret <- r
+		fold PredTrue!<!>()
+	}
+}
+
+requires acc(x) && acc(QueryHandler(c),_)
+ensures ResultHandler(handler,old(*x),x)
+func MakeQuery(c chan <- query,x * int) (handler <- chan int) {
+	unfold acc(QueryHandler(c),_)
+	h0 := make(chan int)
+	h0.Init(answer!<*x,x,_!>,PredTrue!<!>)
+	handler = h0
+	q := query{ret:h0,loc:x}
+	fold isQuery!<_!>(q)
+	c <- q
+	fold ResultHandler(h0, old(*x), x)
+}
+
+requires ResultHandler(handler,x,y)
+ensures acc(y) && *y == x + 1 && r == x * x
+func GetResult(handler <- chan int,ghost x int,ghost y * int) (r int) {
+	unfold ResultHandler(handler,x,y)
+	fold PredTrue!<!>()
+	r0, ok := <-handler
+	assume ok
+	unfold answer!<x,y,_!>(r0)
+	r = r0
+}
+
+requires k > 0
+ensures QueryHandler(c)
+func MakeServer(k int) (c chan <- query) {
+	c0 := make(chan query)
+	c0.Init(isQuery!<_!>,PredTrue!<!>)
+	invariant acc(c0.RecvChannel(),_)
+	invariant c0.RecvGivenPerm() == PredTrue!<!>;
+	invariant c0.RecvGotPerm() == isQuery!<_!>;
+	for i := 0; i != k; i++ {
+		go slave(c0)
+	}
+	c = c0
+	fold QueryHandler(c)
+}
+
+
+func simpleClient() {
+	c := MakeServer(1)
+	x@ := 3
+	y@ := 5
+	h1 := MakeQuery(c,&x)
+	h2 := MakeQuery(c,&y)
+	r2 := GetResult(h2,5,&y)
+	r1 := GetResult(h1,3,&x)
+	assert x == 4 && r1 == 9
+	assert y == 6 && r2 == 25
+	x := 0
+	y := 0
+}

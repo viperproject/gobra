@@ -1,0 +1,32 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package gomap
+
+func test1() {
+	// if present, the argument to make must be non-negative
+	//:: ExpectedOutput(type_error)
+	m1 := make(map[string]int, -1) 
+}
+
+func test2() {
+	// fails because key types must be comparable; map is not comparable
+	//:: ExpectedOutput(type_error)
+	var m1 map[map[int]int]string 
+	//:: ExpectedOutput(type_error)
+	m2 := make(map[map[int]int]string)
+}
+
+func test3() {
+	m := make(map[int]int)
+	m[10] = 10
+	// &m[10] is not effective addressable
+	//:: ExpectedOutput(type_error)
+	z := &m[10]
+}
+
+func test4() {
+	// Multiple keys with the same constant value in map literal are not allowed
+	//:: ExpectedOutput(type_error)
+	_ = map[int]int {1: 2, 1: 3}
+}

@@ -10,7 +10,7 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer
 import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{Source, VerificationError}
+import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
@@ -366,6 +366,42 @@ object ViperWriter {
         _ <- errorT({
           case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
             reasonT(info, reason)
+        })
+      } yield ()
+    }
+
+    /* Emits Viper statements. */
+    def assertWithDefaultReason(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
+      val res = vpr.Assert(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
+            error(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason)
+        })
+      } yield ()
+    }
+
+    /* Emits Viper statements. */
+    def exhale(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] = {
+      val res = vpr.Exhale(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy res =>
+            reasonT(info, reason)
+        })
+      } yield ()
+    }
+
+    /* Emits Viper statements. */
+    def exhaleWithDefaultReason(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
+      val res = vpr.Exhale(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy res =>
+            error(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason)
         })
       } yield ()
     }

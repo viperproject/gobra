@@ -4,7 +4,8 @@
 package pkg
 
 func main() {
-    assert absValSwitch(-1) == 1
+    res := absValSwitch(-1)
+    assert res == 1
 }
 
 ensures ret >= 0

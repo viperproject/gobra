@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+import "sync"
+
+pred mutexInvariant(x *int) {
+	acc(x)
+}
+
+requires acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+ensures acc(pmutex.LockP(), _) && pmutex.LockInv() == mutexInvariant!<x!>;
+func safeInc(pmutex *sync.Mutex, x *int) {
+	pmutex.Lock()
+	unfold mutexInvariant!<x!>()
+	*x = *x + 1
+	fold mutexInvariant!<x!>()
+	pmutex.Unlock()
+}
+
+func client() {
+	x@ := 0
+	mutex@ := sync.Mutex{}
+	fold mutexInvariant!<&x!>()
+	(&mutex).SetInv(mutexInvariant!<&x!>)
+	go safeInc(&mutex, &x)
+	go safeInc(&mutex, &x)
+}

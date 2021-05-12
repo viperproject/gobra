@@ -143,7 +143,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         hcat(posts map (showPost(_) <> line))  <>
         showTerminationmeasure(terminationMeasure) <> line
 
-    case PLoopSpec(inv,,termination_measures) =>
+    case PLoopSpec(inv,termination_measures) =>
       hcat(inv map (showInv(_) <> line))  <>
         showTerminationmeasure(termination_measures) <> line
   }

@@ -88,6 +88,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (NilType, r) if isPointerType(r) => successProp
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
+      case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp

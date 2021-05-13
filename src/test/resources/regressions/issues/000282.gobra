@@ -1,0 +1,6 @@
+package issue282
+
+func variadic_function(params ...int) {
+	var slice []int
+	slice = params
+}

@@ -286,22 +286,23 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
                               intOp: (Int, Int) => Int,
                               longOp: (Long, Long) => Long
                              )(left: PExpression, right: PExpression): Option[BigInt] = {
-    for {
+    val v: Option[Option[BigInt]] = for {
       l <- intConstantEval(left)
       r <- intConstantEval(right)
     } yield typeMerge(typ(left), typ(right)) match {
-      case Some(IntT(t: BoundedIntegerKind)) => t match {
+      case Some(IntT(t: BoundedIntegerKind)) => Some(t match {
         case SignedInteger8 | UnsignedInteger8 => BigInt(byteOp(l.byteValue, r.byteValue))
         case SignedInteger16 | UnsignedInteger16 => BigInt(shortOp(l.shortValue, r.shortValue))
         case SignedInteger32 | DefaultInt | UnsignedInteger32 | DefaultUInt => BigInt(intOp(l.intValue, r.intValue))
         case SignedInteger64 | IntWith64Bit | UnsignedInteger64 | UIntWith64Bit => BigInt(longOp(l.longValue, r.longValue))
-      }
+      })
       case Some(IntT(UnboundedInteger)) =>
         // this case should be unreacable: it does not make sense to apply bitwise operators to unbounded variables.
         // the type system should infer a suitable (bounded) type when applying a bitwise operator to untyped literals
         violation("This case should be unreachable")// TODO: put more info in the error
       case _ => None
     }
+    v.get // TODO: simplify
   }
 
   lazy val stringConstantEval: PExpression => Option[String] = {

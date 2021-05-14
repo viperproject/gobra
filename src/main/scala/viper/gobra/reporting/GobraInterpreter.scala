@@ -309,23 +309,38 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 					case Right(i:sil.LitIntEntry) => i.value
 					case _ => return FaultEntry("offset not defined")
 				}
-				val (array,arraytyp) = funcSarray.get.apply(Seq(entry)) match{
+				val (array,arraytyp,locfun:sil.ExtractedFunction) = funcSarray.get.apply(Seq(entry)) match{
 					case Right(x) => x match {
 						case v:sil.VarEntry => c.extractVal(v) match {
-														case s:sil.SeqEntry => (s,ArrayT(s.values.size,PointerT(info.elem))) // they shuld always be ppointers
+														case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem),null)
 														case _ => return FaultEntry("extracted Value not a sequence")
 													}
-						case s:sil.SeqEntry => (s,ArrayT(s.values.size,PointerT(info.elem))) // same here
-						case d:sil.DomainValueEntry => (d,ArrayT(0,info.elem)) 
-						case _ => (sil.OtherEntry("internal","error"),UnknownType)
+						case s:sil.SeqEntry => (s,ArrayT(s.values.size,info.elem),null) // same here
+						case d:sil.DomainValueEntry => (d,ArrayT(0,PointerT(info.elem)),
+														c.domains.find(_.valueName==d.domain).get.functions.find(_.fname==Names.location(d.getDomainName)).get.apply(Seq(d)) match{
+															case Left(f) => f
+															case _ => return FaultEntry("function ShArrayloc not found...")
+														}
+														) 
+						case _ => (sil.OtherEntry("internal","error"),UnknownType,null)
 					}
 					case _ => return FaultEntry(s"$sarray false application")
 				}
-				val original = MasterInterpreter(c).interpret(array,arraytyp) match {
+				/* val original = MasterInterpreter(c).interpret(array,arraytyp) match {
 					case x:LitArrayEntry => x
 					case _=> return FaultEntry("not an array")
+				} */
+				def loc(v:BigInt) = {
+						locfun.apply(Seq(sil.LitIntEntry(v))) match {
+							case Right(t) => MasterInterpreter(c).interpret(t,PointerT(info.elem)) match {
+								case p:LitPointerEntry => p.value
+								case l:LitEntry => l
+							}
+							case _ => FaultEntry("not resolvable function loc")
+						}
 				}
-				LitSliceEntry(info,offset,offset+length,original.values.drop(offset.toInt).take(length.toInt))
+				val values = (offset until (offset+length)).map(x=> loc(x))
+				LitSliceEntry(info,offset,offset+length,values)
 			}else{
 				FaultEntry(s"functions ($sarray ,$soffset, $slen) not found")
 			}

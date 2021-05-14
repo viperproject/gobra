@@ -57,10 +57,10 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																	else 
 																		productInterpreter.interpret(d,t)
 												case t:ArrayT => if(d.getDomainName.startsWith("Slice")){
-													sliceInterpreter.interpret(d,SliceT(PointerT(t.elem)))
-												}else{
-														indexedInterpreter.interpret(d,t)
-												}
+																		sliceInterpreter.interpret(d,SliceT(t.elem))
+																}else{
+																	indexedInterpreter.interpret(d,t)
+																}
 													
 												case t:SliceT => sliceInterpreter.interpret(d,t)
 												case DeclaredT(d,c) => val name = d.left.name
@@ -239,7 +239,7 @@ case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
 		val unbox = functions.find(_.fname==unboxFunc(entry.domain))
 		val box = functions.find(_.fname==boxFunc(entry.domain))
 		if(unbox.isDefined&&box.isDefined){
-			val unboxed : sil.ExtractedModelEntry= Right(unbox.get.options.head._2) match{ //unboxing has some strange behaviour snaps and such
+			val unboxed : sil.ExtractedModelEntry= Right(unbox.get.default) match{ //unboxing has some strange behaviour snaps and such
 					case Right(x) => x
 					case _ => return FaultEntry(s"wrong application of function $unbox")
 			} 
@@ -439,6 +439,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 	}
 }
 
+ 
 
 case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,Any]{
 	val stringDomain = Names.stringsDomain 

@@ -267,19 +267,27 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 			}
 			//require(length==info.length) this cannot be enforced because we do not always know the array length ahead of time
 			val offsetFunc = functions.find(_.fname==index(doms.get.name))
+			var address :BigInt= 0;
 			if(offsetFunc.isDefined){
 				val indexFunc = offsetFunc.get
-				val values = 0.until(length.toInt-1).map(i=>{
-				val x = indexFunc.apply(Seq(entry,sil.LitIntEntry(i))) match{
-					case Right(x) => MasterInterpreter(c).interpret(x,info.elem) match {
-						case x:LitEntry => x
-						case _ => FaultEntry("not a literal")
+				val values = 0.until(length.toInt).map(i=>{
+					val x = indexFunc.apply(Seq(entry,sil.LitIntEntry(i))) match{
+						case Right(x) => MasterInterpreter(c).interpret(x,info.elem) match {
+							case a:LitAdressedEntry => address+= a.address; a.value
+							case x:LitEntry => x
+							case _ => FaultEntry("not a literal")
+						}
+						case _=> return FaultEntry("could not resolve")
 					}
-					case _=> return FaultEntry("could not resolve")
-				}
-				x
+					x
 				})
-				LitArrayEntry(info,values)
+				val value = LitArrayEntry(info,values)
+				if(address==0){
+					value
+				}else{
+					LitAdressedEntry(value,address)
+				}
+				
 			}else{
 				FaultEntry(s"offset not found")
 			}

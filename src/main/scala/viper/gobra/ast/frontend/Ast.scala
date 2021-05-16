@@ -736,7 +736,7 @@ sealed trait PTerminationMeasure extends PNode
 
    case class PConditionalMeasureCollection(tuple:Vector[PConditionalMeasure]) extends PTerminationMeasure
 
-   sealed trait PConditionalMeasure
+   sealed trait PConditionalMeasure extends PNode
 
    case class PConditionalMeasureExpression(tuple:(Vector[PExpression],PExpression)) extends PConditionalMeasure
    case class PConditionalMeasureUnderscore(tuple:(PUnderscoreCharacter,PExpression))extends PConditionalMeasure

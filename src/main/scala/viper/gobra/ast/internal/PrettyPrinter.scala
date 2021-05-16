@@ -233,7 +233,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
-    case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, terminationMeasure, body) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
@@ -611,7 +611,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
     case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
-    case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
+    case While(cond, invs, terminationMeasure, _) => "while" <> parens(showExpr(cond)) <> line <>
       hcat(invs  map ("invariant " <> showAss(_) <> line))
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))

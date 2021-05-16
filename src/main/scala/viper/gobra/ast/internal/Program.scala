@@ -252,7 +252,7 @@ case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
 
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
-case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[Vector[Assertion]], body: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 

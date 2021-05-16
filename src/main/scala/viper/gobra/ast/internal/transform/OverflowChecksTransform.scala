@@ -86,10 +86,10 @@ object OverflowChecksTransform extends InternalTransform {
       val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(i.info)
       Seqn(Vector(assertCond, ifStmt))(i.info)
 
-    case w@While(cond, invs, body) =>
+    case w@While(cond, invs, terminatonMeasure,body) =>
       val condInfo = createAnnotatedInfo(cond.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
-      val whileStmt = While(cond, invs, stmtTransform(body))(w.info)
+      val whileStmt = While(cond, invs, terminationMeasure,stmtTransform(body))(w.info)
       Seqn(Vector(assertCond, whileStmt))(w.info)
 
     case ass@SingleAss(l, r) =>

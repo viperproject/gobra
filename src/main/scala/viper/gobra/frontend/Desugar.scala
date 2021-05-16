@@ -834,6 +834,12 @@ object Desugar {
       val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
       blockV(dStatements)(meta(block))
     }
+    
+     def getMeasureStmts(ctx: FunctionContext)(ass:PExpression):Vector[in.Stmt]={
+      val src: Meta=meta(ass)
+      val measure= exprD(ctx)(ass) map (in.ExprTerminationMeasure(_)(src))
+      measure.stmts
+    }
 
     def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
 
@@ -906,13 +912,52 @@ object Desugar {
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                
+                   (dTerPre, dTer) =  spec.terminationMeasure match {
+                  case Some(measure) => measure match {
+                    case PTupleTerminationMeasure(vector)=>
+                      (vector flatMap getMeasureStmts(ctx),Some(vector map terminationMeasureD(ctx)))
+                    case PUnderscoreCharacter()=> {
+                      val src: Meta = meta(PUnderscoreCharacter())
+                      (Vector.empty, Some(Vector(in.UnderscoreTerminationMeasure()(src))))
+                    }
+                    case PStarCharacter()=>{
+                      val src:Meta =meta(PStarCharacter())
+                      (Vector.empty,Some(Vector(in.StarTerminationMeasure()(src))))
+                    }
+                    case PConditionalMeasureCollection(tuple) =>{
+                      def getCmeasureStmts(ctx:FunctionContext)(ass:PConditionalMeasure):Vector[in.Stmt]={
+                        ass match{
+                          case PConditionalMeasureExpression(tuple) =>
+                            tuple match{
+                              case(expressions,cond)=>
+                                val vector=expressions flatMap getMeasureStmts(ctx)
+                                val condition=exprD(ctx)(cond)
+                                vector ++ condition.stmts
+                            }
+                          case PConditionalMeasureUnderscore(tuple)=> tuple match {
+                            case (_,cond) =>
+                              exprD(ctx)(cond).stmts
+                          }
+
+                          case PConditionalMeasureAdditionalStar()=>
+                               Vector.empty
+                        }
+                      }
+                      ( tuple flatMap getCmeasureStmts(ctx),Some (tuple map conditionalMeasureD(ctx)))
+                    }
+                  }
+                  case None => (Vector.empty,None)
+                }
+                
+                
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
-                    in.While(dCond, dInv, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre
+                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, dInv, dTer, in.Seqn(
+                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src)
                   )
                 )(src)

@@ -239,10 +239,13 @@ case class BoxInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Type]{
 		val unbox = functions.find(_.fname==unboxFunc(entry.domain))
 		val box = functions.find(_.fname==boxFunc(entry.domain))
 		if(unbox.isDefined&&box.isDefined){
-			val unboxed : sil.ExtractedModelEntry= Right(unbox.get.default) match{ //unboxing has some strange behaviour snaps and such
+			val unboxed : sil.ExtractedModelEntry= try{Right(unbox.get.options.head._2) match{ //unboxing has some strange behaviour snaps and such
 					case Right(x) => x
 					case _ => return FaultEntry(s"wrong application of function $unbox")
 			} 
+		}catch {
+			case _:Throwable => unbox.get.default
+		}
 			MasterInterpreter(c).interpret(unboxed,info)
 		}else{
 			FaultEntry(s"${unboxFunc(entry.domain)} not found")
@@ -480,10 +483,11 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 	def interpret(entry:sil.DomainValueEntry,info:InterfaceT): GobraModelEntry ={
 		 val doms = c.domains.find(_.valueName==entry.domain)
 		 if(doms.isDefined){
-			val valuefunc = doms.get.functions.find(_==Names.getterFunc(0,2))
-			val typfunc   = doms.get.functions.find(_==Names.getterFunc(0,2))
-			val value = valuefunc.get.apply(Seq(entry)) match{case Right(v) => v}
-			val typ = typfunc.get.apply(Seq(entry)) match{case Right(v) => v}
+			val valuefunc = doms.get.functions.find(_.fname==Names.getterFunc(0,2))match{case Some(x) => x ;case _ => return FaultEntry("Value function not defined")}
+			val typfunc   = doms.get.functions.find(_.fname==Names.getterFunc(1,2))match{case Some(x) => x ; case _ => return FaultEntry("no type function?")}
+			val value = valuefunc.apply(Seq(entry)) match{case Right(v) => v}
+			val typ = typfunc.apply(Seq(entry)) match{case Right(v) => v}
+			printf(s"$doms")
 			FaultEntry("interface not implemented")
 
 		 }else{
@@ -491,3 +495,4 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		 }
 	}
 }
+//case class TypeInterpreter(c:sil.Converter) extends GobraDomainInterpreter[]

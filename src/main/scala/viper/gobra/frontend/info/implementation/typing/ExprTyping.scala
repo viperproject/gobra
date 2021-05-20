@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
 
 trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
@@ -22,6 +23,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   val UNTYPED_INT_CONST: Type = IntT(config.typeBounds.UntypedConst)
   // default type of unbounded integer constant expressions when they must have a type
   val DEFAULT_INTEGER_TYPE: Type = INT_TYPE
+  // Maximum value allowed by the Go compiler for the right operand of `<<` when both operands
+  // are constant (obtained empirically)
+  val MAX_SHIFT: Int = 512
 
   lazy val wellDefExprAndType: WellDefinedness[PExpressionAndType] = createWellDef {
 
@@ -356,19 +360,42 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                   // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
                   // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
                   // which are also rejected by the go compiler
-                  intExprWithinTypeBounds(asExpr(n.left).get, mergedType) ++
-                    intExprWithinTypeBounds(asExpr(n.right).get, mergedType) ++
+                  intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
+                    intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
                     intExprWithinTypeBounds(n, mergedType)
                 } else noMessages
               }
               lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
             }
-          case (_: PShiftLeft | _: PShiftRight, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
+          case (_: PShiftLeft, l, r) =>
+            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            if (integerOperands.isEmpty) {
+              intConstantEval(n.right.asInstanceOf[PExpression]) match {
+                case Some(v) =>
+                  // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
+                  // of the type of the left operand (or 512 if there is an untyped const on the left)
+                  val lowerBound = error(n, s"constant $r overflows uint", v < 0)
+                  val nBits = exprOrTypeType(n.left) match {
+                    case IntT(t: BoundedIntegerKind) => t.nbits
+                    case IntT(UnboundedInteger) => MAX_SHIFT
+                    case t => violation(s"unexpected type $t")
+                  }
+                  val upperBound = error(n, s"shift count ${n.right} large for type ${exprOrTypeType(n.left)}", v > nBits)
+                  lowerBound ++ upperBound
+
+                case None => noMessages
+              }
+            } else integerOperands
+          case (_: PShiftRight, l, r) =>
+            val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            if (integerOperands.isEmpty) {
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
-                case Some(v) => error(n, s"constant $r overflows uint", v < 0)
+                case Some(v) =>
+                  // The Go compiler only checks that the RHS of (>>) is non-negative
+                  error(n, s"constant $r overflows uint", v < 0)
                 case None => noMessages
               })
+            } else integerOperands
           case (_, l, r) => error(n, s"$l and $r are invalid type arguments for $n")
         }
 

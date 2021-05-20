@@ -11,6 +11,7 @@ import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds._
+import viper.gobra.util.Violation.violation
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
@@ -102,11 +103,30 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PMul => aux(l, r)(x => y => x * y)
             case _: PMod => aux(l, r)(x => y => x % y)
             case _: PDiv => aux(l, r)(x => y => x / y)
-            case _: PShiftLeft => aux(l, r)(x => y => x << y.toInt) // TODO: The type system ensures y is convertible to int
+            case _: PShiftLeft =>
+              aux(l, r){
+                x => y =>
+                  // The type system ensures that y is convertible to int
+                  violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                  x << y.toInt
+              }
             case _: PShiftRight => exprType(l) match {
               case IntT(t) => t match {
-                case UnboundedInteger | _: Signed => aux(l, r)(x => y => x >> y.toInt) // TODO: The type system ensures y is convertible to int
-                case _: Unsigned => aux(l, r)(x => y => BigInt(x.toLong >>> y.toInt)) // TODO: The type system ensures x is convertible to Long and y is convertible to int?
+                case UnboundedInteger | _: Signed =>
+                  aux(l, r){
+                    x => y =>
+                      // The type system ensures that y is convertible to int
+                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                      x >> y.toInt
+                  }
+                case _: Unsigned =>
+                  aux(l, r){
+                    x => y =>
+                      // The type system ensures that x is convertible to long and y is convertible to int
+                      violation(x <= Long.MaxValue, s"left-hand operand bigger than expected")
+                      violation(y <= Int.MaxValue, s"right-hand operand bigger than expected")
+                      BigInt(x.toLong >>> y.toInt) // >>> is not implemented for BigInt
+                  }
               }
               case _ => None
             }

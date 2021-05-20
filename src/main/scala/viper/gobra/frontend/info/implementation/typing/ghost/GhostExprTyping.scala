@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -434,6 +434,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case m: BuiltInMethod => m.isPure
       case _: Predicate | _: BuiltInFPredicate | _: BuiltInMPredicate => !strong
       case _: DomainFunction => true
+      case _: AdtMember => true
       case _ => false
     }
   }

@@ -89,9 +89,6 @@ object Names {
   // domain
   def dfltDomainValue(domainName: String): String = s"dflt$domainName"
 
-  // domain
-  def dfltDomainValue(domainName: String): String = s"dflt$domainName"
-
   // adt
   def dfltAdtValue(adtName: String): String = s"adtDflt_$adtName"
   def tagAdtFunction(adtName: String): String = s"adtTag_$adtName"

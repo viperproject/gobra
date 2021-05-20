@@ -91,15 +91,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
-      case (t: DeclaredT, c: AdtT) if underlyingType(t).isInstanceOf[AdtT] =>
-        underlyingType(t).asInstanceOf[AdtT] == c
-      case (c: AdtT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
-        underlyingType(t).asInstanceOf[AdtT] == c
-      case (t: DeclaredT, c: AdtClauseT) if underlyingType(t).isInstanceOf[AdtT] =>
-        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
-      case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
-        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
-      case (c: AdtClauseT, t: AdtT) => t.decl.clauses.contains(c.decl)
+      case (t: DeclaredT, c: AdtT) if underlyingType(t).isInstanceOf[AdtT] &&
+        identicalTypes(underlyingType(t).asInstanceOf[AdtT], c) => successProp
+
+      case (c: AdtT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] &&
+        identicalTypes(underlyingType(t).asInstanceOf[AdtT], c) => successProp
+      case (t: DeclaredT, c: AdtClauseT) if underlyingType(t).isInstanceOf[AdtT] &&
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl) => successProp
+      case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] &&
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl) => successProp
+      case (c: AdtClauseT, t: AdtT) if t.decl.clauses.contains(c.decl) => successProp
 
         // conservative choice
       case _ => errorProp()

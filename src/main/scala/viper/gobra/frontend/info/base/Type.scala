@@ -55,7 +55,6 @@ object Type {
 
   case class AdtClauseT(clauses: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 
-  case class OptionT(elem : Type) extends Type
 
   case class DomainT(decl: PDomainType, context: ExternalTypeInfo) extends PrettyType("domain{...}") with ContextualType
 

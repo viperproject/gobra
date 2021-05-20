@@ -9,6 +9,7 @@ package viper.gobra.theory
 sealed trait Addressability {
   def isShared: Boolean
   def isExclusive: Boolean = !isShared
+  def pretty: String
 }
 
 /** Implements the logic of addressability. */
@@ -35,10 +36,12 @@ object Addressability {
   /** Addressability modifier. Expressions of shared type can be aliased. */
   case object Shared extends Addressability {
     override val isShared: Boolean = true
+    override val pretty: String = "@"
   }
   /** Addressability modifier. Expressions of exclusive type cannot be aliased. */
   case object Exclusive extends Addressability {
     override val isShared: Boolean = false
+    override val pretty: String = "."
   }
 
 
@@ -63,6 +66,7 @@ object Addressability {
   def field(structAddressability: Addressability): Addressability = structAddressability
   def arrayElement(arrayAddressability: Addressability): Addressability = arrayAddressability
   val sliceElement: Addressability = arrayElement(pointerBase)
+  val mapKey: Addressability = Exclusive
   val mapValue: Addressability = Exclusive
   val mathDataStructureElement: Addressability = Exclusive
   val channelElement: Addressability = Exclusive

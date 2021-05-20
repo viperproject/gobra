@@ -1,0 +1,10 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+requires 0 < len(xs)
+func foo(ghost xs seq[int]) {
+  ghost xs[0] = 12
+  assert xs[0] == 12
+}

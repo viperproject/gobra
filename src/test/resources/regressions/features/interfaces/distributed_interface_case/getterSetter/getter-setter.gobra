@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package getterSetter
+
+type GetterSetter interface {
+    pred mem()
+
+    requires acc(mem(), 1/2)
+    pure GetVal() int
+
+    requires mem()
+    ensures  mem() && GetVal() == v
+    SetVal(v int)
+}

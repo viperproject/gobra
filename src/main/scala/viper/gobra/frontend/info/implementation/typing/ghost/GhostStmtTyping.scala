@@ -9,7 +9,6 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.Type.AssertionT
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 
@@ -17,10 +16,10 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostStmt(stmt: PGhostStatement): Messages = stmt match {
     case n@PExplicitGhostStatement(s) => error(n, "ghost error: expected ghostifiable statement", !s.isInstanceOf[PGhostifiableStatement])
-    case PAssert(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case PExhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case PAssume(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
-    case PInhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
+    case PAssert(exp) => assignableToSpec(exp)
+    case PExhale(exp) => assignableToSpec(exp)
+    case PAssume(exp) => assignableToSpec(exp)
+    case PInhale(exp) => assignableToSpec(exp)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
     case PMatchStatement(exp, clauses, _) => clauses.flatMap(c => c.pattern match {

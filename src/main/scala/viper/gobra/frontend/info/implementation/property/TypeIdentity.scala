@@ -28,10 +28,14 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
 
       case (ArrayT(ll, l), ArrayT(rl, r)) => ll == rl && identicalTypes(l, r)
       case (SliceT(l), SliceT(r)) => identicalTypes(l, r)
+      case (GhostSliceT(l), GhostSliceT(r)) => identicalTypes(l, r)
+      case (MapT(k1, v1), MapT(k2, v2)) => identicalTypes(k1, k2) && identicalTypes(v1, v2)
       case (SequenceT(l), SequenceT(r)) => identicalTypes(l, r)
       case (SetT(l), SetT(r)) => identicalTypes(l, r)
       case (MultisetT(l), MultisetT(r)) => identicalTypes(l, r)
+      case (MathMapT(k1, v1), MathMapT(k2, v2)) => identicalTypes(k1, k2) && identicalTypes(v1, v2)
       case (OptionT(l), OptionT(r)) => identicalTypes(l, r)
+      case (l: DomainT, r: DomainT) => l == r
 
       case (StructT(clausesL, _, contextL), StructT(clausesR, _, contextR)) =>
         contextL == contextR && clausesL.size == clausesR.size && clausesL.zip(clausesR).forall {
@@ -56,19 +60,22 @@ trait TypeIdentity extends BaseProperty { this: TypeInfoImpl =>
           case (l, r) => identicalTypes(l, r)
         }
 
-      case (MapT(lk, le), MapT(rk, re)) => identicalTypes(lk, rk) && identicalTypes(le, re)
-
       case (ChannelT(le, lm), ChannelT(re, rm)) => identicalTypes(le, re) && lm == rm
+
+      case (VoidType, VoidType) => true
 
       case (l: AdtT, r: AdtT) => l == r
 
-      //        case (InternalTupleT(lv), InternalTupleT(rv)) =>
-      //          lv.size == rv.size && lv.zip(rv).forall {
-      //            case (l, r) => identicalTypes(l, r)
-      //          }
-
       case _ => false
     }
+
+    case (InternalTupleT(lv), InternalTupleT(rv)) =>
+      lv.size == rv.size && lv.zip(rv).forall {
+        case (l, r) => identicalTypes(l, r)
+      }
+    case (VoidType, InternalTupleT(Vector())) => true
+    case (InternalTupleT(Vector()), VoidType) => true
+
     case _ => false
   }
 }

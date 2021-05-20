@@ -10,7 +10,7 @@ import viper.gobra.reporting.BackTranslator.{ErrorTransformer, ReasonTransformer
 import viper.gobra.reporting.Source.RichViperNode
 import viper.silver.{ast => vpr}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{Source, VerificationError}
+import viper.gobra.reporting.{DefaultErrorBackTranslator, Source, VerificationError}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.Context
@@ -18,6 +18,8 @@ import viper.gobra.translator.util.ViperWriter.MemberKindCompanion.{ErrorT, Reas
 import viper.gobra.util.Violation
 import viper.silver.verifier.ErrorReason
 import viper.silver.verifier.{errors => vprerr}
+
+import scala.annotation.unused
 
 object ViperWriter {
 
@@ -117,10 +119,6 @@ object ViperWriter {
     override val isPure: Boolean = false
   }
 
-  case class Assertion(x: vpr.Exp, reasonT: Option[(Source.Verifier.Info, ErrorReason) => VerificationError]) extends Code {
-    override val isPure: Boolean = true
-  }
-
   case class Binding(v: vpr.LocalVar, e: vpr.Exp) extends Code {
     override val isPure: Boolean = true
   }
@@ -132,19 +130,11 @@ object ViperWriter {
                     ) extends DataSum
   {
     def asStatement(body: vpr.Stmt): (vpr.Stmt, Vector[vpr.Declaration], Vector[DataKind]) = {
-      var memberKinds: Vector[DataKind] = Vector.empty
+      val memberKinds: Vector[DataKind] = Vector.empty
 
       val codeStmts = code map {
         case Statement(x) => x
         case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
-        case Assertion(x, None) => vpr.Assert(x)(x.pos, x.info, x.errT)
-        case Assertion(x, Some(trans)) =>
-          val res = vpr.Assert(x)(x.pos, x.info, x.errT)
-          memberKinds :+= ErrorT({
-            case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
-              trans(info, reason)
-          })
-          res
         case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
       }
 
@@ -155,19 +145,11 @@ object ViperWriter {
     }
 
     def asStatement: (vpr.Stmt, Vector[vpr.Declaration], Vector[DataKind]) = {
-      var memberKinds: Vector[DataKind] = Vector.empty
+      val memberKinds: Vector[DataKind] = Vector.empty
 
       val codeStmts = code map {
         case Statement(x) => x
         case Binding(v, e) => vpr.LocalVarAssign(v, e)(e.pos, e.info, e.errT)
-        case Assertion(x, None) => vpr.Assert(x)(x.pos, x.info, x.errT)
-        case Assertion(x, Some(trans)) =>
-          val res = vpr.Assert(x)(x.pos, x.info, x.errT)
-          memberKinds :+= ErrorT({
-            case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
-              trans(info, reason)
-          })
-          res
         case Assumption(x) => vpr.Assume(x)(x.pos, x.info, x.errT)
       }
 
@@ -175,8 +157,8 @@ object ViperWriter {
       (stmt, global, memberKinds)
     }
 
-    def asExpr(body: vpr.Exp, ctx: Context): (vpr.Exp, Vector[vpr.Declaration], Vector[vpr.Declaration], Vector[DataKind]) = {
-      var memberKinds: Vector[DataKind] = Vector.empty
+    def asExpr(body: vpr.Exp, @unused ctx: Context): (vpr.Exp, Vector[vpr.Declaration], Vector[vpr.Declaration], Vector[DataKind]) = {
+      val memberKinds: Vector[DataKind] = Vector.empty
 
       val codeExpr = code.foldRight(body){ case (x, w) =>
         x match {
@@ -184,15 +166,6 @@ object ViperWriter {
 
           case Binding(v, e) =>
             vpr.Let(ViperUtil.toVarDecl(v), e, w)(w.pos, w.info, w.errT) // let lhs = rhs in e
-
-          case Assertion(a, None) =>
-            vpr.And(ctx.condition.assert(a), w)(w.pos, w.info, w.errT) // Maybe use inhaleExhaleExp instead
-
-          case Assertion(a, Some(trans)) =>
-            val (check, errorT) = ctx.condition.assert(a, trans)
-            val res = vpr.And(check, w)(w.pos, w.info, w.errT)
-            memberKinds :+= ErrorT(errorT)
-            res
         }
       }
 
@@ -366,33 +339,90 @@ object ViperWriter {
       create(remainder, (w.copy(codeData, ()), w.res))
     }
 
+    /* Emits Viper statements. */
     def write(stmts: vpr.Stmt*): Writer[Unit] =
       create(stmts.toVector.map(Statement), ())
 
+    /* Emits Viper statements. */
     def assume(cond: vpr.Exp*): Writer[Unit] =
       create(cond.toVector.map(Assumption), ())
 
+    /* Can be used in expressions. */
     def bind(lhs: vpr.LocalVar, rhs: vpr.Exp): Writer[Unit] =
       create(Vector(Binding(lhs, rhs)), ())
 
-    def assert(cond: vpr.Exp*): Writer[Unit] =
-      create(cond.toVector.map(Assertion(_, None)), ())
+    /* Can be used in expressions. */
+    def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError)(ctx: Context): Writer[vpr.Exp] = {
+      // In the future, this might do something more sophisticated
+      val (res, errT) = ctx.condition.assert(cond, exp, reasonT)
+      errorT(errT).map(_ => res)
+    }
 
-    def assert(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] =
-      create(Vector(Assertion(cond, Some(reasonT))), ())
+    /* Emits Viper statements. */
+    def assert(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] = {
+      val res = vpr.Assert(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
+            reasonT(info, reason)
+        })
+      } yield ()
+    }
 
+    /* Emits Viper statements. */
+    def assertWithDefaultReason(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
+      val res = vpr.Assert(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.AssertFailed(Source(info), reason, _) if e causedBy res =>
+            error(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason)
+        })
+      } yield ()
+    }
+
+    /* Emits Viper statements. */
+    def exhale(cond: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): Writer[Unit] = {
+      val res = vpr.Exhale(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy res =>
+            reasonT(info, reason)
+        })
+      } yield ()
+    }
+
+    /* Emits Viper statements. */
+    def exhaleWithDefaultReason(cond: vpr.Exp, error: Source.Verifier.Info => VerificationError): Writer[Unit] = {
+      val res = vpr.Exhale(cond)(cond.pos, cond.info, cond.errT)
+      for {
+        _ <- write(res)
+        _ <- errorT({
+          case e@ vprerr.ExhaleFailed(Source(info), reason, _) if e causedBy res =>
+            error(info) dueTo DefaultErrorBackTranslator.defaultTranslate(reason)
+        })
+      } yield ()
+    }
+
+    /* Can be used in expressions. */
     def local(locals: vpr.Declaration*): Writer[Unit] =
       create(locals.toVector.map(Local), ())
 
+    /* Can be used in expressions. */
     def global(globals: vpr.Declaration*): Writer[Unit] =
       create(globals.toVector.map(Global), ())
 
+    /* Can be used in expressions. */
     def errorT(errTs: ErrorTransformer*): Writer[Unit] =
       create(errTs.toVector.map(ErrorT), ())
 
+    /* Can be used in expressions. */
     def reasonR(reaTs: ReasonTransformer*): Writer[Unit] =
       create(reaTs.toVector.map(ReasonT), ())
 
+    /* Can be used in expressions. */
     def copyResult(r: vpr.Exp): CodeWriter[vpr.LocalVar] = {
       val z = vpr.LocalVar(Names.freshName, r.typ)(r.pos, r.info, r.errT)
       for {

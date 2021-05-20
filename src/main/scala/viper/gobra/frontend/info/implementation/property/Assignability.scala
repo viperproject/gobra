@@ -62,40 +62,35 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (r, l) => assignableTo.result(r, l)
   }
 
-  lazy val assignableTo: Property[(Type, Type)] = createFlatProperty[(Type, Type)] {
+  lazy val assignableTo: Property[(Type, Type)] = createFlatPropertyWithReason[(Type, Type)] {
     case (right, left) => s"$right is not assignable to $left"
   } {
     case (Single(lst), Single(rst)) => (lst, rst) match {
-        // for go's types according to go's specification (mostly)
-      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => true
+      // for go's types according to go's specification (mostly)
+      case (UNTYPED_INT_CONST, r) if underlyingType(r).isInstanceOf[IntT] => successProp
       // not part of Go spec, but necessary for the definition of comparability
-      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => true
-      case (l, r) if identicalTypes(l, r) => true
-      // even though the go language spec states that a value x of type V is assignable to a variable of type T
-      // if V and T have identical underlying types and at least one of V or T is not a defined type, the go compiler
-      // seems to reject any program that relies on this, e.g. the go compiler rejects the program containing
-      // `var y IntType = x` where x is and int var and IntType is a defined type defined as an int
-      // case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT])
-      //  && identicalTypes(underlyingType(l), underlyingType(r)) => true
-      case (l, r) if !(l.isInstanceOf[DeclaredT] && r.isInstanceOf[DeclaredT]) // it does hold for structs
-        && underlyingType(l).isInstanceOf[StructT] && underlyingType(r).isInstanceOf[StructT]
-        && identicalTypes(underlyingType(l), underlyingType(r)) => true
+      case (l, UNTYPED_INT_CONST) if underlyingType(l).isInstanceOf[IntT] => successProp
+      case (l, r) if identicalTypes(l, r) => successProp
+      // the go language spec states that a value x of type V is assignable to a variable of type T
+      // if V and T have identical underlying types and at least one of V or T is not a defined type
+      case (l, r) if !(isDefinedType(l) && isDefinedType(r))
+        && identicalTypes(underlyingType(l), underlyingType(r)) => successProp
 
-      case (l, r) if implements(l, r) => true
-      case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => true
-      case (NilType, r) if isPointerType(r) => true
-      case (VariadicT(t1), VariadicT(t2)) => assignableTo(t1, t2)
-      case (t1, VariadicT(t2)) => assignableTo(t1, t2)
+      case (l, r) if underlyingType(r).isInstanceOf[InterfaceT] => implements(l, r)
+      case (ChannelT(le, ChannelModus.Bi), ChannelT(re, _)) if identicalTypes(le, re) => successProp
+      case (NilType, r) if isPointerType(r) => successProp
+      case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
+      case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
 
         // for ghost types
-      case (BooleanT, AssertionT) => true
-      case (SortT, SortT) => true
-      case (PermissionT, PermissionT) => true
-      case (SequenceT(l), SequenceT(r)) => assignableTo(l,r) // implies that Sequences are covariant
-      case (SetT(l), SetT(r)) => assignableTo(l,r)
-      case (MultisetT(l), MultisetT(r)) => assignableTo(l,r)
-      case (OptionT(l), OptionT(r)) => assignableTo(l, r)
-      case (IntT(_), PermissionT) => true
+      case (BooleanT, AssertionT) => successProp
+      case (SortT, SortT) => successProp
+      case (PermissionT, PermissionT) => successProp
+      case (SequenceT(l), SequenceT(r)) => assignableTo.result(l,r) // implies that Sequences are covariant
+      case (SetT(l), SetT(r)) => assignableTo.result(l,r)
+      case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
+      case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
+      case (IntT(_), PermissionT) => successProp
       case (t: DeclaredT, c: AdtT) if underlyingType(t).isInstanceOf[AdtT] =>
         underlyingType(t).asInstanceOf[AdtT] == c
       case (c: AdtT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
@@ -105,20 +100,21 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
         underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
       case (c: AdtClauseT, t: AdtT) => t.decl.clauses.contains(c.decl)
-      //case (a: AdtClauseT, b: AdtClauseT) => a.decl == b.decl
 
         // conservative choice
-      case _ => false
+      case _ => errorProp()
     }
-    case _ => false
+    case _ => errorProp()
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
     case PIndexedExp(b, _) => exprType(b) match {
       case _: ArrayT => assignable(b)
-      case _: SliceT => assignable(b)
+      case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
-      case _: MapT => true
+      case _: MapT => assignable(b)
+      case _: SequenceT => true
+      case _: MathMapT => true
       case _ => false
     }
     case PBlankIdentifier() => true
@@ -220,10 +216,17 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             areAllKeysNonNegative(elems) and
             areAllElementsAssignable(elems, t)
 
+        case GhostSliceT(t) =>
+          areAllKeysConstant(elems) and
+            areAllKeysDisjoint(elems) and
+            areAllKeysNonNegative(elems) and
+            areAllElementsAssignable(elems, t)
+
         case MapT(key, t) =>
           areAllElementsKeyed(elems) and
             areAllKeysAssignable(elems, key) and
-            areAllElementsAssignable(elems, t)
+            areAllElementsAssignable(elems, t) and
+            areAllConstantKeysDifferent(elems, key)
 
         case SequenceT(t) =>
           areAllKeysConstant(elems) and
@@ -238,6 +241,12 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         case MultisetT(t) =>
           areNoElementsKeyed(elems) and
             areAllElementsAssignable(elems, t)
+
+        case MathMapT(keys, values) =>
+          areAllElementsKeyed(elems) and
+            areAllKeysAssignable(elems, keys) and
+            areAllElementsAssignable(elems, values) and
+            areAllConstantKeysDifferent(elems, keys)
 
         case t => failedProp(s"cannot assign literal to $t")
       }
@@ -293,6 +302,21 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
 
   private def areAllElementsAssignable(elems : Vector[PKeyedElement], typ : Type) =
     propForall(elems.map(_.exp), compositeValAssignableTo.before((c: PCompositeVal) => (c, typ)))
+
+  private def areAllConstantKeysDifferent(elems: Vector[PKeyedElement], typ: Type) = {
+    def constVal[T](eval: PExpression => Option[T])(keyed: PKeyedElement) : Option[T] = keyed.key match {
+      case Some(PExpCompositeVal(exp)) => eval(exp)
+      case _ => None
+    }
+    val eval = underlyingType(typ) match {
+      case _: IntT => intConstantEval
+      case BooleanT => boolConstantEval
+      case StringT => stringConstantEval
+      case _ => _: PExpression => None
+    }
+    val constKeys = elems map constVal(eval) filter (_.isDefined) map (_.get)
+    failedProp("key appears twice in map literal", constKeys.distinct.size != constKeys.size)
+  }
 
 
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt] = {

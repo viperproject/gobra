@@ -52,6 +52,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.Function) => noMessages
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.Predicate) => noMessages
+        case Some(_: ap.DomainFunction) => noMessages
         // TODO: fully supporting packages results in further options: global variable
         // built-in members
         case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
@@ -123,6 +124,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(p: ap.Function) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
+        case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
         case Some(p: ap.QualifiedAdtType) =>
           val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
           AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
@@ -267,7 +269,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case (SequenceT(_), IntT(_)) =>
             noMessages
 
-          case (SliceT(_), IntT(_)) =>
+          case (_: SliceT | _: GhostSliceT, IntT(_)) =>
             noMessages
 
           case (VariadicT(_), IntT(_)) =>
@@ -277,6 +279,9 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(n, "Indexing a string is currently not supported")
 
           case (MapT(key, _), indexT) =>
+            error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
+
+          case (MathMapT(key, _), indexT) =>
             error(n, s"$indexT is not assignable to map key of $key", !assignableTo(indexT, key))
 
           case (bt, it) => error(n, s"$it index is not a proper index of $bt")
@@ -307,7 +312,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             error(n, s"index $high is out of bounds", !highOpt.forall(_.forall(i => i >= 0 && i < l))) ++
             error(n, s"index $cap is out of bounds", !capOpt.forall(_.forall(i => i >= 0 && i <= l)))
 
-        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
+        case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
           val lowOpt = low.map(intConstantEval)
           error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
 
@@ -315,13 +320,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       })
 
     case n@PTypeAssertion(base, typ) =>
-      isExpr(base).out ++ isType(typ).out ++
-        (underlyingType(exprType(base)) match {
+      isExpr(base).out ++ isType(typ).out ++ {
+        val baseT = exprType(base)
+        underlyingType(baseT) match {
           case t: InterfaceT =>
             val at = typeSymbType(typ)
-            error(n, s"type error: expression $base of type $at does not implement $typ", !implements(at, t))
+            implements(at, t).asReason(n, s"type error: type $at does not implement the interface $baseT")
           case t => error(n, s"type error: got $t expected interface")
-        })
+        }
+      }
 
     case n@PReceive(e) => isExpr(e).out ++ (exprType(e) match {
       case ChannelT(_, ChannelModus.Bi | ChannelModus.Recv) => noMessages
@@ -361,7 +368,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | StringT | _: VariadicT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -369,7 +376,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PCapacity(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT => noMessages
         case typ => error(op, s"expected an array or slice type, but got $typ")
       }
     }
@@ -381,7 +388,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
           error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
       } ++ (typ match {
-        case _: PSliceType =>
+        case _: PSliceType | _: PGhostSliceType =>
           error(m, s"too many arguments to make($typ)", args.length > 2) ++
             error(m, s"missing len argument to make($typ)", args.isEmpty) ++
             check(args){
@@ -391,8 +398,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
             }
 
-        case _: PChannelType | _: PMapType =>
+        case _: PChannelType =>
           error(m, s"too many arguments passed to make($typ)", args.length > 1)
+
+        case PMapType(k, _) =>
+          error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
+            error(m, s"key type $k is not comparable", !comparableType(symbType(k))) // TODO: add check that type does not contain ghost
 
         case _ => error(typ, s"cannot make type $typ")
       })
@@ -501,8 +512,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem
       case (SliceT(elem), IntT(_)) => elem
+      case (GhostSliceT(elem), IntT(_)) => elem
       case (VariadicT(elem), IntT(_)) => elem
       case (MapT(key, elem), indexT) if assignableTo(indexT, key) =>
+        InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
+      case (MathMapT(key, elem), indexT) if assignableTo(indexT, key) =>
         InternalSingleMulti(elem, InternalTupleT(Vector(elem, BooleanT)))
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
@@ -512,6 +526,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
       case (SequenceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None) => SequenceT(elem)
       case (SliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+      case (GhostSliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => GhostSliceT(elem)
       case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
     }
 
@@ -612,7 +627,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     def defaultTypeIfInterface(t: Type) : Type = {
       if (t.isInstanceOf[InterfaceT]) DEFAULT_INTEGER_TYPE else t
     }
-    getTypeFromCtxt(expr).map(defaultTypeIfInterface)
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
+    getTypeFromCtxt(expr).map(defaultTypeIfInterface) match {
+      case Some(t) => t match {
+        case Single(t) => Some(t)
+        case UnknownType => Some(UnknownType)
+        case _ => violation(s"unexpected case reached $t")
+      }
+      case None => None
+    }
   }
 
   /** Returns the type that is implied by the context of a numeric expression. */
@@ -762,6 +785,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                     case PSetType(elem) => Some(typeSymbType(elem))
                     case PMultisetType(elem) => Some(typeSymbType(elem))
                     case PSliceType(elem) => Some(typeSymbType(elem))
+                    case PGhostSliceType(elem) => Some(typeSymbType(elem))
                     case PArrayType(_, elem) => Some(typeSymbType(elem))
                     case _ => None // conservative choice
                   }
@@ -789,15 +813,24 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case _ => violation("blank identifier always has a parent")
   }
 
-  private def intExprType(expr: PNumExpression): Type = expr match {
-    case _: PIntLit => UNTYPED_INT_CONST
+  private def intExprType(expr: PNumExpression): Type = {
+    val typ = expr match {
+      case _: PIntLit => UNTYPED_INT_CONST
 
-    case _: PLength | _: PCapacity => INT_TYPE
+      case _: PLength | _: PCapacity => INT_TYPE
 
-    case bExpr: PBinaryExp[_,_] =>
-      val typeLeft = exprOrTypeType(bExpr.left)
-      val typeRight = exprOrTypeType(bExpr.right)
-      typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+      case bExpr: PBinaryExp[_,_] =>
+        val typeLeft = exprOrTypeType(bExpr.left)
+        val typeRight = exprOrTypeType(bExpr.right)
+        typeMerge(typeLeft, typeRight).getOrElse(UnknownType)
+    }
+
+    // handle cases where it returns a SingleMultiTuple and we only care about a single type
+    typ match {
+      case Single(t) => t
+      case UnknownType => UnknownType
+      case _ => violation(s"unexpected type $typ")
+    }
   }
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {

@@ -21,10 +21,10 @@ class FinalTypeEncoding(te: TypeEncoding) extends TypeEncoding {
 
   /** Runtime error if a match was expected. */
   private def expectedMatch(name: String): Any ==> Nothing = {
-    case x: in.Expr => Violation.violation(s"Node $x :: ${x.typ} did not match with any implemented case of $name. ")
-    case (x: in.Assignee, y, z) => Violation.violation(s"Node ($x :: ${x.op.typ}, $y, $z) did not match with any implemented case of $name. ")
-    case (x: in.Expr, y, z) => Violation.violation(s"Node ($x :: ${x.typ}, $y, $z) did not match with any implemented case of $name. ")
-    case n => Violation.violation(s"Node $n did not match with any implemented case of $name. ")
+    case x: in.Expr => Violation.violation(s"Node $x (${x.getClass}) :: ${x.typ} did not match with any implemented case of $name. ")
+    case (x: in.Assignee, y, z) => Violation.violation(s"Node ($x (${x.getClass}) :: ${x.op.typ}, $y, $z) did not match with any implemented case of $name. ")
+    case (x: in.Expr, y, z) => Violation.violation(s"Node ($x (${x.getClass}) :: ${x.typ}, $y, $z) did not match with any implemented case of $name. ")
+    case n => Violation.violation(s"Node $n (${n.getClass}) did not match with any implemented case of $name. ")
   }
 
   override def finalize(col: Collector): Unit = te.finalize(col)

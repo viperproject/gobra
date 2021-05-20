@@ -26,6 +26,7 @@ sealed trait PNode extends Product {
   def pretty(prettyPrinter: PrettyPrinter = PNode.defaultPrettyPrinter): String = prettyPrinter.format(this)
 
   lazy val formatted: String = pretty()
+  lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
 
   override def toString: String = formatted
 }
@@ -33,6 +34,7 @@ sealed trait PNode extends Product {
 object PNode {
   type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
+  val shortPrettyPrinter = new ShortPrettyPrinter
 }
 
 sealed trait PScope extends PNode
@@ -70,13 +72,13 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source match {
-      case FileSource(filename, _) => filename
-      case FromFileSource(filename, _) => filename
+    val path = start.source match {
+      case FileSource(filename, _) => Paths.get(filename)
+      case FromFileSource(path, _) => path
       case _ => ???
     }
     new SourcePosition(
-      Paths.get(filename),
+      path,
       LineColumnPosition(start.line, start.column),
       Some(LineColumnPosition(end.line, end.column))
     )
@@ -300,7 +302,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PNameOrDot{
   override val name : String = id.name
 }
 
@@ -383,7 +385,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -772,16 +774,24 @@ case class PMPredicateDecl(
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
 
-case class PImplementationProof(subT: PType, superT: PType, memberProofs: Vector[PMethodImplementationProof]) extends PGhostMember
+case class PImplementationProof(
+                                 subT: PType, superT: PType,
+                                 alias: Vector[PImplementationProofPredicateAlias],
+                                 memberProofs: Vector[PMethodImplementationProof]
+                               ) extends PGhostMember
 
 case class PMethodImplementationProof(
                                        id: PIdnUse, // references the method definition of the super type
-                                       receiver: PReceiver,
+                                       receiver: PParameter, // can have type from other package
                                        args: Vector[PParameter],
                                        result: PResult,
                                        isPure: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
                                      ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
+
+case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
+
+sealed trait PNameOrDot extends PExpression
 
 /**
   * Ghost Statement
@@ -948,21 +958,21 @@ case class PSequenceAppend(left : PExpression, right : PExpression) extends PSeq
 case class PSequenceConversion(exp : PExpression) extends PSequenceExp
 
 /**
-  * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
-  * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
+  * Denotes a ghost-collection update expression "`T`[e_0 = e'_0, ..., e_n = e'_n]",
+  * consisting of a vector `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExp {
+case class PGhostCollectionUpdate(col : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PGhostCollectionExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
-    this(seq, Vector(PSequenceUpdateClause(left, right)))
+    this(seq, Vector(PGhostCollectionUpdateClause(left, right)))
 }
 
 /**
   * Represents a single update clause "`left` = `right`"
-  * in a sequence update expression "`seq`[`left` = `right`]".
+  * in a ghost collection update expression "`T`[`left` = `right`]", where `T` is either a sequence or a (mathematical) map
   */
-case class PSequenceUpdateClause(left : PExpression, right : PExpression) extends PNode
+case class PGhostCollectionUpdateClause(left : PExpression, right : PExpression) extends PNode
 
 /**
   * Denotes the range of integers from `low` to `high`
@@ -1036,6 +1046,18 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
+/* ** (Mathematical) Map expressions */
+sealed trait PMathMapExp extends PUnorderedGhostCollectionExp
+
+/**
+  * Set of keys of a mathematical or actual map
+  */
+case class PMapKeys(exp : PExpression) extends PMathMapExp
+
+/**
+  * Set of values of a mathematical or actual map
+  */
+case class PMapValues(exp : PExpression) extends PMathMapExp
 
 /* ** Types */
 
@@ -1064,6 +1086,11 @@ case class PSetType(elem : PType) extends PGhostLiteralType
   */
 case class PMultisetType(elem : PType) extends PGhostLiteralType
 
+/**
+  * The type of (mathematical) maps with elements from `keys` to `values`
+  */
+case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLiteralType
+
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
@@ -1071,6 +1098,20 @@ case class POptionType(elem : PType) extends PGhostLiteralType
 case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
 
 case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope
+
+case class PGhostSliceType(elem: PType) extends PGhostLiteralType
+
+case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
+
+sealed trait PDomainClause extends PNode
+
+case class PDomainFunction(id: PIdnDef,
+                           args: Vector[PParameter],
+                           result: PResult
+                                 ) extends PGhostMisc with PScope with PCodeRoot with PDomainClause
+
+case class PDomainAxiom(exp: PExpression) extends PGhostMisc with PDomainClause
+
 
 /**
   * Miscellaneous

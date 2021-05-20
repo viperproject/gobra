@@ -8,6 +8,7 @@ package viper.gobra.ast.internal.transform
 
 import viper.gobra.ast.internal._
 import viper.gobra.reporting.Source
+import viper.gobra.reporting.Source.OverflowCheckAnnotation
 import viper.gobra.reporting.Source.Parser.Single
 import viper.gobra.util.TypeBounds.BoundedIntegerKind
 import viper.gobra.util.Violation.violation
@@ -123,10 +124,15 @@ object OverflowChecksTransform extends InternalTransform {
     case m@MakeMap(_, _, optArg) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
+    case m@SafeMapLookup(_, _, IndexedExp(base, idx)) =>
+      Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
+
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added
     case x@(_: Inhale | _: Exhale | _: Assert | _: Assume
             | _: Return | _: Fold | _: Unfold | _: PredExprFold | _: PredExprUnfold
             | _: SafeTypeAssertion | _: SafeReceive | _: Label | _: Initialization | _: PatternMatchStmt) => x
+
+    case _ => violation("Unexpected case reached.")
   }
 
   private def genOverflowChecksExprs(exprs: Vector[Expr]): Vector[Assert] =
@@ -175,9 +181,6 @@ object OverflowChecksTransform extends InternalTransform {
     val obligations = ExprAssertion(computeAssertions(intSubExprsWithType))(info)
     Implication(assumptions, obligations)(info)
   }
-
-  // should this be moved to Source class?
-  case object OverflowCheckAnnotation extends Source.Annotation
 
   private def createAnnotatedInfo(info: Source.Parser.Info): Source.Parser.Info =
     info match {

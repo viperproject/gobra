@@ -26,7 +26,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
     case e: PExpression => exprGhostSeparation(e)
     case t: PType => typeGhostSeparation(t)
     case m: PMisc => miscGhostSeparation(m)
-  }{ n => selfWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
+  }{ n => isWellDefined(n) && children(n).forall(selfWellGhostSeparated) }
 
   private def memberGhostSeparation(member: PMember): Messages = member match {
     case m: PExplicitGhostMember => m.actual match {
@@ -95,7 +95,12 @@ trait GhostWellDef { this: TypeInfoImpl =>
 
   private def exprGhostSeparation(expr: PExpression): Messages = expr match {
     case _: PGhostExpression => noMessages
-    case e if enclosingGhostContext(e) => noMessages
+    case e if enclosingGhostContext(e) =>
+      e match {
+        case PMake(_: PGhostSliceType, _) => noMessages
+        case _: PMake | _: PNew | PReference(_: PCompositeLit) => error(e, "Allocating memory within ghost code is forbidden")
+        case _ => noMessages
+      }
 
     case _: PDot
        | _: PDeref

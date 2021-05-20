@@ -1,0 +1,46 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+// ##(-I ../)
+
+import "counterImpl"
+
+type stream interface {
+	pred mem()
+
+	requires acc(mem(), 1/2)
+	pure hasNext() bool
+
+	requires mem() && hasNext()
+	ensures  mem()
+	next() interface{}
+}
+
+// implementation proof
+pred counterMem(x *counterImpl.counter) { acc(x) }
+
+(*counterImpl.counter) implements stream {
+
+	pred mem := counterMem
+
+	pure (x *counterImpl.counter) hasNext() bool {
+		return unfolding acc(counterMem(x), 1/2) in x.hasNext()
+	}
+
+	(x *counterImpl.counter) next() (res interface{}) {
+		unfold counterMem(x)
+		res = x.next()
+		fold counterMem(x)
+	}
+}
+
+
+// client code
+func client() {
+	x := &counterImpl.counter{0, 50}
+	var y stream = x
+	fold y.mem()
+	var z interface{} = y.next()
+}

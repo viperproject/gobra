@@ -1,0 +1,76 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+// VerifyThis'15 -- Challenge 1 (soundness only)
+
+package pkg
+
+
+requires len(pat) <= len(s) + 1
+requires forall i int :: 0 <= i && i < len(pat) ==> acc(&pat[i])
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures forall i int :: 0 <= i && i < len(pat) ==> acc(&pat[i])
+ensures forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures pivot == -1 || (0 <= pivot && pivot <= len(s) && pivot < len(pat))
+ensures pivot == -1 ==> len(pat) <= len(s)
+ensures !res ==> pivot != -1
+ensures res && pivot == -1 ==> toseq(pat) == (toseq(s))[:len(pat)]
+ensures res && pivot != -1 ==> (toseq(pat))[:pivot] == (toseq(s))[:pivot]
+//:: ExpectedOutput(postcondition_error:assertion_error)
+ensures res && pivot != -1 && pivot < len(s) ==> pat[pivot] != s[pivot]
+ensures res && pivot != -1 ==> (toseq(pat))[pivot+1:] == (toseq(s))[pivot:len(pat)-1]
+ensures toseq(pat) == (toseq(s))[:len(pat)] ==> res && pivot == -1
+func is_relaxed_prefix (pat []int, s []int) (res bool, ghost pivot int) {
+  shift := 0
+  i := 0
+  pivot = -1
+  res = true
+  
+  invariant 0 <= i && i <= len(pat) && i <= len(s)
+  invariant shift == 0 || shift == 1
+  invariant i == 0 ==> shift == 0
+  invariant shift == 1 ==> 0 < i
+  invariant forall i int :: 0 <= i && i < len(pat) ==> acc(&pat[i])
+  invariant forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+  invariant !res ==> shift == 1 && 1 < i
+  invariant shift == 0 ==> forall k int :: 0 <= k && k < i ==> pat[k] == s[k]
+  invariant shift == 0 ==> pivot == -1
+  invariant shift == 1 ==> 0 <= pivot && pivot < i
+  invariant shift == 1 ==> forall k int :: 0 <= k && k < pivot ==> pat[k] == s[k]
+  // we forget to write the following invariant (seeded bug):
+  // invariant shift == 1 ==> pat[pivot] != s[pivot]
+  invariant shift == 1 && res ==> forall k int :: pivot < k && k < i ==> pat[k] == s[k - 1]
+  invariant shift == 1 && !res ==> forall k int :: pivot < k && k < i - 1 ==> pat[k] == s[k - 1]
+  invariant shift == 1 && !res ==> pat[i - 1] != s[i - 2]
+  for (i < len(s) && i < len(pat) && res) {
+    if (pat[i] != s[i - shift]) {
+      if (shift == 0) {
+        shift = 1
+        pivot = i
+      } else {
+        res = false
+      }
+    }
+    
+    i = i + 1
+  }
+
+  if (res) {
+    if (i < len(pat)) {
+      if (shift == 0) {
+        pivot = i
+      } else {
+        res = false
+      }
+    }
+  }
+  return
+}
+
+// Proof Utility: dump a slice into a sequence.
+// parallel_search_and_replace has a complete version.
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+ensures len(s) == len(xs)
+ensures forall i int :: 0 <= i && i < len(s) ==> s[i] == xs[i]
+pure func toseq (s []int) (xs seq[int])

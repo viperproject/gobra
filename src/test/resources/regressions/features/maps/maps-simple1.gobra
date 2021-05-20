@@ -1,0 +1,130 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package gomaps
+
+const C1 = 1
+const C2 = 2
+
+func test1() {
+	var m1 map[string]int
+	assert m1 == nil && len(m1) == 0 
+	m1 = make(map[string]int)
+	assert m1 != nil && len(m1) == 0
+}
+
+// a variable of type map may be passed to an accessability predicate
+requires acc(m)
+func test2(m map[int]int) int {
+	return len(m)
+}
+
+requires acc(m, _)
+pure func test3(m map[int]int) int {
+	return len(m)
+}
+
+requires acc(m)
+func test4(m map[int]int) int {
+	return m[0]
+}
+
+requires acc(m, _)
+func test5(m map[int]int) int {
+	return m[0]
+}
+
+func test6() {
+	m := make(map[int]int, 1)
+	assert acc(m) && len(m) == 0
+
+	// multi assignment supported
+	v1, ok1 := m[3]
+	assert !ok1 && v1 == 0
+
+	// single assignment supported
+	v2 := m[3]
+	assert v2 == 0
+
+	// assign a value to a key in the map
+	m[3] = 10
+	v3, ok3 := m[3]
+	assert ok3 && v3 == 10
+}
+
+type T struct {
+	x int
+	y string
+}
+
+func test7() {
+	m := make(map[T]int)
+	m[T{1, "one"}] = 1
+	assert m[T{1, "one"}] == 1
+}
+
+func test8() {
+	// map literals
+	m := map[string]int { "hello": 5, "bye": 3 }
+	v, ok := m["hello"]
+	assert ok && v == 5
+	assert len(map[int]int{}) == 0
+}
+
+func test9() {
+	// shared maps
+	m@ := make(map[string]string)
+	assert len(m) == 0
+	m["ola"] = "hello"
+	assert len(m) == 1
+}
+
+type T2 int
+
+func test10() {
+	var m1 map[*T2]struct{ x, y int64 }
+	var m2 map[string]interface{}
+	var m3 map[interface{}]string
+	var m4@ map[string]int
+	var m map[int8]int16 = map[int8]int16{1: 1, 2: 1, 3: 3, 4: 4, 5: 7}
+}
+
+// adapted from https://tour.golang.org/moretypes/20
+type Vertex struct {
+	Lat, Long int
+}
+
+func test11() {
+	var m = map[string]Vertex{
+		"Bell Labs": Vertex{
+			4068433, -7439967,
+		},
+		"Google": Vertex{
+			3742202, -12208408,
+		},
+	}
+}
+
+requires acc(m, _)
+requires "key" in domain(m)
+func test12(m map[string]string) (r string){
+    return m["key"]
+}
+
+requires acc(m, _)
+requires "value" in range(m)
+func test13(m map[string]string) {
+    assert exists k string :: m[k] == "value"
+}
+
+func test14() (res map[int]int) {
+	x := 1
+	y := 2
+    m := map[int]int{x: y, y: x}
+	return m
+}
+
+func test15() (res map[int]int) {
+    m := map[int]int{C1: C2, C2: C1}
+	return m
+}

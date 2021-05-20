@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package bar
+
+pred vIsOne(v int) {
+    v == 1
+}
+
+requires acc(c.SendChannel(), 1/2)
+requires c.SendGivenPerm() == vIsOne!<_!>;
+requires c.SendGotPerm() == PredTrue!<!>;
+func send1(c chan<- int) {
+    v := 1
+    fold vIsOne!<_!>(v)
+    c <- v
+}

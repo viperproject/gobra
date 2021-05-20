@@ -83,6 +83,8 @@ trait NameResolution { this: TypeInfoImpl =>
           MatchVariable(decl, matchE.exp, this)
 
 
+        case tree.parent.pair(decl: PDomainFunction, domain: PDomainType) => DomainFunction(decl, domain, this)
+
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
       case c => Violation.violation(s"Only the root has no parent, but got $c")
@@ -196,8 +198,14 @@ trait NameResolution { this: TypeInfoImpl =>
           case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
           case d: PFunctionDecl => Vector(d.id)
-          case d: PTypeDecl => Vector(d.left)
+          case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
           case _: PMethodDecl => Vector.empty
+        }
+
+        /* Returns identifier definitions with a package scope occurring in a type. */
+        def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+          case t: PDomainType => t.funcs.map(_.id)
+          case _ => Vector.empty
         }
 
         m match {
@@ -233,6 +241,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
+
+        // domain members are added at the package level
+      case _: PDomainType => Vector.empty
     }
 
     def weakShallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
@@ -303,6 +314,9 @@ trait NameResolution { this: TypeInfoImpl =>
 
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PMethodImplementationProof, ip: PImplementationProof)) =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference method of the super type
+
+      case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
+        tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
 
       case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
 

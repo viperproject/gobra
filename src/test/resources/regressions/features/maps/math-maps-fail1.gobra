@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package mathmaps
+
+func test1() {
+	m := dict[string]int{ "hello": 5, "bye": 3 }
+	assert |domain(m)| == 2
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert |domain(m)| != 2
+}
+
+func test2() {
+	m := dict[string]int{ "hello": 5, "bye": 3 }
+	assert m["hello"] == 5
+	//:: ExpectedOutput(assert_error:map_key_not_contained)
+	assert m["X"] == 0
+}
+
+func test3() {
+	x@ := 1
+	y := 1
+	// we treat map literals with repeated keys as bugs because it
+	// makes use of undefined behaviour in Go
+	//:: ExpectedOutput(assert_error:repeated_map_key_reason)
+	m := dict[int]int{1: x, y: 2}
+}

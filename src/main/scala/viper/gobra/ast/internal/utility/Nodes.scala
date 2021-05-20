@@ -35,6 +35,9 @@ object Nodes {
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case PureMethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
       case Field(_, _, _) => Seq.empty
+      case DomainDefinition(_, funcs, axioms) => funcs ++ axioms
+      case DomainFunc(_, args, results) => args ++ Seq(results)
+      case DomainAxiom(expr) => Seq(expr)
       case s: Stmt => s match {
         case Block(decls, stmts) => decls ++ stmts
         case Seqn(stmts) => stmts
@@ -45,6 +48,7 @@ object Nodes {
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
+        case SafeMapLookup(resTarget, successTarget, mapLookup) => Vector(resTarget, successTarget, mapLookup)
         case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
@@ -86,6 +90,7 @@ object Nodes {
         case Unfolding(acc, op) => Seq(acc, op)
         case PureFunctionCall(func, args, _) => Seq(func) ++ args
         case PureMethodCall(recv, meth, args, _) => Seq(recv, meth) ++ args
+        case DomainFunctionCall(func, args, _) => Seq(func) ++ args
         case Conversion(_, expr) => Seq(expr)
         case DfltVal(_) => Seq.empty
         case Tuple(args) => args
@@ -107,9 +112,11 @@ object Nodes {
         case StructTExpr(_) => Seq.empty
         case ArrayTExpr(len, elem) => Seq(len, elem)
         case SliceTExpr(elem) => Seq(elem)
+        case MapTExpr(key, elem) => Seq(key, elem)
         case SequenceTExpr(elem) => Seq(elem)
         case SetTExpr(elem) => Seq(elem)
         case MultisetTExpr(elem) => Seq(elem)
+        case MathMapTExpr(key, elem) => Seq(key, elem)
         case OptionTExpr(elem) => Seq(elem)
         case TupleTExpr(elem) => elem
         case DefinedTExpr(_) => Seq.empty
@@ -118,13 +125,15 @@ object Nodes {
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
-        case SequenceUpdate(base, left, right) => Seq(base, left, right)
+        case GhostCollectionUpdate(base, left, right) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
         case SequenceTake(left, right) => Seq(left, right)
         case SequenceConversion(expr) => Seq(expr)
         case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case MapKeys(expr) => Seq(expr)
+        case MapValues(expr) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq.empty
@@ -146,6 +155,7 @@ object Nodes {
           case _: NoPerm => Seq.empty
           case FractionalPerm(left, right) => Seq(left, right)
           case _: WildcardPerm => Seq.empty
+          case c: CurrentPerm => Seq(c.acc)
           case PermMinus(exp) => Seq(exp)
           case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
@@ -156,11 +166,13 @@ object Nodes {
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
+          case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
           case StructLit(_, args) => args
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
           case AdtConstructorLit(_, _, args) => args
+          case MathMapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
         }
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty
@@ -175,6 +187,7 @@ object Nodes {
         case MethodProxy(_, _) => Seq.empty
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
+        case _: DomainFuncProxy => Seq.empty
         case AdtClauseProxy(_, _) => Seq.empty
         case _: LabelProxy => Seq.empty
       }

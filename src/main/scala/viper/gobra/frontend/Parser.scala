@@ -6,13 +6,13 @@
 
 package viper.gobra.frontend
 
-import java.io.{File, Reader}
+import java.io.Reader
 import java.nio.file.{Files, Path}
 
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
@@ -50,33 +50,22 @@ object Parser {
   }
 
   private def getSource(path: Path): FromFileSource = {
-    val filename = path.getFileName.toString
     val inputStream = Files.newInputStream(path)
     val bufferedSource = new BufferedSource(inputStream)
     val content = bufferedSource.mkString
     bufferedSource.close()
-    FromFileSource(filename, content)
+    FromFileSource(path, content)
   }
 
-  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+    def parseSource(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
-
-          val filename = source match {
-            case ffs: FromFileSource => Some(new File(ffs.name))
-            case fs: FileSource => Some(new File(fs.name))
-            case _ => None
-          }
-
-          if(filename.isDefined) {
-            config.reporter report ParsedInputMessage(filename.get, () => ast)
-          }
-
+          config.reporter report ParsedInputMessage(source.path, () => ast)
           Right(ast)
 
         case ns@NoSuccess(label, next) =>
@@ -86,7 +75,7 @@ object Parser {
           val messages = message(ns, label)
           val errors = pom.translate(messages, ParserError)
           
-          val groupedErrors = errors.groupBy{ _.position.get.file.toFile }
+          val groupedErrors = errors.groupBy{ _.position.get.file }
           groupedErrors.foreach{ case (p, pErrors) =>
             config.reporter report ParserErrorMessage(p, pErrors)
           }
@@ -125,8 +114,8 @@ object Parser {
     })
   }
 
-  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
-    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
+  def parseProgram(source: Source, specOnly: Boolean = false): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
@@ -187,14 +176,14 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: Source)(config: Config): Source = {
+    def preprocess(source: FromFileSource)(config: Config): FromFileSource = {
       val translatedContent = translate(source.content)
-      config.reporter report PreprocessedInputMessage(new File(source.name), () => translatedContent)
-      FromFileSource(source.name, translatedContent)
+      config.reporter report PreprocessedInputMessage(source.path, () => translatedContent)
+      FromFileSource(source.path, translatedContent)
     }
 
-    def preprocess(content: String): Source = {
-      val translatedContent = translate(content)
+    def preprocess(source: Source): Source = {
+      val translatedContent = translate(source.content)
       StringSource(translatedContent)
     }
 
@@ -226,7 +215,8 @@ object Parser {
     }
   }
 
-  case class FromFileSource(name : String, content: String) extends Source {
+  case class FromFileSource(path: Path, content: String) extends Source {
+    override val name: String = path.getFileName.toString
     val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
     def reader : Reader = IO.stringreader(content)
 
@@ -312,7 +302,7 @@ object Parser {
 
     val reservedWords: Set[String] = Set(
       "break", "default", "func", "interface", "select",
-      "case", "defer", "go", "map", "struct",
+      "case", "defer", "go", "map", "struct", "domain",
       "chan", "else", "goto", "package", "switch",
       "const", "fallthrough", "if", "range", "type",
       "continue", "for", "import", "return", "var",
@@ -689,8 +679,8 @@ object Parser {
         precedence4
 
     lazy val precedence4: PackratParser[PExpression] = /* Left-associative */
-      precedence4 ~ ("==" ~> precedence4P1) ^^ PEquals |
-        precedence4 ~ ("!=" ~> precedence4P1) ^^ PUnequals |
+      ((typ <~ guard("==")) | precedence4) ~ ("==" ~> (typMinusExpr | precedence4P1)) ^^ PEquals |
+          ((typ <~ guard("!=")) | precedence4) ~ ("!=" ~> (typMinusExpr | precedence4P1)) ^^ PUnequals |
         // note that `<-` should not be parsed as PLess with PSub on the right-hand side as it is the receive channel operator
         precedence4 ~ (s"<$singleWhitespaceChar".r ~> precedence4P1) ^^ PLess |
         precedence4 ~ ("<" ~> not("-") ~> precedence4P1) ^^ PLess |
@@ -726,6 +716,10 @@ object Parser {
     lazy val precedence7: PackratParser[PExpression] =
       unaryExp
 
+    // expressionOrType version
+
+
+
     lazy val unaryExp: Parser[PExpression] =
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
@@ -738,6 +732,8 @@ object Parser {
         newExp |
         len |
         cap |
+        keys |
+        values |
         ghostUnaryExp |
         primaryExp
 
@@ -755,6 +751,12 @@ object Parser {
 
     lazy val cap : Parser[PCapacity] =
       "cap" ~> ("(" ~> expression <~ ")") ^^ PCapacity
+
+    lazy val keys : Parser[PMapKeys] =
+      "domain" ~> ("(" ~> expression <~ ")") ^^ PMapKeys
+
+    lazy val values : Parser[PMapValues] =
+      "range" ~> ("(" ~> expression <~ ")") ^^ PMapValues
 
     lazy val reference: Parser[PReference] =
       "&" ~> unaryExp ^^ PReference
@@ -858,11 +860,11 @@ object Parser {
     lazy val sliceExp: PackratParser[PSliceExp] =
       primaryExp ~ ("[" ~> expression.?) ~ (":" ~> expression.?) ~ ((":" ~> expression).? <~ "]") ^^ PSliceExp
 
-    lazy val seqUpdExp : PackratParser[PSequenceUpdate] =
-      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PSequenceUpdate
+    lazy val seqUpdExp : PackratParser[PGhostCollectionUpdate] =
+      primaryExp ~ ("[" ~> rep1sep(seqUpdClause, ",") <~ "]") ^^ PGhostCollectionUpdate
 
-    lazy val seqUpdClause : Parser[PSequenceUpdateClause] =
-      expression ~ ("=" ~> expression) ^^ PSequenceUpdateClause
+    lazy val seqUpdClause : Parser[PGhostCollectionUpdateClause] =
+      expression ~ ("=" ~> expression) ^^ PGhostCollectionUpdateClause
 
     lazy val typeAssertion: PackratParser[PTypeAssertion] =
       primaryExp ~ ("." ~> "(" ~> typ <~ ")") ^^ PTypeAssertion
@@ -936,6 +938,15 @@ object Parser {
       * Types
       */
 
+    lazy val typMinusExpr: Parser[PType] =
+      (
+        ("(" ~> typMinusExpr <~ ")") |
+          ("*" ~> typMinusExpr ^^ PDeref) |
+          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
+          sequenceType | setType | multisetType | optionType | domainType |
+          predeclaredType
+        ) <~ not("(" | "{")
+
     lazy val typ : Parser[PType] =
       "(" ~> typ <~ ")" | typeLit | qualifiedType | namedType | ghostTypeLit
 
@@ -947,13 +958,16 @@ object Parser {
         channelType | functionType | structType | interfaceType | predType
 
     lazy val ghostTypeLit : Parser[PGhostLiteralType] =
-      sequenceType | setType | multisetType | optionType | adtType
+      sequenceType | setType | multisetType | dictType | optionType | adtType | domainType  | ghostSliceType
 
     lazy val pointerType: Parser[PDeref] =
       "*" ~> typ ^^ PDeref
 
     lazy val sliceType: Parser[PSliceType] =
       ("[" ~ "]") ~> typ ^^ PSliceType
+
+    lazy val ghostSliceType: Parser[PGhostSliceType] =
+      "ghost" ~> ("[" ~ "]") ~> typ ^^ PGhostSliceType
 
     lazy val mapType: Parser[PMapType] =
       ("map" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMapType
@@ -984,6 +998,9 @@ object Parser {
     lazy val multisetType : Parser[PMultisetType] =
       "mset" ~> ("[" ~> typ <~ "]") ^^ PMultisetType
 
+    lazy val dictType: Parser[PMathematicalMapType] =
+      ("dict" ~> ("[" ~> typ <~ "]")) ~ typ ^^ PMathematicalMapType
+
     lazy val optionType : Parser[POptionType] =
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
@@ -992,6 +1009,17 @@ object Parser {
 
     lazy val adtClause: Parser[PAdtClause] =
       idnDef ~ ("{" ~> repsep(fieldDecls, eos) <~ eos.? <~ "}") ^^ PAdtClause
+
+    lazy val domainType: Parser[PDomainType] =
+      "domain" ~> "{" ~> repsep(domainClause, eos) <~ eos.? <~ "}" ^^ { clauses =>
+        val funcs = clauses.collect{ case x: PDomainFunction => x }
+        val axioms = clauses.collect{ case x: PDomainAxiom => x }
+        PDomainType(funcs, axioms)
+      }
+
+    lazy val domainClause: Parser[PDomainClause] =
+      "func" ~> idnDef ~ signature ^^ { case id ~ sig => PDomainFunction(id, sig._1, sig._2) } |
+      "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
       "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
@@ -1052,6 +1080,26 @@ object Parser {
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
         exactWord("uintptr") ^^^ PUIntPtr()
+
+    lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
+      exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |
+        exactWord("string") ~ not("(" | ".") ^^^ PStringType() |
+        exactWord("perm") ~ not("(" | ".") ^^^ PPermissionType() |
+        // signed integer types
+        exactWord("rune") ~ not("(" | ".") ^^^ PRune() |
+        exactWord("int") ~ not("(" | ".") ^^^ PIntType() |
+        exactWord("int8") ~ not("(" | ".") ^^^ PInt8Type() |
+        exactWord("int16") ~ not("(" | ".") ^^^ PInt16Type() |
+        exactWord("int32") ~ not("(" | ".") ^^^ PInt32Type() |
+        exactWord("int64") ~ not("(" | ".") ^^^ PInt64Type() |
+        // unsigned integer types
+        exactWord("byte") ~ not("(" | ".") ^^^ PByte() |
+        exactWord("uint") ~ not("(" | ".") ^^^ PUIntType() |
+        exactWord("uint8") ~ not("(" | ".") ^^^ PUInt8Type() |
+        exactWord("uint16") ~ not("(" | ".") ^^^ PUInt16Type() |
+        exactWord("uint32") ~ not("(" | ".") ^^^ PUInt32Type() |
+        exactWord("uint64") ~ not("(" | ".") ^^^ PUInt64Type() |
+        exactWord("uintptr") ~ not("(" | ".") ^^^ PUIntPtr()
 
     private def exactWord(s: String): Regex = ("\\b" ++ s ++ "\\b").r
 
@@ -1205,13 +1253,23 @@ object Parser {
       }
 
     lazy val implementationProof: Parser[PImplementationProof] =
-      (typ <~ "implements") ~ typ ~ ("{" ~> (methodImplementationProof <~ eos).* <~ "}").? ^^ {
-        case subT ~ superT ~ memberProofOpt => PImplementationProof(subT, superT, memberProofOpt.getOrElse(Vector.empty))
+      (typ <~ "implements") ~ typ ~ ("{" ~> (implementationProofPredicateAlias <~ eos).* ~ (methodImplementationProof <~ eos).* <~ "}").? ^^ {
+        case subT ~ superT ~ Some(predAlias ~ memberProof) =>PImplementationProof(subT, superT, predAlias, memberProof)
+        case subT ~ superT ~ None => PImplementationProof(subT, superT, Vector.empty, Vector.empty)
       }
 
+    lazy val implementationProofPredicateAlias: Parser[PImplementationProofPredicateAlias] =
+      ("pred" ~> idnUse <~ ":=") ~ (selection | namedOperand) ^^ PImplementationProofPredicateAlias
+
     lazy val methodImplementationProof: Parser[PMethodImplementationProof] =
-      "pure".? ~ receiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
+      "pure".? ~ nonLocalReceiver ~ idnUse ~ signature ~ blockWithBodyParameterInfo.? ^^ {
         case spec ~ recv ~ name ~ sig ~ body => PMethodImplementationProof(name, recv, sig._1, sig._2, spec.isDefined, body)
+      }
+
+    lazy val nonLocalReceiver: PackratParser[PParameter] =
+      "(" ~> idnDef.? ~ typ <~ ")" ^^ {
+        case None ~ t => PUnnamedParameter(t)
+        case Some(id) ~ t => PNamedParameter(id, t)
       }
 
     lazy val predicateBody: Parser[Option[PExpression]] =
@@ -1410,4 +1468,3 @@ object Parser {
 
 
 }
-

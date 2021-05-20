@@ -335,6 +335,23 @@ case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGiv
   */
 case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy, closed: MPredicateProxy)(val info: Source.Parser.Info) extends Stmt
 
+case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Expr)(val info: Source.Parser.Info) extends Expr
+
+case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
+
+case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
+
+case class PatternMatchCaseStmt(mExp: MatchPattern, body: Vector[Stmt])(val info: Source.Parser.Info) extends Node
+
+sealed trait MatchPattern extends Node
+
+case class MatchValue(exp: Expr)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchBindVar(name: String, typ: Type)(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchAdt(clause: AdtClauseT, expr: Vector[MatchPattern])(val info: Source.Parser.Info) extends MatchPattern
+
+case class MatchWildcard()(val info: Source.Parser.Info) extends MatchPattern
 
 sealed trait Assertion extends Node
 

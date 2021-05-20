@@ -95,6 +95,18 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       error(e, s"expected an option type, but got $t", !t.isInstanceOf[OptionT])
     }
 
+    case m@PMatchExp(exp, clauses) => {
+      val types : Vector[Type] = clauses map {c => exprType(c.exp)}
+      val sameTypeE = error(exp, s"All clauses has to be of the same type but got $types", !types.foldLeft(true)({case (acc, next) => acc && assignableTo(next,types.head)}))
+      val patternE = m.caseClauses.flatMap(c => c.pattern match {
+        case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+        case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+      })
+      val pureExpE = error(exp, "Expression has to be pure", !isPure(exp)(strong=false))
+      val moreThanOneDfltE = error(m, "Match Expression can only have one default case", m.defaultClauses.length > 1)
+      sameTypeE ++ patternE ++ error(clauses, "Cases cannot be empty", clauses.isEmpty) ++ pureExpE ++ moreThanOneDfltE
+    }
+
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
         exprType(right) match {
@@ -197,6 +209,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case OptionT(t) => t
       case t => violation(s"expected an option type, but got $t")
     }
+
+    case m: PMatchExp => if (m.clauses.isEmpty) exprType(m.defaultClauses.head.exp) else exprType(m.caseClauses.head.exp)
 
     case expr : PGhostCollectionExp => expr match {
       // The result of integer ghost expressions is unbounded (UntypedConst)
@@ -356,6 +370,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case POptionNone(_) => true
       case POptionSome(e) => go(e)
       case POptionGet(e) => go(e)
+
+      case PMatchExp(e, clauses) => go(e) && clauses.map(c => go(c.exp)).forall(_ == true)
 
       case PSliceExp(base, low, high, cap) =>
         go(base) && Seq(low, high, cap).flatten.forall(go)

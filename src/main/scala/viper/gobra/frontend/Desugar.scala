@@ -2455,7 +2455,43 @@ object Desugar {
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
+        case PMatchStatement(exp, clauses, strict) => {
+          def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = for {
+            eM <- matchPatternD(ctx)(clause.pattern)
+            s <- sequence(clause.stmt map stmtD(ctx))
+          } yield in.PatternMatchCaseStmt(eM, s)(src)
+
+          for {
+            e <- exprD(ctx)(exp)
+            c <- sequence(clauses map goC)
+          } yield in.PatternMatchStmt(e, c, strict)(src)
+        }
+
         case _ => ???
+      }
+    }
+
+    def matchPatternD(ctx: FunctionContext)(expr: PMatchPattern): Writer[in.MatchPattern] = {
+
+      def goM(m: PMatchPattern) = matchPatternD(ctx)(m)
+
+      val src = meta(expr)
+
+      expr match {
+        case PMatchValue(lit) => for {
+          e <- exprD(ctx)(lit)
+        } yield in.MatchValue(e)(src)
+
+        case PMatchBindVar(idn) =>
+          unit(in.MatchBindVar(idName(idn, info.getTypeInfo), typeD(info.typ(idn), Addressability.Exclusive)(src))(src))
+
+        case PMatchAdt(clause, fields) =>
+          val clauseType = typeD(info.symbType(clause), Addressability.Exclusive)(src)
+          for {
+            fieldsD <- sequence(fields map goM)
+          } yield in.MatchAdt(clauseType.asInstanceOf[in.AdtClauseT], fieldsD)(src)
+
+        case PMatchWildcard() => unit(in.MatchWildcard()(src))
       }
     }
 
@@ -2596,6 +2632,25 @@ object Desugar {
         case POptionGet(op) => for {
           dop <- go(op)
         } yield in.OptionGet(dop)(src)
+
+        case m@PMatchExp(exp, _) =>
+          val defaultD : Writer[in.Expr] = if (m.hasDefault) {
+              exprD(ctx)(m.defaultClauses.head.exp)
+            } else {
+              unit(in.DfltVal(typ)(src))
+            }
+
+          def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseExp] = for {
+            p <- matchPatternD(ctx)(c.pattern)
+            e <- exprD(ctx)(c.exp)
+          } yield in.PatternMatchCaseExp(p, e)(src)
+
+          for {
+            e <- exprD(ctx)(exp)
+            cs <- sequence(m.caseClauses map caseD)
+            de <- defaultD
+          } yield in.PatternMatchExp(e, typ, cs, de)(src)
+
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

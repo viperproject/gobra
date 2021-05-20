@@ -65,6 +65,7 @@ object Nodes {
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
           Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
+        case PatternMatchStmt(exp, cases, _) => Seq(exp) ++ cases
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -139,6 +140,7 @@ object Nodes {
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case AdtDiscriminator(base, clause) => Seq(base, clause)
         case AdtDestructor(base, field) => Seq(base, field)
+        case PatternMatchExp(exp, _, cases, default) => cases ++ Seq(exp, default)
         case p: Permission => p match {
           case _: FullPerm => Seq.empty
           case _: NoPerm => Seq.empty

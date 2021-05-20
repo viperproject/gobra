@@ -23,6 +23,10 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PInhale(exp) => assignableTo.errors(exprType(exp), AssertionT)(stmt)
     case PFold(acc) => wellDefFoldable(acc)
     case PUnfold(acc) => wellDefFoldable(acc)
+    case PMatchStatement(exp, clauses, _) => clauses.flatMap(c => c.pattern match {
+      case PMatchAdt(clause, _) => assignableTo.errors(symbType(clause), exprType(exp))(c)
+      case _ => comparableTypes.errors((miscType(c.pattern), exprType(exp)))(c)
+    }) ++ isPureExpr(exp)
   }
 
   private def wellDefFoldable(acc: PPredicateAccess): Messages =

@@ -323,7 +323,7 @@ object Parser {
       "predicate", "old", "seq", "set", "in", "union",
       "intersection", "setminus", "subset", "mset", "option",
       "none", "some", "get", "writePerm", "noPerm",
-      "typeOf", "isComparable", "adt"
+      "typeOf", "isComparable", "adt", "match", "!match"
     )
 
     def isReservedWord(word: String): Boolean = reservedWords contains word
@@ -638,6 +638,8 @@ object Parser {
     lazy val selectDflt: Parser[PSelectDflt] =
       "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PSelectDflt(PBlock(stmts.get).at(stmts)))
 
+
+
     lazy val anyForStmt: Parser[PStatement] =
       forStmt | assForRange | shortForRange
 
@@ -767,7 +769,19 @@ object Parser {
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
 
     lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality
+      "|" ~> expression <~ "|" ^^ PCardinality |
+        matchExp
+
+    lazy val matchExp: Parser[PMatchExp] =
+      ("match" ~> expression) ~ ("{" ~> (rep(matchExpCase) ~ matchExpDefault.?) <~ eos.? <~ "}") ^^ {
+        case e ~ (cases ~ default) => if (default.isDefined) PMatchExp(e, cases ++ default) else PMatchExp(e, cases)
+      }
+
+    lazy val matchExpCase: Parser[PMatchExpCase] =
+      matchCase ~ expression <~ eos.? ^^ PMatchExpCase
+
+    lazy val matchExpDefault: Parser[PMatchExpDefault] =
+      "default" ~> ":" ~> expression ^^ PMatchExpDefault
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
       "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
@@ -777,6 +791,8 @@ object Parser {
 
     lazy val multisetConversion : Parser[PMultisetConversion] =
       "mset" ~> ("(" ~> expression <~ ")") ^^ PMultisetConversion
+
+
 
     lazy val primaryExp: Parser[PExpression] =
       conversion |
@@ -794,7 +810,7 @@ object Parser {
     // current format: declaredPred!<d1, ..., dn!>
     lazy val fpredConstruct: Parser[PPredConstructor] =
       (idnUse ~ predConstructArgs) ^^ {
-        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args) 
+        case identifier ~ args => PPredConstructor(PFPredBase(identifier).at(identifier), args)
       }
 
     lazy val mpredConstruct: Parser[PPredConstructor] =
@@ -1208,7 +1224,41 @@ object Parser {
       "assume" ~> expression ^^ PAssume |
       "inhale" ~> expression ^^ PInhale |
       "fold" ~> predicateAccess ^^ PFold |
-      "unfold" ~> predicateAccess ^^ PUnfold
+      "unfold" ~> predicateAccess ^^ PUnfold |
+      "match" ~> matchStmt |
+      "!match" ~> matchStmt ^^ {case PMatchStatement(exp, clauses, _) => PMatchStatement(exp, clauses, true)}
+
+    lazy val matchStmt: Parser[PMatchStatement] =
+      expression ~ ("{" ~> rep1(matchClause) <~ "}") ^^ {case (e ~ m) => PMatchStatement(e,m, false)}
+
+    lazy val matchClause: Parser[PMatchStmtCase] =
+      matchCase ~ statementList  ^^ PMatchStmtCase
+
+    lazy val matchCase: Parser[PMatchPattern] =
+      "case" ~> matchExpression <~ ":"
+
+    lazy val statementList: Parser[Vector[PStatement]] =
+      repsep(not(guard(matchCase)) ~> statement, eos) <~ eos.?
+
+    lazy val matchExpression: Parser[PMatchPattern] =
+      matchAdt | matchVar | matchExpr | matchWildcard
+
+    lazy val matchWildcard: Parser[PMatchWildcard] =
+      wildcard ^^^ PMatchWildcard()
+
+    lazy val matchVar: Parser[PMatchBindVar] =
+      idnDef ^^ PMatchBindVar
+
+    lazy val matchExpr: Parser[PMatchValue] =
+      "`" ~> expression <~ "`" ^^ PMatchValue |
+        basicLit ^^ PMatchValue
+
+    lazy val matchAdtClause: Parser[PType] =
+      declaredType | qualifiedType | qualifiedAdtImport
+
+    lazy val matchAdt: Parser[PMatchAdt] =
+      matchAdtClause ~ ("{" ~> repsep(matchExpression, ",") <~ "}") ^^ PMatchAdt
+
 
     lazy val ghostParameter: Parser[Vector[PParameter]] = {
       val namedParam =

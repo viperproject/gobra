@@ -7,8 +7,8 @@
 package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.noMessages
-import viper.gobra.ast.frontend.{PFieldDecl, PIdnNode}
-import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, GhostRegular, Predicate}
+import viper.gobra.ast.frontend.{PExpression, PFieldDecl, PIdnNode, PMatchAdt}
+import viper.gobra.frontend.info.base.SymbolTable.{AdtClause, AdtDestructor, AdtDiscriminator, BoundVariable, BuiltInFPredicate, BuiltInMPredicate, GhostRegular, MatchVariable, Predicate}
 import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, FunctionT, Type}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation.violation
@@ -28,6 +28,7 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     })
     case c: AdtDestructor => wellDefAndType(c.decl.typ)
     case _: AdtDiscriminator => LocalMessages(noMessages)
+    case _: MatchVariable => LocalMessages(noMessages)
   }
 
   private[typing] def ghostEntityType(entity: GhostRegular, @unused id: PIdnNode): Type = entity match {
@@ -43,6 +44,16 @@ trait GhostIdTyping { this: TypeInfoImpl =>
         adtDecl,
         context
       )
+    }
+    case MatchVariable(decl, p, context) => p match {
+      case PMatchAdt(clause, fields) => {
+        val argTypeWithIndex = symbType(clause).asInstanceOf[AdtClauseT].decl.args.flatMap(_.fields).map(_.typ).zipWithIndex
+        val fieldsWithIndex = fields.zipWithIndex
+        val fieldIndex = fieldsWithIndex.iterator.find(e => e._1 == decl).get._2
+        context.symbType(argTypeWithIndex.iterator.find(e => e._2 == fieldIndex).get._1)
+      }
+      case e: PExpression => exprType(e)
+      case _ => violation("untypable")
     }
     case _ => violation("untypable")
   }

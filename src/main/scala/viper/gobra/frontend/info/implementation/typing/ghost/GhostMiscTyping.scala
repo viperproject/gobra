@@ -10,11 +10,12 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message, n
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable
 import viper.gobra.frontend.info.base.SymbolTable.{BuiltInMPredicate, GhostTypeMember, MPredicateImpl, MPredicateSpec, MethodSpec}
-import viper.gobra.frontend.info.base.Type.{AssertionT, BooleanT, FunctionT, Type, UnknownType}
+import viper.gobra.frontend.info.base.Type.{AdtClauseT, AssertionT, BooleanT, FunctionT, Type, UnknownType}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
+import viper.gobra.util.Violation.violation
 
 trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
@@ -41,6 +42,23 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       )
     case _ : PAdtClause => noMessages
+
+    case m: PMatchPattern => m match {
+      case PMatchAdt(clause, fields) => symbType(clause) match {
+        case t: AdtClauseT => {
+          val fieldTypes = fields map typ
+          val clauseTypes = t.decl.args.flatMap(f => f.fields).map(f => symbType(f.typ))
+          fieldTypes.zip(clauseTypes).flatMap(a => assignableTo.errors(a)(m))
+        }
+        case _ => violation("Pattern matching only works on ADT Literals")
+      }
+      case PMatchValue(lit) => isPureExpr(lit)
+      case _ => noMessages
+    }
+
+    case _ : PMatchStmtCase => noMessages
+    case _ : PMatchExpCase  => noMessages
+    case _ : PMatchExpDefault => noMessages
   }
 
   private[typing] def ghostMiscType(misc: PGhostMisc): Type = misc match {
@@ -53,6 +71,15 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     case _: PMethodImplementationProof => UnknownType
     case _: PAdtClause => UnknownType
+    case exp: PMatchPattern => exp match {
+      case PMatchBindVar(idn) => idType(idn)
+      case PMatchAdt(clause, _) => symbType(clause)
+      case PMatchValue(lit) => typ(lit)
+      case w@PMatchWildcard() => wildcardMatchType(w)
+    }
+    case _: PMatchStmtCase => UnknownType
+    case _: PMatchExpCase  => UnknownType
+    case _: PMatchExpDefault => UnknownType
   }
 
   private[typing] def ghostMemberType(typeMember: GhostTypeMember): Type = typeMember match {
@@ -78,6 +105,36 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     n match {
       case n: POld => message(n, s"old not permitted in precondition")
       case _ => noMessages
+    }
+  }
+
+  private def wildcardMatchType(w: PMatchWildcard): Type = {
+    w match {
+      case tree.parent(p) => p match {
+        case PMatchAdt(c, fields) => {
+          val index = fields indexWhere {w eq _}
+          val adtClauseT = underlyingType(typeSymbType(c)).asInstanceOf[AdtClauseT]
+          val field = adtClauseT.decl.args.flatMap(f => f.fields)(index)
+          typeSymbType(field.typ)
+        }
+        case p: PMatchExpCase => p match {
+          case tree.parent(pa) => pa match {
+            case PMatchExp(e, _) => exprType(e)
+            case _ => ???
+          }
+          case _ => ???
+        }
+        case p: PMatchStmtCase => p match {
+          case tree.parent(pa) => pa match {
+            case PMatchStatement(e, _, _) => exprType(e)
+            case _ => ???
+          }
+          case _ => ???
+        }
+        case _ => ???
+      }
+
+      case _ => ???
     }
   }
 

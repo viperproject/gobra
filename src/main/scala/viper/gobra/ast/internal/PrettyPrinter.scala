@@ -275,7 +275,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   })
+
+  def showPatternMatchCaseStmt(c: PatternMatchCaseStmt): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> nest(line <> ssep(c.body map showStmt, line))
+  def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
+
+  def showMatchPattern(expr: MatchPattern): Doc = expr match {
+    case MatchBindVar(name, _) => name
+    case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
+    case MatchValue(exp) => "`" <> showExpr(exp) <> "`"
+    case MatchWildcard() => "_"
+  }
 
   def showComposite(c: CompositeObject): Doc = showLit(c.op)
 
@@ -453,6 +465,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case AdtDestructor(base, field) => showExpr(base) <> "." <> showField(field)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
+
+    case PatternMatchExp(exp, _, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseExp,line) <> line <> "default:" <+> showExpr(default))
   })
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
@@ -642,5 +657,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   }
 }

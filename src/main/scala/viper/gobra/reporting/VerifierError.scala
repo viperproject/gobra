@@ -184,6 +184,11 @@ case class MakePreconditionError(info: Source.Verifier.Info) extends Verificatio
   override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
 }
 
+case class MatchError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "match_error"
+  override def localMessage: String = s"The patterns might not match the expression"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

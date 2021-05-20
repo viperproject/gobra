@@ -6,9 +6,10 @@
 
 package viper.gobra.translator.implementations
 
+import viper.gobra.translator.encodings.adts.AdtEncoding
 import viper.gobra.translator.encodings.arrays.ArrayEncoding
 import viper.gobra.translator.encodings.channels.ChannelEncoding
-import viper.gobra.translator.encodings.{AdtEncoding, BoolEncoding, IntEncoding, PermissionEncoding, PointerEncoding, StringEncoding, TypeEncoding}
+import viper.gobra.translator.encodings.{BoolEncoding, IntEncoding, PermissionEncoding, PointerEncoding, StringEncoding, TypeEncoding}
 import viper.gobra.translator.encodings.combinators.{FinalTypeEncoding, SafeTypeEncodingCombiner}
 import viper.gobra.translator.encodings.interfaces.InterfaceEncoding
 import viper.gobra.translator.encodings.options.OptionEncoding

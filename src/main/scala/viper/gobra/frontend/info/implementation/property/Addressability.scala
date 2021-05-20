@@ -95,6 +95,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
            _: PSequenceUpdate | _: PRangeSequence | _: PUnion | _: PIntersection |
            _: PSetMinus | _: PSubset => AddrMod.rValue
       case _: POptionNone | _: POptionSome | _: POptionGet => AddrMod.rValue
+      case _: PMatchExp => AddrMod.rValue
       case _: PSetConversion | _: PMultisetConversion | _: PSequenceConversion => AddrMod.conversionResult
       case _: PMake | _: PNew => AddrMod.make
       case _: PUnpackSlice => AddrMod.rValue

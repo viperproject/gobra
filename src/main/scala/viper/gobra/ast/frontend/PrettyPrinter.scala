@@ -236,6 +236,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PInhale(exp) => "inhale" <+> showExpr(exp)
       case PUnfold(exp) => "unfold" <+> showExpr(exp)
       case PFold(exp) => "fold" <+> showExpr(exp)
+      case PMatchStatement(exp, clauses, strict) => (if (strict) "!" else "") <> "match" <+>
+        showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }
   }
 
@@ -277,6 +279,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showRange(n: PRange): Doc = "range" <+> showExpr(n.exp)
+
+  def showMatchClauseStatement(n: PMatchStmtCase): Doc = "case" <+> showMatchPattern(n.pattern) <> ":" <+> nest(line <> ssep(n.stmt map showStmt, line))
+
+  def showMatchPattern(exp: PMatchPattern): Doc = exp match {
+    case PMatchWildcard() => "_"
+    case PMatchBindVar(idn) => showId(idn)
+    case PMatchAdt(clause, fields) => showType(clause) <> "{" <> ssep(fields map showMatchPattern, ", ") <> "}"
+    case PMatchValue(lit) => "`" <> showExpr(lit) <> "`"
+  }
 
 
   // expressions
@@ -432,6 +443,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POptionSome(e) => "some" <> parens(showExpr(e))
       case POptionGet(e) => "get" <> parens(showExpr(e))
 
+      case PMatchExp(exp, clauses) => "match" <+> showExpr(exp) <+> block(
+        ssep(clauses map {c => showMatchExpClause(c) <+> showExpr(c.exp)}, line))
+
       case expr : PGhostCollectionExp => expr match {
         case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
@@ -459,6 +473,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case PWildcardPerm() => "_"
       }
     }
+  }
+
+  def showMatchExpClause(c: PMatchExpClause): Doc = c match {
+    case PMatchExpDefault(_) => "default:"
+    case PMatchExpCase(pattern, _) => "case" <+> showMatchPattern(pattern) <> ":"
   }
 
   def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
@@ -603,6 +622,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           val fields = decl.fields
           showIdList(fields map (_.id)) <+> showType(fields.head.typ)
         }), line))
+      case clause: PMatchStmtCase => showMatchClauseStatement(clause)
+      case expr: PMatchPattern => showMatchPattern(expr)
+      case c: PMatchExpDefault => showMatchExpClause(c)
+      case c: PMatchExpCase => showMatchExpClause(c)
     }
   }
 

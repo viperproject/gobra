@@ -78,6 +78,10 @@ trait NameResolution { this: TypeInfoImpl =>
         case tree.parent.pair(decl: PAdtClause, adtDecl: PAdtType) => AdtClause(decl, adtDecl, this)
         case tree.parent.pair(decl: PMPredicateSig, tdef: PInterfaceType) => MPredicateSpec(decl, tdef, this)
 
+        case tree.parent.pair(decl: PMatchBindVar, adt: PMatchAdt) => MatchVariable(decl, adt, this)
+        case tree.parent.pair(decl: PMatchBindVar, tree.parent.pair(_: PMatchStmtCase, matchE: PMatchStatement)) =>
+          MatchVariable(decl, matchE.exp, this)
+
 
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }

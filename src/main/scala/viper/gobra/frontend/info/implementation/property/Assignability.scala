@@ -104,6 +104,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
         underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
       case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] =>
         underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl)
+      case (c: AdtClauseT, t: AdtT) => t.decl.clauses.contains(c.decl)
       //case (a: AdtClauseT, b: AdtClauseT) => a.decl == b.decl
 
         // conservative choice

@@ -213,6 +213,12 @@ object SymbolTable extends Environments[Entity] {
     val itfType: Type.InterfaceT = Type.InterfaceT(itfDef, context)
   }
 
+  case class MatchVariable(decl: PMatchBindVar, p: PNode, context: ExternalTypeInfo) extends GhostVariable {
+    override def rep: PNode = decl
+
+    override def addressable: Boolean = false
+  }
+
   case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {
     override def rep: PNode = decl
 

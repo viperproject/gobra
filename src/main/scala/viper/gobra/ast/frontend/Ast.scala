@@ -813,6 +813,35 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
+case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = false) extends PGhostStatement
+
+case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement]) extends PGhostMisc with PScope
+
+case class PMatchExp(exp: PExpression, clauses: Vector[PMatchExpClause]) extends PGhostExpression {
+  val caseClauses: Vector[PMatchExpCase] = clauses collect {case c: PMatchExpCase => c}
+  val defaultClauses: Vector[PMatchExpDefault] = clauses collect {case c: PMatchExpDefault => c}
+  val hasDefault: Boolean = defaultClauses.length == 1
+  val hasNoDefault: Boolean = defaultClauses.isEmpty
+}
+
+sealed trait PMatchExpClause extends PGhostMisc {
+  def exp: PExpression
+}
+
+case class PMatchExpCase(pattern: PMatchPattern, exp: PExpression) extends PMatchExpClause
+
+case class PMatchExpDefault(exp: PExpression) extends PMatchExpClause
+
+sealed trait PMatchPattern extends PGhostMisc
+
+case class PMatchValue(lit: PExpression) extends PMatchPattern
+
+case class PMatchBindVar(idn: PIdnDef) extends PMatchPattern
+
+case class PMatchAdt(clause: PType, fields: Vector[PMatchPattern]) extends PMatchPattern
+
+case class PMatchWildcard() extends PMatchPattern
+
 /**
   * Ghost Expressions and Assertions
   */
@@ -1064,6 +1093,11 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
+
+/** The type of ADT types */
+case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
+
+case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope
 
 case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 

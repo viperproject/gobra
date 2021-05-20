@@ -69,6 +69,7 @@ object Nodes {
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
           Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
+        case PatternMatchStmt(exp, cases, _) => Seq(exp) ++ cases
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {
@@ -146,6 +147,9 @@ object Nodes {
         case Conditional(cond, thn, els, _) => Seq(cond, thn, els)
         case PureForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
+        case AdtDiscriminator(base, clause) => Seq(base, clause)
+        case AdtDestructor(base, field) => Seq(base, field)
+        case PatternMatchExp(exp, _, cases, default) => cases ++ Seq(exp, default)
         case p: Permission => p match {
           case _: FullPerm => Seq.empty
           case _: NoPerm => Seq.empty
@@ -167,6 +171,7 @@ object Nodes {
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
+          case AdtConstructorLit(_, _, args) => args
           case MathMapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
         }
         case Parameter.In(_, _) => Seq.empty
@@ -183,6 +188,7 @@ object Nodes {
         case FPredicateProxy(_) => Seq.empty
         case MPredicateProxy(_, _) => Seq.empty
         case _: DomainFuncProxy => Seq.empty
+        case AdtClauseProxy(_, _) => Seq.empty
         case _: LabelProxy => Seq.empty
       }
     }

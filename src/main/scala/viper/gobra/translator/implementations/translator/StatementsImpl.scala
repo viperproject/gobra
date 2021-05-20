@@ -68,7 +68,7 @@ class StatementsImpl extends Statements {
       } yield exhale
     }
 
-    val vprStmt: CodeWriter[vpr.Stmt] = x match {
+      val vprStmt: CodeWriter[vpr.Stmt] = x match {
       case in.Block(decls, stmts) =>
         val vDecls = decls map (blockDecl(_)(ctx))
         block{

@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
+import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation
@@ -71,8 +71,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case t: AbstractType => t.messages(n, Vector(symbType(p.typ)))
           case t => error(n, s"expected an AbstractType for built-in mpredicate but got $t")
         }
+        case Some(p: ap.QualifiedAdtType) => underlyingType(symbType(p.base)) match {
+          case _: AdtT => noMessages
+          case t => error(n, s"expected an AdtClauseT for QualifiedAdtType but got $t")
+        }
+        case Some(p: ap.AdtField) => underlyingType(exprType(p.base)) match {
+          case _: AdtT => noMessages
+          case t => error(n, s"expected adt value but got $t")
+        }
 
-        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression, predicate expression, an imported member or a built-in member, but got $n")
+        case _ => error(n, s"expected field selection, method or predicate with a receiver, method expression," +
+          s" qualified adt access, predicate expression, an imported member or a built-in member, but got $n")
       }
   }
 
@@ -116,6 +125,14 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.NamedType) => SortT
         case Some(p: ap.Predicate) => FunctionT(p.symb.args map p.symb.context.typ, AssertionT)
         case Some(p: ap.DomainFunction) => FunctionT(p.symb.args map p.symb.context.typ, p.symb.context.typ(p.symb.result))
+        case Some(p: ap.QualifiedAdtType) =>
+          val fields = p.symb.fields.map(f => f.id.name -> p.symb.context.symbType(f.typ)).toMap
+          AdtClauseT(fields, p.symb.decl, p.symb.adtDecl, this)
+        case Some(p: ap.AdtField) =>
+          p.symb match {
+            case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
+            case AdtDiscriminator(_, _, _) => BooleanT
+          }
 
         // TODO: fully supporting packages results in further options: global variable
 
@@ -181,7 +198,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PIntLit => numExprWithinTypeBounds(n)
 
-    case n@PCompositeLit(t, lit) =>
+    case n@PCompositeLit(t : PLiteralType, lit) =>
       val simplifiedT = t match {
         case PImplicitSizeArrayType(elem) => ArrayT(lit.elems.size, typeSymbType(elem))
         case t: PType => typeSymbType(t)
@@ -818,7 +835,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
-    case t: PType => typeSymbType(t)
+    case t: PType => typeSymbType(t) match {
+      case t: AdtClauseT => AdtT(t.adtT, t.context)
+      case t => t
+    }
   }
 
   private[typing] def wellDefIfConstExpr(expr: PExpression): Messages = typ(expr) match {

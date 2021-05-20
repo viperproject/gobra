@@ -116,4 +116,5 @@ trait Context {
     builtInMembers.finalize(col)
     stmt.finalize(col)
   }
+
 }

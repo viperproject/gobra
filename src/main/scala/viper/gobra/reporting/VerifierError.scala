@@ -236,6 +236,11 @@ case class ArrayMakePreconditionError(info: Source.Verifier.Info) extends Verifi
   override def localMessage: String = s"The provided length might not be smaller or equals to the provided capacity, or length and capacity might not be non-negative"
 }
 
+case class MatchError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "match_error"
+  override def localMessage: String = s"The patterns might not match the expression"
+}
+
 case class ChannelMakePreconditionError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "make_precondition_error"
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"

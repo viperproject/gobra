@@ -35,6 +35,8 @@ object GobraStrategy {
       case (d: DomainDefinition, Seq(funcs: Vector[DomainFunc@unchecked], axioms: Vector[DomainAxiom@unchecked])) => DomainDefinition(d.name, funcs, axioms)(meta)
       case (_: DomainFunc, Seq(name: DomainFuncProxy, args: Vector[Parameter.In@unchecked], res: Parameter.Out)) => DomainFunc(name, args, res)(meta)
       case (_: DomainAxiom, Seq(expr: Expr)) => DomainAxiom(expr)(meta)
+      case (a: AdtDefinition, Seq(clauses: Vector[AdtClause@unchecked])) => AdtDefinition(a.name, clauses)(meta)
+      case (_: AdtClause, Seq(name: AdtClauseProxy, args: Vector[Field@unchecked])) => AdtClause(name, args)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
@@ -170,6 +172,9 @@ object GobraStrategy {
       case (_: SequenceLit, Seq(l: BigInt, t: Type, args: Map[BigInt@unchecked, Expr@unchecked])) => SequenceLit(l, t, args)(meta)
       case (_: SetLit, Seq(t: Type, args: Vector[Expr@unchecked])) => SetLit(t, args)(meta)
       case (_: MultisetLit, Seq(t: Type, args: Vector[Expr@unchecked])) => MultisetLit(t, args)(meta)
+      case (a: AdtConstructorLit, Seq(args: Vector[Expr@unchecked])) => AdtConstructorLit(a.typ, a.clause, args)(meta)
+      case (_: AdtDiscriminator, Seq(base: Expr, clause: AdtClauseProxy)) => AdtDiscriminator(base, clause)(meta)
+      case (_: AdtDestructor, Seq(base: Expr, clause: Field)) => AdtDestructor(base, clause)(meta)
       case (_: MathMapLit, Seq(keys : Type, values : Type, entries : Seq[(Expr, Expr)@unchecked])) => MathMapLit(keys, values, entries)(meta)
       case (p: Parameter.In, Seq()) => Parameter.In(p.id, p.typ)(meta)
       case (p: Parameter.Out, Seq()) => Parameter.Out(p.id, p.typ)(meta)
@@ -188,6 +193,7 @@ object GobraStrategy {
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
+      case (a: AdtClauseProxy, Seq()) => AdtClauseProxy(a.name, a.adtName)(meta)
     }
 
     node.asInstanceOf[N]

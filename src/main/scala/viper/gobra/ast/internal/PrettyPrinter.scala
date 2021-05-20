@@ -128,6 +128,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PureMethodSubtypeProof => showPureMethodSubtypeProof(n)
     case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
+    case n: AdtDefinition => showAdtDefinition(n)
   })
 
   def showFunction(f: Function): Doc = f match {
@@ -226,6 +227,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showFormalArgList[T <: Parameter](list: Vector[T]): Doc =
     showVarDeclList(list)
 
+  def showAdtDefinition(n: AdtDefinition): Doc = updatePositionStore(n) <> (
+    n.name <+> block(ssep(n.clauses map showAdtClause, line))
+  )
+
+  def showAdtClause(clause: AdtClause): Doc = updatePositionStore(clause) <> (clause match {
+    case AdtClause(name, args) => name.name <+> block(ssep(args map showField, line))
+  })
+
+
+
   // statements
 
   def showStmt(s: Stmt): Doc = updatePositionStore(s) <> (s match {
@@ -280,7 +291,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   })
+
+  def showPatternMatchCaseStmt(c: PatternMatchCaseStmt): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> nest(line <> ssep(c.body map showStmt, line))
+  def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
+
+  def showMatchPattern(expr: MatchPattern): Doc = expr match {
+    case MatchBindVar(name, _) => name
+    case MatchAdt(clause, expr) => clause.name <+> "{" <> ssep(expr map showMatchPattern, ",") <> "}"
+    case MatchValue(exp) => "`" <> showExpr(exp) <> "`"
+    case MatchWildcard() => "_"
+  }
 
   def showProxy(x: Proxy): Doc = updatePositionStore(x) <> (x match {
     case FunctionProxy(name) => name
@@ -288,6 +311,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case p: DomainFuncProxy => p.name
     case FPredicateProxy(name) => name
     case MPredicateProxy(name, _) => name
+    case AdtClauseProxy(name, _) => name
     case l: LabelProxy => l.name
   })
 
@@ -459,8 +483,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
+    case AdtDiscriminator(base, clause) => showExpr(base) <> "." <> showProxy(clause)
+    case AdtDestructor(base, field) => showExpr(base) <> "." <> showField(field)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
+
+    case PatternMatchExp(exp, _, cases, default) => "match" <+> showExpr(exp) <+>
+      block(ssep(cases map showPatternMatchCaseExp,line) <> line <> "default:" <+> showExpr(default))
   })
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
@@ -502,6 +531,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StructLit(t, args) => showType(t) <> braces(showExprList(args))
     case SetLit(typ, exprs) => showGhostCollectionLiteral("set", typ, exprs)
     case MultisetLit(typ, exprs) => showGhostCollectionLiteral("mset", typ, exprs)
+    case AdtConstructorLit(typ, _, args) => showType(typ) <> braces(showExprList(args))
     case lit@MathMapLit(_, _, entries) =>
       val entriesDoc = showList(entries){ case (x,y) => showExpr(x) <> ":" <+> showExpr(y) }
       showType(lit.typ) <+> braces(space <> entriesDoc <> (if (entries.nonEmpty) space else emptyDoc))
@@ -549,6 +579,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
+    case AdtT(name, _, _) => "adt" <> parens(name)
+    case AdtClauseT(name, adtT, _, _) => showType(adtT) <+> "::" <+> name
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
   }
 
@@ -660,5 +692,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
+    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+      showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   }
 }

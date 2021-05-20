@@ -77,8 +77,3 @@ func test5() {
 	g([](interface{}){1, 2, 3})
 	g(true, 1, []int{1, 2})
 }
-
-func h(a int, b ...int)
-func test6() {
-	h(1)
-}

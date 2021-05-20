@@ -21,6 +21,7 @@ object AstPattern {
 
   case class NamedType(id: PIdnUse, symb: st.ActualTypeEntity) extends Type with Symbolic
   case class PointerType(base: PType) extends Type
+  case class QualifiedAdtType(base: PType, symb: st.AdtClause) extends Type with Symbolic
 
   sealed trait Expr extends Pattern
 
@@ -28,6 +29,7 @@ object AstPattern {
   case class LocalVariable(id: PIdnUse, symb: st.Variable) extends Expr with Symbolic // In the future: with FunctionKind
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
+  case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr
@@ -72,4 +74,7 @@ object AstPattern {
   case class BuiltInPredicate(id: PIdnUse, symb: st.BuiltInFPredicate) extends BuiltInPredicateKind with Symbolic
   case class BuiltInReceivedPredicate(recv: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
   case class BuiltInPredicateExpr(typ: PType, id: PIdnUse, path: Vector[MemberPath], symb: st.BuiltInMPredicate) extends BuiltInPredicateKind with Symbolic
+
+
+
 }

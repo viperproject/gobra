@@ -33,14 +33,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
           }
         case AssignMode.Multi => right.head match {
           case Assign(InternalTupleT(ts)) => multiAssignableTo.result(ts, left)
-          case t =>
-            if (left.length == right.length + 1 && left.last.isInstanceOf[VariadicT]) {
-              // this handles the case when all parameters but the last are passed in a function call and the last parameter
-              // is variadic
-              multiAssignableTo.result(right, left.init)
-            } else {
-              failedProp(s"got $t but expected tuple type of size ${left.size}")
-            }
+          case t => failedProp(s"got $t but expected tuple type of size ${left.size}")
         }
         case AssignMode.Variadic => variadicAssignableTo.result(right, left)
 
@@ -98,6 +91,16 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (MultisetT(l), MultisetT(r)) => assignableTo.result(l,r)
       case (OptionT(l), OptionT(r)) => assignableTo.result(l, r)
       case (IntT(_), PermissionT) => successProp
+      case (t: DeclaredT, c: AdtT) if underlyingType(t).isInstanceOf[AdtT] &&
+        identicalTypes(underlyingType(t).asInstanceOf[AdtT], c) => successProp
+
+      case (c: AdtT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] &&
+        identicalTypes(underlyingType(t).asInstanceOf[AdtT], c) => successProp
+      case (t: DeclaredT, c: AdtClauseT) if underlyingType(t).isInstanceOf[AdtT] &&
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl) => successProp
+      case (c: AdtClauseT, t: DeclaredT) if underlyingType(t).isInstanceOf[AdtT] &&
+        underlyingType(t).asInstanceOf[AdtT].decl.clauses.contains(c.decl) => successProp
+      case (c: AdtClauseT, t: AdtT) if t.decl.clauses.contains(c.decl) => successProp
 
         // conservative choice
       case _ => errorProp()
@@ -174,6 +177,31 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
             )
           } else {
             failedProp("number of arguments does not match structure")
+          }
+
+        case a: AdtClauseT =>
+          if (elems.isEmpty) {
+            successProp
+          } else if (elems.exists(_.key.nonEmpty)) {
+            val tmap : Map[String, Type] = a.clauses
+
+            failedProp("for adt literals either all or none elements must be keyed",
+              !elems.forall(_.key.nonEmpty)) and
+              propForall(elems, createProperty[PKeyedElement] { e =>
+                e.key.map {
+                  case PIdentifierKey(id) if tmap.contains(id.name) =>
+                    compositeValAssignableTo.result(e.exp, tmap(id.name))
+
+                  case v => failedProp(s"got $v but expected field name")
+                }.getOrElse(successProp)
+              })
+          } else if (elems.size == a.clauses.size) {
+            propForall(
+              elems.map(_.exp).zip(a.clauses.values),
+              compositeValAssignableTo
+            )
+          }else {
+            failedProp("number of arguments does not match adt constructor")
           }
 
         case ArrayT(len, t) =>

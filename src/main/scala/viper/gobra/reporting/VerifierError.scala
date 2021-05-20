@@ -356,7 +356,7 @@ case class ComparisonOnIncomparableInterfaces(node: Source.Verifier.Info) extend
 
 case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
-  override def message: String = info.comment.reduce[String]{ case (l, r) => s"$l; $r" }
+  override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
 }
 
 case class NegativePermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {

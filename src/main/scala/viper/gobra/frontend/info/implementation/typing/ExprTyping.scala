@@ -192,9 +192,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
 
-      case (Right(_), Some(p: ap.Conversion)) => // requires single argument and the expression has to be convertible to target type
-        val msgs = error(n, s"expected a single argument to conversion $n", n.args.size != 1)
-        if (msgs.nonEmpty) msgs else convertibleTo.errors(exprType(p.arg), typeSymbType(p.typ))(n) ++ isExpr(p.arg).out
+      case (Right(_), Some(p: ap.Conversion)) =>
+        val typ = typeSymbType(p.typ)
+        val argWithinBounds: Messages = underlyingTypeP(p.typ) match {
+          case Some(_: PIntegerType) => intExprWithinTypeBounds(p.arg, typ)
+          case _ => noMessages
+        }
+        convertibleTo.errors(exprType(p.arg), typ)(n) ++ isExpr(p.arg).out ++ argWithinBounds
 
       case (Left(callee), Some(_: ap.FunctionCall)) => // arguments have to be assignable to function
         exprType(callee) match {
@@ -334,16 +338,31 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
           case (_: PAdd, StringT, StringT) => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r) =>
-            if (l == PermissionT || r == PermissionT || getTypeFromCtxt(n.asInstanceOf[PNumExpression]).contains(PermissionT)) {
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
+            if (l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT)) {
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
             } else {
-              assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
-                numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
+              val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST)(n)
+              val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+              val typesAreMergeable = mergeableTypes.errors(l, r)(n)
+              val exprWithinBounds = {
+                if(typesAreMergeable.isEmpty) {
+                  // Only makes sense to check that a binary expression is within bounds if the types of its
+                  // subexpressions can be combined
+
+                  // mergedType must exist because, otherwise typesAreMergeable.isEmpty would not hold
+                  val mergedType = typeMerge(l, r).get
+
+                  // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
+                  // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
+                  // which are also rejected by the go compiler
+                  intExprWithinTypeBounds(asExpr(n.left).get, mergedType) ++
+                    intExprWithinTypeBounds(asExpr(n.right).get, mergedType) ++
+                    intExprWithinTypeBounds(n, mergedType)
+                } else noMessages
+              }
+              lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
             }
-          case (_: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
-            assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
-              error(n, s"invalid operation: $n (mismatched types $l and $r)", typeMerge(l, r).isEmpty)
           case (_: PShiftLeft | _: PShiftRight, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               (intConstantEval(n.right.asInstanceOf[PExpression]) match {
@@ -453,17 +472,19 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case n: PExpressionAndType => wellDefExprAndType(n).out
   }
 
-  private def numExprWithinTypeBounds(num: PNumExpression): Messages = {
-    val typ = intExprType(num)
+  private def numExprWithinTypeBounds(num: PNumExpression): Messages =
+    intExprWithinTypeBounds(num, intExprType(num))
+
+  private def intExprWithinTypeBounds(exp: PExpression, typ: Type): Messages = {
     if (typ == UNTYPED_INT_CONST) {
-      val typCtx = getNonInterfaceTypeFromCtxt(num)
+      val typCtx = getNonInterfaceTypeFromCtxt(exp)
       typCtx.map(underlyingType) match {
-        case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, num)(num)
-        case Some(t) => error(num, s"$num is not assignable to type $t")
+        case Some(intTypeCtx: IntT) => assignableWithinBounds.errors(intTypeCtx, exp)(exp)
+        case Some(t) => error(exp, s"$exp is not assignable to type $t")
         case None => noMessages // no type inferred from context
       }
     } else {
-      assignableWithinBounds.errors(typ, num)(num)
+      assignableWithinBounds.errors(typ, exp)(exp)
     }
   }
 
@@ -609,12 +630,12 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case e => violation(s"unexpected expression $e")
   }
 
-  /** Returns a non-interface type that is implied by the context if the numeric expression is an untyped
-    * constant expression. It ignores interface types. This is useful to check the bounds of constant expressions when
+  /** Returns a non-interface type that is implied by the context if the integer expression is an untyped
+    * constant expression. It ignores interface types. This is useful for checking the bounds of constant expressions when
     * they are assigned to a variable of an interface type. For those cases, we need to obtain the numeric type of the
     * expression.
     */
-  private def getNonInterfaceTypeFromCtxt(expr: PNumExpression): Option[Type] = {
+  private def getNonInterfaceTypeFromCtxt(expr: PExpression): Option[Type] = {
     // if an unbounded integer constant expression is assigned to an interface type,
     // then it has the default type
     def defaultTypeIfInterface(t: Type) : Type = {
@@ -631,8 +652,8 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  /** Returns the type that is implied by the context of a numeric expression. */
-  private def getTypeFromCtxt(expr: PNumExpression): Option[Type] = {
+  /** Returns the type that is implied by the context of an integer expression. */
+  private def getTypeFromCtxt(expr: PExpression): Option[Type] = {
     expr match {
       case tree.parent(p) => p match {
         case PShortVarDecl(rights, lefts, _) =>
@@ -671,10 +692,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case r: PReturn =>
           val index = r.exps.indexOf(expr)
           Some(typeSymbType(enclosingCodeRootWithResult(r).result.outs(index).typ))
-
-        case n: PShiftLeft  => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
-        case n: PShiftRight => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
-        // case _: PBitwiseNegation => Some(INT_TYPE) // TODO: remove
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

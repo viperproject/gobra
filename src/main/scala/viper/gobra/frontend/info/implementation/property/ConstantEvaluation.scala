@@ -67,11 +67,13 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
     attr[PExpression, Option[BigInt]] {
       case PIntLit(lit, _) => Some(lit)
       case inv: PInvoke => resolve(inv) match {
-        case Some(conv: ap.Conversion) if underlyingTypeP(conv.typ).isInstanceOf[Some[PIntegerType]] =>
-          intConstantEval(conv.arg)
+        case Some(conv: ap.Conversion) => underlyingTypeP(conv.typ) match {
+          case Some(_: PIntegerType) => intConstantEval(conv.arg)
+          case _ => None
+        }
         case _ => None
       }
-      case PBitwiseNegation(op) =>
+      case PBitNegation(op) =>
         // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
         exprType(op) match {
           case IntT(t) =>

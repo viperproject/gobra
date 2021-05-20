@@ -123,7 +123,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
     case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() | PBitAndOp() | PBitOrOp() |
-                           PBitwiseXorOp() | PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) => true
+                           PBitXorOp() | PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) => true
     case (Single(StringT), PAddOp()) => true
     case _ => false
   }

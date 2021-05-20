@@ -887,7 +887,7 @@ object Desugar {
                   case PModOp() => in.Mod(l.op, r)(src)
                   case PBitAndOp() => in.BitAnd(l.op, r)(src)
                   case PBitOrOp() => in.BitOr(l.op, r)(src)
-                  case PBitwiseXorOp() => in.BitXor(l.op, r)(src)
+                  case PBitXorOp() => in.BitXor(l.op, r)(src)
                   case PBitClearOp() => in.BitClear(l.op, r)(src)
                   case PShiftLeftOp() => in.ShiftLeft(l.op, r)(src)
                   case PShiftRightOp() => in.ShiftRight(l.op, r)(src)
@@ -1553,7 +1553,7 @@ object Desugar {
           case PBitClear(left, right) => for {l <- go(left); r <- go(right)} yield in.BitClear(l, r)(src)
           case PShiftLeft(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftLeft(l, r)(src)
           case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
-          case PBitwiseNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
+          case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
 
           case l: PLiteral => litD(ctx)(l)
 

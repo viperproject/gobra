@@ -140,7 +140,6 @@ object Nodes {
         case Negation(operand) => Seq(operand)
         case BitNeg(operand) => Seq(operand)
         case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
-        case BitNeg(operand) => Seq(operand)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case Old(op, _) => Seq(op)
         case LabeledOld(label, operand) => Seq(label, operand)

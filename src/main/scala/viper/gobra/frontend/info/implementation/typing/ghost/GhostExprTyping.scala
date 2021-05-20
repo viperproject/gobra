@@ -327,14 +327,16 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PNegation(e) => go(e)
 
+      case PBitNegation(e) => go(e)
+
       case x: PBinaryExp[_,_] =>
         asExpr(x.left).forall(go) && asExpr(x.right).forall(go) && (x match {
         case _: PEquals | _: PUnequals |
              _: PAnd | _: POr |
              _: PLess | _: PAtMost | _: PGreater | _: PAtLeast |
              _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv |
-             _: PBitwiseNegation | _: PShiftLeft | _: PShiftRight |
-             _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear => true
+             _: PShiftLeft | _: PShiftRight | _: PBitAnd |
+             _: PBitOr | _: PBitXor | _: PBitClear => true
         case _ => false
       })
 

@@ -485,7 +485,7 @@ object Parser {
         "%" ^^^ PModOp() |
         "&" ^^^ PBitAndOp() |
         "|" ^^^ PBitOrOp() |
-        "^" ^^^ PBitwiseXorOp() |
+        "^" ^^^ PBitXorOp() |
         "&^" ^^^ PBitClearOp() |
         "<<" ^^^ PShiftLeftOp() |
         ">>" ^^^ PShiftRightOp()
@@ -734,7 +734,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
-        "^" ~> unaryExp ^^ PBitwiseNegation |
+        "^" ~> unaryExp ^^ PBitNegation |
         reference |
         dereference |
         receiveExp |
@@ -877,39 +877,22 @@ object Parser {
         "nil" ^^^ PNilLit() |
         intLit |
         stringLit
-    /*
-        ("0b"|"0B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary)) |
-        ("0o"|"0O") ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal)) | // TODO
-        ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal)) |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
-
-     */
-
-    /**
-      * int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
-      * decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digits ] .
-      * binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digits .
-      * octal_lit      = "0" [ "o" | "O" ] [ "_" ] octal_digits .
-      * hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digits .
-      *
-      * decimal_digits = decimal_digit { [ "_" ] decimal_digit } .
-      * binary_digits  = binary_digit { [ "_" ] binary_digit } .
-      * octal_digits   = octal_digit { [ "_" ] octal_digit } .
-      * hex_digits     = hex_digit { [ "_" ] hex_digit } .
-      */
 
     lazy val intLit: Parser[PIntLit] =
       octalLit | binaryLit | hexLit | decimalLit
 
     lazy val binaryLit: Parser[PIntLit] =
       "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
+
     lazy val octalLit: Parser[PIntLit] =
       // according to the go language spec, non-zero literals starting with `0` are octal literals
       "0" ~> ("o"|"O").? ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal))
+
     lazy val hexLit: Parser[PIntLit] =
       "0" ~> ("x"|"X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal))
+
     lazy val decimalLit: Parser[PIntLit] =
-      ("0" | regex("[0-9]+".r)) ^^ (lit => PIntLit(BigInt(lit)))
+      (exactWord("0") | regex("[0-9]+".r)) ^^ (lit => PIntLit(BigInt(lit)))
 
     lazy val stringLit: Parser[PStringLit] =
       rawStringLit | interpretedStringLit

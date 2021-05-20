@@ -251,7 +251,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PModOp() => "%"
     case PBitAndOp() => "&"
     case PBitOrOp() => "|"
-    case PBitwiseXorOp() => "^"
+    case PBitXorOp() => "^"
     case PBitClearOp() => "&^"
     case PShiftLeftOp() => "<<"
     case PShiftRightOp() => ">>"
@@ -427,7 +427,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PBitClear(left, right) => showExpr(left) <+> "&^" <+> showExpr(right)
       case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
       case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
-      case PBitwiseNegation(exp) => "^" <> showExpr(exp)
+      case PBitNegation(exp) => "^" <> showExpr(exp)
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))

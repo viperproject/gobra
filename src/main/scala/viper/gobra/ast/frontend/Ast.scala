@@ -207,7 +207,7 @@ case class PBitAndOp() extends PAssOp
 
 case class PBitOrOp() extends PAssOp
 
-case class PBitwiseXorOp() extends PAssOp
+case class PBitXorOp() extends PAssOp
 
 case class PBitClearOp() extends PAssOp
 
@@ -327,7 +327,7 @@ object PLiteral {
     * and type `typ`, with unkeyed elements `exprs`.
     */
   def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
-    PArrayType(PIntLit(exprs.length, Decimal), typ),
+    PArrayType(PIntLit(exprs.length), typ),
     PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
   )
 
@@ -455,7 +455,7 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
-case class PBitwiseNegation(operand: PExpression) extends PUnaryExp with PNumExpression
+case class PBitNegation(operand: PExpression) extends PUnaryExp with PNumExpression
 
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L

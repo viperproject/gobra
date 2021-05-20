@@ -857,7 +857,7 @@ sealed trait BoolOperation extends Expr {
 }
 
 sealed trait IntOperation extends Expr {
-  override def typ: Type = IntT(Addressability.rValue)
+  override val typ: Type = IntT(Addressability.rValue)
 }
 
 sealed trait StringOperation extends Expr {
@@ -872,7 +872,7 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
 }
 
 sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
-  override def typ: Type = (left.typ, right.typ) match {
+  override val typ: Type = (left.typ, right.typ) match {
     // should always produce an exclusive val. from the go spec:
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
@@ -919,10 +919,10 @@ case class BitOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends 
 case class BitXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
 case class BitClear(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&^")
 case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("<<") {
-  override def typ: Type = left.typ
+  override val typ: Type = left.typ
 }
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
-  override def typ: Type = left.typ
+  override val typ: Type = left.typ
 }
 case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
 

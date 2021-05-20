@@ -84,6 +84,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case _: PReceive => AddrMod.receive
       case _: PReference => AddrMod.reference
       case _: PNegation => AddrMod.rValue
+      case _: PBitNegation => AddrMod.rValue
       case _: PBinaryExp[_,_] => AddrMod.rValue
       case _: PPermission => AddrMod.rValue
       case _: PPredConstructor => AddrMod.rValue

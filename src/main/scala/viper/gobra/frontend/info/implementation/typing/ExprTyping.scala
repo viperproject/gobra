@@ -237,7 +237,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case _ => error(n, s"expected a call to a conversion, function, or predicate, but got $n")
     }
 
-    case PBitwiseNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
+    case PBitNegation(op) => isExpr(op).out ++ assignableTo.errors(typ(op), UNTYPED_INT_CONST)(op)
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
@@ -544,11 +544,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
          _: PLess | _: PAtMost | _: PGreater | _: PAtLeast =>
       BooleanT
 
-    case PLength(exp) =>
-      exprType(exp) match {
-        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
-        case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT => UNTYPED_INT_CONST
-      }
+    case e: PLength => typeOfPLength(e)
 
     case _: PCapacity => INT_TYPE
 
@@ -818,15 +814,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     val typ = expr match {
       case _: PIntLit => UNTYPED_INT_CONST
 
-      case PLength(exp) =>
-        exprType(exp) match {
-          case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT => INT_TYPE
-          case _: SequenceT | _: SetT | _: MultisetT => UNTYPED_INT_CONST
-        }
+      case e: PLength => typeOfPLength(e)
 
       case _: PCapacity => INT_TYPE
 
-      case PBitwiseNegation(op) => exprOrTypeType(op)
+      case PBitNegation(op) => exprOrTypeType(op)
 
       case bExpr: PBinaryExp[_, _] =>
         bExpr match {
@@ -857,4 +849,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case StringT => error(expr, s"expected constant string expression", stringConstantEval(expr).isEmpty)
     case _ => error(expr, s"expected a constant expression")
   }
+
+  private[typing] def typeOfPLength(expr: PLength): Type =
+    exprType(expr.exp) match {
+      case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
+      case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT => UNTYPED_INT_CONST
+      case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")
+    }
 }

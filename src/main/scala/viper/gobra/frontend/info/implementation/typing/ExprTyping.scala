@@ -341,7 +341,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
               assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
                 numExprWithinTypeBounds(n.asInstanceOf[PNumExpression])
             }
-          case (_: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor | _: PBitClear, l, r) =>
+          case (_: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
             assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n) ++
               error(n, s"invalid operation: $n (mismatched types $l and $r)", typeMerge(l, r).isEmpty)
           case (_: PShiftLeft | _: PShiftRight, l, r) =>
@@ -678,7 +678,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
         case n: PShiftLeft  => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
         case n: PShiftRight => if (n.left == expr) Some(INT_TYPE) else Some(UINT_TYPE)
-        case _: PBitwiseNegation => Some(INT_TYPE)
+        // case _: PBitwiseNegation => Some(INT_TYPE) // TODO: remove
 
         case n: PInvoke =>
           // if the parent of `expr` (i.e. the numeric expression whose type we want to find out) is an invoke expression `inv`,

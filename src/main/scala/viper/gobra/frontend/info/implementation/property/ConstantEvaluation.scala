@@ -6,13 +6,11 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend._
+import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
 import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
-import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.util.TypeBounds.{BoundedIntegerKind, DefaultInt, DefaultUInt, IntWith64Bit, Signed, SignedInteger16, SignedInteger32, SignedInteger64, SignedInteger8, UIntWith64Bit, UnboundedInteger, Unsigned, UnsignedInteger16, UnsignedInteger32, UnsignedInteger64, UnsignedInteger8}
-import viper.gobra.util.Violation.violation
+import viper.gobra.util.TypeBounds._
 
 trait ConstantEvaluation { this: TypeInfoImpl =>
 
@@ -73,7 +71,19 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
           intConstantEval(conv.arg)
         case _ => None
       }
-      case e: PBitwiseNegation => ???
+      case PBitwiseNegation(op) =>
+        // Not sufficient to do `intConstantEval(op) map (_.unary_~)`, produces wrong results for unsigned int values
+        exprType(op) match {
+          case IntT(t) =>
+            val constEval = intConstantEval(op)
+            constEval map { constValue =>
+              t match {
+                case UnboundedInteger | _: Signed => ~constValue
+                case u: Unsigned => BigInt(~constValue.toShort) mod (u.upper + 1)
+              }
+            }
+          case _ => None
+        }
       case e: PBinaryExp[_,_] =>
         def aux(l: PExpression, r: PExpression)(f: BigInt => BigInt => BigInt): Option[BigInt] =
           (intConstantEval(l), intConstantEval(r)) match {
@@ -90,179 +100,18 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             case _: PMul => aux(l, r)(x => y => x * y)
             case _: PMod => aux(l, r)(x => y => x % y)
             case _: PDiv => aux(l, r)(x => y => x / y)
-            case _: PShiftLeft =>
-              for {
-                constL <- intConstantEval(l)
-                constR <- intConstantEval(r)
-                v = underlyingType(typ(l)) match {
-                  case IntT(t: Signed) => t match {
-                    case SignedInteger8 =>
-                      constL.byteValue << constR.intValue
-                    case SignedInteger16 =>
-                      constL.shortValue << constR.intValue
-                    case SignedInteger32 | DefaultInt =>
-                      constL.intValue << constR.intValue
-                    case SignedInteger64 | IntWith64Bit =>
-                      constL.longValue << constR.intValue
-                  }
-                  case IntT(t: Unsigned) => t match {
-                    case UnsignedInteger8 =>
-                      constL.byteValue << constR.intValue
-                    case UnsignedInteger16 =>
-                      constL.shortValue << constR.intValue
-                    case UnsignedInteger32 | DefaultUInt =>
-                      constL.intValue << constR.intValue
-                    case UnsignedInteger64 | UIntWith64Bit =>
-                      constL.longValue << constR.intValue
-                  }
-                  case IntT(UnboundedInteger) =>
-                    ??? // TODO: should be violation
-                    /*
-                    if (config.int32bit) {
-                      constL.intValue << constR.longValue
-                    } else {
-                      constL.longValue << constR.longValue
-                    }
-                     */
-                }
-              } yield BigInt(v)
-
-            case _: PShiftRight =>
-              for {
-                constL <- intConstantEval(l)
-                constR <- intConstantEval(r)
-                v = underlyingType(typ(l)) match {
-                  case IntT(t: Signed) => t match {
-                    case SignedInteger8 =>
-                      constL.byteValue >> constR.intValue
-                    case SignedInteger16 =>
-                      constL.shortValue >> constR.intValue
-                    case SignedInteger32 | DefaultInt =>
-                      constL.intValue >> constR.intValue
-                    case SignedInteger64 | IntWith64Bit =>
-                      constL.longValue >> constR.intValue
-                  }
-                  case IntT(t: Unsigned) => t match {
-                    case UnsignedInteger8 =>
-                      constL.byteValue >>> constR.intValue
-                    case UnsignedInteger16 =>
-                      constL.shortValue >>> constR.intValue
-                    case UnsignedInteger32 | DefaultUInt =>
-                      constL.intValue >>> constR.intValue
-                    case UnsignedInteger64 | UIntWith64Bit =>
-                      constL.longValue >>> constR.intValue
-                  }
-                  case _ => ??? // TODO: should be violation
-                    /*
-                    if (config.int32bit) {
-                      constL.intValue >> constR.longValue
-                    } else {
-                      constL.longValue >> constR.longValue
-                    }
-                     */
-                }
-              } yield BigInt(v)
-              // TODO: avoid repetition
-            case exp: PBitwiseAnd =>
-              for {
-                l <- intConstantEval(exp.left)
-                r <- intConstantEval(exp.right)
-
-              } yield BigInt(typeMerge(typ(exp.left), typ(exp.right)) match {
-                case Some(IntT(t: Signed)) => t match {
-                  case SignedInteger8 =>
-                    l.byteValue & r.byteValue
-                  case SignedInteger16 =>
-                    l.shortValue & r.shortValue
-                  case SignedInteger32 | DefaultInt =>
-                    l.intValue & r.intValue
-                  case SignedInteger64 | IntWith64Bit =>
-                    l.longValue & r.longValue
-                }
-                case Some(IntT(t: Unsigned)) => t match {
-                  case UnsignedInteger8 =>
-                    l.byteValue & r.byteValue
-                  case UnsignedInteger16 =>
-                    l.shortValue & r.shortValue
-                  case UnsignedInteger32 | DefaultUInt =>
-                    l.intValue & r.intValue
-                  case UnsignedInteger64 | UIntWith64Bit =>
-                    l.longValue & r.longValue
-                }
-              })
-
-            case exp: PBitwiseOr =>
-              for {
-                l <- intConstantEval(exp.left)
-                r <- intConstantEval(exp.right)
-
-              } yield BigInt(typeMerge(typ(exp.left), typ(exp.right)) match {
-                case Some(IntT(t: BoundedIntegerKind)) => t match {
-                  case SignedInteger8 | UnsignedInteger8 =>
-                    l.byteValue | r.byteValue
-                  case SignedInteger16 | UnsignedInteger16 =>
-                    l.shortValue | r.shortValue
-                  case SignedInteger32 | DefaultInt | UnsignedInteger32 | DefaultUInt =>
-                    l.intValue | r.intValue
-                  case SignedInteger64 | IntWith64Bit | UnsignedInteger64 | UIntWith64Bit =>
-                    l.longValue | r.longValue
-                }
-              })
-
-            case exp: PBitwiseXor =>
-              for {
-                l <- intConstantEval(exp.left)
-                r <- intConstantEval(exp.right)
-
-              } yield BigInt(typeMerge(typ(exp.left), typ(exp.right)) match {
-                case Some(IntT(t: Signed)) => t match {
-                  case SignedInteger8 =>
-                    l.byteValue ^ r.byteValue
-                  case SignedInteger16 =>
-                    l.shortValue ^ r.shortValue
-                  case SignedInteger32 | DefaultInt =>
-                    l.intValue ^ r.intValue
-                  case SignedInteger64 | IntWith64Bit =>
-                    l.longValue ^ r.longValue
-                }
-                case Some(IntT(t: Unsigned)) => t match {
-                  case UnsignedInteger8 =>
-                    l.byteValue ^ r.byteValue
-                  case UnsignedInteger16 =>
-                    l.shortValue ^ r.shortValue
-                  case UnsignedInteger32 | DefaultUInt =>
-                    l.intValue ^ r.intValue
-                  case UnsignedInteger64 | UIntWith64Bit =>
-                    l.longValue ^ r.longValue
-                }
-              })
-            case exp: PBitClear =>
-              for {
-                l <- intConstantEval(exp.left)
-                r <- intConstantEval(exp.right)
-
-              } yield BigInt(typeMerge(typ(exp.left), typ(exp.right)) match {
-                case Some(IntT(t: Signed)) => t match {
-                  case SignedInteger8 =>
-                    l.byteValue & ~r.byteValue
-                  case SignedInteger16 =>
-                    l.shortValue & ~r.shortValue
-                  case SignedInteger32 | DefaultInt =>
-                    l.intValue & ~r.intValue
-                  case SignedInteger64 | IntWith64Bit =>
-                    l.longValue & ~r.longValue
-                }
-                case Some(IntT(t: Unsigned)) => t match {
-                  case UnsignedInteger8 =>
-                    l.byteValue & ~r.byteValue
-                  case UnsignedInteger16 =>
-                    l.shortValue & ~r.shortValue
-                  case UnsignedInteger32 | DefaultUInt =>
-                    l.intValue & ~r.intValue
-                  case UnsignedInteger64 | UIntWith64Bit =>
-                    l.longValue & ~r.longValue
-                }
-              })
+            case _: PShiftLeft => aux(l, r)(x => y => x << y.toInt) // TODO: The type system ensures y is convertible to int
+            case _: PShiftRight => exprType(l) match {
+              case IntT(t) => t match {
+                case UnboundedInteger | _: Signed => aux(l, r)(x => y => x >> y.toInt) // TODO: The type system ensures y is convertible to int
+                case _: Unsigned => aux(l, r)(x => y => BigInt(x.toLong >>> y.toInt)) // TODO: The type system ensures x is convertible to Long and y is convertible to int?
+              }
+              case _ => None
+            }
+            case _: PBitAnd => aux(l, r)(x => y => x & y)
+            case _: PBitOr => aux(l, r)(x => y => x | y)
+            case _: PBitXor => aux(l, r)(x => y => x ^ y)
+            case _: PBitClear => aux(l, r)(x => y => x &~ y)
 
             case _ => None
           }
@@ -279,31 +128,6 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
 
       case _ => None
     }
-
-  //TODO: rename
-  private def binaryBitwiseOp(byteOp: (Byte, Byte) => Byte,
-                              shortOp: (Short, Short) => Short,
-                              intOp: (Int, Int) => Int,
-                              longOp: (Long, Long) => Long
-                             )(left: PExpression, right: PExpression): Option[BigInt] = {
-    val v: Option[Option[BigInt]] = for {
-      l <- intConstantEval(left)
-      r <- intConstantEval(right)
-    } yield typeMerge(typ(left), typ(right)) match {
-      case Some(IntT(t: BoundedIntegerKind)) => Some(t match {
-        case SignedInteger8 | UnsignedInteger8 => BigInt(byteOp(l.byteValue, r.byteValue))
-        case SignedInteger16 | UnsignedInteger16 => BigInt(shortOp(l.shortValue, r.shortValue))
-        case SignedInteger32 | DefaultInt | UnsignedInteger32 | DefaultUInt => BigInt(intOp(l.intValue, r.intValue))
-        case SignedInteger64 | IntWith64Bit | UnsignedInteger64 | UIntWith64Bit => BigInt(longOp(l.longValue, r.longValue))
-      })
-      case Some(IntT(UnboundedInteger)) =>
-        // this case should be unreacable: it does not make sense to apply bitwise operators to unbounded variables.
-        // the type system should infer a suitable (bounded) type when applying a bitwise operator to untyped literals
-        violation("This case should be unreachable")// TODO: put more info in the error
-      case _ => None
-    }
-    v.get // TODO: simplify
-  }
 
   lazy val stringConstantEval: PExpression => Option[String] = {
     attr[PExpression, Option[String]] {

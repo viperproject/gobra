@@ -334,7 +334,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
              _: PLess | _: PAtMost | _: PGreater | _: PAtLeast |
              _: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv |
              _: PBitwiseNegation | _: PShiftLeft | _: PShiftRight |
-             _: PBitwiseAnd | _: PBitwiseOr | _: PBitwiseXor | _: PBitClear => true
+             _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear => true
         case _ => false
       })
 

@@ -203,9 +203,9 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PBitwiseAndOp() extends PAssOp
+case class PBitAndOp() extends PAssOp
 
-case class PBitwiseOrOp() extends PAssOp
+case class PBitOrOp() extends PAssOp
 
 case class PBitwiseXorOp() extends PAssOp
 
@@ -488,11 +488,11 @@ case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 

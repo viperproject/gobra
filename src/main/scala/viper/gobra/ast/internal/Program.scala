@@ -914,9 +914,9 @@ case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
 /* Bitwise Operators */
-case class BitwiseAnd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&")
-case class BitwiseOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("|")
-case class BitwiseXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
+case class BitAnd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&")
+case class BitOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("|")
+case class BitXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
 case class BitClear(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&^")
 case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("<<") {
   override def typ: Type = left.typ
@@ -924,7 +924,7 @@ case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) exte
 case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
   override def typ: Type = left.typ
 }
-case class BitwiseNeg(left: Expr)(val info: Source.Parser.Info) extends IntOperation
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
 
 case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 

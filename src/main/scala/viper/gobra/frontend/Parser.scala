@@ -16,7 +16,7 @@ import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, Str
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
-import viper.gobra.util.{Constants, Hexadecimal, Violation}
+import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -483,8 +483,8 @@ object Parser {
         "*" ^^^ PMulOp() |
         "/" ^^^ PDivOp() |
         "%" ^^^ PModOp() |
-        "&" ^^^ PBitwiseAndOp() |
-        "|" ^^^ PBitwiseOrOp() |
+        "&" ^^^ PBitAndOp() |
+        "|" ^^^ PBitOrOp() |
         "^" ^^^ PBitwiseXorOp() |
         "&^" ^^^ PBitClearOp() |
         "<<" ^^^ PShiftLeftOp() |
@@ -709,8 +709,8 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
-        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitwiseOr |
-        precedence5 ~ ("^" ~> precedence6) ^^ PBitwiseXor |
+        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
@@ -720,7 +720,7 @@ object Parser {
         precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
         precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
         precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
-        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitwiseAnd |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitAnd |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =
@@ -875,9 +875,41 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
+        intLit |
+        stringLit
+    /*
+        ("0b"|"0B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary)) |
+        ("0o"|"0O") ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal)) | // TODO
         ("0x"|"0X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal)) |
         regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
-        stringLit
+
+     */
+
+    /**
+      * int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
+      * decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digits ] .
+      * binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digits .
+      * octal_lit      = "0" [ "o" | "O" ] [ "_" ] octal_digits .
+      * hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digits .
+      *
+      * decimal_digits = decimal_digit { [ "_" ] decimal_digit } .
+      * binary_digits  = binary_digit { [ "_" ] binary_digit } .
+      * octal_digits   = octal_digit { [ "_" ] octal_digit } .
+      * hex_digits     = hex_digit { [ "_" ] hex_digit } .
+      */
+
+    lazy val intLit: Parser[PIntLit] =
+      octalLit | binaryLit | hexLit | decimalLit
+
+    lazy val binaryLit: Parser[PIntLit] =
+      "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
+    lazy val octalLit: Parser[PIntLit] =
+      // according to the go language spec, non-zero literals starting with `0` are octal literals
+      "0" ~> ("o"|"O").? ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal))
+    lazy val hexLit: Parser[PIntLit] =
+      "0" ~> ("x"|"X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal))
+    lazy val decimalLit: Parser[PIntLit] =
+      ("0" | regex("[0-9]+".r)) ^^ (lit => PIntLit(BigInt(lit)))
 
     lazy val stringLit: Parser[PStringLit] =
       rawStringLit | interpretedStringLit

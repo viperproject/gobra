@@ -50,13 +50,13 @@ class IntEncoding extends LeafTypeEncoding {
       case e@ in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
       case e@ in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
 
-      case e@ in.BitwiseAnd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitwiseOr(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitwiseXor(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
+      case e@ in.BitAnd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
+      case e@ in.BitOr(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
+      case e@ in.BitXor(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
       case e@ in.BitClear(l, r)   => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
       case e@ in.ShiftLeft(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(shiftLeft, Seq(vl, vr)), e)
       case e@ in.ShiftRight(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(shiftRight, Seq(vl, vr)), e)
-      case e@ in.BitwiseNeg(exp)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case e@ in.BitNeg(exp)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
     }
   }
 

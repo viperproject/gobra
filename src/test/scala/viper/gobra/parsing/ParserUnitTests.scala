@@ -2632,7 +2632,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should bitwise and logical operators in the correct order") {
     frontend.parseExpOrFail("60|1 < 0x2 && true") should matchPattern {
-      case PAnd(PLess(PBitwiseOr(sixty, one), two), PBoolLit(true))
+      case PAnd(PLess(PBitOr(sixty, one), two), PBoolLit(true))
         if sixty == PIntLit(BigInt(60), Decimal) && one == PIntLit(BigInt(1), Decimal) && two == PIntLit(BigInt(2), Hexadecimal) =>
     }
   }

@@ -2637,12 +2637,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("TypeChecker: should be able to detect when the result of a constant binary operation cannot be evaluated because its operands are not mergeable") {
-    frontend.parseExpOrFail("uint8(1) + (-1)") should matchPattern {
-      case PAdd(
-        PInvoke(PUInt8Type(), Vector(x)),
-        PSub(PIntLit(y, _), PIntLit(z, _))
-      ) if x == PIntLit(1) && y == BigInt(0) && z == BigInt(1) =>
+  test("Parser: should be able to parse type conversions") {
+    frontend.parseExpOrFail("uint8(1)") should matchPattern {
+      case PInvoke(PUInt8Type(), Vector(x)) if x == PIntLit(1) =>
     }
   }
 

@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+func test1(x int) {
+	val1 := 1
+	val2 := 2
+	// cannot be proved, the encoding of bitwise operators for non-constant
+	// expressions is very incomplete
+	//:: ExpectedOutput(assert_error:assertion_error)
+	assert val1 & val2 == val2 & val1
+}
+
+func test2() {
+	l := -1
+	y := int16(10)
+	// Panics because l is negative. Shift operations throw a runtime error when the RHS is negative at runtime
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	y <<= l
+}
+
+func test3() {
+	l := -1
+	y := int16(10)
+	// Panics because l is negative. Shift operations throw a runtime error when the RHS is negative at runtime
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	y >>= l
+}

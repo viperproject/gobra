@@ -1,5 +1,6 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
+
 package integers
 
 // can only parse integer literals if the symbols used match the base of the literal

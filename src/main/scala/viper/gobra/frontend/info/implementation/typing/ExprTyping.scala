@@ -374,13 +374,13 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                 case Some(v) =>
                   // The Go compiler checks that the RHS of (<<) is non-negative and, at most, the size
                   // of the type of the left operand (or 512 if there is an untyped const on the left)
-                  val lowerBound = error(n, s"constant $r overflows uint", v < 0)
+                  val lowerBound = error(n.right, s"constant ${n.right} overflows uint", v < 0)
                   val nBits = exprOrTypeType(n.left) match {
                     case IntT(t: BoundedIntegerKind) => t.nbits
                     case IntT(UnboundedInteger) => MAX_SHIFT
                     case t => violation(s"unexpected type $t")
                   }
-                  val upperBound = error(n, s"shift count ${n.right} large for type ${exprOrTypeType(n.left)}", v > nBits)
+                  val upperBound = error(n.right, s"shift count ${n.right} large for type ${exprOrTypeType(n.left)}", v > nBits)
                   lowerBound ++ upperBound
 
                 case None => noMessages

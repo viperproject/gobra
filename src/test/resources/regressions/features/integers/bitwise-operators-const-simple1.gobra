@@ -1,0 +1,164 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// The tests in this file compare the values of constant bitwise operations
+// with the corresponding values obtained from the Go compiler
+
+// tests for &
+const (
+	AND1 = 240 & 760
+	AND2 = int8(127) & int8(120)
+	AND3 = int8(0b01111111) & 0b01010101
+	AND4 = 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001000 & 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000999
+	AND5 = -53 & 32
+	AND6 = -6 & -39
+)
+
+// func fff(i int)
+
+func testAnd() {
+	assert AND1 == 240
+	assert AND2 == 120
+	assert AND3 == 85
+	assert AND4 == 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000992
+	// fff(AND4) // TODO: open issue in go, this throws a type error because AND4 overflows int // requires more checks
+	assert AND5 == 0
+	assert AND6 == -40
+}
+
+// tests for |
+const (
+	OR1 = 240 | 760
+	OR2 = int8(127) | int8(120)
+	OR3 = int8(0b01111111) | 0b01010101
+	OR4 = 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001000 | 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000999
+	OR5 = -53 | 32
+	OR6 = -6 | -39
+)
+
+func testOr() {
+	assert OR1 == 760
+	assert OR2 == 127
+	assert OR3 == 127
+	assert OR4 == 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001007
+	// fff(OR4) // TODO: also overflows int, type error
+	assert OR5 == -21
+	assert OR6 == -5
+}
+
+// tests for ^
+const (
+	XOR1 = 240 ^ 760
+	XOR2 = int8(127) ^ int8(120)
+	XOR3 = int8(0b01111111) ^ 0b01010101
+	XOR4 = 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001000 ^ 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000999
+	XOR5 = -53 ^ 32
+	XOR6 = -6 ^ -39
+)
+
+func testXor() {
+	assert XOR1 == 520
+	assert XOR2 == 7
+	assert XOR3 == 42
+	assert XOR4 == 15
+	assert XOR5 == -21
+	assert XOR6 == 35
+}
+
+// tests for &^
+const (
+	BC1 = 240 &^ 760
+	BC2 = int8(127) &^ int8(120)
+	BC3 = int8(0b01111111) &^ 0b01010101
+	BC4 = 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001000 &^ 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000999
+	BC5 = -53 &^ 32
+	BC6 = -6 &^ -39
+	BC7 = uint32(1) &^ 1
+)
+
+func testBc() {
+	assert BC1 == 0
+	assert BC2 == 7
+	assert BC3 == 42
+	assert BC4 == 8
+	assert BC5 == -53
+	assert BC6 == 34
+	assert BC7 == 0
+}
+
+// tests for <<
+const (
+	SL3 = int8(1) << 6
+	SL4 = int8(-12) << 2
+	SL5 = 431249132023158029358 << 256
+	SL6 = 123 << 2
+	SL7 = -123 << 2
+)
+
+func testSl() {
+	assert SL3 == 64
+	assert SL4 == -48
+	assert SL5 == 49935237978740667887939283908129594836646836703836428527193610850131056089476876096067297857241088
+	assert SL6 == 492
+	assert SL7 == -492
+}
+
+// tests for >>
+const (
+	SR1 = 10 >> 120
+	SR2 = 345 >> 8
+	SR3 = uint8(255) >> 7
+	SR4 = uint8(1) >> 7
+	SR5 = uint8(1) >> 10
+	SR6 = uint8(127) >> 7
+	SR7 = uint8(127) >> 3
+	SR8 = int8(-127) >> 7
+	SR9 = int8(-127) >> 8
+	SR10 = int8(-127) >> 3
+	SR11 = int8(-127) >> 10
+)
+
+func testRightShift() {
+	assert SR1 == 0
+	assert SR2 == 1
+	assert SR3 == 1
+	assert SR4 == 0
+	assert SR5 == 0
+	assert SR6 == 0
+	assert SR7 == 15
+	assert SR8 == -1
+	assert SR9 == -1
+	assert SR10 == -16
+	assert SR11 == -1
+}
+
+// tests for ^
+const (
+	N1 = ^1
+	N2 = ^(-1)
+	N3 = ^int8(127)
+	N4 = ^uint8(127)
+	N5 = ^uint8(255)
+	N6 = ^uint8(0b11110000)
+	N9 = ^21341234523141234213521342142315321432142134
+	N10 = ^uint16(62300)
+	N11 = ^int16(25016) 
+	N12 = ^int32(2147483647) // MAXINT
+	N13 = ^uint32(4294967295) // MAXUINT
+)
+
+func testNeg() {
+	assert N1 == -2
+	assert N2 == 0
+	assert N3 == -128
+	assert N4 == 128
+	assert N5 == 0
+	assert N6 == 15
+	assert N9 == -21341234523141234213521342142315321432142135
+	assert N10 == 3235
+	assert N11 == -25017
+	assert N12 == -2147483648
+	assert N13 == 0
+}

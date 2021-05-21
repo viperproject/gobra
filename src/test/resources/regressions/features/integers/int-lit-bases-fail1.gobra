@@ -1,5 +1,6 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/publicdomain/zero/1.0/
+
 package integers
 
 // 0b11110000 overflows type int8. The Go compiler produces

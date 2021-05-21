@@ -32,6 +32,6 @@ ensures x # set[int] { } == 0
 func example5(ghost x int) {
 }
 
-ensures x # s <= |s|;
+ensures x # s <= len(s);
 func example6(ghost x int, ghost s set[int]) {
 }

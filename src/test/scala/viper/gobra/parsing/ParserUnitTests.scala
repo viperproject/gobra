@@ -404,15 +404,15 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse basic '|e|'-shaped expressions") {
-    frontend.parseExp("|xs|") should matchPattern {
-      case Right(PCardinality(PNamedOperand(PIdnUse("xs")))) =>
+    frontend.parseExp("len(xs)") should matchPattern {
+      case Right(PLength(PNamedOperand(PIdnUse("xs")))) =>
     }
   }
 
   test ("Parser: length of concatenated sequences") {
-    frontend.parseExp("|xs ++ ys|") should matchPattern {
+    frontend.parseExp("len(xs ++ ys)") should matchPattern {
       case Right(
-      PCardinality(
+      PLength(
           PSequenceAppend(
             PNamedOperand(PIdnUse("xs")),
             PNamedOperand(PIdnUse("ys"))
@@ -477,8 +477,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: taking the length of sequence update expression") {
-    frontend.parseExp("|xs[x = false]|") should matchPattern {
-      case Right(PCardinality(
+    frontend.parseExp("len(xs[x = false])") should matchPattern {
+      case Right(PLength(
         PGhostCollectionUpdate(
           PNamedOperand(PIdnUse("xs")),
           Vector(
@@ -578,13 +578,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a slightly more complex sequence range expression") {
-    frontend.parseExpOrFail("seq[x + y .. |seq[bool] { true }|]") should matchPattern {
+    frontend.parseExpOrFail("seq[x + y .. len(seq[bool] { true })]") should matchPattern {
       case PRangeSequence(
         PAdd(
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("y"))
         ),
-        PCardinality(
+        PLength(
           PCompositeLit(
             PSequenceType(PBoolType()),
             PLiteralValue(Vector(
@@ -684,13 +684,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should parse a sequence update expression with three clauses") {
-    frontend.parseExpOrFail("xs[1 = true,2 = b , 7 = |xs|]") should matchPattern {
+    frontend.parseExpOrFail("xs[1 = true,2 = b , 7 = len(xs)]") should matchPattern {
       case PGhostCollectionUpdate(
         PNamedOperand(PIdnUse("xs")),
         Vector(
           PGhostCollectionUpdateClause(PIntLit(a, Decimal), PBoolLit(true)),
           PGhostCollectionUpdateClause(PIntLit(b, Decimal), PNamedOperand(PIdnUse("b"))),
-          PGhostCollectionUpdateClause(PIntLit(c, Decimal), PCardinality(PNamedOperand(PIdnUse("xs"))))
+          PGhostCollectionUpdateClause(PIntLit(c, Decimal), PLength(PNamedOperand(PIdnUse("xs"))))
         )
       ) if a == BigInt(1) && b == BigInt(2) && c == BigInt(7) =>
     }
@@ -721,14 +721,14 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse slightly complex indexed expressions") {
-    frontend.parseExpOrFail("(xs ++ ys)[|zs| + 2]") should matchPattern {
+    frontend.parseExpOrFail("(xs ++ ys)[len(zs) + 2]") should matchPattern {
       case PIndexedExp(
         PSequenceAppend(
           PNamedOperand(PIdnUse("xs")),
           PNamedOperand(PIdnUse("ys"))
         ),
         PAdd(
-          PCardinality(PNamedOperand(PIdnUse("zs"))),
+          PLength(PNamedOperand(PIdnUse("zs"))),
           PIntLit(n, Decimal)
         )
       ) if n == BigInt(2) =>
@@ -1566,8 +1566,8 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to correctly parse multiset cardinality") {
-    frontend.parseExpOrFail("|mset[bool] { }|") should matchPattern {
-      case PCardinality(
+    frontend.parseExpOrFail("len(mset[bool] { })") should matchPattern {
+      case PLength(
         PCompositeLit(
           PMultisetType(PBoolType()),
           PLiteralValue(Vector())
@@ -1637,10 +1637,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a comparison of set cardinality expressions") {
-    frontend.parseExpOrFail("|s| == |t|") should matchPattern {
+    frontend.parseExpOrFail("len(s) == len(t)") should matchPattern {
       case PEquals(
-        PCardinality(PNamedOperand(PIdnUse("s"))),
-        PCardinality(PNamedOperand(PIdnUse("t")))
+        PLength(PNamedOperand(PIdnUse("s"))),
+        PLength(PNamedOperand(PIdnUse("t")))
       ) =>
     }
   }
@@ -1805,10 +1805,10 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a slightly more complicated range set expression") {
-    frontend.parseExpOrFail("set[x + y .. |xs|]") should matchPattern {
+    frontend.parseExpOrFail("set[x + y .. len(xs)]") should matchPattern {
       case PSetConversion(PRangeSequence(
         PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
-        PCardinality(PNamedOperand(PIdnUse("xs")))
+        PLength(PNamedOperand(PIdnUse("xs")))
       )) =>
     }
   }
@@ -2054,19 +2054,19 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse a slightly more complex multiset range expression") {
-    frontend.parseExpOrFail("mset [ x + (y) .. | xs | ]") should matchPattern {
+    frontend.parseExpOrFail("mset [ x + (y) .. len( xs ) ]") should matchPattern {
       case PMultisetConversion(
         PRangeSequence(
           PAdd(PNamedOperand(PIdnUse("x")), PNamedOperand(PIdnUse("y"))),
-          PCardinality(PNamedOperand(PIdnUse("xs")))
+          PLength(PNamedOperand(PIdnUse("xs")))
         )
       ) =>
     }
   }
 
   test("Parser: should be able to parse the size of a multiset range expression") {
-    frontend.parseExpOrFail("|(mset[(x)..y])|") should matchPattern {
-      case PCardinality(
+    frontend.parseExpOrFail("len((mset[(x)..y]))") should matchPattern {
+      case PLength(
         PMultisetConversion(PRangeSequence(
           PNamedOperand(PIdnUse("x")),
           PNamedOperand(PIdnUse("y"))
@@ -2632,8 +2632,14 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should bitwise and logical operators in the correct order") {
     frontend.parseExpOrFail("60|1 < 0x2 && true") should matchPattern {
-      case PAnd(PLess(PBitwiseOr(sixty, one), two), PBoolLit(true))
+      case PAnd(PLess(PBitOr(sixty, one), two), PBoolLit(true))
         if sixty == PIntLit(BigInt(60), Decimal) && one == PIntLit(BigInt(1), Decimal) && two == PIntLit(BigInt(2), Hexadecimal) =>
+    }
+  }
+
+  test("Parser: should be able to parse type conversions") {
+    frontend.parseExpOrFail("uint8(1)") should matchPattern {
+      case PInvoke(PUInt8Type(), Vector(x)) if x == PIntLit(1) =>
     }
   }
 

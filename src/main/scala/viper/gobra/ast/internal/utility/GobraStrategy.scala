@@ -140,7 +140,6 @@ object GobraStrategy {
       case (_: Intersection, Seq(l: Expr, r: Expr)) => Intersection(l, r)(meta)
       case (_: SetMinus, Seq(l: Expr, r: Expr)) => SetMinus(l, r)(meta)
       case (_: Subset, Seq(l: Expr, r: Expr)) => Subset(l ,r)(meta)
-      case (_: Cardinality, Seq(arg: Expr)) => Cardinality(arg)(meta)
       case (_: Contains, Seq(l: Expr, r: Expr)) => Contains(l, r)(meta)
       case (_: SetConversion, Seq(arg: Expr)) => SetConversion(arg)(meta)
       case (_: MultisetConversion, Seq(arg: Expr)) => MultisetConversion(arg)(meta)

@@ -180,7 +180,7 @@ class MapEncoding extends LeafTypeEncoding {
             checks <- sequence(runtimeCheck)
             _ <- write(checks: _*)
             _ <- if (checks.nonEmpty) errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if checks.nonEmpty && e.causedBy(checks(0)) =>
+              case e@err.ExhaleFailed(Source(info), _, _) if e.causedBy(checks(0)) =>
                 MapMakePreconditionError(info)
             } else unit(())
 

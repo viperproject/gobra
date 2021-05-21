@@ -8,16 +8,19 @@ package viper.gobra.translator.encodings
 
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.BackTranslator.RichErrorMessage
+import viper.gobra.reporting.{ShiftPreconditionError, Source}
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
 
 class IntEncoding extends LeafTypeEncoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
   /**
     * Translates a type into a Viper type.
@@ -39,6 +42,18 @@ class IntEncoding extends LeafTypeEncoding {
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def handleShift(shiftFunc: vpr.Function)(left: in.Expr, right: in.Expr): (vpr.Position, vpr.Info, vpr.ErrorTrafo) => CodeWriter[vpr.Exp]  = {
+      case (pos, info, errT) =>
+        for {
+          vl <- goE(left);
+          vr <- goE(right)
+          app = vpr.FuncApp(shiftFunc, Seq(vl, vr))(pos, info, errT)
+          _ <- errorT {
+            case e@err.PreconditionInAppFalse(Source(info), _, _) if e.causedBy(app) =>
+              ShiftPreconditionError(info)
+          }
+        } yield app
+    }
 
     default(super.expr(ctx)){
       case (e: in.DfltVal) :: ctx.Int() / Exclusive => unit(withSrc(vpr.IntLit(0), e))
@@ -50,13 +65,13 @@ class IntEncoding extends LeafTypeEncoding {
       case e@ in.Mod(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Mod(vl, vr), e)
       case e@ in.Div(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.Div(vl, vr), e)
 
-      case e@ in.BitwiseAnd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
-      case e@ in.BitwiseOr(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
-      case e@ in.BitwiseXor(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
+      case e@ in.BitAnd(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseAnd, Seq(vl, vr)), e)
+      case e@ in.BitOr(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseOr,  Seq(vl, vr)), e)
+      case e@ in.BitXor(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitwiseXor, Seq(vl, vr)), e)
       case e@ in.BitClear(l, r)   => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(bitClear, Seq(vl, vr)), e)
-      case e@ in.ShiftLeft(l, r)  => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(shiftLeft, Seq(vl, vr)), e)
-      case e@ in.ShiftRight(l, r) => for {vl <- goE(l); vr <- goE(r)} yield withSrc(vpr.FuncApp(shiftRight, Seq(vl, vr)), e)
-      case e@ in.BitwiseNeg(exp)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
+      case e@ in.ShiftLeft(l, r)  => withSrc(handleShift(shiftLeft)(l, r), e)
+      case e@ in.ShiftRight(l, r) => withSrc(handleShift(shiftRight)(l, r), e)
+      case e@ in.BitNeg(exp)  => for {ve <- goE(exp)} yield withSrc(vpr.FuncApp(bitwiseNegation, Seq(ve)), e)
     }
   }
 
@@ -114,13 +129,12 @@ class IntEncoding extends LeafTypeEncoding {
   private val shiftLeft: vpr.Function = {
     val left = vpr.LocalVarDecl("left", vpr.Int)(info = vpr.Synthesized)
     val right = vpr.LocalVarDecl("right", vpr.Int)(info = vpr.Synthesized)
-    val preCondInfo = vpr.SimpleInfo(Seq("Precondition to << failed, the argument on the right must be non-negative"))
     vpr.Function(
       name = Names.shiftLeft,
       formalArgs = Seq(left, right),
       typ = vpr.Int,
-      // if the value at the right is < 0, it panicks
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(info = preCondInfo)),
+      // if the value at the right is < 0, it panics
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
       posts = Seq.empty,
       body = None
     )()
@@ -129,13 +143,12 @@ class IntEncoding extends LeafTypeEncoding {
   private val shiftRight: vpr.Function = {
     val left = vpr.LocalVarDecl("left", vpr.Int)()
     val right = vpr.LocalVarDecl("right", vpr.Int)()
-    val preCondInfo = vpr.SimpleInfo(Seq("Precondition to >> failed, the argument on the right must be non-negative"))
     vpr.Function(
       name = Names.shiftRight,
       formalArgs = Seq(left, right),
       typ = vpr.Int,
-      // if the value at the right is < 0, it panicks
-      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())(info = preCondInfo)),
+      // if the value at the right is < 0, it panics
+      pres = Seq(vpr.GeCmp(right.localVar, vpr.IntLit(BigInt(0))())()),
       posts = Seq.empty,
       body = None
     )()

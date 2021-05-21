@@ -211,11 +211,11 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
-case class PBitwiseAndOp() extends PAssOp
+case class PBitAndOp() extends PAssOp
 
-case class PBitwiseOrOp() extends PAssOp
+case class PBitOrOp() extends PAssOp
 
-case class PBitwiseXorOp() extends PAssOp
+case class PBitXorOp() extends PAssOp
 
 case class PBitClearOp() extends PAssOp
 
@@ -335,7 +335,7 @@ object PLiteral {
     * and type `typ`, with unkeyed elements `exprs`.
     */
   def array(typ : PType, exprs : Vector[PExpression]) = PCompositeLit(
-    PArrayType(PIntLit(exprs.length, Decimal), typ),
+    PArrayType(PIntLit(exprs.length), typ),
     PLiteralValue(exprs.map(e => PKeyedElement(None, PExpCompositeVal(e))))
   )
 
@@ -428,6 +428,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * Gobra extends this with:
   *
   * - Sequence: the number of elements in `exp`.
+  * - Set: the cardinality of `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
@@ -462,7 +463,7 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
-case class PBitwiseNegation(operand: PExpression) extends PUnaryExp
+case class PBitNegation(operand: PExpression) extends PUnaryExp with PNumExpression
 
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
@@ -495,11 +496,11 @@ case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
-case class PBitwiseXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+case class PBitXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
@@ -919,12 +920,6 @@ sealed trait PGhostCollectionExp extends PGhostExpression
   * that is, membership of a ghost collection.
   */
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
-
-/**
-  * Denotes the cardinality of `exp`, which is expected
-  * to be either a set or a multiset.
-  */
-case class PCardinality(exp : PExpression) extends PGhostCollectionExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

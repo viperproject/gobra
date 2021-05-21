@@ -454,21 +454,21 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should show the unary size operator for sequences and (multi)sets as expected") {
-    val expr = PCardinality(PNamedOperand(PIdnUse("s")))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
     frontend.show(expr) should matchPattern {
-      case "|s|" =>
+      case "len(s)" =>
     }
   }
 
   test("Printer: should correctly show the size operator in combination with set union") {
-    val expr = PCardinality(
+    val expr = PLength(
       PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       )
     )
     frontend.show(expr) should matchPattern {
-      case "|s union t|" =>
+      case "len(s union t)" =>
     }
   }
 
@@ -555,7 +555,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.multiset(PMultisetType(PIntType()), Vector(
         PLiteral.multiset(PIntType(), Vector(PIntLit(1))),
         PLiteral.multiset(PIntType(), Vector(PIntLit(2), PIntLit(3)))
@@ -563,7 +563,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )
 
     frontend.show(expr) should matchPattern {
-      case "|mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } }|" =>
+      case "len(mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } })" =>
     }
   }
 

@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package integers
+
+// 0b11110000 overflows type int8. The Go compiler produces
+// the same error
+//:: ExpectedOutput(type_error)
+const BIN1 int8 = int8(0b11110000)
+
+// does not lead to type error
+const HEX1 uint16 = uint16(0xffff)
+
+// 0xffff overflows type int16. The Go compiler produces
+// the same error
+//:: ExpectedOutput(type_error)
+const HEX2 int16 = int16(0xffff)

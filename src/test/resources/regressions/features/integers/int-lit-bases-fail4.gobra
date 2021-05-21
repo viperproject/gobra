@@ -5,4 +5,4 @@ package integers
 
 // can only parse integer literals if the symbols used match the base of the literal
 //:: ExpectedOutput(parser_error)
-const BIN1 int8 = 0b21110000
+const OCT2 = 0o9

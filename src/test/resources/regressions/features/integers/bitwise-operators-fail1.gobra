@@ -16,7 +16,7 @@ func test2() {
 	l := -1
 	y := int16(10)
 	// Panics because l is negative. Shift operations throw a runtime error when the RHS is negative at runtime
-	//:: ExpectedOutput(precondition_error:assertion_error)
+	//:: ExpectedOutput(shift_precondition_error)
 	y <<= l
 }
 
@@ -24,6 +24,6 @@ func test3() {
 	l := -1
 	y := int16(10)
 	// Panics because l is negative. Shift operations throw a runtime error when the RHS is negative at runtime
-	//:: ExpectedOutput(precondition_error:assertion_error)
+	//:: ExpectedOutput(shift_precondition_error)
 	y >>= l
 }

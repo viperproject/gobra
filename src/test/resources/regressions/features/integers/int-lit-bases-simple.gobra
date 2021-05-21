@@ -1,0 +1,29 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+package integers
+
+// untyped constants may have arbitrarily large values
+const (
+	C1 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+)
+
+func testHex() {
+	assert 0xBadFace == 195951310
+	assert 0x2 == 2
+	assert 0XFF == 255
+}
+
+func testBin() {
+	assert 0b11 == 3
+	assert 0B1110 == 14
+	assert int8(0b01111111) == 127
+	// 0b11010101 can be converted to uint8 but not to int8 (same behavior as the go compiler)
+	assert uint8(0b11010101) == 213
+}
+
+func testOctal() {
+	// integer literals starting with 0 are octal literals
+	assert 017 == 15
+	assert 0o72 == 58
+	assert 0O37 == 31
+}

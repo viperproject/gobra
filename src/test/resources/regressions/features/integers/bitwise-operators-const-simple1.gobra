@@ -16,14 +16,11 @@ const (
 	AND6 = -6 & -39
 )
 
-// func fff(i int)
-
 func testAnd() {
 	assert AND1 == 240
 	assert AND2 == 120
 	assert AND3 == 85
 	assert AND4 == 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000992
-	// fff(AND4) // TODO: open issue in go, this throws a type error because AND4 overflows int // requires more checks
 	assert AND5 == 0
 	assert AND6 == -40
 }
@@ -43,7 +40,6 @@ func testOr() {
 	assert OR2 == 127
 	assert OR3 == 127
 	assert OR4 == 1000000000000000000000000000000000000000000000000000000000000000000000000000000000001007
-	// fff(OR4) // TODO: also overflows int, type error
 	assert OR5 == -21
 	assert OR6 == -5
 }
@@ -90,19 +86,19 @@ func testBc() {
 
 // tests for <<
 const (
+	SL1 = 123 << 2
+	SL2 = -123 << 2
 	SL3 = int8(1) << 6
 	SL4 = int8(-12) << 2
 	SL5 = 431249132023158029358 << 256
-	SL6 = 123 << 2
-	SL7 = -123 << 2
 )
 
 func testSl() {
+	assert SL1 == 492
+	assert SL2 == -492
 	assert SL3 == 64
 	assert SL4 == -48
 	assert SL5 == 49935237978740667887939283908129594836646836703836428527193610850131056089476876096067297857241088
-	assert SL6 == 492
-	assert SL7 == -492
 }
 
 // tests for >>

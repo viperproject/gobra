@@ -40,7 +40,7 @@ const (
 
 	// constant expression 0 - 1 overflows uint8
 	//:: ExpectedOutput(type_error)
-	AND2 = uint8(1) & -1 // TODO: must fail
+	AND2 = uint8(1) & -1
 
 	// uint32(1) &^ 1 does not cause type errors. However, uint32(1) & ^1 does
 	// https://stackoverflow.com/questions/43782187/why-does-go-have-a-bit-clear-and-not-operator/43783202

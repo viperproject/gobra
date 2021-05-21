@@ -892,7 +892,7 @@ object Parser {
       "0" ~> ("x"|"X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal))
 
     lazy val decimalLit: Parser[PIntLit] =
-      (exactWord("0") | regex("[0-9]+".r)) ^^ (lit => PIntLit(BigInt(lit)))
+      (exactWord("0") | regex("[1-9][0-9]*".r)) ^^ (lit => PIntLit(BigInt(lit)))
 
     lazy val stringLit: Parser[PStringLit] =
       rawStringLit | interpretedStringLit

@@ -3,6 +3,6 @@
 
 package integers
 
-// can only parse integer literals if the symbols used match the base of the litera
-//:: ExpectedOutput(parser_error)
+// if no "0x" prefix is given, then ffff is treated as an identifier
+//:: ExpectedOutput(type_error)
 const HEX2 = ffff

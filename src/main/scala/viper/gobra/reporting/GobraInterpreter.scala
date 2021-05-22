@@ -2,8 +2,11 @@ package viper.gobra.reporting
 import viper.silicon.{reporting => sil}
 import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.TypeInfo
+import viper.gobra.ast.frontend._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
+import scala.util.matching.Regex
 
 
 trait GobraInterpreter extends sil.ModelInterpreter[GobraModelEntry,Type]
@@ -487,12 +490,65 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			val typfunc   = doms.get.functions.find(_.fname==Names.getterFunc(1,2))match{case Some(x) => x ; case _ => return FaultEntry("no type function?")}
 			val value = valuefunc.apply(Seq(entry)) match{case Right(v) => v}
 			val typ = typfunc.apply(Seq(entry)) match{case Right(v) => v}
-			printf(s"$doms")
-			FaultEntry("interface not implemented")
-
+			val typeDom = c.domains.find(_.valueName==Names.typesDomain).get 
+			//either which it is or a list ow which it isn't
+			val typeinfo =getType(typ,typeDom)
+			val typeDecls = info.context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
+			val gobraType = typeinfo match {
+				case (Left(v),p) => {
+					// we can find out which named type it is TODO: make named finding better (e.g named with _ in them)
+					val namedName = v.fname.takeWhile(_!='_')
+					val declaredT =typeDecls.find(_.left.name==namedName) match {
+						case Some(decl) => DeclaredT(decl, info.context)
+						case _ => return FaultEntry(s"could not resolve custom type $namedName")
+					}
+					if(p){
+						PointerT(declaredT)
+					}else{
+						declaredT
+					}
+				}
+				case (Right(_),_) => return FaultEntry("pointer interfaces not implemented...")
+			}
+			val fieldName = PointerInterpreter(c).filedname(if(typeinfo._2){sil.RefEntry("l",null)}else{sil.LitBoolEntry(false)},gobraType)
+			//printf(s"$gobraType")
+			//
+			//ISSUE: we do not know the (viper) type of the entry...
+			val polyDom = c.domains.find(x=>x.valueName==s"Poly[${fieldName.drop(5)}]")///* &&x.functions.find(_.fname=="box_Poly").isDefined&&x.functions.find(_.fname=="box_Poly").get.default==value) */ match{case Some(x)=> x;case  _ => return FaultEntry("Polymorphism could not be resolved")}
+			val viperVal = polyDom match{
+				case Some(x) => {
+					x.functions.find(_.fname=="unbox_Poly").get.apply(Seq(value)) match{ case Right(x) => x}
+				}
+				case _ => return FaultEntry("no corresponding Polymorphism")
+			}
+			//printf(s"\n${info.context.symbType(info.decl)};;\n $field\n ${fieldname.drop(5)}\n")
+			MasterInterpreter(c).interpret(viperVal,gobraType)
 		 }else{
 			FaultEntry(s"${entry.domain} not found")
 		 }
+	
+
 	}
+	def getType(typ:sil.ExtractedModelEntry,typeDom:sil.DomainEntry) :(Either[sil.ExtractedFunction,Seq[sil.ExtractedFunction]],Boolean) = { //TODO: handle pointer to pointer
+		//context.externalRegular(PIdnDef(function.takeWhile(_!='_'))).get.rep.toString
+		val pointerfunc = typeDom.functions.find(_.fname=="pointer_Types").get
+		val isreversable =pointerfunc.options.values.toSeq.contains(typ)
+		val isDefault= pointerfunc.default == typ
+		if(isreversable){
+			val actualtyp = pointerfunc.options.find(_._2==typ).get._1
+			val corr_typ_func =  typeDom.functions.find(_.default==actualtyp) match{case Some(x)=> x}
+			(Left(corr_typ_func),true) 
+		
+		}else if(isDefault){
+			val isNot = pointerfunc.options.map(_._1)
+			val corr_types = isNot.map(y=>typeDom.functions.find(_.default==y) match{case Some(x)=> x})
+			(Right(corr_types.toSeq),true)
+		}
+		else{
+			val corr_typ_func =  typeDom.functions.find(_.default==typ) match{case Some(x)=> x}
+			(Left(corr_typ_func),false)
+		}
+	}
+
 }
 //case class TypeInterpreter(c:sil.Converter) extends GobraDomainInterpreter[]

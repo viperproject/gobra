@@ -5,7 +5,7 @@
 
 [Gobra](https://www.pm.inf.ethz.ch/research/gobra.html) is a prototype verifier for Go programs, based on the [Viper verification infrastructure](https://www.pm.inf.ethz.ch/research/viper.html).
 
-We call annotated Go programs Gobra programs and use the file extension `.gobra` for them. A tutorial can be found in [`https://github.com/viperproject/gobra/blob/master/docs/tutorial.md`]. More examples can be found in [`src/test/resources`](https://github.com/viperproject/gobra/blob/master/src/test/resources).
+We call annotated Go programs Gobra programs and use the file extension `.gobra` for them. A tutorial can be found in [`docs/tutorial.md`](https://github.com/viperproject/gobra/blob/master/docs/tutorial.md). More examples can be found in [`src/test/resources`](https://github.com/viperproject/gobra/blob/master/src/test/resources).
 
 ## Compile and Run Gobra
 ### Preliminaries

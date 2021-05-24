@@ -10,7 +10,7 @@ import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PNode
 import viper.gobra.frontend.Config
-import viper.gobra.frontend.info.base.Type.{AbstractType, AssertionT, ChannelModus, ChannelT, FunctionT, IntT, PredT, Type, VoidType}
+import viper.gobra.frontend.info.base.Type.{AbstractType, AssertionT, ChannelModus, ChannelT, FunctionT, IntT, PredT, SliceT, Type, VariadicT, VoidType}
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation
@@ -105,6 +105,53 @@ object BuiltInMemberTag {
     override def returnGhostTyping(args: Vector[Type])(config: Config): GhostType = ghostArgs(0)
   }
 
+  case object AppendFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "append"
+
+    override def name: String = "AppendFunctionTag"
+
+    override def ghost: Boolean = false
+
+    override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = AbstractType(
+      {
+        // TODO: add support for first argument whose underlying type is a slice
+        case (_, Vector(c: SliceT, v: VariadicT)) if c.elem == v.elem => noMessages
+        case (_, (h: SliceT) +: tail) if tail.forall(_ == h.elem) => noMessages
+        case (n, ts) => error(n, s"type error: append expects first argument of slice type and the second of variadic type but got ${ts.mkString(", ")}")
+      },
+      {
+        case ts@ Vector(c: SliceT, v: VariadicT) if c.elem == v.elem => FunctionT(ts, c)
+        case (h: SliceT) +: tail if tail.forall(_ == h.elem) =>  FunctionT(Vector(h, VariadicT(h.elem)), h)
+      })
+
+    override def argGhostTyping(args: Vector[Type])(config: Config): GhostType =
+      GhostType.ghostTuple(Vector(false, false))
+
+    override def returnGhostTyping(args: Vector[Type])(config: Config): GhostType = ghostArgs(0)
+  }
+
+  case object CopyFunctionTag extends BuiltInFunctionTag {
+    override def identifier: String = "copy"
+    override def name: String = "CopyFunctionTag"
+    override def ghost: Boolean = false
+    override def isPure: Boolean = false
+
+    override def typ(config: Config): AbstractType = AbstractType(
+      {
+        case (_, Vector(c: SliceT, v: SliceT)) if c.elem == v.elem => noMessages
+        case (n, ts) => error(n, s"type error: copy expects two slices of the same type but got ${ts.mkString(", ")}")
+      },
+      {
+        case ts@ Vector(c: SliceT, v: SliceT) if c.elem == v.elem => FunctionT(ts, IntT(config.typeBounds.Int))
+      })
+
+    override def argGhostTyping(args: Vector[Type])(config: Config): GhostType =
+      GhostType.ghostTuple(Vector(false, false))
+
+    override def returnGhostTyping(args: Vector[Type])(config: Config): GhostType = GhostType.notGhost
+  }
 
   /** Built-in FPredicate Tags */
 
@@ -279,6 +326,8 @@ object BuiltInMemberTag {
   def builtInMembers(): Vector[BuiltInMemberTag] = Vector(
     // functions
     CloseFunctionTag,
+    AppendFunctionTag,
+    CopyFunctionTag,
     // fpredicates
     PredTrueFPredTag,
     // methods

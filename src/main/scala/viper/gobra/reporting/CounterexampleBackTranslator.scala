@@ -52,8 +52,14 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 
 		val tranlator = MasterInterpreter(converter).interpret(_,_)	
 		//translate the values
-
-		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>{InterpreterCache.clearCache();(x._1,tranlator(x._2,Util.getType(x._1.pnode,typeinfo)))})))													
+		
+		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>
+							{InterpreterCache.clearCache();
+								val typeval = Util.getType(x._1.pnode,typeinfo)
+								//printf(s"$x;;$typeval\n")
+								(x._1,tranlator(x._2,typeval))
+							}
+								)))												
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
 		lazy val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(_._1.node.toString.contains("$") ).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
 		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
@@ -191,10 +197,10 @@ case class LitOptionEntry(value:Option[LitEntry]) extends LitEntry {
 	override def toString(): String = s"$value"
 }
 case class LitSetEntry(values:Set[LitEntry])extends LitEntry {
-	override def toString(): String = s"{${values.map(_.toString).mkString(", ")}}"
+	override def toString(): String = values.map(_.toString).mkString("{",", ","}")
 }
-case class LitMSetEntry(values:Set[LitEntry])extends LitEntry {
-	override def toString(): String = s"{${values.map(_.toString).mkString(", ")}}"
+case class LitMSetEntry(values:Map[LitEntry,Int])extends LitEntry {
+	override def toString(): String = values.map(x=>s"(${x._1}:${x._2})").mkString("{",", ","}")
 }
 case class LitArrayEntry(typ:ArrayT,values:Seq[LitEntry])extends LitEntry with WithSeq{
 	override def toString(): String = Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"

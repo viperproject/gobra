@@ -40,7 +40,12 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 		entry match{
 			case sil.LitIntEntry(v) => info match {
 												case StringT => StringInterpreter(c).interpret(entry,null)
-												case DeclaredT(d,c) => val name = d.left.name; LitDeclaredEntry(name,LitIntEntry(v))
+												case DeclaredT(d,c) => val name = d.left.name
+																		val actual = interpret(entry,c.symbType(d.right)) match {
+																			case l:LitEntry => l
+																			case _ => FaultEntry("not a lit entry")
+																		}
+																		LitDeclaredEntry(name,actual)
 												case _ =>LitIntEntry(v)
 										}
 			case sil.LitBoolEntry(b) => info match{
@@ -101,13 +106,21 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 													case _ => FaultEntry("recursive reference to non pointer... how?")
 												}
 			case s:sil.SeqEntry => 	info match {
-										case a:ArrayT =>  LitArrayEntry(a,s.values.map(x=> interpret(x,a.elem)
+										case a:ArrayT=>  LitArrayEntry(a,s.values.map(x=> interpret(x,a.elem)
 																						match {case l:LitEntry=> l;
 																								case _ => FaultEntry("Could not resolve Element")
 																						})
 																		)
-										case _ => DummyEntry()
+										case seq:SequenceT => LitSeqEntry(seq,s.values.map(x=> interpret(x,seq.elem)
+																						match {case l:LitEntry=> l;
+																								case _ => FaultEntry("Could not resolve Element")
+																						})
+																		)
+										case _ => FaultEntry(s"$info not implemented")
 										}
+			/* case s:sil.SetEntry => info match {
+				case _ => FaultEntry(s"$s ,$info not implemented")
+			} */
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}
@@ -210,7 +223,7 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 																			})
 												)).toMap
 			val mem =  Integer.parseInt(entry.id)
-			val offset =  (entry.domain).hashCode %100
+			val offset =  (entry.domain).hashCode.abs % 100
 			var address =BigInt( mem * 100 + (if(mem!=0) offset else 0) ) // shuld be 0 if we are dealing with the default value
 			try{
 				
@@ -478,7 +491,7 @@ case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[Gobra
 		else if(input.size<2) throw new IllegalArgumentException()
 		else {
 			val (first,second) = input.splitAt(2)
-			Seq(first)++toArray(second)
+			first+:toArray(second)
 		}
 	}
 }
@@ -508,18 +521,20 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 						declaredT
 					}
 				}
-				case (Right(_),_) => return FaultEntry("pointer interfaces not implemented...")
+				case (Right(_),_) => return FaultEntry("unknown type")
 			}
 			val fieldName = PointerInterpreter(c).filedname(if(typeinfo._2){sil.RefEntry("l",null)}else{sil.LitBoolEntry(false)},gobraType)
 			//printf(s"$gobraType")
 			//
 			//ISSUE: we do not know the (viper) type of the entry...
-			val polyDom = c.domains.find(x=>x.valueName==s"Poly[${fieldName.drop(5)}]")///* &&x.functions.find(_.fname=="box_Poly").isDefined&&x.functions.find(_.fname=="box_Poly").get.default==value) */ match{case Some(x)=> x;case  _ => return FaultEntry("Polymorphism could not be resolved")}
+			val polyDom = c.domains.find(x=>x.valueName.startsWith(s"Poly[${fieldName.drop(5).takeWhile(_!='_')}"))
 			val viperVal = polyDom match{
 				case Some(x) => {
 					x.functions.find(_.fname=="unbox_Poly").get.apply(Seq(value)) match{ case Right(x) => x}
 				}
-				case _ => return FaultEntry("no corresponding Polymorphism")
+				case _ => try{
+					c.extractVal(value.asInstanceOf[sil.VarEntry])
+				}catch{case _:Throwable => return FaultEntry(s"no corresponding Polymorphism for ${fieldName.drop(5).takeWhile(_!='_')}")}
 			}
 			//printf(s"\n${info.context.symbType(info.decl)};;\n $field\n ${fieldname.drop(5)}\n")
 			MasterInterpreter(c).interpret(viperVal,gobraType)
@@ -535,8 +550,9 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		val isreversable =pointerfunc.options.values.toSeq.contains(typ)
 		val isDefault= pointerfunc.default == typ
 		if(isreversable){
-			val actualtyp = pointerfunc.options.find(_._2==typ).get._1
-			val corr_typ_func =  typeDom.functions.find(_.default==actualtyp) match{case Some(x)=> x}
+			val actualtyp = pointerfunc.options.toSeq.find(_._2==typ).get._1.head
+			//printf(s"$actualtyp;;\n$typeDom")
+			val corr_typ_func =typeDom.functions.find(_.default==actualtyp) match{case Some(x)=> x}
 			(Left(corr_typ_func),true) 
 		
 		}else if(isDefault){
@@ -551,4 +567,3 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 	}
 
 }
-//case class TypeInterpreter(c:sil.Converter) extends GobraDomainInterpreter[]

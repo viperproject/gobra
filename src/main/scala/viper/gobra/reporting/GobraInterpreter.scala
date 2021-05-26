@@ -2,7 +2,7 @@ package viper.gobra.reporting
 import viper.silicon.{reporting => sil}
 import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
-import viper.gobra.frontend.info.TypeInfo
+import viper.gobra.frontend.info.{TypeInfo,ExternalTypeInfo}
 import viper.gobra.ast.frontend._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
@@ -504,7 +504,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			val value = valuefunc.apply(Seq(entry)) match{case Right(v) => v}
 			val typ = typfunc.apply(Seq(entry)) match{case Right(v) => v}
 			val typeDom = c.domains.find(_.valueName==Names.typesDomain).get 
-			//either which it is or a list ow which it isn't
+			//either which it is or a list ow which it could be
 			val typeinfo =getType(typ,typeDom)
 			val typeDecls = info.context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
 			val gobraType = typeinfo match {
@@ -521,7 +521,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 						declaredT
 					}
 				}
-				case (Right(_),_) => return FaultEntry("unknown type")
+				case (Right(o),_) => return UnresolvedInterface(info,get_options(o,value,typeDecls,info.context))
 			}
 			val fieldName = PointerInterpreter(c).filedname(if(typeinfo._2){sil.RefEntry("l",null)}else{sil.LitBoolEntry(false)},gobraType)
 			//printf(s"$gobraType")
@@ -541,7 +541,6 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		 }else{
 			FaultEntry(s"${entry.domain} not found")
 		 }
-	
 
 	}
 	def getType(typ:sil.ExtractedModelEntry,typeDom:sil.DomainEntry) :(Either[sil.ExtractedFunction,Seq[sil.ExtractedFunction]],Boolean) = { //TODO: handle pointer to pointer
@@ -557,7 +556,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		
 		}else if(isDefault){
 			val isNot = pointerfunc.options.map(_._1)
-			val corr_types = isNot.map(y=>typeDom.functions.find(_.default==y) match{case Some(x)=> x})
+			val corr_types = typeDom.functions.filterNot(y=>(isNot.find(_==y.default).isDefined || isnonTypeFunction(y.fname)))
 			(Right(corr_types.toSeq),true)
 		}
 		else{
@@ -565,5 +564,25 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			(Left(corr_typ_func),false)
 		}
 	}
-
+	def get_options(functions:Seq[sil.ExtractedFunction],value:sil.ExtractedModelEntry,typedecls:Seq[PTypeDecl],context:ExternalTypeInfo): Seq[GobraModelEntry] = {
+		val names = functions.map(_.fname.takeWhile(_!='_'))
+		val declarations = typedecls.collect(x=>{if(names.contains(x.left.name.toString)) Some(DeclaredT(x, context))else None} ).collect(_ match {case Some(x) => x})
+		val fieldNameswithtyps = declarations map (x=>(PointerInterpreter(c).filedname(sil.RefEntry("l",null),PointerT(x)),PointerT(x)))
+		val polysandtyps = fieldNameswithtyps.collect(f=>c.domains.find(_.valueName.startsWith(s"Poly[${f._1.drop(5).takeWhile(_!='_')}"))match{case Some(x)=> (x,f._2)})
+		val relevantpolys = polysandtyps.filter(x=>isPointerViper(x._1.valueName.drop(5)))
+		//TODO: more filter
+		printf(s"$names\n---\n$declarations\n---\n$polysandtyps\n")
+		val values = relevantpolys.collect(x=>x._1.functions.find(_.fname=="unbox_Poly")match {case Some(f)=>f.apply(Seq(value))match{case Right(r)=>(r,x._2)} } )
+		values.map(x=>MasterInterpreter(c).interpret(x._1,x._2))
+	}
+	def isPointerViper(name:String) :Boolean ={ //TODO: add more
+		name.startsWith("Sh") || name.equals("Ref")
+	}
+	def isnonTypeFunction(fname:String) :Boolean ={//TODO: make this smarter
+		fname.startsWith(Names.emptyInterface) ||
+		fname.startsWith(Names.toInterfaceFunc) ||
+		fname.startsWith(Names.typeOfFunc) ||
+		fname.startsWith(Names.dynamicPredicate) ||
+		fname.startsWith(Names.implicitThis) 
+	}
 }

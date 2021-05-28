@@ -7,9 +7,11 @@
 package viper.gobra.frontend.info
 
 import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
-import viper.gobra.frontend.info.base.Type.{InterfaceT, StructT, Type}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
+import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
 import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
+import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
 
 trait ExternalTypeInfo {
 
@@ -56,6 +58,12 @@ trait ExternalTypeInfo {
   def typ(typ: PIdnNode): Type
 
   def typ(expr: PExpression): Type
+
+  def typ(expr: BuiltInMemberTag): AbstractType
+
+  def argGhostTyping(tag: BuiltInMemberTag, args: Vector[Type]): GhostType
+
+  def returnGhostTyping(tag: BuiltInMemberTag, args: Vector[Type]): GhostType
 
   def scope(n: PIdnNode): PScope
 

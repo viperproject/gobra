@@ -33,8 +33,8 @@ trait GhostIdTyping { this: TypeInfoImpl =>
     case x: BoundVariable => typeSymbType(x.decl.typ)
     case predicate: Predicate => FunctionT(predicate.args map predicate.context.typ, AssertionT)
     case func: DomainFunction => FunctionT(func.args map func.context.typ, func.context.typ(func.result.outs.head))
-    case BuiltInFPredicate(tag, _, _) => tag.typ(config)
-    case BuiltInMPredicate(tag, _, _) => tag.typ(config)
+    case BuiltInFPredicate(tag, _, _) => typ(tag)
+    case BuiltInMPredicate(tag, _, _) => typ(tag)
     case _ => violation("untypable")
   }
 }

@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag.{AppendFunctionTag, BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CopyFunctionTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -381,6 +381,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.Access(closedInst, in.FullPerm(src))(src)
         )
         in.Function(x.name, args, Vector(), pres, posts, None)(src)
+
+      case (AppendFunctionTag, args) => ???
+      case (CopyFunctionTag, args) => ???
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }
   }

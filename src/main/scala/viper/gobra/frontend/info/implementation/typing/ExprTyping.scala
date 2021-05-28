@@ -541,7 +541,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(_, res) => res
           case t: AbstractType =>
             val argTypes = n.args map exprType
-            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes)
+            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes).result
             else violation(s"expected typing function in AbstractType to be defined for $argTypes")
           case t => violation(s"expected function type or AbstractType but got $t")
         }

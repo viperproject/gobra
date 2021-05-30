@@ -47,6 +47,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
+												case ChannelT(elem,mod) => FaultEntry(s"Channel...${c.non_domain_functions.map(x=>try{x.apply(Seq(entry)) match{case Right(v)=> x.fname+": "+v.toString} }catch{case _:Throwable => ""})}")
 												case _ =>LitIntEntry(v)
 										}
 			case sil.LitBoolEntry(b) => info match{
@@ -458,6 +459,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 				case _ => s"val$$_Tuple${x.fields.size}_${x.fields.map(x=>filedname(null,x._2).replaceFirst("val$$_Tuple",""))}"
 			}
 			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general
+			case DomainT(decl,context) => "TODO: resolve Domain field"
 			case x => s"$x" //TODO: resolve all types 
 		}
 	}
@@ -517,9 +519,8 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 					// we can find out which named type it is TODO: make named finding better (e.g named with _ in them)
 					
 					val declaredT = fnameToType(v.fname,info.context) match {
-						case Some(UnknownType) => return FaultEntry(s"empty interface")
-						case Some(x) => x
-						case _ => return FaultEntry(s"could not resolve custom type ${v.fname}")
+						case Right(x) => x
+						case Left(x) => return x
 					}
 					if(p){
 						PointerT(declaredT)
@@ -538,7 +539,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			//
 			//ISSUE: we do not know the (viper) type of the entry...
 			//TODO: find correct viper type
-			val polyDom = c.domains.find(x=>x.valueName.startsWith(s"Poly[${fieldName.drop(5).takeWhile(_!='_')}"))
+			val polyDom = c.domains.find(x=>isSamePoly(x.valueName,fieldName))
 			val viperVal = polyDom match{
 				case Some(x) => {
 					x.functions.find(_.fname=="unbox_Poly").get.apply(Seq(value)) match{ case Right(x) => x}
@@ -554,15 +555,24 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		 }
 
 	}
-	def fnameToType(fname:String,context:ExternalTypeInfo):Option[Type] ={
+
+	def isSamePoly(domName:String,typeName:String) :Boolean = {
+		val ts = domName.drop(5).replace('[', '_')
+      			.replace("]", "")
+      				.replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
+      					.replace(" ", "")
+		 s"val$$_$ts" == typeName
+	}
+
+	def fnameToType(fname:String,context:ExternalTypeInfo):Either[GobraModelEntry,Type] ={
 		val typeDecls = context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
 		val namedName = fname.takeWhile(_!='_')
 		typeDecls.find(_.left.name==namedName) match {
-						case Some(decl) => Some(DeclaredT(decl, context))
+						case Some(decl) => Right(DeclaredT(decl, context))
 						case _ => namedName match {
-								case "nil" => Some(NilType)
-								case "empty" => Some(UnknownType)
-								case _ => None
+								case "nil" => Right(NilType)
+								case "empty" => Left(FaultEntry("empty interface"))
+								case _ => Left(FaultEntry(s"could not resolve $namedName"))
 							}
 								
 					}
@@ -604,7 +614,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		val declarations = typedecls.collect(x=>{if(names.contains(x.left.name.toString)) Some(DeclaredT(x, context))else None} ).collect(_ match {case Some(x) => x})
 		val fieldNameswithtyps = declarations map (x=>(PointerInterpreter(c).filedname(sil.RefEntry("l",null),PointerT(x)),PointerT(x)))
 		//TODO: find correct viper type
-		val polysandtyps = fieldNameswithtyps.collect(f=>c.domains.find(_.valueName.startsWith(s"Poly[${f._1.drop(5).takeWhile(_!='_')}"))match{case Some(x)=> (x,f._2)})
+		val polysandtyps = fieldNameswithtyps.collect(f=>c.domains.find(d=>isSamePoly(d.valueName,f._1))match{case Some(x)=> (x,f._2)})
 		val relevantpolys = polysandtyps.filter(x=>isPointerViper(x._1.valueName.drop(5)))
 		//TODO: more filter
 		val withcorrectunbox = relevantpolys.filter(x=>x._1.functions.find(_.fname=="box_Poly")match {case Some(f)=>f.image.contains(value) })

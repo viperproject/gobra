@@ -219,7 +219,7 @@ case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEnt
 
 }
 case class UnresolvedInterface(typ:InterfaceT,possibleVals:Seq[GobraModelEntry]) extends LitEntry{
-	override def toString() :String = "unable to uniquely determine interface. (possibilities include but are not limited to):\n" ++
+	override def toString() :String = "unable to uniquely determine interface. (possibilities include but might not limited to):\n" ++
 									((possibleVals take 3).map(x=>Util.removeWhitespace(x.toString()))).mkString("---\n") ++"\n"
 }
 case class LitStringEntry(value:String) extends LitEntry{

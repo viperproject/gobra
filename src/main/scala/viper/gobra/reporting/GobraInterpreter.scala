@@ -3,6 +3,7 @@ import viper.silicon.{reporting => sil}
 import viper.gobra.reporting._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.{TypeInfo,ExternalTypeInfo}
+import viper.gobra.translator.util.DomainGenerator
 import viper.gobra.ast.frontend._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
@@ -428,9 +429,13 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		
 	}
 	def nameToInt(name:String,field:String) :Int ={
+		try{
 		val id = Integer.parseInt(name.split("!").last)
 		val offset = field.hashCode()
 		(id +1)* 100 + (offset %100)
+		}catch{
+			case _:NumberFormatException => 0
+		}
 	}
 	 
 	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={ //TODO: improve (especially shared structs with more than one type (Ref,Shstruct))
@@ -510,10 +515,11 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			val gobraType = typeinfo match {
 				case (Left(v),p) => {
 					// we can find out which named type it is TODO: make named finding better (e.g named with _ in them)
-					val namedName = v.fname.takeWhile(_!='_')
-					val declaredT =typeDecls.find(_.left.name==namedName) match {
-						case Some(decl) => DeclaredT(decl, info.context)
-						case _ => return FaultEntry(s"could not resolve custom type $namedName")
+					
+					val declaredT = fnameToType(v.fname,info.context) match {
+						case Some(UnknownType) => return FaultEntry(s"empty interface")
+						case Some(x) => x
+						case _ => return FaultEntry(s"could not resolve custom type ${v.fname}")
 					}
 					if(p){
 						PointerT(declaredT)
@@ -521,12 +527,17 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 						declaredT
 					}
 				}
-				case (Right(o),_) => return UnresolvedInterface(info,get_options(o,value,typeDecls,info.context))
+				case (Right(o),_) => {
+									val opts = get_options(o,value,typeDecls,info.context) 
+									if(opts.length != 1) return UnresolvedInterface(info,opts)
+									else return opts.head // there is only one option this must be the one
+									}
 			}
 			val fieldName = PointerInterpreter(c).filedname(if(typeinfo._2){sil.RefEntry("l",null)}else{sil.LitBoolEntry(false)},gobraType)
 			//printf(s"$gobraType")
 			//
 			//ISSUE: we do not know the (viper) type of the entry...
+			//TODO: find correct viper type
 			val polyDom = c.domains.find(x=>x.valueName.startsWith(s"Poly[${fieldName.drop(5).takeWhile(_!='_')}"))
 			val viperVal = polyDom match{
 				case Some(x) => {
@@ -543,41 +554,67 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		 }
 
 	}
+	def fnameToType(fname:String,context:ExternalTypeInfo):Option[Type] ={
+		val typeDecls = context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
+		val namedName = fname.takeWhile(_!='_')
+		typeDecls.find(_.left.name==namedName) match {
+						case Some(decl) => Some(DeclaredT(decl, context))
+						case _ => namedName match {
+								case "nil" => Some(NilType)
+								case "empty" => Some(UnknownType)
+								case _ => None
+							}
+								
+					}
+	}
+
+
 	def getType(typ:sil.ExtractedModelEntry,typeDom:sil.DomainEntry) :(Either[sil.ExtractedFunction,Seq[sil.ExtractedFunction]],Boolean) = { //TODO: handle pointer to pointer
 		//context.externalRegular(PIdnDef(function.takeWhile(_!='_'))).get.rep.toString
-		val pointerfunc = typeDom.functions.find(_.fname=="pointer_Types").get
-		val isreversable =pointerfunc.options.values.toSeq.contains(typ)
-		val isDefault= pointerfunc.default == typ
+		val pointerfunc = typeDom.functions.find(_.fname=="pointer_Types")
+		val isreversable = pointerfunc.isDefined && pointerfunc.get.options.values.toSeq.contains(typ)
+		val isDefault= pointerfunc.isDefined && pointerfunc.get.default == typ
 		if(isreversable){
-			val actualtyp = pointerfunc.options.toSeq.find(_._2==typ).get._1.head
+			val actualtyp = pointerfunc.get.options.toSeq.find(_._2==typ).get._1.head
 			//printf(s"$actualtyp;;\n$typeDom")
 			val corr_typ_func =typeDom.functions.find(_.default==actualtyp) match{case Some(x)=> x}
 			(Left(corr_typ_func),true) 
 		
 		}else if(isDefault){
-			val isNot = pointerfunc.options.map(_._1)
+			val isNot = pointerfunc.get.options.map(_._1)
 			val corr_types = typeDom.functions.filterNot(y=>(isNot.find(_==y.default).isDefined || isnonTypeFunction(y.fname)))
 			(Right(corr_types.toSeq),true)
 		}
 		else{
-			val corr_typ_func =  typeDom.functions.find(_.default==typ) match{case Some(x)=> x}
+			val corr_typ_func =  typeDom.functions.find(_.default==typ) match{case Some(x)=> x ; 
+																				case _ => typeDom.functions.find(_.fname==s"${Names.emptyInterface}_Types") match {
+																					case Some(x)=>x
+																					case _ => typeDom.functions.find(_.fname=="nil_Types") match{
+																						case Some(x) => x
+																						case _=> return (Right(Seq()),false)
+																					}
+																				}
+																			}
 			(Left(corr_typ_func),false)
 		}
 	}
+	//get all posibilities of values the 
 	def get_options(functions:Seq[sil.ExtractedFunction],value:sil.ExtractedModelEntry,typedecls:Seq[PTypeDecl],context:ExternalTypeInfo): Seq[GobraModelEntry] = {
 		val names = functions.map(_.fname.takeWhile(_!='_'))
 		val declarations = typedecls.collect(x=>{if(names.contains(x.left.name.toString)) Some(DeclaredT(x, context))else None} ).collect(_ match {case Some(x) => x})
 		val fieldNameswithtyps = declarations map (x=>(PointerInterpreter(c).filedname(sil.RefEntry("l",null),PointerT(x)),PointerT(x)))
+		//TODO: find correct viper type
 		val polysandtyps = fieldNameswithtyps.collect(f=>c.domains.find(_.valueName.startsWith(s"Poly[${f._1.drop(5).takeWhile(_!='_')}"))match{case Some(x)=> (x,f._2)})
 		val relevantpolys = polysandtyps.filter(x=>isPointerViper(x._1.valueName.drop(5)))
 		//TODO: more filter
-		printf(s"$names\n---\n$declarations\n---\n$polysandtyps\n")
+		val withcorrectunbox = relevantpolys.filter(x=>x._1.functions.find(_.fname=="box_Poly")match {case Some(f)=>f.image.contains(value) })
 		val values = relevantpolys.collect(x=>x._1.functions.find(_.fname=="unbox_Poly")match {case Some(f)=>f.apply(Seq(value))match{case Right(r)=>(r,x._2)} } )
 		values.map(x=>MasterInterpreter(c).interpret(x._1,x._2))
 	}
 	def isPointerViper(name:String) :Boolean ={ //TODO: add more
 		name.startsWith("Sh") || name.equals("Ref")
 	}
+	//filter out functions that are irrelevant
 	def isnonTypeFunction(fname:String) :Boolean ={//TODO: make this smarter
 		fname.startsWith(Names.emptyInterface) ||
 		fname.startsWith(Names.toInterfaceFunc) ||

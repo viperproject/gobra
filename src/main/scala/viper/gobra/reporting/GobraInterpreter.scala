@@ -528,10 +528,12 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 						declaredT
 					}
 				}
-				case (Right(o),_) => {
+				case (Right(o),p) => {
 									val opts = get_options(o,value,typeDecls,info.context) 
-									if(opts.length != 1) return UnresolvedInterface(info,opts)
-									else return opts.head // there is only one option this must be the one
+									if(opts.length > 1) return UnresolvedInterface(info,opts)
+									else if(opts.length == 1) return opts.head // there is only one option this must be the one
+									else if(p) return FaultEntry("possibly nil")
+									else return FaultEntry("possibly empty interface")
 									}
 			}
 			val fieldName = PointerInterpreter(c).filedname(if(typeinfo._2){sil.RefEntry("l",null)}else{sil.LitBoolEntry(false)},gobraType)
@@ -570,8 +572,8 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		typeDecls.find(_.left.name==namedName) match {
 						case Some(decl) => Right(DeclaredT(decl, context))
 						case _ => namedName match {
-								case "nil" => Right(NilType)
-								case "empty" => Left(FaultEntry("empty interface"))
+								case "nil" => Left(FaultEntry("probably nil interface"))
+								case "empty" => Left(FaultEntry("probably empty interface"))
 								case _ => Left(FaultEntry(s"could not resolve $namedName"))
 							}
 								

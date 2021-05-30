@@ -61,7 +61,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 							}
 								)))												
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
-		lazy val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(_._1.node.toString.contains("$") ).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
+		lazy val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(x=>isUnnecessary(x._1) ).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
 		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
 		lazy val ret = Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
@@ -69,6 +69,9 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 			case _ => ret
 		}
 	
+	}
+	def isUnnecessary(info:Source.Verifier.Info):Boolean = {
+		info.node.toString.contains("$") || info.pnode.toString.contains("=") || info.pnode.toString.contains("(")
 	}
 }
 object Util{

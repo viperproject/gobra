@@ -31,8 +31,8 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
           case (n, ts) => error(n, s"type error: append expects first argument of slice type and the second of variadic type but got ${ts.mkString(", ")}")
         },
         {
-          case ts@ Vector(c: SliceT, v: VariadicT) if c.elem == v.elem => FunctionT(ts, c)
-          case (h: SliceT) +: tail if tail.forall(_ == h.elem) =>  FunctionT(Vector(h, VariadicT(h.elem)), h)
+          case (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(h, VariadicT(h.elem)), h)
+          case ts@ Vector(c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
         })
 
       case CopyFunctionTag => AbstractType(

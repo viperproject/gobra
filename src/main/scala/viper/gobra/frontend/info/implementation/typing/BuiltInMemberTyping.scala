@@ -1,8 +1,15 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
 package viper.gobra.frontend.info.implementation.typing
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PNode
+import viper.gobra.ast.internal.PermissionT
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{AppendFunctionTag, BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CopyFunctionTag, CreateDebtChannelMethodTag, GhostBuiltInMember, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvGotPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGivenPermMethodTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -16,7 +23,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: BuiltInFunctionTag => t match {
       case CloseFunctionTag => AbstractType(
         {
-          // TODO: sep in well defined and in typ
+          // TODO: May be worth to split the well-defined checks and the typing functions, requires changing the way we deal with AbstractType
           case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger) /* PermissionT */ , PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
           case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
         },
@@ -25,9 +32,8 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         })
       case AppendFunctionTag => AbstractType(
         {
-          // TODO: add support for first argument whose underlying type is a slice
-          case (_, Vector(c: SliceT, v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages // TODO: Test if this is true
-          case (_, (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages // TODO Same here
+          case (_, Vector(c: SliceT, v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
+          case (_, (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages
           case (n, ts) => error(n, s"type error: append expects first argument of slice type and the second of variadic type but got ${ts.mkString(", ")}")
         },
         {
@@ -37,11 +43,11 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case CopyFunctionTag => AbstractType(
         {
-          case (_, Vector(c: SliceT, v: SliceT)) if c.elem == v.elem => noMessages
+          case (_, Vector(c: SliceT, v: SliceT, _: PermissionT)) if c.elem == v.elem => noMessages
           case (n, ts) => error(n, s"type error: copy expects two slices of the same type but got ${ts.mkString(", ")}")
         },
         {
-          case ts@ Vector(c: SliceT, v: SliceT) if c.elem == v.elem => FunctionT(ts, INT_TYPE)
+          case ts@ Vector(c: SliceT, v: SliceT, _: PermissionT) if c.elem == v.elem => FunctionT(ts, INT_TYPE)
         })
     }
     case t: BuiltInFPredicateTag => t match {
@@ -136,7 +142,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       GhostType.ghostTuple(Vector(false, false))
 
     case CopyFunctionTag =>
-      GhostType.ghostTuple(Vector(false, false))
+      GhostType.ghostTuple(Vector(false, false, true))
 
     case t: GhostBuiltInMember => t match {
       case _ =>

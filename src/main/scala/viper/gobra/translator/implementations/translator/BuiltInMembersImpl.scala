@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{AppendFunctionTag, BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CopyFunctionTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -416,10 +416,12 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val elemType = sliceT.asInstanceOf[in.SliceT].elems.withAddressability(Addressability.sliceLookup)
         val sliceType = in.SliceT(elemType, Addressability.inParameter)
 
+        // parameters
         val sliceParam = in.Parameter.In("slice", sliceType)(src)
         val variadicParam = in.Parameter.In("elems", sliceType)(src)
         val args = Vector(sliceParam, variadicParam)
 
+        // results
         val resultParam = in.Parameter.Out("res", sliceType)(src)
         val results = Vector(resultParam)
 
@@ -484,7 +486,60 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         in.Function(x.name, args, results, pres, posts, None)(src)
 
-      case (CopyFunctionTag, args) => ???
+      case (CopyFunctionTag, Vector(sliceT1, sliceT2, _)) =>
+        def quantify(bound: in.Expr, exprF: in.BoundVar => in.Assertion): in.Assertion = {
+          val i = in.BoundVar("i", in.IntT(Addressability.boundVariable))(src)
+          val triggers = Vector()
+          in.SepForall(
+            Vector(i),
+            triggers,
+            in.Implication(
+              in.And(
+                in.AtLeastCmp(i, in.IntLit(0)(src))(src),
+                in.AtMostCmp(i, bound)(src)
+              )(src),
+              exprF(i)
+            )(src)
+          )(src)
+        }
+        /**
+          * requires 0 < p && p < 1
+          * requires forall i int :: (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
+          * requires forall i int :: (0 <= i && i < len(src)) ==> acc(&src[i], p)
+          * requires forall i int :: (0 <= i && i < len(dst) && forall j int :: &dst[i] != &src[j]) ==> acc(&dst[i], p)
+          * ensures len(dst) <= len(src) ==> res == len(dst)
+          * ensures len(src) < len(dst) ==> res == len(src)
+          * ensures forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i], 1-p)
+          * ensures forall i int :: 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: (0 <= i && i < len(dst) && forall j int :: &dst[i] != &src[j]) ==> acc(&dst[i], p)
+          * ensures forall i int :: (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
+          * ensures forall i int :: (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
+          * func copy(dst, src []int, ghost p perm) (res int)
+          */
+
+        // parameters
+        val dstParam = in.Parameter.In("dst", sliceT1)(src)
+        val srcParam = in.Parameter.In("src", sliceT2)(src)
+        val pParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+        val args = Vector(dstParam, srcParam, pParam)
+
+        // results
+        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(src)
+        val results = Vector(resParam)
+
+        // preconditions
+        val pPre = in.ExprAssertion(
+          in.And(
+            in.LessCmp(in.IntLit(0)(src), pParam)(src),
+            in.LessCmp(pParam, in.IntLit(1)(src))(src)
+          )(src)
+        )(src)
+        lazy val pres = ???
+
+        // postconditions
+        lazy val posts = ???
+
+        in.Function(x.name, args, results, pres, /*posts*/Vector(), None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

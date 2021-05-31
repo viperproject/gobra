@@ -402,14 +402,13 @@ class BuiltInMembersImpl extends BuiltInMembers {
         }
 
         /**
-          * requires forall i int :: 0 <= i && i < len(slice) ==> acc(&slice[i])
-          * requires forall i int :: 0 <= i && i < len(variadic) ==> acc(&variadic[i], _)
-          * ensures forall i int :: 0 <= i && i < len(variadic) ==> acc(&variadic[i], _)
-          * ensures len(res) == len(slice) + len(variadic)
+          * requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+          * requires forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * ensures len(res) == len(s) + len(stuff)
           * ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
-          * ensures forall i int :: 0 <= i && i < len(slice) ==> res[i] == old(slice[i])
-          * ensures forall i int :: 0 <= i && i < len(variadic) ==> res[len(slice) + i] == variadic[i]
-          * func append(slice []int, variadic ...int) (res []int)
+          * ensures forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * ensures forall i int :: 0 <= i && i < len(s) ==> res[i] == old(s[i])
+          * ensures forall i int :: len(s) <= i && i < len(res) ==> res[i] == stuff[i - len(s)]
          */
         assert(sliceT.isInstanceOf[in.SliceT])
         assert(variadicT.isInstanceOf[in.SliceT])
@@ -437,8 +436,8 @@ class BuiltInMembersImpl extends BuiltInMembers {
             in.Add(in.Length(sliceParam)(src), in.Length(variadicParam)(src))(src)
           )(src)
         )(src)
-        val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
         val postRes = accessSlice(resultParam, in.FullPerm(src))
+        val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
         val postCmpSlice = {
           val i = in.BoundVar("i", in.IntT(Addressability.boundVariable))(src)
           val triggers = Vector()
@@ -467,22 +466,22 @@ class BuiltInMembersImpl extends BuiltInMembers {
             triggers,
             in.Implication(
               in.And(
-                in.AtLeastCmp(i, in.IntLit(BigInt(0))(src))(src),
-                in.LessCmp(i, in.Length(variadicParam)(src))(src)
+                in.AtLeastCmp(i, in.Length(sliceParam)(src))(src),
+                in.LessCmp(i, in.Length(resultParam)(src))(src)
               )(src),
               in.ExprAssertion(
                 in.EqCmp(
+                  in.IndexedExp(resultParam, i)(src),
                   in.IndexedExp(
-                    resultParam,
-                    in.Add(i, in.Length(sliceParam)(src))(src)
+                    variadicParam,
+                    in.Sub(i, in.Length(sliceParam)(src))(src)
                   )(src),
-                  in.IndexedExp(variadicParam, i)(src)
                 )(src)
               )(src)
             )(src)
           )(src)
         }
-        val posts: Vector[in.Assertion] = Vector(postRes, postVariadic, postLen, postCmpSlice, postCmpVariadic)
+        val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
         in.Function(x.name, args, results, pres, posts, None)(src)
 

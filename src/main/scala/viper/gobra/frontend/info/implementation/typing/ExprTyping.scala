@@ -342,31 +342,30 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
             case _ => assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
           }
           case (_: PAdd, StringT, StringT) => noMessages
-          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
-            if (l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT)) {
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv, l, r)
+            if l == PermissionT || r == PermissionT || getTypeFromCtxt(n).contains(PermissionT) =>
               assignableTo.errors(l, PermissionT)(n) ++ assignableTo.errors(r, PermissionT)(n)
-            } else {
-              val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST)(n)
-              val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST)(n)
-              val typesAreMergeable = mergeableTypes.errors(l, r)(n)
-              val exprWithinBounds = {
-                if(typesAreMergeable.isEmpty) {
-                  // Only makes sense to check that a binary expression is within bounds if the types of its
-                  // subexpressions can be combined
+          case (_: PAdd | _: PSub | _: PMul | _: PMod | _: PDiv | _: PBitAnd | _: PBitOr | _: PBitXor | _: PBitClear, l, r) =>
+            val lIsInteger = assignableTo.errors(l, UNTYPED_INT_CONST)(n)
+            val rIsInteger = assignableTo.errors(r, UNTYPED_INT_CONST)(n)
+            val typesAreMergeable = mergeableTypes.errors(l, r)(n)
+            val exprWithinBounds = {
+              if(typesAreMergeable.isEmpty) {
+                // Only makes sense to check that a binary expression is within bounds if the types of its
+                // subexpressions can be combined
 
-                  // mergedType must exist because, otherwise typesAreMergeable.isEmpty would not hold
-                  val mergedType = typeMerge(l, r).get
+                // mergedType must exist because, otherwise typesAreMergeable.isEmpty would not hold
+                val mergedType = typeMerge(l, r).get
 
-                  // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
-                  // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
-                  // which are also rejected by the go compiler
-                  intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
-                    intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
-                    intExprWithinTypeBounds(n, mergedType)
-                } else noMessages
-              }
-              lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
+                // The first two checks ensure that, if an operand is constant, then it must be assignable to the type
+                // of the result. This makes the type system capable of rejecting expressions like `uint8(1) * (-1)`,
+                // which are also rejected by the go compiler
+                intExprWithinTypeBounds(n.left.asInstanceOf[PExpression], mergedType) ++
+                  intExprWithinTypeBounds(n.right.asInstanceOf[PExpression], mergedType) ++
+                  intExprWithinTypeBounds(n, mergedType)
+              } else noMessages
             }
+            lIsInteger ++ rIsInteger ++ typesAreMergeable ++ exprWithinBounds
           case (_: PShiftLeft, l, r) =>
             val integerOperands = assignableTo.errors(l, UNTYPED_INT_CONST)(n) ++ assignableTo.errors(r, UNTYPED_INT_CONST)(n)
             if (integerOperands.isEmpty) {

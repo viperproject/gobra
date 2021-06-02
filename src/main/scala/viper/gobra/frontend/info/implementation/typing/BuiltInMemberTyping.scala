@@ -9,8 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend.PNode
-import viper.gobra.ast.internal.PermissionT
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{AppendFunctionTag, BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CopyFunctionTag, CreateDebtChannelMethodTag, GhostBuiltInMember, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvGotPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGivenPermMethodTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostType
@@ -43,11 +42,11 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case CopyFunctionTag => AbstractType(
         {
-          case (_, Vector(c: SliceT, v: SliceT, _: PermissionT)) if c.elem == v.elem => noMessages
-          case (n, ts) => error(n, s"type error: copy expects two slices of the same type but got ${ts.mkString(", ")}")
+          case (_, Vector(c: SliceT, v: SliceT, PermissionT)) if c.elem == v.elem => noMessages
+          case (n, ts) => error(n, s"type error: copy expects two slices of the same type and a permission but got ${ts.mkString(", ")}")
         },
         {
-          case ts@ Vector(c: SliceT, v: SliceT, _: PermissionT) if c.elem == v.elem => FunctionT(ts, INT_TYPE)
+          case ts@ Vector(c: SliceT, v: SliceT, PermissionT) if c.elem == v.elem => FunctionT(ts, INT_TYPE)
         })
     }
     case t: BuiltInFPredicateTag => t match {

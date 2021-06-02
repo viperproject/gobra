@@ -380,7 +380,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
                     case IntT(UnboundedInteger) => MAX_SHIFT
                     case t => violation(s"unexpected type $t")
                   }
-                  val upperBound = error(n.right, s"shift count ${n.right} large for type ${exprOrTypeType(n.left)}", v > nBits)
+                  val upperBound = error(n.right, s"shift count ${n.right} too large for type ${exprOrTypeType(n.left)}", v > nBits)
                   lowerBound ++ upperBound
 
                 case None => noMessages

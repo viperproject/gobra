@@ -82,7 +82,7 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
             constEval map { constValue =>
               t match {
                 case UnboundedInteger | _: Signed => ~constValue
-                case u: Unsigned => BigInt(~constValue.toShort) mod (u.upper + 1)
+                case u: Unsigned => ~constValue mod (u.upper + 1)
               }
             }
           case _ => None

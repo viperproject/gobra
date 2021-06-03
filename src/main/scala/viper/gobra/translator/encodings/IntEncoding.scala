@@ -22,6 +22,14 @@ class IntEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.TypePatterns._
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
 
+  private var isUsedBitAnd: Boolean = false
+  private var isUsedBitOr: Boolean = false
+  private var isUsedBitXor: Boolean = false
+  private var isUsedBitClear: Boolean = false
+  private var isUsedLeftShift: Boolean = false
+  private var isUsedRightShift: Boolean = false
+  private var isUsedBitNeg: Boolean = false
+
   /**
     * Translates a type into a Viper type.
     */
@@ -76,17 +84,18 @@ class IntEncoding extends LeafTypeEncoding {
   }
 
   override def finalize(col: Collector): Unit = {
-    col.addMember(bitwiseAnd)
-    col.addMember(bitwiseOr)
-    col.addMember(bitwiseXor)
-    col.addMember(bitClear)
-    col.addMember(shiftLeft)
-    col.addMember(shiftRight)
-    col.addMember(bitwiseNegation)
+    if(isUsedBitAnd) { col.addMember(bitwiseAnd) }
+    if(isUsedBitOr) { col.addMember(bitwiseOr) }
+    if(isUsedBitXor) { col.addMember(bitwiseXor) }
+    if(isUsedBitClear) { col.addMember(bitClear) }
+    if(isUsedLeftShift) { col.addMember(shiftLeft) }
+    if(isUsedRightShift) { col.addMember(shiftRight) }
+    if(isUsedBitNeg) { col.addMember(bitwiseNegation) }
   }
 
   /* Bitwise Operations */
-  private val bitwiseAnd: vpr.Function =
+  private lazy val bitwiseAnd: vpr.Function = {
+    isUsedBitAnd = true
     vpr.Function(
       name = Names.bitwiseAnd,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
@@ -94,9 +103,11 @@ class IntEncoding extends LeafTypeEncoding {
       pres = Seq.empty,
       posts = Seq.empty,
       body = None
-  )()
+    )()
+  }
 
-  private val bitwiseOr: vpr.Function =
+  private lazy val bitwiseOr: vpr.Function = {
+    isUsedBitOr = true
     vpr.Function(
       name = Names.bitwiseOr,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
@@ -105,8 +116,10 @@ class IntEncoding extends LeafTypeEncoding {
       posts = Seq.empty,
       body = None
     )()
+  }
 
-  private val bitwiseXor: vpr.Function =
+  private lazy val bitwiseXor: vpr.Function = {
+    isUsedBitXor = true
     vpr.Function(
       name = Names.bitwiseXor,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
@@ -115,8 +128,10 @@ class IntEncoding extends LeafTypeEncoding {
       posts = Seq.empty,
       body = None
     )()
+  }
 
-  private val bitClear: vpr.Function =
+  private lazy val bitClear: vpr.Function = {
+    isUsedBitClear = true
     vpr.Function(
       name = Names.bitClear,
       formalArgs = Seq(vpr.LocalVarDecl("left", vpr.Int)(), vpr.LocalVarDecl("right", vpr.Int)()),
@@ -125,8 +140,10 @@ class IntEncoding extends LeafTypeEncoding {
       posts = Seq.empty,
       body = None
     )()
+  }
 
-  private val shiftLeft: vpr.Function = {
+  private lazy val shiftLeft: vpr.Function = {
+    isUsedLeftShift = true
     val left = vpr.LocalVarDecl("left", vpr.Int)(info = vpr.Synthesized)
     val right = vpr.LocalVarDecl("right", vpr.Int)(info = vpr.Synthesized)
     vpr.Function(
@@ -140,7 +157,8 @@ class IntEncoding extends LeafTypeEncoding {
     )()
   }
 
-  private val shiftRight: vpr.Function = {
+  private lazy val shiftRight: vpr.Function = {
+    isUsedRightShift = true
     val left = vpr.LocalVarDecl("left", vpr.Int)()
     val right = vpr.LocalVarDecl("right", vpr.Int)()
     vpr.Function(
@@ -154,7 +172,8 @@ class IntEncoding extends LeafTypeEncoding {
     )()
   }
 
-  private val bitwiseNegation: vpr.Function =
+  private lazy val bitwiseNegation: vpr.Function = {
+    isUsedBitNeg = true
     vpr.Function(
       name = Names.bitwiseNeg,
       formalArgs = Seq(vpr.LocalVarDecl("exp", vpr.Int)()),
@@ -163,4 +182,5 @@ class IntEncoding extends LeafTypeEncoding {
       posts = Seq.empty,
       body = None
     )()
+  }
 }

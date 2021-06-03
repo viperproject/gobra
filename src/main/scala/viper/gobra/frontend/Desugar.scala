@@ -8,10 +8,10 @@ package viper.gobra.frontend
 
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
-import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.{ExternalTypeInfo, TypeInfo}
 import viper.gobra.reporting.Source.AutoImplProofAnnotation
 import viper.gobra.reporting.{DesugaredMessage, Source}
@@ -885,6 +885,12 @@ object Desugar {
                   case PMulOp() => in.Mul(l.op, r)(src)
                   case PDivOp() => in.Div(l.op, r)(src)
                   case PModOp() => in.Mod(l.op, r)(src)
+                  case PBitAndOp() => in.BitAnd(l.op, r)(src)
+                  case PBitOrOp() => in.BitOr(l.op, r)(src)
+                  case PBitXorOp() => in.BitXor(l.op, r)(src)
+                  case PBitClearOp() => in.BitClear(l.op, r)(src)
+                  case PShiftLeftOp() => in.ShiftLeft(l.op, r)(src)
+                  case PShiftRightOp() => in.ShiftRight(l.op, r)(src)
                 }
               } yield singleAss(l, rWithOp)(src)
 
@@ -1541,6 +1547,14 @@ object Desugar {
           case PMod(left, right) => for {l <- go(left); r <- go(right)} yield in.Mod(l, r)(src)
           case PDiv(left, right) => for {l <- go(left); r <- go(right)} yield in.Div(l, r)(src)
 
+          case PBitAnd(left, right) => for {l <- go(left); r <- go(right)} yield in.BitAnd(l, r)(src)
+          case PBitOr(left, right) => for {l <- go(left); r <- go(right)} yield in.BitOr(l, r)(src)
+          case PBitXor(left, right) => for {l <- go(left); r <- go(right)} yield in.BitXor(l, r)(src)
+          case PBitClear(left, right) => for {l <- go(left); r <- go(right)} yield in.BitClear(l, r)(src)
+          case PShiftLeft(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftLeft(l, r)(src)
+          case PShiftRight(left, right) => for {l <- go(left); r <- go(right)} yield in.ShiftRight(l, r)(src)
+          case PBitNegation(exp) => for {e <- go(exp)} yield in.BitNeg(e)(src)
+
           case l: PLiteral => litD(ctx)(l)
 
           case PUnfolding(acc, op) =>
@@ -1720,11 +1734,7 @@ object Desugar {
         case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
         case Some(ap.Conversion(typ, arg)) =>
           val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
-          if (arg.length == 1) {
-            for { expr <- exprD(ctx)(arg(0)) } yield in.Conversion(desugaredTyp, expr)(src)
-          } else {
-            Violation.violation(s"desugarer: conversion $expr is not supported")
-          }
+          for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
         case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }
@@ -1785,7 +1795,7 @@ object Desugar {
       def single[E <: in.Expr](gen: Meta => E): Writer[in.Expr] = unit[in.Expr](gen(src))
 
       lit match {
-        case PIntLit(v)  => single(in.IntLit(v))
+        case PIntLit(v, base)  => single(in.IntLit(v, base = base))
         case PBoolLit(b) => single(in.BoolLit(b))
         case PStringLit(s) => single(in.StringLit(s))
         case nil: PNilLit => single(in.NilLit(typeD(info.nilType(nil).getOrElse(Type.PointerT(Type.BooleanT)), Addressability.literal)(src))) // if no type is found, then use *bool
@@ -2526,13 +2536,6 @@ object Desugar {
           case _: Type.InterfaceT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableInterface(wExp)(src)
           case Type.SortT => for { wExp <- exprAndTypeAsExpr(ctx)(exp) } yield in.IsComparableType(wExp)(src)
           case t => Violation.violation(s"Expected interface or sort type, but got $t")
-        }
-
-        case PCardinality(op) => for {
-          dop <- go(op)
-        } yield dop.typ match {
-          case _: in.SetT | _: in.MultisetT => in.Cardinality(dop)(src)
-          case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
 
         case PIn(left, right) => for {

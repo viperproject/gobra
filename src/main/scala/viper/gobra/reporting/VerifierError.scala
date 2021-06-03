@@ -246,6 +246,11 @@ case class MapMakePreconditionError(info: Source.Verifier.Info) extends Verifica
   override def localMessage: String = s"The provided length to ${info.origin.tag.trim} might be negative"
 }
 
+case class ShiftPreconditionError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "shift_precondition_error"
+  override def localMessage: String = s"The shift count in ${info.origin.tag.trim} might be negative"
+}
+
 case class GeneratedImplementationProofError(subT: String, superT: String, error: VerificationError) extends ErrorExtension(error) {
   override def extensionId: String = "generated_implementation_proof"
   override def extensionMessage: String = s"Generated implementation proof ($subT implements $superT) failed"

@@ -5,5 +5,5 @@ package pkg
 
 func foo(ghost s set[int], ghost t set[int]) {
   //:: ExpectedOutput(assert_error:assertion_error)
-  assert |s| <= |t| ==> s subset t
+  assert len(s) <= len(t) ==> s subset t
 }

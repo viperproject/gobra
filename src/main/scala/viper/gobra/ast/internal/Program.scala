@@ -20,7 +20,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{TypeBounds, Violation}
+import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -526,7 +526,7 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
 
 /**
   * Denotes the length of `exp`, which is expected to be either
-  * of an array type or a sequence type.
+  * of an array type or a sequence type or a set.
   */
 case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT(Addressability.rValue)
@@ -711,14 +711,6 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents the cardinality of `exp`, which is assumed
-  * to be either a set or a multiset.
-  */
-case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = IntT(Addressability.rValue)
-}
-
-/**
   * Represents a membership expression "`left` in `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
@@ -865,7 +857,7 @@ sealed trait BoolOperation extends Expr {
 }
 
 sealed trait IntOperation extends Expr {
-  override val typ: Type = IntT(Addressability.rValue)
+  override def typ: Type = IntT(Addressability.rValue)
 }
 
 sealed trait StringOperation extends Expr {
@@ -880,7 +872,7 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
 }
 
 sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
-  override val typ: Type = (left.typ, right.typ) match {
+  override def typ: Type = (left.typ, right.typ) match {
     // should always produce an exclusive val. from the go spec:
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
@@ -921,6 +913,19 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
+/* Bitwise Operators */
+case class BitAnd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&")
+case class BitOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("|")
+case class BitXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
+case class BitClear(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&^")
+case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("<<") {
+  override val typ: Type = left.typ
+}
+case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
+  override val typ: Type = left.typ
+}
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+
 case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
@@ -936,7 +941,7 @@ sealed trait Lit extends Expr
 
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Source.Parser.Info) extends Lit {
+case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase = Decimal)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 

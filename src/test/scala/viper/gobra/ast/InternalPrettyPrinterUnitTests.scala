@@ -472,17 +472,17 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show the size of a simple set") {
-    val expr = Cardinality(
+    val expr = Length(
       LocalVar("s", setT(boolT))(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "|s|" =>
+      case "len(s)" =>
     }
   }
 
   test("Printer: should correctly show the size of a set in combination with a set intersection") {
-    val expr = Cardinality(
+    val expr = Length(
       Intersection(
         LocalVar("s", setT(boolT))(Internal),
         LocalVar("t", setT(boolT))(Internal)
@@ -490,12 +490,12 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "|s intersection t|" =>
+      case "len(s intersection t)" =>
     }
   }
 
   test("Printer: should correctly show the size of a set literal") {
-    val expr = Cardinality(
+    val expr = Length(
       SetLit(intT, Vector(
         IntLit(1)(Internal),
         IntLit(42)(Internal)
@@ -503,17 +503,17 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "|set[int] { 1, 42 }|" =>
+      case "len(set[int] { 1, 42 })" =>
     }
   }
 
   test("Printer: should correctly show the size of an empty set") {
-    val expr = Cardinality(
+    val expr = Length(
       SetLit(sequenceT(intT), Vector())(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "|set[seq[int]] { }|" =>
+      case "len(set[seq[int]] { })" =>
     }
   }
 
@@ -613,7 +613,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
-    val expr = Cardinality(
+    val expr = Length(
       MultisetLit(multisetT(intT), Vector(
         MultisetLit(intT, Vector(
           IntLit(1)(Internal)
@@ -626,7 +626,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "|mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } }|" =>
+      case "len(mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } })" =>
     }
   }
 
@@ -839,13 +839,13 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a slightly more complex array length expression") {
     val expr = Length(
       Add(
-        Cardinality(LocalVar("s", setT(boolT))(Internal))(Internal),
+        Length(LocalVar("s", setT(boolT))(Internal))(Internal),
         IntLit(42)(Internal)
       )(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
-      case "len(|s| + 42)" =>
+      case "len(len(s) + 42)" =>
     }
   }
 

@@ -15,8 +15,8 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.reporting.{Source => _, _}
+import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -482,7 +482,13 @@ object Parser {
         "-" ^^^ PSubOp() |
         "*" ^^^ PMulOp() |
         "/" ^^^ PDivOp() |
-        "%" ^^^ PModOp()
+        "%" ^^^ PModOp() |
+        "&" ^^^ PBitAndOp() |
+        "|" ^^^ PBitOrOp() |
+        "^" ^^^ PBitXorOp() |
+        "&^" ^^^ PBitClearOp() |
+        "<<" ^^^ PShiftLeftOp() |
+        ">>" ^^^ PShiftRightOp()
 
     lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
@@ -703,12 +709,18 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
+        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
       precedence6 ~ ("*" ~> precedence7) ^^ PMul |
         precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
+        precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
+        precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
+        precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitAnd |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =
@@ -722,6 +734,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
+        "^" ~> unaryExp ^^ PBitNegation |
         reference |
         dereference |
         receiveExp |
@@ -732,7 +745,6 @@ object Parser {
         cap |
         keys |
         values |
-        ghostUnaryExp |
         primaryExp
 
     lazy val make : Parser[PMake] =
@@ -767,9 +779,6 @@ object Parser {
 
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
-
-    lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
       "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
@@ -866,8 +875,24 @@ object Parser {
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
         "nil" ^^^ PNilLit() |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
+        intLit |
         stringLit
+
+    lazy val intLit: Parser[PIntLit] =
+      octalLit | binaryLit | hexLit | decimalLit
+
+    lazy val binaryLit: Parser[PIntLit] =
+      "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
+
+    lazy val octalLit: Parser[PIntLit] =
+      // according to the go language spec, non-zero literals starting with `0` are octal literals
+      "0" ~> ("o"|"O").? ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal))
+
+    lazy val hexLit: Parser[PIntLit] =
+      "0" ~> ("x"|"X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal))
+
+    lazy val decimalLit: Parser[PIntLit] =
+      (exactWord("0") | regex("[1-9][0-9]*".r)) ^^ (lit => PIntLit(BigInt(lit)))
 
     lazy val stringLit: Parser[PStringLit] =
       rawStringLit | interpretedStringLit

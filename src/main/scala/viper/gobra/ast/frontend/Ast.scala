@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
+import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -202,6 +203,18 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
+case class PBitAndOp() extends PAssOp
+
+case class PBitOrOp() extends PAssOp
+
+case class PBitXorOp() extends PAssOp
+
+case class PBitClearOp() extends PAssOp
+
+case class PShiftLeftOp() extends PAssOp
+
+case class PShiftRightOp() extends PAssOp
+
 case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
@@ -355,7 +368,9 @@ sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
+// The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
+// only be read by pretty-printers
+case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -405,6 +420,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * Gobra extends this with:
   *
   * - Sequence: the number of elements in `exp`.
+  * - Set: the cardinality of `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
@@ -439,6 +455,8 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
+case class PBitNegation(operand: PExpression) extends PUnaryExp with PNumExpression
+
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
   def right: R
@@ -469,6 +487,18 @@ case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
@@ -882,12 +912,6 @@ sealed trait PGhostCollectionExp extends PGhostExpression
   * that is, membership of a ghost collection.
   */
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
-
-/**
-  * Denotes the cardinality of `exp`, which is expected
-  * to be either a set or a multiset.
-  */
-case class PCardinality(exp : PExpression) extends PGhostCollectionExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

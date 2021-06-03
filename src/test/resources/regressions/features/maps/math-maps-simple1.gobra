@@ -22,7 +22,7 @@ func test1() {
 	assert len(dict[int]int{}) == 0
 
 	// domain and range obtain the set of keys and values, respectively
-	assert |domain(m2)| == 3
+	assert len(domain(m2)) == 3
 	assert !("Y" in domain(m2))
 	assert 5 in range(m1)
 

@@ -373,7 +373,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PIntLit(lit, base) =>
         val prefix = base match {
           case Binary => "0b"
-          case Octal =>"0O"
+          case Octal =>"0o"
           case Decimal => ""
           case Hexadecimal => "0x"
         }

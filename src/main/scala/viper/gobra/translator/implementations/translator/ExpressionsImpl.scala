@@ -87,8 +87,6 @@ class ExpressionsImpl extends Expressions {
         case errors => Violation.violation(s"invalid trigger pattern (${errors.head.readableMessage})")
       }
 
-      case in.PureImplication(l, r) => for {vl <- goE(l); vr <- goE(r)} yield vpr.Implies(vl, vr)(pos, info, errT)
-
       case in.Exists(vars, triggers, body) => for {
         (newVars, newTriggers, newBody) <- quantifier(vars, triggers, body)(ctx)
         newExists =  vpr.Exists(newVars, newTriggers, newBody)(pos, info, errT).autoTrigger

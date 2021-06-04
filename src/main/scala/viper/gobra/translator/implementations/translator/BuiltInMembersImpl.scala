@@ -345,7 +345,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
     val src = x.info
 
     var varCount = 0
-    def freshVar(): in.BoundVar = {
+    def freshBoundVar(): in.BoundVar = {
       varCount += 1
       in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable))(src)
     }
@@ -359,15 +359,21 @@ class BuiltInMembersImpl extends BuiltInMembers {
     }
 
     def quantify(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Assertion): in.Assertion = {
-      val i = freshVar()
+      val i = freshBoundVar()
       val triggers = Vector()
       in.SepForall(Vector(i), triggers, in.Implication(bound(i), exprF(i))(src))(src)
     }
 
     def quantifyPure(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Expr): in.Expr = {
-      val i = freshVar()
+      val i = freshBoundVar()
       val triggers = Vector()
-      in.PureForall(Vector(i), triggers, in.PureImplication(bound(i), exprF(i))(src))(src)
+      val expr = in.Conditional(
+        bound(i),
+        exprF(i),
+        in.BoolLit(b = true)(src),
+        in.BoolT(Addressability.rValue)
+      )(src)
+      in.PureForall(Vector(i), triggers, expr)(src)
     }
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
@@ -450,50 +456,20 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )(src)
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
-        val postCmpSlice = {
-          // TODO: change, use quantify
-          val i = in.BoundVar("i", in.IntT(Addressability.boundVariable))(src)
-          val triggers = Vector()
-          in.SepForall(
-            Vector(i),
-            triggers,
-            in.Implication(
-              in.And(
-                in.AtLeastCmp(i, in.IntLit(BigInt(0))(src))(src),
-                in.LessCmp(i, in.Length(sliceParam)(src))(src)
-              )(src),
-              in.ExprAssertion(
-                in.EqCmp(
-                  in.IndexedExp(resultParam, i)(src),
-                  in.Old(in.IndexedExp(sliceParam, i)(src), elemType)(src)
-                )(src)
-              )(src)
+        val postCmpSlice = quantify{ bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) }{
+          i => in.ExprAssertion(
+            in.EqCmp(in.IndexedExp(resultParam, i)(src), in.Old(in.IndexedExp(sliceParam, i)(src), elemType)(src))(src)
+          )(src)
+        }
+        val postCmpVariadic = quantify{ bound(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) } { i =>
+          in.ExprAssertion(
+            in.EqCmp(
+              in.IndexedExp(resultParam, i)(src),
+              in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src))(src),
             )(src)
           )(src)
         }
-        val postCmpVariadic = {
-          val i = in.BoundVar("i", in.IntT(Addressability.boundVariable))(src)
-          val triggers = Vector()
-          in.SepForall(
-            Vector(i),
-            triggers,
-            in.Implication(
-              in.And(
-                in.AtLeastCmp(i, in.Length(sliceParam)(src))(src),
-                in.LessCmp(i, in.Length(resultParam)(src))(src)
-              )(src),
-              in.ExprAssertion(
-                in.EqCmp(
-                  in.IndexedExp(resultParam, i)(src),
-                  in.IndexedExp(
-                    variadicParam,
-                    in.Sub(i, in.Length(sliceParam)(src))(src)
-                  )(src),
-                )(src)
-              )(src)
-            )(src)
-          )(src)
-        }
+
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
         in.Function(x.name, args, results, pres, posts, None)(src)
@@ -550,17 +526,14 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val pres = Vector(pPre, preDst, preSrc, preDistinct)
 
         // postconditions
-        val postRes = in.ExprAssertion(
-          in.And(
-            in.PureImplication(
-              in.AtMostCmp(in.Length(dstParam)(src), in.Length(srcParam)(src))(src),
-              in.EqCmp(in.Length(dstParam)(src), resParam)(src)
-            )(src),
-            in.PureImplication(
-              in.LessCmp(in.Length(srcParam)(src), in.Length(dstParam)(src))(src),
-              in.EqCmp(in.Length(srcParam)(src), resParam)(src)
-            )(src)
-          )(src)
+        val postRes1 = in.Implication(
+          in.AtMostCmp(in.Length(dstParam)(src), in.Length(srcParam)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(dstParam)(src), resParam)(src))(src)
+        )(src)
+
+        val postRes2 = in.Implication(
+          in.LessCmp(in.Length(srcParam)(src), in.Length(dstParam)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(srcParam)(src), resParam)(src))(src)
         )(src)
 
         // the assertions in the pre-conditions can be reused here
@@ -589,7 +562,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           )(src)
         }
 
-        val posts = Vector(postRes, postDst, postSrc, postDistinct, postUpdate, postSame)
+        val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
 
         in.Function(x.name, args, results, pres, posts, None)(src)
 

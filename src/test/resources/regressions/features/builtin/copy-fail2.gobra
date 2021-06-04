@@ -10,7 +10,7 @@ func test0() {
 
 	n1 := copy(s, a[0:], p)
 	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-	//:: ExpectedOutput(assertion_error)
+	//:: ExpectedOutput(assert_error)
 	assert false
 }
 
@@ -20,7 +20,7 @@ func test1() {
 	
 	p := perm(1/2)
 	n1 := copy(s, a[0:], p)
-	//:: ExpectedOutput(assertion_error)
+	//:: ExpectedOutput(assert_error)
 	assert n1 == 3
 }
 
@@ -29,7 +29,7 @@ func test2() {
 	var s = make([]int, 6)
 	p := perm(1/2)
 	n1 := copy(s, a[0:], p)
-	//:: ExpectedOutput(assertion_error)
+	//:: ExpectedOutput(assert_error)
 	assert s[2] == 3
 }
 
@@ -58,6 +58,6 @@ func test3() {
 	assert s[2] == 4
 	assert s[3] == 5
 	assert s[4] == 4
-	//:: ExpectedOutput(assertion_error)
+	//:: ExpectedOutput(assert_error)
 	assert s[5] == 7
 }

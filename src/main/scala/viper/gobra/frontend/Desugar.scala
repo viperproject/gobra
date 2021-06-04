@@ -1113,7 +1113,7 @@ object Desugar {
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
-        val abstractType = f.symb.tag.typ(config)
+        val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
           case _: ap.BuiltInFunction =>
             p.args.map(info.typ)

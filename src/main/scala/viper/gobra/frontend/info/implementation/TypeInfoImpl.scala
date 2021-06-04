@@ -30,6 +30,7 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context,
 
   with ImportTyping
   with MemberTyping
+  with BuiltInMemberTyping
   with StmtTyping
   with ExprTyping
   with TypeTyping

@@ -8,7 +8,7 @@ package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.BuiltInMemberTag
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BufferSizeMethodTag, BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag, ChannelInvariantMethodTag, CloseFunctionTag, ClosedMPredTag, ClosureDebtMPredTag, CreateDebtChannelMethodTag, InitChannelMethodTag, IsChannelMPredTag, PredTrueFPredTag, RecvChannelMPredTag, RecvGivenPermMethodTag, RecvPermMethodTag, RedeemChannelMethodTag, SendChannelMPredTag, SendGotPermMethodTag, SendPermMethodTag, TokenMPredTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.reporting.Source
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
@@ -343,6 +343,43 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
   private def translateFunction(x: in.BuiltInFunction)(ctx: Context): in.FunctionMember = {
     val src = x.info
+
+    var varCount = 0
+    def freshBoundVar(): in.BoundVar = {
+      varCount += 1
+      in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable))(src)
+    }
+
+    def bound(exp: in.Expr, lower: in.Expr, upper: in.Expr): in.Expr = {
+      in.And(
+        in.AtLeastCmp(exp, lower)(src),
+        in.LessCmp(exp, upper)(src)
+      )(src)
+    }
+
+    def quantify(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Assertion): in.Assertion = {
+      val i = freshBoundVar()
+      val triggers = Vector()
+      in.SepForall(Vector(i), triggers, in.Implication(bound(i), exprF(i))(src))(src)
+    }
+
+    def quantifyPure(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Expr): in.Expr = {
+      val i = freshBoundVar()
+      val triggers = Vector()
+      val expr = in.Conditional(
+        bound(i),
+        exprF(i),
+        in.BoolLit(b = true)(src),
+        in.BoolT(Addressability.rValue)
+      )(src)
+      in.PureForall(Vector(i), triggers, expr)(src)
+    }
+
+    def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
+      quantify{ i => bound(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) } {
+        i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i)(src)), perm)(src)
+      }
+
     (x.tag, x.argsT) match {
       case (CloseFunctionTag, Vector(channelT, dividendT, divisorT /* permissionAmountT */, predicateT)) =>
         /**
@@ -381,6 +418,152 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.Access(closedInst, in.FullPerm(src))(src)
         )
         in.Function(x.name, args, Vector(), pres, posts, None)(src)
+
+      case (AppendFunctionTag, Vector(sliceT: in.SliceT, _: in.SliceT)) =>
+        /**
+          * requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+          * requires forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * ensures len(res) == len(s) + len(stuff)
+          * ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+          * ensures forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * ensures forall i int :: 0 <= i && i < len(s) ==> res[i] == old(s[i])
+          * ensures forall i int :: len(s) <= i && i < len(res) ==> res[i] == stuff[i - len(s)]
+         */
+        val elemType = sliceT.elems.withAddressability(Addressability.sliceLookup)
+        val sliceType = in.SliceT(elemType, Addressability.inParameter)
+
+        // parameters
+        val sliceParam = in.Parameter.In("slice", sliceType)(src)
+        val variadicParam = in.Parameter.In("elems", sliceType)(src)
+        val args = Vector(sliceParam, variadicParam)
+
+        // results
+        val resultParam = in.Parameter.Out("res", sliceType)(src)
+        val results = Vector(resultParam)
+
+        // preconditions
+        val preSlice = accessSlice(sliceParam, in.FullPerm(src))
+        val preVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
+        val pres: Vector[in.Assertion] = Vector(preSlice, preVariadic)
+
+        // postconditions
+        val postLen = in.ExprAssertion(
+          in.EqCmp(
+            in.Length(resultParam)(src),
+            in.Add(in.Length(sliceParam)(src), in.Length(variadicParam)(src))(src)
+          )(src)
+        )(src)
+        val postRes = accessSlice(resultParam, in.FullPerm(src))
+        val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
+        val postCmpSlice = quantify{ bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) }{
+          i => in.ExprAssertion(
+            in.EqCmp(in.IndexedExp(resultParam, i)(src), in.Old(in.IndexedExp(sliceParam, i)(src), elemType)(src))(src)
+          )(src)
+        }
+        val postCmpVariadic = quantify{ bound(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) } { i =>
+          in.ExprAssertion(
+            in.EqCmp(
+              in.IndexedExp(resultParam, i)(src),
+              in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src))(src),
+            )(src)
+          )(src)
+        }
+
+        val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
+
+        in.Function(x.name, args, results, pres, posts, None)(src)
+
+      case (CopyFunctionTag, Vector(sliceT1: in.SliceT, sliceT2: in.SliceT, _)) =>
+        /**
+          * requires 0 < p && p < 1
+          * requires forall i int :: (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
+          * requires forall i int :: (0 <= i && i < len(src)) ==> acc(&src[i], p)
+          * requires forall i int :: (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
+          * ensures len(dst) <= len(src) ==> res == len(dst)
+          * ensures len(src) < len(dst) ==> res == len(src)
+          * ensures forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i], 1-p)
+          * ensures forall i int :: 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
+          * ensures forall i int :: (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
+          * ensures forall i int :: (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
+          * func copy(dst, src []int, ghost p perm) (res int)
+          */
+
+        // parameters
+        val dstParam = in.Parameter.In("dst", sliceT1)(src)
+        val srcParam = in.Parameter.In("src", sliceT2)(src)
+        val pParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
+        val args = Vector(dstParam, srcParam, pParam)
+
+        // results
+        val resParam = in.Parameter.Out("res", in.IntT(Addressability.outParameter))(src)
+        val results = Vector(resParam)
+
+        // preconditions
+        val pPre = in.ExprAssertion(
+          in.And(in.LessCmp(in.NoPerm(src), pParam)(src), in.LessCmp(pParam, in.FullPerm(src))(src))(src)
+        )(src)
+        val preDst = quantify(i => bound(i, in.IntLit(0)(src), in.Length(dstParam)(src))) { i =>
+          in.Access(
+            in.Accessible.Address(in.IndexedExp(dstParam, i)(src)),
+            in.PermSub(in.FullPerm(src), pParam)(src)
+          )(src)
+        }
+        val preSrc = quantify(i => bound(i, in.IntLit(0)(src), in.Length(srcParam)(src))) { i =>
+          in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i)(src)), pParam)(src)
+        }
+        val preDistinct = quantify { i =>
+          in.And(
+            bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
+            quantifyPure { j => bound(j, in.IntLit(0)(src), in.Length(srcParam)(src)) } { j =>
+              in.UneqCmp(in.Ref(in.IndexedExp(dstParam, i)(src))(src), in.Ref(in.IndexedExp(srcParam, j)(src))(src))(src)
+            }
+          )(src)
+        } { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i)(src)), pParam)(src) }
+
+        val pres = Vector(pPre, preDst, preSrc, preDistinct)
+
+        // postconditions
+        val postRes1 = in.Implication(
+          in.AtMostCmp(in.Length(dstParam)(src), in.Length(srcParam)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(dstParam)(src), resParam)(src))(src)
+        )(src)
+
+        val postRes2 = in.Implication(
+          in.LessCmp(in.Length(srcParam)(src), in.Length(dstParam)(src))(src),
+          in.ExprAssertion(in.EqCmp(in.Length(srcParam)(src), resParam)(src))(src)
+        )(src)
+
+        // the assertions in the pre-conditions can be reused here
+        val postDst = preDst
+        val postSrc = preSrc
+        val postDistinct = preDistinct
+        val postUpdate = quantify { i =>
+          in.And(
+            bound(i, in.IntLit(0)(src), in.Length(srcParam)(src)),
+            bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
+          )(src)
+        } { i =>
+          in.ExprAssertion(
+            in.EqCmp(
+              in.IndexedExp(dstParam, i)(src),
+              in.Old(in.IndexedExp(srcParam, i)(src), sliceT2.elems)(src)
+            )(src)
+          )(src)
+        }
+        val postSame = quantify(i => bound(i, in.Length(srcParam)(src), in.Length(dstParam)(src))) { i =>
+          in.ExprAssertion(
+            in.EqCmp(
+              in.IndexedExp(dstParam, i)(src),
+              in.Old(in.IndexedExp(dstParam, i)(src), sliceT1.elems)(src)
+            )(src)
+          )(src)
+        }
+
+        val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
+
+        in.Function(x.name, args, results, pres, posts, None)(src)
+
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }
   }

@@ -1,0 +1,54 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package builtin
+
+func test0() {
+	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
+	var s = make([]int, 6)
+	p := perm(1/2)
+
+	n1 := copy(s, a[0:], p)
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+	//:: ExpectedOutput(assertion_error)
+	assert false
+}
+
+func test1() {
+	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
+	var s = make([]int, 6)
+	
+	p := perm(1/2)
+	n1 := copy(s, a[0:], p)
+	//:: ExpectedOutput(assertion_error)
+	assert n1 == 3
+}
+
+func test2() {
+	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
+	var s = make([]int, 6)
+	p := perm(1/2)
+	n1 := copy(s, a[0:], p)
+	//:: ExpectedOutput(assertion_error)
+	assert s[2] == 3
+}
+
+func test3() {
+	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
+	var s = make([]int, 6)
+	
+	p := perm(1/2)
+	n1 := copy(s, a[0:], p)
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+	n2 := copy(s, s[2:], p)
+
+	assert n2 == 4
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+	assert s[0] == 2
+	assert s[1] == 3
+	assert s[2] == 4
+	assert s[3] == 5
+	assert s[4] == 4
+	//:: ExpectedOutput(assertion_error)
+	assert s[5] == 7
+}

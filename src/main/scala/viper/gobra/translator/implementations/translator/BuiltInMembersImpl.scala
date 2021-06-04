@@ -521,7 +521,6 @@ class BuiltInMembersImpl extends BuiltInMembers {
           )(src)
         } { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i)(src)), pParam)(src) }
 
-        // Precondition missing
         val pres = Vector(pPre, preDst, preSrc, preDistinct)
 
         // postconditions

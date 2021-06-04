@@ -39,7 +39,7 @@ func test4() {
 	s := make([]int, 1)
 	s[0] = 1
 	b := append(s, 2, 3, 4)
-	assert s[0] == 1
-	//:: ExpectedOutput(assertion_error:permission_error)
 	assert b[0] == 1
+	//:: ExpectedOutput(assertion_error:permission_error)
+	assert s[0] == 1
 }

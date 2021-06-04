@@ -38,10 +38,19 @@ func test3() {
 	var s = make([]int, 6)
 	
 	p := perm(1/2)
-	n1 := copy(s, a[0:], p)
 	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-	n2 := copy(s, s[2:], p)
+	n1 := copy(s, a[0:], p)
+	assert n1 == 6
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+	assert s[0] == 0
+	assert s[1] == 1
+	assert s[2] == 2
+	assert s[3] == 3
+	assert s[4] == 4
+	assert s[5] == 5
 
+	n2 := copy(s, s[2:], p)
+	// n2 == 4, s == []int{2, 3, 4, 5, 4, 5}
 	assert n2 == 4
 	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
 	assert s[0] == 2

@@ -340,7 +340,6 @@ case class SepAnd(left: Assertion, right: Assertion)(val info: Source.Parser.Inf
 
 case class ExprAssertion(exp: Expr)(val info: Source.Parser.Info) extends Assertion
 
-// TODO implement necessary methods
 case class PureImplication(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BoolOperation
 
 case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Info) extends Assertion

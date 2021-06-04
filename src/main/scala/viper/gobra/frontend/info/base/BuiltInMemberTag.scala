@@ -8,11 +8,11 @@ package viper.gobra.frontend.info.base
 
 
 /**
-  * TODO: change this
   * Module to add built-in functions, methods, fpredicates, and mpredicates to Gobra.
   * Two steps have to be performed for adding a new built-in member:
   * (1) add a tag representing that built-in member,
   * (2) add it to `builtInMembers()`, and
+  * (3) add type-checking code in file `BuiltInMemberTyping.scala`
   * (3) add an additional case to BuiltInMembersImpl that maps that built-in member (the tag and its specific use) to
   * a generated member in the internal representation which is then encoded.
   * The desugarer automatically resolves function and methods calls to as well as instances of these built-in members.
@@ -28,7 +28,7 @@ object BuiltInMemberTag {
     def ghost: Boolean
   }
 
-  // TODO: Maybe Remove? does not seem to be a subtype of any type
+  // TODO: Maybe remove, does not seem to be a sypertype of any type
   sealed trait ActualBuiltInMember extends BuiltInMemberTag
 
   sealed trait GhostBuiltInMember extends BuiltInMemberTag {

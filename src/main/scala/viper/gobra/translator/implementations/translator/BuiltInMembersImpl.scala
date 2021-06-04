@@ -350,7 +350,6 @@ class BuiltInMembersImpl extends BuiltInMembers {
       in.BoundVar(s"i$varCount", in.IntT(Addressability.boundVariable))(src)
     }
 
-    // TODO: doc
     def bound(exp: in.Expr, lower: in.Expr, upper: in.Expr): in.Expr = {
       in.And(
         in.AtLeastCmp(exp, lower)(src),

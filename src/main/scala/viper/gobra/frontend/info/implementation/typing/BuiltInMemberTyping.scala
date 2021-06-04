@@ -22,7 +22,6 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: BuiltInFunctionTag => t match {
       case CloseFunctionTag => AbstractType(
         {
-          // TODO: May be worth to split the well-defined checks and the typing functions, requires changing the way we deal with AbstractType
           case (_, Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger) /* PermissionT */ , PredT(Vector()))) if sendAndBiDirections.contains(c.mod) => noMessages
           case (n, ts) => error(n, s"type error: close expects parameters of bidirectional or sending channel, int, int, and pred() types but got ${ts.mkString(", ")}")
         },

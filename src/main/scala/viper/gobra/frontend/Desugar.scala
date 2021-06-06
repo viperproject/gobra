@@ -1030,6 +1030,31 @@ object Desugar {
               sendGotPermProxy = methodProxy(BuiltInMemberTag.SendGotPermMethodTag, dchannel.typ, Vector())(src)
             } yield in.Send(dchannel, dmsg, sendChannelProxy, sendGivenPermProxy, sendGotPermProxy)(src)
 
+          case PTypeSwitchStmt(pre, exp, binder, cases, dflt) =>
+            for {
+              dPre <- maybeStmtD(ctx)(pre)(src)
+              dExp <- exprD(ctx)(exp)
+              exprVar <- freshDeclaredExclusiveVar(dExp.typ.withAddressability(Addressability.exclusiveVariable))(dExp.info)
+              exprAss = singleAss(in.Assignee.Var(exprVar), dExp)(dExp.info)
+              _ <- write(exprAss)
+              clauses <- sequence(cases.map(c => typeSwitchCaseD(c, exprVar, binder)(ctx)))
+
+              dfltStmt <- if (dflt.size > 1) {
+                violation("switch statement has more than one default clause")
+              } else if (dflt.size == 1) {
+                stmtD(ctx)(dflt(0))
+              } else {
+                unit(in.Seqn(Vector.empty)(src))
+              }
+
+              clauseBody = clauses.foldRight(dfltStmt){
+                (clauseD, tail) =>
+                  clauseD match {
+                    case (exprCond, body) => in.If(exprCond, body, tail)(body.info)
+                  }
+              }
+            } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
+
           case _ => ???
         }
       }
@@ -1039,10 +1064,44 @@ object Desugar {
       switchCase match {
         case PExprSwitchCase(left, body) => for {
           acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
-          acceptCond = acceptExprs.foldRight(in.BoolLit(false)(meta(left.head)) : in.Expr){
+          acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(left.head)) : in.Expr){
             (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
           }
           stmt <- stmtD(ctx)(body)
+        } yield (acceptCond, stmt)
+      }
+
+    def typeSwitchCaseD(switchCase: PTypeSwitchCase, scrutinee: in.LocalVar, bind: Option[PIdnDef])(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
+      switchCase match {
+        case PTypeSwitchCase(left, body) => for {
+          acceptExprs <- sequence(left.map(clause => exprAndTypeAsExpr(ctx)(clause)))
+          acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(left.head)) : in.Expr){
+            (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
+          }
+          // In clauses with a case listing exactly one type, the variable has that type;
+          // otherwise, the variable has the type of the expression in the TypeSwitchGuard
+          assign = for {
+            bId <- bind
+            typ = left match {
+              case Vector(t) => typeD(info.symbType(t), Addressability.rValue)(Source.Parser.Internal)
+              case _ => scrutinee.typ
+            }
+            name = idName(bId)
+          } yield in.LocalVar(name, typ)(Source.Parser.Internal)
+
+          context = (bind, assign) match {
+            case (Some(id), Some(v)) =>
+              val newCtx = ctx.copy
+              newCtx.addSubst(id, v)
+              newCtx
+            case (None, None) => ctx
+            case _ => violation("unexpected pattern found")
+          }
+
+          stmt = blockD(context)(body) match {
+            case b@ in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, stmts)(b.info)
+            case _ => violation("unexpected pattern found")
+          }
         } yield (acceptCond, stmt)
       }
 

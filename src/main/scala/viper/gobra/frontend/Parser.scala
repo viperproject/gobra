@@ -578,7 +578,7 @@ object Parser {
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
         (idnDef <~ ":=").? ~ (primaryExp <~ "." <~ "(" <~ "type" <~ ")") ~
-        ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+        ("{" ~> typeSwitchClause.* <~ "}") ^^ {
         case pre ~ binder ~ exp ~ clauses =>
           val cases = clauses collect { case v: PTypeSwitchCase => v }
           val dflt = clauses collect { case v: PTypeSwitchDflt => v.body }

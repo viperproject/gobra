@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+ensures r > 0
+func doInt(i int) (r int)
+
+func do()
+
+func f(x interface{}) {
+	switch i := x.(type) {
+	// case nil:
+	//    do()
+	case int:
+		res := doInt(i)
+		assert res > 0
+	case bool, string:
+		do()
+	default:
+		do()
+	}
+}

@@ -91,7 +91,8 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         } ++ {
           val expTyp = exprOrTypeType(n.exp)
           n.cases.flatMap(_.left).flatMap {
-            t => implements(typeSymbType(t), expTyp).asReason(t, s"impossible type switch case: ${n.exp} (type $expTyp) cannot have dynamic type $t")
+            case t: PType => implements(typeSymbType(t), expTyp).asReason(t, s"impossible type switch case: ${n.exp} (type $expTyp) cannot have dynamic type $t")
+            case e: PExpression => error(e, s"$e is not valid in type switch clauses", !e.isInstanceOf[PNilLit])
           }
         }
 

@@ -589,10 +589,12 @@ object Parser {
     lazy val typeSwitchClause: Parser[PTypeSwitchClause] =
       typeSwitchCase | typeSwitchDflt
 
-    lazy val typeSwitchCase: Parser[PTypeSwitchCase] =
-      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
+    lazy val typeSwitchCase: Parser[PTypeSwitchCase] = {
+      val typeOrNil = nilLit | typ
+      ("case" ~> rep1sep(typeOrNil, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case guards ~ stmts => PTypeSwitchCase(guards, PBlock(stmts.get).at(stmts))
       }
+    }
 
     lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
       "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
@@ -874,9 +876,11 @@ object Parser {
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
-        "nil" ^^^ PNilLit() |
+        nilLit |
         intLit |
         stringLit
+
+    lazy val nilLit: Parser[PNilLit] = "nil" ^^^ PNilLit()
 
     lazy val intLit: Parser[PIntLit] =
       octalLit | binaryLit | hexLit | decimalLit

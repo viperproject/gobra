@@ -1060,58 +1060,61 @@ object Desugar {
       }
     }
 
-    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
-      switchCase match {
-        case PExprSwitchCase(left, body) => for {
-          acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
-          acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(left.head)) : in.Expr){
-            (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
-          }
-          stmt <- stmtD(ctx)(body)
-        } yield (acceptCond, stmt)
-      }
+    def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
+      val left = switchCase.left
+      val body = switchCase.body
+      for {
+        acceptExprs <- sequence(left.map(clause => exprD(ctx)(clause)))
+        acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(switchCase)): in.Expr){
+          (expr, tail) => in.Or(in.EqCmp(scrutinee, expr)(expr.info), tail)(expr.info)
+        }
+        stmt <- stmtD(ctx)(body)
+      } yield (acceptCond, stmt)
+    }
 
-    def typeSwitchCaseD(switchCase: PTypeSwitchCase, scrutinee: in.LocalVar, bind: Option[PIdnDef])(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] =
-      switchCase match {
-        case s@ PTypeSwitchCase(left, body) => for {
-          acceptExprs <- sequence(left.map {
-            case t: PType =>
-              for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(meta(t))
-            case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(meta(s))
-          })
-          acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(meta(s)): in.Expr) {
-            (expr, tail) => in.Or(expr, tail)(expr.info)
-          }
-          // In clauses with a case listing exactly one type, the variable has that type;
-          // otherwise, the variable has the type of the expression in the TypeSwitchGuard
-          assign = for {
-            bId <- bind
-            typ = left match {
-              case Vector(t: PType) => typeD(info.symbType(t), Addressability.rValue)(Source.Parser.Internal)
-              case Vector(_: PNilLit) => scrutinee.typ
-              case l if l.length > 1 => scrutinee.typ
-              case c => violation(s"This case should be unreachable, but got $c")
-            }
-            name = idName(bId)
-          } yield in.LocalVar(name, typ)(Source.Parser.Internal)
-
-          context = (bind, assign) match {
-            case (Some(id), Some(v)) =>
-              val newCtx = ctx.copy
-              newCtx.addSubst(id, v)
-              newCtx
-            case (None, None) => ctx
+    def typeSwitchCaseD(switchCase: PTypeSwitchCase, scrutinee: in.LocalVar, bind: Option[PIdnDef])(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {
+      val left = switchCase.left
+      val body = switchCase.body
+      val metaCase = meta(switchCase)
+      for {
+        acceptExprs <- sequence(left.map {
+          case t: PType =>
+            for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+          case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(metaCase)
+        })
+        acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(metaCase): in.Expr) {
+          (expr, tail) => in.Or(expr, tail)(expr.info)
+        }
+        // In clauses with a case listing exactly one type, the variable has that type;
+        // otherwise, the variable has the type of the expression in the TypeSwitchGuard
+        assign = for {
+          bId <- bind
+          typ = left match {
+            case Vector(t: PType) => typeD(info.symbType(t), Addressability.rValue)(Source.Parser.Internal)
+            case Vector(_: PNilLit) => scrutinee.typ
+            case l if l.length > 1 => scrutinee.typ
             case c => violation(s"This case should be unreachable, but got $c")
           }
+          name = idName(bId)
+        } yield in.LocalVar(name, typ)(Source.Parser.Internal)
 
-          init = assign.map(v => in.SingleAss(in.Assignee.Var(v), in.TypeAssertion(scrutinee, v.typ)(v.info))(v.info)).toVector
+        context = (bind, assign) match {
+          case (Some(id), Some(v)) =>
+            val newCtx = ctx.copy
+            newCtx.addSubst(id, v)
+            newCtx
+          case (None, None) => ctx
+          case c => violation(s"This case should be unreachable, but got $c")
+        }
 
-          stmt = blockD(context)(body) match {
-            case b@in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(b.info)
-            case c => violation(s"This case should be unreachable, but got $c")
-          }
-        } yield (acceptCond, stmt)
-      }
+        init = assign.map(v => in.SingleAss(in.Assignee.Var(v), in.TypeAssertion(scrutinee, v.typ)(v.info))(v.info)).toVector
+
+        stmt = blockD(context)(body) match {
+          case in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(meta(body))
+          case c => violation(s"This case should be unreachable, but got $c")
+        }
+      } yield (acceptCond, stmt)
+    }
 
     def multiassD(lefts: Vector[in.Assignee], right: in.Expr)(src: Source.Parser.Info): in.Stmt = {
 

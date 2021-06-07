@@ -243,7 +243,7 @@ sealed trait PTypeSwitchClause extends PNode
 
 case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
-case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
+case class PTypeSwitchCase(left: Vector[PExpressionOrType], body: PBlock) extends PTypeSwitchClause
 
 case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 

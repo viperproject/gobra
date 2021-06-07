@@ -268,7 +268,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showTypeSwitchClause(n: PTypeSwitchClause): Doc = n match {
     case PTypeSwitchDflt(body) => "default"  <> ":" <> showNestedStmtList(body.stmts)
-    case PTypeSwitchCase(left, body) => "case" <+> showTypeList(left) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
+    case PTypeSwitchCase(left, body) =>
+      "case" <+> showList(left)(showExprOrType) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
   }
 
   def showSelectClause(n: PSelectClause): Doc = n match {

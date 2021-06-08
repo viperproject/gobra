@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.base
 
 /**
   * Module to add built-in functions, methods, fpredicates, and mpredicates to Gobra.
-  * Two steps have to be performed for adding a new built-in member:
+  * Four steps have to be performed for adding a new built-in member:
   * (1) add a tag representing that built-in member,
   * (2) add it to `builtInMembers()`, and
   * (3) add type-checking code in file `BuiltInMemberTyping.scala`

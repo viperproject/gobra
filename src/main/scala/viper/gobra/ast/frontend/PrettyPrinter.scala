@@ -108,13 +108,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
+  def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
+        hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line))
 
     case PLoopSpec(inv) =>

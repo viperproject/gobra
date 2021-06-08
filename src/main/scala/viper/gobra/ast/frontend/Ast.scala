@@ -770,6 +770,7 @@ sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
                       pres: Vector[PExpression],
+                      preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       isPure: Boolean = false,
                       ) extends PSpecification

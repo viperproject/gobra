@@ -422,8 +422,12 @@ object Parser {
       }
 
     lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~ "pure".? ^^ {
-        case pres ~ posts ~ isPure => PFunctionSpec(pres, posts, isPure.nonEmpty)
+      ("requires" ~ expression <~ eos | "preserves" ~ expression <~ eos | "ensures" ~ expression <~ eos).* ~ "pure".? ^^ {
+        case spec ~ isPure => 
+          val pres = spec.collect{case "requires" ~ exp => exp}
+          val preserves = spec.collect{case "preserves" ~ exp => exp}
+          val posts = spec.collect{case "ensures" ~ exp => exp}
+          PFunctionSpec(pres, preserves, posts, isPure.nonEmpty)
       }
 
     lazy val methodDecl: Parser[PMethodDecl] =

@@ -265,6 +265,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(measure) =>
           measure match {
             case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p) )
+             case PUnderscoreCharacter()=>noMessages
+            case PStarCharacter()=>noMessages
             case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
               case  PConditionalMeasureExpression(tuple) => tuple match {
                 case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
@@ -272,8 +274,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
               case PConditionalMeasureUnderscore(tuple) => tuple match {
                 case (underscore,condition)=>assignableToSpec(condition)
               }
+                case PConditionalMeasureAdditionalStar() => noMessages
             })
           }
+               case None => noMessages
       })
 
     case PLoopSpec(invariants , terminationMeasure) => invariants.flatMap(assignableToSpec) ++
@@ -281,6 +285,8 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       case Some(measure) =>
         measure match {
           case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p) )
+           case PUnderscoreCharacter()=>noMessages
+            case PStarCharacter()=>noMessages
           case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
             case  PConditionalMeasureExpression(tuple) => tuple match {
               case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
@@ -288,8 +294,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
             case PConditionalMeasureUnderscore(tuple) => tuple match {
               case (underscore,condition)=>assignableToSpec(condition)
             }
+              case PConditionalMeasureAdditionalStar() => noMessages
           })
         }
+              case None => noMessages
     })
   }
 

@@ -71,7 +71,8 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 	
 	}
 	def isUnnecessary(info:Source.Verifier.Info):Boolean = {
-		info.node.toString.contains("$") || info.pnode.toString.contains("=") || info.pnode.toString.contains("(")
+		//Embeddings and such 			//usually for multi variable assgnent //function calls						// parameter and return values (ISSUE sometimes we want both TODO: on return label use result param and in old label use input params)
+		info.node.toString.contains("$") || info.pnode.toString.contains("=") || info.pnode.toString.contains("(") //|| info.pnode.toString.contains(" ")
 	}
 }
 object Util{
@@ -193,7 +194,7 @@ case class LitIntEntry(value:BigInt) extends LitEntry {
 case class LitBoolEntry(value:Boolean) extends LitEntry {
 	override def toString(): String = s"$value"
 }
-case class LitPermEntry(value:Double) extends LitEntry {//should this be a double? does this not cause trouble?
+case class LitPermEntry(value:viper.silicon.state.terms.Rational) extends LitEntry {//should this be a double? does this not cause trouble?
 	override def toString(): String = s"$value"
 }
 case class LitOptionEntry(value:Option[LitEntry]) extends LitEntry {
@@ -246,14 +247,36 @@ case class LitDeclaredEntry(name:String,value:LitEntry)extends LitEntry {
 		} */
 	}
 }
+
+case class ChannelEntry(typ:Type,buffSize:BigInt,isOpen:Option[Boolean],isSend:Option[Boolean],isRecieve:Option[Boolean]) extends LitEntry{
+	override def toString():String = s"chan ${typ} [$buffSize] (state: $openness, can send: $sending, can recieve: $rec)"
+	private val openness = isOpen match {
+		case Some(true) => "open"
+		case Some(false) => "closed"
+		case _ => "?"
+	}
+	private val sending = isSend match {
+		case Some(true) => "yes"
+		case Some(false) => "no"
+		case _ => "?"
+	}
+	private val rec = isRecieve match {
+		case Some(true) =>  "yes"
+		case Some(false) => "no"
+		case None => "?"
+	}
+
+
+}
+
+
+
+//later
 case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry {
 	override def toString(): String = value.toString()
 }
 
-//later
 case class LitPredicateEntry()extends LitEntry {}
 
-case class LitSharedEntry(value:LitEntry) extends LitEntry {
-	override def toString:String = s"&$value"
-}
+
 

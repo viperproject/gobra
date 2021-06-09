@@ -47,7 +47,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case ChannelT(elem,mod) => FaultEntry(s"Channel...${c.non_domain_functions.map(x=>try{x.apply(Seq(entry)) match{case Right(v)=> x.fname+": "+v.toString} }catch{case _:Throwable => ""})}")
+												case ch:ChannelT => ChannelInterpreter(c).interpret(sil.LitIntEntry(v),ch)
 												case _ =>LitIntEntry(v)
 										}
 			case sil.LitBoolEntry(b) => info match{
@@ -460,6 +460,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			}
 			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general
 			case DomainT(decl,context) => "TODO: resolve Domain field"
+			case ch:ChannelT => Names.pointerField(vpr.Int)
 			case x => s"$x" //TODO: resolve all types 
 		}
 	}
@@ -633,5 +634,32 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		fname.startsWith(Names.typeOfFunc) ||
 		fname.startsWith(Names.dynamicPredicate) ||
 		fname.startsWith(Names.implicitThis) 
+	}
+}
+case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
+	def interpret(entry:sil.LitIntEntry,info:ChannelT) :GobraModelEntry= {
+		
+		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
+		printf(s"$entry -- ${preds}\n")
+		//TODO: move to Names
+		val isSend = preds.find(_.toString.startsWith("SendChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
+		val isRecv = preds.find(_.toString.startsWith("RecvChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
+		val isOpen = preds.find(_.toString.startsWith("IsChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
+		val buffSize=c.non_domain_functions.find(_.fname.startsWith("BufferSize")) match {
+			case Some(x)=> x.apply(Seq(entry)) match {
+				case Right(sil.LitIntEntry(v))=> v;
+				 case _=> BigInt(0)}
+			case _ => return FaultEntry("buffsize not found")
+		}
+		ChannelEntry(info,buffSize,isOpen,isSend,isRecv)
+	}
+	def interPerm(x:sil.PredHeapEntry):Option[Boolean] = {
+		import viper.silicon.state.terms._
+		x.perm match{
+			case Some(Rational.zero) => Some(false)
+			case Some(Rational.one) => Some(true)
+			case Some(x) if(x > Rational(0,1)) =>  Some(true)
+			case _ => None
+		}
 	}
 }

@@ -13,6 +13,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class MethodsImpl extends Methods {
 

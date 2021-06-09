@@ -427,7 +427,7 @@ object Parser {
        }
        
        lazy val measures:Parser[PTerminationMeasure]=
-           firstConditionalMeasure |"*"  ^^^ PStarCharacter() | ("_" <~eos) ^^^ PUnderscoreCharacter() | repsep(expression,",") <~eos ^^ PTupleTerminationMeasure
+          "*"  ^^^ PStarCharacter() | ("_" <~eos) ^^^ PUnderscoreCharacter() | repsep(expression,",") <~eos ^^ PTupleTerminationMeasure | firstConditionalMeasure 
 
 
         lazy val firstConditionalMeasure: Parser[PConditionalMeasureCollection]=

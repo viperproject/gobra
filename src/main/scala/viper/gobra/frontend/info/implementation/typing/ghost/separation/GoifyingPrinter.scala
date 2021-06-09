@@ -74,13 +74,49 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, posts, terminationMeasure, isPure) =>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
-      hcat(posts map (p => specComment <+> showPost(p) <> line))
+      hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
+      (terminationMeasure match {
+        case Some(measure) =>{
+          measure match {
+            case PTupleTerminationMeasure(tuple) =>  hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
+            case PStarCharacter()=> specComment <+> "decreases" <+> "*" <> line
+            case PUnderscoreCharacter()=>specComment <+> "decreases" <+> "_" <> line
+            case PConditionalMeasureCollection(tuple)=> hcat(tuple map(p => p match {
+              case PConditionalMeasureExpression(tuple) => tuple match {
+                case  (expression,condition)=>  hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
+              }
+              case PConditionalMeasureUnderscore(tuple)=> tuple match {
+                case (underscore,condition) => specComment <+> showPre(condition) <> line
+              }
+            }))
+          }
+        }
+      })
+   
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (p => specComment <+> showInv(p) <> line))
+    case PLoopSpec(inv,terminationMeasure ) =>
+      hcat(inv map (p => specComment <+> showInv(p) <> line)) <>
+      (terminationMeasure match {
+        case Some(measure) =>{
+          measure match {
+            case PTupleTerminationMeasure(tuple) =>  hcat(tuple map (p => specComment <+>"decreases" <+> showExpr(p) <> line))
+            case PStarCharacter()=> specComment <+> "decreases" <+> "*" <> line
+            case PUnderscoreCharacter()=>specComment <+> "decreases" <+> "_" <> line
+            case PConditionalMeasureCollection(tuple)=> hcat(tuple map(p => p match {
+              case PConditionalMeasureExpression(tuple) => tuple match {
+                case  (expression,condition)=>  hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
+              }
+              case PConditionalMeasureUnderscore(tuple)=> tuple match {
+                case (underscore,condition) => specComment <+> showPre(condition) <> line
+              }
+            }))
+          }
+        }
+      })
+   
   }
 
   /**
@@ -114,7 +150,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty,Option.empty),
           body
         )
       )
@@ -126,7 +162,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty,Option.empty),
           body
         )
       )

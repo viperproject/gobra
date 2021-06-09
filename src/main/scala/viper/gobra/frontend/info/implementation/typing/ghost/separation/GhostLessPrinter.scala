@@ -21,7 +21,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           rec,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Option.empty),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -32,7 +32,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
           id,
           filterParamList(args),
           filterResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty ,Option.empty),
           body.map( b => (PBodyParameterInfo(Vector.empty), b._2) )
         )
       )
@@ -52,7 +52,7 @@ class GhostLessPrinter(classifier: GhostClassifier) extends DefaultPrettyPrinter
   override def showStmt(stmt: PStatement): Doc = stmt match {
 
     case PForStmt(pre, cond, post, _, body) =>
-      super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty), body))
+      super.showStmt(PForStmt(pre, cond, post, PLoopSpec(Vector.empty,Option.empty), body))
 
     case p@PAssignment(right, left) =>
       showAssign[PAssignee](right, left, (r, l, _) => p.copy(right = r, left = l))

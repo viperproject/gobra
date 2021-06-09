@@ -258,11 +258,47 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case PFunctionSpec(pres, posts, _) =>
+    case PFunctionSpec(pres, posts,terminationMeasure, _) =>
       pres.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode))
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      (terminationMeasure match {
+        case Some(measure) =>
+          measure match {
+            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p) )
+             case PUnderscoreCharacter()=>noMessages
+            case PStarCharacter()=>noMessages
+            case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
+              case  PConditionalMeasureExpression(tuple) => tuple match {
+                case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
+              }
+              case PConditionalMeasureUnderscore(tuple) => tuple match {
+                case (underscore,condition)=>assignableToSpec(condition)
+              }
+                case PConditionalMeasureAdditionalStar() => noMessages
+            })
+          }
+               case None => noMessages
+      })
 
-    case PLoopSpec(invariants) => invariants.flatMap(assignableToSpec)
+    case PLoopSpec(invariants , terminationMeasure) => invariants.flatMap(assignableToSpec) ++
+    (terminationMeasure match {
+      case Some(measure) =>
+        measure match {
+          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p) )
+           case PUnderscoreCharacter()=>noMessages
+            case PStarCharacter()=>noMessages
+          case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
+            case  PConditionalMeasureExpression(tuple) => tuple match {
+              case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
+            }
+            case PConditionalMeasureUnderscore(tuple) => tuple match {
+              case (underscore,condition)=>assignableToSpec(condition)
+            }
+              case PConditionalMeasureAdditionalStar() => noMessages
+          })
+        }
+              case None => noMessages
+    })
   }
 
   def assignableToSpec(e: PExpression): Messages = {

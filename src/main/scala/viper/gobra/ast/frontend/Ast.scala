@@ -757,12 +757,30 @@ object PGhostifier {
 /**
   * Specification
   */
+sealed trait PTerminationMeasure extends PNode
+
+   case class PStarCharacter() extends PTerminationMeasure
+   case class PUnderscoreCharacter() extends PTerminationMeasure
+   case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
+
+
+   case class PConditionalMeasureCollection(tuple:Vector[PConditionalMeasure]) extends PTerminationMeasure
+
+   sealed trait PConditionalMeasure extends PNode
+
+   case class PConditionalMeasureExpression(tuple:(Vector[PExpression],PExpression)) extends PConditionalMeasure
+   case class PConditionalMeasureUnderscore(tuple:(PUnderscoreCharacter,PExpression))extends PConditionalMeasure
+   case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
+
+
+
 
 sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
                       pres: Vector[PExpression],
                       posts: Vector[PExpression],
+                      terminationMeasure: Option[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
@@ -777,7 +795,8 @@ case class PBodyParameterInfo(
 
 
 case class PLoopSpec(
-                    invariants: Vector[PExpression]
+                    invariants: Vector[PExpression],
+                     terminationMeasure:Option[PTerminationMeasure],
                     ) extends PSpecification
 
 

@@ -13,6 +13,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class MethodsImpl extends Methods {
 
@@ -37,6 +38,11 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
+      
+        terminationMeasure=x.terminationMeasure match {
+        case Some(measure) =>sequence( measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+        case None=> Seq.empty
+    }
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -53,7 +59,7 @@ class MethodsImpl extends Methods {
         formalArgs = vRecv +: vArgs,
         formalReturns = vResults,
         pres = pres,
-        posts = posts,
+        posts = posts ++ terminationMeasure,
         body = body
       )(pos, info, errT)
 
@@ -76,6 +82,11 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
+      
+        terminationMeasure=x.terminationMeasure match {
+        case Some(measure) => sequence( measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+        case None=> Seq.empty
+      }
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -92,7 +103,7 @@ class MethodsImpl extends Methods {
         formalArgs = vArgs,
         formalReturns = vResults,
         pres = pres,
-        posts = posts,
+        posts = posts ++ terminationMeasure,
         body = body
       )(pos, info, errT)
 

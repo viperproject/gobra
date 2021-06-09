@@ -110,15 +110,42 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
+  
+   
+  def showConditionalMeasureCollection[T <: PConditionalMeasure](tuple:Vector[T]):Doc = showList(tuple)(showConditionalMeasure)
+
+  def showConditionalMeasure(conditionalMeasure:PConditionalMeasure) : Doc = conditionalMeasure match {
+       case PConditionalMeasureExpression((expression, condition)) =>
+      "decreases" <+> showExprList(expression) <+> "if" <+>showExpr(condition)
+       case PConditionalMeasureUnderscore((underscore,condition)) =>
+      "decreases" <+> "_" <+> "if" <+>showExpr(condition)
+       case PConditionalMeasureAdditionalStar() =>
+         "decreases" <+> "*"
+  }
+
+
+      def showTerminationmeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+      case Some(terminationMeasure) => terminationMeasure match {
+      case  PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
+      case PStarCharacter() =>"decreases" <+> "*"
+      case PUnderscoreCharacter()=>"decreases" <+> "_"
+      case PConditionalMeasureCollection(tuple)=> showConditionalMeasureCollection(tuple)
+    }
+    case None=>""
+  }
+
+
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, posts, terminationMeasure, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line))
+        hcat(posts map (showPost(_) <> line))  <>
+        showTerminationmeasure(terminationMeasure) <> line
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (showInv(_) <> line))
+    case PLoopSpec(inv,termination_measures) =>
+      hcat(inv map (showInv(_) <> line))  <>
+        showTerminationmeasure(termination_measures) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {

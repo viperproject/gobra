@@ -16,6 +16,7 @@ import viper.gobra.translator.interfaces.translator.Assertions
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 
 class AssertionsImpl extends Assertions {
@@ -100,4 +101,39 @@ class AssertionsImpl extends Assertions {
   override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
 
   override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
+  
+  override def terminationMeasure(x: in.Assertion)(ctx:Context): MemberWriter[vpr.Exp] =
+
+    x match {
+
+      case in.ExprTerminationMeasure(exp) =>
+
+        val (pos, info, errT) =x.vprMeta
+        MemL.pure(Writer(DataContainer.empty, termination.DecreasesTuple(Seq(ctx.expr.translate(exp)(ctx).res),None)(pos,info,errT)))(ctx)
+
+      case in.UnderscoreTerminationMeasure() =>
+        val (pos,info,errT) = x.vprMeta
+
+        MemL.pure(  Writer(DataContainer.empty, termination.DecreasesWildcard(None)(pos,info,errT)))(ctx)
+
+      case in.StarTerminationMeasure() =>
+        val(pos,info,errT) =x.vprMeta
+        MemL.pure(Writer(DataContainer.empty,termination.DecreasesStar()(pos,info,errT)))(ctx)
+
+      case in.ConditionalMeasureUnderscore(condition) =>
+        val(pos,info,errT) =x.vprMeta
+        MemL.pure(Writer(DataContainer.empty, termination.DecreasesWildcard(Some(ctx.expr.translate(condition)(ctx).res))(pos,info,errT)))(ctx)
+
+      case in.ConditionalMeasureAdditionalStar() =>
+        val(pos,info,errT) =x.vprMeta
+        MemL.pure(Writer(DataContainer.empty,termination.DecreasesStar()(pos,info,errT)))(ctx)
+
+      case in.ConditionalMeasureExpression(vector, condition) =>
+
+        val(pos,info,errT) = x.vprMeta
+
+        MemL.pure(Writer(DataContainer.empty, termination.DecreasesTuple(sequence(vector.map(ctx.expr.translate(_)(ctx))).res,Some(ctx.expr.translate(condition)(ctx).res))(pos,info,errT)))(ctx)
+
+
+    }
 }

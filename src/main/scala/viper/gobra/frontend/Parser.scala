@@ -421,10 +421,29 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-    lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~ "pure".? ^^ {
-        case pres ~ posts ~ isPure => PFunctionSpec(pres, posts, isPure.nonEmpty)
+
+
+    lazy val functionSpec: Parser[PFunctionSpec] = {
+
+      sealed trait FunctionSpecClause
+      case class RequiresClause(exp: PExpression) extends FunctionSpecClause
+      case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case object PureClause extends FunctionSpecClause
+
+      lazy val functSpecClause: Parser[FunctionSpecClause] = {
+        "requires" ~> expression <~ eos ^^ RequiresClause |
+        "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "pure" <~ eos ^^^ PureClause
       }
+
+      functSpecClause.* ~ "pure".? ^^ {
+        case clauses ~ pure =>
+          val pres = clauses.collect{ case x: RequiresClause => x.exp }
+          val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val isPure = pure.nonEmpty || clauses.contains(PureClause)
+          PFunctionSpec(pres, posts, isPure)
+      }
+    }
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {

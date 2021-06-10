@@ -66,3 +66,6 @@ The [LICENSE](./LICENSE) lists the exceptions to this rule.
 Note that source files (whenever possible) should list their license in a short header.
 Continuous integration checks these file headers.
 The same checks can be performed locally by running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in this repository's root directory.
+
+## Get in touch
+Do you still have questions? Open an issue or contact us on [Zulip](https://gobra.zulipchat.com).

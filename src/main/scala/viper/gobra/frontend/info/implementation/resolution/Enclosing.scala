@@ -42,11 +42,11 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
-  def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
+  def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
 
-  private lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[PType] =
-    paramAttr[PIdnNode, PNode, Vector[PType]] { id => {
+  private lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[PExpressionOrType] =
+    paramAttr[PIdnNode, PNode, Vector[PExpressionOrType]] { id => {
       case tree.parent.pair(PTypeSwitchCase(left, _), s: PTypeSwitchStmt)
         if s.binder.exists(_.name == id.name) => left
 
@@ -81,6 +81,13 @@ trait Enclosing { this: TypeInfoImpl =>
           case PShortVarDecl(right, left, _) => Some(typ(left(right.indexOf(n))))
             // no if statement
           case _: PExprSwitchStmt => None
+          case s: PTypeSwitchCase => s match {
+            case tree.parent(p) => p match {
+              case switch: PTypeSwitchStmt => Some(typ(switch.exp))
+              case c => violation(s"This case should be unreachable, but got $c")
+            }
+            case c => violation(s"This case should be unreachable, but got $c")
+          }
             // no for stmt
             // no go stmt
           case p: PReturn => Some(typ(enclosingCodeRootWithResult(p).result.outs(p.exps.indexOf(n))))

@@ -229,12 +229,16 @@ case class UnresolvedInterface(typ:InterfaceT,possibleVals:Seq[GobraModelEntry])
 case class LitStringEntry(value:String) extends LitEntry{
 	override def toString() :String =s"${'"'}${value}${'"'}"
 }
-case class LitPointerEntry(typ:Type,value:LitEntry,address:BigInt)extends LitEntry {
+case class LitPointerEntry(typ:Type,value:LitEntry,address:BigInt)extends LitEntry with HeapEntry{
 	override def toString(): String = s"(&$address* -> $value)" 
+	//TODO: put permission up
+	val perm: LitPermEntry = LitPermEntry(viper.silicon.state.terms.Rational.zero)
 }
 //entries that are not designated (typed) as a pointer but are represented by a ref (adressable)
-case class LitAdressedEntry(value:LitEntry,address:BigInt) extends LitEntry{
+case class LitAdressedEntry(value:LitEntry,address:BigInt) extends LitEntry with HeapEntry{
 	override def toString():String = s"$value @$address"
+	//TODO: put permission up
+	val perm: LitPermEntry = LitPermEntry(viper.silicon.state.terms.Rational.zero)
 }
 case class LitRecursive(address:BigInt) extends LitEntry {
 	override def toString():String = s"&$address (recursive)"
@@ -268,15 +272,34 @@ case class ChannelEntry(typ:Type,buffSize:BigInt,isOpen:Option[Boolean],isSend:O
 
 
 }
+case class FunctionEntry(fname:String,argTypes:Seq[Type],resType:Type,options:Map[Seq[GobraModelEntry],GobraModelEntry],default:GobraModelEntry){ //maybe extend gobraentry
+	override def toString: String = {
+    if (options.nonEmpty)
+      s"$fname${argTypes.mkString("(",",",")")}:$resType{\n" + options.map(o => "    " + o._1.mkString(" ") + " -> " + o._2).mkString("\n") + "\n    else -> " + default +"\n}"
+    else
+      s"$fname{\n    " + default +"\n}"
+  }
+}
 
+case class UserDomain(name:String,typeArgs:Seq[Type],functions:Seq[FunctionEntry]){
+	//TODO: tostring
+}
+case class UserDomainEntry(name:String,id:String){
+	override def toString() :String = name + "_" + id
+}
 
+trait HeapEntry extends GobraModelEntry {
+	val perm:LitPermEntry
+}
 
 //later
-case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry {
+case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry{
 	override def toString(): String = value.toString()
 }
 
-case class LitPredicateEntry()extends LitEntry {}
+case class LitPredicateEntry(name:String, args:Seq[LitEntry],perm:LitPermEntry) extends LitEntry with HeapEntry{
+
+}
 
 
 

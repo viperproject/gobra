@@ -37,6 +37,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val sliceInterpreter: GobraDomainInterpreter[SliceT]= SliceInterpreter(c)
 	val pointerInterpreter : sil.AbstractInterpreter[sil.RefEntry,Type,GobraModelEntry] = PointerInterpreter(c)
 	val interfaceInterpreter :GobraDomainInterpreter[InterfaceT] = InterfaceInterpreter(c)
+	val channelInterpreter : sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] = ChannelInterpreter(c)
 	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
 		entry match{
 			case sil.LitIntEntry(v) => info match {
@@ -47,7 +48,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case ch:ChannelT => ChannelInterpreter(c).interpret(sil.LitIntEntry(v),ch)
+												case ch:ChannelT => channelInterpreter.interpret(sil.LitIntEntry(v),ch)
 												case _ =>LitIntEntry(v)
 										}
 			case sil.LitBoolEntry(b) => info match{
@@ -96,7 +97,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
 																	
-																	
+												case dom:DomainT => UserDomainInterpreter(c).interpret(d,dom)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
@@ -123,6 +124,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			/* case s:sil.SetEntry => info match {
 				case _ => FaultEntry(s"$s ,$info not implemented")
 			} */
+			//case sil.PredHeapEntry(name,args,) => LitPredicateEntry(s)
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}
@@ -639,12 +641,15 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
 	def interpret(entry:sil.LitIntEntry,info:ChannelT) :GobraModelEntry= {
 		
+
 		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
-		printf(s"$entry -- ${preds}\n")
+		//printf(s"${c.store} -- ${preds}\n")
 		//TODO: move to Names
-		val isSend = preds.find(_.toString.startsWith("SendChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
-		val isRecv = preds.find(_.toString.startsWith("RecvChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
-		val isOpen = preds.find(_.toString.startsWith("IsChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => None}
+		val isSend = preds.find(_.toString.startsWith("SendChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
+		val isRecv = preds.find(_.toString.startsWith("RecvChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
+		val isOpen = preds.find(_.toString.startsWith("IsChannel")) match {
+			case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry])
+			case None => if(isRecv.getOrElse(false)||isSend.getOrElse(false)) Some(true) else None }
 		val buffSize=c.non_domain_functions.find(_.fname.startsWith("BufferSize")) match {
 			case Some(x)=> x.apply(Seq(entry)) match {
 				case Right(sil.LitIntEntry(v))=> v;
@@ -663,3 +668,11 @@ case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		}
 	}
 }
+
+
+case class UserDomainInterpreter(c:sil.Converter) extends GobraDomainInterpreter[DomainT] {
+	def interpret(entry:sil.DomainValueEntry,info:DomainT) = {
+		FaultEntry("Domain not implemented")
+	}
+}
+

@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type pair struct {
+    left, right int
+}
+
+func main() {
+    pair := &pair{1, 4}
+    increase(pair)
+    assert acc(pair)
+}
+
+preserves acc(x)
+func increase(x *pair) {
+    x.left += 1
+    x.right += 1
+}

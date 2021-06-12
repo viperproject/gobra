@@ -461,8 +461,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(specCtx)
-      val posts = decl.spec.posts map postconditionD(specCtx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -610,8 +610,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(specCtx)
-      val posts = decl.spec.posts map postconditionD(specCtx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -700,8 +700,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -2036,8 +2036,8 @@ object Desugar {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = m.spec.pres map preconditionD(specCtx)
-          val posts = m.spec.posts map postconditionD(specCtx)
+          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
+          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
 
           val mem = if (m.spec.isPure) {
             in.PureMethod(recv, proxy, args, returns, pres, posts, None)(src)

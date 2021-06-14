@@ -15,8 +15,8 @@ import viper.silver.verifier.ConsistencyError
 
 /**
   * This trait adapts a SilFrontend to Viper frontends that encode a program into a Viper program and thus do not need
-  * and phases related to parsing. Key to use this trait is setting `encoding` to the Viper program that the frontend
-  * has produced.
+  * execute phases related to parsing. Key to use this trait is setting `encoding` to the Viper program that the
+  * frontend has produced.
   * `execute` should be used to run the phases.
   */
 trait SilFrontendForFrontends extends SilFrontend {

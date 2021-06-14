@@ -21,7 +21,7 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
     implicit val _executor: GobraExecutionContext = executor
     Future {
       val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
-
+      
       val startTime = System.currentTimeMillis()
       backend.start()
       val result = backend.verify(program)

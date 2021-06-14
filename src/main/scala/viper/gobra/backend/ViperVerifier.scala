@@ -13,9 +13,7 @@ import viper.silver.reporter.Reporter
 import scala.concurrent.Future
 
 object ViperVerifierConfig {
-  case object EmptyConfig extends ViperVerifierConfig {
-    val partialCommandLine: List[String] = Nil
-  }
+  object EmptyConfig extends ViperVerifierConfig {val partialCommandLine: List[String] = Nil}
   case class Config(partialCommandLine: List[String]) extends ViperVerifierConfig
 }
 

@@ -30,7 +30,7 @@ case class Config(
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig(),
+                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
@@ -39,6 +39,7 @@ case class Config(
                  shouldDesugar: Boolean = true,
                  shouldViperEncode: Boolean = true,
                  checkOverflows: Boolean = false,
+                 checkConsistency: Boolean = false,
                  shouldVerify: Boolean = true,
                  // The go language specification states that int and uint variables can have either 32bit or 64, as long
                  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,

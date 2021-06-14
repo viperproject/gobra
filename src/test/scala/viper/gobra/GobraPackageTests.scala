@@ -68,7 +68,7 @@ class GobraPackageTests extends GobraTests {
           reporter = NoopReporter,
           inputFiles = input.files.toVector,
           includeDirs = Vector(currentDir),
-          backendConfig = ViperVerifierConfig.EmptyConfig(performConsistencyChecks = true),
+          checkConsistency = true,
           z3Exe = z3Exe
         )
 

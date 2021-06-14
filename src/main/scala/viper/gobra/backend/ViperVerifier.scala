@@ -13,15 +13,14 @@ import viper.silver.reporter.Reporter
 import scala.concurrent.Future
 
 object ViperVerifierConfig {
-  case class EmptyConfig(performConsistencyChecks: Boolean = false) extends ViperVerifierConfig {
+  case object EmptyConfig extends ViperVerifierConfig {
     val partialCommandLine: List[String] = Nil
   }
-  case class Config(partialCommandLine: List[String], performConsistencyChecks: Boolean = false) extends ViperVerifierConfig
+  case class Config(partialCommandLine: List[String]) extends ViperVerifierConfig
 }
 
 trait ViperVerifierConfig {
   val partialCommandLine: List[String]
-  val performConsistencyChecks: Boolean
 }
 
 trait ViperVerifier extends Backend[String, ViperVerifierConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {

@@ -10,12 +10,9 @@ import viper.gobra.util.GobraExecutionContext
 import viper.silicon
 import viper.silver.ast.Program
 import viper.silver.reporter._
-import viper.silver.verifier.VerificationResult
+import viper.silver.verifier.{Failure, Success, VerificationResult}
 
 import scala.concurrent.Future
-
-class SiliconFrontendForFrontends(reporter: Reporter, override val encoding: Program, override val performConsistencyChecks: Boolean)
-  extends silicon.SiliconFrontend(reporter) with SilFrontendForFrontends
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
 
@@ -23,9 +20,21 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val siliconFrontend = new SiliconFrontendForFrontends(reporter, program, config.performConsistencyChecks)
-      siliconFrontend.execute(commandLineArguments)
-      siliconFrontend.result
+      val backend: silicon.Silicon = silicon.Silicon.fromPartialCommandLineArguments(commandLineArguments, reporter)
+
+      val startTime = System.currentTimeMillis()
+      backend.start()
+      val result = backend.verify(program)
+      backend.stop()
+
+      result match {
+        case Success =>
+          reporter report OverallSuccessMessage(backend.name, System.currentTimeMillis() - startTime)
+        case f@Failure(_) =>
+          reporter report OverallFailureMessage(backend.name, System.currentTimeMillis() - startTime, f)
+      }
+
+      result
     }
   }
 }

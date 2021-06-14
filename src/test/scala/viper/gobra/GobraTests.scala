@@ -50,7 +50,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           reporter = NoopReporter,
           inputFiles = Vector(input.file),
           // TODO: enable consistency checks as soon as inconsistencies have been fixed
-          // backendConfig = ViperVerifierConfig.EmptyConfig(performConsistencyChecks = true),
+          // checkConsistency = true,
           z3Exe = z3Exe
         )
 

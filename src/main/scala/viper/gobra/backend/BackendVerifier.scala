@@ -33,7 +33,7 @@ object BackendVerifier {
 
   def verify(task: Task)(config: Config)(implicit executor: GobraExecutionContext): Future[Result] = {
 
-    var exePaths: Vector[String] = config.backendConfig.partialCommandLine.toVector
+    var exePaths: Vector[String] = Vector.empty
 
     config.z3Exe match {
       case Some(z3Exe) =>

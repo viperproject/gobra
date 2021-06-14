@@ -1111,7 +1111,7 @@ object Desugar {
 
         stmt = blockD(context)(body) match {
           case in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(meta(body))
-          case c => violation(s"This case should be unreachable, but got $c")
+          case c => violation(s"Expected Block as result from blockD, but got $c")
         }
       } yield (acceptCond, stmt)
     }
@@ -3127,5 +3127,4 @@ object Desugar {
     def label(n: String): String = s"${n}_$LABEL_PREFIX"
   }
 }
-
 

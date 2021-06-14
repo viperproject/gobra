@@ -14,7 +14,7 @@ import viper.silver.verifier.VerificationResult
 
 import scala.concurrent.Future
 
-class SiliconFrontendForFrontends(reporter: Reporter, override val encoding: Program)
+class SiliconFrontendForFrontends(reporter: Reporter, override val encoding: Program, override val performConsistencyChecks: Boolean)
   extends silicon.SiliconFrontend(reporter) with SilFrontendForFrontends
 
 class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
@@ -23,7 +23,7 @@ class Silicon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val siliconFrontend = new SiliconFrontendForFrontends(reporter, program)
+      val siliconFrontend = new SiliconFrontendForFrontends(reporter, program, config.performConsistencyChecks)
       siliconFrontend.execute(commandLineArguments)
       siliconFrontend.result
     }

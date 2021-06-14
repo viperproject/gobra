@@ -15,7 +15,7 @@ import viper.silver.verifier.VerificationResult
 
 import scala.concurrent.Future
 
-class CarbonFrontendForFrontends(reporter: Reporter, override val encoding: Program)
+class CarbonFrontendForFrontends(reporter: Reporter, override val encoding: Program, override val performConsistencyChecks: Boolean)
   extends carbon.CarbonFrontend(reporter, ViperStdOutLogger("Carbon", "INFO").get) with SilFrontendForFrontends
 
 class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
@@ -24,7 +24,7 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val carbonFrontend = new CarbonFrontendForFrontends(reporter, program)
+      val carbonFrontend = new CarbonFrontendForFrontends(reporter, program, config.performConsistencyChecks)
       carbonFrontend.execute(commandLineArguments)
       carbonFrontend.result
     }

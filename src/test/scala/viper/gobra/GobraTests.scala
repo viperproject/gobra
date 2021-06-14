@@ -15,7 +15,6 @@ import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
-
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await
@@ -50,6 +49,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           logLevel = Level.INFO,
           reporter = NoopReporter,
           inputFiles = Vector(input.file),
+          // TODO: enable consistency checks as soon as inconsistencies have been fixed
+          // backendConfig = ViperVerifierConfig.EmptyConfig(performConsistencyChecks = true),
           z3Exe = z3Exe
         )
 

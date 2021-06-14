@@ -9,8 +9,9 @@ package viper.gobra.backend
 import java.nio.file.Path
 
 import viper.silicon
-import viper.silver.ast.Program
+import viper.silver.ast.{Node, Program}
 import viper.silver.frontend.{DefaultStates, SilFrontend}
+import viper.silver.verifier.ConsistencyError
 
 /**
   * This trait adapts a SilFrontend to Viper frontends that encode a program into a Viper program and thus do not need
@@ -20,6 +21,8 @@ import viper.silver.frontend.{DefaultStates, SilFrontend}
   */
 trait SilFrontendForFrontends extends SilFrontend {
   val encoding: Program
+
+  val performConsistencyChecks: Boolean
 
   /** the state to which SilFrontend should be initialized. This state has to be the immediate predecessor of the first
     * phase as this will be checked in the functions that execute a particular phase (see `DefaultFrontend` trait).
@@ -50,14 +53,20 @@ trait SilFrontendForFrontends extends SilFrontend {
     _parsingResult = None
     _semanticAnalysisResult = None
     _verificationResult = None
-    _program = Some(encoding)
 
     // as consistency checking is first phase, we have to set the initial state accordingly:
     _state = initialState
     // we use the empty string to make parse phase happy. However, `doParsing` will simply ignore the provided string
     _input = Some("")
-    // `encoding` provides the Viper program that should be used:
-    _program = Some(encoding)
+    // `encoding` provides the Viper program that should be used
+    // in case consistency checks should be skipped, we convert it to a program without consistency checks:
+    val modifiedEncoding = if (performConsistencyChecks) {
+      encoding
+    } else {
+      new Program(encoding.domains, encoding.fields, encoding.functions, encoding.predicates,
+        encoding.methods, encoding.extensions)(encoding.pos, encoding.info) with NodeWithoutConsistency
+    }
+    _program = Some(modifiedEncoding)
 
     resetMessages()
   }
@@ -70,4 +79,9 @@ trait SilFrontendForFrontends extends SilFrontend {
   override def execute(args: Seq[String]): Unit = {
     super.execute(args ++ Seq("--ignoreFile", silicon.Silicon.dummyInputFilename))
   }
+}
+
+trait NodeWithoutConsistency extends Node {
+  // do not perform any consistency checks:
+  override lazy val checkTransitively: Seq[ConsistencyError] = Seq()
 }

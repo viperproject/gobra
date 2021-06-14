@@ -30,7 +30,7 @@ case class Config(
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
                  // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
+                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig(),
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,

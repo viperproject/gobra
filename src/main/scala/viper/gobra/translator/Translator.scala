@@ -13,7 +13,7 @@ import viper.gobra.frontend.Config
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 import viper.gobra.reporting.GeneratedViperMessage
-import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, Transformer}
+import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
 import viper.gobra.util.Violation
 
 object Translator {
@@ -28,7 +28,7 @@ object Translator {
       if (errors.nonEmpty) Violation.violation(errors.toString)
     }
 
-    val transformers: Seq[Transformer] = Seq(
+    val transformers: Seq[ViperTransformer] = Seq(
       new AssumeTransformer,
       new TerminationTransformer
     )

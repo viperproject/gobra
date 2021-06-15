@@ -210,6 +210,15 @@ class InterfaceEncoding extends LeafTypeEncoding {
           resWithCheck <- assert(cond, res, errorT)(ctx)
         } yield resWithCheck
 
+      case n@ in.IsInstanceOf(exp :: ctx.Interface(itf), t) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          arg <- goE(exp)
+          dynType = typeOfWithSubtypeFact(arg, in.InterfaceT(itf, Addressability.Exclusive))(pos, info, errT)(ctx)
+          staticType = types.typeToExpr(t)(pos, info, errT)(ctx)
+          res = types.behavioralSubtype(dynType, staticType)(pos, info, errT)(ctx)
+        } yield res
+
       case n@ in.TypeOf(exp :: ctx.Interface(itf)) =>
         val (pos, info, errT) = n.vprMeta
         for {

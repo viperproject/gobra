@@ -112,6 +112,7 @@ object GobraStrategy {
       case (_: Mod, Seq(l: Expr, r: Expr)) => Mod(l, r)(meta)
       case (_: Div, Seq(l: Expr, r: Expr)) => Div(l, r)(meta)
       case (e: TypeAssertion, Seq(exp: Expr)) => TypeAssertion(exp, e.arg)(meta)
+      case (e: IsInstanceOf, Seq(exp: Expr)) => IsInstanceOf(exp, e.arg)(meta)
       case (_: TypeOf, Seq(exp: Expr)) => TypeOf(exp)(meta)
       case (_: IsComparableInterface, Seq(exp: Expr)) => IsComparableInterface(exp)(meta)
       case (_: IsComparableType, Seq(exp: Expr)) => IsComparableType(exp)(meta)

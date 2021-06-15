@@ -71,3 +71,25 @@ func k(i interface{ m(); }) {
 		var c T = x
 	}
 }
+
+func m() {
+	var x interface{} = 0
+	switch x.(type) {
+		case interface{}:
+			return
+	}
+}
+
+type T1 interface{}
+func n() {
+	y := 1
+	res := 0
+
+	var x T1 = y
+	switch x.(type) {
+		case interface{}:
+			res = 1
+	}
+
+	assert res == 1
+}

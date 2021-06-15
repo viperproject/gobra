@@ -1078,9 +1078,14 @@ object Desugar {
       val metaCase = meta(switchCase)
       for {
         acceptExprs <- sequence(left.map {
-          case t: PType =>
-            for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+          case t: PType => underlyingType(info.symbType(t)) match {
+            case _: Type.InterfaceT =>
+              val tD = typeD(info.symbType(t), Addressability.rValue)(metaCase)
+              unit(in.IsInstanceOf(scrutinee, tD)(metaCase))
+            case _ => for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+          }
           case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(metaCase)
+          case n => violation(s"Expected either a type or nil, but got $n instead")
         })
         acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(metaCase): in.Expr) {
           (expr, tail) => in.Or(expr, tail)(expr.info)

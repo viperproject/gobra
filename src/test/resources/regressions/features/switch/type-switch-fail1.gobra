@@ -15,3 +15,12 @@ func g(i interface{ m(); }) {
 	case int:
 	}
 }
+
+func h() {
+	var x int = 0
+	//:: ExpectedOutput(type_error)
+	switch t := x.(type) {
+		case int:
+			return
+	}
+}

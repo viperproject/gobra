@@ -431,6 +431,10 @@ case class TypeAssertion(exp: Expr, arg: Type)(val info: Source.Parser.Info) ext
   override val typ: Type = arg.withAddressability(Addressability.rValue)
 }
 
+case class IsInstanceOf(exp: Expr, arg: Type)(val info: Source.Parser.Info) extends Expr {
+  override val typ: Type = arg.withAddressability(Addressability.rValue)
+}
+
 case class TypeOf(exp: Expr)(val info: Source.Parser.Info) extends Expr {
   override val typ: Type = SortT
 }

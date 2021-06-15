@@ -98,6 +98,7 @@ object Nodes {
         case FieldRef(recv, field) => Seq(recv, field)
         case StructUpdate(base, field, newVal) => Seq(base, field, newVal)
         case TypeAssertion(exp, _) => Seq(exp)
+        case IsInstanceOf(exp, _) => Seq(exp)
         case TypeOf(exp) => Seq(exp)
         case IsComparableType(exp) => Seq(exp)
         case IsComparableInterface(exp) => Seq(exp)

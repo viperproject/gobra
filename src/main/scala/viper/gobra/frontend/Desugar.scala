@@ -1079,9 +1079,7 @@ object Desugar {
       for {
         acceptExprs <- sequence(left.map {
           case t: PType => underlyingType(info.symbType(t)) match {
-            case _: Type.InterfaceT =>
-              val tD = typeD(info.symbType(t), Addressability.rValue)(metaCase)
-              unit(in.IsInstanceOf(scrutinee, tD)(metaCase))
+            case _: Type.InterfaceT => violation(s"Interface Types are not supported in case clauses yet, but got $t")
             case _ => for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
           }
           case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(metaCase)

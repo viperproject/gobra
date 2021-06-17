@@ -72,6 +72,9 @@ func k(i interface{ m(); }) {
 	}
 }
 
+// The following two tests are not supported yet.
+// They require support for interface types in case clauses.
+/*
 func m() {
 	var x interface{} = 0
 	switch x.(type) {
@@ -93,3 +96,4 @@ func n() {
 
 	assert res == 1
 }
+*/

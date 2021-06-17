@@ -1,0 +1,9 @@
+package test
+
+import "encoding/binary"
+
+func main() {
+	m := make([]byte, 2)
+	x := binary.LittleEndian.Uint16(m)
+	y := binary.BigEndian.Uint16(m)
+}

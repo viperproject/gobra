@@ -72,7 +72,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 	}
 	def isUnnecessary(info:Source.Verifier.Info):Boolean = {
 		//Embeddings and such 			//usually for multi variable assgnent //function calls						// parameter and return values (ISSUE sometimes we want both TODO: on return label use result param and in old label use input params)
-		info.node.toString.contains("$") || info.pnode.toString.contains("=") || info.pnode.toString.contains("(") //|| info.pnode.toString.contains(" ")
+		info.node.toString.contains("$") || info.pnode.toString.contains("=") || info.pnode.toString.contains("(") || info.pnode.toString.contains("{")//|| info.pnode.toString.contains(" ")
 	}
 }
 object Util{
@@ -232,13 +232,13 @@ case class LitStringEntry(value:String) extends LitEntry{
 case class LitPointerEntry(typ:Type,value:LitEntry,address:BigInt)extends LitEntry with HeapEntry{
 	override def toString(): String = s"(&$address* -> $value)" 
 	//TODO: put permission up
-	val perm: LitPermEntry = LitPermEntry(viper.silicon.state.terms.Rational.zero)
+	val perm: Option[LitPermEntry] = None
 }
 //entries that are not designated (typed) as a pointer but are represented by a ref (adressable)
 case class LitAdressedEntry(value:LitEntry,address:BigInt) extends LitEntry with HeapEntry{
 	override def toString():String = s"$value @$address"
 	//TODO: put permission up
-	val perm: LitPermEntry = LitPermEntry(viper.silicon.state.terms.Rational.zero)
+	val perm: Option[LitPermEntry] = None
 }
 case class LitRecursive(address:BigInt) extends LitEntry {
 	override def toString():String = s"&$address (recursive)"
@@ -289,7 +289,7 @@ case class UserDomainEntry(name:String,id:String){
 }
 
 trait HeapEntry extends GobraModelEntry {
-	val perm:LitPermEntry
+	val perm:Option[LitPermEntry]
 }
 
 //later
@@ -297,7 +297,7 @@ case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry{
 	override def toString(): String = value.toString()
 }
 
-case class LitPredicateEntry(name:String, args:Seq[LitEntry],perm:LitPermEntry) extends LitEntry with HeapEntry{
+case class LitPredicateEntry(name:String, args:Seq[LitEntry],perm:Option[LitPermEntry]) extends LitEntry with HeapEntry{
 
 }
 

@@ -124,7 +124,13 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			/* case s:sil.SetEntry => info match {
 				case _ => FaultEntry(s"$s ,$info not implemented")
 			} */
-			//case sil.PredHeapEntry(name,args,) => LitPredicateEntry(s)
+			
+			case sil.PredHeapEntry(name,args,perm) => info match {
+						case PredT(types) =>LitPredicateEntry(name,
+															args.zip(types).map(x=>interpret(x._1,x._2).asInstanceOf[LitEntry]),
+															perm.map(LitPermEntry))
+						case _ => FaultEntry(s"Predicate type expected but found: $info")
+							}
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}

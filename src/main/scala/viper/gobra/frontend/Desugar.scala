@@ -1078,9 +1078,12 @@ object Desugar {
       val metaCase = meta(switchCase)
       for {
         acceptExprs <- sequence(left.map {
-          case t: PType =>
-            for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+          case t: PType => underlyingType(info.symbType(t)) match {
+            case _: Type.InterfaceT => violation(s"Interface Types are not supported in case clauses yet, but got $t")
+            case _ => for { e <- exprAndTypeAsExpr(ctx)(t) } yield in.EqCmp(in.TypeOf(scrutinee)(meta(t)), e)(metaCase)
+          }
           case n: PNilLit => for { e <- exprAndTypeAsExpr(ctx)(n) } yield in.EqCmp(scrutinee, e)(metaCase)
+          case n => violation(s"Expected either a type or nil, but got $n instead")
         })
         acceptCond = acceptExprs.foldRight(in.BoolLit(b = false)(metaCase): in.Expr) {
           (expr, tail) => in.Or(expr, tail)(expr.info)
@@ -1111,7 +1114,7 @@ object Desugar {
 
         stmt = blockD(context)(body) match {
           case in.Block(decls, stmts) => in.Block(assign.toVector ++ decls, init ++ stmts)(meta(body))
-          case c => violation(s"This case should be unreachable, but got $c")
+          case c => violation(s"Expected Block as result from blockD, but got $c")
         }
       } yield (acceptCond, stmt)
     }
@@ -3127,5 +3130,4 @@ object Desugar {
     def label(n: String): String = s"${n}_$LABEL_PREFIX"
   }
 }
-
 

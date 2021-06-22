@@ -10,7 +10,7 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, Cer
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
-import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
+import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
 
 object DefaultErrorBackTranslator {
 
@@ -157,8 +157,13 @@ class DefaultErrorBackTranslator(
     case (l, r) => l orElse r
   }
 
-  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError =
-    DefaultErrorBackTranslator.translateWithTransformer(viperError, errorTransformer)
+  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError = {
+    val transformedViperError = viperError match {
+      case err: AbstractVerificationError => err.transformedError()
+      case err => err
+    }
+    DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
+  }
 
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {

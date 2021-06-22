@@ -84,9 +84,9 @@ trait Enclosing { this: TypeInfoImpl =>
           case s: PTypeSwitchCase => s match {
             case tree.parent(p) => p match {
               case switch: PTypeSwitchStmt => Some(typ(switch.exp))
-              case c => violation(s"This case should be unreachable, but got $c")
+              case c => violation(s"The parent of a type-switch case should always be a switch statement, but got $c")
             }
-            case c => violation(s"This case should be unreachable, but got $c")
+            case c => violation(s"The parent of a type-switch case should always be a switch statement, but got $c")
           }
             // no for stmt
             // no go stmt

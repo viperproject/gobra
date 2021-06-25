@@ -73,6 +73,10 @@ type bigEndian int
 	(e littleEndian) PutUint64(b []byte, v uint64) {
 		e.PutUint64(b, v)
 	}
+
+	pure (e littleEndian) String() string {
+		return e.String()
+	}
 }
 
 (bigEndian) implements ByteOrder {
@@ -98,6 +102,10 @@ type bigEndian int
 
 	(e bigEndian) PutUint64(b []byte, v uint64) {
 		e.PutUint64(b, v)
+	}
+
+	pure (e bigEndian) String() string {
+		return e.String()
 	}
 }
 

@@ -1,0 +1,26 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+type T int
+
+func (t T)m() {}
+
+func g(i interface{ m(); }) {
+	switch x := i.(type) {
+	case T:
+		var c T = x;
+	//:: ExpectedOutput(type_error)
+	case int:
+	}
+}
+
+func h() {
+	var x int = 0
+	//:: ExpectedOutput(type_error)
+	switch t := x.(type) {
+		case int:
+			return
+	}
+}

@@ -83,12 +83,19 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       left.flatMap(e => isExpr(e).out ++ comparableTypes.errors(exprType(e), exprType(sw.exp))(n))
 
     case n: PTypeSwitchStmt =>
-      error(n, s"found more than one default case", n.dflt.size > 1) ++
-        isExpr(n.exp).out ++ {
+      val firstChecks = error(n, s"found more than one default case", n.dflt.size > 1) ++ isExpr(n.exp).out ++ {
         val et = exprType(n.exp)
         val ut = underlyingType(et)
         error(n, s"type error: got $et but expected underlying interface type", !ut.isInstanceOf[InterfaceT])
-      } // TODO: also check that cases have type that could implement the type
+      }
+      val latterChecks = {
+        val expTyp = exprOrTypeType(n.exp)
+        n.cases.flatMap(_.left).flatMap {
+          case t: PType => implements(typeSymbType(t), expTyp).asReason(t, s"impossible type switch case: ${n.exp} (type $expTyp) cannot have dynamic type $t")
+          case e: PExpression => error(e, s"$e is not valid in type switch clauses", !e.isInstanceOf[PNilLit])
+        }
+      }
+      if (firstChecks.isEmpty) latterChecks else firstChecks
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 

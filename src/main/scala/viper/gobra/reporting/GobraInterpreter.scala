@@ -21,6 +21,28 @@ object InterpreterCache{
 	def isDefined(address:BigInt,typ:Type):Boolean = heap.contains((address,typ))
 	def addAddress(address:BigInt,typ:Type):Unit = {heap=(address,typ)+:heap}
 	def clearCache():Unit ={heap = Seq()}
+
+	private var viperPredicates : Seq[vpr.Predicate] =Seq()
+	def setPredicates(preds:Seq[vpr.Predicate]):Unit ={viperPredicates=preds}
+	def clearPreds():Unit ={viperPredicates=Seq()}
+	def getPreds():Seq[vpr.Predicate] = viperPredicates
+
+	private var gobraPredicates : Seq[PFPredicateDecl] =Seq()
+	def setGobraPredicates(preds:Seq[PFPredicateDecl]):Unit ={gobraPredicates=preds}
+	def clearGobraPreds():Unit ={gobraPredicates=Seq()}
+	def getGobraPreds():Seq[PFPredicateDecl] = gobraPredicates
+
+	private var typeInfo : viper.gobra.frontend.info.ExternalTypeInfo =null
+	def setTypeInfo(info:viper.gobra.frontend.info.ExternalTypeInfo):Unit ={typeInfo=info}
+	def getType(pnode:PNode):Type={
+		pnode match {
+			case (x:PIdnNode) => typeInfo.typ(x)
+			case (x:PParameter) => typeInfo.typ(x)
+			case (x:PExpression) => typeInfo.typ(x)
+			case (x:PMisc) => typeInfo.typ(x)
+			case _ => UnknownType
+		}
+	}
 }
 
 /**
@@ -96,7 +118,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		case LitDeclaredEntry(_,LitNilEntry())  => LitNilEntry()
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
-																	
+												case pred:PredT => PredicateInterpreter(c).interpret(d,pred)
 												case dom:DomainT => UserDomainInterpreter(c).interpret(d,dom)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
@@ -646,16 +668,18 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 }
 case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
 	def interpret(entry:sil.LitIntEntry,info:ChannelT) :GobraModelEntry= {
-		
+		if(entry.value == 0){
+			return LitNilEntry()
+		}
 
 		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
-		//printf(s"${c.store} -- ${preds}\n")
+		
 		//TODO: move to Names
 		val isSend = preds.find(_.toString.startsWith("SendChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
 		val isRecv = preds.find(_.toString.startsWith("RecvChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
 		val isOpen = preds.find(_.toString.startsWith("IsChannel")) match {
-			case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry])
-			case None => if(isRecv.getOrElse(false)||isSend.getOrElse(false)) Some(true) else None }
+			case Some(x)=> if (interPerm(x.asInstanceOf[sil.PredHeapEntry]).getOrElse(false)) Some(1) else Some(0)
+			case None => if(isRecv.getOrElse(false)||isSend.getOrElse(false)) Some(2) else None }
 		val buffSize=c.non_domain_functions.find(_.fname.startsWith("BufferSize")) match {
 			case Some(x)=> x.apply(Seq(entry)) match {
 				case Right(sil.LitIntEntry(v))=> v;
@@ -675,6 +699,42 @@ case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 	}
 }
 
+case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[PredT] {
+	def interpret(entry:sil.DomainValueEntry,info:PredT) = {
+		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]/* &&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry) */)
+		val domOpt = c.domains.find(_.valueName == entry.domain) 
+		val symbolConv =new viper.silicon.state.DefaultSymbolConverter 
+		//printf(s"$preds --- ${c.non_domain_functions}\n")
+		if( domOpt.isDefined){
+			val dom = domOpt.get
+			val corr_function = dom.functions.find(_.image.contains(entry)).get
+			//This may look complicated but essentially we see wether the argumnets of a predicate and the corresponding entry match
+			val viperPred = InterpreterCache.getPreds().filter(p=>p.formalArgs.map(x=>symbolConv.toSort(x.typ)).zip(corr_function.argtypes).find(x=>x._1!=x._2).isEmpty && 
+																					{val gop = InterpreterCache.getGobraPreds().find(x=> p.name.startsWith(x.id.name))
+																					gop.isDefined && gop.get.args.drop(corr_function.argtypes.size).map(InterpreterCache.getType(_)).zip(info.args).find(x=>x._1!=x._2).isEmpty
+																				}  
+															) // TODO: get corresponding predicate
+			val gobraPred = InterpreterCache.getGobraPreds().filter(x=> viperPred.find(_.name.startsWith(x.id.name)).isDefined) 
+			//printf(s"$viperPred -- $gobraPred \n")
+			val args = 	corr_function.options.find(_._2 == entry) match {
+				case Some(x) => if(gobraPred.size>=1)
+									Some(x._1.zip(gobraPred.head.args.map(InterpreterCache.getType(_))).map((x=>MasterInterpreter(c).interpret(x._1,x._2).asInstanceOf[LitEntry])))
+								else
+									None
+				case _ => if (gobraPred.size>=1)
+								Some(gobraPred.head.args.dropRight(info.args.size).zipWithIndex.map(x=>UnknownValueButKnownType(s"a${x._2}".replace("\n",""),InterpreterCache.getType(x._1))))
+						else 
+							None
+			} 
+			
+			FCPredicate(if(gobraPred.size==1) gobraPred.head.id.name else gobraPred.map(_.id.name).mkString("/"),
+				args,info.args)
+			
+		}else{
+			FaultEntry("Predicate domain not found")
+		}
+	}
+}
 
 case class UserDomainInterpreter(c:sil.Converter) extends GobraDomainInterpreter[DomainT] {
 	def interpret(entry:sil.DomainValueEntry,info:DomainT) = {

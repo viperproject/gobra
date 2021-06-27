@@ -33,6 +33,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 	def translate(counterexample: silver.verifier.Counterexample): Option[GobraCounterexample] ={
 
 		val typeinfo = backtrack.typeInfo
+		InterpreterCache.setTypeInfo(typeinfo)
 		val converter :sil.Converter = counterexample match {
 			case c:SiliconMappedCounterexample => c.converter
 			case _ => return None
@@ -46,6 +47,12 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		
 		//map from viper declarations to entries
 		val declarationMap : Map[String,Map[vpr.LocalVarDecl,sil.ExtractedModelEntry]]=viperModel.map(y=>(y._1,varDeclNodes.map(x=>(x,y._2.entries.apply(x.name))).toMap))
+
+		val predicates : Seq[vpr.Predicate] =viperProgram.collect(x=> x match {case p:vpr.Predicate =>p}).toSeq
+		InterpreterCache.setPredicates(predicates)
+		
+		val gobraPredicates :Seq[PFPredicateDecl] = predicates.map(Source.unapply(_) match{case Some(t)=> Some(t.pnode); case _=> None}).collect(x=> x match{case Some(p)=> p}).collect(x=> x match{case p:PFPredicateDecl=>p})
+		InterpreterCache.setGobraPredicates(gobraPredicates)
 
 		//map from info to counterexample entry
 		val declInfosMap: Map[String,Map[Source.Verifier.Info,sil.ExtractedModelEntry]] = declarationMap.map(y=>(y._1,y._2.map(x=>(Source.unapply(x._1) match {case Some(t) => (t,x._2) }))))
@@ -63,6 +70,8 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		//the pnode does not always correspond to the same node possible (filter for which the pnode is not a substrong of the node)
 		lazy val glabelModel = new GobraModelAtLabel(translated.map(y=>(y._1,new GobraModel(y._2.filterNot(x=>isUnnecessary(x._1) ).map(x=>((x._1.pnode,x._1.node.toString),x._2))))))
 		//printf(s"${converter.domains}\n${converter.non_domain_functions}")
+		InterpreterCache.clearPreds()
+		InterpreterCache.clearGobraPreds()
 		lazy val ret = Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
 			case Some(CounterexampleConfigs.NativeCounterexamples) => Some(new GobraNativeCounterexample(counterexample.asInstanceOf[SiliconMappedCounterexample]))
@@ -252,11 +261,14 @@ case class LitDeclaredEntry(name:String,value:LitEntry)extends LitEntry {
 	}
 }
 
-case class ChannelEntry(typ:Type,buffSize:BigInt,isOpen:Option[Boolean],isSend:Option[Boolean],isRecieve:Option[Boolean]) extends LitEntry{
-	override def toString():String = s"chan ${typ} [$buffSize] (state: $openness, can send: $sending, can recieve: $rec)"
-	private val openness = isOpen match {
-		case Some(true) => "open"
-		case Some(false) => "closed"
+case class ChannelEntry(typ:ChannelT,buffSize:BigInt,isOpen:Option[Int],isSend:Option[Boolean],isRecieve:Option[Boolean]) extends LitEntry{
+	override def toString():String = s"chan ${typ} [$buffSize] (state: $state" +
+  		s"${if(typ.mod!=ChannelModus.Recv)s", can send: $sending" else ""}++" +
+  		s"${if(typ.mod!=ChannelModus.Send)s", can recieve: $rec" else ""}"
+	private val state = isOpen match {
+		case Some(2) => "initialized"
+		case Some(1) => "created"
+		case Some(0) => "closed"
 		case _ => "?"
 	}
 	private val sending = isSend match {
@@ -298,8 +310,13 @@ case class LitMapEntry(typ:MapT,value:Map[LitEntry,LitEntry]) extends LitEntry{
 }
 
 case class LitPredicateEntry(name:String, args:Seq[LitEntry],perm:Option[LitPermEntry]) extends LitEntry with HeapEntry{
-
+	override def toString() :String = s"$name(${args.mkString(",")}) ${perm.getOrElse("?")}"
+}
+case class UnknownValueButKnownType(info:String,typ:Type) extends LitEntry {
+	override def toString(): String = s"$info:$typ"
 }
 
-
+case class FCPredicate(name:String, argsApplied:Option[Seq[LitEntry]], argsUnapplied:Seq[Type]) extends LitEntry {
+	override def toString() :String = s"$name(${argsApplied.getOrElse(List("?")).mkString("[",",","]")}, ${argsUnapplied.mkString((if(argsUnapplied.size==0)"[(fully applied)" else "[_:"),", _:", "]")})"
+}
 

@@ -69,6 +69,7 @@ object Nodes {
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
           Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
+        case Outline(variables, modified, declared, pres, posts, body) => variables ++ modified ++ declared ++ pres ++ posts ++ body
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {

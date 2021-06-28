@@ -1055,6 +1055,31 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n: POutline => 
+            val variables = info.variables(n.body)
+            val modified = info.modified(n.body)
+            val declared = info.declared(n.body)
+            val toReturn = modified ++ declared
+            val arguments = variables.map(id => 
+              PParameter(id)
+            )
+            def assignReturns(rets: Vector[in.Expr])(src: Meta): in.Stmt = {
+              violation(s"Assign returns called")
+            }
+            // create context for spec translation
+            val specCtx = new FunctionContext(assignReturns)
+            // translate pre- and postconditions
+            val pres = (n.spec.pres ++ n.spec.preserves) map preconditionD(specCtx)
+            val posts = (n.spec.preserves ++ n.spec.posts) map postconditionD(specCtx)
+            unit(in.Outline(
+              variables = info.variables(n.body),
+              modified = modified,
+              declared = declared,
+              pres = pres,
+              posts = posts,
+              body = _
+            ))
+
           case _ => ???
         }
       }

@@ -59,7 +59,7 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 
 		val tranlator = MasterInterpreter(converter).interpret(_,_)	
 		//translate the values
-		
+		//printf(s"${converter.extractedHeap}\n---${converter.store}")
 		val translated = declInfosMap.map(y=>(y._1,y._2.map(x=>
 							{InterpreterCache.clearCache();
 								val typeval = Util.getType(x._1.pnode,typeinfo)
@@ -263,8 +263,9 @@ case class LitDeclaredEntry(name:String,value:LitEntry)extends LitEntry {
 
 case class ChannelEntry(typ:ChannelT,buffSize:BigInt,isOpen:Option[Int],isSend:Option[Boolean],isRecieve:Option[Boolean]) extends LitEntry{
 	override def toString():String = s"chan ${typ} [$buffSize] (state: $state" +
-  		s"${if(typ.mod!=ChannelModus.Recv)s", can send: $sending" else ""}++" +
-  		s"${if(typ.mod!=ChannelModus.Send)s", can recieve: $rec" else ""}"
+  		s"${if(typ.mod!=ChannelModus.Recv)s", can send: $sending" else ""}" +
+  		s"${if(typ.mod!=ChannelModus.Send)s", can receive: $rec" else ""}" +
+		  ")"
 	private val state = isOpen match {
 		case Some(2) => "initialized"
 		case Some(1) => "created"
@@ -317,6 +318,7 @@ case class UnknownValueButKnownType(info:String,typ:Type) extends LitEntry {
 }
 
 case class FCPredicate(name:String, argsApplied:Option[Seq[LitEntry]], argsUnapplied:Seq[Type]) extends LitEntry {
-	override def toString() :String = s"$name(${argsApplied.getOrElse(List("?")).mkString("[",",","]")}, ${argsUnapplied.mkString((if(argsUnapplied.size==0)"[(fully applied)" else "[_:"),", _:", "]")})"
+	override def toString() :String = s"$name(${argsApplied.getOrElse(List("?")).mkString("[",",","]")},"++
+	s" ${argsUnapplied.mkString((if(argsUnapplied.size==0)"[(fully applied)" else "[_:"),", _:", "]")})"
 }
 

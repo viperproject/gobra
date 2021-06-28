@@ -427,6 +427,8 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 								case _ => return FaultEntry("false extraction")
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
+					val perm = kek._2 
+					//printf(s"$perm\n")
 					val fieldval = if(extracted.fields.isEmpty) return  LitNilEntry()
 						else if(kek._1.isInstanceOf[sil.OtherEntry]) extracted.fields.head._2._1 match {
 												case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
@@ -668,17 +670,18 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 }
 case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
 	def interpret(entry:sil.LitIntEntry,info:ChannelT) :GobraModelEntry= {
+		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
 		if(entry.value == 0){
 			return LitNilEntry()
 		}
 
-		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
 		
+		//printf(s"$preds\n")
 		//TODO: move to Names
 		val isSend = preds.find(_.toString.startsWith("SendChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
 		val isRecv = preds.find(_.toString.startsWith("RecvChannel")) match {case Some(x)=> interPerm(x.asInstanceOf[sil.PredHeapEntry]);case None => Some(false)}
 		val isOpen = preds.find(_.toString.startsWith("IsChannel")) match {
-			case Some(x)=> if (interPerm(x.asInstanceOf[sil.PredHeapEntry]).getOrElse(false)) Some(1) else Some(0)
+			case Some(x)=> if (interPerm(x.asInstanceOf[sil.PredHeapEntry]).getOrElse(false)) {if(isRecv.getOrElse(false)||isSend.getOrElse(false)) Some(2) else Some(1)} else Some(0)
 			case None => if(isRecv.getOrElse(false)||isSend.getOrElse(false)) Some(2) else None }
 		val buffSize=c.non_domain_functions.find(_.fname.startsWith("BufferSize")) match {
 			case Some(x)=> x.apply(Seq(entry)) match {
@@ -705,6 +708,7 @@ case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		val domOpt = c.domains.find(_.valueName == entry.domain) 
 		val symbolConv =new viper.silicon.state.DefaultSymbolConverter 
 		//printf(s"$preds --- ${c.non_domain_functions}\n")
+		//TODO: wait until reverse functions are generated
 		if( domOpt.isDefined){
 			val dom = domOpt.get
 			val corr_function = dom.functions.find(_.image.contains(entry)).get

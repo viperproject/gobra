@@ -96,7 +96,9 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case TypeSwitchVariable(decl, _, _, _) => unsafeMessage(! {
       val constraints = typeSwitchConstraints(id)
-      if (constraints.size == 1) wellDefAndType.valid(constraints.head) else wellDefAndExpr.valid(decl.exp)
+      if (constraints.size == 1 && constraints.head.isInstanceOf[PType]) {
+        wellDefAndType.valid(constraints.head.asInstanceOf[PType])
+      } else wellDefAndExpr.valid(decl.exp)
     })
 
     case RangeVariable(idx, range, _, _, _) => unsafeMessage(! {
@@ -180,7 +182,9 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case TypeSwitchVariable(decl, _, _, context) =>
       val constraints = typeSwitchConstraints(id)
-      if (constraints.size == 1) context.symbType(constraints.head) else context.typ(decl.exp)
+      if (constraints.size == 1  && constraints.head.isInstanceOf[PType]) {
+        context.symbType(constraints.head.asInstanceOf[PType])
+      } else context.typ(decl.exp)
 
     case RangeVariable(idx, range, _, _, context) => context.typ(range) match {
       case Assign(InternalTupleT(ts)) if idx < ts.size => ts(idx)

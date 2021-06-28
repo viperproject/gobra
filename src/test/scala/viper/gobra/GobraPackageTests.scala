@@ -12,6 +12,7 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
+import viper.gobra.backend.ViperVerifierConfig
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -23,7 +24,11 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class GobraPackageTests extends GobraTests {
-  override val testDirectories: Seq[String] = Vector("same_package")
+  val samePackagePropertyName = "GOBRATESTS_SAME_PACKAGE_DIR"
+
+  val samePackageDir: String = System.getProperty(samePackagePropertyName, "same_package")
+
+  override val testDirectories: Seq[String] = Vector(samePackageDir)
 
   override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
     // get package clause of file and collect all other files belonging to this package:
@@ -61,8 +66,10 @@ class GobraPackageTests extends GobraTests {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = input.files.map(_.toFile).toVector,
-          includeDirs = Vector(currentDir.toFile)
+          inputFiles = input.files.toVector,
+          includeDirs = Vector(currentDir),
+          checkConsistency = true,
+          z3Exe = z3Exe
         )
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
@@ -101,7 +108,7 @@ class GobraPackageTests extends GobraTests {
   }
 
   private def equalConfigs(config1: Config, config2: Config): Vector[GobraTestOuput] = {
-    def equalFiles(v1: Vector[File], v2: Vector[File]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
+    def equalFiles(v1: Vector[Path], v2: Vector[Path]): Boolean = v1.sortBy(_.toString).equals(v2.sortBy(_.toString))
 
     val equal = (equalFiles(config1.inputFiles, config2.inputFiles)
       && equalFiles(config1.includeDirs, config2.includeDirs)

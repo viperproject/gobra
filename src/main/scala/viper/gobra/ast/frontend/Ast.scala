@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
+import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -26,6 +27,7 @@ sealed trait PNode extends Product {
   def pretty(prettyPrinter: PrettyPrinter = PNode.defaultPrettyPrinter): String = prettyPrinter.format(this)
 
   lazy val formatted: String = pretty()
+  lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
 
   override def toString: String = formatted
 }
@@ -33,6 +35,7 @@ sealed trait PNode extends Product {
 object PNode {
   type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
+  val shortPrettyPrinter = new ShortPrettyPrinter
 }
 
 sealed trait PScope extends PNode
@@ -70,13 +73,13 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val filename = start.source match {
-      case FileSource(filename, _) => filename
-      case FromFileSource(filename, _) => filename
+    val path = start.source match {
+      case FileSource(filename, _) => Paths.get(filename)
+      case FromFileSource(path, _) => path
       case _ => ???
     }
     new SourcePosition(
-      Paths.get(filename),
+      path,
       LineColumnPosition(start.line, start.column),
       Some(LineColumnPosition(end.line, end.column))
     )
@@ -200,6 +203,18 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
+case class PBitAndOp() extends PAssOp
+
+case class PBitOrOp() extends PAssOp
+
+case class PBitXorOp() extends PAssOp
+
+case class PBitClearOp() extends PAssOp
+
+case class PShiftLeftOp() extends PAssOp
+
+case class PShiftRightOp() extends PAssOp
+
 case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
@@ -220,7 +235,7 @@ sealed trait PTypeSwitchClause extends PNode
 
 case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
-case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
+case class PTypeSwitchCase(left: Vector[PExpressionOrType], body: PBlock) extends PTypeSwitchClause
 
 case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -300,7 +315,7 @@ sealed trait PUnaryExp extends PActualExpression {
 
 case class PBlankIdentifier() extends PAssignee
 
-case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType {
+case class PNamedOperand(id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNamedType with PNameOrDot{
   override val name : String = id.name
 }
 
@@ -353,7 +368,9 @@ sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
+// The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
+// only be read by pretty-printers
+case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -383,7 +400,7 @@ case class PInvoke(base: PExpressionOrType, args: Vector[PExpression]) extends P
 
 // TODO: Check Arguments in language specification, also allows preceding type
 
-case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType
+case class PDot(base: PExpressionOrType, id: PIdnUse) extends PActualExpression with PActualType with PExpressionAndType with PAssignee with PLiteralType with PNameOrDot
 
 case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExpression with PAssignee
 
@@ -403,6 +420,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * Gobra extends this with:
   *
   * - Sequence: the number of elements in `exp`.
+  * - Set: the cardinality of `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
@@ -437,6 +455,8 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
+case class PBitNegation(operand: PExpression) extends PUnaryExp with PNumExpression
+
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
   def right: R
@@ -467,6 +487,18 @@ case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
@@ -772,16 +804,24 @@ case class PMPredicateDecl(
 
 case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
 
-case class PImplementationProof(subT: PType, superT: PType, memberProofs: Vector[PMethodImplementationProof]) extends PGhostMember
+case class PImplementationProof(
+                                 subT: PType, superT: PType,
+                                 alias: Vector[PImplementationProofPredicateAlias],
+                                 memberProofs: Vector[PMethodImplementationProof]
+                               ) extends PGhostMember
 
 case class PMethodImplementationProof(
                                        id: PIdnUse, // references the method definition of the super type
-                                       receiver: PReceiver,
+                                       receiver: PParameter, // can have type from other package
                                        args: Vector[PParameter],
                                        result: PResult,
                                        isPure: Boolean,
                                        body: Option[(PBodyParameterInfo, PBlock)]
                                      ) extends PGhostMisc with PScope with PCodeRootWithResult with PWithBody
+
+case class PImplementationProofPredicateAlias(left: PIdnUse, right: PNameOrDot) extends PGhostMisc
+
+sealed trait PNameOrDot extends PExpression
 
 /**
   * Ghost Statement
@@ -874,12 +914,6 @@ sealed trait PGhostCollectionExp extends PGhostExpression
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
 
 /**
-  * Denotes the cardinality of `exp`, which is expected
-  * to be either a set or a multiset.
-  */
-case class PCardinality(exp : PExpression) extends PGhostCollectionExp
-
-/**
   * Represents a multiplicity expression of the form "`left` # `right`"
   * in Gobra's specification language, where `right` should be a ghost
   * collection of some type 't', and `left` an expression of type 't'.
@@ -919,21 +953,21 @@ case class PSequenceAppend(left : PExpression, right : PExpression) extends PSeq
 case class PSequenceConversion(exp : PExpression) extends PSequenceExp
 
 /**
-  * Denotes a sequence update expression "`seq`[e_0 = e'_0, ..., e_n = e'_n]",
-  * consisting of a sequence `clauses` of updates roughly of the form `e_i = e'_i`.
+  * Denotes a ghost-collection update expression "`T`[e_0 = e'_0, ..., e_n = e'_n]",
+  * consisting of a vector `clauses` of updates roughly of the form `e_i = e'_i`.
   * The `clauses` vector should contain at least one element.
   */
-case class PSequenceUpdate(seq : PExpression, clauses : Vector[PSequenceUpdateClause]) extends PSequenceExp {
+case class PGhostCollectionUpdate(col : PExpression, clauses : Vector[PGhostCollectionUpdateClause]) extends PGhostCollectionExp {
   /** Constructs a sequence update with only a single clause built from `left` and `right`. */
   def this(seq : PExpression, left : PExpression, right : PExpression) =
-    this(seq, Vector(PSequenceUpdateClause(left, right)))
+    this(seq, Vector(PGhostCollectionUpdateClause(left, right)))
 }
 
 /**
   * Represents a single update clause "`left` = `right`"
-  * in a sequence update expression "`seq`[`left` = `right`]".
+  * in a ghost collection update expression "`T`[`left` = `right`]", where `T` is either a sequence or a (mathematical) map
   */
-case class PSequenceUpdateClause(left : PExpression, right : PExpression) extends PNode
+case class PGhostCollectionUpdateClause(left : PExpression, right : PExpression) extends PNode
 
 /**
   * Denotes the range of integers from `low` to `high`
@@ -1007,6 +1041,19 @@ sealed trait PMultisetExp extends PUnorderedGhostCollectionExp
   */
 case class PMultisetConversion(exp : PExpression) extends PMultisetExp
 
+/* ** (Mathematical) Map expressions */
+sealed trait PMathMapExp extends PUnorderedGhostCollectionExp
+
+/**
+  * Set of keys of a mathematical or actual map
+  */
+case class PMapKeys(exp : PExpression) extends PMathMapExp
+
+/**
+  * Set of values of a mathematical or actual map
+  */
+case class PMapValues(exp : PExpression) extends PMathMapExp
+
 /* ** Types */
 
 /**
@@ -1034,9 +1081,15 @@ case class PSetType(elem : PType) extends PGhostLiteralType
   */
 case class PMultisetType(elem : PType) extends PGhostLiteralType
 
+/**
+  * The type of (mathematical) maps with elements from `keys` to `values`
+  */
+case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLiteralType
+
 /** The type of option types. */
 case class POptionType(elem : PType) extends PGhostLiteralType
 
+case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 
 case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
 

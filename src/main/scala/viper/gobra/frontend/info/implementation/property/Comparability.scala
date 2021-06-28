@@ -33,7 +33,7 @@ trait Comparability extends BaseProperty { this: TypeInfoImpl =>
           case (_, e: Embbed) => miscType(e.decl.typ)
         }.forall(comparableType)
 
-      case _: SliceT | _: MapT | _: FunctionT => false
+      case _: SliceT | _: GhostSliceT | _: MapT | _: FunctionT => false
       case _ => true
     }
     case _ => false

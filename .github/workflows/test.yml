@@ -13,7 +13,11 @@ on:
 jobs:
   setup-and-test:
     runs-on: ubuntu-latest
-    container: gobraverifier/gobra-base:v2
+    container: gobraverifier/gobra-base:v5_z3_4.8.7
+    env:
+      SILVER_REF: "v.21.01-release"
+      SILICON_REF: "v.21.01-release"
+      CARBON_REF: "v.21.01-release"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
@@ -25,16 +29,19 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: viperproject/silver
+          ref: ${{ env.SILVER_REF }}
           path: silver
       - name: Checkout Silicon
         uses: actions/checkout@v2
         with:
           repository: viperproject/silicon
+          ref: ${{ env.SILICON_REF }}
           path: silicon
       - name: Checkout Carbon
         uses: actions/checkout@v2
         with:
           repository: viperproject/carbon
+          ref: ${{ env.CARBON_REF }}
           path: carbon
 
       - name: Java Version

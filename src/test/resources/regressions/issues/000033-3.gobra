@@ -6,7 +6,8 @@ package main
 func foo() {
   r := Rectangle{Width: 2, Height: 5}
   x := Rectangle{Width: 0, Height: 0}
-  assert x.OtherArea(r) == 10
+  res := x.OtherArea(r)
+  assert res == 10
 }
 
 type Rectangle struct {

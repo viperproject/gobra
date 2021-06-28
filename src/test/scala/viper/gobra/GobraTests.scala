@@ -13,7 +13,7 @@ import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
-import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, AnnotationBasedTestSuite, ProjectInfo, SystemUnderTest}
+import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
 
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -21,9 +21,12 @@ import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
+class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
-  val testDirectories: Seq[String] = Vector("regressions")
+  val regressionsPropertyName = "GOBRATESTS_REGRESSIONS_DIR"
+
+  val regressionsDir: String = System.getProperty(regressionsPropertyName, "regressions")
+  val testDirectories: Seq[String] = Vector(regressionsDir)
   override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
 
   var gobraInstance: Gobra = _
@@ -46,7 +49,10 @@ class GobraTests extends AnnotationBasedTestSuite with BeforeAndAfterAll {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputFiles = Vector(input.file.toFile)
+          inputFiles = Vector(input.file),
+          // TODO: enable consistency checks as soon as inconsistencies have been fixed
+          // checkConsistency = true,
+          z3Exe = z3Exe
         )
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()

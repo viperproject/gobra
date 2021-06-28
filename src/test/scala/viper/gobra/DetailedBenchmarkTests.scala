@@ -97,7 +97,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     private val parsing = InitialStep("parsing", () => {
       assert(config.isDefined)
       val c = config.get
-      Parser.parse(c.inputFiles.map(_.toPath))(c)
+      Parser.parse(c.inputFiles)(c)
     })
 
     private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =

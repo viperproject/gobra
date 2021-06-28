@@ -14,6 +14,8 @@ import viper.gobra.frontend.Config
 import viper.gobra.translator.implementations.DfltTranslatorConfig
 import viper.gobra.translator.implementations.translator.ProgramsImpl
 import viper.gobra.reporting.GeneratedViperMessage
+import viper.gobra.translator.transformers.{AssumeTransformer, TerminationTransformer, ViperTransformer}
+import viper.gobra.util.Violation
 
 object Translator {
 
@@ -21,6 +23,22 @@ object Translator {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val (encodedProgram, backtrack) = programTranslator.translate(program)(translationConfig)
+    //TODO: resolve this merge conflict
+    /* val task = ???
+    
+    if (config.checkConsistency) {
+      val errors = encodedProgram.checkTransitively
+      if (errors.nonEmpty) Violation.violation(errors.toString)
+    }
+
+    val transformers: Seq[ViperTransformer] = Seq(
+      new AssumeTransformer,
+      new TerminationTransformer
+    )
+
+    val transformedTask = transformers.foldLeft(task) {
+      case (t, transformer) => transformer.transform(t)
+    } */
 
     config.reporter report GeneratedViperMessage(config.inputFiles.head, () => encodedProgram, () => backtrack)
     (encodedProgram, backtrack)

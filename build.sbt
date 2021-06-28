@@ -58,7 +58,36 @@ lazy val gobra = (project in file("."))
 
 
     // Test settings
+    // [2020-10-12 MS]
+    //   When assembling a fat test JAR (test:assembly), the files under
+    //   src/test don't end up in the JAR if the next line is missing.
+    //   I'm not sure why that is, or why exactly the next line helps.
+    //   To be investigated.
+    // [2021-03-22 LA]
+    //  If the following line is missing, gobra-test.jar will not even
+    //  be created.
+    inConfig(Test)(baseAssemblySettings),
     Test / javaOptions ++= (run / javaOptions).value,
+    Test / assembly / assemblyJarName := "gobra-test.jar",
+    Test / assembly / test := {},
+    // exclude .gobra test files as we currently do not fully support files stored inside a JAR file:
+    // [2021-03-22 LA]
+    //  The following lines have been commented out as they seem to influence running the GobraTests
+    //  with `sbt test`: the .gobra files do not get registered as test cases and thus not executed.
+    // Test / assembly / unmanagedResources / excludeFilter := {
+    //   val regressions = ((resourceDirectory in Test).value / "regressions").getCanonicalPath
+    //   val same_package = ((resourceDirectory in Test).value / "same_package").getCanonicalPath
+    //   new SimpleFileFilter(p =>
+    //     (p.getCanonicalPath startsWith regressions) || (p.getCanonicalPath startsWith same_package)
+    //   )
+    // },
+    Test / assembly / assemblyMergeStrategy := {
+      case LogbackConfigurationFilePattern() => MergeStrategy.discard
+      case n if n.startsWith("LICENSE.txt") => MergeStrategy.discard
+      case x =>
+        val fallbackStrategy = (assembly / assemblyMergeStrategy).value
+        fallbackStrategy(x)
+    },
 
     // Assembly settings
     assembly / assemblyJarName := "gobra.jar",

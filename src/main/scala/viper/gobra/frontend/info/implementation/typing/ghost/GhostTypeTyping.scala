@@ -21,8 +21,11 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
       error(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
     case PMultisetType(elem) => isType(elem).out ++
       error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out ++
+      error(typ, s"maps of custom defined types are currently not supported", key.isInstanceOf[PNamedOperand] || value.isInstanceOf[PNamedOperand])
     case POptionType(elem) => isType(elem).out ++
       error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case n: PGhostSliceType => isType(n.elem).out
 
     case _: PDomainType => noMessages
   }
@@ -31,7 +34,9 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
+    case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
+    case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case t: PDomainType => DomainT(t, this)
   }
 }

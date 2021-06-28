@@ -16,7 +16,6 @@ import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.util.Violation
 import viper.gobra.reporting.BackTranslator.VerificationBackTrackInfo
 import viper.silver.{ast => vpr}
-import viper.silver.ast.utility.AssumeRewriter
 
 class ProgramsImpl extends Programs {
 
@@ -80,23 +79,9 @@ class ProgramsImpl extends Programs {
 
     val (error, _, prog) = progW.execute
 
-    val progWithoutAssumes = {
-      val uncleanProg = AssumeRewriter.rewriteAssumes(prog)
-      // FIXME: required due to inconvenient silver assume rewriter
-      val cleanedDomains: Seq[vpr.Domain] = uncleanProg.domains.map{ d =>
-        if (d.name == "Assume") d.copy(name = "Assume$")(d.pos, d.info, d.errT)
-        else d
-      }
-      uncleanProg.copy(domains = cleanedDomains)(uncleanProg.pos, uncleanProg.info, uncleanProg.errT)
-    }
-
-    /** If you want to enable Viper sanity checks, then comment-in this code: */
-//    val errors = progWithoutAssumes.checkTransitively
-//    if (errors.nonEmpty) Violation.violation(errors.toString)
-
-     val backTrackInfo = VerificationBackTrackInfo(error.errorT, error.reasonT)
+    val backTrackInfo = VerificationBackTrackInfo(error.errorT, error.reasonT)
 
 
-   (progWithoutAssumes, backTrackInfo)
+   (prog, backTrackInfo)
   }
 }

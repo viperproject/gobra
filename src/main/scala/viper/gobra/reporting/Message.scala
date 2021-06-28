@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import java.io.File
+import java.nio.file.Path
 
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PPackage, PProgram}
@@ -64,85 +64,84 @@ case class GobraEntityFailureMessage(verifier: String, concerning: Source.Verifi
     s"failure=${result.toString})"
 }
 
-case class PreprocessedInputMessage(input: File, preprocessedContent: () => String) extends GobraMessage {
+case class PreprocessedInputMessage(input: Path, preprocessedContent: () => String) extends GobraMessage {
   override val name: String = s"preprocessed_input_message"
 
   override def toString: String = s"preprocessed_input_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"content=${preprocessedContent()})"
 }
 
-case class ParsedInputMessage(input: File, ast: () => PProgram) extends GobraMessage {
+case class ParsedInputMessage(input: Path, ast: () => PProgram) extends GobraMessage {
   override val name: String = s"parsed_input_message"
 
   override def toString: String = s"parsed_input_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"ast=${ast().formatted})"
 }
 
-case class ParserErrorMessage(input: File, result: Vector[ParserError]) extends GobraMessage {
+case class ParserErrorMessage(input: Path, result: Vector[ParserError]) extends GobraMessage {
   override val name: String = s"parser_error_message"
 
   override def toString: String = s"parser_error_message(" +
-    s"file=${input.toPath}), " +
+    s"file=${input}), " +
     s"errors=${result.map(_.toString).mkString(",")})"
 }
 
 sealed trait TypeCheckMessage extends GobraMessage {
   override val name: String = s"type_check_message"
-  val input: File
+  val input: Path
   val ast: () => PPackage
 
   override def toString: String = s"type_check_message(" +
-    s"file=${input.toPath})"
+    s"file=${input})"
 }
 
-case class TypeCheckSuccessMessage(input: File, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
+case class TypeCheckSuccessMessage(input: Path, ast: () => PPackage, erasedGhostCode: () => String, goifiedGhostCode: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_success_message"
 
   override def toString: String = s"type_check_success_message(" +
-    s"file=${input.toPath})"
+    s"file=${input})"
 }
 
-case class TypeCheckFailureMessage(input: File, packageName: PPkg, ast: () => PPackage, result: Vector[VerifierError]) extends TypeCheckMessage {
+case class TypeCheckFailureMessage(input: Path, packageName: PPkg, ast: () => PPackage, result: Vector[VerifierError]) extends TypeCheckMessage {
   override val name: String = s"type_check_failure_message"
 
   override def toString: String = s"type_check_failure_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"package=$packageName, " +
     s"failures=${result.map(_.toString).mkString(",")})"
 }
 
-case class TypeCheckDebugMessage(input: File, ast: () => PPackage, debugTypeInfo: () => String) extends TypeCheckMessage {
+case class TypeCheckDebugMessage(input: Path, ast: () => PPackage, debugTypeInfo: () => String) extends TypeCheckMessage {
   override val name: String = s"type_check_debug_message"
 
   override def toString: String = s"type_check_debug_message(" +
-    s"file=${input.toPath}), " +
+    s"file=${input}), " +
     s"debugInfo=${debugTypeInfo()})"
 }
 
-case class DesugaredMessage(input: File, internal: () => in.Program) extends GobraMessage {
+case class DesugaredMessage(input: Path, internal: () => in.Program) extends GobraMessage {
   override val name: String = s"desugared_message"
 
   override def toString: String = s"desugared_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"internal=${internal().formatted})"
 }
 
-case class AppliedInternalTransformsMessage(input: File, internal: () => in.Program) extends GobraMessage {
+case class AppliedInternalTransformsMessage(input: Path, internal: () => in.Program) extends GobraMessage {
   override val name: String = s"transform_message"
 
   override def toString: String = s"transform_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"internal=${internal().formatted})"
 }
 
-case class GeneratedViperMessage(input: File, vprAst: () => vpr.Program, backtrack: () => BackTranslator.VerificationBackTrackInfo) extends GobraMessage {
-
+case class GeneratedViperMessage(input: Path, vprAst: () => vpr.Program, backtrack: () => BackTranslator.VerificationBackTrackInfo) extends GobraMessage {
   override val name: String = s"generated_viper_message"
 
   override def toString: String = s"generated_viper_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"vprFormated=$vprAstFormatted)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())

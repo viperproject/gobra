@@ -6,14 +6,12 @@
 
 package viper.gobra.util
 
-import java.io.File
+import java.nio.file.Path
 
 
 object OutputUtil {
 
-  def postfixFile(f: File, postfix: String): File = {
-    val abolutePath = f.getAbsolutePath
-    val newFile = s"${abolutePath}.$postfix"
-    new File(newFile)
+  def postfixFile(f: Path, postfix: String): Path = {
+    f.resolveSibling(s"${f.getFileName}.$postfix")
   }
 }

@@ -6,14 +6,14 @@
 
 package viper.gobra.translator.encodings.slices
 
-import viper.gobra.translator.encodings.LeafTypeEncoding
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
 import viper.gobra.reporting.BackTranslator.RichErrorMessage
-import viper.gobra.reporting.{MakePreconditionError, Source}
+import viper.gobra.reporting.{ArrayMakePreconditionError, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
+import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.encodings.arrays.SharedArrayEmbedding
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
@@ -24,8 +24,8 @@ import viper.silver.{ast => vpr}
 
 class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.{ViperUtil => vu}
 
   override def finalize(col : Collector) : Unit = {
@@ -187,7 +187,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             exhale = vpr.Exhale(runtimeChecks)(pos, info, errT)
             _ <- write(exhale)
             _ <- errorT {
-              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => MakePreconditionError(info)
+              case e@err.ExhaleFailed(Source(info), _, _) if e causedBy exhale => ArrayMakePreconditionError(info)
             }
 
             // inhale forall i: int :: {loc(a, i)} 0 <= i && i < [cap] ==> Footprint[ a[i] ]

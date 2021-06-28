@@ -13,10 +13,11 @@ import (
 )
 
 // Checks that files from package "encoding/binary" are correctly parsed
-func testEncodingBinary(e binary.LittleEndian) {
+func testEncodingBinary() {
 	s := make([]byte, 2)
-	e.PutUint16(s, uint16(0))
-	assert e.String() == "LittleEndian"
+	binary.LittleEndian.PutUint16(s, uint16(0))
+	res := binary.LittleEndian.String()
+	assert res == "LittleEndian"
 }
 
 // Checks that files from package "net" are correctly parsed
@@ -44,7 +45,8 @@ func testStrings(s string) bool {
 // Checks that files from package "time" are correctly parsed
 // 1: file time/time.gobra
 func testTime1(d time.Weekday) {
-	assert d == time.Wednesday ==> d.String() == "Wednesday"
+    res := d.String()
+	assert d == time.Wednesday ==> res == "Wednesday"
 }
 
 // 2: file time/zoneinfo.gobra

@@ -120,7 +120,7 @@ object Nodes {
         case TupleTExpr(elem) => elem
         case DefinedTExpr(_) => Seq.empty
         case PredicateConstructor(pred, _, args) => Seq(pred) ++ args.flatten
-        case IndexedExp(base, idx) => Seq(base, idx)
+        case IndexedExp(base, idx, _) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)

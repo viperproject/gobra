@@ -36,7 +36,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     * [(e: mmap[K]V)[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx) :: _ / Exclusive), rhs, src) =>
+    case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx, _) :: _ / Exclusive), rhs, src) =>
       for {
         stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
       } yield stmt
@@ -88,7 +88,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
           }
         } yield mmapVal
 
-      case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx) =>
+      case n@ in.IndexedExp(e :: ctx.MathematicalMap(_, _), idx, _) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vE <- goE(e)

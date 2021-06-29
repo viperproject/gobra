@@ -87,7 +87,7 @@ object GobraStrategy {
       case (d: Deref, Seq(e: Expr)) => Deref(e, d.typ)(meta)
       case (_: Ref, Seq(ref: Addressable, t: PointerT)) => Ref(ref, t)(meta)
       case (_: FieldRef, Seq(recv: Expr, field: Field)) => FieldRef(recv, field)(meta)
-      case (_: IndexedExp, Seq(base: Expr, idx: Expr)) => IndexedExp(base, idx)(meta)
+      case (_: IndexedExp, Seq(base: Expr, idx: Expr, underlyingType: Type)) => IndexedExp(base, idx, underlyingType)(meta)
       case (_: ArrayUpdate, Seq(base: Expr, left: Expr, right: Expr)) => ArrayUpdate(base, left, right)(meta)
       case (_: StructUpdate, Seq(base: Expr, left: Field, right: Expr)) => StructUpdate(base, left, right)(meta)
       case (_: Negation, Seq(op: Expr)) => Negation(op)(meta)

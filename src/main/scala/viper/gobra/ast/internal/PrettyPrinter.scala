@@ -394,7 +394,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 
-    case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+    case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
     case Capacity(exp) => "cap" <> parens(showExpr(exp))

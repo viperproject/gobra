@@ -543,10 +543,11 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 /**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
-  * and `index` of an integer type.
+  * and `index` of an integer type. `baseUnderlyingType` is required
+  * in order to type-check the expression.
   */
-case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr with Location {
-  override val typ : Type = base.typ match {
+case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
+  override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems

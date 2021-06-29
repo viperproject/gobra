@@ -89,7 +89,7 @@ class MapEncoding extends LeafTypeEncoding {
           )(pos, info, errT)
         } yield res
 
-      case l@in.IndexedExp(_ :: ctx.Map(_, _), _) => for { (res, _) <- goMapLookup(l)(ctx) } yield res
+      case l@in.IndexedExp(_ :: ctx.Map(_, _), _, _) => for { (res, _) <- goMapLookup(l)(ctx) } yield res
 
       case (lit: in.MapLit) :: ctx.Map(keys, values) =>
         val (pos, info, errT) = lit.vprMeta
@@ -195,7 +195,7 @@ class MapEncoding extends LeafTypeEncoding {
           } yield ass
         )
 
-      case l@ in.SafeMapLookup(resTarget, successTarget, indexedExp@ in.IndexedExp(_, _)) =>
+      case l@ in.SafeMapLookup(resTarget, successTarget, indexedExp@ in.IndexedExp(_, _, _)) =>
         val (pos, info, errT) = l.vprMeta
         val res = in.LocalVar(Names.freshName, indexedExp.typ.withAddressability(Addressability.Exclusive))(l.info)
         val vprRes = ctx.typeEncoding.variable(ctx)(res)
@@ -242,7 +242,7 @@ class MapEncoding extends LeafTypeEncoding {
     def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
 
     default(super.assignment(ctx)){
-      case (in.Assignee(in.IndexedExp(m :: ctx.Map(keys, values), idx)), rhs, src) =>
+      case (in.Assignee(in.IndexedExp(m :: ctx.Map(keys, values), idx, _)), rhs, src) =>
         val (pos, info, errT) = src.vprMeta
         val res = in.LocalVar(Names.freshName, in.IntT(Exclusive))(m.info)
         val vRes = ctx.typeEncoding.variable(ctx)(res)
@@ -359,7 +359,7 @@ class MapEncoding extends LeafTypeEncoding {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
 
     lookupExp match {
-      case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx) =>
+      case l@in.IndexedExp(exp :: ctx.Map(keys, values), idx, _) =>
         for {
           vIdx <- goE(idx)
           isComp <- MapEncoding.checkKeyComparability(idx)(ctx)

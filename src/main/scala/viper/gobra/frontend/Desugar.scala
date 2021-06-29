@@ -1153,7 +1153,7 @@ object Desugar {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           in.Block(
@@ -1476,7 +1476,8 @@ object Desugar {
       for {
         dbase <- exprD(ctx)(base)
         dindex <- exprD(ctx)(index)
-      } yield in.IndexedExp(dbase, dindex)(src)
+        baseUnderlyingType = underlyingType(dbase.typ)
+      } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
@@ -1706,7 +1707,7 @@ object Desugar {
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
 
-              make: in.MakeStmt = info.symbType(t) match {
+              make: in.MakeStmt = underlyingType(info.symbType(t)) match {
                 case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>

@@ -164,7 +164,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     default(super.statement(ctx)) {
       case makeStmt@in.MakeSlice(target, in.SliceT(typeParam, _), lenArg, optCapArg) =>
         val (pos, info, errT) = makeStmt.vprMeta
-        val slice = in.LocalVar(Names.freshName, in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive))(makeStmt.info)
+        val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
+        val slice = in.LocalVar(Names.freshName, sliceT)(makeStmt.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
         val typ = ctx.typeEncoding.typ(ctx)(typeParam.withAddressability(Addressability.Shared))
         seqn(
@@ -211,7 +212,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
               trigger = (idx: vpr.LocalVar) =>
                 Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx, typ)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
-                ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, x)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info), makeStmt)
+                ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info), makeStmt)
             )(makeStmt)(ctx)
             _ <- write(vpr.Inhale(eqValueAssertion)(pos, info, errT))
 
@@ -235,7 +236,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val vprLoc = ctx.expr.translate(loc)(ctx).res
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx, ctx.typeEncoding.typ(ctx)(t.withAddressability(Shared)))(pos, info, errT)))(pos, info, errT))
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info), perm)
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, loc.typ)(loc.info), perm)
       boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -279,7 +280,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * Ref[ (e: []T)[idx] ] -> slice_get(Ref[e], [idx])
     */
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
-    case (exp @ in.IndexedExp(base :: ctx.Slice(typ), idx)) :: _ / Shared => for {
+    case (exp @ in.IndexedExp(base :: ctx.Slice(typ), idx, _)) :: _ / Shared => for {
       baseT <- ctx.expr.translate(base)(ctx)
       idxT <- ctx.expr.translate(idx)(ctx)
       typT = ctx.typeEncoding.typ(ctx)(typ)

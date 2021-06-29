@@ -85,7 +85,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * [(e: [n]T°)[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee(in.IndexedExp(base :: ctx.Array(_, _), idx) :: _ / Exclusive), rhs, src) =>
+    case (in.Assignee(in.IndexedExp(base :: ctx.Array(_, _), idx, _) :: _ / Exclusive), rhs, src) =>
       ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.ArrayUpdate(base, idx, rhs)(src.info), src)
   }
 
@@ -113,7 +113,8 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
-        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx)(src.info), in.IndexedExp(y, idx)(src.info), src)
+        underlyingType = lhs.typ
+        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx, underlyingType)(src.info), in.IndexedExp(y, idx, underlyingType)(src.info), src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
@@ -161,7 +162,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * R[ loc: ([n]T)@ ] -> arrayConversion(L[loc])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = default(super.expr(ctx)){
-    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Exclusive =>
+    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expr.translate(base)(ctx)
         vIdx <- ctx.expr.translate(idx)(ctx)
@@ -232,7 +233,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     * Ref[ (e: [n]T)[idx] ] -> sh_array_get(Ref[e], [idx], n)
     */
   override def reference(ctx: Context): in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)){
-    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx)) :: _ / Shared =>
+    case (loc@ in.IndexedExp(base :: ctx.Array(len, t), idx, _)) :: _ / Shared =>
       for {
         vBase <- ctx.typeEncoding.reference(ctx)(base.asInstanceOf[in.Location])
         vIdx <- ctx.expr.translate(idx)(ctx)
@@ -254,7 +255,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val (pos, info, errT) = loc.vprMeta
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(sh.get(ctx.typeEncoding.reference(ctx)(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx)(loc.info), perm)
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, loc.typ)(loc.info), perm)
       boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -274,7 +275,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
         val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
         for {
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx)(exp.info))
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx, exp.typ)(exp.info))
             .getOrElse(Violation.violation("An incomparable array entails an incomparable element type.")))(ctx)
           res = vpr.Forall(
             variables = Seq(vIdxDecl),
@@ -328,7 +329,7 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       val resDummy = in.LocalVar(Names.freshName, resType)(src.info)
       val idx = in.BoundVar("idx", in.IntT(Exclusive))(src.info)
       val vIdx = ctx.typeEncoding.variable(ctx)(idx)
-      val resAccess = in.IndexedExp(resDummy, idx)(src.info)
+      val resAccess = in.IndexedExp(resDummy, idx, resType)(src.info)
       val lenEq = pure(ctx.typeEncoding.equal(ctx)(in.Length(resDummy)(src.info), in.IntLit(resType.length)(src.info), src))(ctx).res
         .transform{ case x: vpr.LocalVar if x.name == resDummy.id => vpr.Result(vResType)() }
       val idxEq = pure(ctx.typeEncoding.equal(ctx)(resAccess, in.DfltVal(resType.elems)(src.info), src))(ctx).res

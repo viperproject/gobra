@@ -124,7 +124,7 @@ object OverflowChecksTransform extends InternalTransform {
     case m@MakeMap(_, _, optArg) =>
       Seqn(genOverflowChecksExprs(optArg.toVector) :+ m)(m.info)
 
-    case m@SafeMapLookup(_, _, IndexedExp(base, idx)) =>
+    case m@SafeMapLookup(_, _, IndexedExp(base, idx, _)) =>
       Seqn(genOverflowChecksExprs(Vector(base, idx)) :+ m)(m.info)
 
     // explicitly matches remaining statements to detect non-exhaustive pattern matching if a new statement is added

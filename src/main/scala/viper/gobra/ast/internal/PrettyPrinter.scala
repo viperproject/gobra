@@ -267,10 +267,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <>  meth.name <> parens(showExprList(args))
 
-    case Outline(variables, modified, declared, pres, posts, body) => 
-      "outline" <+> parens(showFormalArgList(variables)) <+> parens(showVarDeclList(modified ++ declared)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
-
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)
     case Assume(ass) => "assume" <+> showAss(ass)
@@ -659,10 +655,6 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case GoMethodCall(recv, meth, args) =>
       "go" <+> showExpr(recv) <> "." <> meth.name <> parens(showExprList(args))
-
-    case Outline(variables, modified, declared, pres, posts, body) => 
-      "outline" <+> parens(showFormalArgList(variables)) <+> parens(showVarDeclList(modified ++ declared)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
 
     case Return() => "return"
     case Assert(ass) => "assert" <+> showAss(ass)

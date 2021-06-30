@@ -290,8 +290,6 @@ case class PSeq(stmts: Vector[PStatement]) extends PActualStatement with PGhosti
   }
 }
 
-case class POutline(spec: PFunctionSpec, body: Vector[PStatement]) extends PActualStatement
-
 /**
   * Expressions
   */

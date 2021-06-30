@@ -39,8 +39,4 @@ trait TypeInfo extends ExternalTypeInfo {
 
   def interfaceImplementations: Map[InterfaceT, Set[Type]]
   def missingImplProofs: Vector[(Type, InterfaceT, MethodImpl, MethodSpec)]
-
-  def variables(s: Vector[PStatement]): Seq[PIdnNode]
-  def modified(s: Vector[PStatement]): Seq[PIdnNode]
-  def declared(s: Vector[PStatement]): Seq[PIdnNode]
 }

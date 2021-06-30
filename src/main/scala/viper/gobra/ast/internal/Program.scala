@@ -333,13 +333,6 @@ case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Ex
   */
 case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
 
-case class Outline(
-                    variables: Vector[Parameter.In],
-                    modified: Vector[Parameter.Out],
-                    declared: Vector[Parameter.Out],
-                    pres: Vector[Assertion],
-                    posts: Vector[Assertion],
-                    body: Option[Block])(val info: Source.Parser.Info) extends Stmt
 
 sealed trait Assertion extends Node
 

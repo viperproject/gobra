@@ -15,7 +15,6 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
-import viper.gobra.frontend.info.base.SymbolTable
 
 trait Enclosing { this: TypeInfoImpl =>
 
@@ -144,41 +143,4 @@ trait Enclosing { this: TypeInfoImpl =>
 
     aux(nil)
   }
-
-  // finds all used, modified and declared variables
-  private lazy val variableAnalysis: PStatement => (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode]) =
-    attr[PStatement, (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode])] {s => 
-      def isVariable(x: PIdnNode): Boolean = entity(x) match {
-        case _: SymbolTable.SingleLocalVariable => true
-        case _: SymbolTable.MultiLocalVariable => true
-        case _: SymbolTable.InParameter => true
-        case _: SymbolTable.ReceiverParameter => true
-        case _: SymbolTable.OutParameter => true
-        case _ => false
-      }
-      val variables = allChildren(s).collect{case x: PIdnNode if isVariable(x) => x}.toSet
-
-      val modified = variables.filter{
-        case tree.parent(tree.parent(_: PAssignment | _: PAssignmentWithOp)) => true
-        case unk: PIdnUnk  => unk match {
-          case tree.parent(tree.parent(_: PShortVarDecl)) if !isDef(unk) => true
-          case _ => false
-        }
-        case _ => false
-      }
-
-      val declared = variables.filter{
-        case tree.parent(tree.parent(_: PVarDecl)) => true
-        case unk: PIdnUnk  => unk match {
-          case tree.parent(tree.parent(_: PShortVarDecl)) if isDef(unk) => true
-          case _ => false
-        }
-        case _ => false
-      }
-
-      (variables, modified, declared)
-    }
-
-    def tmp (s: PStatement): Set[PIdnNode] =
-      variableAnalysis(s)._1
 }

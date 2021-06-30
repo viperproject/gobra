@@ -113,8 +113,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
       for {
         (x, xTrigger) <- copyArray(lhs)(ctx)
         (y, yTrigger) <- copyArray(rhs)(ctx)
-        underlyingType = lhs.typ
-        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx, underlyingType)(src.info), in.IndexedExp(y, idx, underlyingType)(src.info), src)
+        typLhs = underlyingType(lhs.typ)(ctx)
+        typRhs = underlyingType(rhs.typ)(ctx)
+        body = (idx: in.BoundVar) => ctx.typeEncoding.equal(ctx)(in.IndexedExp(x, idx, typLhs)(src.info), in.IndexedExp(y, idx, typRhs)(src.info), src)
         res <- boundedQuant(len, idx => xTrigger(idx) ++ yTrigger(idx), body)(src)(ctx)
       } yield res
 
@@ -253,9 +254,10 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
   override def addressFootprint(ctx: Context): (in.Location, in.Expr) ==> CodeWriter[vpr.Exp] = {
     case (loc :: ctx.Array(len, t) / Shared, perm) =>
       val (pos, info, errT) = loc.vprMeta
+      val typ = underlyingType(loc.typ)(ctx)
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(sh.get(ctx.typeEncoding.reference(ctx)(loc).res, idx, cptParam(len, t)(ctx))(loc)(ctx)))(pos, info, errT))
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, loc.typ)(loc.info), perm)
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, typ)(loc.info), perm)
       boundedQuant(len, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         VU.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)
@@ -274,8 +276,9 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
         // if this is executed, then type parameter must have dynamic comparability
         val idx = in.BoundVar("idx", in.IntT(Exclusive))(exp.info)
         val vIdxDecl = ctx.typeEncoding.variable(ctx)(idx)
+        val baseTyp = underlyingType(exp.typ)(ctx)
         for {
-          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx, exp.typ)(exp.info))
+          rhs <- pure(ctx.typeEncoding.isComparable(ctx)(in.IndexedExp(exp, idx, baseTyp)(exp.info))
             .getOrElse(Violation.violation("An incomparable array entails an incomparable element type.")))(ctx)
           res = vpr.Forall(
             variables = Seq(vIdxDecl),

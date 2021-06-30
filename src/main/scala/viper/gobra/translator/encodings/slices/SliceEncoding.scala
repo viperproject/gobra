@@ -236,7 +236,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val vprLoc = ctx.expr.translate(loc)(ctx).res
       val trigger = (idx: vpr.LocalVar) =>
         Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx, ctx.typeEncoding.typ(ctx)(t.withAddressability(Shared)))(pos, info, errT)))(pos, info, errT))
-      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, loc.typ)(loc.info), perm)
+      val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
+      val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
       boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
         // to eliminate nested quantified permissions, which are not supported by the silver ast.
         vu.bigAnd(viper.silver.ast.utility.QuantifiedPermissions.desugarSourceQuantifiedPermissionSyntax(forall))(pos, info, errT)

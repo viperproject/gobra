@@ -1910,7 +1910,7 @@ object Desugar {
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
-    def compositeTypeD(t : in.Type) : CompositeKind = t match {
+    def compositeTypeD(t : in.Type) : CompositeKind = underlyingType(t) match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case t: in.ArrayT => CompositeKind.Array(t)
       case t: in.SliceT => CompositeKind.Slice(t)

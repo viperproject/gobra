@@ -193,6 +193,7 @@ trait MemberResolution { this: TypeInfoImpl =>
   override def localMemberSet(t: Type): AdvancedMemberSet[TypeMember] = {
     nonAddressableMethodSet(t)
   }
+
   val adtMemberSet: Type => AdvancedMemberSet[AdtMember] =
     attr[Type, AdvancedMemberSet[AdtMember]] {
       case t: AdtT =>
@@ -201,6 +202,22 @@ trait MemberResolution { this: TypeInfoImpl =>
         }
       case _ => AdvancedMemberSet.empty
     }
+
+  val adtClauseMemberSet: PNode => AdvancedMemberSet[AdtClause] =
+    attr[PNode, AdvancedMemberSet[AdtClause]] {
+      case t: PAdtType =>
+        val clauses = t.clauses.map(c => AdtClause(c, t, this))
+        AdvancedMemberSet.init[AdtClause](clauses)
+      case _ => AdvancedMemberSet.empty
+    }
+
+  def findFieldInClause(c: AdtClause, f: PIdnUse): Option[AdtClauseField] = {
+    if (c.fields.exists(field => field.id.name == f.name)){
+      Some(AdtClauseField(c.fields.find(field => field.id.name == f.name).get, c.decl, c.adtDecl, this))
+    } else {
+      None
+    }
+  }
 
   override def memberSet(t: Type): AdvancedMemberSet[TypeMember] = {
     val context = getMethodReceiverContext(t)
@@ -295,7 +312,7 @@ trait MemberResolution { this: TypeInfoImpl =>
       case None => ErrorMsgEntity(message(use, s"No ADT Clause $use found"))
     }
 
-    Option((ent, Vector()))
+    Some((ent, Vector()))
   }
 
   def tryAdtFieldLookup(typ: Type, use: PIdnUse) : Option[(AdtMember, Vector[MemberPath])] = {
@@ -306,27 +323,45 @@ trait MemberResolution { this: TypeInfoImpl =>
         else None
       case _ => None
     }
+  }
 
+  def tryAdtDerivesFieldLookup(use: PIdnUse, base: PExpressionOrType, decl: PAdtType): Entity = {
+    base match {
+      case i: PNamedOperand =>
+        val clause = adtClauseMemberSet(decl).lookup(i.name)
+        if (clause.isDefined) {
+          findFieldInClause(clause.get, use).getOrElse(UnknownEntity())
+        }
+        else
+          UnknownEntity()
+      case _ => UnknownEntity()
+    }
   }
 
 
   def tryDotLookup(b: PExpressionOrType, id: PIdnUse): Option[(Entity, Vector[MemberPath])] = {
-    exprOrType(b) match {
-      case Left(expr) =>
-        val methodLikeAttempt = tryMethodLikeLookup(expr, id)
-        val fieldLookupAttempt = tryFieldLookup(exprType(expr), id)
-        if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else if (fieldLookupAttempt.isDefined) fieldLookupAttempt
-        else tryAdtFieldLookup(exprType(expr), id)
+    id match {
+      case tree.parent.pair(oId: PIdnUse, tree.parent.pair(n: PDot, d: PDerivableType)) if oId == id =>
+        val adtDecl = tree.parent(d).head.asInstanceOf[PAdtType]
+        Some(tryAdtDerivesFieldLookup(id, n.base, adtDecl), Vector.empty)
+      case _ =>
+        exprOrType(b) match {
+          case Left(expr) =>
+            val methodLikeAttempt = tryMethodLikeLookup(expr, id)
+            val fieldLookupAttempt = tryFieldLookup(exprType(expr), id)
+            if (methodLikeAttempt.isDefined) methodLikeAttempt
+            else if (fieldLookupAttempt.isDefined) fieldLookupAttempt
+            else tryAdtFieldLookup(exprType(expr), id)
 
-      case Right(typ) =>
-        val symbTyp = typeSymbType(typ)
-        val methodLikeAttempt = tryMethodLikeLookup(typ, id)
-        if (methodLikeAttempt.isDefined) methodLikeAttempt
-        else underlyingType(symbTyp) match {
-          case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
-          case adt: AdtT => tryAdtClauseLookup(id, adt.decl, adt)
-          case _ => None
+          case Right(typ) =>
+            val symbTyp = typeSymbType(typ)
+            val methodLikeAttempt = tryMethodLikeLookup(typ, id)
+            if (methodLikeAttempt.isDefined) methodLikeAttempt
+            else underlyingType(symbTyp) match {
+              case pkg: ImportT => tryPackageLookup(RegularImport(pkg.decl.importPath), id, pkg.decl)
+              case adt: AdtT => tryAdtClauseLookup(id, adt.decl, adt)
+              case _ => None
+            }
         }
     }
   }

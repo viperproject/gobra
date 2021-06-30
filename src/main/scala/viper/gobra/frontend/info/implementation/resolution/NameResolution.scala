@@ -7,10 +7,10 @@
 package viper.gobra.frontend.info.implementation.resolution
 
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.BuiltInMemberTag
+import viper.gobra.frontend.info.base.{BuiltInMemberTag, DerivableTags}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.frontend.info.base.Type.{AdtT, StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 import viper.gobra.util.Violation
@@ -134,7 +134,7 @@ trait NameResolution { this: TypeInfoImpl =>
 
   private def initialEnv(n: PPackage): Vector[(String, Entity)] = {
     val members = BuiltInMemberTag.builtInMembers()
-    members.flatMap(m => {
+    val builtIns = members.flatMap(m => {
       val entity = m match {
         case tag: BuiltInFunctionTag => Some(BuiltInFunction(tag, n, this))
         case _: BuiltInMethodTag => None
@@ -146,6 +146,11 @@ trait NameResolution { this: TypeInfoImpl =>
         case _ => None
       }
     })
+    val derivables = DerivableTags.allDerivables.flatMap(s => {
+      Some((s, Derivable(s,n,this)))
+    })
+
+    builtIns ++ derivables
   }
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {

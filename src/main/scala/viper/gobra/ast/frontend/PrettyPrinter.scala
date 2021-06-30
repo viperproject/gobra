@@ -48,6 +48,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case PPos(_) => emptyDoc
+    case n: PDerivableType => showDerives(Some(n))
   }
 
   // entire package
@@ -558,13 +559,22 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMethodReceivePointer(t) => "*" <> showType(t)
   }
 
+  def showDerives(derives: Option[PDerivableType]): Doc = (if (derives.isDefined) {
+    lazy val without: Doc = if(derives.get.blacklist.nonEmpty) "without" <+> ssep(derives.get.blacklist.map(showExpr), ",") else ""
+    "derives" <+> showId(derives.get.id) <> (if (derives.get.typ.isDefined) {
+      "[" <> showType(derives.get.typ.get) <> "]" <+> without
+    } else "")
+  } else "")
+
   def showGhostType(typ : PGhostType) : Doc = typ match {
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
     case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
-    case PAdtType(clauses) => "adt" <> block(ssep(clauses map showMisc, line))
+    case PAdtType(clauses, derives) => "adt" <> block(ssep(clauses map showMisc, line)) <+> showDerives(derives)
+
+
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
       "domain" <+> block(

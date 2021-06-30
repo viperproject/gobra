@@ -23,6 +23,9 @@ trait ExclusiveStructComponent extends Generator {
   /** Getter of exclusive-struct domain. */
   def get(base: vpr.Exp, idx: Int, t: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp
 
+  /** Checks if a element is in the struct. */
+  def contains(right: vpr.Exp, left: vpr.Exp, arity: Int)(src: in.Node)(ctx: Context): vpr.Exp
+
   /**
     * Update function of exclusive-struct domain.
     *

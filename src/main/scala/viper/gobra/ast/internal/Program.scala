@@ -16,6 +16,7 @@ package viper.gobra.ast.internal
   */
 
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
+import viper.gobra.frontend.info.base.DerivableTags.{Collection, DerivableTag}
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
@@ -224,7 +225,7 @@ case class BuiltInMPredicate(
   require(argsT.forall(_.addressability == Addressability.Exclusive))
 }
 
-case class AdtDefinition(name: String, clauses: Vector[AdtClause])(val info: Source.Parser.Info) extends Member
+case class AdtDefinition(name: String, clauses: Vector[AdtClause], derives: DerivableType)(val info: Source.Parser.Info) extends Member
 case class AdtClause(name: AdtClauseProxy, args: Vector[Field])(val info: Source.Parser.Info) extends Node
 
 case class DomainDefinition(name: String, funcs: Vector[DomainFunc], axioms: Vector[DomainAxiom])(val info: Source.Parser.Info) extends Member
@@ -336,7 +337,7 @@ case class SafeReceive(resTarget: LocalVar, successTarget: LocalVar, channel: Ex
   */
 case class SafeMapLookup(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)(val info: Source.Parser.Info) extends Stmt
 
-case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Expr)(val info: Source.Parser.Info) extends Expr
+case class PatternMatchExp(exp: Expr, typ: Type, cases: Vector[PatternMatchCaseExp], default: Option[Expr])(val info: Source.Parser.Info) extends Expr
 
 case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.Parser.Info) extends Node
 
@@ -768,6 +769,8 @@ case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr
   override val typ : Type = expr.typ match {
     case SequenceT(t, _) => SetT(t, Addressability.conversionResult)
     case SetT(t, _) => SetT(t, Addressability.conversionResult)
+    case AdtT(_,_,_,DerivableType(Collection(_, _), typeVars, _)) => SetT(typeVars.head, Addressability.conversionResult)
+    case ArrayT(_, t, Addressability.Exclusive) => SetT(t, Addressability.conversionResult)
     case t => Violation.violation(s"expected a sequence or set type but got $t")
   }
 }
@@ -1341,14 +1344,14 @@ case class ChannelT(elem: Type, addressability: Addressability) extends PrettyTy
     ChannelT(elem, newAddressability)
 }
 
-case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[String, BigInt]) extends Type with TopType {
+case class AdtT(name: String, addressability: Addressability, clauseToTag: Map[String, BigInt], derives: DerivableType) extends Type with TopType {
   override def equalsWithoutMod(t: Type): Boolean = t match {
     case o: AdtT => name == o.name
     case _ => false
   }
 
   override def withAddressability(newAddressability: Addressability): Type =
-    AdtT(name, newAddressability, clauseToTag)
+    AdtT(name, newAddressability, clauseToTag, derives)
 }
 
 case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressability: Addressability) extends Type {
@@ -1361,6 +1364,8 @@ case class AdtClauseT(name: String, adtT: AdtT, fields: Vector[Field], addressab
   override def withAddressability(newAddressability: Addressability): Type =
     AdtClauseT(name, adtT, fields, newAddressability)
 }
+
+case class DerivableType(derivable: DerivableTag, typeVars: Vector[Type], blacklist: Map[String, Vector[Field]])(val info: Source.Parser.Info) extends Node
 
 
 sealed trait Proxy extends Node {

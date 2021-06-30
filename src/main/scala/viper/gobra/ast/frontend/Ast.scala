@@ -813,7 +813,7 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
-case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = false) extends PGhostStatement
+case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 
 case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement]) extends PGhostMisc with PScope
 
@@ -1095,13 +1095,15 @@ case class PMathematicalMapType(keys: PType, values: PType) extends PGhostLitera
 case class POptionType(elem : PType) extends PGhostLiteralType
 
 /** The type of ADT types */
-case class PAdtType(clauses: Vector[PAdtClause]) extends PGhostLiteralType with PUnorderedScope
+case class PAdtType(clauses: Vector[PAdtClause], derives: Option[PDerivableType]) extends PGhostLiteralType with PUnorderedScope
 
 case class PAdtClause(id: PIdnDef, args: Vector[PFieldDecls]) extends PGhostMisc with PUnorderedScope
 
 case class PGhostSliceType(elem: PType) extends PGhostLiteralType
 
 case class PDomainType(funcs: Vector[PDomainFunction], axioms: Vector[PDomainAxiom]) extends PGhostLiteralType with PUnorderedScope
+
+case class PDerivableType(id: PIdnUse, typ: Option[PType], blacklist: Vector[PDot]) extends PGhostNode
 
 sealed trait PDomainClause extends PNode
 

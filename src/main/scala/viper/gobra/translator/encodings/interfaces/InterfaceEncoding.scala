@@ -174,6 +174,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
 
+      /*
+      case n@ in.ToInterface(exp :: ctx.Struct(_) / Exclusive, _) => {
+        val (pos, info, errT) = n.vprMeta
+        for {
+          dynValue <- goE(exp)
+        } yield toInterfaceFunc(Vector(dynValue), underlyingType(exp.typ)(ctx))(pos, info, errT)(ctx)
+      }
+      */
+
+
       case n@ in.ToInterface(exp, _) =>
         val (pos, info, errT) = n.vprMeta
         if (Comparability.comparable(exp.typ)(ctx.lookup).isDefined) {
@@ -230,6 +240,13 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
       case n: in.TypeExpr =>
         for { es <- sequence(TypeHead.children(n) map goE) } yield withSrc(types.typeApp(TypeHead.typeHead(n), es), n, ctx)
+
+      case n@ in.Contains(left, right :: ctx.Interface(_)) =>
+        val (pos, info, errT) = n.vprMeta
+        for {
+          l <- ctx.expr.translate(left)(ctx)
+          r <- ctx.expr.translate(right)(ctx)
+        } yield inInterface(l, r)(pos, info, errT)(ctx)
     }
   }
 
@@ -357,6 +374,9 @@ class InterfaceEncoding extends LeafTypeEncoding {
   }
   private var generatedComparableFunc: Option[vpr.DomainFunc] = None
 
+  private def inInterface(left: vpr.Exp, right: vpr.Exp)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo)(ctx: Context): vpr.Exp = {
+    ctx.contains.contains(left, right)(pos, info, errT)
+  }
 
   /**
     * Encodes statements.
@@ -424,6 +444,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * function toInterface(x: [T°]): [interface{}]
     *   ensures result == tuple2(x, TYPE(T))
     *   ensures isComp[x: T°] ==> comparableInterface(result)
+    *   ensures contains(x, result)
     *
     */
   private val toInterfaceFunc: FunctionGenerator[in.Type] = new FunctionGenerator[in.Type] {
@@ -442,7 +463,8 @@ class InterfaceEncoding extends LeafTypeEncoding {
         pres = Seq.empty,
         posts = Seq(
           vpr.EqCmp(vRes, boxInterface(vX.localVar, types.typeToExpr(t)()(ctx))()(ctx))(),
-          vpr.Implies(isComp, isComparabeInterface(vRes)()(ctx))()
+          vpr.Implies(isComp, isComparabeInterface(vRes)()(ctx))(),
+          ctx.contains.contains(vX.localVar,vRes)()
         ),
         body = None
       )()

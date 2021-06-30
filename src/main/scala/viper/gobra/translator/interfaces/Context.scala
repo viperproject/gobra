@@ -29,6 +29,8 @@ trait Context {
   def equality: Equality
   def condition: Conditions
   def unknownValue: UnknownValues
+  def rank: Rank
+  def contains: Contains
 
   // translator
   def typeEncoding: TypeEncoding
@@ -79,6 +81,8 @@ trait Context {
           equalityN: Equality = equality,
           conditionN: Conditions = condition,
           unknownValueN: UnknownValues = unknownValue,
+          rankN: Rank = rank,
+          containsN: Contains = contains,
           typeEncodingN: TypeEncoding = typeEncoding,
           assN: Assertions = ass,
           exprN: Expressions = expr,
@@ -86,7 +90,7 @@ trait Context {
           pureMethodN: PureMethods = pureMethod,
           predicateN: Predicates = predicate,
           builtInMembersN: BuiltInMembers = builtInMembers,
-          stmtN: Statements = stmt
+          stmtN: Statements = stmt,
          ): Context
 
 
@@ -105,6 +109,8 @@ trait Context {
     equality.finalize(col)
     condition.finalize(col)
     unknownValue.finalize(col)
+    rank.finalize(col)
+    contains.finalize(col)
 
     // translators
     typeEncoding.finalize(col)

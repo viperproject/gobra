@@ -35,7 +35,7 @@ object GobraStrategy {
       case (d: DomainDefinition, Seq(funcs: Vector[DomainFunc@unchecked], axioms: Vector[DomainAxiom@unchecked])) => DomainDefinition(d.name, funcs, axioms)(meta)
       case (_: DomainFunc, Seq(name: DomainFuncProxy, args: Vector[Parameter.In@unchecked], res: Parameter.Out)) => DomainFunc(name, args, res)(meta)
       case (_: DomainAxiom, Seq(expr: Expr)) => DomainAxiom(expr)(meta)
-      case (a: AdtDefinition, Seq(clauses: Vector[AdtClause@unchecked])) => AdtDefinition(a.name, clauses)(meta)
+      case (a: AdtDefinition, Seq(clauses: Vector[AdtClause@unchecked])) => AdtDefinition(a.name, clauses, a.derives)(meta)
       case (_: AdtClause, Seq(name: AdtClauseProxy, args: Vector[Field@unchecked])) => AdtClause(name, args)(meta)
         // Statements
       case (_: Block, Seq(v: Vector[BlockDeclaration@unchecked], s: Vector[Stmt@unchecked])) => Block(v, s)(meta)

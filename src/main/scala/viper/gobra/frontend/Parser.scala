@@ -1005,7 +1005,16 @@ object Parser {
       "option" ~> ("[" ~> typ <~ "]") ^^ POptionType
 
     lazy val adtType : Parser[PAdtType] =
-      "adt" ~> "{" ~> repsep(adtClause, eos) <~ eos.? <~ "}" ^^ {case clauses => PAdtType(clauses)}
+      "adt" ~> ("{" ~> repsep(adtClause, eos) <~ eos.? <~ "}") ~ derivableType.? ^^ {case clauses ~ typ => PAdtType(clauses, typ)}
+
+    lazy val derivableType : Parser[PDerivableType] =
+      "derives" ~> idnUse ~ ("[" ~> typ <~ "]").? ~ derivableBlackList.? ^^ {
+        case id ~ typ ~ ids if ids.isDefined => PDerivableType(id, typ, ids.get)
+        case id ~ typ ~ _ => PDerivableType(id, typ, Vector.empty)
+      }
+
+    lazy val derivableBlackList : Parser[Vector[PDot]] =
+      "without" ~> qualifiedType  ~ ("," ~> qualifiedType).* ^^ {case id ~ moreIds => id +: moreIds}
 
     lazy val adtClause: Parser[PAdtClause] =
       idnDef ~ ("{" ~> repsep(fieldDecls, eos) <~ eos.? <~ "}") ^^ PAdtClause
@@ -1284,10 +1293,10 @@ object Parser {
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold |
       "match" ~> matchStmt |
-      "!match" ~> matchStmt ^^ {case PMatchStatement(exp, clauses, _) => PMatchStatement(exp, clauses, true)}
+      "!match" ~> matchStmt ^^ {case PMatchStatement(exp, clauses, _) => PMatchStatement(exp, clauses, strict = false)}
 
     lazy val matchStmt: Parser[PMatchStatement] =
-      expression ~ ("{" ~> rep1(matchClause) <~ "}") ^^ {case (e ~ m) => PMatchStatement(e,m, false)}
+      expression ~ ("{" ~> rep1(matchClause) <~ "}") ^^ {case (e ~ m) => PMatchStatement(e,m)}
 
     lazy val matchClause: Parser[PMatchStmtCase] =
       matchCase ~ statementList  ^^ PMatchStmtCase

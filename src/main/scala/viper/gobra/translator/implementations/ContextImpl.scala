@@ -27,6 +27,8 @@ case class ContextImpl(
                         equality: Equality,
                         condition: Conditions,
                         unknownValue: UnknownValues,
+                        rank: Rank,
+                        contains: Contains,
                         typeEncoding: TypeEncoding,
                         ass: Assertions,
                         expr: Expressions,
@@ -35,7 +37,8 @@ case class ContextImpl(
                         predicate: Predicates,
                         builtInMembers: BuiltInMembers,
                         stmt: Statements,
-                        table: LookupTable
+                        table: LookupTable,
+
                       ) extends Context {
 
   def this(conf: TranslatorConfig, table: LookupTable) = {
@@ -53,6 +56,8 @@ case class ContextImpl(
       conf.equality,
       conf.condition,
       conf.unknownValue,
+      conf.rank,
+      conf.contains,
       conf.typeEncoding,
       conf.ass,
       conf.expr,
@@ -61,7 +66,7 @@ case class ContextImpl(
       conf.predicate,
       conf.builtInMembers,
       conf.stmt,
-      table
+      table,
     )
   }
 
@@ -80,6 +85,8 @@ case class ContextImpl(
                    equalityN: Equality = equality,
                    conditionN: Conditions = condition,
                    unknownValueN: UnknownValues = unknownValue,
+                   rankN: Rank = rank,
+                   containsN: Contains = contains,
                    typeEncodingN: TypeEncoding = typeEncoding,
                    assN: Assertions = ass,
                    exprN: Expressions = expr,
@@ -102,6 +109,8 @@ case class ContextImpl(
     equalityN,
     conditionN,
     unknownValueN,
+    rankN,
+    containsN,
     typeEncodingN,
     assN,
     exprN,

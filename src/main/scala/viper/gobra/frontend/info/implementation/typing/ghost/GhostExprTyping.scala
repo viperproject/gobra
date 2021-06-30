@@ -11,7 +11,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.SymbolTable.{AdtMember, BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.Type
+import viper.gobra.frontend.info.base.{DerivableTags, Type}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -110,8 +110,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
-        exprType(right) match {
+        underlyingType(exprType(right)) match {
           case t : GhostCollectionType => comparableTypes.errors(exprType(left), t.elem)(expr)
+          case _ : AdtT | _ : InterfaceT => noMessages
+          case _ : StructT => error(right, s"Struct has to be exclusive", this.addressability(left).isShared)
           case t => error(right, s"expected a ghost collection, but got $t")
         }
       }
@@ -166,7 +168,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PSetConversion(op) => exprType(op) match {
           case SequenceT(_) | SetT(_) | OptionT(_) => isExpr(op).out
-          case t => error(op, s"expected a sequence, set or option type, but got $t")
+          case AdtT(_, derives, _) => derives match {
+            case DerivableTags.Collection(_, _) => isExpr(op).out
+            case _ => error(op, s"adt does not derive collection")
+          }
+          case t => error(op, s"expected a sequence, set, adt or option type, but got $t")
         }
         case PMultisetConversion(op) => exprType(op) match {
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
@@ -260,7 +266,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PSetConversion(op) => exprType(op) match {
           case t: GhostCollectionType => SetT(t.elem)
           case t: OptionT => SetT(t.elem)
-          case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
+          case t: AdtT => t.derives match {
+            case DerivableTags.Default() => violation(s"adt does not derives collection")
+            case DerivableTags.Collection(t, _) => SetT(t)
+          }
+          case t => violation(s"expected a sequence, set, multiset, adt or option type, but got $t")
         }
         case PMultisetConversion(op) => exprType(op) match {
           case t : GhostCollectionType => MultisetT(t.elem)

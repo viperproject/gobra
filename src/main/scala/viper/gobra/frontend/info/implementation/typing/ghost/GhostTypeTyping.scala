@@ -8,6 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.info.base.DerivableTags
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
@@ -39,6 +40,6 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case POptionType(elem) => OptionT(typeSymbType(elem))
     case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case t: PDomainType => DomainT(t, this)
-    case a: PAdtType => AdtT(a, this)
+    case a: PAdtType => AdtT(a, DerivableTags.getDerivable(a.derives)(this), this)
   }
 }

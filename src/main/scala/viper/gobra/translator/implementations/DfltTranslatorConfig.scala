@@ -34,6 +34,8 @@ class DfltTranslatorConfig(
   val fixpoint: Fixpoint = new FixpointImpl,
   val tuple : Tuples = new TuplesImpl,
   val equality: Equality = new EqualityImpl,
+  val rank: Rank = new RankImpl,
+  val contains: Contains = new ContainsImpl,
   val condition: Conditions = new ConditionsImpl,
   val unknownValue: UnknownValues = new UnknownValuesImpl,
   val ass : Assertions = new AssertionsImpl,

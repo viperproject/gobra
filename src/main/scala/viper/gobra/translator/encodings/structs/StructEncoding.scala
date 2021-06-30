@@ -29,16 +29,12 @@ private[structs] object StructEncoding {
 
 class StructEncoding extends TypeEncoding {
 
-  import viper.gobra.translator.util.ViperWriter.CodeLevel._
+  import StructEncoding.cptParam
   import viper.gobra.translator.util.TypePatterns._
+  import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.{ViperUtil => VU}
-  import StructEncoding.{ComponentParameter, cptParam}
 
-  private val ex: ExclusiveStructComponent = new ExclusiveStructComponent{ // For now, we use a simple tuple domain.
-    override def typ(vti: ComponentParameter)(ctx: Context): vpr.Type = ctx.tuple.typ(vti.map(_._1))
-    override def get(base: vpr.Exp, idx: Int, vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.tuple.get(base, idx, vti.size), src)
-    override def create(args: Vector[vpr.Exp], vti: ComponentParameter)(src: in.Node)(ctx: Context): vpr.Exp = withSrc(ctx.tuple.create(args), src)
-  }
+  private val ex: ExclusiveStructComponent = new ExclusiveStructComponentImpl
 
   private val sh: SharedStructComponent = new SharedStructComponentImpl
 
@@ -182,6 +178,12 @@ class StructEncoding extends TypeEncoding {
 
     case (loc: in.Location) :: ctx.Struct(_) / Shared =>
       sh.convertToExclusive(loc)(ctx, ex)
+
+    case con@in.Contains(_, _ :: ctx.Struct(s) / Exclusive) =>
+      for {
+        l <- ctx.expr.translate(con.left)(ctx)
+        r <- ctx.expr.translate(con.right)(ctx)
+      } yield ex.contains(l, r, cptParam(s)(ctx).length)(con)(ctx)
   }
 
   /**

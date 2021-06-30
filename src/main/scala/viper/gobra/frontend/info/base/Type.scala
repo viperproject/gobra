@@ -8,8 +8,9 @@ package viper.gobra.frontend.info.base
 
 import org.bitbucket.inkytonik.kiama.==>
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
-import viper.gobra.ast.frontend.{PDomainType, PAdtClause, PAdtType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
+import viper.gobra.ast.frontend.{PAdtClause, PAdtType, PDomainType, PImport, PInterfaceType, PNode, PStructType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
+import viper.gobra.frontend.info.base.DerivableTags.DerivableTag
 import viper.gobra.util.TypeBounds
 
 import scala.annotation.tailrec
@@ -51,7 +52,7 @@ object Type {
 
   case class OptionT(elem : Type) extends PrettyType(s"option[$elem]")
 
-  case class AdtT(decl: PAdtType, context: ExternalTypeInfo) extends Type
+  case class AdtT(decl: PAdtType, derives: DerivableTag, context: ExternalTypeInfo) extends Type
 
   case class AdtClauseT(clauses: Map[String, Type], decl: PAdtClause, adtT: PAdtType, context: ExternalTypeInfo) extends Type
 

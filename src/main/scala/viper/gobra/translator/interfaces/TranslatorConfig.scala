@@ -25,6 +25,8 @@ trait TranslatorConfig {
   def equality: Equality
   def condition: Conditions
   def unknownValue: UnknownValues
+  def rank: Rank
+  def contains: Contains
 
   // translators
   def typeEncoding: TypeEncoding

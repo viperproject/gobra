@@ -225,8 +225,9 @@ object SymbolTable extends Environments[Entity] {
     override def addressable: Boolean = false
   }
 
-  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostRegular {
+  case class AdtClause(decl: PAdtClause, adtDecl: PAdtType, context: ExternalTypeInfo) extends GhostTypeMember {
     override def rep: PNode = decl
+    def getName: String = decl.id.name
 
     val fields: Vector[PFieldDecl] = decl.args.flatMap(f => f.fields)
   }
@@ -246,6 +247,14 @@ object SymbolTable extends Environments[Entity] {
 
     override def getName: String = s"is${decl.id.name}"
   }
+
+  case class AdtClauseField(decl: PFieldDecl, clause: PAdtClause, adtType: PAdtType, context: ExternalTypeInfo) extends AdtMember {
+    override def rep: PNode = decl
+
+    override def getName: String = s"${clause.id}.${decl.id}"
+  }
+
+  case class Derivable(name: String, rep: PNode, context: ExternalTypeInfo) extends GhostRegular
 
   sealed trait GhostStructMember extends StructMember with GhostTypeMember
 

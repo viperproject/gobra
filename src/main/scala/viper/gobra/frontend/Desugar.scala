@@ -9,7 +9,7 @@ package viper.gobra.frontend
 import viper.gobra.ast.frontend.{PExpression, AstPattern => ap, _}
 import viper.gobra.ast.{internal => in}
 import viper.gobra.frontend.info.base.Type._
-import viper.gobra.frontend.info.base.{BuiltInMemberTag, Type, SymbolTable => st}
+import viper.gobra.frontend.info.base.{BuiltInMemberTag, DerivableTags, Type, SymbolTable => st}
 import viper.gobra.frontend.info.implementation.resolution.MemberPath
 import viper.gobra.frontend.info.base.BuiltInMemberTag._
 import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator}
@@ -1121,7 +1121,7 @@ object Desugar {
           in.AdtDestructor(base, in.Field(
             nm.adtField(decl.id.name, adtT),
             typeD(context.symbType(decl.typ), Addressability.mathDataStructureElement)(src),
-            true
+            ghost = true
           )(src))(src)
 
         case AdtDiscriminator(decl, adtDecl, context) =>
@@ -1130,6 +1130,8 @@ object Desugar {
             base,
             adtClauseProxy(nm.adt(adtT), decl)
           )(src)
+
+        case _ => violation("Expected AdtDiscriminator or AdtDestructor")
       }
     }
 
@@ -2296,10 +2298,24 @@ object Desugar {
           }
 
           AdditionalMembers.addMember(
-            in.AdtDefinition(aT.name, clauses)(meta(t.decl, xInfo))
+            in.AdtDefinition(aT.name, clauses, aT.derives)(meta(t.decl, xInfo))
           )
         }
       }
+    }
+
+    def derivableD(s: DerivableTags.DerivableTag, adtT: AdtT, context: TypeInfo)(src: Meta): in.DerivableType = s match {
+      case DerivableTags.Default() => in.DerivableType(s, Vector.empty, Map.empty)(src)
+      case DerivableTags.Collection(t, b) =>
+        val fields : Map[String, Vector[in.Field]] = b.map
+          {c => (idName(c.clause.id, adtT.context.getTypeInfo), fieldDeclAdtD(c.decl, context, adtT)(src))}
+          .groupBy(_._1)
+          .map {case (k, v) => (k, v.map(_._2))}
+        in.DerivableType(
+          s,
+          Vector(typeD(t, Addressability.mathDataStructureElement)(src)),
+          fields
+        )(src)
     }
 
     def getAdtClauseTagMap(t: Type.AdtT) : Map[String, BigInt] = {
@@ -2351,13 +2367,14 @@ object Desugar {
 
       case t: Type.AdtT =>
         val adtName = nm.adt(t)
-        val res = registerType(in.AdtT(adtName, addrMod, getAdtClauseTagMap(t)))
+        val res = registerType(in.AdtT(adtName, addrMod, getAdtClauseTagMap(t), derivableD(t.derives, t, t.context.getTypeInfo)(src)))
         registerAdt(t, res)
         res
 
       case t: Type.AdtClauseT =>
-        val tAdt = Type.AdtT(t.adtT, t.context)
-        val adt : in.AdtT = in.AdtT(nm.adt(tAdt), addrMod, getAdtClauseTagMap(tAdt))
+        val derives = DerivableTags.getDerivable(t.adtT.derives)(t.context)
+        val tAdt = Type.AdtT(t.adtT, derives, t.context)
+        val adt : in.AdtT = in.AdtT(nm.adt(tAdt), addrMod, getAdtClauseTagMap(tAdt), derivableD(derives, tAdt, t.context.getTypeInfo)(src))
         val fields : Vector[in.Field] = (t.clauses map {case (key: String, typ: Type) => {
           in.Field(nm.adtField(key, tAdt), typeD(typ, Addressability.mathDataStructureElement)(src), true)(src)
         }}).toVector
@@ -2702,8 +2719,8 @@ object Desugar {
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield dright.typ match {
-          case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
+        } yield underlyingType(dright.typ) match {
+          case _: in.SequenceT | _: in.SetT | _: in.AdtT | _: in.StructT | _: in.InterfaceT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
         }
@@ -2741,10 +2758,11 @@ object Desugar {
 
         case PSetConversion(op) => for {
           dop <- go(op)
-        } yield dop.typ match {
+        } yield underlyingType(dop.typ) match {
           case _: in.SetT => dop
           case _: in.SequenceT => in.SetConversion(dop)(src)
           case _: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src))(src)
+          case _: in.AdtT => in.SetConversion(dop)(src)
           case t => violation(s"expected a sequence, set or option type, but found $t")
         }
 
@@ -2799,10 +2817,12 @@ object Desugar {
         } yield in.MapValues(e)(src)
 
         case m@PMatchExp(exp, _) =>
-          val defaultD : Writer[in.Expr] = if (m.hasDefault) {
-              exprD(ctx)(m.defaultClauses.head.exp)
+          val defaultD : Writer[Option[in.Expr]] = if (m.hasDefault) {
+              for {
+                e <- exprD(ctx)(m.defaultClauses.head.exp)
+              } yield Some(e)
             } else {
-              unit(in.DfltVal(typ)(src))
+              unit(None)
             }
 
           def caseD(c: PMatchExpCase): Writer[in.PatternMatchCaseExp] = for {

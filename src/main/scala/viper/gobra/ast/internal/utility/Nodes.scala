@@ -149,7 +149,8 @@ object Nodes {
         case Exists(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case AdtDiscriminator(base, clause) => Seq(base, clause)
         case AdtDestructor(base, field) => Seq(base, field)
-        case PatternMatchExp(exp, _, cases, default) => cases ++ Seq(exp, default)
+        case PatternMatchExp(exp, _, cases, Some(default)) => cases ++ Seq(exp, default)
+        case PatternMatchExp(exp, _, cases, None) => cases ++ Seq(exp)
         case p: Permission => p match {
           case _: FullPerm => Seq.empty
           case _: NoPerm => Seq.empty

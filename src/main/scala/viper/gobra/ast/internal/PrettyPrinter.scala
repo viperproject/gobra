@@ -489,7 +489,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case v: Var => showVar(v)
 
     case PatternMatchExp(exp, _, cases, default) => "match" <+> showExpr(exp) <+>
-      block(ssep(cases map showPatternMatchCaseExp,line) <> line <> "default:" <+> showExpr(default))
+      block(ssep(cases map showPatternMatchCaseExp,line) <> (if (default.isDefined) line <> "default:" <+> showExpr(default.get) else ""))
   })
 
   def showAddressable(a: Addressable): Doc = showExpr(a.op)
@@ -579,7 +579,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MathMapT(keys, values, _)  => "dict" <> brackets(showType(keys)) <> showType(values)
     case OptionT(elem, _) => "option" <> brackets(showType(elem))
     case SliceT(elem, _) => "[]" <> showType(elem)
-    case AdtT(name, _, _) => "adt" <> parens(name)
+    case AdtT(name, _, _, _) => "adt" <> parens(name)
     case AdtClauseT(name, adtT, _, _) => showType(adtT) <+> "::" <+> name
     case MapT(keys, values, _) => "map" <> brackets(showType(keys)) <> showType(values)
   }

@@ -30,6 +30,7 @@ object AstPattern {
   case class Deref(base: PExpression) extends Expr
   case class FieldSelection(base: PExpression, id: PIdnUse, path: Vector[MemberPath], symb: st.StructMember) extends Expr with Symbolic
   case class AdtField(base: PExpression, id: PIdnUse, symb: st.AdtMember) extends Expr with Symbolic
+  case class AdtBlackList(symb: st.AdtClauseField) extends Expr with Symbolic
   case class Conversion(typ: PType, arg: Vector[PExpression]) extends Expr
   case class FunctionCall(callee: FunctionKind, args: Vector[PExpression]) extends Expr
   case class IndexedExp(base : PExpression, index : PExpression) extends Expr

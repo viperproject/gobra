@@ -7,16 +7,20 @@
 package viper.gobra.translator.encodings.adts
 
 import org.bitbucket.inkytonik.kiama.==>
-import viper.gobra.ast.internal.{AdtClause, MatchAdt, MatchBindVar, MatchValue, MatchWildcard}
+import viper.gobra.ast.internal.{AdtClause, AdtT, ArrayT, MatchAdt, MatchBindVar, MatchValue, MatchWildcard, PrettyType, SequenceT, SetT}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.frontend.info.base.DerivableTags
+import viper.gobra.frontend.info.base.DerivableTags.Collection
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{MatchError, Source}
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
-import viper.gobra.translator.interfaces.Context
+import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, Forall}
+import viper.gobra.util.TypeBounds
+import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, DomainFuncApp, ErrorTrafo, Forall, Info, Position}
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -25,6 +29,10 @@ class AdtEncoding extends LeafTypeEncoding {
   import viper.gobra.translator.util.ViperWriter.CodeLevel._
   import viper.gobra.translator.util.ViperWriter.{MemberLevel => ml}
   import viper.silver.verifier.{errors => err}
+
+  override def finalize(col: Collector): Unit = {
+    generatedDomains foreach {d => col.addMember(d)}
+  }
 
   override def typ(ctx: Context): in.Type ==> vpr.Type = {
     case ctx.Adt(adt) / m =>
@@ -44,6 +52,302 @@ class AdtEncoding extends LeafTypeEncoding {
   private def getTag(clauses: Vector[AdtClause])(clause: AdtClause): BigInt = {
     val sorted = clauses.sortBy(_.name.name)
     BigInt(sorted.indexOf(clause))
+  }
+
+  private var generatedDomains: List[vpr.Domain]  = List.empty
+  private var lenFunc: Option[vpr.DomainFunc] = None
+
+  def genLenFunc: vpr.DomainFunc = {
+    val f = {
+      val domainName = "AdtLenDomain"
+      val typeVar    = vpr.TypeVar("T")
+
+      val lFunc = vpr.DomainFunc(
+        name = "lenAdt", formalArgs = Seq(vpr.LocalVarDecl("t", typeVar)()), typ = vpr.Int
+      )(domainName = domainName)
+
+      val domain = vpr.Domain(
+        name = domainName,
+        functions = Seq(lFunc), axioms = Seq(), typVars = Seq(typeVar)
+      )()
+
+      generatedDomains ::= domain
+      lFunc
+    }
+
+    lenFunc = Some(f)
+    f
+  }
+
+  def getLenFunc: vpr.DomainFunc = {
+    lenFunc.getOrElse(genLenFunc)
+  }
+
+  def lenApp(arg: vpr.Exp) = {
+    vpr.DomainFuncApp(
+      getLenFunc,
+      Seq(arg),
+      Seq(vpr.TypeVar("T") -> arg.typ).toMap
+    )()
+  }
+
+  private def lenAxioms(adtName: String, clauses: Seq[in.AdtClause])(ctx: Context): Seq[vpr.AnonymousDomainAxiom] = {
+    val (pos, info, errorT) = (vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
+
+    def axiom(c: in.AdtClause) = {
+      val argsDecl = clauseArgsAsLocalVarDecl(c)(ctx)
+      val args = argsDecl.map(_.localVar)
+      val cons = constructorCall(c, args)(pos, info, errorT)
+      val e    = if (args.isEmpty) {
+          vpr.EqCmp(
+            lenApp(cons),
+            vpr.IntLit(BigInt(0))()
+          )()
+        } else {
+          val recLen = args.filter(a => a.typ == adtType(adtName)).map(lenApp)
+          val sum    = recLen.foldLeft(vpr.IntLit(BigInt(1))(): vpr.Exp)((acc, n) => vpr.Add(acc, n)())
+          vpr.Forall (
+            argsDecl,
+            Seq(
+              vpr.Trigger(Seq(cons))()
+            ),
+            vpr.EqCmp(
+              lenApp(cons),
+              sum
+            )()
+          )()
+      }
+      vpr.AnonymousDomainAxiom(
+        e
+      )(domainName = adtName)
+    }
+
+    clauses.map(axiom)
+  }
+
+  private var toSetFunc: Option[vpr.DomainFunc] = None
+
+  /**
+    * Generates
+    * domain AdtToSetDomain[T,Q] {
+    *   function toSetAdt(t: T): Set[Q]
+    * }
+    *
+    */
+
+  private def getToSetFunc: vpr.DomainFunc = toSetFunc.getOrElse {
+    val domainName = "AdtToSetDomain"
+    val typeVar    = vpr.TypeVar("T")
+    val setTypeVar = vpr.TypeVar("Q")
+    val variable   = vpr.LocalVarDecl("t", typeVar)()
+
+    val toSetF = vpr.DomainFunc(
+      name = "toSetAdt", formalArgs = Seq(variable), typ = vpr.SetType(setTypeVar)
+    )(domainName = domainName)
+
+    val domain = vpr.Domain(
+      domainName, Seq(toSetF), Seq(), Seq(typeVar, setTypeVar)
+    )()
+
+    generatedDomains ::= domain
+    toSetFunc = Some(toSetF)
+    toSetF
+  }
+
+  private def toSetApp(e: vpr.Exp, target: vpr.Type)(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+    vpr.DomainFuncApp(
+      getToSetFunc,
+      Seq(e),
+      Seq(vpr.TypeVar("T") -> e.typ, vpr.TypeVar("Q") -> target).toMap
+    )(pos, info, error)
+  }
+
+  private def toSetAxioms(adtName: String, clauses: Vector[AdtClause], blacklist: Map[String, Vector[in.Field]], typ: in.Type)(ctx: Context): Seq[vpr.AnonymousDomainAxiom] = {
+
+    /**
+      * Helper function to determine if some Type t contains typ.
+      * Returns true for
+      * set[typ], sequence[typ], [typ]N and adts which are deriving Collection[typ]
+     */
+    def containsType(t: in.Type): Boolean = underlyingType(t)(ctx) match {
+      case prettyType: PrettyType => prettyType match {
+        case ArrayT(_, elems, _) / Exclusive => elems.equals(typ)
+        case SequenceT(t, _) => t.equals(typ)
+        case SetT(t, _) => t.equals(typ)
+        case _ => false
+      }
+      case t : AdtT => t.derives.derivable match {
+        case DerivableTags.Collection(_, _) => typ.equalsWithoutMod(t.derives.typeVars.head)
+        case _ => false
+      } //Derives Collection[A]
+      case _ => false
+    }
+
+    /**
+      * Helper function to determine if t is the same adt type
+      */
+    def sameAdt(t: in.Type): Boolean = underlyingType(t)(ctx) match {
+      case t: AdtT => t.name.equals(adtName)
+      case _ => false
+    }
+
+    // Viper Type of Set
+    val vprType = ctx.typeEncoding.typ(ctx)(typ)
+
+    /**
+      *
+      * @param t type to check
+      * @return true iff t is a set
+      */
+    def isSet(t: in.Type): Boolean = t match {
+      case prettyType: PrettyType => prettyType match {
+        case SetT(_, _) => true
+        case _ => false
+      }
+      case _ => false
+    }
+
+    def isSeq(t: in.Type): Boolean = t match {
+      case prettyType: PrettyType => prettyType match {
+        case SequenceT(_, _) => true
+        case _ => false
+      }
+      case _ => false
+    }
+
+    def isArray(t: in.Type): Boolean = t match {
+      case prettyType: PrettyType => prettyType match {
+        case in.ArrayT(_, _, _) / Exclusive => true
+        case _ => false
+      }
+      case _ => false
+    }
+
+    /**
+      *
+      * @param localVars Local Variables for some constructor of an adt clause
+      * @param relevantFields the relevant fields in internal Represantation
+      * @return The localVars which are corresponding to the relevantFields
+      */
+    def filterVars(localVars: Vector[vpr.LocalVarDecl], relevantFields: Vector[in.Field]): Seq[vpr.LocalVarDecl] =
+      localVars.filter(v => relevantFields.map(_.name).contains(v.name))
+
+
+    /**
+      * Helper function to return the union of the sets.
+      */
+    def unionSets(sets: Seq[vpr.Exp])(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos) = {
+      if (sets.isEmpty) {
+        vpr.EmptySet(vprType)(pos, info, error)
+      } else if (sets.length == 1) {
+        sets.head
+      } else {
+        sets.reduceLeft((a,b) => vpr.AnySetUnion(a,b)(pos, info, error))
+      }
+    }
+
+    /**
+      * This function generates the toSet axiom for one clause
+      */
+    def clauseAxiom(clause: AdtClause): vpr.AnonymousDomainAxiom = {
+
+      //val clauseBlacklisted
+      val blacklistedFields = blacklist.getOrElse(clause.name.name, Vector.empty)
+      val args = clause.args.filter(f => !blacklistedFields.contains(f))
+
+      //All fields of type A
+      val sameTypeFields = args.filter(a => a.typ.equals(typ))
+      //All fields which contain A
+      val containsTypeF  = args.filter(a => containsType(a.typ))
+      //Fields which contain A and are a Set
+      val withSets       = containsTypeF.filter(f => isSet(f.typ))
+      //Field which contain A and are a Seq
+      val withSeqs       = containsTypeF.filter(f => isSeq(f.typ))
+      //Arrays
+      val withArrays     = containsTypeF.filter(f => isArray(f.typ))
+      //All recursive fields
+      val recursive      = args.filter(a => sameAdt(a.typ))
+
+      //Get the local Vars for the corresponding fields
+      val localVars = clauseArgsAsLocalVarDecl(clause)(ctx)
+      val setLitVars = filterVars(localVars, sameTypeFields)
+      val setsOfA = filterVars(localVars, withSets)
+      val seqsOfA = filterVars(localVars, withSeqs)
+      val recursiveVars = filterVars(localVars, recursive)
+
+      val constructor = constructorCall(clause, localVars.map(_.localVar))()
+
+      //All fields with the same type can be bundled in one Set Literal
+      val setLitExp = if (setLitVars.nonEmpty)
+          vpr.ExplicitSet(setLitVars.map(_.localVar))()
+        else
+          vpr.EmptySet(vprType)()
+      //Recursive fields and fields which contains A are called with toSet
+      val containsExp = unionSets(recursiveVars.map(n => toSetApp(n.localVar, vprType)()))()
+      //Sets just can be unioned
+      val setsOfAExp = unionSets(setsOfA.map(_.localVar))()
+      val seqsOfAExp = unionSets(seqsOfA.map(v => ctx.seqToSet.create(v.localVar)()))()
+
+      val arrayOfAExp = unionSets(withArrays.map(v => ctx.expr.translate(in.SetConversion(in.LocalVar(v.name, v.typ)(v.info))(v.info))(ctx).res))()
+
+      //Check if the Sets are not just empty sets. Then generate the union
+      var nonEmptySets: Vector[vpr.Exp] = Vector.empty
+
+      if (setLitVars.nonEmpty) {
+        nonEmptySets = nonEmptySets :+ setLitExp
+      }
+
+      if (recursiveVars.nonEmpty) {
+        nonEmptySets = nonEmptySets :+ containsExp
+      }
+
+      if (setsOfA.nonEmpty) {
+        nonEmptySets = nonEmptySets :+ setsOfAExp
+      }
+
+      if (seqsOfA.nonEmpty) {
+        nonEmptySets = nonEmptySets :+ seqsOfAExp
+      }
+
+      if (arrayOfAExp.nonEmpty) {
+        nonEmptySets = nonEmptySets :+ arrayOfAExp
+      }
+
+      val setUnion = unionSets(nonEmptySets)()
+
+      vpr.AnonymousDomainAxiom(
+        vpr.Forall(
+          localVars,
+          Seq(
+            vpr.Trigger(Seq(constructor))()
+          ),
+          vpr.EqCmp(
+            toSetApp(constructor, vprType)(),
+            setUnion
+          )()
+        )()
+      )(domainName = adtName)
+    }
+
+    clauses.filter(c => c.args.nonEmpty).map(clauseAxiom)
+  }
+
+  private def constructorCall(clause: AdtClause, args: Seq[vpr.Exp])(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, errT: ErrorTrafo = vpr.NoTrafos): DomainFuncApp = {
+    val adtName = clause.name.adtName
+    vpr.DomainFuncApp(
+      Names.constructorAdtName(adtName, clause.name.name),
+      args,
+      Map.empty
+    )(pos,info,adtType(adtName), adtName, errT)
+  }
+
+  private def clauseArgsAsLocalVarDecl(c: AdtClause)(ctx: Context): Vector[vpr.LocalVarDecl] = {
+    val (cPos, cInfo, cErrT) = c.vprMeta
+    c.args map { a =>
+      val typ = ctx.typeEncoding.typ(ctx)(a.typ)
+      val name = a.name
+      vpr.LocalVarDecl(name, typ)(cPos, cInfo, cErrT)
+    }
   }
 
   override def member(ctx: Context): in.Member ==> MemberWriter[Vector[vpr.Member]] = {
@@ -66,14 +370,7 @@ class AdtEncoding extends LeafTypeEncoding {
           )(argPos, argInfo, adtName, argErrT)
         })
 
-      def clauseArgsAsLocalVarDecl(c: AdtClause): Vector[vpr.LocalVarDecl] = {
-        val (cPos, cInfo, cErrT) = c.vprMeta
-        c.args map { a =>
-          val typ = ctx.typeEncoding.typ(ctx)(a.typ)
-          val name = a.name
-          vpr.LocalVarDecl(name, typ)(cPos, cInfo, cErrT)
-        }
-      }
+
 
       def clauseArgsAsLocalVarExp(c: AdtClause): Vector[vpr.LocalVar] = {
         val (cPos, cInfo, cErrT) = c.vprMeta
@@ -84,14 +381,6 @@ class AdtEncoding extends LeafTypeEncoding {
         }
       }
 
-      def constructorCall(clause: AdtClause, args: Seq[vpr.Exp]) = {
-        vpr.DomainFuncApp(
-          Names.constructorAdtName(adtName, clause.name.name),
-          args,
-          Map.empty
-        )(_,_,adtType(adtName), adtName, _)
-      }
-
       def tagApp(arg: vpr.Exp) = {
         vpr.DomainFuncApp(
           Names.tagAdtFunction(adtName),
@@ -99,6 +388,27 @@ class AdtEncoding extends LeafTypeEncoding {
           Map.empty
         )(_,_, vpr.Int, adtName, _)
       }
+
+      def containsAxiom(clause: AdtClause): vpr.DomainAxiom = {
+        val (cPos, cInfo, cErrT) = clause.vprMeta
+
+        val argsDecl    = clauseArgsAsLocalVarDecl(clause)(ctx)
+        val args        = clauseArgsAsLocalVarExp(clause)
+        val constructor = constructorCall(clause, args)(cPos, cInfo, cErrT)
+
+        val allContians: vpr.Exp = viper.silicon.utils.ast.BigAnd(
+          args map {a => ctx.contains.contains(a, constructor)(cPos, cInfo, cErrT)}
+        )
+
+        val trigger = vpr.Trigger(Seq(constructor))(cPos, cInfo, cErrT)
+        val forall  = vpr.Forall(argsDecl, Seq(trigger), allContians)(cPos, cInfo, cErrT)
+
+        AnonymousDomainAxiom(
+          forall
+        )(cPos, cInfo, adtName, cErrT)
+      }
+
+      val contAxioms = adt.clauses.filter(c => c.args.nonEmpty).map(containsAxiom)
 
       def deconstructorCall(field: String, arg: vpr.Exp, retTyp: vpr.Type) =
         {
@@ -111,7 +421,7 @@ class AdtEncoding extends LeafTypeEncoding {
 
       val clauses = adt.clauses map { c =>
         val (cPos, cInfo, cErrT) = c.vprMeta
-        val args = clauseArgsAsLocalVarDecl(c)
+        val args = clauseArgsAsLocalVarDecl(c)(ctx)
         vpr.DomainFunc(Names.constructorAdtName(adtName, c.name.name), args, adtType(adtName))(cPos, cInfo, adtName, cErrT)
       }
 
@@ -132,17 +442,20 @@ class AdtEncoding extends LeafTypeEncoding {
       val tagAxioms: Vector[AnonymousDomainAxiom] = adt.clauses.map(c => {
         val (cPos, cInfo, cErrT) = c.vprMeta
         val args: Seq[vpr.Exp] = clauseArgsAsLocalVarExp(c)
-        val triggerVars: Seq[vpr.LocalVarDecl] = clauseArgsAsLocalVarDecl(c)
+        val triggerVars: Seq[vpr.LocalVarDecl] = clauseArgsAsLocalVarDecl(c)(ctx)
         val construct = constructorCall(c, args)(cPos, cInfo, cErrT)
         val trigger = vpr.Trigger(Seq(construct))(cPos, cInfo, cErrT)
         val lhs: vpr.Exp = tagApp(construct)(cPos, cInfo, cErrT)
         val clauseTag = vpr.IntLit(tagF(c))(cPos, cInfo, cErrT)
 
+        val destructors = c.args.map(a =>
+          deconstructorCall(a.name, construct, ctx.typeEncoding.typ(ctx)(a.typ))(cPos, cInfo, cErrT)
+        )
+
         if (c.args.nonEmpty) {
           val destructOverConstruct : vpr.Exp = (destructors.zip(args).map {
             case (d, a) => vpr.EqCmp(
-              vpr.DomainFuncApp(d, Seq(construct), Map.empty)(cPos, cInfo, cErrT),
-              a
+              d, a
             )(cPos, cInfo, cErrT) : vpr.Exp
           }: Seq[vpr.Exp]).reduceLeft {
             (l: vpr.Exp, r: vpr.Exp) => vpr.And(l, r)(cPos, cInfo, cErrT) : vpr.Exp
@@ -207,10 +520,28 @@ class AdtEncoding extends LeafTypeEncoding {
         )(aPos, aInfo, adtName, aErrT)
       }
 
-      val axioms = (tagAxioms ++ destructorAxioms) :+ exclusiveAxiom
+
+      val additonalAxioms  = adt.derives.derivable match {
+        case _: Collection =>
+          lenAxioms(adtName, adt.clauses)(ctx) ++ toSetAxioms(adtName, adt.clauses, adt.derives.blacklist, adt.derives.typeVars.head)(ctx)
+        case _ => Vector.empty
+      }
+
+      val axioms = (tagAxioms ++ destructorAxioms ++ contAxioms ++ additonalAxioms) :+ exclusiveAxiom
       val funcs = (clauses ++ destructors) :+ defaultFunc :+ tagFunc
 
       ml.unit(Vector(vpr.Domain(adtName, functions = funcs, axioms = axioms)(pos = aPos, info = aInfo, errT = aErrT)))
+  }
+
+  def translateContains(c: in.Contains)(ctx: Context) = {
+    def goE(e: in.Expr) = ctx.expr.translate(e)(ctx)
+
+    val (pos, info, errT) = c.vprMeta
+
+    for {
+      l <- goE(c.left)
+      r <- goE(c.right)
+    } yield ctx.contains.contains(l, r)(pos, info, errT)
   }
 
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
@@ -233,6 +564,15 @@ class AdtEncoding extends LeafTypeEncoding {
       case ad: in.AdtDiscriminator => adtDiscriminator(ad, ctx)
       case ad: in.AdtDestructor => adtDestructor(ad, ctx)
       case p:  in.PatternMatchExp => translatePatternMatchExp(ctx)(p)
+      case c@in.Contains(_, _ :: ctx.Adt(_)) => translateContains(c)(ctx)
+      case in.Length(exp :: ctx.Adt(_)) => for {
+          e <- ctx.expr.translate(exp)(ctx)
+        } yield lenApp(e)
+      case in.SetConversion(exp :: ctx.Adt(_)) =>
+        val (pos, info, err) = exp.vprMeta
+        for {
+          e <- ctx.expr.translate(exp)(ctx)
+        } yield toSetApp(e, ctx.typeEncoding.typ(ctx)(in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt)))(pos, info, err)
     }
   }
 
@@ -317,7 +657,31 @@ class AdtEncoding extends LeafTypeEncoding {
       }
     }
 
-    translateCases(e.cases, e.default)
+    if (e.default.isDefined) {
+      translateCases(e.cases, e.default.get)
+    } else {
+
+      val (pos, info, errT) = e.vprMeta
+
+      val allChecks = e.cases
+        .map(c => translateMatchPatternCheck(ctx)(e.exp, c.mExp))
+        .foldLeft(unit(vpr.FalseLit()() : vpr.Exp))((acc, next) =>
+          for {
+            a <- acc
+            n <- next
+          } yield vpr.Or(a,n)(pos, info, errT))
+
+
+      for {
+        dummy <- ctx.expr.translate(in.DfltVal(e.typ)(e.info))(ctx)
+        cond <- translateCases(e.cases, in.DfltVal(e.typ)(e.info))
+        checks <- allChecks
+        (checkFunc, errCheck) = ctx.condition.assert(checks, (info, _) => MatchError(info))
+        _ <- errorT(errCheck)
+      } yield vpr.CondExp(checkFunc, cond, dummy)(pos, info, errT)
+    }
+
+
   }
 
   def translateMatchPatternCheck(ctx: Context)(expr: in.Expr, pattern: in.MatchPattern): CodeWriter[vpr.Exp] = {
@@ -437,5 +801,4 @@ class AdtEncoding extends LeafTypeEncoding {
       case p: in.PatternMatchStmt => translatePatternMatch(ctx)(p)
     }
   }
-
 }

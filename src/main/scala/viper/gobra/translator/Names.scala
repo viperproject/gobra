@@ -36,6 +36,10 @@ object Names {
   def equalityDomain: String = "Equality"
   def equalityFunc: String = "eq"
 
+  // rank
+  def rankDomain: String = "Rank"
+  def rankFunc: String = "rank"
+
   // embedding domain
   def embeddingDomain: String = "Emb"
   def embeddingBoxFunc: String = "box"

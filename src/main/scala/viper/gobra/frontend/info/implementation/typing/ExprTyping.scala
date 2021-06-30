@@ -9,7 +9,8 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.ast.frontend.{AstPattern => ap}
-import viper.gobra.frontend.info.base.SymbolTable.{AdtDestructor, AdtDiscriminator, SingleConstant}
+import viper.gobra.frontend.info.base.DerivableTags
+import viper.gobra.frontend.info.base.SymbolTable.{AdtClauseField, AdtDestructor, AdtDiscriminator, SingleConstant}
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.Violation
@@ -53,6 +54,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case Some(_: ap.NamedType) => noMessages
         case Some(_: ap.Predicate) => noMessages
         case Some(_: ap.DomainFunction) => noMessages
+        case Some(_: ap.AdtBlackList) => noMessages
         // TODO: fully supporting packages results in further options: global variable
         // built-in members
         case Some(p: ap.BuiltInReceivedMethod) => memberType(p.symb) match {
@@ -132,6 +134,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           p.symb match {
             case AdtDestructor(decl, _, context) => context.symbType(decl.typ)
             case AdtDiscriminator(_, _, _) => BooleanT
+            case AdtClauseField(decl, _, _, context) => context.symbType(decl.typ)
           }
 
         // TODO: fully supporting packages results in further options: global variable
@@ -368,7 +371,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PLength(op) => isExpr(op).out ++ {
       exprType(op) match {
-        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
+        case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT  => noMessages
+        case t: AdtT => t.derives match {
+          case DerivableTags.Default() => error(op, "adt does not derive collection")
+          case DerivableTags.Collection(_, _) => noMessages
+        }
         case _: SequenceT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
       }
@@ -836,7 +843,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   def expectedCompositeLitType(lit: PCompositeLit): Type = lit.typ match {
     case i: PImplicitSizeArrayType => ArrayT(lit.lit.elems.size, typeSymbType(i.elem))
     case t: PType => typeSymbType(t) match {
-      case t: AdtClauseT => AdtT(t.adtT, t.context)
+      case t: AdtClauseT => AdtT(t.adtT, DerivableTags.getDerivable(t.adtT.derives)(t.context), t.context)
       case t => t
     }
   }

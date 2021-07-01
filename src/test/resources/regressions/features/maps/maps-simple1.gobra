@@ -9,6 +9,8 @@ const C2 = 2
 func test1() {
 	var m1 map[string]int
 	assert m1 == nil && len(m1) == 0 
+	assert domain(m1) == set[string]{}
+	assert range(m1) == set[int]{}
 	m1 = make(map[string]int)
 	assert m1 != nil && len(m1) == 0
 }

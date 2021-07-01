@@ -13,10 +13,10 @@ import (
 )
 
 // Checks that files from package "encoding/binary" are correctly parsed
-func testEncodingBinary(e binary.LittleEndian) {
+func testEncodingBinary() {
 	s := make([]byte, 2)
-	e.PutUint16(s, uint16(0))
-	res := e.String()
+	binary.LittleEndian.PutUint16(s, uint16(0))
+	res := binary.LittleEndian.String()
 	assert res == "LittleEndian"
 }
 

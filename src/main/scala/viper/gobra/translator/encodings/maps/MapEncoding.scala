@@ -292,6 +292,7 @@ class MapEncoding extends LeafTypeEncoding {
   override def finalize(col: Collector): Unit = {
     if (isUsed) {
       col.addMember(genDomain())
+      col.addMember(underlyingMapField)
     }
   }
 
@@ -364,8 +365,13 @@ class MapEncoding extends LeafTypeEncoding {
           vIdx <- goE(idx)
           isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
           vDflt <- goE(in.DfltVal(values)(l.info))
+          mapVpr <- goE(exp)
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
-          containsExp = goMapContains(correspondingMap, vIdx)(l)
+          containsExp = withSrc(vpr.CondExp(
+            withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+            withSrc(vpr.FalseLit(), l),
+            goMapContains(correspondingMap, vIdx)(l)),
+            l)
           lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
           lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
         } yield (lookupResCheckComp, containsExp)

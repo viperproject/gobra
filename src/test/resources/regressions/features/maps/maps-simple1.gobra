@@ -128,3 +128,11 @@ func test15() (res map[int]int) {
     m := map[int]int{C1: C2, C2: C1}
 	return m
 }
+
+func test16() {
+	var m map[int]int = nil
+	x := m[1]
+	assert x == 0
+	x, contained := m[2]
+	assert x == 0 && !contained
+}

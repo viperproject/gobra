@@ -543,8 +543,7 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 /**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
-  * and `index` of an integer type. `baseUnderlyingType` is required
-  * in order to type-check the expression.
+  * and `index` of an integer type. `baseUnderlyingType` is the underlyingType of `base`'s type.
   */
 case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
   override val typ : Type = baseUnderlyingType match {
@@ -601,10 +600,10 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 /**
   * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
   * collection equal to `col` but 'updated' to have `right` at the `left` position.
+  * `baseUnderlyingType` is the underlyingType of `base`'s type
   */
-case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  /** Is equal to the type of `base`. */
-  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
+case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnderlyingType: Type)(val info: Source.Parser.Info) extends Expr {
+  require(baseUnderlyingType.isInstanceOf[SequenceT] || baseUnderlyingType.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
   override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
@@ -780,16 +779,16 @@ case class MathMapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(v
   override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
-case class MapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = exp.typ match {
+case class MapKeys(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = expUnderlyingType match {
     case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
     case t: MapT => SetT(t.keys, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
 
-case class MapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = exp.typ match {
+case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = expUnderlyingType match {
     case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
     case t: MapT => SetT(t.keys, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")

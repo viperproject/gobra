@@ -2615,7 +2615,7 @@ object Desugar {
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield dright.typ match {
+        } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
@@ -2638,9 +2638,11 @@ object Desugar {
 
         case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
           case (dcol, clause) => for {
+            dcolExp <- dcol
+            baseUnderlyingType = underlyingType(dcolExp.typ)
             dleft <- go(clause.left)
             dright <- go(clause.right)
-          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright)(src)
+          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright, baseUnderlyingType)(src)
         }
 
         case PSequenceConversion(op) => for {
@@ -2705,11 +2707,13 @@ object Desugar {
 
         case PMapKeys(exp) => for {
           e <- go(exp)
-        } yield in.MapKeys(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapKeys(e, t)(src)
 
         case PMapValues(exp) => for {
           e <- go(exp)
-        } yield in.MapValues(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapValues(e, t)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

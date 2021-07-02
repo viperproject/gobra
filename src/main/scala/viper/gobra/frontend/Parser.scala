@@ -968,7 +968,7 @@ object Parser {
       (
         ("(" ~> typMinusExpr <~ ")") |
           ("*" ~> typMinusExpr ^^ PDeref) |
-          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
+          sliceType | arrayType | mapType | dictType | channelType | functionType | structType | interfaceType | predType |
           sequenceType | setType | multisetType | optionType | domainType |
           predeclaredType
         ) <~ not("(" | "{")

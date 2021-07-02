@@ -124,14 +124,14 @@ object Nodes {
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
         case Slice(base, low, high, max) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
-        case GhostCollectionUpdate(base, left, right) => Seq(base, left, right)
+        case GhostCollectionUpdate(base, left, right, _) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
         case SequenceTake(left, right) => Seq(left, right)
         case SequenceConversion(expr) => Seq(expr)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
-        case MapKeys(expr) => Seq(expr)
-        case MapValues(expr) => Seq(expr)
+        case MapKeys(expr, _) => Seq(expr)
+        case MapValues(expr, _) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq.empty

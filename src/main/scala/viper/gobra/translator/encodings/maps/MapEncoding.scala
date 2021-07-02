@@ -130,7 +130,7 @@ class MapEncoding extends LeafTypeEncoding {
           _ <- write(vpr.Inhale(vpr.EqCmp(underlyingMap, correspondingMap)(pos, info, errT))(pos, info, errT))
         } yield vRes.localVar
 
-      case k@ in.MapKeys(mapExp :: ctx.Map(keys, values)) =>
+      case k@ in.MapKeys(mapExp :: ctx.Map(keys, values), _) =>
         for {
           vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
@@ -142,7 +142,7 @@ class MapEncoding extends LeafTypeEncoding {
           ), k)
         } yield res
 
-      case v@ in.MapValues(mapExp:: ctx.Map(keys, values)) =>
+      case v@ in.MapValues(mapExp:: ctx.Map(keys, values), _) =>
         for {
           vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)

@@ -36,9 +36,9 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
     * [(e: mmap[K]V)[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx, _) :: _ / Exclusive), rhs, src) =>
+    case (in.Assignee(in.IndexedExp(base :: ctx.MathematicalMap(_, _), idx, baseUnderlyingType) :: _ / Exclusive), rhs, src) =>
       for {
-        stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
+        stmt <- ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info), src)
       } yield stmt
   }
 
@@ -95,7 +95,7 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
           vIdx <- goE(idx)
         } yield vpr.MapLookup(vE, vIdx)(pos, info, errT)
 
-      case n@ in.GhostCollectionUpdate(base :: ctx.MathematicalMap(_, _), left, right) =>
+      case n@ in.GhostCollectionUpdate(base :: ctx.MathematicalMap(_, _), left, right, _) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vBase <- goE(base)
@@ -107,11 +107,11 @@ class MathematicalMapEncoding extends LeafTypeEncoding {
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapCardinality(_)(pos, info, errT))
 
-      case n@ in.MapKeys(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MapKeys(e :: ctx.MathematicalMap(_, _), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapDomain(_)(pos, info, errT))
 
-      case n@ in.MapValues(e :: ctx.MathematicalMap(_, _)) =>
+      case n@ in.MapValues(e :: ctx.MathematicalMap(_, _), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(vpr.MapRange(_)(pos, info, errT))
     }

@@ -62,12 +62,12 @@ object DefaultErrorBackTranslator {
       //      case vprrea.DivisionByZero(offendingNode) =>
       case vprrea.NegativePermission(CertainSource(info)) =>
         NegativePermissionReason(info)
-      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
-        ReceiverNotInjectiveReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
+      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
+        ReceiverNotInjectiveReason(info)
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
     }
 

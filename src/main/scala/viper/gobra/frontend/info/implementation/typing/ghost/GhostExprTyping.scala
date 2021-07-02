@@ -98,14 +98,14 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case expr : PGhostCollectionExp => expr match {
       case PIn(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
-        exprType(right) match {
+        underlyingType(exprType(right)) match {
           case t : GhostCollectionType => comparableTypes.errors(exprType(left), t.elem)(expr)
           case t => error(right, s"expected a ghost collection, but got $t")
         }
       }
 
       case PMultiplicity(left, right) => isExpr(left).out ++ isExpr(right).out ++ {
-        (exprType(left), exprType(right)) match {
+        (exprType(left), underlyingType(exprType(right))) match {
           case (t1, t2 : GhostCollectionType) => comparableTypes.errors(t1, t2.elem)(expr)
           case (_, t) => error(right, s"expected a ghost collection, but got $t")
         }
@@ -155,11 +155,11 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
-        case PMapKeys(exp) => exprType(exp) match {
+        case PMapKeys(exp) => underlyingType(exprType(exp)) match {
           case _: MathMapT | _: MapT => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
-        case PMapValues(exp) => exprType(exp) match {
+        case PMapValues(exp) => underlyingType(exprType(exp)) match {
           case _: MathMapT | _: MapT => isExpr(exp).out
           case t => error(expr, s"expected a map, but got $t")
         }
@@ -237,22 +237,22 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case PSubset(_, _) => BooleanT
           case _ => exprType(expr.left)
         }
-        case PSetConversion(op) => exprType(op) match {
+        case PSetConversion(op) => underlyingType(exprType(op)) match {
           case t: GhostCollectionType => SetT(t.elem)
           case t: OptionT => SetT(t.elem)
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
-        case PMultisetConversion(op) => exprType(op) match {
+        case PMultisetConversion(op) => underlyingType(exprType(op)) match {
           case t : GhostCollectionType => MultisetT(t.elem)
           case t: OptionT => MultisetT(t.elem)
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
-        case PMapKeys(exp) => exprType(exp) match {
+        case PMapKeys(exp) => underlyingType(exprType(exp)) match {
           case t: MathMapT => SetT(t.key)
           case t: MapT => SetT(t.key)
           case t => violation(s"expected a map, but got $t")
         }
-        case PMapValues(exp) => exprType(exp) match {
+        case PMapValues(exp) => underlyingType(exprType(exp)) match {
           case t: MathMapT => SetT(t.elem)
           case t: MapT => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")

@@ -40,7 +40,7 @@ object DefaultErrorBackTranslator {
       case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
       case vprrea.AssertionFalse(CertainSynthesized(info)) =>
-        SynthesizedAssertionFalseError(info)
+        SynthesizedAssertionFalseReason(info)
       case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
         SeqIndexExceedsLengthError(node, index)
       case vprrea.SeqIndexNegative(CertainSource(node), CertainSource(index)) =>
@@ -61,12 +61,13 @@ object DefaultErrorBackTranslator {
       //      case vprrea.ReceiverNull(offendingNode) =>
       //      case vprrea.DivisionByZero(offendingNode) =>
       case vprrea.NegativePermission(CertainSource(info)) =>
-        NegativePermissionError(info)
+        NegativePermissionReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
-      //      case vprrea.ReceiverNotInjective(offendingNode) =>
+      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
+        ReceiverNotInjectiveReason(info)
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
     }
 

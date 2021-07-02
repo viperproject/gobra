@@ -1153,7 +1153,7 @@ object Desugar {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           in.Block(
@@ -1476,7 +1476,8 @@ object Desugar {
       for {
         dbase <- exprD(ctx)(base)
         dindex <- exprD(ctx)(index)
-      } yield in.IndexedExp(dbase, dindex)(src)
+        baseUnderlyingType = underlyingType(dbase.typ)
+      } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
@@ -1642,7 +1643,7 @@ object Desugar {
             dlow <- option(low map go)
             dhigh <- option(high map go)
             dcap <- option(cap map go)
-          } yield dbase.typ match {
+          } yield underlyingType(dbase.typ) match {
             case _: in.SequenceT => (dlow, dhigh) match {
               case (None, None) => dbase
               case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
@@ -1652,11 +1653,11 @@ object Desugar {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
-            case _: in.ArrayT | _: in.SliceT => (dlow, dhigh) match {
-              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap)(src)
-              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap)(src)
-              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap)(src)
-              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap)(src)
+            case baseT @ (_: in.ArrayT | _: in.SliceT) => (dlow, dhigh) match {
+              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
+              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
+              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
@@ -1706,7 +1707,7 @@ object Desugar {
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
 
-              make: in.MakeStmt = info.symbType(t) match {
+              make: in.MakeStmt = underlyingType(info.symbType(t)) match {
                 case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
@@ -1909,7 +1910,7 @@ object Desugar {
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
-    def compositeTypeD(t : in.Type) : CompositeKind = t match {
+    def compositeTypeD(t : in.Type) : CompositeKind = underlyingType(t) match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case t: in.ArrayT => CompositeKind.Array(t)
       case t: in.SliceT => CompositeKind.Slice(t)
@@ -2614,7 +2615,7 @@ object Desugar {
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield dright.typ match {
+        } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
@@ -2637,9 +2638,11 @@ object Desugar {
 
         case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
           case (dcol, clause) => for {
+            dcolExp <- dcol
+            baseUnderlyingType = underlyingType(dcolExp.typ)
             dleft <- go(clause.left)
             dright <- go(clause.right)
-          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright)(src)
+          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright, baseUnderlyingType)(src)
         }
 
         case PSequenceConversion(op) => for {
@@ -2704,11 +2707,13 @@ object Desugar {
 
         case PMapKeys(exp) => for {
           e <- go(exp)
-        } yield in.MapKeys(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapKeys(e, t)(src)
 
         case PMapValues(exp) => for {
           e <- go(exp)
-        } yield in.MapValues(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapValues(e, t)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

@@ -81,7 +81,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         expT <- goE(exp)
       } yield withSrc(ctx.slice.cap(expT), exp)
 
-      case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max) => for {
+      case exp @ in.Slice((base : in.Location) :: ctx.Array(_, _) / Shared, low, high, max, _) => for {
         baseT <- ctx.typeEncoding.reference(ctx)(base)
         unboxedBaseT = arrayEmb.unbox(baseT, base.typ.asInstanceOf[in.ArrayT])(base)(ctx)
         lowT <- goE(low)
@@ -92,7 +92,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case Some(maxT) => withSrc(fullSliceFromArray(vpr.Ref, unboxedBaseT, lowT, highT, maxT)(ctx), exp)
       }
 
-      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max) => for {
+      case exp @ in.Slice((base : in.Expr) :: ctx.Slice(_), low, high, max, _) => for {
         baseT <- goE(base)
         lowT <- goE(low)
         highT <- goE(high)
@@ -106,10 +106,11 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(Names.freshName, litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
+        val underlyingTyp = underlyingType(lit.typ)(ctx)
         for {
           initT <- ctx.typeEncoding.initialization(ctx)(tmp)
           assignT <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(tmp), litA, lit)
-          sliceT <- ctx.expr.translate(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None)(lit.info))(ctx)
+          sliceT <- ctx.expr.translate(in.Slice(tmp, in.IntLit(0)(lit.info), in.IntLit(litA.length)(lit.info), None, underlyingTyp)(lit.info))(ctx)
           _ <- local(tmpT)
           _ <- write(initT)
           _ <- write(assignT)

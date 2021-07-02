@@ -1643,7 +1643,7 @@ object Desugar {
             dlow <- option(low map go)
             dhigh <- option(high map go)
             dcap <- option(cap map go)
-          } yield dbase.typ match {
+          } yield underlyingType(dbase.typ) match {
             case _: in.SequenceT => (dlow, dhigh) match {
               case (None, None) => dbase
               case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
@@ -1653,11 +1653,11 @@ object Desugar {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
-            case _: in.ArrayT | _: in.SliceT => (dlow, dhigh) match {
-              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap)(src)
-              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap)(src)
-              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap)(src)
-              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap)(src)
+            case baseT @ (_: in.ArrayT | _: in.SliceT) => (dlow, dhigh) match {
+              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
+              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
+              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }

@@ -122,7 +122,7 @@ object Nodes {
         case PredicateConstructor(pred, _, args) => Seq(pred) ++ args.flatten
         case IndexedExp(base, idx, _) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
-        case Slice(base, low, high, max) => Seq(base, low, high) ++ max
+        case Slice(base, low, high, max, _) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
         case GhostCollectionUpdate(base, left, right, _) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)

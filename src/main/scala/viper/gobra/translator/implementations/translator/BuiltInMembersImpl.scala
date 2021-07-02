@@ -377,7 +377,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
       quantify{ i => bound(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) } {
-        i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i)(src)), perm)(src)
+        i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src)
       }
 
     (x.tag, x.argsT) match {
@@ -457,14 +457,14 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
         val postCmpSlice = quantify{ bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) }{
           i => in.ExprAssertion(
-            in.EqCmp(in.IndexedExp(resultParam, i)(src), in.Old(in.IndexedExp(sliceParam, i)(src), elemType)(src))(src)
+            in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)
           )(src)
         }
         val postCmpVariadic = quantify{ bound(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) } { i =>
           in.ExprAssertion(
             in.EqCmp(
-              in.IndexedExp(resultParam, i)(src),
-              in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src))(src),
+              in.IndexedExp(resultParam, i, sliceType)(src),
+              in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
             )(src)
           )(src)
         }
@@ -491,7 +491,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         // parameters
         val dstParam = in.Parameter.In("dst", sliceT1)(src)
+        val dstUnderlyingType = sliceT1
         val srcParam = in.Parameter.In("src", sliceT2)(src)
+        val srcUnderlyingType = sliceT2
         val pParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
         val args = Vector(dstParam, srcParam, pParam)
 
@@ -505,21 +507,21 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )(src)
         val preDst = quantify(i => bound(i, in.IntLit(0)(src), in.Length(dstParam)(src))) { i =>
           in.Access(
-            in.Accessible.Address(in.IndexedExp(dstParam, i)(src)),
+            in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)),
             in.PermSub(in.FullPerm(src), pParam)(src)
           )(src)
         }
         val preSrc = quantify(i => bound(i, in.IntLit(0)(src), in.Length(srcParam)(src))) { i =>
-          in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i)(src)), pParam)(src)
+          in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src)
         }
         val preDistinct = quantify { i =>
           in.And(
             bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
             quantifyPure { j => bound(j, in.IntLit(0)(src), in.Length(srcParam)(src)) } { j =>
-              in.UneqCmp(in.Ref(in.IndexedExp(dstParam, i)(src))(src), in.Ref(in.IndexedExp(srcParam, j)(src))(src))(src)
+              in.UneqCmp(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src), in.Ref(in.IndexedExp(srcParam, j, srcUnderlyingType)(src))(src))(src)
             }
           )(src)
-        } { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i)(src)), pParam)(src) }
+        } { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), pParam)(src) }
 
         val pres = Vector(pPre, preDst, preSrc, preDistinct)
 
@@ -546,16 +548,16 @@ class BuiltInMembersImpl extends BuiltInMembers {
         } { i =>
           in.ExprAssertion(
             in.EqCmp(
-              in.IndexedExp(dstParam, i)(src),
-              in.Old(in.IndexedExp(srcParam, i)(src), sliceT2.elems)(src)
+              in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
+              in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
             )(src)
           )(src)
         }
         val postSame = quantify(i => bound(i, in.Length(srcParam)(src), in.Length(dstParam)(src))) { i =>
           in.ExprAssertion(
             in.EqCmp(
-              in.IndexedExp(dstParam, i)(src),
-              in.Old(in.IndexedExp(dstParam, i)(src), sliceT1.elems)(src)
+              in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
+              in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
             )(src)
           )(src)
         }

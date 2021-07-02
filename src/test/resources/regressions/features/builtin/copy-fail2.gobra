@@ -58,6 +58,7 @@ func test3() {
 	assert s[2] == 4
 	assert s[3] == 5
 	assert s[4] == 4
-	//:: ExpectedOutput(assert_error)
-	assert s[5] == 7
+	// Incompletness: this assertion causes Gobra to diverge
+	// //:: ExpectedOutput(assert_error)
+	// assert s[5] == 5
 }

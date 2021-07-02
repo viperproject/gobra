@@ -41,7 +41,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = GhostCollectionUpdate(
       LocalVar("xs", sequenceT(boolT))(Internal),
       IntLit(BigInt(4))(Internal),
-      BoolLit(false)(Internal)
+      BoolLit(false)(Internal),
+      sequenceT(boolT)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1187,7 +1188,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
       IntLit(2)(Internal),
       IntLit(4)(Internal),
-      Some(IntLit(6)(Internal))
+      Some(IntLit(6)(Internal)),
+      SliceT(intT, Addressability.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1200,7 +1202,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
       IntLit(8)(Internal),
       IntLit(4)(Internal),
-      None
+      None,
+      SliceT(intT, Addressability.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {

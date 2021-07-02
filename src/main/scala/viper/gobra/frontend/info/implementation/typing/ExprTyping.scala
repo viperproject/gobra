@@ -284,7 +284,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       low.fold(noMessages)(isExpr(_).out) ++
       high.fold(noMessages)(isExpr(_).out) ++
       cap.fold(noMessages)(isExpr(_).out) ++
-      ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
+      ((underlyingType(exprType(base)), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
           error(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
@@ -564,14 +564,16 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
-    case PSliceExp(base, low, high, cap) => (underlyingType(exprType(base)), low map exprType, high map exprType, cap map exprType) match {
-      case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
-      case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-      case (SequenceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None) => SequenceT(elem)
-      case (SliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-      case (GhostSliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => GhostSliceT(elem)
-      case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
-    }
+    case PSliceExp(base, low, high, cap) =>
+      val baseType = exprType(base)
+      (underlyingType(baseType), low map exprType, high map exprType, cap map exprType) match {
+        case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
+        case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+        case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
+        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
+      }
 
     case PTypeAssertion(_, typ) =>
       val resT = typeSymbType(typ)

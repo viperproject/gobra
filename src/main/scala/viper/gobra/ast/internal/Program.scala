@@ -960,11 +960,12 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
   * Only the `max` component is optional at this point.
   * Any slicing expression "a[:j]" is assumed to be desugared into "a[0:j]",
   * and any expression "a[i:]" is assumed to be desugared into "a[i:len(a)]".
+  * `baseUnderlyingType` is the underlyingType of `base`'s type.
   */
-case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = base.typ match {
+case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
-    case t: SliceT => t
+    case _: SliceT => base.typ
     case t => Violation.violation(s"expected an array or slice type, but got $t")
   }
 }

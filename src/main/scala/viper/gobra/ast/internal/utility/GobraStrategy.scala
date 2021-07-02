@@ -153,7 +153,7 @@ object GobraStrategy {
       case (_: OptionNone, Seq(t : Type)) => OptionNone(t)(meta)
       case (_: OptionSome, Seq(op : Expr)) => OptionSome(op)(meta)
       case (_: OptionGet, Seq(op : Expr)) => OptionGet(op)(meta)
-      case (_: Slice, Seq(base : Expr, low : Expr, high : Expr, max : Option[Expr@unchecked])) => Slice(base, low, high, max)(meta)
+      case (_: Slice, Seq(base : Expr, low : Expr, high : Expr, max : Option[Expr@unchecked], typ: Type)) => Slice(base, low, high, max, typ)(meta)
       case (e: Old, Seq(op: Expr)) => Old(op, e.typ)(meta)
       case (_: LabeledOld, Seq(label: LabelProxy, op: Expr)) => LabeledOld(label, op)(meta)
       case (c: Conditional, Seq(cond: Expr, thn: Expr, els: Expr)) => Conditional(cond, thn, els, c.typ)(meta)

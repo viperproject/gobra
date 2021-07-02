@@ -359,17 +359,22 @@ case class ComparisonOnIncomparableInterfaces(node: Source.Verifier.Info) extend
   override def message: String = s"Both operands of ${node.origin.tag.trim} might not have comparable values."
 }
 
-case class SynthesizedAssertionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+case class SynthesizedAssertionFalseReason(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
   override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
 }
 
-case class NegativePermissionError(info: Source.Verifier.Info) extends VerificationErrorReason {
+case class NegativePermissionReason(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "negative_permission_error"
   override def message: String = s"Expression ${info.origin.tag.trim} might be negative."
 }
 
-case class GoCallPreconditionError(node: Source.Verifier.Info) extends VerificationErrorReason {
+case class ReceiverNotInjectiveReason(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "receiver_not_injective"
+  override def message: String = s"Receiver ${info.origin.tag.trim} might not be injective."
+}
+
+case class GoCallPreconditionReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "go_call_precondition_error"
   override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of the callee."
 }

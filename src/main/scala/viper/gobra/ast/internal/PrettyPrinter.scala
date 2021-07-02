@@ -394,21 +394,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 
-    case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+    case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
     case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case GhostCollectionUpdate(seq, left, right) =>
+    case GhostCollectionUpdate(seq, left, right, _) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SequenceConversion(exp) => "seq" <> parens(showExpr(exp))
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MapKeys(exp) => "domain" <> parens(showExpr(exp))
-    case MapValues(exp) => "range" <> parens(showExpr(exp))
+    case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
+    case MapValues(exp, _) => "range" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -416,7 +416,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
     case OptionGet(exp) => "get" <> parens(showExpr(exp))
 
-    case Slice(exp, low, high, max) => {
+    case Slice(exp, low, high, max, _) => {
       val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)
       showExpr(exp) <> brackets(showExpr(low) <> ":" <> showExpr(high) <> maxD)
     }

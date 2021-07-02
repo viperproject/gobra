@@ -400,15 +400,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case GhostCollectionUpdate(seq, left, right) =>
+    case GhostCollectionUpdate(seq, left, right, _) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SequenceConversion(exp) => "seq" <> parens(showExpr(exp))
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MapKeys(exp) => "domain" <> parens(showExpr(exp))
-    case MapValues(exp) => "range" <> parens(showExpr(exp))
+    case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
+    case MapValues(exp, _) => "range" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 

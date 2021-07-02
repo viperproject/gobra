@@ -56,8 +56,8 @@ class SequenceEncoding extends LeafTypeEncoding {
     * [(e: seq[T])[idx] = rhs] -> [ e = e[idx := rhs] ]
     */
   override def assignment(ctx: Context): (in.Assignee, in.Expr, in.Node) ==> CodeWriter[vpr.Stmt] = default(super.assignment(ctx)){
-    case (in.Assignee(in.IndexedExp(base :: ctx.Seq(_), idx, _) :: _ / Exclusive), rhs, src) =>
-      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs)(src.info), src)
+    case (in.Assignee(in.IndexedExp(base :: ctx.Seq(_), idx, baseUnderlyingType) :: _ / Exclusive), rhs, src) =>
+      ctx.typeEncoding.assignment(ctx)(in.Assignee(base), in.GhostCollectionUpdate(base, idx, rhs, baseUnderlyingType)(src.info), src)
   }
 
   /**
@@ -85,7 +85,7 @@ class SequenceEncoding extends LeafTypeEncoding {
           vIdx <- goE(idx)
         } yield vpr.SeqIndex(vE, vIdx)(pos, info, errT)
 
-      case n@ in.GhostCollectionUpdate(base :: ctx.Seq(_), left, right) =>
+      case n@ in.GhostCollectionUpdate(base :: ctx.Seq(_), left, right, _) =>
         val (pos, info, errT) = n.vprMeta
         for {
           vBase <- goE(base)

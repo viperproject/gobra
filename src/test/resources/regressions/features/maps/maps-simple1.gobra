@@ -9,6 +9,8 @@ const C2 = 2
 func test1() {
 	var m1 map[string]int
 	assert m1 == nil && len(m1) == 0 
+	assert domain(m1) == set[string]{}
+	assert range(m1) == set[int]{}
 	m1 = make(map[string]int)
 	assert m1 != nil && len(m1) == 0
 }
@@ -127,4 +129,12 @@ func test14() (res map[int]int) {
 func test15() (res map[int]int) {
     m := map[int]int{C1: C2, C2: C1}
 	return m
+}
+
+func test16() {
+	var m map[int]int = nil
+	x := m[1]
+	assert x == 0
+	x, contained := m[2]
+	assert x == 0 && !contained
 }

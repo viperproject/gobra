@@ -421,10 +421,29 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-    lazy val functionSpec: Parser[PFunctionSpec] =
-      ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~ "pure".? ^^ {
-        case pres ~ posts ~ isPure => PFunctionSpec(pres, posts, isPure.nonEmpty)
+
+
+    lazy val functionSpec: Parser[PFunctionSpec] = {
+
+      sealed trait FunctionSpecClause
+      case class RequiresClause(exp: PExpression) extends FunctionSpecClause
+      case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case object PureClause extends FunctionSpecClause
+
+      lazy val functSpecClause: Parser[FunctionSpecClause] = {
+        "requires" ~> expression <~ eos ^^ RequiresClause |
+        "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "pure" <~ eos ^^^ PureClause
       }
+
+      functSpecClause.* ~ "pure".? ^^ {
+        case clauses ~ pure =>
+          val pres = clauses.collect{ case x: RequiresClause => x.exp }
+          val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val isPure = pure.nonEmpty || clauses.contains(PureClause)
+          PFunctionSpec(pres, posts, isPure)
+      }
+    }
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
@@ -578,7 +597,7 @@ object Parser {
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
         (idnDef <~ ":=").? ~ (primaryExp <~ "." <~ "(" <~ "type" <~ ")") ~
-        ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+        ("{" ~> typeSwitchClause.* <~ "}") ^^ {
         case pre ~ binder ~ exp ~ clauses =>
           val cases = clauses collect { case v: PTypeSwitchCase => v }
           val dflt = clauses collect { case v: PTypeSwitchDflt => v.body }
@@ -589,10 +608,12 @@ object Parser {
     lazy val typeSwitchClause: Parser[PTypeSwitchClause] =
       typeSwitchCase | typeSwitchDflt
 
-    lazy val typeSwitchCase: Parser[PTypeSwitchCase] =
-      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
+    lazy val typeSwitchCase: Parser[PTypeSwitchCase] = {
+      val typeOrNil = nilLit | typ
+      ("case" ~> rep1sep(typeOrNil, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case guards ~ stmts => PTypeSwitchCase(guards, PBlock(stmts.get).at(stmts))
       }
+    }
 
     lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
       "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
@@ -874,9 +895,11 @@ object Parser {
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
-        "nil" ^^^ PNilLit() |
+        nilLit |
         intLit |
         stringLit
+
+    lazy val nilLit: Parser[PNilLit] = "nil" ^^^ PNilLit()
 
     lazy val intLit: Parser[PIntLit] =
       octalLit | binaryLit | hexLit | decimalLit

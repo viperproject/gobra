@@ -59,12 +59,12 @@ class MapEncoding extends LeafTypeEncoding {
     * R[ nil(map[K]V°) ] -> null
     * R[ dflt(map[K]V°) ] -> null
     * R[ len(e: map[K]V) ] -> [e] == null? 0 : | getCorrespondingMap([e]) |
-    * R[ (e: map[K]V)[idx] ] -> goMapLookup(e[idx])
+    * R[ (e: map[K]V)[idx] ] -> [e] == null? [ dflt(V) ] : goMapLookup(e[idx])
     * R[ map[K]V { idx1: v1 ... idxn: vn } ] ->
     *   e s.t. getCorrespondingMap(e) == { [idx1]: [v1] ... [idxn]: [vn] } (also checks that the values of keys are all
     *   distinct and throws an error if not)
-    * R[ keySet(e: map[K]V) ] -> MapDomain(getCorrespondingMap(e))
-    * R[ valueSet(e: map[K]V) ] -> MapRange(getCorrespondingMap(e))
+    * R[ keySet(e: map[K]V) ] -> [e] == null? 0 : MapDomain(getCorrespondingMap(e))
+    * R[ valueSet(e: map[K]V) ] -> [e] == null? 0 : MapRange(getCorrespondingMap(e))
     */
   override def expr(ctx : Context) : in.Expr ==> CodeWriter[vpr.Exp] = {
     def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
@@ -132,13 +132,27 @@ class MapEncoding extends LeafTypeEncoding {
 
       case k@ in.MapKeys(mapExp :: ctx.Map(keys, values)) =>
         for {
+          vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
-        } yield withSrc(vpr.MapDomain(correspondingMap), k)
+          correspondingMapDomain = withSrc(vpr.MapDomain(correspondingMap), k)
+          res = withSrc(vpr.CondExp(
+            withSrc(vpr.EqCmp(vprMap, withSrc(vpr.NullLit(), k)), k),
+            withSrc(vpr.EmptySet(goT(keys)), k),
+            correspondingMapDomain
+          ), k)
+        } yield res
 
       case v@ in.MapValues(mapExp:: ctx.Map(keys, values)) =>
         for {
+          vprMap <- goE(mapExp)
           correspondingMap <- getCorrespondingMap(mapExp, keys, values)(ctx)
-        } yield withSrc(vpr.MapRange(correspondingMap), v)
+          correspondingMapRange = withSrc(vpr.MapRange(correspondingMap), v)
+          res = withSrc(vpr.CondExp(
+            withSrc(vpr.EqCmp(vprMap, withSrc(vpr.NullLit(), v)), v),
+            withSrc(vpr.EmptySet(goT(values)), v),
+            correspondingMapRange
+          ), v)
+        } yield res
     }
   }
 
@@ -292,6 +306,7 @@ class MapEncoding extends LeafTypeEncoding {
   override def finalize(col: Collector): Unit = {
     if (isUsed) {
       col.addMember(genDomain())
+      col.addMember(underlyingMapField)
     }
   }
 
@@ -364,8 +379,13 @@ class MapEncoding extends LeafTypeEncoding {
           vIdx <- goE(idx)
           isComp <- MapEncoding.checkKeyComparability(idx)(ctx)
           vDflt <- goE(in.DfltVal(values)(l.info))
+          mapVpr <- goE(exp)
           correspondingMap <- getCorrespondingMap(exp, keys, values)(ctx)
-          containsExp = goMapContains(correspondingMap, vIdx)(l)
+          containsExp = withSrc(vpr.CondExp(
+            withSrc(vpr.EqCmp(mapVpr, withSrc(vpr.NullLit(), l)), l),
+            withSrc(vpr.FalseLit(), l),
+            goMapContains(correspondingMap, vIdx)(l)),
+            l)
           lookupRes = withSrc(vpr.CondExp(containsExp, withSrc(vpr.MapLookup(correspondingMap, vIdx), l), vDflt), l)
           lookupResCheckComp <- assert(isComp, lookupRes, comparabilityErrorT)(ctx)
         } yield (lookupResCheckComp, containsExp)

@@ -254,7 +254,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PMapValues(exp) => exprType(exp) match {
           case t: MathMapT => SetT(t.elem)
-          case t: MapT => SetT(t.key)
+          case t: MapT => SetT(t.elem)
           case t => violation(s"expected a map, but got $t")
         }
       }

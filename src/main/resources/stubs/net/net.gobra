@@ -11,7 +11,7 @@ import "time"
 
 // Addr represents a network end point address.
 type Addr interface {
-	pred AddrMem()
+	pred mem()
 	Network() string
 	String() string
 }

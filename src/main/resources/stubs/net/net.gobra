@@ -11,6 +11,7 @@ import "time"
 
 // Addr represents a network end point address.
 type Addr interface {
+	pred AddrMem()
 	Network() string
 	String() string
 }
@@ -18,72 +19,115 @@ type Addr interface {
 // Conn is a generic stream-oriented network connection.
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn interface {
+	pred mem()
+
 	// Read reads data from the connection.
+	requires mem()
 	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+	ensures mem()
 	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 	Read(b []byte) (n int, err error)
 
 	// Write writes data to the connection.
 	requires p > 0
+	requires mem()
 	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	ensures mem()
 	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
 	Write(b []byte, ghost p perm) (n int, err error)
 
 	// Close closes the connection.
 	// Any blocked Read or Write operations will be unblocked and return errors.
+	requires mem()
+	ensures mem()
 	Close() error
 
 	// LocalAddr returns the local network address.
-	LocalAddr() Addr
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	LocalAddr(ghost p perm) Addr
 
 	// RemoteAddr returns the remote network address.
-	RemoteAddr() Addr
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	RemoteAddr(ghost p perm) Addr
 
 	// SetDeadline sets the read and write deadlines associated
 	// with the connection.
+	requires mem()
+	ensures mem()
 	SetDeadline(t time.Time) error
 
 	// SetReadDeadline sets the deadline for future Read calls
 	// and any currently-blocked Read call.
+	requires mem()
+	ensures mem()
 	SetReadDeadline(t time.Time) error
 
 	// SetWriteDeadline sets the deadline for future Write calls
 	// and any currently-blocked Write call.
+	requires mem()
+	ensures mem()
 	SetWriteDeadline(t time.Time) error
 }
 
 // PacketConn is a generic packet-oriented network connection.
 // Multiple goroutines may invoke methods on a PacketConn simultaneously.
 type PacketConn interface {
+	pred mem()
+
+	requires mem()
 	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
+	ensures mem()
 	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
 	ensures 0 <= n && n <= len(p)
 	ReadFrom(p []byte) (n int, addr Addr, err error)
 
 	requires permission > 0
+	requires mem()
 	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
+	ensures mem()
 	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
 	WriteTo(p []byte, addr Addr, ghost permission perm) (n int, err error)
 
+	requires mem()
+	ensures mem()
 	Close() error
 
-	LocalAddr() Addr
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	LocalAddr(ghost p perm) Addr
 
+	requires mem()
+	ensures mem()
 	SetDeadline(t time.Time) error
 
+	requires mem()
+	ensures mem()
 	SetReadDeadline(t time.Time) error
 
+	requires mem()
+	ensures mem()
 	SetWriteDeadline(t time.Time) error
 }
 
 // A Listener is a generic network listener for stream-oriented protocols.
 // Multiple goroutines may invoke methods on a Listener simultaneously.
 type Listener interface {
+	pred mem()
+
 	// Accept waits for and returns the next connection to the listener.
+	requires mem()
+	ensures mem()
 	Accept() (Conn, error)
 
 	// Close closes the listener.
 	// Any blocked Accept operations will be unblocked and return errors.
+	requires mem()
+	ensures mem()
 	Close() error
 
 	// Addr returns the listener's network address.
@@ -92,9 +136,19 @@ type Listener interface {
 
 // An Error represents a network error.
 type Error interface {
+	pred mem()
+
 	// error // (joao) support for embeddings is buggy
-	Timeout() bool   // Is the error a timeout?
-	Temporary() bool // Is the error temporary?
+
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	Timeout(ghost p perm) bool   // Is the error a timeout?
+
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	Temporary(ghost p perm) bool // Is the error temporary?
 }
 
 // Various errors contained in OpError.
@@ -115,16 +169,20 @@ type OpError struct {
 	Err error
 }
 
-requires acc(&e.Err, _)
-pure func (e *OpError) Unwrap() error { return e.Err }
+pred (op *OpError) mem() {
+	acc(op)
+}
 
-requires acc(&e.Err)
-ensures acc(&e.Err)
+requires acc(e.mem(), _)
+pure func (e *OpError) Unwrap() error { return unfolding acc(e.mem(), _) in e.Err }
+
+requires acc(e.mem())
+ensures acc(e.mem())
 func (e *OpError) Error() string 
 
 requires p > 0
-requires acc(e, p)
-ensures acc(e, p)
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
 func (e *OpError) Timeout(ghost p perm) bool /*{
 	if ne, ok := e.Err.(*os.SyscallError); ok {
 		t, ok := ne.Err.(timeout)
@@ -135,8 +193,8 @@ func (e *OpError) Timeout(ghost p perm) bool /*{
 }*/
 
 requires p > 0
-requires acc(e, p)
-ensures acc(e, p)
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
 func (e *OpError) Temporary(ghost p perm) bool /*{
 	if e.Op == "accept" && isConnError(e.Err) {
 		return true
@@ -149,6 +207,16 @@ func (e *OpError) Temporary(ghost p perm) bool /*{
 	t, ok := e.Err.(temporary)
 	return ok && t.Temporary()
 }*/
+
+(*OpError) implements Error {
+	(e *OpError) Timeout(ghost p perm) bool {
+		return e.Timeout(p)
+	}
+
+	(e *OpError) Temporary(ghost p perm) bool {
+		return e.Temporary(p)
+	}
+}
 
 // A ParseError is the error type of literal network address parsers.
 type ParseError struct {
@@ -165,8 +233,15 @@ type AddrError struct {
 	Addr string
 }
 
-/*
-func (e *AddrError) Error() string {
+pred (e *AddrError) mem() { acc(e) }
+
+requires p > 0
+requires e != nil ==> acc(e, p)
+ensures e == nil ==> ret == "<nil>"
+ensures e != nil ==> acc(e, p)
+ensures (e != nil && e.Addr != "") ==> ret == "address " + e.Addr + ": " + e.Err
+ensures (e != nil && e.Addr == "") ==> ret == e.Err
+func (e *AddrError) Error(ghost p perm) (ret string) {
 	if e == nil {
 		return "<nil>"
 	}
@@ -175,12 +250,29 @@ func (e *AddrError) Error() string {
 		s = "address " + e.Addr + ": " + s
 	}
 	return s
-}*/
+}
 
+// TODO: if the method is annotated with pure, then the implementation proof fails
+// because the "pure" annotation of the interface and implementation do not match
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
 ensures !res
-pure func (e *AddrError) Timeout() (res bool)   { return false }
+/* pure */ func (e *AddrError) Timeout(ghost p perm) (res bool)   { return false }
+
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
 ensures !res
-pure func (e *AddrError) Temporary() (res bool) { return false }
+/* pure */ func (e *AddrError) Temporary(ghost p perm) (res bool) { return false }
+
+(*AddrError) implements Error {
+	(e *AddrError) Timeout(ghost p perm) bool {
+		return e.Timeout(p)
+	}
+
+	(e *AddrError) Temporary(ghost p perm) bool {
+		return e.Temporary(p)
+	}
+}
 
 type UnknownNetworkError string
 
@@ -206,6 +298,8 @@ type DNSError struct {
 	IsNotFound  bool
 }
 
+pred (e *DNSError) mem() { acc(e) }
+
 requires p > 0
 requires e != nil ==> acc(e, p)
 ensures e != nil ==> acc(e, p)
@@ -222,14 +316,28 @@ func (e *DNSError) Error(ghost p perm) string {
 }
 
 // Timeout reports whether the DNS lookup is known to have timed out.
-requires acc(&e.IsTimeout, _)
-ensures res == e.IsTimeout
-pure func (e *DNSError) Timeout() (res bool) { return e.IsTimeout }
+requires p > 0
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
+ensures unfolding acc(e.mem(), _) in res == e.IsTimeout
+/* pure */ func (e *DNSError) Timeout(ghost p perm) (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
-requires acc(&e.IsTimeout, _) && acc(&e.IsTemporary, _)
-ensures res == e.IsTimeout || e.IsTemporary
-pure func (e *DNSError) Temporary() (res bool) { return e.IsTimeout || e.IsTemporary }
+requires p > 0
+requires acc(e.mem(), p)
+ensures acc(e.mem(), p)
+ensures unfolding acc(e.mem(), _) in res == e.IsTimeout || e.IsTemporary
+/* pure */ func (e *DNSError) Temporary(ghost p perm) (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout || e.IsTemporary }
+
+(*DNSError) implements Error {
+	(e *DNSError) Timeout(ghost p perm) bool {
+		return e.Timeout(p)
+	}
+
+	(e *DNSError) Temporary(ghost p perm) bool {
+		return e.Temporary(p)
+	}
+}
 
 // Buffers contains zero or more runs of bytes to write.
 type Buffers [][]byte

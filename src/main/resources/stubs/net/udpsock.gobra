@@ -3,7 +3,7 @@
 // license that can be found in https://golang.org/LICENSE
 
 // Signatures for the public declarations in file
-// https://github.com/golang/go/blob/master/src/net/net.go
+// https://github.com/golang/go/blob/master/src/net/udpsock.go
 
 package net
 

@@ -12,8 +12,16 @@ import "time"
 // Addr represents a network end point address.
 type Addr interface {
 	pred mem()
-	Network() string
-	String() string
+
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	Network(ghost p perm) string
+
+	requires p > 0
+	requires acc(mem(), p)
+	ensures acc(mem(), p)
+	String(ghost p perm) string
 }
 
 // Conn is a generic stream-oriented network connection.

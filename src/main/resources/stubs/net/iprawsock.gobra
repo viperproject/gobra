@@ -1,0 +1,261 @@
+// Copyright 2010 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package net
+
+import (
+//  TODO(Gobra): imported packages not supported 
+//	"context"
+//	"syscall"
+)
+
+// BUG(mikio): On every POSIX platform, reads from the "ip4" network
+// using the ReadFrom or ReadFromIP method might not return a complete
+// IPv4 packet, including its header, even if there is space
+// available. This can occur even in cases where Read or ReadMsgIP
+// could return a complete packet. For this reason, it is recommended
+// that you do not use these methods if it is important to receive a
+// full packet.
+//
+// The Go 1 compatibility guidelines make it impossible for us to
+// change the behavior of these methods; use Read or ReadMsgIP
+// instead.
+
+// BUG(mikio): On JS and Plan 9, methods and functions related
+// to IPConn are not implemented.
+
+// BUG(mikio): On Windows, the File method of IPConn is not
+// implemented.
+
+// IPAddr represents the address of an IP end point.
+type IPAddr struct {
+// TODO(Gobra): cannot have fields and types with the same identifier
+//	IP   IP
+	Zone string // IPv6 scoped addressing zone
+}
+
+pred (a *IPAddr) mem() {
+    acc(a)
+}
+
+(*IPAddr) implements Addr {
+	(e *IPAddr) Network(ghost p perm) string {
+		return e.Network(p)
+	}
+
+	(e *IPAddr) String(ghost p perm) string {
+		return e.String(p)
+	}
+}
+
+// Network returns the address's network name, "ip".
+ensures res == "ip"
+func (a *IPAddr) Network(ghost p perm) (res string) { return "ip" }
+
+requires p > 0
+requires acc(a.mem(), p)
+ensures acc(a.mem(), p)
+func (a *IPAddr) String(ghost p perm) string // {
+//	if a == nil {
+//		return "<nil>"
+//	}
+//	ip := ipEmptyString(a.IP)
+//	if a.Zone != "" {
+//		return ip + "%" + a.Zone
+//	}
+//	return ip
+//}
+
+//func (a *IPAddr) isWildcard() bool {
+//	if a == nil || a.IP == nil {
+//		return true
+//	}
+//	return a.IP.IsUnspecified()
+//}
+
+//func (a *IPAddr) opAddr() Addr {
+//	if a == nil {
+//		return nil
+//	}
+//	return a
+//}
+
+// ResolveIPAddr returns an address of IP end point.
+//
+// The network must be an IP network name.
+//func ResolveIPAddr(network, address string) (*IPAddr, error) {
+//	if network == "" { // a hint wildcard for Go 1.0 undocumented behavior
+//		network = "ip"
+//	}
+//	afnet, _, err := parseNetwork(context.Background(), network, false)
+//	if err != nil {
+//		return nil, err
+//	}
+//	switch afnet {
+//	case "ip", "ip4", "ip6":
+//	default:
+//		return nil, UnknownNetworkError(network)
+//	}
+//	addrs, err := DefaultResolver.internetAddrList(context.Background(), afnet, address)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return addrs.forResolve(network, address).(*IPAddr), nil
+//}
+
+// IPConn is the implementation of the Conn and PacketConn interfaces
+// for IP network connections.
+type IPConn struct {
+// TODO(Gobra): embedded fields not supported
+//	conn
+}
+
+pred (i *IPConn) mem() {
+    acc(i)
+}
+
+// SyscallConn returns a raw network connection.
+// This implements the syscall.Conn interface.
+//func (c *IPConn) SyscallConn() (syscall.RawConn, error) {
+//	if !c.ok() {
+//		return nil, syscall.EINVAL
+//	}
+//	return newRawConn(c.fd)
+//}
+
+// ReadFromIP acts like ReadFrom but returns an IPAddr.
+requires c.mem()
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+ensures c.mem()
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+ensures 0 <= retInt && retInt <= len(b)
+func (c *IPConn) ReadFromIP(b []byte) (retInt int, *IPAddr, error) // {
+//	if !c.ok() {
+//		return 0, nil, syscall.EINVAL
+//	}
+//	n, addr, err := c.readFrom(b)
+//	if err != nil {
+//		err = &OpError{Op: "read", Net: c.fd.net, Source: c.fd.laddr, Addr: c.fd.raddr, Err: err}
+//	}
+//	return n, addr, err
+//}
+
+// ReadFrom implements the PacketConn ReadFrom method.
+requires c.mem()
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+ensures c.mem()
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
+ensures 0 <= retInt && retInt <= len(b)
+func (c *IPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
+//	if !c.ok() {
+//		return 0, nil, syscall.EINVAL
+//	}
+//	n, addr, err := c.readFrom(b)
+//	if err != nil {
+//		err = &OpError{Op: "read", Net: c.fd.net, Source: c.fd.laddr, Addr: c.fd.raddr, Err: err}
+//	}
+//	if addr == nil {
+//		return n, nil, err
+//	}
+//	return n, addr, err
+//}
+
+// ReadMsgIP reads a message from c, copying the payload into b and
+// the associated out-of-band data into oob. It returns the number of
+// bytes copied into b, the number of bytes copied into oob, the flags
+// that were set on the message and the source address of the message.
+//func (c *IPConn) ReadMsgIP(b, oob []byte) (n, oobn, flags int, addr *IPAddr, err error) {
+//	if !c.ok() {
+//		return 0, 0, 0, nil, syscall.EINVAL
+//	}
+//	n, oobn, flags, addr, err = c.readMsg(b, oob)
+//	if err != nil {
+//		err = &OpError{Op: "read", Net: c.fd.net, Source: c.fd.laddr, Addr: c.fd.raddr, Err: err}
+//	}
+//	return
+//}
+
+// WriteToIP acts like WriteTo but takes an IPAddr.
+requires p > 0
+requires c.mem() && acc(addr.mem(), p)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+ensures c.mem() && acc(addr.mem(), p)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+func (c *IPConn) WriteToIP(b []byte, addr *IPAddr, ghost p perm) (int, error) // {
+//	if !c.ok() {
+//		return 0, syscall.EINVAL
+//	}
+//	n, err := c.writeTo(b, addr)
+//	if err != nil {
+//		err = &OpError{Op: "write", Net: c.fd.net, Source: c.fd.laddr, Addr: addr.opAddr(), Err: err}
+//	}
+//	return n, err
+//}
+
+// WriteTo implements the PacketConn WriteTo method.
+requires p > 0
+requires c.mem() && acc(addr.mem(), p)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+ensures c.mem() && acc(addr.mem(), p)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+func (c *IPConn) WriteTo(b []byte, addr Addr, ghost p perm) (int, error) // {
+//	if !c.ok() {
+//		return 0, syscall.EINVAL
+//	}
+//	a, ok := addr.(*IPAddr)
+//	if !ok {
+//		return 0, &OpError{Op: "write", Net: c.fd.net, Source: c.fd.laddr, Addr: addr, Err: syscall.EINVAL}
+//	}
+//	n, err := c.writeTo(b, a)
+//	if err != nil {
+//		err = &OpError{Op: "write", Net: c.fd.net, Source: c.fd.laddr, Addr: a.opAddr(), Err: err}
+//	}
+//	return n, err
+//}
+
+// WriteMsgIP writes a message to addr via c, copying the payload from
+// b and the associated out-of-band data from oob. It returns the
+// number of payload and out-of-band bytes written.
+//func (c *IPConn) WriteMsgIP(b, oob []byte, addr *IPAddr) (n, oobn int, err error) {
+//	if !c.ok() {
+//		return 0, 0, syscall.EINVAL
+//	}
+//	n, oobn, err = c.writeMsg(b, oob, addr)
+//	if err != nil {
+//		err = &OpError{Op: "write", Net: c.fd.net, Source: c.fd.laddr, Addr: addr.opAddr(), Err: err}
+//	}
+//	return
+//}
+
+// func newIPConn(fd *netFD) *IPConn { return &IPConn{conn{fd}} }
+
+// DialIP acts like Dial for IP networks.
+//
+// The network must be an IP network name; see func Dial for details.
+//func DialIP(network string, laddr, raddr *IPAddr) (*IPConn, error) {
+//	if raddr == nil {
+//		return nil, &OpError{Op: "dial", Net: network, Source: laddr.opAddr(), Addr: nil, Err: errMissingAddress}
+//	}
+//	sd := &sysDialer{network: network, address: raddr.String()}
+//	c, err := sd.dialIP(context.Background(), laddr, raddr)
+//	if err != nil {
+//		return nil, &OpError{Op: "dial", Net: network, Source: laddr.opAddr(), Addr: raddr.opAddr(), Err: err}
+//	}
+//	return c, nil
+//}
+
+// ListenIP acts like ListenPacket for IP networks.
+//
+// The network must be an IP network name; see func Dial for details.
+//func ListenIP(network string, laddr *IPAddr) (*IPConn, error) {
+//	if laddr == nil {
+//		laddr = &IPAddr{}
+//	}
+//	sl := &sysListener{network: network, address: laddr.String()}
+//	c, err := sl.listenIP(context.Background(), laddr)
+//	if err != nil {
+//		return nil, &OpError{Op: "listen", Net: network, Source: nil, Addr: laddr.opAddr(), Err: err}
+//	}
+//	return c, nil
+//}

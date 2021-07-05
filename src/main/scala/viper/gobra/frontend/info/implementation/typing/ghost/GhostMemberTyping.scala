@@ -23,7 +23,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PMPredicateDecl(_, receiver, args, body) =>
       body.fold(noMessages)(assignableToSpec) ++
-        isClassType.errors(miscType(receiver))(member) ++
+        isReceiverType.errors(miscType(receiver))(member) ++
         nonVariadicArguments(args)
 
     case ip: PImplementationProof =>

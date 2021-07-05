@@ -124,13 +124,13 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       }
     }})
 
-    private val encoding:NextStep[(Program, TypeInfo), ((vpr.Program,BackTranslator.VerificationBackTrackInfo),TypeInfo), Vector[VerifierError]] = NextStep("Viper encoding", internalTransforming, { case (program: Program, typeInfo: TypeInfo) =>{
+    private val encoding:NextStep[(Program, TypeInfo), BackendVerifier.Task, Vector[VerifierError]] = NextStep("Viper encoding", internalTransforming, { case (program: Program, typeInfo: TypeInfo) =>{
       assert(config.isDefined)
-      Right((Translator.translate(program)(config.get),typeInfo))
+      Right(Translator.translate(program)(config.get,typeInfo))
     }})
 
-    private val verifying : NextStep[((vpr.Program,BackTranslator.VerificationBackTrackInfo),TypeInfo),VerifierResult , Vector[VerifierError]] = NextStep("Viper verification", encoding, { case ((program:Program, info:BackTranslator.VerificationBackTrackInfo),typs:TypeInfo) => 
-      val viperTask: BackendVerifier.Task = BackendVerifier.Task(program,BackTranslator.BackTrackInfo(info.errorT,info.reasonT,program,typs,config.get))
+    private val verifying : NextStep[BackendVerifier.Task,VerifierResult , Vector[VerifierError]] = NextStep("Viper verification", encoding, { case viperTask:BackendVerifier.Task => 
+      
       assert(config.isDefined)
       val c = config.get
       val resultFuture = BackendVerifier.verify(viperTask)(c)(executor)

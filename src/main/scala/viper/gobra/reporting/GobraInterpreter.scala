@@ -228,7 +228,7 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 										)) 
 			LitStructEntry(info,values)
 			}catch{
-				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
+				case t:Throwable => /* printf(s"$t"); */return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}
 			
 		}else{
@@ -270,7 +270,7 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 			//else
 			//FaultEntry("unknown")//LitNilEntry()			
 			}catch{
-				case t:Throwable => printf(s"$t");return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
+				case t:Throwable =>/*  printf(s"$t"); */return FaultEntry(s"${entry.domain} wrong domain for type: ${info.toString.replace("\n",";")}")
 			}
 			
 		}else{
@@ -701,7 +701,11 @@ case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		}
 	}
 }
-
+/**
+  * experimental Predicate interpreter
+  *
+  * @param c
+  */
 case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[PredT] {
 	def interpret(entry:sil.DomainValueEntry,info:PredT) = {
 		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]/* &&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry) */)
@@ -726,7 +730,7 @@ case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 								else
 									None
 				case _ => if (gobraPred.size>=1)
-								Some(gobraPred.head.args.dropRight(info.args.size).zipWithIndex.map(x=>UnknownValueButKnownType(s"a${x._2}".replace("\n",""),InterpreterCache.getType(x._1))))
+								Some(gobraPred.head.args.dropRight(info.args.size).zipWithIndex.map(x=>UnknownValueButKnownType(s"?",InterpreterCache.getType(x._1))))
 						else 
 							None
 			} 

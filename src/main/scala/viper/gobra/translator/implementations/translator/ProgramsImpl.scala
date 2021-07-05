@@ -21,7 +21,7 @@ class ProgramsImpl extends Programs {
 
   import viper.gobra.translator.util.ViperWriter.MemberLevel._
 
-  override def translate(program: in.Program)(conf: TranslatorConfig): (vpr.Program, VerificationBackTrackInfo) = {
+  override def translate(program: in.Program)(conf: TranslatorConfig): BackendVerifier.Task = {
 
     val (pos, info, errT) = program.vprMeta
 
@@ -79,9 +79,9 @@ class ProgramsImpl extends Programs {
 
     val (error, _, prog) = progW.execute
 
-    val backTrackInfo = VerificationBackTrackInfo(error.errorT, error.reasonT)
+    val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT,prog,null,null) //config is added as needed, but typeInfo is missing (resolved in Translator)
 
 
-   (prog, backTrackInfo)
+    BackendVerifier.Task(prog,backTrackInfo)
   }
 }

@@ -40,7 +40,7 @@ object BackTranslator {
   result match {
     case BackendVerifier.Success => VerifierResult.Success
     case BackendVerifier.Failure(errors, backtrack) => 
-      val errorTranslator =  new DefaultErrorBackTranslator(backtrack) 
+      val errorTranslator =  new DefaultErrorBackTranslator(backtrack.copy(config=config)) //TODO make this more clean e.g. remove config from backtrack Info
       VerifierResult.Failure(errors map  errorTranslator.translate)
   }
 

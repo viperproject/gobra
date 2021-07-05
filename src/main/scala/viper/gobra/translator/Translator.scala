@@ -19,15 +19,15 @@ import viper.gobra.util.Violation
 
 object Translator {
 
-  def translate(program: Program)(config: Config): (vpr.Program, VerificationBackTrackInfo) = {
+  def translate(program: Program)(config: Config,typeInfo:viper.gobra.frontend.info.TypeInfo): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
-    val (encodedProgram, backtrack) = programTranslator.translate(program)(translationConfig)
+    val task1 = programTranslator.translate(program)(translationConfig)
+    val task = BackendVerifier.Task(task1.program,task1.backtrack.copy(config=config,typeInfo=typeInfo))
     //TODO: resolve this merge conflict
-    /* val task = ???
     
     if (config.checkConsistency) {
-      val errors = encodedProgram.checkTransitively
+      val errors = task.program.checkTransitively
       if (errors.nonEmpty) Violation.violation(errors.toString)
     }
 
@@ -38,10 +38,10 @@ object Translator {
 
     val transformedTask = transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
-    } */
+    } 
 
-    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => encodedProgram, () => backtrack)
-    (encodedProgram, backtrack)
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => transformedTask.program, () => transformedTask.backtrack)
+    transformedTask
 
   }
 

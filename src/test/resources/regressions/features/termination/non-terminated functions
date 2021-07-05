@@ -1,0 +1,61 @@
+ghost
+decreases n
+func test1 (n int) {
+//:: ExpectedOutput(method_termination_error)
+    test1(n)
+}
+
+ghost
+requires x >= 0
+decreases x
+func is_even2(x int) bool{
+   if( x==0 ) {
+   return true
+} else {
+//:: ExpectedOutput(method_termination_error)
+   return is_odd2(x)
+}
+}
+
+
+ghost
+requires y >= 0
+decreases y
+func is_odd2(y int) bool {
+    if ( y==0 ) {
+    return false
+} else {
+    return is_even2(y-1)
+}
+}
+
+
+ghost
+decreases x if 1 <= x
+decreases _ if x <= -1
+decreases *
+func sign2(x int) int {
+    if( x==0 ){
+    //:: ExpectedOutput(method_termination_error)
+    return sign2(x)
+} else{
+
+    if( 1<x) {
+    //:: ExpectedOutput(method_termination_error)
+    return sign2(x)
+}  else {
+    
+    if( x < -1 ) {
+    //:: ExpectedOutput(method_termination_error)
+    return sign2(x + 1)
+    
+}  else {
+    return x
+     }
+}
+}
+}
+
+
+
+

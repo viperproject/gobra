@@ -2763,7 +2763,7 @@ object Desugar {
           case _: in.SequenceT => in.SetConversion(dop)(src)
           case _: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src))(src)
           case _: in.AdtT => in.SetConversion(dop)(src)
-          case t => violation(s"expected a sequence, set or option type, but found $t")
+          case t => violation(s"expected a sequence, set, adt or option type, but found $t")
         }
 
         case PUnion(left, right) => for {
@@ -2792,7 +2792,8 @@ object Desugar {
           case _: in.MultisetT => dop
           case _: in.SequenceT => in.MultisetConversion(dop)(src)
           case _: in.OptionT => in.MultisetConversion(in.SequenceConversion(dop)(src))(src)
-          case t => violation(s"expected a sequence, multiset or option type, but found $t")
+          case _: in.AdtT => in.MultisetConversion(dop)(src)
+          case t => violation(s"expected a sequence, multiset, adt or option type, but found $t")
         }
 
         case POptionNone(t) => {

@@ -282,6 +282,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     case MPredicateImpl(decl, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case MPredicateSpec(decl, _, ctx) => FunctionT(decl.args map ctx.typ, AssertionT)
     case _: SymbolTable.GhostStructMember => ???
+    case _: SymbolTable.AdtClause | _ : SymbolTable.AdtClauseField => ???
     case BuiltInMPredicate(tag, _, _) => tag.typ(config)
     case SymbolTable.AdtDestructor(decl, _, ctx) => ctx.symbType(decl.typ)
     case SymbolTable.AdtDiscriminator(_, _, _) => BooleanT

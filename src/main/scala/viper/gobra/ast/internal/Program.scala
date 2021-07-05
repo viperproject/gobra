@@ -795,6 +795,7 @@ case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends
   override val typ : Type = expr.typ match {
     case SequenceT(t, _) => MultisetT(t, Addressability.conversionResult)
     case MultisetT(t, _) => MultisetT(t, Addressability.conversionResult)
+    case AdtT(_,_,_,DerivableType(Collection(_, _), typeVars, _)) => MultisetT(typeVars.head, Addressability.conversionResult)
     case t => Violation.violation(s"expected a sequence or multiset type but got $t")
   }
 }

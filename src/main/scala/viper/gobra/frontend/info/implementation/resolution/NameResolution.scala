@@ -10,7 +10,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.{BuiltInMemberTag, DerivableTags}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMethodTag}
 import viper.gobra.frontend.info.base.SymbolTable._
-import viper.gobra.frontend.info.base.Type.{AdtT, StructT}
+import viper.gobra.frontend.info.base.Type.{StructT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.property.{AssignMode, StrictAssignModi}
 import viper.gobra.util.Violation

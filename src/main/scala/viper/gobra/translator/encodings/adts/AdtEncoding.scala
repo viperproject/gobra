@@ -13,14 +13,12 @@ import viper.gobra.frontend.info.base.DerivableTags
 import viper.gobra.frontend.info.base.DerivableTags.Collection
 import viper.gobra.reporting.BackTranslator.{ErrorTransformer, RichErrorMessage}
 import viper.gobra.reporting.{MatchError, Source}
-import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.encodings.LeafTypeEncoding
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
-import viper.gobra.util.TypeBounds
-import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, DomainFuncApp, ErrorTrafo, Forall, Info, Position}
+import viper.silver.ast.{AnonymousDomainAxiom, DomainFunc, DomainFuncApp, ErrorTrafo, Forall, GenericType, Info, Position}
 import viper.silver.{ast => vpr}
 
 class AdtEncoding extends LeafTypeEncoding {
@@ -91,41 +89,8 @@ class AdtEncoding extends LeafTypeEncoding {
     )()
   }
 
-  private def lenAxioms(adtName: String, clauses: Seq[in.AdtClause])(ctx: Context): Seq[vpr.AnonymousDomainAxiom] = {
-    val (pos, info, errorT) = (vpr.NoPosition, vpr.NoInfo, vpr.NoTrafos)
-
-    def axiom(c: in.AdtClause) = {
-      val argsDecl = clauseArgsAsLocalVarDecl(c)(ctx)
-      val args = argsDecl.map(_.localVar)
-      val cons = constructorCall(c, args)(pos, info, errorT)
-      val e    = if (args.isEmpty) {
-          vpr.EqCmp(
-            lenApp(cons),
-            vpr.IntLit(BigInt(0))()
-          )()
-        } else {
-          val recLen = args.filter(a => a.typ == adtType(adtName)).map(lenApp)
-          val sum    = recLen.foldLeft(vpr.IntLit(BigInt(1))(): vpr.Exp)((acc, n) => vpr.Add(acc, n)())
-          vpr.Forall (
-            argsDecl,
-            Seq(
-              vpr.Trigger(Seq(cons))()
-            ),
-            vpr.EqCmp(
-              lenApp(cons),
-              sum
-            )()
-          )()
-      }
-      vpr.AnonymousDomainAxiom(
-        e
-      )(domainName = adtName)
-    }
-
-    clauses.map(axiom)
-  }
-
   private var toSetFunc: Option[vpr.DomainFunc] = None
+  private var toMultiSetFunc: Option[vpr.DomainFunc] = None
 
   /**
     * Generates
@@ -145,14 +110,21 @@ class AdtEncoding extends LeafTypeEncoding {
       name = "toSetAdt", formalArgs = Seq(variable), typ = vpr.SetType(setTypeVar)
     )(domainName = domainName)
 
+    val toMultiSetF = vpr.DomainFunc(
+      name = "toMultisetAdt", formalArgs = Seq(variable), typ = vpr.MultisetType(setTypeVar)
+    )(domainName = domainName)
+
     val domain = vpr.Domain(
-      domainName, Seq(toSetF), Seq(), Seq(typeVar, setTypeVar)
+      domainName, Seq(toSetF, toMultiSetF), Seq(), Seq(typeVar, setTypeVar)
     )()
 
     generatedDomains ::= domain
     toSetFunc = Some(toSetF)
+    toMultiSetFunc = Some(toMultiSetF)
     toSetF
   }
+
+  private def getToMultisetFunc: vpr.DomainFunc = toMultiSetFunc.getOrElse({getToSetFunc; toMultiSetFunc.get})
 
   private def toSetApp(e: vpr.Exp, target: vpr.Type)(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
     vpr.DomainFuncApp(
@@ -162,26 +134,15 @@ class AdtEncoding extends LeafTypeEncoding {
     )(pos, info, error)
   }
 
-  private def toSetAxioms(adtName: String, clauses: Vector[AdtClause], blacklist: Map[String, Vector[in.Field]], typ: in.Type)(ctx: Context): Seq[vpr.AnonymousDomainAxiom] = {
+  private def toMultisetApp(e: vpr.Exp, target: vpr.Type)(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos): vpr.DomainFuncApp = {
+    vpr.DomainFuncApp(
+      getToMultisetFunc,
+      Seq(e),
+      Seq(vpr.TypeVar("T") -> e.typ, vpr.TypeVar("Q") -> target).toMap
+    )(pos, info, error)
+  }
 
-    /**
-      * Helper function to determine if some Type t contains typ.
-      * Returns true for
-      * set[typ], sequence[typ], [typ]N and adts which are deriving Collection[typ]
-     */
-    def containsType(t: in.Type): Boolean = underlyingType(t)(ctx) match {
-      case prettyType: PrettyType => prettyType match {
-        case ArrayT(_, elems, _) / Exclusive => elems.equals(typ)
-        case SequenceT(t, _) => t.equals(typ)
-        case SetT(t, _) => t.equals(typ)
-        case _ => false
-      }
-      case t : AdtT => t.derives.derivable match {
-        case DerivableTags.Collection(_, _) => typ.equalsWithoutMod(t.derives.typeVars.head)
-        case _ => false
-      } //Derives Collection[A]
-      case _ => false
-    }
+  private def toSetAxioms(adtName: String, clauses: Vector[AdtClause], blacklist: Map[String, Vector[in.Field]], typ: in.Type)(ctx: Context): Seq[vpr.AnonymousDomainAxiom] = {
 
     /**
       * Helper function to determine if t is the same adt type
@@ -195,141 +156,142 @@ class AdtEncoding extends LeafTypeEncoding {
     val vprType = ctx.typeEncoding.typ(ctx)(typ)
 
     /**
-      *
-      * @param t type to check
-      * @return true iff t is a set
-      */
-    def isSet(t: in.Type): Boolean = t match {
-      case prettyType: PrettyType => prettyType match {
-        case SetT(_, _) => true
-        case _ => false
-      }
-      case _ => false
-    }
-
-    def isSeq(t: in.Type): Boolean = t match {
-      case prettyType: PrettyType => prettyType match {
-        case SequenceT(_, _) => true
-        case _ => false
-      }
-      case _ => false
-    }
-
-    def isArray(t: in.Type): Boolean = t match {
-      case prettyType: PrettyType => prettyType match {
-        case in.ArrayT(_, _, _) / Exclusive => true
-        case _ => false
-      }
-      case _ => false
-    }
-
-    /**
-      *
-      * @param localVars Local Variables for some constructor of an adt clause
-      * @param relevantFields the relevant fields in internal Represantation
-      * @return The localVars which are corresponding to the relevantFields
-      */
-    def filterVars(localVars: Vector[vpr.LocalVarDecl], relevantFields: Vector[in.Field]): Seq[vpr.LocalVarDecl] =
-      localVars.filter(v => relevantFields.map(_.name).contains(v.name))
-
-
-    /**
       * Helper function to return the union of the sets.
       */
     def unionSets(sets: Seq[vpr.Exp])(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos) = {
-      if (sets.isEmpty) {
+      val explicitSets: Seq[vpr.ExplicitSet] = sets.collect {case t: vpr.ExplicitSet => t}
+      val prunedSets = sets.filter(s => !explicitSets.contains(s))
+      var cleanedSets = prunedSets
+      if (explicitSets.nonEmpty)
+          cleanedSets = cleanedSets :+ vpr.ExplicitSet(explicitSets.flatMap(t => t.elems))()
+
+      if (cleanedSets.isEmpty) {
         vpr.EmptySet(vprType)(pos, info, error)
-      } else if (sets.length == 1) {
-        sets.head
+      } else if (cleanedSets.length == 1) {
+        cleanedSets.head
       } else {
-        sets.reduceLeft((a,b) => vpr.AnySetUnion(a,b)(pos, info, error))
+        cleanedSets.reduceLeft((a,b) => vpr.AnySetUnion(a,b)(pos, info, error))
       }
+    }
+
+    def unionMultisets(sets: Seq[vpr.Exp])(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, error: ErrorTrafo = vpr.NoTrafos) = {
+      val explicitSets: Seq[vpr.ExplicitMultiset] = sets.collect {case t: vpr.ExplicitMultiset => t}
+      val prunedSets = sets.filter(s => !explicitSets.contains(s))
+      var cleanedSets = prunedSets
+      if (explicitSets.nonEmpty)
+        cleanedSets = cleanedSets :+ vpr.ExplicitMultiset(explicitSets.flatMap(t => t.elems))()
+
+      if (cleanedSets.isEmpty) {
+        vpr.EmptyMultiset(vprType)(pos, info, error)
+      } else if (cleanedSets.length == 1) {
+        cleanedSets.head
+      } else {
+        cleanedSets.reduceLeft((a,b) => vpr.AnySetUnion(a,b)(pos, info, error))
+      }
+    }
+
+    def genExpressions(args: Vector[in.Field],
+                          sameTypeF: vpr.Exp => in.Type => vpr.Exp,
+                          arrayTypeF: vpr.Exp => in.Type => vpr.Exp,
+                          sequenceTypeF: vpr.Exp => in.Type => vpr.Exp,
+                          setTypeF: vpr.Exp => in.Type => vpr.Exp,
+                          adtTypeF: vpr.Exp => in.Type => vpr.Exp
+                         ): (Vector[vpr.Exp]) = {
+      args.flatMap { f =>
+        val vTyp = ctx.typeEncoding.typ(ctx)(f.typ)
+        val localVar = vpr.LocalVarDecl(f.name, vTyp)()
+        underlyingType(f.typ)(ctx) match {
+          case t if t == typ => Some(sameTypeF(localVar.localVar)(f.typ))
+          case prettyType: PrettyType => prettyType match {
+            case ArrayT(_, elems, _) / Exclusive if elems.equals(typ) =>
+              Some(arrayTypeF(localVar.localVar)(f.typ))
+            case SequenceT(t, _) if t.equals(typ) => Some(sequenceTypeF(localVar.localVar)(f.typ))
+            case SetT(t, _) if t.equals(typ) => Some(setTypeF(localVar.localVar)(f.typ))
+            case _ => None
+          }
+          case t: AdtT => t.derives.derivable match {
+            case DerivableTags.Collection(_, _) if typ.equalsWithoutMod(t.derives.typeVars.head) || sameAdt(t) =>
+              Some(adtTypeF(localVar.localVar)(f.typ))
+            case _ => None
+          } //Derives Collection[A]
+          case _ => None
+        }
+      }
+
     }
 
     /**
       * This function generates the toSet axiom for one clause
       */
-    def clauseAxiom(clause: AdtClause): vpr.AnonymousDomainAxiom = {
+    def clauseAxiom(clause: AdtClause): Seq[vpr.AnonymousDomainAxiom] = {
 
-      //val clauseBlacklisted
       val blacklistedFields = blacklist.getOrElse(clause.name.name, Vector.empty)
       val args = clause.args.filter(f => !blacklistedFields.contains(f))
 
-      //All fields of type A
-      val sameTypeFields = args.filter(a => a.typ.equals(typ))
-      //All fields which contain A
-      val containsTypeF  = args.filter(a => containsType(a.typ))
-      //Fields which contain A and are a Set
-      val withSets       = containsTypeF.filter(f => isSet(f.typ))
-      //Field which contain A and are a Seq
-      val withSeqs       = containsTypeF.filter(f => isSeq(f.typ))
-      //Arrays
-      val withArrays     = containsTypeF.filter(f => isArray(f.typ))
-      //All recursive fields
-      val recursive      = args.filter(a => sameAdt(a.typ))
+      def arrayFunction(e : vpr.Exp)(t: in.Type) :  vpr.Exp =  {
+        val unboxFunc = getArrayUnboxFunc(t.asInstanceOf[in.ArrayT])(ctx)
+        val domainFunc = vpr.DomainFuncApp(
+          func = unboxFunc,
+          args = Seq(e),
+          typVarMap = Map.empty
+        )()
+        domainFunc
+        //Some(ctx.seqToSet.create(domainFunc)(), ctx.seqToMultiset.create(domainFunc)())
+      }
 
-      //Get the local Vars for the corresponding fields
+      val setExpressions = genExpressions(args,
+        e => _ => vpr.ExplicitSet(Seq(e))(),
+        e => t => ctx.seqToSet.create(arrayFunction(e)(t))(),
+        e => _ => ctx.seqToSet.create(e)(),
+        e => _ => e,
+        e => _ => toSetApp(e, vprType)())
+      val setExpr = unionSets(setExpressions)()
+
+      val multiSetExpressions = genExpressions(args,
+        e => _ => vpr.ExplicitMultiset(Seq(e))(),
+        e => t => ctx.seqToMultiset.create(arrayFunction(e)(t))(),
+        e => _ => ctx.seqToMultiset.create(e)(),
+        e => _ => e,
+        e => _ => toMultisetApp(e, vprType)())
+      val mSetExpr = unionMultisets(multiSetExpressions)()
+
+      val lengthExpressions = genExpressions(args,
+        _ => _ => vpr.IntLit(BigInt(1))(),
+        e => t => vpr.AnySetCardinality(ctx.seqToMultiset.create(arrayFunction(e)(t))())(),
+        e => _ => vpr.SeqLength(e)(),
+        e => _ => vpr.AnySetCardinality(e)(),
+        e => _ => lenApp(e))
+
+      val lengthExpr : vpr.Exp = if (lengthExpressions.nonEmpty) {
+          lengthExpressions.reduceLeft[vpr.Exp]{
+            case (l, r) => vpr.Add(l, r)()
+          }
+        } else {
+          vpr.IntLit(BigInt(0))()
+        }
+
       val localVars = clauseArgsAsLocalVarDecl(clause)(ctx)
-      val setLitVars = filterVars(localVars, sameTypeFields)
-      val setsOfA = filterVars(localVars, withSets)
-      val seqsOfA = filterVars(localVars, withSeqs)
-      val recursiveVars = filterVars(localVars, recursive)
-
       val constructor = constructorCall(clause, localVars.map(_.localVar))()
 
-      //All fields with the same type can be bundled in one Set Literal
-      val setLitExp = if (setLitVars.nonEmpty)
-          vpr.ExplicitSet(setLitVars.map(_.localVar))()
-        else
-          vpr.EmptySet(vprType)()
-      //Recursive fields and fields which contains A are called with toSet
-      val containsExp = unionSets(recursiveVars.map(n => toSetApp(n.localVar, vprType)()))()
-      //Sets just can be unioned
-      val setsOfAExp = unionSets(setsOfA.map(_.localVar))()
-      val seqsOfAExp = unionSets(seqsOfA.map(v => ctx.seqToSet.create(v.localVar)()))()
-
-      val arrayOfAExp = unionSets(withArrays.map(v => ctx.expr.translate(in.SetConversion(in.LocalVar(v.name, v.typ)(v.info))(v.info))(ctx).res))()
-
-      //Check if the Sets are not just empty sets. Then generate the union
-      var nonEmptySets: Vector[vpr.Exp] = Vector.empty
-
-      if (setLitVars.nonEmpty) {
-        nonEmptySets = nonEmptySets :+ setLitExp
-      }
-
-      if (recursiveVars.nonEmpty) {
-        nonEmptySets = nonEmptySets :+ containsExp
-      }
-
-      if (setsOfA.nonEmpty) {
-        nonEmptySets = nonEmptySets :+ setsOfAExp
-      }
-
-      if (seqsOfA.nonEmpty) {
-        nonEmptySets = nonEmptySets :+ seqsOfAExp
-      }
-
-      if (arrayOfAExp.nonEmpty) {
-        nonEmptySets = nonEmptySets :+ arrayOfAExp
-      }
-
-      val setUnion = unionSets(nonEmptySets)()
-
-      vpr.AnonymousDomainAxiom(
-        vpr.Forall(
-          localVars,
-          Seq(
-            vpr.Trigger(Seq(constructor))()
-          ),
-          vpr.EqCmp(
-            toSetApp(constructor, vprType)(),
-            setUnion
+      def genEqAxiomOverConstructor(left: vpr.Exp, right: vpr.Exp): vpr.AnonymousDomainAxiom = {
+        vpr.AnonymousDomainAxiom(
+          vpr.Forall(
+            localVars,
+            Seq(
+              vpr.Trigger(Seq(constructor))()
+            ),
+            vpr.EqCmp(left,right)()
           )()
-        )()
-      )(domainName = adtName)
+        )(domainName = adtName)
+      }
+      Seq(
+        genEqAxiomOverConstructor(toSetApp(constructor, vprType)(), setExpr),
+        genEqAxiomOverConstructor(toMultisetApp(constructor, vprType)(), mSetExpr),
+        genEqAxiomOverConstructor(lenApp(constructor), lengthExpr)
+      )
     }
 
-    clauses.filter(c => c.args.nonEmpty).map(clauseAxiom)
+    clauses.flatMap(clauseAxiom)
   }
 
   private def constructorCall(clause: AdtClause, args: Seq[vpr.Exp])(pos: Position = vpr.NoPosition, info: Info = vpr.NoInfo, errT: ErrorTrafo = vpr.NoTrafos): DomainFuncApp = {
@@ -339,6 +301,37 @@ class AdtEncoding extends LeafTypeEncoding {
       args,
       Map.empty
     )(pos,info,adtType(adtName), adtName, errT)
+  }
+
+  private var arrayDomains: Map[in.Type, vpr.DomainFunc] = Map.empty
+
+  private def getArrayUnboxFunc(t: in.ArrayT)(ctx: Context): vpr.DomainFunc = {
+    arrayDomains.getOrElse(t, arrayUnboxFunc(t)(ctx))
+  }
+
+  private def arrayUnboxFunc(a: in.ArrayT)(ctx: Context): vpr.DomainFunc = {
+    val vprEmbT = ctx.typeEncoding.typ(ctx)(a)
+    val domainName = vprEmbT match {
+      case genericType: GenericType => genericType match {
+        case vpr.DomainType(domainName, _) => domainName
+        case _ => ""
+      }
+      case _ => ""
+    }
+
+    require(domainName != "")
+
+    val arrayElemTyp = ctx.typeEncoding.typ(ctx)(a.elems)
+
+    val embeddedArg = vpr.LocalVarDecl("b", vprEmbT)()
+    val newDomainName = domainName + "Array"
+
+    val unboxFunc = vpr.DomainFunc(
+      name = s"${Names.embeddingUnboxFunc}_$domainName", formalArgs = Seq(embeddedArg), typ = vpr.SeqType(arrayElemTyp)
+    )(domainName = newDomainName)
+
+    arrayDomains = arrayDomains + (a -> unboxFunc)
+    unboxFunc
   }
 
   private def clauseArgsAsLocalVarDecl(c: AdtClause)(ctx: Context): Vector[vpr.LocalVarDecl] = {
@@ -521,13 +514,14 @@ class AdtEncoding extends LeafTypeEncoding {
       }
 
 
-      val additonalAxioms  = adt.derives.derivable match {
+      val additionalAxioms  = adt.derives.derivable match {
         case _: Collection =>
-          lenAxioms(adtName, adt.clauses)(ctx) ++ toSetAxioms(adtName, adt.clauses, adt.derives.blacklist, adt.derives.typeVars.head)(ctx)
+          /*lenAxioms(adtName, adt.clauses)(ctx) ++*/
+          toSetAxioms(adtName, adt.clauses, adt.derives.blacklist, adt.derives.typeVars.head)(ctx)
         case _ => Vector.empty
       }
 
-      val axioms = (tagAxioms ++ destructorAxioms ++ contAxioms ++ additonalAxioms) :+ exclusiveAxiom
+      val axioms = (tagAxioms ++ destructorAxioms ++ contAxioms ++ additionalAxioms) :+ exclusiveAxiom
       val funcs = (clauses ++ destructors) :+ defaultFunc :+ tagFunc
 
       ml.unit(Vector(vpr.Domain(adtName, functions = funcs, axioms = axioms)(pos = aPos, info = aInfo, errT = aErrT)))
@@ -568,11 +562,16 @@ class AdtEncoding extends LeafTypeEncoding {
       case in.Length(exp :: ctx.Adt(_)) => for {
           e <- ctx.expr.translate(exp)(ctx)
         } yield lenApp(e)
-      case in.SetConversion(exp :: ctx.Adt(_)) =>
+      case in.SetConversion(exp :: ctx.Adt(a)) =>
         val (pos, info, err) = exp.vprMeta
         for {
           e <- ctx.expr.translate(exp)(ctx)
-        } yield toSetApp(e, ctx.typeEncoding.typ(ctx)(in.IntT(Addressability.Exclusive, TypeBounds.DefaultInt)))(pos, info, err)
+        } yield toSetApp(e, ctx.typeEncoding.typ(ctx)(a.derives.typeVars(0)))(pos, info, err)
+      case in.MultisetConversion(exp :: ctx.Adt(a)) =>
+        val (pos, info, err) = exp.vprMeta
+        for {
+          e <- ctx.expr.translate(exp)(ctx)
+        } yield toMultisetApp(e, ctx.typeEncoding.typ(ctx)(a.derives.typeVars(0)))(pos, info, err)
     }
   }
 

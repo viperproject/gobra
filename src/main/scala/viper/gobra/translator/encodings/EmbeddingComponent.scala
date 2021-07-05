@@ -136,7 +136,7 @@ object EmbeddingComponent {
       generatedMember ::= unbox
       genUnboxFuncMap += (id -> unbox)
     }
-}
+  }
 
 
 

@@ -174,15 +174,12 @@ class InterfaceEncoding extends LeafTypeEncoding {
       case in.ToInterface(exp :: ctx.Interface(_), _) =>
         goE(exp)
 
-      /*
       case n@ in.ToInterface(exp :: ctx.Struct(_) / Exclusive, _) => {
         val (pos, info, errT) = n.vprMeta
         for {
           dynValue <- goE(exp)
-        } yield toInterfaceFunc(Vector(dynValue), underlyingType(exp.typ)(ctx))(pos, info, errT)(ctx)
+        } yield toInterfaceFunc(Vector(dynValue), exp.typ)(pos, info, errT)(ctx)
       }
-      */
-
 
       case n@ in.ToInterface(exp, _) =>
         val (pos, info, errT) = n.vprMeta
@@ -452,12 +449,17 @@ class InterfaceEncoding extends LeafTypeEncoding {
       val x = in.LocalVar("x", t.withAddressability(Addressability.Exclusive))(Source.Parser.Internal)
       val vX = ctx.typeEncoding.variable(ctx)(x)
 
+      //Generated contains axiom for structs
+      if (underlyingType(t)(ctx).isInstanceOf[in.StructT]) {
+        ctx.expr.translate(in.Contains(in.BoolLit(b = false)(Source.Parser.Internal), in.DfltVal(t)(Source.Parser.Internal))(Source.Parser.Internal))(ctx)
+      }
+
       val isComp = ctx.typeEncoding.isComparable(ctx)(x).fold(vpr.BoolLit(_)(), pure(_)(ctx).res)
       val emptyItfT = vprInterfaceType(ctx)
       val vRes = vpr.Result(emptyItfT)()
 
       vpr.Function(
-        name = Names.toInterfaceFunc,
+        name = Names.toInterfaceFunc(t),
         formalArgs = Seq(vX),
         typ = emptyItfT,
         pres = Seq.empty,

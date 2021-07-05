@@ -1292,8 +1292,7 @@ object Parser {
       "inhale" ~> expression ^^ PInhale |
       "fold" ~> predicateAccess ^^ PFold |
       "unfold" ~> predicateAccess ^^ PUnfold |
-      "match" ~> matchStmt |
-      "!match" ~> matchStmt ^^ {case PMatchStatement(exp, clauses, _) => PMatchStatement(exp, clauses, strict = false)}
+      "match" ~> matchStmt
 
     lazy val matchStmt: Parser[PMatchStatement] =
       expression ~ ("{" ~> rep1(matchClause) <~ "}") ^^ {case (e ~ m) => PMatchStatement(e,m)}

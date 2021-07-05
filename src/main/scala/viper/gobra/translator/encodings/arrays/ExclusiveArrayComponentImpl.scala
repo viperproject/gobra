@@ -6,12 +6,10 @@
 
 package viper.gobra.translator.encodings.arrays
 
-import viper.gobra.translator.encodings.EmbeddingComponent
-import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.translator.encodings.arrays.ArrayEncoding.ComponentParameter
+import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
-import ArrayEncoding.ComponentParameter
-import viper.gobra.translator.encodings
 
 class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
 
@@ -20,7 +18,7 @@ class ExclusiveArrayComponentImpl extends ExclusiveArrayComponent {
   }
 
   /** Embeds Sequences of fixed length as specified by ComponentParameter. */
-  private val emb: EmbeddingComponent[ComponentParameter] = new encodings.EmbeddingComponent.Impl[ComponentParameter](
+  private val emb: ExclusiveArrayEmbeddingComponent.Impl = new ExclusiveArrayEmbeddingComponent.Impl(
     p = (e: vpr.Exp, id: ComponentParameter) => (_: Context) => vpr.EqCmp(vpr.SeqLength(e)(), vpr.IntLit(id._1)())(),
     t = (id: ComponentParameter) => (ctx: Context) => vpr.SeqType(ctx.typeEncoding.typ(ctx)(id._2))
   )

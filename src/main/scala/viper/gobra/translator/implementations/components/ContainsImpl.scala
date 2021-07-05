@@ -7,8 +7,10 @@ package viper.gobra.translator.implementations.components
 
 import viper.gobra.translator.interfaces.Collector
 import viper.gobra.translator.interfaces.components.Contains
-import viper.silver.ast.{DomainType, GenericType}
+import viper.silver.ast.{DomainType, GenericType, Type}
 import viper.silver.{ast => vpr}
+
+import scala.annotation.tailrec
 
 class ContainsImpl extends Contains{
 
@@ -31,7 +33,7 @@ class ContainsImpl extends Contains{
     typeVars.zip(types).toMap
   }
 
-  def addTransitive(s: Set[(vpr.Type, vpr.Type)]) =
+  def addTransitive(s: Set[(vpr.Type, vpr.Type)]): Set[(Type, Type)] =
     s ++ (for ((x1, y1) <- s; (x2, y2) <- s if y1 == x2) yield (x1, y2))
 
   def transitiveClosure(s: Set[(vpr.Type, vpr.Type)]): Set[(vpr.Type, vpr.Type)] = {
@@ -59,6 +61,7 @@ class ContainsImpl extends Contains{
       ).flatten
     }
 
+    @tailrec
     def subTypesOfDomains(s: Set[(vpr.Type, vpr.Type)]): Set[(vpr.Type, vpr.Type)] = {
       val t = addTypes(s)
       if (t.size == s.size) s else subTypesOfDomains(t)

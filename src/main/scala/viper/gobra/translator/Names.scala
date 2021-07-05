@@ -7,6 +7,7 @@
 package viper.gobra.translator
 
 import viper.silver.{ast => vpr}
+import viper.gobra.ast.{internal => in}
 
 object Names {
   def returnLabel: String = "returnLabel"
@@ -25,6 +26,16 @@ object Names {
       .replace("]", "")
       .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
       .replace(" ", "")
+  }
+
+  def serializeType(t: in.Type): String = {
+    t.toString
+      .replace('[', '_')
+      .replace("]", "")
+      .replace(",", "_")
+      .replace(" ", "")
+      .replace("{", "_")
+      .replace("}", "_")
   }
 
 
@@ -52,7 +63,7 @@ object Names {
 
   // interface
   def emptyInterface: String = "empty_interface"
-  def toInterfaceFunc: String = "toInterface"
+  def toInterfaceFunc(t: in.Type): String = s"toInterface$$_${serializeType(t)}"
   def typeOfFunc: String = "typeOfInterface"
   def dynamicPredicate: String = "dynamic_pred"
   def implicitThis: String = "thisItf"

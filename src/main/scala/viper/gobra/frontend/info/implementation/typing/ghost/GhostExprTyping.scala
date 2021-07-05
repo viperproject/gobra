@@ -176,6 +176,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
         case PMultisetConversion(op) => exprType(op) match {
           case SequenceT(_) | MultisetT(_) | OptionT(_) => isExpr(op).out
+          case AdtT(_, derives, _) => derives match {
+            case DerivableTags.Collection(_, _) => isExpr(op).out
+            case _ => error(op, s"adt does not derive collection")
+          }
           case t => error(op, s"expected a sequence, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => exprType(exp) match {
@@ -275,6 +279,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case PMultisetConversion(op) => exprType(op) match {
           case t : GhostCollectionType => MultisetT(t.elem)
           case t: OptionT => MultisetT(t.elem)
+          case t: AdtT => t.derives match {
+            case DerivableTags.Default() => violation(s"adt does not derives collection")
+            case DerivableTags.Collection(t, _) => MultisetT(t)
+          }
           case t => violation(s"expected a sequence, set, multiset or option type, but got $t")
         }
         case PMapKeys(exp) => exprType(exp) match {

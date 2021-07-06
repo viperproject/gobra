@@ -1,0 +1,28 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests that a struct field name does not have to be unique
+type A int
+type B = int
+
+type Test struct {
+	a A
+	b B
+}
+
+requires noPerm < p && p <= writePerm
+requires acc(t, p)
+ensures acc(t, p)
+ensures res == t.b
+func (t *Test) B(ghost p perm) (res int) {
+	res = t.b
+	return
+}
+
+func main() {
+	t := &Test{0, 42}
+	res := t.B(1/2)
+	assert(res == 42)
+}

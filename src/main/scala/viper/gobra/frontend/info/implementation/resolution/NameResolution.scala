@@ -167,9 +167,12 @@ trait NameResolution { this: TypeInfoImpl =>
       leave(out(scope))
   }
 
+  /**
+    * PIdnDef that depend on a receiver or struct should not be added to the symbol table
+    */
   private lazy val doesAddEntry: PIdnDef => Boolean =
     attr[PIdnDef, Boolean] {
-      case tree.parent(_: PMethodDecl) => false
+      case tree.parent(_: PDependentDef) => false
       case _ => true
     }
 
@@ -195,7 +198,7 @@ trait NameResolution { this: TypeInfoImpl =>
         m match {
           case a: PActualMember => actualMember(a)
           case PExplicitGhostMember(a) => actualMember(a)
-          case p: PMPredicateDecl => Vector(p.id)
+          case _: PMPredicateDecl => Vector.empty
           case p: PFPredicateDecl => Vector(p.id)
           case _: PImplementationProof => Vector.empty
         }
@@ -205,18 +208,6 @@ trait NameResolution { this: TypeInfoImpl =>
       case n: PProgram => n.imports flatMap {
         case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
         case _ => Vector.empty
-      }
-
-      case n: PStructType => n.clauses.flatMap { c =>
-        def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
-          case d: PFieldDecls => d.fields map (_.id)
-          case d: PEmbeddedDecl => Vector(d.id)
-        }
-
-        c match {
-          case clause: PActualStructClause => collectStructIds(clause)
-          case PExplicitGhostStructClause(clause) => collectStructIds(clause)
-        }
       }
 
       case n: PInterfaceType =>
@@ -272,9 +263,7 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
 
-      case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
-
-      case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
+      case tree.parent.pair(id: PIdnDef, _: PDependentDef) => defEntity(id) // PIdnDef that depend on a receiver or struct are not placed in the symbol table
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)

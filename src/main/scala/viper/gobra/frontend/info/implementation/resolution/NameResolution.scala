@@ -202,39 +202,38 @@ trait NameResolution { this: TypeInfoImpl =>
     }
   }
 
-  private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
+  private def definitionsForScope(n: PUnorderedScope): Vector[PIdnDef] = n match {
+    case n: PPackage => n.declarations flatMap packageLevelDefinitions
 
-    def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PPackage => n.declarations flatMap packageLevelDefinitions
-
-      // imports do not belong to the root environment but are file/program specific (instead of package specific):
-      case n: PProgram => n.imports flatMap {
-        case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
-        case _ => Vector.empty
-      }
-
-      // note that the identifiers returned for PStructType will be filtered out before creating corresponding
-      // symbol table entries
-      case n: PStructType => n.clauses.flatMap { c =>
-        def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
-          case d: PFieldDecls => d.fields map (_.id)
-          case d: PEmbeddedDecl => Vector(d.id)
-        }
-
-        c match {
-          case clause: PActualStructClause => collectStructIds(clause)
-          case PExplicitGhostStructClause(clause) => collectStructIds(clause)
-        }
-      }
-
-      case n: PInterfaceType =>
-        n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
-
-      // domain members are added at the package level
-      case _: PDomainType => Vector.empty
+    // imports do not belong to the root environment but are file/program specific (instead of package specific):
+    case n: PProgram => n.imports flatMap {
+      case PExplicitQualifiedImport(id: PIdnDef, _) => Vector(id)
+      case _ => Vector.empty
     }
 
-    shallowDefs(n).filter(doesAddEntry).foldLeft(env) {
+    // note that the identifiers returned for PStructType will be filtered out before creating corresponding
+    // symbol table entries
+    case n: PStructType => n.clauses.flatMap { c =>
+      def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
+        case d: PFieldDecls => d.fields map (_.id)
+        case d: PEmbeddedDecl => Vector(d.id)
+      }
+
+      c match {
+        case clause: PActualStructClause => collectStructIds(clause)
+        case PExplicitGhostStructClause(clause) => collectStructIds(clause)
+      }
+    }
+
+    case n: PInterfaceType =>
+      n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
+
+    // domain members are added at the package level
+    case _: PDomainType => Vector.empty
+  }
+
+  private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
+    definitionsForScope(n).filter(doesAddEntry).foldLeft(env) {
       case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
     }
   }
@@ -289,10 +288,21 @@ trait NameResolution { this: TypeInfoImpl =>
         } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
 
       case n =>
-        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
+        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity()), tryEnclosingInterface(n)) match {
+          case (n: PIdnUse, UnknownEntity(), Some(it)) => {
+            // `n` appears in an interface are do to the way Go works, interface definitions (i.e. methods & predicates)
+            // have not been considered so far. Therefore, we perform a second-level lookup just on the definitions that
+            // the interface provides
+            val interfaceEntities = definitionsForScope(it).map(id => (serialize(id), defEntity(id)))
+            // create an environment only consisting of the definitions and their corresponding entities that the
+            // interface provides:
+            val specialEnv = rootenv(interfaceEntities:_*)
+            // perform now a second lookup in this special environment:
+            lookup(specialEnv, serialize(n), UnknownEntity())
+          }
           // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
-          case (n: PIdnUse, UnknownEntity()) => tryUnqualifiedPackageLookup(n)
-          case (_, e: Entity) => e
+          case (n: PIdnUse, UnknownEntity(), _) => tryUnqualifiedPackageLookup(n)
+          case (_, e: Entity, _) => e
         }
     }
 }

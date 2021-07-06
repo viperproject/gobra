@@ -99,12 +99,12 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PForStmt(_, cond, _, _, _) => isExpr(cond).out ++ comparableTypes.errors(exprType(cond), BooleanT)(n)
 
-    case n@PShortForRange(exp, lefts, _) =>
+    case n@PShortForRange(exp, lefts, _, _) =>
       if (lefts.forall(pointsToData)) multiAssignableTo.errors(Vector(miscType(exp)), lefts map idType)(n)
       else error(n, s"at least one assignee in $lefts points to a type")
 
 
-    case n@PAssForRange(exp, lefts, _) =>
+    case n@PAssForRange(exp, lefts, _, _) =>
       multiAssignableTo.errors(Vector(miscType(exp)), lefts map exprType)(n) ++
         lefts.flatMap(t => addressable.errors(t)(t))
 

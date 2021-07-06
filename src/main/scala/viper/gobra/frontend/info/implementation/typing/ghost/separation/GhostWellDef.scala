@@ -57,6 +57,18 @@ trait GhostWellDef { this: TypeInfoImpl =>
       error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
     }
 
+    case stmt @ PAssForRange(range, ass, _, body) => {
+      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
+      val ghostChildFound = Seq(Seq(range), ass, Seq(body)).flatten.map(noGhostPropagationFromChildren)
+      error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
+    }
+
+    case stmt @ PShortForRange(range, ass, _, body) => {
+      // NOTE the loop specification *is* allowed to contain ghost constructs; the rest isn't
+      val ghostChildFound = Seq(Seq(range), ass, Seq(body)).flatten.map(noGhostPropagationFromChildren)
+      error(stmt, "ghost error: Found ghost child expression but expected none", ghostChildFound.exists(p => !p))
+    }
+
     case m: PMember => memberGhostSeparation(m)
 
     case _: PLabeledStmt

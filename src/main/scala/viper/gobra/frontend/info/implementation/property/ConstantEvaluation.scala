@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.property
 
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type.{BooleanT, IntT}
+import viper.gobra.frontend.info.base.Type.{ArrayT, BooleanT, IntT, PointerT, StringT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds._
 import viper.gobra.util.Violation.violation
@@ -147,8 +147,36 @@ trait ConstantEvaluation { this: TypeInfoImpl =>
         case SingleConstant(_, _, exp, _, _, _) => intConstantEval(exp)
         case _ => None
       }
+        /* TODO: remove
+      case PLength(exp) =>
+        // rules for constant evaluation described in https://golang.org/ref/spec#Length_and_capacity
+        underlyingType(typ(exp)) match {
+          case StringT => for { s <- stringConstantEval(exp) } yield s.length
+          case ArrayT(len, _) if isConstArray(exp) =>
+            for {
+              _ <- ???
+            } yield len
+          case PointerT(ArrayT(len, _)) if isConstArray(exp) => for { _ <- ??? } yield len
+          case _ => None
+        }
+         */
 
       case _ => None
+    }
+
+
+  lazy val constLenCapArg: PExpression => Boolean = {
+    attr[PExpression, Boolean] {
+      case p @ PCompositeLit(_, lit) =>
+        underlyingType(typ(p)) match {
+          case ArrayT(_, elemT) =>
+            underlyingType(elemT) match {
+              case IntT(_) => ???
+              case BooleanT => ???
+              case StringT => ???
+            }
+          }
+      }
     }
 
   lazy val stringConstantEval: PExpression => Option[String] = {

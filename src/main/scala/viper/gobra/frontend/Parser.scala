@@ -673,12 +673,12 @@ object Parser {
       ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
 
     lazy val assForRange: Parser[PAssForRange] =
-      ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^
-        { case lefts ~ exp ~ bod => PAssForRange(PRange(exp).at(exp), lefts, bod) }
+      loopSpec ~ ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^
+        { case spec ~ lefts ~ exp ~ bod => PAssForRange(PRange(exp).at(exp), lefts, spec, bod) }
 
     lazy val shortForRange: Parser[PShortForRange] =
-      ("for" ~> rep1sep(idnUnk, ",") <~ ":=") ~ ("range" ~> expression) ~ block ^^
-        { case lefts ~ exp ~ bod => PShortForRange(PRange(exp).at(exp), lefts, bod) }
+      loopSpec ~ ("for" ~> rep1sep(idnUnk, ",") <~ ":=") ~ ("range" ~> expression) ~ block ^^
+        { case spec ~ lefts ~ exp ~ bod => PShortForRange(PRange(exp).at(exp), lefts, spec, bod) }
 
     /**
       * Expressions

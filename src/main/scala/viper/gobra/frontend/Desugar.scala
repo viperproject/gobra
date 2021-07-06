@@ -1055,6 +1055,90 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case _: PAssForRange => ???
+
+          case PShortForRange(range, shorts, spec, body) =>
+            // is a block because 'shorts' always defines new variables, unlike
+            // regular short variable declaration
+            violation(shorts.nonEmpty, "unexpected empty list of identifiers")
+
+            unit(block(
+              // TODO: do proper type checking
+              for {
+                // TODO: unlike the spec, we always evaluate the exp
+                rangeExp <- goE(range.exp)
+                rangeTyp = typeD(info.typ(range.exp), Addressability.rValue)(src)
+                rangeExpVar <- freshDeclaredExclusiveVar(rangeTyp)(src)
+                rangeExpAss = singleAss(in.Assignee.Var(rangeExpVar), rangeExp)(src)
+                _ <- write(rangeExpAss)
+
+                hasSndVar = shorts.length > 1
+
+                res <- underlyingType(rangeExp.typ) match {
+                  case t@in.ArrayT(length, elemT, addr) =>
+                    for {
+                      currIdx <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable))(src)
+                      currIdxInit = in.Initialization(currIdx)(src)
+                      _ <- write(currIdxInit)
+
+                      lenExpr = in.Length(rangeExp)(src)
+
+                      currIdxInv = in.ExprAssertion(
+                        in.And(
+                          in.AtLeastCmp(currIdx, in.IntLit(0)(src))(src),
+                          in.AtMostCmp(currIdx, in.Length(rangeExpVar)(src))(src)
+                        )(src)
+                      )(src)
+
+                      fstVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.exclusiveVariable))(src)
+
+                      // sndVar is generated regardless of whether it is present or not
+                      sndVar <- freshDeclaredExclusiveVar(elemT.withAddressability(Addressability.arrayLookup(addr)))(src)
+
+                      // init sequence
+                      fstVarInit = in.Initialization(fstVar)(src)
+                      sndVarInit = singleAss(in.Assignee(sndVar), in.IndexedExp(rangeExpVar, in.IntLit(0)(src), t)(src))(src)
+                      initOps = in.Seqn(if(hasSndVar) Vector(fstVarInit, sndVarInit) else Vector(fstVarInit))(src)
+                      initStmt = in.If(
+                        in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
+                        initOps,
+                        in.Seqn(Vector())(src)
+                      )(src)
+
+                      fCtx = ctx.copy
+                      _ = fCtx.addSubst(shorts.head, fstVar)
+                      _ = if (hasSndVar) fCtx.addSubst(shorts(1), sndVar)
+
+                      // use `ctx` on purpose instead of `fCtx`, iteration variables on invariants are almost useless
+                      dInv <- sequence(spec.invariants map assertionD(fCtx))
+
+                      loopCond = in.LessCmp(currIdx, lenExpr)(src)
+                      iterationBegin = {
+                        val assFst = singleAss(in.Assignee(fstVar), currIdx)(src)
+
+                        val assSnd = singleAss(in.Assignee(sndVar), in.IndexedExp(rangeExpVar, currIdx, t)(src))(src)
+
+                        if (hasSndVar) in.Seqn(Vector(assFst, assSnd))(src) else assFst
+                      }
+                      iterationEnd = singleAss(in.Assignee(currIdx), in.Add(currIdx, in.IntLit(1)(src))(src))(src)
+
+                      // fCtx used here
+                      dBody = blockD(fCtx)(body) match {
+                        case b: in.Block => b
+                        case p => violation(s"unexptected pattern $p encountered")
+                      }
+
+                      wh = in.Seqn(Vector(initStmt, in.While(loopCond, currIdxInv +: dInv, in.Seqn(Vector(iterationBegin, dBody, iterationEnd))(src))(src)))(src)
+
+                    } yield wh
+
+                  case _: in.SliceT => ???
+                  // case in.PointerT()
+                  case _: in.MapT => ???
+                  case _: in.ChannelT => ???
+                }
+              } yield res))
+
           case _ => ???
         }
       }

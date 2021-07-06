@@ -291,7 +291,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case PatternMatchStmt(exp, cases, strict) => (if (strict) "!" else "") <> "match" <+>
+    case PatternMatchStmt(exp, cases, strict) => "match" <+>
       showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   })
 

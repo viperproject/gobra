@@ -609,7 +609,7 @@ case class PRecvChannelType(elem: PType) extends PChannelType
 
 
 
-case class PStructType(clauses: Vector[PStructClause]) extends PTypeLit with PLiteralType with PScope {
+case class PStructType(clauses: Vector[PStructClause]) extends PTypeLit with PLiteralType with PUnorderedScope {
 
   lazy val embedded: Vector[PEmbeddedDecl] = clauses.collect{
     case x: PEmbeddedDecl => x
@@ -631,7 +631,7 @@ case class PFieldDecls(fields: Vector[PFieldDecl]) extends PActualStructClause
 
 case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode with PDependentDef
 
-case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause {
+case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause with PDependentDef {
   require(id.name == typ.name)
 }
 

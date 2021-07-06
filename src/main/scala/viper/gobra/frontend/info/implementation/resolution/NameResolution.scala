@@ -176,33 +176,36 @@ trait NameResolution { this: TypeInfoImpl =>
       case _ => true
     }
 
+  /**
+    * returns the (package-level) identifiers defined by a member
+    */
+  @scala.annotation.tailrec
+  private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
+    /* Returns identifier definitions with a package scope occurring in a type. */
+    def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+      case t: PDomainType => t.funcs.map(_.id)
+      case _ => Vector.empty
+    }
+
+    m match {
+      case a: PActualMember => a match {
+        case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PFunctionDecl => Vector(d.id)
+        case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
+        case d: PMethodDecl => Vector(d.id)
+      }
+      case PExplicitGhostMember(a) => packageLevelDefinitions(a)
+      case p: PMPredicateDecl => Vector(p.id)
+      case p: PFPredicateDecl => Vector(p.id)
+      case _: PImplementationProof => Vector.empty
+    }
+  }
+
   private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
 
     def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PPackage => n.declarations flatMap { m =>
-
-        def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-          case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
-          case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
-          case d: PFunctionDecl => Vector(d.id)
-          case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
-          case _: PMethodDecl => Vector.empty
-        }
-
-        /* Returns identifier definitions with a package scope occurring in a type. */
-        def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-          case t: PDomainType => t.funcs.map(_.id)
-          case _ => Vector.empty
-        }
-
-        m match {
-          case a: PActualMember => actualMember(a)
-          case PExplicitGhostMember(a) => actualMember(a)
-          case _: PMPredicateDecl => Vector.empty
-          case p: PFPredicateDecl => Vector(p.id)
-          case _: PImplementationProof => Vector.empty
-        }
-      }
+      case n: PPackage => n.declarations flatMap packageLevelDefinitions
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
@@ -210,14 +213,28 @@ trait NameResolution { this: TypeInfoImpl =>
         case _ => Vector.empty
       }
 
+      // note that the identifiers returned for PStructType will be filtered out before creating corresponding
+      // symbol table entries
+      case n: PStructType => n.clauses.flatMap { c =>
+        def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
+          case d: PFieldDecls => d.fields map (_.id)
+          case d: PEmbeddedDecl => Vector(d.id)
+        }
+
+        c match {
+          case clause: PActualStructClause => collectStructIds(clause)
+          case PExplicitGhostStructClause(clause) => collectStructIds(clause)
+        }
+      }
+
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
 
-        // domain members are added at the package level
+      // domain members are added at the package level
       case _: PDomainType => Vector.empty
     }
 
-    shallowDefs(n).foldLeft(env) {
+    shallowDefs(n).filter(doesAddEntry).foldLeft(env) {
       case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
     }
   }

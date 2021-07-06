@@ -130,17 +130,36 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 															}
 													case _ => FaultEntry("recursive reference to non pointer... how?")
 												}
-			case s:sil.SeqEntry => 	info match {
-										case a:ArrayT=>  LitArrayEntry(a,s.values.map(x=> interpret(x,a.elem)
-																						match {case l:LitEntry=> l;
+			case s:sil.SeqEntry => 	var first =0;
+									var second =0;
+									var curr:LitEntry = null;
+									var map:Map[(Int,Int),LitEntry] = Map()
+									info match {
+										case a:ArrayT=>  val values = s.values.map(x=> interpret(x,a.elem)
+																						match {case l:LitEntry=> if(x==curr){//used for sprsity (might affect performance)
+																															second= second +1
+																													}else{
+
+																														map = Map((first,second)->curr) ++ map
+																														curr=l
+																														first=second
+																													};l
 																								case _ => FaultEntry("Could not resolve Element")
-																						})
-																		)
-										case seq:SequenceT => LitSeqEntry(seq,s.values.map(x=> interpret(x,seq.elem)
-																						match {case l:LitEntry=> l;
+																						}).toSeq;
+														map = Map((first,second+1)->curr) ++ (map - ((0,0)))
+														if(values.size <=10) LitArrayEntry(a,values) else LitSparseEntry(LitArrayEntry(a,values),map)
+										case a:SequenceT => val values = s.values.map(x=> interpret(x,a.elem)
+																						match {case l:LitEntry=> if(x==curr){//used for sprsity (might affect performance)
+																															second= second +1
+																													}else{
+																														map = Map((first,second)->curr) ++ map
+																														curr=l
+																														first=second
+																													};l
 																								case _ => FaultEntry("Could not resolve Element")
-																						})
-																		)
+																						}).toSeq;
+														map = Map((first,second+1)->curr) ++(map - ((0,0)))
+														if(values.size <=10) LitSeqEntry(a,values) else LitSparseEntry(LitSeqEntry(a,values),map)
 										case _ => FaultEntry(s"$info not implemented")
 										}
 			/* case s:sil.SetEntry => info match {
@@ -319,6 +338,10 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 			//require(length==info.length) this cannot be enforced because we do not always know the array length ahead of time
 			val offsetFunc = functions.find(_.fname==index(doms.get.name))
 			var address :BigInt= 0;
+			var first =0;
+			var second =0;
+			var curr:LitEntry = null;
+			var map:Map[(Int,Int),LitEntry] = Map()
 			if(offsetFunc.isDefined){
 				val indexFunc = offsetFunc.get
 				val values = 0.until(length.toInt).map(i=>{
@@ -330,9 +353,18 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 						}
 						case _=> return FaultEntry("could not resolve")
 					}
+					if(x==curr){//used for sprsity (might affect performance)
+						second= second +1
+					}else{
+						map = Map((first,second)->curr) ++ map 
+						curr=x
+						first=second
+					}
 					x
 				})
-				val value = LitArrayEntry(info,values)
+				
+				map = Map((first,second+1)->curr) ++ (map - ((0,0)))
+				val value = if(length <= 10||map.size-values.size < 5) LitArrayEntry(info,values) else LitSparseEntry(LitArrayEntry(info,values),map)
 				if(address==0){
 					value
 				}else{
@@ -368,6 +400,7 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 					case Right(i:sil.LitIntEntry) => i.value
 					case _ => return FaultEntry("offset not defined")
 				}
+				
 				val (array,arraytyp,locfun:sil.ExtractedFunction) = funcSarray.get.apply(Seq(entry)) match{
 					case Right(x) => x match {
 						case v:sil.VarEntry => c.extractVal(v) match {
@@ -389,17 +422,36 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 					case x:LitArrayEntry => x
 					case _=> return FaultEntry("not an array")
 				} */
+
+				var first =0;
+				var second =0;
+				var curr:LitEntry = null;
+				var map:Map[(Int,Int),LitEntry] = Map()
+
 				def loc(v:BigInt) = {
-						locfun.apply(Seq(sil.LitIntEntry(v))) match {
+					val x =locfun.apply(Seq(sil.LitIntEntry(v))) match {
 							case Right(t) => MasterInterpreter(c).interpret(t,PointerT(info.elem)) match {
 								case p:LitPointerEntry => p.value
+								case a:LitAdressedEntry => a.value
 								case l:LitEntry => l
 							}
 							case _ => FaultEntry("not resolvable function loc")
 						}
+					if(x==curr){//used for sprsity (might affect performance)
+						second= second +1
+					}else{
+						map = Map((first,second)->curr) ++ map
+						curr=x
+						first=second
+					}
+					x
 				}
+				
 				val values = (offset until (offset+length)).map(x=> loc(x))
-				LitSliceEntry(info,offset,offset+length,values)
+				val value =  LitSliceEntry(info,offset,offset+length,values)
+				//hedge problem fix
+				map = Map((first,second+1)->curr) ++ (map - ((0,0)))
+				if(values.size <= 10) value else LitSparseEntry(value,map)
 			}else{
 				FaultEntry(s"functions ($sarray ,$soffset, $slen) not found")
 			}

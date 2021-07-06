@@ -224,8 +224,8 @@ case class LitSliceEntry(typ:SliceT,begin:BigInt,end:BigInt,values:Seq[LitEntry]
 case class LitSeqEntry(typ:SequenceT,values:Seq[LitEntry])extends LitEntry with WithSeq{
 	override def toString(): String = Util.prettyPrint(this,0)//s"[${values.map(_.toString).mkString(", ")}]"
 }
-case class LitSparseEntry(full:WithSeq,relevant:Map[Int,LitEntry]){
-	override def toString():String = relevant.map(x=>s"${x._1}:${x._2}").mkString("[",",","]")
+case class LitSparseEntry(full:WithSeq,relevant:Map[(Int,Int),LitEntry])extends LitEntry{
+	override def toString():String = relevant.map(x=>s"${x._1._1}-${x._1._2}:${x._2}").mkString("[",",","]")
 }
 case class LitStructEntry(typ:StructT,values:Map[String,LitEntry])extends LitEntry { //TODO: Pretty printing
 	override def toString(): String = Util.prettyPrint(this,0) //s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
@@ -262,7 +262,7 @@ case class LitDeclaredEntry(name:String,value:LitEntry)extends LitEntry {
 }
 
 case class ChannelEntry(typ:ChannelT,buffSize:BigInt,isOpen:Option[Int],isSend:Option[Boolean],isRecieve:Option[Boolean]) extends LitEntry{
-	override def toString():String = s"chan ${typ} [$buffSize] (state: $state" +
+	override def toString():String = s"(${typ}) [$buffSize] (state: $state" +
   		s"${if(typ.mod!=ChannelModus.Recv)s", can send: $sending" else ""}" +
   		s"${if(typ.mod!=ChannelModus.Send)s", can receive: $rec" else ""}" +
 		  ")"

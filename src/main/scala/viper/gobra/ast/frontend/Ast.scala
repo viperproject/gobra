@@ -28,6 +28,13 @@ sealed trait PNode extends Product {
 
   lazy val formatted: String = pretty()
   lazy val formattedShort: String = pretty(PNode.shortPrettyPrinter)
+  lazy val formattedSpecLessShort: String = pretty(PNode.shortSpecLessPrettyPrinter)
+
+  def subNodes(): Vector[PNode] = {
+    val directSubNodes = this.productIterator.toVector.filter(_.isInstanceOf[PNode]).map(_.asInstanceOf[PNode])
+    val childrenSubNodes = directSubNodes flatMap (_.subNodes())
+    this +: (directSubNodes ++ childrenSubNodes)
+  }
 
   override def toString: String = formatted
 }
@@ -36,6 +43,7 @@ object PNode {
   type PPkg = String
   val defaultPrettyPrinter = new DefaultPrettyPrinter
   val shortPrettyPrinter = new ShortPrettyPrinter
+  val shortSpecLessPrettyPrinter = new SpecLessShortPrettyPrinter
 }
 
 sealed trait PScope extends PNode

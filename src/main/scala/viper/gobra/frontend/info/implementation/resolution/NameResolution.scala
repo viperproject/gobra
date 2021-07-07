@@ -168,7 +168,7 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
   /**
-    * PIdnDef that depend on a receiver or struct should not be added to the symbol table
+    * Returns true iff the identifier declares an entity that is added to the symbol lookup table
     */
   private lazy val doesAddEntry: PIdnDef => Boolean =
     attr[PIdnDef, Boolean] {
@@ -289,7 +289,7 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
 
-      case tree.parent.pair(id: PIdnDef, _: PDependentDef) => defEntity(id) // PIdnDef that depend on a receiver or struct are not placed in the symbol table
+      case tree.parent.pair(id: PIdnDef, _: PDependentDef) => defEntity(id) // PIdnDef that depend on a receiver or type are not placed in the symbol table
 
       case n@ tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)

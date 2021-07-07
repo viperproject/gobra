@@ -126,6 +126,16 @@ sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
 
+/**
+  * node declaring an identifier that is placed in a scope that depends on something.
+  * examples:
+  * - methods and mpredicates depend on their receiver
+  * - struct fields depend on the struct in which they are declared
+  */
+sealed trait PDependentDef extends PNode {
+  def id: PIdnDef
+}
+
 sealed trait PCodeRoot extends PNode
 
 sealed trait PCodeRootWithResult extends PCodeRoot {
@@ -151,7 +161,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 
@@ -619,9 +629,9 @@ sealed trait PActualStructClause extends PStructClause
 // TODO: maybe change to misc
 case class PFieldDecls(fields: Vector[PFieldDecl]) extends PActualStructClause
 
-case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
+case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode with PDependentDef
 
-case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause {
+case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause with PDependentDef {
   require(id.name == typ.name)
 }
 
@@ -652,7 +662,7 @@ case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
-case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PScope with PCodeRootWithResult
+case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PDependentDef with PScope with PCodeRootWithResult
 
 /**
   * Identifiers
@@ -800,9 +810,9 @@ case class PMPredicateDecl(
                           receiver: PReceiver,
                           args: Vector[PParameter],
                           body: Option[PExpression]
-                          ) extends PGhostMember with PScope with PCodeRoot
+                          ) extends PGhostMember with PDependentDef with PScope with PCodeRoot
 
-case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
+case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PDependentDef with PScope with PCodeRoot
 
 case class PImplementationProof(
                                  subT: PType, superT: PType,

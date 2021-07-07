@@ -288,21 +288,33 @@ trait NameResolution { this: TypeInfoImpl =>
         } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
 
       case n =>
-        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity()), tryEnclosingInterface(n)) match {
-          case (n: PIdnUse, UnknownEntity(), Some(it)) => {
-            // `n` appears in an interface are do to the way Go works, interface definitions (i.e. methods & predicates)
-            // have not been considered so far. Therefore, we perform a second-level lookup just on the definitions that
-            // the interface provides
-            val interfaceEntities = definitionsForScope(it).map(id => (serialize(id), defEntity(id)))
-            // create an environment only consisting of the definitions and their corresponding entities that the
-            // interface provides:
-            val specialEnv = rootenv(interfaceEntities:_*)
-            // perform now a second lookup in this special environment:
-            lookup(specialEnv, serialize(n), UnknownEntity())
-          }
-          // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
-          case (n: PIdnUse, UnknownEntity(), _) => tryUnqualifiedPackageLookup(n)
-          case (_, e: Entity, _) => e
+        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
+
+          // lookup has failed
+          case (n: PIdnUse, UnknownEntity()) =>
+            // in case no entity was found in the current package, look for it in
+            // - unqualifiedly imported packages or
+            // - the current interface if `n` occurs in an interface definition
+            (tryUnqualifiedPackageLookup(n), tryEnclosingInterface(n)) match {
+              // no entity was found in an unqualifiedly imported packages but we are inside an interface definition
+              case (UnknownEntity(), Some(it)) =>
+                // `n` appears in an interface and due to the way Go works, interface definitions (i.e. methods & predicates)
+                // have not been considered so far. Therefore, we perform a second-level lookup just on the definitions that
+                // the interface provides
+                val interfaceEntities = definitionsForScope(it).map(id => (serialize(id), defEntity(id)))
+                // create an environment only consisting of the definitions and their corresponding entities that the
+                // interface provides:
+                val specialEnv = rootenv(interfaceEntities:_*)
+                // perform now a second lookup in this special environment:
+                lookup(specialEnv, serialize(n), UnknownEntity())
+
+              // either a valid entity has been found in an unqualifiedly imported package or we are currently not
+              // inside an interface definition
+              case (e: Entity, _) => e
+            }
+
+          // entity has been found
+          case (_, e: Entity) => e
         }
     }
 }

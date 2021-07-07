@@ -18,7 +18,7 @@ type IP []byte
 type IPMask []byte
 
 type IPNet struct {
-	// IP   IP // TODO: leads to a kiama cycle
+	IP   IP
 	Mask IPMask
 }
 

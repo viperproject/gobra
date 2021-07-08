@@ -91,7 +91,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       // however, as we will directly invoke the individual steps of Gobra, we have to manually merge in-file configs
       // such that the Gobra programs show the same behavior as when invoking `Gobra.verify`:
       assert(config.isDefined)
-      config = Some(gobra.getAndMergeInFileConfig(config.get))
+      config = Some(gobra.getAndMergeInFileConfig(config.get))//.copy(counterexample=Some(viper.gobra.reporting.CounterexampleConfigs.MappedCounterexamples)))
     }
 
     private val parsing = InitialStep("parsing", () => {
@@ -129,16 +129,24 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       Right(Translator.translate(program)(config.get,typeInfo))
     }})
 
-    private val verifying : NextStep[BackendVerifier.Task,VerifierResult , Vector[VerifierError]] = NextStep("Viper verification", encoding, { case viperTask:BackendVerifier.Task => 
+    private val verifying : NextStep[BackendVerifier.Task,BackendVerifier.Result , Vector[VerifierError]] = NextStep("Viper verification", encoding, { case viperTask:BackendVerifier.Task => 
       
       assert(config.isDefined)
       val c = config.get
       val resultFuture = BackendVerifier.verify(viperTask)(c)(executor)
-        .map(BackTranslator.backTranslate(_)(c))(executor)
+        
       Right(Await.result(resultFuture, Duration(timeoutSec, TimeUnit.SECONDS)))
     })
+    // added for convenience
+    private val backtranslate : NextStep[BackendVerifier.Result,VerifierResult , Vector[VerifierError]] = NextStep("Backtranslation", verifying, { case viperResult:BackendVerifier.Result => 
+      
+      assert(config.isDefined)
+      val c = config.get
+      Right(BackTranslator.backTranslate(viperResult)(c))
+      
+    })
 
-    private val lastStep = verifying
+    private val lastStep = backtranslate
 
     /** Phases of the frontend which are executed sequentially. */
     override val phases: Seq[Phase] = lastStep.phases

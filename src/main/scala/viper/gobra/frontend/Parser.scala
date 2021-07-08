@@ -421,6 +421,11 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
+    lazy val outline: Parser[POutline] = 
+      (functionSpec <~ "outline") ~ ("(" ~> repsep(statement, eos) <~ eos.? <~ ")") ^^ {
+        case spec ~ body => POutline(body, spec)
+      }
+
 
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
@@ -456,6 +461,7 @@ object Parser {
 
     lazy val statement: Parser[PStatement] =
       ghostStatement |
+        outline |
       declarationStmt |
         goStmt |
         deferStmt |

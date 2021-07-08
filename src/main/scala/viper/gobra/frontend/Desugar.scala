@@ -1055,6 +1055,89 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n: POutline => 
+            val src: Meta = meta(n, info)
+            val variables = n.body.flatMap(stmt => info.variables(stmt)).toVector.distinct
+            val modified = n.body.flatMap(stmt => info.modified(stmt)).toVector.distinct
+            val declared = n.body.flatMap(stmt => info.declared(stmt)).toVector.distinct
+            // create in parameters
+            val allArgs = variables.map {id => 
+              in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+            }
+            val modifiedArgsWithSubsAux = modified.map {id => 
+              val param = in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+              val local = localAlias(localVarContextFreeD(id, info))
+              (param, local)
+            }
+            val (_, modifiedArgsSubs) = modifiedArgsWithSubsAux.unzip
+            // create out parameters
+            val returns = (modified ++ declared).zipWithIndex.map { case (id, idx) => 
+              in.Parameter.Out(nm.outParam(idx, info.codeRoot(n), info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+            }
+            // add temporary return variables to initialization
+            val targets = (modified ++ declared).map(id => 
+              freshExclusiveVar(typeD(info.typ(id), Addressability.callResult)(src))(src)
+            )
+            // add declared and modified variables to initalization
+            val declaredLocalVars = declared.map(id => 
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+            )
+            val modifiedLocalVars = modified.map(id => 
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+            )
+            val blockInit = targets ++ declaredLocalVars
+            // create arguments for function call
+            val outArgs = variables.map(id => in.LocalVar(idName(id, info),typeD(info.typ(id), Addressability.outParameter)(src))(src))
+            // add function call
+            val proxy = in.FunctionProxy(nm.function("outline"++nm.fresh, info))(meta(n, info))
+            val functionCall = in.FunctionCall(targets, proxy, outArgs)(src)
+            // init declared variables
+            val declareInits = declaredLocalVars.map(lvar => in.Initialization(lvar)(src))
+            // assign return values to variables
+            val returnTargets = targets.zip (modifiedLocalVars ++ declaredLocalVars)
+            val returnAssigns = returnTargets.map{ case (t, r) => 
+              in.SingleAss(in.Assignee.Var(r), t)(src)
+            }
+            // create context for body translation
+            val outlinedContext = new FunctionContext(_ => violation("Outlined body can not contain return."))
+            // init new variables
+            val newVariablesInit = modifiedArgsSubs.map(v => in.Initialization(v)(v.info))
+            // assign in parameters to local variables
+            val argInits = modifiedArgsWithSubsAux.flatMap{
+              case (p, q) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
+              case _ => None
+            }
+            // extends context
+            modifiedArgsSubs.zip(modified).foreach{case (lvar, id) =>
+              outlinedContext.addSubst(id, lvar)
+            }
+            // assign local variables to out parameters
+            val outParamAssigns = (modifiedArgsSubs ++ declaredLocalVars).zip(returns).map{case (lvar, param) =>               
+              //val variable = in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
+              in.SingleAss(in.Assignee.Var(param), lvar)(src)
+            }
+            // desugar outlined function body
+            val desugaredBlockStmts = sequence(n.body map (s => seqn(stmtD(outlinedContext)(s))))
+            val blockContent = blockV(desugaredBlockStmts)(src)
+            // create block
+            val blockBody = newVariablesInit ++ argInits ++ Vector(blockContent) ++ outParamAssigns
+            val block = in.Block(modifiedArgsSubs, blockBody)(src)
+            // create spec context
+            val specContext = new FunctionContext(_ => violation("Outlined body can not contain return."))
+            (modified ++ declared).zip(returns).foreach{case (id, out) =>
+              specContext.addSubst(id, out)
+            }
+            // translate pre- and postconditions
+            val pres = n.spec.pres map preconditionD(ctx)
+            val posts = n.spec.posts map postconditionD(specContext)
+            // create function and add as member
+            val function = in.Function(proxy, allArgs, returns, pres, posts, Some(block))(src)
+            definedFunctions += proxy -> function
+            AdditionalMembers.addMember(function)
+            // write function call and result assignments
+            val stmts = Vector(functionCall) ++ declareInits ++ returnAssigns
+            create(stmts, blockInit, in.Seqn(Vector.empty)(src))
+
           case _ => ???
         }
       }

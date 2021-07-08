@@ -15,6 +15,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.util.Violation
 
 import scala.annotation.tailrec
+import viper.gobra.frontend.info.base.SymbolTable
 
 trait Enclosing { this: TypeInfoImpl =>
 
@@ -143,4 +144,51 @@ trait Enclosing { this: TypeInfoImpl =>
 
     aux(nil)
   }
+
+  // finds all used, modified and declared variables
+  private lazy val variableAnalysis: PStatement => (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode]) =
+    attr[PStatement, (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode])] {s => 
+
+      def idNodeInAssignee(ass: PAssignee) =
+        allChildren(ass).find{case _: PIdnNode => true case _ => false}
+      
+      val modified = (s match {
+        case PAssignment(_, left) => left.map(ass => idNodeInAssignee(ass))
+        case PAssignmentWithOp(_, _, left) => Vector(idNodeInAssignee(left))
+        case PShortVarDecl(_, left, _) => left.collect{case id: PIdnUnk if !isDef(id) => Some(id)}
+        case _ => Vector.empty
+      }).collect{case Some(i: PIdnNode) => i}
+
+      def isVariable(x: PIdnNode): Boolean = entity(x) match {
+        case _: SymbolTable.SingleLocalVariable => true
+        case _: SymbolTable.MultiLocalVariable => true
+        case _: SymbolTable.InParameter => true
+        case _: SymbolTable.ReceiverParameter => true
+        case _: SymbolTable.OutParameter => true
+        case _ => false
+      }
+      val allVariables = allChildren(s).collect{case x: PIdnNode if isVariable(x) => x}.toSet
+
+      val declared = allVariables.filter{
+        case tree.parent(_: PVarDecl) => true
+        case unk: PIdnUnk  => unk match {
+          case tree.parent(_: PShortVarDecl) if isDef(unk) => true
+          case _ => false
+        }
+        case _ => false
+      }
+
+      val variables = allVariables.diff(declared)
+
+      (variables, modified.toSet, declared)
+    }
+
+    def variables (s: PStatement): Set[PIdnNode] =
+      variableAnalysis(s)._1
+
+    def modified (s: PStatement): Set[PIdnNode] =
+      variableAnalysis(s)._2
+
+    def declared (s: PStatement): Set[PIdnNode] =
+      variableAnalysis(s)._3
 }

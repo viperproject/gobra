@@ -419,13 +419,14 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )
         in.Function(x.name, args, Vector(), pres, posts, None)(src)
 
-      case (AppendFunctionTag, Vector(sliceT: in.SliceT, _: in.SliceT)) =>
+      case (AppendFunctionTag, Vector(_: in.PermissionT, sliceT: in.SliceT,  _: in.SliceT)) =>
         /**
+          * requires p > 0
           * requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
-          * requires forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * requires forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], p)
           * ensures len(res) == len(s) + len(stuff)
           * ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
-          * ensures forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], _)
+          * ensures forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], p)
           * ensures forall i int :: 0 <= i && i < len(s) ==> res[i] == old(s[i])
           * ensures forall i int :: len(s) <= i && i < len(res) ==> res[i] == stuff[i - len(s)]
          */
@@ -434,8 +435,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         // parameters
         val sliceParam = in.Parameter.In("slice", sliceType)(src)
+        val pParam = in.Parameter.In("p", in.PermissionT(Addressability.Exclusive))(src)
         val variadicParam = in.Parameter.In("elems", sliceType)(src)
-        val args = Vector(sliceParam, variadicParam)
+        val args = Vector(pParam, sliceParam, variadicParam)
 
         // results
         val resultParam = in.Parameter.Out("res", sliceType)(src)
@@ -443,8 +445,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         // preconditions
         val preSlice = accessSlice(sliceParam, in.FullPerm(src))
-        val preVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
-        val pres: Vector[in.Assertion] = Vector(preSlice, preVariadic)
+        val preVariadic = accessSlice(variadicParam, pParam)
+        val pPre = in.ExprAssertion(in.LessCmp(in.NoPerm(src), pParam)(src))(src)
+        val pres: Vector[in.Assertion] = Vector(pPre, preSlice, preVariadic)
 
         // postconditions
         val postLen = in.ExprAssertion(
@@ -454,7 +457,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           )(src)
         )(src)
         val postRes = accessSlice(resultParam, in.FullPerm(src))
-        val postVariadic = accessSlice(variadicParam, in.WildcardPerm(src))
+        val postVariadic = accessSlice(variadicParam, pParam)
         val postCmpSlice = quantify{ bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) }{
           i => in.ExprAssertion(
             in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)

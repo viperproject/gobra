@@ -1,0 +1,39 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+func fail_assign() {
+	x := 1
+	outline (
+        //:: ExpectedOutput(type_error)
+		x = true
+	)
+}
+
+// old keyword is currently not allowed
+func fail_old_spec() {
+	x := 1
+    //:: ExpectedOutput(type_error)
+	ensures x == old(x) + 1
+	outline (
+		x += 1
+	)
+}
+
+// old keyword is currently not allowed
+func fail_old_body() {
+	x := 1
+	outline (
+        //:: ExpectedOutput(type_error)
+		ghost y := old(x)
+	)
+}
+
+// return in outline block is not allowed
+func fail_return() {
+	outline (
+        //:: ExpectedOutput(type_error)
+		return
+	)
+}

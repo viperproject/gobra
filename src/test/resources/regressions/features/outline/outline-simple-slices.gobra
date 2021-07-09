@@ -1,0 +1,37 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+func outline_slice() {
+	s := make([]int, 5)
+	requires forall i int :: i >= 0 && i < 5 ==> acc(&s[i])
+	ensures forall i int :: i >= 0 && i < 5 ==> acc(&s[i])
+	ensures s[1] == 4
+	outline(
+		s[0] = 3
+		s[1] = 4
+		y := s[3]
+	)
+	assert s[1] == 4
+}
+
+func outline_slice_sum() {
+	s := make([]int, 5)
+	invariant i >= 0 && i <= 5
+	invariant forall I int :: I >= 0 && I < 5 ==> acc(&s[I])
+	for i := 0; i < 5; i++ {
+		s[i] = i
+	}
+	requires forall i int :: i >= 0 && i < 5 ==> acc(&s[i])
+	ensures forall i int :: i >= 0 && i < 5 ==> acc(&s[i])
+	outline (
+		sum := 0
+		invariant i >= 0 && i <= 5
+		invariant forall I int :: I >= 0 && I < 5 ==> acc(&s[I])
+		for i := 0; i < 5; i++ {
+			assert i >= 0 && i < 5
+			sum += s[i]
+		}
+	)
+}

@@ -146,18 +146,18 @@ trait Enclosing { this: TypeInfoImpl =>
   }
 
   // finds all used, modified and declared variables
-  private lazy val variableAnalysis: PStatement => (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode]) =
-    attr[PStatement, (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode])] {s => 
+  private lazy val variableAnalysis: Vector[PStatement] => (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode]) =
+    attr[Vector[PStatement], (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode])] {stmts => 
 
       def idNodeInAssignee(ass: PAssignee) =
         allChildren(ass).find{case _: PIdnNode => true case _ => false}
-      
-      val modified = (s match {
+
+      val allModified = stmts.flatMap{s => s match {
         case PAssignment(_, left) => left.map(ass => idNodeInAssignee(ass))
         case PAssignmentWithOp(_, _, left) => Vector(idNodeInAssignee(left))
         case PShortVarDecl(_, left, _) => left.collect{case id: PIdnUnk if !isDef(id) => Some(id)}
         case _ => Vector.empty
-      }).collect{case Some(i: PIdnNode) => i}
+      }}.collect{case Some(i: PIdnNode) => i}.toSet
 
       def isVariable(x: PIdnNode): Boolean = entity(x) match {
         case _: SymbolTable.SingleLocalVariable => true
@@ -167,7 +167,10 @@ trait Enclosing { this: TypeInfoImpl =>
         case _: SymbolTable.OutParameter => true
         case _ => false
       }
-      val allVariables = allChildren(s).collect{case x: PIdnNode if isVariable(x) => x}.toSet
+
+      val allVariables = stmts.flatMap(s => 
+        allChildren(s).collect{case x: PIdnNode if isVariable(x) => x}
+      ).toSet
 
       val declared = allVariables.filter{
         case tree.parent(_: PVarDecl) => true
@@ -178,17 +181,20 @@ trait Enclosing { this: TypeInfoImpl =>
         case _ => false
       }
 
-      val variables = allVariables.diff(declared)
+      //val variables = allVariables.diff(declared)
+      val variables = allVariables.filter(id => !declared.find(other => id.name == other.name).isDefined)
 
-      (variables, modified.toSet, declared)
+      val modified = allModified.filter(id => !declared.find(other => id.name == other.name).isDefined)
+
+      (variables, modified, declared)
     }
 
-    def variables (s: PStatement): Set[PIdnNode] =
+    def variables (s: Vector[PStatement]): Set[PIdnNode] =
       variableAnalysis(s)._1
 
-    def modified (s: PStatement): Set[PIdnNode] =
+    def modified (s: Vector[PStatement]): Set[PIdnNode] =
       variableAnalysis(s)._2
 
-    def declared (s: PStatement): Set[PIdnNode] =
+    def declared (s: Vector[PStatement]): Set[PIdnNode] =
       variableAnalysis(s)._3
 }

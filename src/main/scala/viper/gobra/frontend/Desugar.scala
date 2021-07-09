@@ -1057,9 +1057,9 @@ object Desugar {
 
           case n: POutline => 
             val src: Meta = meta(n, info)
-            val variables = n.body.flatMap(stmt => info.variables(stmt)).toVector.distinct
-            val modified = n.body.flatMap(stmt => info.modified(stmt)).toVector.distinct
-            val declared = n.body.flatMap(stmt => info.declared(stmt)).toVector.distinct
+            val variables = info.variables(n.body).toVector
+            val modified = info.modified(n.body).toVector
+            val declared = info.declared(n.body).toVector
             // create in parameters
             val allArgs = variables.map {id => 
               in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)

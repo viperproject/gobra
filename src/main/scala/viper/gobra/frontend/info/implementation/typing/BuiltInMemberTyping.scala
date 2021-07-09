@@ -30,13 +30,13 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         })
       case AppendFunctionTag => AbstractType(
         {
-          case (_, Vector(c: SliceT, v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
-          case (_, (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages
-          case (n, ts) => error(n, s"type error: append expects first argument of slice type and the second of variadic type but got ${ts.mkString(", ")}")
+          case (_, Vector(PermissionT, c: SliceT,  v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
+          case (_, PermissionT +: (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages
+          case (n, ts) => error(n, s"type error: append expects first argument of type perm followed by a slice of type []Type and a variadic type Type... but got ${ts.mkString(", ")}")
         },
         {
-          case (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(h, VariadicT(h.elem)), h)
-          case ts@ Vector(c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
+          case (PermissionT) +: (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(PermissionT, h, VariadicT(h.elem)), h)
+          case ts@ Vector(PermissionT, c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
         })
 
       case CopyFunctionTag => AbstractType(
@@ -137,7 +137,7 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
       GhostType.ghostTuple(Vector(false, true, true /* true */, true))
 
     case AppendFunctionTag =>
-      GhostType.ghostTuple(Vector(false, false))
+      GhostType.ghostTuple(Vector(true, false, false))
 
     case CopyFunctionTag =>
       GhostType.ghostTuple(Vector(false, false, true))

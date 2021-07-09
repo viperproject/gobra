@@ -6,7 +6,7 @@ package builtin
 func test1() {
 	s1 := []int{1, 2}
 	s2 := []int{3, 4}
-	s3 := append(s1, s2...)
+	s3 := append(perm(1/2), s1, s2...)
 	assert s3[0] == 1
 	assert s3[1] == 2
 	assert s3[2] == 3
@@ -18,7 +18,7 @@ func test1() {
 
 func test2() {
 	s1 := []int{1, 2}
-	s3 := append(s1, 3, 4)
+	s3 := append(perm(1/2), s1, 3, 4)
 	assert s3[0] == 1
 	assert s3[1] == 2
 	assert s3[2] == 3
@@ -30,7 +30,7 @@ func test2() {
 func test3() {
 	s := make([]int, 1)
 	s[0] = 1
-	b := append(s, 2, 3, 4)
+	b := append(perm(1/2), s, 2, 3, 4)
 	//:: ExpectedOutput(assignment_error:permission_error)
 	s[0] = 2
 }
@@ -38,7 +38,7 @@ func test3() {
 func test4() {
 	s := make([]int, 1)
 	s[0] = 1
-	b := append(s, 2, 3, 4)
+	b := append(perm(1/2), s, 2, 3, 4)
 	assert b[0] == 1
 	//:: ExpectedOutput(assert_error:permission_error)
 	assert s[0] == 1

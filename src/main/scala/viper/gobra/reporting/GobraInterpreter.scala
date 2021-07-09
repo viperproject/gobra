@@ -120,6 +120,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																	}
 												case pred:PredT => PredicateInterpreter(c).interpret(d,pred)
 												case dom:DomainT => UserDomainInterpreter(c).interpret(d,dom)
+												case GhostSliceT(elem) => sliceInterpreter.interpret(d,SliceT(elem)) //TODO: add ghostslice separate entry (not very important)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
@@ -130,37 +131,15 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 															}
 													case _ => FaultEntry("recursive reference to non pointer... how?")
 												}
-			case s:sil.SeqEntry => 	var first =0;
-									var second =0;
-									var curr:LitEntry = null;
-									var map:Map[(Int,Int),LitEntry] = Map()
+			case s:sil.SeqEntry => 
 									info match {
-										case a:ArrayT=>  val values = s.values.map(x=> interpret(x,a.elem)
-																						match {case l:LitEntry=> if(x==curr){//used for sprsity (might affect performance)
-																															second= second +1
-																													}else{
-
-																														map = Map((first,second)->curr) ++ map
-																														curr=l
-																														first=second
-																													};l
-																								case _ => FaultEntry("Could not resolve Element")
-																						}).toSeq;
-														map = Map((first,second+1)->curr) ++ (map - ((0,0)))
+										case a:ArrayT=>  val (values,map) = interpretSeq(s.values,a.elem)
 														if(values.size <=10) LitArrayEntry(a,values) else LitSparseEntry(LitArrayEntry(a,values),map)
-										case a:SequenceT => val values = s.values.map(x=> interpret(x,a.elem)
-																						match {case l:LitEntry=> if(x==curr){//used for sprsity (might affect performance)
-																															second= second +1
-																													}else{
-																														map = Map((first,second)->curr) ++ map
-																														curr=l
-																														first=second
-																													};l
-																								case _ => FaultEntry("Could not resolve Element")
-																						}).toSeq;
-														map = Map((first,second+1)->curr) ++(map - ((0,0)))
+										case a:SequenceT => val (values,map) = interpretSeq(s.values,a.elem)
 														if(values.size <=10) LitSeqEntry(a,values) else LitSparseEntry(LitSeqEntry(a,values),map)
-										case _ => FaultEntry(s"$info not implemented")
+										case a:GhostSliceT => val (values,map) = interpretSeq(s.values,a.elem)
+														if(values.size <=10) LitSeqEntry(a,values) else LitSparseEntry(LitSeqEntry(a,values),map)
+										case _ => FaultEntry(s"${info.getClass()} not implemented")
 										}
 			/* case s:sil.SetEntry => info match {
 				case _ => FaultEntry(s"$s ,$info not implemented")
@@ -175,6 +154,24 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}
+	def interpretSeq(vals:Seq[sil.ExtractedModelEntry],typ:Type):(Seq[LitEntry],Map[(Int,Int),LitEntry])={//used for sparsity (might affect performance)
+											var first =0;
+											var second =(-1);
+											var curr:LitEntry = null;
+											var map:Map[(Int,Int),LitEntry] = Map()
+											val ret= vals.map(x=> interpret(x,typ)	match {
+										case l:LitEntry=>
+												second= second +1
+												 if(x!=curr){
+													map = map ++ Map((first,second)->curr)
+													curr=l
+													first=second
+												};l
+										case _ => FaultEntry("Could not resolve Element")
+									})
+									map =  (map-((0,0)))++ Map((first,second+1)->curr)
+									(ret,map)
+	}
 	def sharedTypify(old:Type):Type ={
 		old match {
 			case DeclaredT(d,c) => 	val actual = sharedTypify(c.symbType(d.right))
@@ -185,6 +182,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			case x=> x
 		}
 	}
+	
 }
 
 case class OptionInterpreter(c:sil.Converter) extends GobraDomainInterpreter[OptionT]{
@@ -339,7 +337,7 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 			val offsetFunc = functions.find(_.fname==index(doms.get.name))
 			var address :BigInt= 0;
 			var first =0;
-			var second =0;
+			var second =(-1);
 			var curr:LitEntry = null;
 			var map:Map[(Int,Int),LitEntry] = Map()
 			if(offsetFunc.isDefined){
@@ -353,10 +351,10 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 						}
 						case _=> return FaultEntry("could not resolve")
 					}
-					if(x==curr){//used for sprsity (might affect performance)
-						second= second +1
-					}else{
-						map = Map((first,second)->curr) ++ map 
+					
+					second= second +1
+					if(x!=curr){
+						map = map ++ Map((first,second)->curr) 
 						curr=x
 						first=second
 					}
@@ -423,24 +421,24 @@ case class SliceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Slic
 					case _=> return FaultEntry("not an array")
 				} */
 
-				var first =0;
-				var second =0;
+				var first =0; //TODO: possibly move this to MasterInterpreter.interpretSeqs
+				var second =(-1);
 				var curr:LitEntry = null;
 				var map:Map[(Int,Int),LitEntry] = Map()
 
 				def loc(v:BigInt) = {
 					val x =locfun.apply(Seq(sil.LitIntEntry(v))) match {
 							case Right(t) => MasterInterpreter(c).interpret(t,PointerT(info.elem)) match {
-								case p:LitPointerEntry => p.value
-								case a:LitAdressedEntry => a.value
+								case p:LitPointerEntry => InterpreterCache.clearCache();p.value
+								case a:LitAdressedEntry => InterpreterCache.clearCache();a.value
+								case n:LitNilEntry => if(info.elem.isInstanceOf[PointerT]) n else Util.getDefault(info.elem).asInstanceOf[LitEntry]
 								case l:LitEntry => l
 							}
 							case _ => FaultEntry("not resolvable function loc")
 						}
-					if(x==curr){//used for sprsity (might affect performance)
-						second= second +1
-					}else{
-						map = Map((first,second)->curr) ++ map
+					second= second +1
+					if(x!=curr){
+						map = map ++ Map((first,second)->curr)
 						curr=x
 						first=second
 					}

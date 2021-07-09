@@ -137,9 +137,17 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PSeq => noMessages
     case _: PEmptyStmt => noMessages
 
-    case n: POutline => 
+    case n: POutline =>
       error(n.spec, "Currently, outline statements do not support the pure annotation.", n.spec.isPure) ++ 
-      error(n.spec, "Currently, the old keyword is not supported", n.spec.posts.collectFirst{case exp: POld => exp}.isDefined)  
+      error(n.spec, "Currently, the old keyword is not supported", (n.spec.posts ++ n.spec.pres).find{exp => 
+        allChildren(exp).find{case _: POld => true case _ => false}.isDefined
+      }.isDefined) ++
+      n.body.collect{case stmt if (allChildren(stmt).find{case _: POld => true case _ => false}.isDefined) => 
+          error(stmt, "Currently, the old keyword is not supported")
+      }.flatten ++
+      n.body.collect{case stmt: PReturn => 
+          error(stmt, "Using return in an outlined block is not allowed")
+      }.flatten
 
     case s => violation(s"$s was not handled")
   }

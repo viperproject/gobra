@@ -142,9 +142,13 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
       error(n.spec, "Currently, the old keyword is not supported", (n.spec.posts ++ n.spec.pres).find{exp => 
         allChildren(exp).find{case _: POld => true case _ => false}.isDefined
       }.isDefined) ++
-      n.body.collect{case stmt if (allChildren(stmt).find{case _: POld => true case _ => false}.isDefined) => 
-          error(stmt, "Currently, the old keyword is not supported")
-      }.flatten ++
+      n.body.flatMap{stmt => 
+        val children = allChildren(stmt)
+        children.collect{
+          case _: POld => error(stmt, "Currently, the old keyword is not supported")
+          case _: PReference => error(stmt, "Currently, taking the reference is not supported")
+        }.flatten
+      } ++
       n.body.collect{case stmt: PReturn => 
           error(stmt, "Using return in an outlined block is not allowed")
       }.flatten

@@ -150,7 +150,10 @@ trait Enclosing { this: TypeInfoImpl =>
     attr[Vector[PStatement], (Set[PIdnNode], Set[PIdnNode], Set[PIdnNode])] {stmts => 
 
       def idNodeInAssignee(ass: PAssignee) =
-        allChildren(ass).find{case _: PIdnNode => true case _ => false}
+        allChildren(ass).find {
+          case _: PIdnNode => true 
+          case _ => false
+        }
 
       val allModified = stmts.flatMap{s => s match {
         case PAssignment(_, left) => left.map(ass => idNodeInAssignee(ass))

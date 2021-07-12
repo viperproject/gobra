@@ -1089,7 +1089,7 @@ object Desugar {
             // create arguments for function call
             val outArgs = variables.map(id => in.LocalVar(idName(id, info),typeD(info.typ(id), Addressability.outParameter)(src))(src))
             // add function call
-            val proxy = in.FunctionProxy(nm.function("outline"++nm.fresh, info))(meta(n, info))
+            val proxy = in.FunctionProxy(nm.outlinedFunction(info))(meta(n, info))
             val functionCall = in.FunctionCall(targets, proxy, outArgs)(src)
             // init declared variables
             val declareInits = declaredLocalVars.map(lvar => in.Initialization(lvar)(src))
@@ -1099,7 +1099,7 @@ object Desugar {
               in.SingleAss(in.Assignee.Var(r), t)(src)
             }
             // create context for body translation
-            val outlinedContext = new FunctionContext(_ => violation("Outlined body can not contain return."))
+            val outlinedContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
             // init new variables
             val newVariablesInit = modifiedArgsSubs.map(v => in.Initialization(v)(v.info))
             // assign in parameters to local variables
@@ -1113,7 +1113,6 @@ object Desugar {
             }
             // assign local variables to out parameters
             val outParamAssigns = (modifiedArgsSubs ++ declaredLocalVars).zip(returns).map{case (lvar, param) =>               
-              //val variable = in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
               in.SingleAss(in.Assignee.Var(param), lvar)(src)
             }
             // desugar outlined function body
@@ -1123,7 +1122,7 @@ object Desugar {
             val blockBody = newVariablesInit ++ argInits ++ Vector(blockContent) ++ outParamAssigns
             val block = in.Block(modifiedArgsSubs, blockBody)(src)
             // create spec context
-            val specContext = new FunctionContext(_ => violation("Outlined body can not contain return."))
+            val specContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
             (modified ++ declared).zip(returns).foreach{case (id, out) =>
               specContext.addSubst(id, out)
             }
@@ -3092,6 +3091,7 @@ object Desugar {
     private val BUILTIN_PREFIX = "B"
 
     private var counter = 0
+    private var outlineCounter = 0
 
     private var scopeCounter = 0
     private var scopeMap: Map[PScope, Int] = Map.empty
@@ -3121,6 +3121,11 @@ object Desugar {
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
+    def outlinedFunction(context: ExternalTypeInfo) = {
+      val name = nameWithoutScope(FUNCTION_PREFIX)("outline_"+outlineCounter, context)
+      outlineCounter += 1
+      name
+    }
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {

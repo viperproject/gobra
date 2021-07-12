@@ -6,7 +6,7 @@ package pkg;
 func fail_assign() {
 	x := 1
 	outline (
-        //:: ExpectedOutput(type_error)
+		//:: ExpectedOutput(type_error)
 		x = true
 	)
 }
@@ -14,7 +14,7 @@ func fail_assign() {
 // old keyword is currently not allowed
 func fail_old_spec() {
 	x := 1
-    //:: ExpectedOutput(type_error)
+	//:: ExpectedOutput(type_error)
 	ensures x == old(x) + 1
 	outline (
 		x += 1
@@ -33,7 +33,15 @@ func fail_old_body() {
 // return in outline block is not allowed
 func fail_return() {
 	outline (
-        //:: ExpectedOutput(type_error)
+		//:: ExpectedOutput(type_error)
 		return
+	)
+}
+
+func outline_pointer() {
+	someInt@ := 1
+	outline (
+		//:: ExpectedOutput(type_error)
+		pointer := &someInt
 	)
 }

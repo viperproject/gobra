@@ -461,7 +461,7 @@ object Parser {
 
     lazy val statement: Parser[PStatement] =
       ghostStatement |
-        outline |
+      outline |
       declarationStmt |
         goStmt |
         deferStmt |

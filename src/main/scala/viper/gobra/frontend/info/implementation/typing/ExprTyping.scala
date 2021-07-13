@@ -9,7 +9,7 @@ package viper.gobra.frontend.info.implementation.typing
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, check, error, noMessages}
 import viper.gobra.ast.frontend.{AstPattern => ap, _}
 import viper.gobra.frontend.info.base.SymbolTable.SingleConstant
-import viper.gobra.frontend.info.base.Type._
+import viper.gobra.frontend.info.base.Type.{StringT, _}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.util.TypeBounds.{BoundedIntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation
@@ -308,6 +308,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val lowOpt = low.map(intConstantEval)
           error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
 
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
+          // slice expressions of string type cannot have a third argument
+          val (lenOpt, lowOpt, highOpt) = (
+            stringConstantEval(base) map (_.length),
+            low flatMap intConstantEval,
+            high flatMap intConstantEval
+          )
+          val lowError = error(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val highError = error(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val lowLessHighError = (lowOpt, highOpt) match {
+            case (Some(l), Some(h)) =>
+              // this error message is the same shown by the go compiler
+              error(n, s"invalid slice index: $l > $h", l > h)
+            case _ => noMessages
+          }
+          return lowError ++ highError ++ lowLessHighError
+
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
@@ -572,6 +589,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
         case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       }
 

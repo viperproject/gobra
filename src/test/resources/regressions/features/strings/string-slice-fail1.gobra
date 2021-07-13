@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test1() {
+	l := 0
+	h := 100
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	s := "test"[l:h]
+}
+
+func test2() {
+	l := -1
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	s := "test"[l:]
+}
+
+func test3() {
+	h := -1
+	//:: ExpectedOutput(precondition_error:assertion_error)
+	s := "test"[:h]
+}

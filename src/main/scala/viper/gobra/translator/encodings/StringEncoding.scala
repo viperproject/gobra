@@ -62,7 +62,7 @@ class StringEncoding extends LeafTypeEncoding {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
         } yield withSrc(vpr.DomainFuncApp(concatFunc, Seq(lEncoded, rEncoded), Map.empty),concat)
-      case slice @ in.Slice(base, low, high, _, _) =>
+      case slice @ in.Slice(base, low, high, _, _) :: ctx.String() =>
         for {
           baseExp <- goE(base)
           lowExp  <- goE(low)
@@ -126,6 +126,7 @@ class StringEncoding extends LeafTypeEncoding {
     *     requires l <= len(s)
     *     requires h <= len(s)
     *     requires l <= h
+    *     ensures strLen(s) == h - l
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
   private val strSliceName: String = "strSlice"
@@ -144,7 +145,12 @@ class StringEncoding extends LeafTypeEncoding {
         vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
         vpr.LeCmp(argL.localVar, argH.localVar)()
       ),
-      posts = Seq.empty,
+      posts = Seq(
+        vpr.EqCmp(
+          vpr.DomainFuncApp(lenFunc, Seq(vpr.Result(stringType)()), Map.empty)(),
+          vpr.Sub(argH.localVar, argL.localVar)()
+        )()
+      ),
       body = None
     )()
   }

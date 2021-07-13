@@ -44,6 +44,7 @@ class StringEncoding extends LeafTypeEncoding {
     * [ strLit: string° ] -> stringLitX() where X is a unique suffix dependant on the value of the string literal
     * [ len(s: string) ] -> strLen([s])
     * [ (s1: string) + (s2: string) ] -> strConcat([ s1 ], [ s2 ])
+    * [ s[low : high] : string -> strSlice([ s ], [ low ], [ high ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -54,19 +55,26 @@ class StringEncoding extends LeafTypeEncoding {
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(""), Seq(), Map.empty), e)) // "" is the default string value
       case (lit: in.StringLit) :: _ / Exclusive =>
         unit(withSrc(vpr.DomainFuncApp(func = makeFunc(lit.s), Seq(), Map.empty), lit))
-      case len@in.Length(exp :: ctx.String()) =>
+      case len @ in.Length(exp :: ctx.String()) =>
         for { e <- goE(exp) } yield withSrc(vpr.DomainFuncApp(func = lenFunc, Seq(e), Map.empty), len)
-      case concat@ in.Concat(l :: ctx.String(), r :: ctx.String()) =>
+      case concat @ in.Concat(l :: ctx.String(), r :: ctx.String()) =>
         for {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
         } yield withSrc(vpr.DomainFuncApp(concatFunc, Seq(lEncoded, rEncoded), Map.empty),concat)
+      case slice @ in.Slice(base, low, high, _, _) =>
+        for {
+          baseExp <- goE(base)
+          lowExp  <- goE(low)
+          highExp <- goE(high)
+        } yield withSrc(vpr.FuncApp(strSlice, Seq(baseExp, lowExp, highExp)), slice)
     }
   }
 
   override def finalize(col: Collector): Unit = {
     if (isUsed) {
       col.addMember(genDomain())
+      col.addMember(strSlice)
     }
   }
   private var isUsed: Boolean = false
@@ -109,6 +117,37 @@ class StringEncoding extends LeafTypeEncoding {
     formalArgs = Seq(vpr.LocalVarDecl("l", stringType)(), vpr.LocalVarDecl("r", stringType)()),
     typ = stringType,
   )(domainName = domainName)
+
+  /**
+    * Generates
+    *   function strSlice(s: Int, l: Int, h: Int): Int
+    *     requires 0 <= l
+    *     requires 0 <= h
+    *     requires l <= len(s)
+    *     requires h <= len(s)
+    *     requires l <= h
+    * where s is a string id and l and r are the lower and upper bounds of the slice
+    */
+  private val strSliceName: String = "strSlice"
+  val strSlice: vpr.Function = {
+    val argS = vpr.LocalVarDecl("s", stringType)()
+    val argL = vpr.LocalVarDecl("l", vpr.Int)()
+    val argH = vpr.LocalVarDecl("h", vpr.Int)()
+    vpr.Function(
+      name = strSliceName,
+      formalArgs = Seq(argS, argL, argH),
+      typ = stringType,
+      pres = Seq(
+        vpr.LeCmp(vpr.IntLit(0)(), argL.localVar)(),
+        vpr.LeCmp(vpr.IntLit(0)(), argH.localVar)(),
+        vpr.LeCmp(argL.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
+        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
+        vpr.LeCmp(argL.localVar, argH.localVar)()
+      ),
+      posts = Seq.empty,
+      body = None
+    )()
+  }
 
   private def genDomain(): vpr.Domain = {
     /**

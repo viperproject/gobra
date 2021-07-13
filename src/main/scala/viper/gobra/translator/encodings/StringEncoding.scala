@@ -163,13 +163,22 @@ class StringEncoding extends LeafTypeEncoding {
       *   }
       * where `literal` is one of the generated unique domain functions and X is the length of the corresponding string
       */
-    val lenAxioms = encodedStrings.keys.toSeq.map { str =>
+    val litLenAxioms = encodedStrings.keys.toSeq.map { str =>
       vpr.AnonymousDomainAxiom {
         val encodedStr: vpr.Exp = vpr.DomainFuncApp(encodedStrings(str), Seq.empty, Map.empty)()
         val lenCall = vpr.DomainFuncApp(func = lenFunc, Seq(encodedStr), Map.empty)()
         vpr.EqCmp(lenCall, vpr.IntLit(BigInt(str.length))())()
       }(domainName = domainName)
     }
+
+    val lenAxiom = vpr.AnonymousDomainAxiom {
+      val qtfVar = vpr.LocalVarDecl("str", stringType)()
+      vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers = Seq(),
+        exp = vpr.LeCmp(vpr.IntLit(0)(), vpr.DomainFuncApp(func = lenFunc, Seq(qtfVar.localVar), Map.empty)())()
+      )()
+    }(domainName = domainName)
 
     /**
       * Generates
@@ -193,7 +202,7 @@ class StringEncoding extends LeafTypeEncoding {
     vpr.Domain(
       name = domainName,
       functions = lenFunc +: concatFunc +: encodedStrings.values.toSeq,
-      axioms = appAxiom +: lenAxioms,
+      axioms = appAxiom +: lenAxiom +: litLenAxioms,
       typVars = Seq.empty
     )()
   }

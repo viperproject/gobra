@@ -177,17 +177,15 @@ trait Enclosing { this: TypeInfoImpl =>
 
       val declared = allVariables.filter{
         case tree.parent(_: PVarDecl) => true
-        case unk: PIdnUnk  => unk match {
-          case tree.parent(_: PShortVarDecl) if isDef(unk) => true
-          case _ => false
-        }
+        case unk: PIdnUnk  => isDef(unk)
         case _ => false
       }
 
-      //val variables = allVariables.diff(declared)
-      val variables = allVariables.filter(id => !declared.find(other => id.name == other.name).isDefined)
-
       val modified = allModified.filter(id => !declared.find(other => id.name == other.name).isDefined)
+
+      val variables = allVariables.filter(id => 
+        !declared.exists(other => other.name == id.name) && !modified.exists(other => other.name == id.name)
+      )
 
       (variables, modified, declared)
     }

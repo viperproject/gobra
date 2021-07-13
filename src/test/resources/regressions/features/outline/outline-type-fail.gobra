@@ -38,10 +38,11 @@ func fail_return() {
 	)
 }
 
-func outline_pointer() {
-	someInt@ := 1
+func outline_deep_return() {
 	outline (
-		//:: ExpectedOutput(type_error)
-		pointer := &someInt
+		for true {
+			//:: ExpectedOutput(type_error)
+			return
+		}
 	)
 }

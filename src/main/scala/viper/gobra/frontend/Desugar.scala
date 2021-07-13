@@ -1061,15 +1061,18 @@ object Desugar {
             val modified = info.modified(n.body).toVector
             val declared = info.declared(n.body).toVector
             // create in parameters
-            val allArgs = variables.map {id => 
-              in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+            val readWithSubsAux = variables.map {id => 
+              val param = in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+              val local = localAlias(localVarContextFreeD(id, info))
+              (param, local)
             }
+            val (readArgs, readArgsSubs) = readWithSubsAux.unzip
             val modifiedArgsWithSubsAux = modified.map {id => 
               val param = in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
               val local = localAlias(localVarContextFreeD(id, info))
               (param, local)
             }
-            val (_, modifiedArgsSubs) = modifiedArgsWithSubsAux.unzip
+            val (modifiedArgs, modifiedArgsSubs) = modifiedArgsWithSubsAux.unzip
             // create out parameters
             val returns = (modified ++ declared).zipWithIndex.map { case (id, idx) => 
               in.Parameter.Out(nm.outParam(idx, info.codeRoot(n), info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
@@ -1080,14 +1083,18 @@ object Desugar {
             )
             // add declared and modified variables to initalization
             val declaredLocalVars = declared.map(id => 
-              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
             )
             val modifiedLocalVars = modified.map(id => 
-              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
             )
             val blockInit = targets ++ declaredLocalVars
             // create arguments for function call
-            val outArgs = variables.map(id => in.LocalVar(idName(id, info),typeD(info.typ(id), Addressability.outParameter)(src))(src))
+            val outArgs = (variables ++ modified).map{id => 
+              val typ = info.typ(id)
+              val add = info.addressableVar(id)
+              in.LocalVar(idName(id, info),typeD(typ, add)(src))(src)
+            }
             // add function call
             val proxy = in.FunctionProxy(nm.outlinedFunction(info))(meta(n, info))
             val functionCall = in.FunctionCall(targets, proxy, outArgs)(src)
@@ -1101,14 +1108,14 @@ object Desugar {
             // create context for body translation
             val outlinedContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
             // init new variables
-            val newVariablesInit = modifiedArgsSubs.map(v => in.Initialization(v)(v.info))
+            val newVariablesInit = (readArgsSubs ++ modifiedArgsSubs).map(v => in.Initialization(v)(v.info))
             // assign in parameters to local variables
-            val argInits = modifiedArgsWithSubsAux.flatMap{
+            val argInits = (readWithSubsAux ++ modifiedArgsWithSubsAux).flatMap{
               case (p, q) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
               case _ => None
             }
             // extends context
-            modifiedArgsSubs.zip(modified).foreach{case (lvar, id) =>
+            (readArgsSubs ++ modifiedArgsSubs).zip(variables ++ modified).foreach{case (lvar, id) =>
               outlinedContext.addSubst(id, lvar)
             }
             // assign local variables to out parameters
@@ -1120,7 +1127,7 @@ object Desugar {
             val blockContent = blockV(desugaredBlockStmts)(src)
             // create block
             val blockBody = newVariablesInit ++ argInits ++ Vector(blockContent) ++ outParamAssigns
-            val block = in.Block(modifiedArgsSubs, blockBody)(src)
+            val block = in.Block(readArgsSubs ++ modifiedArgsSubs, blockBody)(src)
             // create spec context
             val specContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
             (modified ++ declared).zip(returns).foreach{case (id, out) =>
@@ -1130,7 +1137,7 @@ object Desugar {
             val pres = n.spec.pres map preconditionD(ctx)
             val posts = n.spec.posts map postconditionD(specContext)
             // create function and add as member
-            val function = in.Function(proxy, allArgs, returns, pres, posts, Some(block))(src)
+            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, Some(block))(src)
             definedFunctions += proxy -> function
             AdditionalMembers.addMember(function)
             // write function call and result assignments
@@ -3121,7 +3128,7 @@ object Desugar {
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
-    def outlinedFunction(context: ExternalTypeInfo) = {
+    def outlinedFunction(context: ExternalTypeInfo): String = {
       val name = nameWithoutScope(FUNCTION_PREFIX)("outline_"+outlineCounter, context)
       outlineCounter += 1
       name

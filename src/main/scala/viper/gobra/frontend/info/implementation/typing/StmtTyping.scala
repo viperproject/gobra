@@ -139,14 +139,14 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: POutline =>
       error(n.spec, "Currently, outline statements do not support the pure annotation.", n.spec.isPure) ++ 
-      error(n.spec, "Currently, the old keyword is not supported", (n.spec.posts ++ n.spec.pres).find{exp => 
-        allChildren(exp).find{case _: POld => true case _ => false}.isDefined
-      }.isDefined) ++
+      error(n.spec, "Currently, the old keyword is not supported", (n.spec.posts ++ n.spec.pres).exists{exp => 
+        allChildren(exp).exists{case _: POld => true case _ => false}
+      }) ++
       n.body.flatMap{stmt => 
         val children = allChildren(stmt)
         children.collect{
-          case _: POld => error(stmt, "Currently, the old keyword is not supported")
-          case _: PReference => error(stmt, "Currently, taking the reference is not supported")
+          case n: POld => error(n, "Currently, the old keyword is not supported")
+          case n: PReturn => error(n, "Using return in an outlined block is not allowed")
         }.flatten
       } ++
       n.body.collect{case stmt: PReturn => 

@@ -61,7 +61,7 @@ sealed trait VerificationError extends VerifierError {
   def localMessage: String
 
   override def id: String = (localId :: reasons.map(_.id)).mkString(":")
-  var counterexample : Option[Counterexample] = None
+  var counterexample : Option[GobraCounterexample] = None
 
   override def message: String = {
     val reasonsMsg = if (reasons.nonEmpty) s"\n${reasons.mkString("\n")}" else ""

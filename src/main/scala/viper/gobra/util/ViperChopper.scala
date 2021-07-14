@@ -3,6 +3,9 @@
 
 package viper.gobra.util
 import viper.silver.{ast => vpr}
+import scala.collection.mutable.Stack
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.ArrayBuffer
 
 object ViperChopper {
   /** chops 'choppee' into independent Viper programs */
@@ -23,12 +26,53 @@ object ViperChopper {
     case class Component[T](nodes: Seq[T])
 
     def components[T](graph: Seq[Edge[T]]): Vector[Component[T]] = {
-      // TODO: implement SCC algorithm
-      ???
+      // Implements Tarjan's strongly connected components algorithm
+      var index = 0
+      val stack = new Stack[T]
+      val indices = new HashMap[T, Int]
+      val lowLinks = new HashMap[T, Int]
+      val onStack = new HashMap[T, Boolean]
+      val components = ArrayBuffer[Component[T]]()
+      // helper function which performs most of the work
+      def strongConnect(v: T): Unit = {
+        // initialize all values needed for the current vertex
+        indices.addOne(v, index)
+        lowLinks.addOne(v, index)
+        index += 1
+        stack.push(v)
+        onStack.addOne(v, true)
+        // find all successors
+        val succs = graph.collect{case (curr, succ) if v == curr  => succ}
+        for (s <- succs) {
+          if (!indices.contains(s)) {
+            // successor has not been visited yet
+            strongConnect(s)
+            lowLinks.update(v, Math.min(lowLinks.getOrElse(v, -1), lowLinks.getOrElse(s, -1)))
+          }
+          else if (onStack.getOrElse(s, false)) {
+            // s is already on the stack and therefore in the current SSC
+            lowLinks.update(v, Math.min(lowLinks.getOrElse(v, -1), indices.getOrElse(s, -1)))
+          }
+        }
+        // if v is a root node, create new SCC from stack
+        if (lowLinks.getOrElse(v, -1) == indices.getOrElse(v, -2)) {
+          val component = ArrayBuffer[T]()
+          var curr = v
+          do {
+            curr = stack.pop()
+            onStack.update(curr, false)
+            component += curr
+          } while (curr != v)
+          components += new Component(component.toSeq)
+        }
+      }
+      // perform algorithm for all vertices
+      val vertices = graph.flatten{case (a, b) => List(a, b)}.distinct
+      for (v <- vertices if !indices.contains(v)) strongConnect(v)
+      components.toVector
     }
 
     def compute[T](graph: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
-      // TODO: merge into one function together with `component`, if this can be done quicker
       val cs = components(graph)
       val inv = cs.flatMap(c => c.nodes.map(_ -> c)).toMap
       val cgraph = graph.map{ case (l,r) => (inv(l), inv(r)) }.filter{ case (l,r) => l != r }.distinct
@@ -47,8 +91,14 @@ object ViperChopper {
   object Paths {
     /** Returns all paths starting from `start` in the forest `forest`. */
     def paths[T](start: T, forest: Seq[Edge[T]]): Vector[Vector[T]] = {
-      // TODO:
-      ???
+      def DFS (current: T, prefix: Vector[T]): Vector[Vector[T]] = {
+        val succs = forest.collect{case (curr, succ) if current == curr  => succ}
+        if (succs.length == 0) Vector(prefix.appended(current))
+        else {
+          succs.flatMap(s => DFS(s, prefix.appended(current))).toVector
+        }
+      }
+      DFS(start, Vector())
     }
   }
 
@@ -175,7 +225,4 @@ object ViperChopper {
       }.flatten
     }
   }
-
-
-
 }

@@ -10,6 +10,7 @@ import viper.gobra.ast.frontend
 import viper.gobra.ast.frontend.{PReceive, PSendStmt}
 import viper.gobra.util.Violation.violation
 import viper.silver.ast.SourcePosition
+import viper.silver.verifier.Counterexample
 
 sealed trait VerifierError {
   def position: Option[SourcePosition]
@@ -60,12 +61,13 @@ sealed trait VerificationError extends VerifierError {
   def localMessage: String
 
   override def id: String = (localId :: reasons.map(_.id)).mkString(":")
+  var counterexample : Option[GobraCounterexample] = None
 
   override def message: String = {
     val reasonsMsg = if (reasons.nonEmpty) s"\n${reasons.mkString("\n")}" else ""
     val detailsMsg = if (details.nonEmpty) s"\n${details.mkString("\n")}" else ""
-
-    s"$localMessage. $reasonsMsg$detailsMsg"
+    val counterexampleMsg = counterexample match { case None => "" case Some(ce)=> s"\nPossible counterexample:\n${ce.toString()}"}
+    s"$localMessage. $reasonsMsg$detailsMsg.$counterexampleMsg"
   }
 
   protected var _reasons: List[VerificationErrorReason] = List.empty

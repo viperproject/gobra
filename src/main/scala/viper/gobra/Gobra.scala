@@ -14,6 +14,7 @@ import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
 import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
+import viper.gobra.reporting.BackTranslator.VerificationBackTrackInfo
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
 import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
@@ -77,8 +78,20 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
-        viperTask <- performViperEncoding(program, finalConfig)
-      } yield (viperTask, finalConfig)
+        programWithBackInfo <- performViperEncoding(program, finalConfig,typeInfo)
+
+       (encodedProgram, encodingBackInfo) = (programWithBackInfo.program,programWithBackInfo.backtrack)
+       task = BackendVerifier.Task(
+         encodedProgram,
+         BackTranslator.BackTrackInfo(
+           encodingBackInfo.errorT,
+           encodingBackInfo.reasonT,
+           encodedProgram,
+           typeInfo,
+           config
+         )
+       )
+     } yield (task, finalConfig)
     }
 
     task.flatMap{
@@ -183,9 +196,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performViperEncoding(program: Program, config: Config): Either[Vector[VerifierError], BackendVerifier.Task] = {
+  private def performViperEncoding(program: Program, config: Config,typeInfo:viper.gobra.frontend.info.TypeInfo): Either[Vector[VerifierError], BackendVerifier.Task] = {
     if (config.shouldViperEncode) {
-      Right(Translator.translate(program)(config))
+      Right(Translator.translate(program)(config,typeInfo))
     } else {
       Left(Vector())
     }

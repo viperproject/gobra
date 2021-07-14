@@ -6,7 +6,8 @@
 
 package viper.gobra.translator
 
-
+import viper.gobra.reporting.BackTranslator.VerificationBackTrackInfo
+import viper.silver.{ast => vpr}
 import viper.gobra.ast.internal.Program
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.Config
@@ -18,11 +19,13 @@ import viper.gobra.util.Violation
 
 object Translator {
 
-  def translate(program: Program)(config: Config): BackendVerifier.Task = {
+  def translate(program: Program)(config: Config,typeInfo:viper.gobra.frontend.info.TypeInfo): BackendVerifier.Task = {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
-    val task = programTranslator.translate(program)(translationConfig)
-
+    val task1 = programTranslator.translate(program)(translationConfig)
+    val task = BackendVerifier.Task(task1.program,task1.backtrack.copy(config=config,typeInfo=typeInfo))
+    //TODO: resolve this merge conflict
+    
     if (config.checkConsistency) {
       val errors = task.program.checkTransitively
       if (errors.nonEmpty) Violation.violation(errors.toString)
@@ -35,10 +38,11 @@ object Translator {
 
     val transformedTask = transformers.foldLeft(task) {
       case (t, transformer) => transformer.transform(t)
-    }
+    } 
 
     config.reporter report GeneratedViperMessage(config.inputFiles.head, () => transformedTask.program, () => transformedTask.backtrack)
     transformedTask
+
   }
 
 }

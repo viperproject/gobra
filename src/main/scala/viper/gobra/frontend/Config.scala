@@ -17,8 +17,10 @@ import org.slf4j.LoggerFactory
 import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
-import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
+import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter,CounterexampleConfigs}
 import viper.gobra.util.{TypeBounds, Violation}
+import org.scalactic.Bool
+import _root_.viper.gobra.reporting.CounterexampleConfig
 
 
 object LoggerDefaults {
@@ -41,10 +43,12 @@ case class Config(
                  checkOverflows: Boolean = false,
                  checkConsistency: Boolean = false,
                  shouldVerify: Boolean = true,
+                 
                  // The go language specification states that int and uint variables can have either 32bit or 64, as long
                  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                  // 64 bit otherwise.
-                 int32bit: Boolean = false
+                 int32bit: Boolean = false,
+                 counterexample :Option[CounterexampleConfig] = None
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -63,7 +67,8 @@ case class Config(
       shouldViperEncode = shouldViperEncode,
       checkOverflows = checkOverflows || other.checkOverflows,
       shouldVerify = shouldVerify,
-      int32bit = int32bit || other.int32bit
+      int32bit = int32bit || other.int32bit,
+      counterexample=counterexample
     )
   }
 
@@ -206,6 +211,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(false),
     noshort = false
   )
+
+  val counterexample:ScallopOption[CounterexampleConfig] = opt[CounterexampleConfig](
+    name = "counterexample",
+    descr = "Adds counterexamples to output can be run with: mapped, native, reduced, extended (default: no counterexample)"
+              +"curently works witch SILICON as a backend",
+    default = None,
+    noshort = false
+  )(singleArgConverter({ 
+    case "mapped" => CounterexampleConfigs.MappedCounterexamples
+    case "native" => CounterexampleConfigs.NativeCounterexamples
+    case "reduced" => CounterexampleConfigs.ReducedCounterexamples 
+    case "extended" => CounterexampleConfigs.ExtendedCounterexamples 
+    case _ => CounterexampleConfigs.MappedCounterexamples
+  }))
 
 
   /**
@@ -379,6 +398,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
-    shouldVerify = shouldVerify
+    shouldVerify = shouldVerify,
+    counterexample=counterexample.toOption
   )
 }

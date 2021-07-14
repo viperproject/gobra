@@ -41,6 +41,10 @@ object BackendVerifier {
       case _ =>
     }
 
+    if(config.counterexample.isDefined){
+      exePaths ++= Vector("--counterexample", "mapped")
+    }
+
     (config.backend, config.boogieExe) match {
       case (Carbon, Some(boogieExe)) =>
         exePaths ++= Vector("--boogieExe", boogieExe)

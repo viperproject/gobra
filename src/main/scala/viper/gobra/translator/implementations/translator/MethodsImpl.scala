@@ -13,7 +13,6 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
 
 class MethodsImpl extends Methods {
 
@@ -40,7 +39,7 @@ class MethodsImpl extends Methods {
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
       
         terminationMeasure=x.terminationMeasure match {
-        case Some(measure) =>sequence( measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+        case Some(measure) =>sequence(measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
         case None=> Seq.empty
     }
 
@@ -58,8 +57,8 @@ class MethodsImpl extends Methods {
         name = x.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         formalReturns = vResults,
-        pres = pres,
-        posts = posts ++ terminationMeasure,
+        pres = pres ++ terminationMeasure,
+        posts = posts,
         body = body
       )(pos, info, errT)
 
@@ -102,8 +101,8 @@ class MethodsImpl extends Methods {
         name = x.name.name,
         formalArgs = vArgs,
         formalReturns = vResults,
-        pres = pres,
-        posts = posts ++ terminationMeasure,
+        pres = pres ++ terminationMeasure,
+        posts = posts,
         body = body
       )(pos, info, errT)
 

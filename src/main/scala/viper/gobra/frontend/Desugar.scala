@@ -467,7 +467,11 @@ object Desugar {
             val terminationMeasure = decl.spec.terminationMeasure match {
 
           case Some(measure) => measure match {
-            case PTupleTerminationMeasure(vector) => Some(vector map terminationMeasureD(specCtx))
+            
+            case PTupleTerminationMeasure(vector)=>
+              val src: Meta = meta(measure)
+              val tuple=sequence(vector map exprD(specCtx)).res
+              Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
             case PUnderscoreCharacter()=> {
               val src: Meta = meta(measure)
               Some(Vector( in.UnderscoreTerminationMeasure()(src)))
@@ -554,7 +558,11 @@ object Desugar {
       
          val terminationMeasure= decl.spec.terminationMeasure match {
         case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) => Some(vector map terminationMeasureD(ctx))
+         
+          case PTupleTerminationMeasure(vector)=>
+            val src: Meta = meta(measure)
+            val tuple=sequence(vector map exprD(ctx)).res
+            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
           case PUnderscoreCharacter()=> {
             val src: Meta = meta(measure)
             Some(Vector( in.UnderscoreTerminationMeasure()(src)))
@@ -651,7 +659,11 @@ object Desugar {
         val terminationMeasure = decl.spec.terminationMeasure match {
 
           case Some(measure) => measure match {
-            case PTupleTerminationMeasure(vector) => Some(vector map terminationMeasureD(specCtx))
+            
+            case PTupleTerminationMeasure(vector)=>
+              val src: Meta = meta(measure)
+              val tuple=sequence(vector map exprD(specCtx)).res
+              Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
             case PUnderscoreCharacter()=> {
               val src: Meta = meta(measure)
               Some(Vector( in.UnderscoreTerminationMeasure()(src)))
@@ -759,7 +771,11 @@ object Desugar {
         val terminationMeasure = decl.spec.terminationMeasure match {
 
         case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) => Some(vector map terminationMeasureD(ctx))
+          
+          case PTupleTerminationMeasure(vector)=>
+            val src: Meta = meta(measure)
+            val tuple=sequence(vector map exprD(ctx)).res
+            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
           case PUnderscoreCharacter()=> {
             val src: Meta = meta(measure)
             Some(Vector( in.UnderscoreTerminationMeasure()(src)))
@@ -836,8 +852,7 @@ object Desugar {
     }
     
      def getMeasureStmts(ctx: FunctionContext)(ass:PExpression):Vector[in.Stmt]={
-      val src: Meta=meta(ass)
-      val measure= exprD(ctx)(ass) map (in.ExprTerminationMeasure(_)(src))
+      val measure=exprD(ctx)(ass)
       measure.stmts
     }
 
@@ -915,8 +930,11 @@ object Desugar {
                 
                    (dTerPre, dTer) =  spec.terminationMeasure match {
                   case Some(measure) => measure match {
+                    
                     case PTupleTerminationMeasure(vector)=>
-                      (vector flatMap getMeasureStmts(ctx),Some(vector map terminationMeasureD(ctx)))
+                      val src: Meta = meta(measure)
+                      val tuple=sequence(vector map exprD(ctx)).res
+                       ( vector flatMap getMeasureStmts(ctx), Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src))))
                     case PUnderscoreCharacter()=> {
                       val src: Meta = meta(measure)
                       (Vector.empty, Some(Vector(in.UnderscoreTerminationMeasure()(src))))
@@ -2146,7 +2164,10 @@ object Desugar {
           val posts = m.spec.posts map postconditionD(specCtx)
             val terminationMeasure = m.spec.terminationMeasure match {
             case Some(measure) => measure match {
-              case PTupleTerminationMeasure(vector) => Some(vector map terminationMeasureD(specCtx))
+              case PTupleTerminationMeasure(vector)=>
+                val src: Meta = meta(measure)
+                val tuple=sequence(vector map exprD(specCtx)).res
+                Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
               case PUnderscoreCharacter()=> {
                 val src: Meta = meta(measure)
                 Some(Vector( in.UnderscoreTerminationMeasure()(src)))

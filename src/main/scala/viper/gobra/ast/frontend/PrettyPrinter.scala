@@ -47,7 +47,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
+    case n: PConditionalMeasureCollection => showConditionalMeasureCollection(n)
     case PPos(_) => emptyDoc
+    case _=>emptyDoc
   }
 
   // entire package
@@ -112,12 +114,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
   
    
-  def showConditionalMeasureCollection[T <: PConditionalMeasure](tuple:Vector[T]):Doc = showList(tuple)(showConditionalMeasure)
+  def showConditionalMeasureCollection(n:PConditionalMeasureCollection): Doc = showList(n.tuple)(showConditionalMeasure)
 
   def showConditionalMeasure(conditionalMeasure:PConditionalMeasure) : Doc = conditionalMeasure match {
        case PConditionalMeasureExpression((expression, condition)) =>
       "decreases" <+> showExprList(expression) <+> "if" <+>showExpr(condition)
-       case PConditionalMeasureUnderscore((underscore,condition)) =>
+       case PConditionalMeasureUnderscore((_,condition)) =>
       "decreases" <+> "_" <+> "if" <+>showExpr(condition)
        case PConditionalMeasureAdditionalStar() =>
          "decreases" <+> "*"
@@ -129,7 +131,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case  PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
       case PStarCharacter() =>"decreases" <+> "*"
       case PUnderscoreCharacter()=>"decreases" <+> "_"
-      case PConditionalMeasureCollection(tuple)=> showConditionalMeasureCollection(tuple)
+      case _ => emptyDoc
     }
     case None=>""
   }

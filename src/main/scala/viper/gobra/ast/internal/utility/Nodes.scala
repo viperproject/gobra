@@ -95,6 +95,12 @@ object Nodes {
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case Access(e, p) => Seq(e, p)
+        case UnderscoreTerminationMeasure()=>Seq.empty
+        case StarTerminationMeasure()=>Seq.empty
+        case ConditionalMeasureExpression(vector,condition)=>vector ++ Seq(condition)
+        case ConditionalMeasureUnderscore(condition)=>Seq(condition)
+        case ConditionalMeasureAdditionalStar()=>Seq.empty
+        case ExprTupleTerminationMeasure(vector)=>vector
       }
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {

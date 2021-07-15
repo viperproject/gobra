@@ -272,7 +272,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                 case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
               }
               case PConditionalMeasureUnderscore(tuple) => tuple match {
-                case (underscore,condition)=>assignableToSpec(condition)
+                case (_,condition)=>assignableToSpec(condition)
               }
                 case PConditionalMeasureAdditionalStar() => noMessages
             })
@@ -292,7 +292,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
               case(expression,condition) => expression.flatMap (p => comparableType.errors(exprType (p))(p) ++ isPureExpr(p) )++ assignableToSpec(condition)
             }
             case PConditionalMeasureUnderscore(tuple) => tuple match {
-              case (underscore,condition)=>assignableToSpec(condition)
+              case (_,condition)=>assignableToSpec(condition)
             }
               case PConditionalMeasureAdditionalStar() => noMessages
           })

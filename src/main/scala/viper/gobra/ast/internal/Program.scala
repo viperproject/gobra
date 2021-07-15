@@ -352,13 +352,14 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-case class ExprTerminationMeasure(exp:Expr)(val info: Source.Parser.Info) extends Assertion
-case class UnderscoreTerminationMeasure()(val info:Source.Parser.Info) extends Assertion
-case class StarTerminationMeasure()(val info: Source.Parser.Info) extends Assertion
-case class ConditionalMeasure()(val info:Source.Parser.Info) extends  Assertion
-case class ConditionalMeasureExpression( vector: Vector[Expr] ,condition:Expr) (val info:Source.Parser.Info) extends Assertion
-case class ConditionalMeasureUnderscore( condition:Expr) (val info:Source.Parser.Info) extends Assertion
-case class ConditionalMeasureAdditionalStar()(val info:Source.Parser.Info) extends Assertion
+sealed trait TerminationMeasure extends Assertion
+case class ExprTerminationMeasure(exp:Expr)(val info: Source.Parser.Info) extends TerminationMeasure
+case class UnderscoreTerminationMeasure()(val info:Source.Parser.Info) extends TerminationMeasure
+case class StarTerminationMeasure()(val info: Source.Parser.Info) extends TerminationMeasure
+case class ConditionalMeasureExpression( vector: Vector[Expr] ,condition:Expr) (val info:Source.Parser.Info) extends TerminationMeasure
+case class ConditionalMeasureUnderscore( condition:Expr) (val info:Source.Parser.Info) extends TerminationMeasure
+case class ConditionalMeasureAdditionalStar()(val info:Source.Parser.Info) extends TerminationMeasure
+case class ExprTupleTerminationMeasure(vector:Vector[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node

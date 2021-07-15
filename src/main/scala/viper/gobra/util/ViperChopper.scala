@@ -10,9 +10,13 @@ import scala.collection.mutable.ArrayBuffer
 object ViperChopper {
   /** chops 'choppee' into independent Viper programs */
   def chop(choppee: vpr.Program): Vector[vpr.Program] = {
-
     val edges = choppee.members.flatMap(Edges.dependencies)
-    val (components, _, componentDAG) = SCC.compute(edges)
+    val requiredVertices = choppee.collect{
+      case m: vpr.Method => Vertex.Method(m.name)
+      case f: vpr.Function => Vertex.Function(f.name)
+    }.toSeq
+    val vertices = (requiredVertices ++ edges.flatten{case (l, r) => List(l, r)}).distinct
+    val (components, _, componentDAG) = SCC.compute(vertices, edges)
     val roots = Roots.roots(components, componentDAG)
     // TODO: currently, the always vertex is ignored
     val paths = roots.flatMap(root => Paths.paths(root, componentDAG))
@@ -25,7 +29,7 @@ object ViperChopper {
 
     case class Component[T](nodes: Seq[T])
 
-    def components[T](graph: Seq[Edge[T]]): Vector[Component[T]] = {
+    def components[T](vertices: Seq[T], edges: Seq[Edge[T]]): Vector[Component[T]] = {
       // Implements Tarjan's strongly connected components algorithm
       var index = 0
       val stack = new Stack[T]
@@ -42,7 +46,7 @@ object ViperChopper {
         stack.push(v)
         onStack.addOne(v, true)
         // find all successors
-        val succs = graph.collect{case (curr, succ) if v == curr  => succ}
+        val succs = edges.collect{case (curr, succ) if v == curr  => succ}
         for (s <- succs) {
           if (!indices.contains(s)) {
             // successor has not been visited yet
@@ -67,15 +71,14 @@ object ViperChopper {
         }
       }
       // perform algorithm for all vertices
-      val vertices = graph.flatten{case (a, b) => List(a, b)}.distinct
       for (v <- vertices if !indices.contains(v)) strongConnect(v)
       components.toVector
     }
 
-    def compute[T](graph: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
-      val cs = components(graph)
+    def compute[T](vertices: Seq[T], edges: Seq[Edge[T]]): (Vector[Component[T]], Map[T, Component[T]], Seq[Edge[Component[T]]]) = {
+      val cs = components(vertices, edges)
       val inv = cs.flatMap(c => c.nodes.map(_ -> c)).toMap
-      val cgraph = graph.map{ case (l,r) => (inv(l), inv(r)) }.filter{ case (l,r) => l != r }.distinct
+      val cgraph = edges.map{ case (l,r) => (inv(l), inv(r)) }.filter{ case (l,r) => l != r }.distinct
       (cs, inv, cgraph)
     }
 

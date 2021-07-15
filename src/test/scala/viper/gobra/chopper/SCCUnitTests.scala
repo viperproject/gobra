@@ -17,16 +17,23 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
   def compareChopped[T](one: Vector[Component[T]], other: Vector[Component[T]]): Unit = {
     one.map(c => c.nodes.toSet).toSet shouldEqual other.map(c => c.nodes.toSet).toSet
   }
+  
+  test("Component 0: should find strongly connected components as expected") {
+    compareChopped (ViperChopper.SCC.components(Seq("A"), Seq.empty), Vector(
+      new ViperChopper.SCC.Component(Seq("A"))
+    ))
+  }
     
   test("Component 1: should find strongly connected components as expected") {
-    val graph = Seq(
+    val vertices = Seq("A", "B", "C", "D", "E")
+    val edges = Seq(
       ("A", "C"),
       ("B", "C"),
       ("C", "D"),
       ("D", "C"),
       ("D", "E")
     )
-    compareChopped (ViperChopper.SCC.components(graph), Vector(
+    compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
       new ViperChopper.SCC.Component(Seq("A")),
       new ViperChopper.SCC.Component(Seq("B")),
       new ViperChopper.SCC.Component(Seq("C", "D")),
@@ -35,7 +42,8 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Component 2: should find strongly connected components as expected") {
-    val graph = Seq(
+    val vertices = Seq("A", "B", "C", "D", "E")
+    val edges = Seq(
       ("A", "C"),
       ("B", "C"),
       ("C", "D"),
@@ -43,7 +51,7 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       ("D", "C"),
       ("D", "E")
     )
-    compareChopped (ViperChopper.SCC.components(graph), Vector(
+    compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
       new ViperChopper.SCC.Component(Seq("A")),
       new ViperChopper.SCC.Component(Seq("D", "C", "B")),
       new ViperChopper.SCC.Component(Seq("E"))
@@ -51,13 +59,14 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Component 3: should find strongly connected components as expected") {
-    val graph = Seq(
+    val vertices = Seq("A", "B", "C", "D", "E")
+    val edges = Seq(
       ("A", "C"),
       ("B", "C"),
       ("C", "D"),
       ("D", "E")
     )
-    compareChopped (ViperChopper.SCC.components(graph), Vector(
+    compareChopped (ViperChopper.SCC.components(vertices, edges), Vector(
       new ViperChopper.SCC.Component(Seq("A")),
       new ViperChopper.SCC.Component(Seq("B")),
       new ViperChopper.SCC.Component(Seq("C")),
@@ -67,7 +76,8 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Compute: should find strongly connected components and helper data as expected") {
-    val graph = Seq(
+    val vertices = Seq("A", "B", "C", "D", "E")
+    val edges = Seq(
       ("A", "C"),
       ("B", "C"),
       ("C", "D"),
@@ -80,7 +90,7 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
       new ViperChopper.SCC.Component(Seq("C", "D")),
       new ViperChopper.SCC.Component(Seq("E"))
     )
-    val (components, inverse, dag) = ViperChopper.SCC.compute(graph)
+    val (components, inverse, dag) = ViperChopper.SCC.compute(vertices, edges)
     compareChopped(components, choppedReference)
     inverse shouldEqual Map(
       "A" -> new ViperChopper.SCC.Component(Seq("A")),

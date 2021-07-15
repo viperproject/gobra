@@ -67,7 +67,8 @@ object BackendVerifier {
   def convertVerificationResult(result: VerificationResult, backTrackInfo: BackTrackInfo): Result = result match {
     case silver.verifier.Success => Success
     case failure: silver.verifier.Failure =>
-
+     
+    println(s"Viper Errors: ${failure.errors}")
       val (verificationError, otherError) = failure.errors
         .partition(_.isInstanceOf[silver.verifier.VerificationError])
         .asInstanceOf[(Seq[silver.verifier.VerificationError], Seq[silver.verifier.AbstractError])]

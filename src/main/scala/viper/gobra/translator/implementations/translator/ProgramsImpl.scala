@@ -15,7 +15,6 @@ import viper.gobra.translator.interfaces.translator.Programs
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
-import viper.silver.ast.pretty
 
 class ProgramsImpl extends Programs {
 

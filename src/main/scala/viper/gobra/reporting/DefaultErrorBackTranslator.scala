@@ -10,7 +10,8 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, Cer
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
-import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
+import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
+import viper.silver.plugin.standard.termination
 
 object DefaultErrorBackTranslator {
 
@@ -68,6 +69,20 @@ object DefaultErrorBackTranslator {
       //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
       //      case vprrea.ReceiverNotInjective(offendingNode) =>
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
+      case termination.TerminationConditionFalse(CertainSource(info)) =>
+         TerminationConditionFalseError(info)
+
+      case termination.TupleConditionFalse(CertainSource(info)) =>
+         TupleConditionFalseError(info)
+
+      case termination.TupleSimpleFalse(CertainSource(info)) =>
+         TupleSimpleFalseError(info)
+
+      case termination.TupleDecreasesFalse(CertainSource(info)) =>
+         TupleDecreasesFalseError(info)
+
+      case termination.TupleBoundedFalse(CertainSource(info)) =>
+         TupleBoundedFalseError(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
@@ -134,6 +149,12 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
+       case termination.FunctionTerminationError( Source(info) , reason, _) =>
+         FunctionTerminationError(info) dueTo translate(reason)
+       case termination.MethodTerminationError(Source(info), reason, _) =>
+         MethodTerminationError(info) dueTo translate(reason)
+       case termination.LoopTerminationError(Source(info), reason, _) =>
+         LoopTerminationError(info) dueTo translate(reason)
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
@@ -157,8 +178,13 @@ class DefaultErrorBackTranslator(
     case (l, r) => l orElse r
   }
 
-  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError =
-    DefaultErrorBackTranslator.translateWithTransformer(viperError, errorTransformer)
+  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError = {
+     val transformedViperError = viperError match {
+       case err: AbstractVerificationError => err.transformedError()
+       case err => err
+     }
+     DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
+   }
 
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {

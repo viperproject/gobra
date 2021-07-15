@@ -562,12 +562,12 @@ class AdtEncoding extends LeafTypeEncoding {
       case in.Length(exp :: ctx.Adt(_)) => for {
           e <- ctx.expr.translate(exp)(ctx)
         } yield lenApp(e)
-      case in.SetConversion(exp :: ctx.Adt(a)) =>
+      case in.SetConversion(exp, a: AdtT) =>
         val (pos, info, err) = exp.vprMeta
         for {
           e <- ctx.expr.translate(exp)(ctx)
         } yield toSetApp(e, ctx.typeEncoding.typ(ctx)(a.derives.typeVars(0)))(pos, info, err)
-      case in.MultisetConversion(exp :: ctx.Adt(a)) =>
+      case in.MultisetConversion(exp, a: AdtT) =>
         val (pos, info, err) = exp.vprMeta
         for {
           e <- ctx.expr.translate(exp)(ctx)
@@ -776,9 +776,9 @@ class AdtEncoding extends LeafTypeEncoding {
       for {
         check <- translateMatchPatternCheck(ctx)(expr, c.mExp)
         exVar <- setExVar(cPos, cInfo, cErrT)
-        body  <- sequence(c.body map {f => ctx.stmt.translate(f)(ctx)})
+        body  <- ctx.stmt.translate(c.body)(ctx)
       } yield vpr.If(vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT),
-        vpr.Seqn(exVar +: (ass ++ body), decls)(cPos, cInfo, cErrT), vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT))(cPos, cInfo, cErrT)
+        vpr.Seqn(exVar +: (ass :+ body), decls)(cPos, cInfo, cErrT), vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT))(cPos, cInfo, cErrT)
     }
 
     if (s.strict) {

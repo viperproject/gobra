@@ -370,7 +370,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
     case PLength(op) => isExpr(op).out ++ {
-      exprType(op) match {
+      underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT  => noMessages
         case t: AdtT => t.derives match {
           case DerivableTags.Default() => error(op, "adt does not derive collection")

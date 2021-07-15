@@ -2630,10 +2630,18 @@ object Desugar {
           }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case PMatchStatement(exp, clauses, strict) => {
-          def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = for {
-            eM <- matchPatternD(ctx)(clause.pattern)
-            s <- sequence(clause.stmt map stmtD(ctx))
-          } yield in.PatternMatchCaseStmt(eM, s)(src)
+          def goC(clause: PMatchStmtCase): Writer[in.PatternMatchCaseStmt] = {
+
+            val body = block(
+              for {
+                s <- sequence(clause.stmt map stmtD(ctx))
+              } yield in.Seqn(s)(src)
+            )
+            for {
+              eM <- matchPatternD(ctx)(clause.pattern)
+            } yield in.PatternMatchCaseStmt(eM, body)(src)
+
+          }
 
           for {
             e <- exprD(ctx)(exp)
@@ -2760,9 +2768,9 @@ object Desugar {
           dop <- go(op)
         } yield underlyingType(dop.typ) match {
           case _: in.SetT => dop
-          case _: in.SequenceT => in.SetConversion(dop)(src)
-          case _: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src))(src)
-          case _: in.AdtT => in.SetConversion(dop)(src)
+          case t: in.SequenceT => in.SetConversion(dop, t)(src)
+          case t: in.OptionT => in.SetConversion(in.SequenceConversion(dop)(src), t)(src)
+          case t: in.AdtT => in.SetConversion(dop, t)(src)
           case t => violation(s"expected a sequence, set, adt or option type, but found $t")
         }
 
@@ -2788,11 +2796,11 @@ object Desugar {
 
         case PMultisetConversion(op) => for {
           dop <- go(op)
-        } yield dop.typ match {
+        } yield underlyingType(dop.typ) match {
           case _: in.MultisetT => dop
-          case _: in.SequenceT => in.MultisetConversion(dop)(src)
-          case _: in.OptionT => in.MultisetConversion(in.SequenceConversion(dop)(src))(src)
-          case _: in.AdtT => in.MultisetConversion(dop)(src)
+          case t: in.SequenceT => in.MultisetConversion(dop, t)(src)
+          case t: in.OptionT => in.MultisetConversion(in.SequenceConversion(dop)(src), t)(src)
+          case t: in.AdtT => in.MultisetConversion(dop, t)(src)
           case t => violation(s"expected a sequence, multiset, adt or option type, but found $t")
         }
 

@@ -291,11 +291,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(mapLookup)
     case PredExprFold(base, args, p) => "fold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
     case PredExprUnfold(base, args, p) => "unfold" <+> "acc" <> parens(showExpr(base) <> parens(showExprList(args)) <> "," <+> showExpr(p))
-    case PatternMatchStmt(exp, cases, strict) => "match" <+>
+    case PatternMatchStmt(exp, cases, _) => "match" <+>
       showExpr(exp) <+> block(ssep(cases map showPatternMatchCaseStmt, line))
   })
 
-  def showPatternMatchCaseStmt(c: PatternMatchCaseStmt): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> nest(line <> ssep(c.body map showStmt, line))
+  def showPatternMatchCaseStmt(c: PatternMatchCaseStmt): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> nest(showStmt(c.body))
   def showPatternMatchCaseExp(c: PatternMatchCaseExp): Doc = "case" <+> showMatchPattern(c.mExp) <> ":" <+> showExpr(c.exp)
 
   def showMatchPattern(expr: MatchPattern): Doc = expr match {
@@ -428,9 +428,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SequenceConversion(exp) => "seq" <> parens(showExpr(exp))
-    case SetConversion(exp) => "set" <> parens(showExpr(exp))
+    case SetConversion(exp, _) => "set" <> parens(showExpr(exp))
     case Cardinality(op) => "|" <> showExpr(op) <> "|"
-    case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+    case MultisetConversion(exp, _) => "mset" <> parens(showExpr(exp))
     case MapKeys(exp) => "domain" <> parens(showExpr(exp))
     case MapValues(exp) => "range" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))

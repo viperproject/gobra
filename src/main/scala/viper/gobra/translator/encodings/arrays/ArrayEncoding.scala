@@ -194,11 +194,11 @@ class ArrayEncoding extends TypeEncoding with SharedArrayEmbedding {
     case n@ in.SequenceConversion(e :: ctx.Array(len, t) / Exclusive) =>
       ctx.expr.translate(e)(ctx).map(vE => ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))
 
-    case n@ in.SetConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.SetConversion(e :: ctx.Array(len, t), _) =>
       val (pos, info, errT) = n.vprMeta
       ctx.expr.translate(e)(ctx).map(vE => ctx.seqToSet.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 
-    case n@ in.MultisetConversion(e :: ctx.Array(len, t)) =>
+    case n@ in.MultisetConversion(e :: ctx.Array(len, t), _) =>
       val (pos, info, errT) = n.vprMeta
       ctx.expr.translate(e)(ctx).map(vE => ctx.seqToMultiset.create(ex.toSeq(vE, cptParam(len, t)(ctx))(n)(ctx))(pos, info, errT))
 

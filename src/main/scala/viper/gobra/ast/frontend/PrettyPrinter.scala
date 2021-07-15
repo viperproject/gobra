@@ -239,7 +239,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PInhale(exp) => "inhale" <+> showExpr(exp)
       case PUnfold(exp) => "unfold" <+> showExpr(exp)
       case PFold(exp) => "fold" <+> showExpr(exp)
-      case PMatchStatement(exp, clauses, strict) => "match" <+>
+      case PMatchStatement(exp, clauses, _) => "match" <+>
         showExpr(exp) <+> block(ssep(clauses map showMatchClauseStatement, line))
     }
   }

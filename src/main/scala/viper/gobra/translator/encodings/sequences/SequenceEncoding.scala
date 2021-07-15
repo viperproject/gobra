@@ -119,11 +119,11 @@ class SequenceEncoding extends LeafTypeEncoding {
 
       case in.SequenceConversion(e :: ctx.Seq(_)) => goE(e)
 
-      case n@ in.SetConversion(e :: ctx.Seq(_)) =>
+      case n@ in.SetConversion(e :: ctx.Seq(_), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(ctx.seqToSet.create(_)(pos, info, errT))
 
-      case n@ in.MultisetConversion(e :: ctx.Seq(_)) =>
+      case n@ in.MultisetConversion(e :: ctx.Seq(_), _) =>
         val (pos, info, errT) = n.vprMeta
         goE(e).map(ctx.seqToMultiset.create(_)(pos, info, errT))
 

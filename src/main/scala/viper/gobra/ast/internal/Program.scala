@@ -15,15 +15,15 @@ package viper.gobra.ast.internal
   * - extend translator
   */
 
-import viper.gobra.frontend.info.base.BuiltInMemberTag.{BuiltInFPredicateTag, BuiltInFunctionTag, BuiltInMPredicateTag, BuiltInMemberTag, BuiltInMethodTag}
-import viper.gobra.frontend.info.base.DerivableTags.{Collection, DerivableTag}
+import viper.gobra.frontend.info.base.BuiltInMemberTag._
+import viper.gobra.frontend.info.base.DerivableTags.DerivableTag
 import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
+import viper.gobra.util.{TypeBounds, Violation}
 
 case class Program(
                     types: Vector[TopType], members: Vector[Member], table: LookupTable
@@ -343,7 +343,7 @@ case class PatternMatchCaseExp(mExp: MatchPattern, exp: Expr)(val info: Source.P
 
 case class PatternMatchStmt(exp: Expr, cases: Vector[PatternMatchCaseStmt], strict: Boolean)(val info: Source.Parser.Info) extends Stmt
 
-case class PatternMatchCaseStmt(mExp: MatchPattern, body: Vector[Stmt])(val info: Source.Parser.Info) extends Node
+case class PatternMatchCaseStmt(mExp: MatchPattern, body: Stmt)(val info: Source.Parser.Info) extends Node
 
 sealed trait MatchPattern extends Node
 
@@ -765,14 +765,8 @@ case class SetLit(memberType : Type, exprs : Vector[Expr])(val info : Source.Par
   * Represents the conversion of a collection of type 't', represented by `exp`,
   * to a (mathematical) set of type 't'.
   */
-case class SetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ : Type = expr.typ match {
-    case SequenceT(t, _) => SetT(t, Addressability.conversionResult)
-    case SetT(t, _) => SetT(t, Addressability.conversionResult)
-    case AdtT(_,_,_,DerivableType(Collection(_, _), typeVars, _)) => SetT(typeVars.head, Addressability.conversionResult)
-    case ArrayT(_, t, Addressability.Exclusive) => SetT(t, Addressability.conversionResult)
-    case t => Violation.violation(s"expected a sequence or set type but got $t")
-  }
+case class SetConversion(expr : Expr, elementType: Type)(val info: Source.Parser.Info) extends Expr {
+  override def typ: Type = SetT(elementType, Addressability.conversionResult)
 }
 
 
@@ -791,13 +785,8 @@ case class MultisetLit(memberType : Type, exprs : Vector[Expr])(val info : Sourc
   * Represents the conversion of `exp` to a (mathematical) multiset of
   * a matching type, where `exp` should be a collection, i.e., a sequence or (multi)set.
   */
-case class MultisetConversion(expr : Expr)(val info: Source.Parser.Info) extends Expr {
-  override val typ : Type = expr.typ match {
-    case SequenceT(t, _) => MultisetT(t, Addressability.conversionResult)
-    case MultisetT(t, _) => MultisetT(t, Addressability.conversionResult)
-    case AdtT(_,_,_,DerivableType(Collection(_, _), typeVars, _)) => MultisetT(typeVars.head, Addressability.conversionResult)
-    case t => Violation.violation(s"expected a sequence or multiset type but got $t")
-  }
+case class MultisetConversion(expr : Expr, elementType: Type)(val info: Source.Parser.Info) extends Expr {
+  override val typ : Type = MultisetT(elementType, Addressability.conversionResult)
 }
 
 /* ** Mathematical Map expressions */

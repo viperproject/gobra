@@ -824,7 +824,7 @@ case class PMatchExp(exp: PExpression, clauses: Vector[PMatchExpClause]) extends
   val hasNoDefault: Boolean = defaultClauses.isEmpty
 }
 
-sealed trait PMatchExpClause extends PGhostMisc {
+sealed trait PMatchExpClause extends PGhostMisc with PScope {
   def exp: PExpression
 }
 

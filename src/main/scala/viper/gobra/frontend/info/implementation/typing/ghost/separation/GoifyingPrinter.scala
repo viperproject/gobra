@@ -89,11 +89,13 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
                 case  (expression,condition)=>  hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
               }
               case PConditionalMeasureUnderscore(tuple)=> tuple match {
-                case (underscore,condition) => specComment <+> showPre(condition) <> line
+                case (_,condition) => specComment <+> showPre(condition) <> line
               }
+             case PConditionalMeasureAdditionalStar() => emptyDoc
             }))
           }
         }
+            case None => emptyDoc
       })
    
 
@@ -110,11 +112,13 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
                 case  (expression,condition)=>  hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
               }
               case PConditionalMeasureUnderscore(tuple)=> tuple match {
-                case (underscore,condition) => specComment <+> showPre(condition) <> line
+                case (_,condition) => specComment <+> showPre(condition) <> line
               }
+              case PConditionalMeasureAdditionalStar() => emptyDoc
             }))
           }
         }
+              case None => emptyDoc
       })
    
   }

@@ -60,6 +60,11 @@ trait Context {
     case bfp: BuiltInFPredicate => builtInMembers.fpredicate(bfp)(this)
   }
 
+  def underlyingType(t: in.Type): in.Type = t match {
+    case t: in.DefinedT => underlyingType(lookup(t))
+    case t => t
+  }
+
   // mapping
 
   def addVars(vars: vpr.LocalVarDecl*): Context

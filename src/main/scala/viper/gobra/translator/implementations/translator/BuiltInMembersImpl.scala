@@ -476,7 +476,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         in.Function(x.name, args, results, pres, posts, None)(src)
 
-      case (CopyFunctionTag, Vector(sliceT1: in.SliceT, sliceT2: in.SliceT, _)) =>
+      case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
           * requires 0 < p && p < 1
           * requires forall i int :: (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
@@ -493,10 +493,16 @@ class BuiltInMembersImpl extends BuiltInMembers {
           */
 
         // parameters
-        val dstParam = in.Parameter.In("dst", sliceT1)(src)
-        val dstUnderlyingType = sliceT1
-        val srcParam = in.Parameter.In("src", sliceT2)(src)
-        val srcUnderlyingType = sliceT2
+        val dstParam = in.Parameter.In("dst", t1)(src)
+        val dstUnderlyingType: in.SliceT = ctx.underlyingType(t1) match {
+          case t: in.SliceT => t
+          case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
+        }
+        val srcParam = in.Parameter.In("src", t2)(src)
+        val srcUnderlyingType: in.SliceT = ctx.underlyingType(t2) match {
+          case t: in.SliceT => t
+          case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
+        }
         val pParam = in.Parameter.In("p", in.PermissionT(Addressability.inParameter))(src)
         val args = Vector(dstParam, srcParam, pParam)
 

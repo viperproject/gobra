@@ -30,23 +30,31 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         })
       case AppendFunctionTag => AbstractType(
         {
-          case (_, Vector(PermissionT, c: SliceT,  v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
+          case (_, Vector(PermissionT, c: SliceT, v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
           case (_, PermissionT +: (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages
           case (n, ts) => error(n, s"type error: append expects first argument of type perm followed by a slice of type []Type and a variadic type Type... but got ${ts.mkString(", ")}")
         },
         {
-          case (PermissionT) +: (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(PermissionT, h, VariadicT(h.elem)), h)
-          case ts@ Vector(PermissionT, c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
+          case PermissionT +: (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(PermissionT, h, VariadicT(h.elem)), h)
+          case ts@Vector(PermissionT, c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
         })
 
-      case CopyFunctionTag => AbstractType(
-        {
-          case (_, Vector(c: SliceT, v: SliceT, PermissionT)) if c.elem == v.elem => noMessages
-          case (n, ts) => error(n, s"type error: copy expects two slices of the same type and a permission but got ${ts.mkString(", ")}")
-        },
-        {
-          case ts@ Vector(c: SliceT, v: SliceT, PermissionT) if c.elem == v.elem => FunctionT(ts, INT_TYPE)
-        })
+      case CopyFunctionTag => {
+        def validArgTypes(t1: Type, t2: Type): Boolean = (underlyingType(t1), underlyingType(t2)) match {
+          case (SliceT(elem1), SliceT(elem2)) if identicalTypes(elem1, elem2) => true
+          case _ => false
+        }
+
+        AbstractType(
+          {
+            case (_, Vector(t1, t2, PermissionT)) if validArgTypes(t1, t2) => noMessages
+            case (n, ts) =>
+              error(n, s"type error: copy expects two slices of the same type and a permission but got ${ts.mkString(", ")}")
+          },
+          {
+            case ts@Vector(t1, t2, PermissionT) if validArgTypes(t1, t2) => FunctionT(ts, INT_TYPE)
+          })
+      }
     }
     case t: BuiltInFPredicateTag => t match {
       case PredTrueFPredTag => AbstractType(

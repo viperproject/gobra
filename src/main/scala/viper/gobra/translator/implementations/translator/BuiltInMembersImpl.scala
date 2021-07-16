@@ -419,7 +419,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )
         in.Function(x.name, args, Vector(), pres, posts, None)(src)
 
-      case (AppendFunctionTag, Vector(_: in.PermissionT, sliceT: in.SliceT,  _: in.SliceT)) =>
+      case (AppendFunctionTag, Vector(_: in.PermissionT, dst, _)) =>
         /**
           * requires p > 0
           * requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
@@ -430,7 +430,11 @@ class BuiltInMembersImpl extends BuiltInMembers {
           * ensures forall i int :: 0 <= i && i < len(s) ==> res[i] == old(s[i])
           * ensures forall i int :: len(s) <= i && i < len(res) ==> res[i] == stuff[i - len(s)]
          */
-        val elemType = sliceT.elems.withAddressability(Addressability.sliceLookup)
+        val elemType = ctx.underlyingType(dst) match {
+          case t: in.SliceT => t.elems.withAddressability(Addressability.sliceLookup)
+          case t => violation(s"Expected type with SliceT as underlying type, but got $t instead.")
+        }
+
         val sliceType = in.SliceT(elemType, Addressability.inParameter)
 
         // parameters

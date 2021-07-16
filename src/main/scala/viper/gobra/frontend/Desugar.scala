@@ -1260,9 +1260,10 @@ object Desugar {
             variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
             len = res.length
             argList = res.lastOption.map(_.typ) match {
-              case Some(in.SliceT(elems, _)) if len == parameterCount && elems == variadicInTyp =>
-                // corresponds to the case where an unpacked slice is already passed as an argument
-                res
+              case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
+                len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
+                  // corresponds to the case where an unpacked slice is already passed as an argument
+                  res
               case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
                 // supports chaining function calls with variadic functions of one argument
                 val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)

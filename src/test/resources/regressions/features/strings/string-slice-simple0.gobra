@@ -1,0 +1,31 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test1() {
+	x := "hello"[0:3]
+	assert len(x) == 3
+	str1 := (x + "world")
+	assert len(str1) == 8
+	y := str1[0:6]
+	str2 := "string_slice_test"
+	z := str2[:]
+}
+
+func test2() {
+	l := 0
+	h := f()
+	str := "FooBar"
+	strSlice := str[l:h]
+}
+
+ensures 0 <= res && res < 5
+func f() (res int)
+
+type T string
+
+func test3() {
+	var str T = T("hello")
+	assert len(str[2:4]) == 2
+}

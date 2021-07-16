@@ -25,8 +25,7 @@ import (
 
 // UDPAddr represents the address of a UDP end point.
 type UDPAddr struct {
-// TODO(Gobra): cannot have fields and types with the same identifier
-//	IP   IP
+	IP   IP
 	Port int
 	Zone string // IPv6 scoped addressing zone
 }

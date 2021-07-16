@@ -15,6 +15,7 @@ import viper.gobra.translator.encodings.TypeEncoding
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
 
 private[structs] object StructEncoding {
@@ -158,13 +159,13 @@ class StructEncoding extends TypeEncoding {
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Exclusive =>
       for {
         vBase <- ctx.expr.translate(recv)(ctx)
-        idx = fs.indexOf(field)
+        idx = indexOfField(fs, field)
       } yield ex.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
 
     case (upd: in.StructUpdate) :: ctx.Struct(fs) =>
       for {
         vBase <- ctx.expr.translate(upd.base)(ctx)
-        idx = fs.indexOf(upd.field)
+        idx = indexOfField(fs, upd.field)
         vVal <- ctx.expr.translate(upd.newVal)(ctx)
       } yield ex.update(vBase, idx, vVal, cptParam(fs)(ctx))(upd)(ctx)
 
@@ -196,7 +197,7 @@ class StructEncoding extends TypeEncoding {
     case (loc@ in.FieldRef(recv :: ctx.Struct(fs), field)) :: _ / Shared =>
       for {
         vBase <- ctx.typeEncoding.reference(ctx)(recv.asInstanceOf[in.Location])
-        idx = fs.indexOf(field)
+        idx = indexOfField(fs, field)
       } yield sh.get(vBase, idx, cptParam(fs)(ctx))(loc)(ctx)
   }
 
@@ -232,6 +233,12 @@ class StructEncoding extends TypeEncoding {
   /** Returns 'base'.f for every f in 'fields'. */
   private def fieldAccesses(base: in.Expr, fields: Vector[in.Field]): Vector[in.FieldRef] = {
     fields.map(f => in.FieldRef(base, f)(base.info))
+  }
+
+  private def indexOfField(fs: Vector[in.Field], f: in.Field): Int = {
+    val idx = fs.indexOf(f)
+    Violation.violation(idx >= 0, s"$idx, ${f.typ.addressability}, ${fs.map(_.typ.addressability)} - Did not find field $f in $fs")
+    idx
   }
 
   /**

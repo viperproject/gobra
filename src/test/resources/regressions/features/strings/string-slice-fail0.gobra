@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+func test1() {
+    //:: ExpectedOutput(type_error)
+	x := "hello"[0:100]
+    //:: ExpectedOutput(type_error)
+	y := "hello"[-1:100]
+    //:: ExpectedOutput(type_error)
+	w := "world"[2:0]
+    //:: ExpectedOutput(type_error)
+	z := "world"[0:2:-1]
+}

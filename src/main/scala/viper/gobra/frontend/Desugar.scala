@@ -31,11 +31,11 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)(config)
+      val d = new Desugarer(importedPackage.positions, typeInfo)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)(config)
+    val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
@@ -144,7 +144,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo)(config: Config) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
 
     // TODO: clean initialization
 
@@ -1186,7 +1186,7 @@ object Desugar {
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
-        val abstractType = f.symb.tag.typ(config)
+        val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
           case _: ap.BuiltInFunction =>
             p.args.map(info.typ)
@@ -1659,6 +1659,14 @@ object Desugar {
               case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
               case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
+            case baseT @ (_: in.StringT) =>
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None for slices of strings, but got $dcap instead")
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
+              }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -1820,7 +1828,7 @@ object Desugar {
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
-          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(base.typ.addressability), info)(pinfo))(pinfo)
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), info)(pinfo))(pinfo)
       }}
     }
 
@@ -2513,12 +2521,15 @@ object Desugar {
 
     def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
-      val td = embeddedTypeD(???, fieldAddrMod)(src) // TODO fix me or embeddedTypeD
+      val td = typeD(embedded._2, fieldAddrMod)(src)
       in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src), ghost = false)(src) // TODO: fix ghost attribute
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
+      val struct = context.struct(decl)
+      val embedded: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      embeddedDeclD(embedded, addrMod, struct.get)(src)
+    }
 
     def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)

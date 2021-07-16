@@ -45,6 +45,9 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
+  lazy val enclosingStruct: PNode => Option[PStructType] =
+    down[Option[PStructType]](None) { case x: PStructType => Some(x) }
+
   def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
 

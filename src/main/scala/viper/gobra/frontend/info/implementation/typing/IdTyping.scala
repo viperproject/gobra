@@ -112,8 +112,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefAndType.valid(typ)
     })
 
-    case Embbed(PEmbeddedDecl(_, fieldId), _, _) => unsafeMessage(! {
-      wellDefID.valid(fieldId)
+    case Embbed(PEmbeddedDecl(typ, _), _, _) => unsafeMessage(! {
+      wellDefMisc.valid(typ)
     })
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
@@ -170,7 +170,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
     case MethodSpec(PMethodSig(_, args, result, _, _), _, _, context) =>
       FunctionT(args map context.typ, context.typ(result))
 
-    case BuiltInFunction(tag, _, _) => tag.typ(config)
+    case BuiltInFunction(tag, _, _) => typ(tag)
 
     case NamedType(_, _, _) => SortT // DeclaredT(decl, context)
     case TypeAlias(PTypeAlias(right, _), _, context) => context.symbType(right)
@@ -194,7 +194,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
-    case Embbed(PEmbeddedDecl(_, fieldId), _, context) => context.typ(fieldId)
+    case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
 
     case Import(decl, _) => ImportT(decl)
 
@@ -217,6 +217,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       case AssignMode.Single => exprType(right(pos))
       case AssignMode.Multi => exprType(right.head) match {
         case t: InternalTupleT => t.ts(pos)
+        case t: InternalSingleMulti => t.mul.ts(pos)
         case _ => violation("return type of multi-assignment should be an InternalTupleT")
       }
       case AssignMode.Error | AssignMode.Variadic => violation("ill formed assignment")

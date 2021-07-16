@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type BarCell struct {
+    val int
+    EmbeddedCell
+}
+
+type EmbeddedCell struct {
+    val2 int
+}
+
+func client() {
+    c := BarCell{5, EmbeddedCell{6}};
+    assert c.val == 5;
+    assert c.val2 == 6;
+    d := &BarCell{10, EmbeddedCell{11}};
+    assert d.val == 10;
+    assert d.val2 == 11;
+}

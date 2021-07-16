@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package builtin
+
+func test1() {
+	s1 := []int{1, 2}
+	s2 := []int{3, 4}
+	s3 := append(perm(1)/2, s1, s2...)
+	assert s3[0] == 1
+	assert s3[1] == 2
+	assert s3[2] == 3
+	assert s3[3] == 4
+	assert len(s3) == 4
+}
+
+func test2() {
+	s1 := []int{1, 2}
+	s3 := append(perm(1)/2, s1, 3, 4)
+	assert s3[0] == 1
+	assert s3[1] == 2
+	assert s3[2] == 3
+	assert s3[3] == 4
+	assert len(s3) == 4
+}

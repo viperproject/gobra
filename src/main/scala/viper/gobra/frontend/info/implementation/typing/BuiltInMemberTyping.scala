@@ -28,16 +28,31 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
         {
           case ts@Vector(c: ChannelT, IntT(UnboundedInteger), IntT(UnboundedInteger) /* PermissionT */ , PredT(Vector())) if sendAndBiDirections.contains(c.mod) => FunctionT(ts, VoidType)
         })
-      case AppendFunctionTag => AbstractType(
-        {
-          case (_, Vector(PermissionT, c: SliceT, v: VariadicT)) if assignableTo(v.elem, c.elem) => noMessages
-          case (_, PermissionT +: (h: SliceT) +: tail) if tail.forall(assignableTo(_, h.elem)) => noMessages
-          case (n, ts) => error(n, s"type error: append expects first argument of type perm followed by a slice of type []Type and a variadic type Type... but got ${ts.mkString(", ")}")
-        },
-        {
-          case PermissionT +: (h: SliceT) +: tail if tail.forall(assignableTo(_, h.elem)) => FunctionT(Vector(PermissionT, h, VariadicT(h.elem)), h)
-          case ts@Vector(PermissionT, c: SliceT, v: VariadicT) if assignableTo(v.elem, c.elem) => FunctionT(ts, c)
-        })
+      case AppendFunctionTag => {
+        def appendTypeError(n: PNode, ts: Vector[Type]): Messages =
+          error(n, s"type error: append expects first argument of type perm followed by a slice of type []Type and a variadic type Type... but got ${ts.mkString(", ")}")
+
+        AbstractType(
+          {
+            case (n, ts@PermissionT +: s +: v) => underlyingType(s) match {
+              case t: SliceT => v match {
+                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => noMessages
+                case tail if tail.forall(assignableTo(_, t.elem)) => noMessages
+                case _ => appendTypeError(n, ts)
+              }
+              case _ => appendTypeError(n, ts)
+            }
+            case (n, ts) => appendTypeError(n, ts)
+          },
+          {
+            case ts@PermissionT +: s +: v => underlyingType(s) match {
+              case t: SliceT => v match {
+                case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => FunctionT(ts, s)
+                case tail if tail.forall(assignableTo(_, t.elem)) => FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
+              }
+            }
+          })
+      }
 
       case CopyFunctionTag => {
         def validArgTypes(t1: Type, t2: Type): Boolean = (underlyingType(t1), underlyingType(t2)) match {

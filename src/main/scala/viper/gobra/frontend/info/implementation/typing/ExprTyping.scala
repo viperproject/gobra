@@ -468,7 +468,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case PUnpackSlice(elem) => error(expr, "only slices can be unpacked", !exprType(elem).isInstanceOf[SliceT])
+    case PUnpackSlice(elem) => underlyingType(exprType(elem)) match {
+      case _: SliceT => noMessages
+      case t => error(expr, s"Tried to unpack value of type $t, which is not a slice type")
+    }
 
     case p@PPredConstructor(base, _) => {
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
@@ -671,10 +674,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-    case PUnpackSlice(exp) => exprType(exp) match {
-      case SliceT(elem) => VariadicT(elem)
-      case e => violation(s"expression $e cannot be unpacked")
-    }
+    case PUnpackSlice(exp) =>
+      underlyingType(exprType(exp)) match {
+        case SliceT(elem) => VariadicT(elem)
+        case e => violation(s"expression $e cannot be unpacked")
+      }
 
     case e => violation(s"unexpected expression $e")
   }

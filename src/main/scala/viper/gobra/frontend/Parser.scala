@@ -427,11 +427,13 @@ object Parser {
 
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
+      case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
+        "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
         "pure" <~ eos ^^^ PureClause
       }
@@ -439,9 +441,10 @@ object Parser {
       functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
+          val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, posts, isPure)
+          PFunctionSpec(pres, preserves, posts, isPure)
       }
     }
 

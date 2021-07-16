@@ -1,0 +1,20 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// tests that a function name cannot have the same name as a type
+//:: ExpectedOutput(type_error)
+type A int
+//:: ExpectedOutput(type_error)
+type B = int
+
+//:: ExpectedOutput(type_error)
+func A() int {
+    return 42
+}
+
+//:: ExpectedOutput(type_error)
+func B() int {
+    return 42
+}

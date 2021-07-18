@@ -772,11 +772,10 @@ class AdtEncoding extends LeafTypeEncoding {
         } else {
           (Seq(), Seq())
         }
-
       for {
         check <- translateMatchPatternCheck(ctx)(expr, c.mExp)
         exVar <- setExVar(cPos, cInfo, cErrT)
-        body  <- ctx.stmt.translate(c.body)(ctx)
+        body  <- seqn(ctx.stmt.translate(c.body)(ctx))
       } yield vpr.If(vpr.And(check, vpr.Not(checkExVar)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT),
         vpr.Seqn(exVar +: (ass :+ body), decls)(cPos, cInfo, cErrT), vpr.Seqn(Seq(), Seq())(cPos, cInfo, cErrT))(cPos, cInfo, cErrT)
     }

@@ -2634,9 +2634,10 @@ object Desugar {
 
             val body = block(
               for {
-                s <- sequence(clause.stmt map stmtD(ctx))
+                s <- sequence(clause.stmt map {s => seqn(stmtD(ctx)(s))})
               } yield in.Seqn(s)(src)
             )
+
             for {
               eM <- matchPatternD(ctx)(clause.pattern)
             } yield in.PatternMatchCaseStmt(eM, body)(src)

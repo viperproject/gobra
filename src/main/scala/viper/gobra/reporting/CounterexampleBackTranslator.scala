@@ -123,6 +123,8 @@ object Util{
 				value match {
 					case LitStructEntry(_,_) => prettyPrint(value,level).replaceFirst("struct",name)
 					case LitAdressedEntry(value, address) => prettyPrint(LitDeclaredEntry(name,value),level) ++ s"@$address"
+					case u: UserDomainEntry => prettyPrint(value,level).replaceFirst("domain",name)
+					case e: ExtendedUserDomainEntry => prettyPrint(value,level).replaceFirst("domain",name)
 					case _ => s"$name(${prettyPrint(value,level)})"  // can we assum that only structs show theit name?
 				} 
 				
@@ -289,7 +291,7 @@ case class ChannelEntry(typ: ChannelT, buffSize: BigInt, isOpen: Option[Int], is
 
 
 }
-case class FunctionEntry(fname: String, argTypes: Seq[Type], resType: Type, options: Map[Seq[GobraModelEntry], GobraModelEntry], default: GobraModelEntry) { //maybe extend gobraentry
+case class FunctionEntry(fname: String, argTypes: Seq[Type], resType: Type, options: Map[Seq[GobraModelEntry], GobraModelEntry], default: GobraModelEntry) extends GobraModelEntry { //maybe extend gobraentry
 	override def toString: String = {
     if (options.nonEmpty)
       s"$fname${argTypes.mkString("(",",",")")}:$resType{\n" + options.map(o => "    " + o._1.mkString(" ") + " -> " + o._2).mkString("\n") + "\n    else -> " + default +"\n}"
@@ -298,11 +300,15 @@ case class FunctionEntry(fname: String, argTypes: Seq[Type], resType: Type, opti
   }
 }
 
-case class UserDomain(name: String, typeArgs: Seq[Type], functions: Seq[FunctionEntry]) {
+case class UserDomain(name: String, typeArgs: Seq[Type], functions: Seq[FunctionEntry]) extends GobraModelEntry {
 	//TODO: tostring
 }
-case class UserDomainEntry(name: String, id: String) {
-	override def toString() :String = name + "_" + id
+case class UserDomainEntry(name: String, id: String) extends LitEntry {
+	override def toString(): String = name + "_" + id
+}
+
+case class ExtendedUserDomainEntry(original: UserDomainEntry, functions: Seq[FunctionEntry]) extends LitEntry {
+	override def toString(): String = s"$original${functions.map(f => s"\t${f.fname} = ${f.options.getOrElse(Seq(original),f.default)}").mkString("{\n",",\n","\n}")}"
 }
 
 trait HeapEntry extends GobraModelEntry {

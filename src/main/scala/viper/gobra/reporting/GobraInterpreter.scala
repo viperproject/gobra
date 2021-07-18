@@ -8,6 +8,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.translator.Names
 import viper.silver.{ast => vpr}
 import scala.util.matching.Regex
+import scala.collection.immutable.ListMap
 
 
 trait GobraInterpreter extends sil.ModelInterpreter[GobraModelEntry,Type]
@@ -17,32 +18,36 @@ case class DefaultGobraInterpreter() extends GobraInterpreter{
 	override def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry = DummyEntry()
 }
 object InterpreterCache{
-	private var heap: Seq[(BigInt,Type)] = Seq()
-	def isDefined(address:BigInt,typ:Type):Boolean = heap.contains((address,typ))
-	def addAddress(address:BigInt,typ:Type):Unit = {heap=(address,typ)+:heap}
-	def clearCache():Unit ={heap = Seq()}
+	private var heap: Seq[(BigInt, Type)] = Seq()
+	def isDefined(address: BigInt, typ: Type): Boolean = heap.contains((address, typ))
+	def addAddress(address: BigInt, typ: Type): Unit = {heap = (address, typ) +: heap}
+	def clearCache(): Unit = {heap = Seq(); domains = Seq()}
 
-	private var viperPredicates : Seq[vpr.Predicate] =Seq()
-	def setPredicates(preds:Seq[vpr.Predicate]):Unit ={viperPredicates=preds}
-	def clearPreds():Unit ={viperPredicates=Seq()}
-	def getPreds():Seq[vpr.Predicate] = viperPredicates
+	private var viperPredicates: Seq[vpr.Predicate] = Seq()
+	def setPredicates(preds: Seq[vpr.Predicate]): Unit = {viperPredicates=preds}
+	def clearPreds(): Unit = {viperPredicates = Seq()}
+	def getPreds(): Seq[vpr.Predicate] = viperPredicates
 
-	private var gobraPredicates : Seq[PFPredicateDecl] =Seq()
+	private var gobraPredicates: Seq[PFPredicateDecl] =Seq()
 	def setGobraPredicates(preds:Seq[PFPredicateDecl]):Unit ={gobraPredicates=preds}
-	def clearGobraPreds():Unit ={gobraPredicates=Seq()}
-	def getGobraPreds():Seq[PFPredicateDecl] = gobraPredicates
+	def clearGobraPreds(): Unit ={gobraPredicates=Seq()}
+	def getGobraPreds(): Seq[PFPredicateDecl] = gobraPredicates
 
-	private var typeInfo : viper.gobra.frontend.info.ExternalTypeInfo =null
-	def setTypeInfo(info:viper.gobra.frontend.info.ExternalTypeInfo):Unit ={typeInfo=info}
-	def getType(pnode:PNode):Type={
+	private var typeInfo : viper.gobra.frontend.info.ExternalTypeInfo = null
+	def setTypeInfo(info: viper.gobra.frontend.info.ExternalTypeInfo): Unit = {typeInfo = info}
+	def getType(pnode: PNode):Type={
 		pnode match {
-			case (x:PIdnNode) => typeInfo.typ(x)
-			case (x:PParameter) => typeInfo.typ(x)
-			case (x:PExpression) => typeInfo.typ(x)
-			case (x:PMisc) => typeInfo.typ(x)
+			case (x: PIdnNode) => typeInfo.typ(x)
+			case (x: PParameter) => typeInfo.typ(x)
+			case (x: PExpression) => typeInfo.typ(x)
+			case (x: PMisc) => typeInfo.typ(x)
 			case _ => UnknownType
 		}
 	}
+	private var domains: Seq[UserDomainEntry] = Seq()
+	def existsDomain(d: UserDomainEntry) : Boolean = domains.contains(d)
+	def addDomain(d: UserDomainEntry) : Unit = {domains =  d +: domains}
+	
 }
 
 /**
@@ -54,13 +59,13 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 	val optionInterpreter: GobraDomainInterpreter[OptionT] = OptionInterpreter(c)
 	val productInterpreter: GobraDomainInterpreter[StructT] = ProductInterpreter(c)
 	val sharedStructInterpreter : GobraDomainInterpreter[StructT] = SharedStructInterpreter(c)
-	val boxInterpreter:GobraDomainInterpreter[Type] = BoxInterpreter(c)
-	val indexedInterpreter:GobraDomainInterpreter[ArrayT] = IndexedInterpreter(c)
+	val boxInterpreter: GobraDomainInterpreter[Type] = BoxInterpreter(c)
+	val indexedInterpreter: GobraDomainInterpreter[ArrayT] = IndexedInterpreter(c)
 	val sliceInterpreter: GobraDomainInterpreter[SliceT]= SliceInterpreter(c)
 	val pointerInterpreter : sil.AbstractInterpreter[sil.RefEntry,Type,GobraModelEntry] = PointerInterpreter(c)
 	val interfaceInterpreter :GobraDomainInterpreter[InterfaceT] = InterfaceInterpreter(c)
 	val channelInterpreter : sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] = ChannelInterpreter(c)
-	def interpret(entry:sil.ExtractedModelEntry,info:Type): GobraModelEntry ={
+	def interpret(entry: sil.ExtractedModelEntry, info: Type): GobraModelEntry ={
 		entry match{
 			case sil.LitIntEntry(v) => info match {
 												case StringT => StringInterpreter(c).interpret(entry,null)
@@ -70,7 +75,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case ch:ChannelT => channelInterpreter.interpret(sil.LitIntEntry(v),ch)
+												case ch: ChannelT => channelInterpreter.interpret(sil.LitIntEntry(v),ch)
 												case _ =>LitIntEntry(v)
 										}
 			case sil.LitBoolEntry(b) => info match{
@@ -78,33 +83,37 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 				case _ =>LitBoolEntry(b)
 			}
 			case sil.LitPermEntry(p) => LitPermEntry(p)
-			case _:sil.NullRefEntry => LitNilEntry()
-			case v:sil.VarEntry => interpret(c.extractVal(v),info)//TODO:make shure this does not pingpong
-			case d:sil.DomainValueEntry => if(d.getDomainName.contains("Embfn$$")){//TODO: get name from Names
+			case _: sil.NullRefEntry => LitNilEntry()
+			case v: sil.VarEntry => interpret(c.extractVal(v),info)//TODO:make shure this does not pingpong
+			case d: sil.DomainValueEntry => if(d.getDomainName.contains("Embfn$$")){//TODO: get name from Names
 											boxInterpreter.interpret(d,info)
 										}else{
 											info match {//TODO: More interpreters
-												case t:OptionT => optionInterpreter.interpret(d,t)
-												case t:StructT =>  if(d.getDomainName.startsWith("ShStruct"))
+												case t: OptionT => optionInterpreter.interpret(d,t)
+												case t: StructT =>  if(d.getDomainName.startsWith("ShStruct"))
 																		 sharedStructInterpreter.interpret(d,t) 
 																	else 
 																		productInterpreter.interpret(d,t)
-												case t:ArrayT => if(d.getDomainName.startsWith("Slice")){
+												case t: ArrayT => if(d.getDomainName.startsWith("Slice")){
 																		sliceInterpreter.interpret(d,SliceT(t.elem))
 																}else{
 																	indexedInterpreter.interpret(d,t)
 																}
 													
-												case t:SliceT => sliceInterpreter.interpret(d,t)
-												case DeclaredT(d,c) => val name = d.left.name
-																		val actual = interpret(entry,c.symbType(d.right)) match {
+												case t: SliceT => sliceInterpreter.interpret(d,t)
+												case DeclaredT(decl,cont) => cont.symbType(decl.right) match {
+																	case _:DomainT => UserDomainInterpreter(c).interpret(d,DeclaredT(decl,cont))
+																	case t => val name = decl.left.name
+																		val actual = interpret(entry,t) match {
 																			case l:LitEntry => l
 																			case _ => FaultEntry("not a lit entry")
 																		}
 																		LitDeclaredEntry(name,actual)
-												case i:InterfaceT => interfaceInterpreter.interpret(d,i)
+																}
+																		
+												case i: InterfaceT => interfaceInterpreter.interpret(d,i)
 												case FunctionT(args,res) => FaultEntry("TODO: Functions")
-												case p:PointerT => 	val newType =  p.elem match {
+												case p: PointerT => 	val newType =  p.elem match {
 																				case a:ArrayT => sharedTypify(a) //TODO handle slices and such (move to concrete interpreter)
 																				
 																				case x => x
@@ -118,26 +127,26 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																		case LitDeclaredEntry(_,LitNilEntry())  => LitNilEntry()
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
-												case pred:PredT => PredicateInterpreter(c).interpret(d,pred)
-												case dom:DomainT => UserDomainInterpreter(c).interpret(d,dom)
+												case pred: PredT => PredicateInterpreter(c).interpret(d,pred)
+												case dom: DomainT =>  UserDomainInterpreter(c).interpret(d,DeclaredT(PTypeDef(dom.decl,PIdnDef("domain")),dom.context))
 												case GhostSliceT(elem) => sliceInterpreter.interpret(d,SliceT(elem)) //TODO: add ghostslice separate entry (not very important)
 												case x => FaultEntry(s"$x ${DummyEntry()}")
 											}}
 			case sil.ExtendedDomainValueEntry(o,i) => interpret(o,info)
-			case r:sil.RefEntry => pointerInterpreter.interpret(r,info) 
-			case rr:sil.RecursiveRefEntry => info match{
+			case r: sil.RefEntry => pointerInterpreter.interpret(r,info) 
+			case rr: sil.RecursiveRefEntry => info match{
 													case t:PointerT => {val address = PointerInterpreter(c).nameToInt(rr.name,PointerInterpreter(c).filedname(rr,t.elem))
 											 			LitAdressedEntry(FaultEntry(s"recursive call"),address)
 															}
 													case _ => FaultEntry("recursive reference to non pointer... how?")
 												}
-			case s:sil.SeqEntry => 
+			case s: sil.SeqEntry => 
 									info match {
-										case a:ArrayT=>  val (values,map) = interpretSeq(s.values,a.elem)
+										case a: ArrayT=>  val (values,map) = interpretSeq(s.values,a.elem)
 														if(values.size <=10) LitArrayEntry(a,values) else LitSparseEntry(LitArrayEntry(a,values),map)
-										case a:SequenceT => val (values,map) = interpretSeq(s.values,a.elem)
+										case a: SequenceT => val (values,map) = interpretSeq(s.values,a.elem)
 														if(values.size <=10) LitSeqEntry(a,values) else LitSparseEntry(LitSeqEntry(a,values),map)
-										case a:GhostSliceT => val (values,map) = interpretSeq(s.values,a.elem)
+										case a: GhostSliceT => val (values,map) = interpretSeq(s.values,a.elem)
 														if(values.size <=10) LitSeqEntry(a,values) else LitSparseEntry(LitSeqEntry(a,values),map)
 										case _ => FaultEntry(s"${info.getClass()} not implemented")
 										}
@@ -145,7 +154,7 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 				case _ => FaultEntry(s"$s ,$info not implemented")
 			} */
 			
-			case sil.PredHeapEntry(name,args,perm) => info match {
+			case sil.PredHeapEntry(name, args, perm) => info match {
 						case PredT(types) =>LitPredicateEntry(name,
 															args.zip(types).map(x=>interpret(x._1,x._2).asInstanceOf[LitEntry]),
 															perm.map(LitPermEntry))
@@ -154,25 +163,25 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 			case _ => FaultEntry(s"illegal call of interpret: ${entry}")
 		}
 	}
-	def interpretSeq(vals:Seq[sil.ExtractedModelEntry],typ:Type):(Seq[LitEntry],Map[(Int,Int),LitEntry])={//used for sparsity (might affect performance)
-											var first =0;
-											var second =(-1);
-											var curr:LitEntry = null;
-											var map:Map[(Int,Int),LitEntry] = Map()
-											val ret= vals.map(x=> interpret(x,typ)	match {
-										case l:LitEntry=>
-												second= second +1
-												 if(x!=curr){
+	def interpretSeq(vals: Seq[sil.ExtractedModelEntry], typ: Type): (Seq[LitEntry] ,Map[(Int, Int), LitEntry]) = {//used for sparsity (might affect performance)
+											var first = 0;
+											var second = (-1);
+											var curr: LitEntry = null;
+											var map: Map[(Int, Int), LitEntry] = Map()
+											val ret = vals.map(x=> interpret(x,typ)	match {
+										case l: LitEntry=>
+												second = second + 1
+												 if(l != curr){
 													map = map ++ Map((first,second)->curr)
-													curr=l
-													first=second
+													curr = l
+													first = second
 												};l
 										case _ => FaultEntry("Could not resolve Element")
 									})
 									map =  (map-((0,0)))++ Map((first,second+1)->curr)
 									(ret,map)
 	}
-	def sharedTypify(old:Type):Type ={
+	def sharedTypify(old: Type):Type ={
 		old match {
 			case DeclaredT(d,c) => 	val actual = sharedTypify(c.symbType(d.right))
 								//DeclaredT(viper.gobra.ast.frontend.PTypeDef(actual, d.left),c)
@@ -521,14 +530,14 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 		}
 	}
 	 
-	def filedname(entry:sil.ExtractedModelEntry,i:Type) : String ={ //TODO: improve (especially shared structs with more than one type (Ref,Shstruct))
-		i match{
-			case _:IntT => Names.pointerField(vpr.Int)
+	def filedname(entry: sil.ExtractedModelEntry, i: Type) : String = { //TODO: improve (especially shared structs with more than one type (Ref,Shstruct))
+		i match {
+			case _: IntT => Names.pointerField(vpr.Int)
 			case BooleanT => Names.pointerField(vpr.Bool)
 			case StringT => Names.pointerField(vpr.Int)
 			case PointerT(elem) => elem match{
-				case x:StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
-				case d:DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
+				case x: StructT => Names.pointerField(vpr.Int).replace("Tuple","ShStruct")
+				case d: DeclaredT => filedname(entry,d.context.symbType(d.decl.right))
 				//case _:IntT => Names.pointerField(vpr.Int)
 				//case BooleanT => Names.pointerField(vpr.Bool)
 				//case StringT => Names.pointerField(vpr.Int)
@@ -550,10 +559,10 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 
  
 
-case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[GobraModelEntry,Any]{
+case class StringInterpreter(c: sil.Converter) extends sil.ModelInterpreter[GobraModelEntry, Any] {
 	val stringDomain = Names.stringsDomain 
 	val prefix = Names.stringPrefix
-	def interpret(entry:sil.ExtractedModelEntry,info:Any): GobraModelEntry ={
+	def interpret(entry: sil.ExtractedModelEntry,info:Any): GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==stringDomain)
 		if(doms.isDefined){
 			val functions:Seq[sil.ExtractedFunction]=doms.get.functions
@@ -564,7 +573,7 @@ case class StringInterpreter(c:sil.Converter) extends sil.ModelInterpreter[Gobra
 									LitStringEntry(value)
 
 								}
-					case _=>  FaultEntry("string literal not found")
+					case _=>  FaultEntry("string literal not found") //probably empty string but no guarantee...
 				}
 
 				case _=>  FaultEntry("could not resolve string because not an Int Entry")
@@ -596,7 +605,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 			val typeDom = c.domains.find(_.valueName==Names.typesDomain).get 
 			//either which it is or a list ow which it could be
 			val typeinfo =getType(typ,typeDom)
-			val typeDecls = info.context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
+			val typeDecls = info.context.asInstanceOf[TypeInfo].tree.nodes.collect({case x:PTypeDecl=>x})
 			val gobraType = typeinfo match {
 				case (Left(v),p) => {
 					// we can find out which named type it is TODO: make named finding better (e.g named with _ in them)
@@ -650,13 +659,18 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 	}
 
 	def fnameToType(fname:String,context:ExternalTypeInfo):Either[GobraModelEntry,Type] ={
-		val typeDecls = context.asInstanceOf[TypeInfo].tree.nodes.filter(_.isInstanceOf[PTypeDecl]).map(_.asInstanceOf[PTypeDecl])
+		val typeDecls = context.asInstanceOf[TypeInfo].tree.nodes.collect({case x:PTypeDecl=>x})
 		val namedName = fname.takeWhile(_!='_')
 		typeDecls.find(_.left.name==namedName) match {
 						case Some(decl) => Right(DeclaredT(decl, context))
 						case _ => namedName match {
 								case "nil" => Left(FaultEntry("probably nil interface"))
 								case "empty" => Left(FaultEntry("probably empty interface"))
+								case "struct" => context.asInstanceOf[TypeInfo].tree.nodes.collect({case x:PStructType =>x}) match {
+									case Nil => Left(FaultEntry("no struct decalaration in scope"))
+									case s => Right(StructT(ListMap() ++ (s.head.fields.map(x=>((x.id.toString,(true,Util.getType(x.typ,context)))))).toMap[String,(Boolean, viper.gobra.frontend.info.base.Type.Type)],s.head,context)) //TODO find the types of the clauses
+									
+								}
 								case _ => Left(FaultEntry(s"could not resolve $namedName"))
 							}
 								
@@ -694,7 +708,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		}
 	}
 	//get all posibilities of values the 
-	def get_options(functions:Seq[sil.ExtractedFunction],value:sil.ExtractedModelEntry,typedecls:Seq[PTypeDecl],context:ExternalTypeInfo): Seq[GobraModelEntry] = {
+	def get_options(functions: Seq[sil.ExtractedFunction], value: sil.ExtractedModelEntry, typedecls: Seq[PTypeDecl], context: ExternalTypeInfo): Seq[GobraModelEntry] = {
 		val names = functions.map(_.fname.takeWhile(_!='_'))
 		val declarations = typedecls.collect(x=>{if(names.contains(x.left.name.toString)) Some(DeclaredT(x, context))else None} ).collect(_ match {case Some(x) => x})
 		val fieldNameswithtyps = declarations map (x=>(PointerInterpreter(c).filedname(sil.RefEntry("l",null),PointerT(x)),PointerT(x)))
@@ -710,7 +724,7 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		name.startsWith("Sh") || name.equals("Ref")
 	}
 	//filter out functions that are irrelevant
-	def isnonTypeFunction(fname:String) :Boolean ={//TODO: make this smarter
+	def isnonTypeFunction(fname: String): Boolean ={//TODO: make this smarter
 		fname.startsWith(Names.emptyInterface) ||
 		fname.startsWith(Names.toInterfaceFunc) ||
 		fname.startsWith(Names.typeOfFunc) ||
@@ -718,8 +732,8 @@ case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 		fname.startsWith(Names.implicitThis) 
 	}
 }
-case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
-	def interpret(entry:sil.LitIntEntry,info:ChannelT) :GobraModelEntry= {
+case class ChannelInterpreter(c: sil.Converter) extends sil.AbstractInterpreter[sil.LitIntEntry,ChannelT,GobraModelEntry] {
+	def interpret(entry: sil.LitIntEntry, info: ChannelT): GobraModelEntry= {
 		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]&&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry))
 		if(entry.value == 0){
 			return LitNilEntry()
@@ -756,9 +770,9 @@ case class ChannelInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
   *
   * @param c
   */
-case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[PredT] {
-	def interpret(entry:sil.DomainValueEntry,info:PredT) = {
-		val preds = c.extractedHeap.entries.filter(x=>x.isInstanceOf[sil.PredHeapEntry]/* &&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry) */)
+case class PredicateInterpreter(c: sil.Converter) extends GobraDomainInterpreter[PredT] {
+	def interpret(entry: sil.DomainValueEntry, info: PredT) = {
+		val preds = c.extractedHeap.entries.filter(x => x.isInstanceOf[sil.PredHeapEntry]/* &&x.asInstanceOf[sil.PredHeapEntry].args==Seq(entry) */)
 		val domOpt = c.domains.find(_.valueName == entry.domain) 
 		val symbolConv =new viper.silicon.state.DefaultSymbolConverter 
 		//printf(s"$preds --- ${c.non_domain_functions}\n")
@@ -794,9 +808,40 @@ case class PredicateInterpreter(c:sil.Converter) extends GobraDomainInterpreter[
 	}
 }
 
-case class UserDomainInterpreter(c:sil.Converter) extends GobraDomainInterpreter[DomainT] {
-	def interpret(entry:sil.DomainValueEntry,info:DomainT) = {
-		FaultEntry("Domain not implemented")
+case class UserDomainInterpreter(c: sil.Converter) extends GobraDomainInterpreter[DeclaredT] { //TODO: maybe also return the translated domain
+	def interpret(entry: sil.DomainValueEntry, info: DeclaredT) : GobraModelEntry = {
+		val original = UserDomainEntry(info.decl.left.name,entry.id)
+		if(InterpreterCache.existsDomain(original))  return original
+		InterpreterCache.addDomain(original)
+		val domainType = info.context.symbType(info.decl.right) match{
+			case t: DomainT => t
+			case _ => return FaultEntry("tried to interpret non domain type")
+		}
+		val viperdomain = c.domains.find(_.valueName == entry.domain)
+		
+		val funcs = translateFuncs(domainType.decl.funcs,viperdomain.get.functions,info.context)
+		
+		val relevantFuncs = funcs.filter(_.argTypes == Seq(info))
+		
+		ExtendedUserDomainEntry(original,relevantFuncs)
 	}
+	def translateFuncs(funcDecl: Vector[PDomainFunction], viperFuncs: Seq[sil.ExtractedFunction], info: ExternalTypeInfo): Vector[FunctionEntry] = {
+		val corr_funcs = funcDecl.map(f => (f,viperFuncs.find(_.fname.startsWith(f.id.name)))).collect({case (x,Some(y)) => (x,y)})
+		val functions = corr_funcs.map(x => translateFunc(x._1,x._2,info)) 
+		functions
+	}
+	def translateFunc( funcDecl: PDomainFunction, viperFunc: sil.ExtractedFunction, info: ExternalTypeInfo): FunctionEntry = {
+		//case class FunctionEntry(fname: String, argTypes: Seq[Type], resType: Type, options: Map[Seq[GobraModelEntry], GobraModelEntry], default: GobraModelEntry)
+		val fname = funcDecl.id.name
+		val argTypes = funcDecl.args.map(Util.getType(_, info))
+		val resType = Util.getType(funcDecl.result, info)
+		val options = viperFunc.options.map( x =>
+			(x._1.zip(argTypes).map(y => MasterInterpreter(c).interpret(y._1,y._2)),
+			MasterInterpreter(c).interpret(x._2,resType))
+		)
+		val default = MasterInterpreter(c).interpret(viperFunc.default,resType)
+		FunctionEntry(fname, argTypes, resType,options,default) 
+	}
+
 }
 

@@ -262,11 +262,13 @@ func (e *AddrError) Error(ghost p perm) (ret string) {
 
 // TODO: if the method is annotated with pure, then the implementation proof fails
 // because the "pure" annotation of the interface and implementation do not match
+requires 0 <= p
 requires acc(e.mem(), p)
 ensures acc(e.mem(), p)
 ensures !res
 /* pure */ func (e *AddrError) Timeout(ghost p perm) (res bool)   { return false }
 
+requires 0 <= p
 requires acc(e.mem(), p)
 ensures acc(e.mem(), p)
 ensures !res

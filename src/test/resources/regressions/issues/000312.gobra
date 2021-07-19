@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type A struct {}
+
+type I interface {
+    ensures res == 42
+    C() (res int)
+}
+
+ensures res == 42
+func (a *A) C() (res int) {
+    res = 42
+    return
+}
+
+func client(a *A) {
+  var i I = a
+  res := i.C()
+  assert res == 42
+}

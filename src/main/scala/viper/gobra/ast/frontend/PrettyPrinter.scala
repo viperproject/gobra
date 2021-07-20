@@ -114,25 +114,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
   
    
-  def showConditionalMeasureCollection(n:PConditionalMeasureCollection): Doc = showList(n.tuple)(showConditionalMeasure)
-
-  def showConditionalMeasure(conditionalMeasure:PConditionalMeasure) : Doc = conditionalMeasure match {
-       case PConditionalMeasureExpression((expression, condition)) =>
-      "decreases" <+> showExprList(expression) <+> "if" <+>showExpr(condition)
-       case PConditionalMeasureUnderscore((_,condition)) =>
-      "decreases" <+> "_" <+> "if" <+>showExpr(condition)
-       case PConditionalMeasureAdditionalStar() =>
-         "decreases" <+> "*"
+  def showConditionalMeasureCollection(n: PConditionalMeasureCollection): Doc = showList(n.tuple)(showConditionalMeasure)
+  def showConditionalMeasure(conditionalMeasure: PConditionalMeasure) : Doc = conditionalMeasure match {
+    case PConditionalMeasureExpression(expression, condition) => "decreases" <+> showExprList(expression) <+> "if" <+> showExpr(condition)
+    case PConditionalMeasureUnderscore(condition) => "decreases" <+> "_" <+> "if" <+> showExpr(condition)
+    case PConditionalMeasureAdditionalStar() => "decreases" <+> "*"
   }
 
 
-      def showTerminationmeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
-      case Some(terminationMeasure) => terminationMeasure match {
-      case  PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
-      case PStarCharacter() =>"decreases" <+> "*"
-      case PUnderscoreCharacter()=>"decreases" <+> "_"
-      case _ => emptyDoc
-    }
+  def showTerminationmeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+    case Some(terminationMeasure) => terminationMeasure match {
+    case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
+    case PStarCharacter() => "decreases" <+> "*"
+    case PUnderscoreCharacter() => "decreases" <+> "_"
+    case _ => emptyDoc
+  }
     case None=>""
   }
 
@@ -143,10 +139,10 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(posts map (showPost(_) <> line))  <>
-        showTerminationmeasure(terminationMeasure) <> line
+          showTerminationmeasure(terminationMeasure) <> line
 
     case PLoopSpec(inv,termination_measures) =>
-      hcat(inv map (showInv(_) <> line))  <>
+      hcat(inv map (showInv(_) <> line)) <>
         showTerminationmeasure(termination_measures) <> line
   }
 

@@ -48,6 +48,10 @@ lazy val gobra = (project in file("."))
 
     javacOptions ++= Seq("-encoding", "UTF-8", "-charset", "UTF-8", "-docencoding", "UTF-8"),
 
+    // adds some more memory in an attempt to fix tests in CI as suggested here:
+    // https://github.com/travis-ci/travis-ci/issues/3775#issuecomment-160508991
+    javaOptions += "-Xmx1G",
+
     // Run settings
     run / javaOptions ++= Seq(
       "-Xss128m",
@@ -67,9 +71,7 @@ lazy val gobra = (project in file("."))
     //  If the following line is missing, gobra-test.jar will not even
     //  be created.
     inConfig(Test)(baseAssemblySettings),
-    // adds some more memory in an attempt to fix tests in CI as suggested here:
-    // https://github.com/travis-ci/travis-ci/issues/3775#issuecomment-160508991
-    Test / javaOptions ++= (run / javaOptions).value :+ "-Xmx1G",
+    Test / javaOptions ++= (run / javaOptions).value,
     Test / assembly / assemblyJarName := "gobra-test.jar",
     Test / assembly / test := {},
     // exclude .gobra test files as we currently do not fully support files stored inside a JAR file:

@@ -67,7 +67,9 @@ lazy val gobra = (project in file("."))
     //  If the following line is missing, gobra-test.jar will not even
     //  be created.
     inConfig(Test)(baseAssemblySettings),
-    Test / javaOptions ++= (run / javaOptions).value,
+    // adds some more memory in an attempt to fix tests in CI as suggested here:
+    // https://github.com/travis-ci/travis-ci/issues/3775#issuecomment-160508991
+    Test / javaOptions ++= (run / javaOptions).value :+ "-Xmx1G",
     Test / assembly / assemblyJarName := "gobra-test.jar",
     Test / assembly / test := {},
     // exclude .gobra test files as we currently do not fully support files stored inside a JAR file:

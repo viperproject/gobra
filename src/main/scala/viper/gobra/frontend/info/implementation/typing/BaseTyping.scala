@@ -69,6 +69,8 @@ trait BaseTyping { this: TypeInfoImpl =>
       */
     def isNotADependency(n: PNode): Boolean = n match {
       case _: PDomainAxiom => true
+      case _: PMethodSig => true
+      case _: PMPredicateSig => true
       // skip well-definedness checks for defined identifiers. This enables the parent node, e.g. the declaration
       // statement, to perform the necessary checks as the parent is not skipped due to an unsafe message from the
       // identifier well-definedness check. See issue #185

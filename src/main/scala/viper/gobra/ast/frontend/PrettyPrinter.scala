@@ -120,19 +120,16 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PConditionalMeasureUnderscore(condition) => "decreases" <+> "_" <+> "if" <+> showExpr(condition)
     case PConditionalMeasureAdditionalStar() => "decreases" <+> "*"
   }
-
-
-  def showTerminationmeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+  
+  def showTerminationMeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
     case Some(terminationMeasure) => terminationMeasure match {
     case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
     case PStarCharacter() => "decreases" <+> "*"
     case PUnderscoreCharacter() => "decreases" <+> "_"
-    case _ => emptyDoc
+    case x: PConditionalMeasureCollection => showConditionalMeasureCollection(x)
   }
-    case None=>""
+    case None=> ""
   }
-
-
 
   def showSpec(spec: PSpecification): Doc = spec match {
     case PFunctionSpec(pres, posts, terminationMeasure, isPure) =>

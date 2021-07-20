@@ -50,7 +50,7 @@ lazy val gobra = (project in file("."))
 
     // adds some more memory in an attempt to fix tests in CI as suggested here:
     // https://github.com/travis-ci/travis-ci/issues/3775#issuecomment-160508991
-    javaOptions += "-Xmx1G",
+    javaOptions += "-Xmx4G",
 
     // Run settings
     run / javaOptions ++= Seq(

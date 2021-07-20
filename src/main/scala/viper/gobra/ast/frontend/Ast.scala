@@ -729,18 +729,16 @@ object PGhostifier {
   */
 sealed trait PTerminationMeasure extends PNode
 
-   case class PStarCharacter() extends PTerminationMeasure
-   case class PUnderscoreCharacter() extends PTerminationMeasure
-   case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
+case class PStarCharacter() extends PTerminationMeasure
+case class PUnderscoreCharacter() extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
+case class PConditionalMeasureCollection(tuple: Vector[PConditionalMeasure]) extends PTerminationMeasure
 
+sealed trait PConditionalMeasure extends PNode
 
-   case class PConditionalMeasureCollection(tuple:Vector[PConditionalMeasure]) extends PTerminationMeasure
-
-   sealed trait PConditionalMeasure extends PNode
-
-   case class PConditionalMeasureExpression(tuple:(Vector[PExpression],PExpression)) extends PConditionalMeasure
-   case class PConditionalMeasureUnderscore(tuple:(PUnderscoreCharacter,PExpression))extends PConditionalMeasure
-   case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
+case class PConditionalMeasureExpression(tuple: Vector[PExpression], condition: PExpression) extends PConditionalMeasure
+case class PConditionalMeasureUnderscore(condition: PExpression)extends PConditionalMeasure
+case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
 
 
 

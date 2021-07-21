@@ -121,9 +121,9 @@ case class MasterInterpreter(c:sil.Converter) extends GobraInterpreter{
 																	val adress = PointerInterpreter(c).nameToInt("*!1000",p.elem.toString)
 																	//InterpreterCache.addAddress(adress,info)
 																	interpret(entry,p.elem) match {
-																		case LitAdressedEntry(value, address) => LitPointerEntry(p.elem,value,address)
+																		case LitAdressedEntry(value, address,perm) => LitPointerEntry(p.elem,value,address,perm)
 																		case p:LitPointerEntry => p
-																		case LitDeclaredEntry(name,LitAdressedEntry(value,address)) => LitPointerEntry(p.elem,LitDeclaredEntry(name,value),address)
+																		case LitDeclaredEntry(name,LitAdressedEntry(value,address,perm)) => LitPointerEntry(p.elem,LitDeclaredEntry(name,value),address,perm)
 																		case LitDeclaredEntry(_,LitNilEntry())  => LitNilEntry()
 																		case x:LitEntry => LitPointerEntry(p.elem,x,adress)
 																	}
@@ -286,7 +286,7 @@ def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n)
 			try{
 				
 			val values = fields.map(x=>(x._1,MasterInterpreter(c).interpret(fieldToVals.apply(x._1),PointerT(x._2)) match{
-																										case p:LitPointerEntry => if(address==0){address = offset}; p.value
+																										case p:LitPointerEntry => if(address==0){address = offset}; LitAdressedEntry(p.value,p.address,p.perm)
 																										case l:LitEntry=> l;
 																										case _ => return FaultEntry("internal error struct")
 																									}
@@ -486,11 +486,11 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 								case _ => return FaultEntry("false extraction")
 					}
 					val kek = extracted.fields.getOrElse(field,(sil.OtherEntry(s"$field: Field not found",s"help"),None))
-					val perm = kek._2 
+					val perm = kek._2.map(LitPermEntry(_))
 					//printf(s"$perm\n")
 					val fieldval = if(extracted.fields.isEmpty) return  LitNilEntry()
 						else if(kek._1.isInstanceOf[sil.OtherEntry]) extracted.fields.head._2._1 match {
-												case r:sil.RefEntry => return LitAdressedEntry(interpret(r,info).asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info))) //problem this happens on the last step and therefore we cannot distinguish
+												case r:sil.RefEntry => val value = interpret(r,info); return LitAdressedEntry(value.asInstanceOf[LitEntry],nameToInt(entry.name,filedname(entry,info)),perm) //problem this happens on the last step and therefore we cannot distinguish
 												case n:sil.NullRefEntry => return LitNilEntry() 
 												case x => x 
 						}
@@ -498,21 +498,21 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 					val value = kek._1 match {
 						case x:sil.OtherEntry => FaultEntry(s"not Found Field:$field but found $fieldval in ${extracted.fields.head._1}")																												
 						case r:sil.RefEntry =>  interpret(r,elem) match {
-							case LitAdressedEntry(value, a) => return LitAdressedEntry(LitPointerEntry(elem,value.asInstanceOf[LitEntry],a),address)
+							case LitAdressedEntry(value, a, p) => return LitAdressedEntry(LitPointerEntry(elem,value.asInstanceOf[LitEntry],a,p),address,perm)
 							case x=> x
 						} //this we could potentially handle internally		
 						case t => MasterInterpreter(c).interpret(t,elem) 
 					}/* MasterInterpreter(c).interpret(kek._1,elem) match {
 											case l:LitEntry => l
 							} */
-					LitPointerEntry(elem,value.asInstanceOf[LitEntry],address)
+					LitPointerEntry(elem,value.asInstanceOf[LitEntry],address,perm)
 					}				
 			case t => {
 				//printf(s"halleluja:$t\n")
 				val address = nameToInt(entry.name,filedname(entry,t))
 				val value = interpret(entry,PointerT(t))
 				value match {
-						case p:LitPointerEntry =>  LitAdressedEntry(p.value,address)
+						case p:LitPointerEntry =>  LitAdressedEntry(p.value,address,p.perm)
 						case n:LitNilEntry => Util.getDefault(t)
 						case x:LitEntry => LitAdressedEntry(x,address)
 					}	
@@ -573,7 +573,18 @@ case class StringInterpreter(c: sil.Converter) extends sil.ModelInterpreter[Gobr
 									LitStringEntry(value)
 
 								}
-					case _=>  FaultEntry("string literal not found") //probably empty string but no guarantee...
+					case _=>  functions.find(x=>x.fname == Names.stringConact && x.image.contains(e)) match{
+						case Some(f) => {val origs = f.options.find(_._2==e).getOrElse(return FaultEntry("Concatitnation of undeterminable values"))
+										val (first,second) = (origs._1.head, origs._1.last)
+										val ret = (interpret(first,null), interpret(second,null)) match {
+											case (x:LitStringEntry,y:LitStringEntry) => LitStringEntry(x.value + y.value)
+											
+											case (x,y)=> ConcatString(x.asInstanceOf[LitEntry], y.asInstanceOf[LitEntry])
+										}
+										ret
+										}
+						case _ => FaultEntry("string literal not found") //probably empty string but no guarantee...
+					}
 				}
 
 				case _=>  FaultEntry("could not resolve string because not an Int Entry")

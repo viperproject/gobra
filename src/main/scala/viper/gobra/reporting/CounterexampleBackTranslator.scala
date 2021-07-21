@@ -122,7 +122,7 @@ object Util{
 			case LitDeclaredEntry(name, value) => {
 				value match {
 					case LitStructEntry(_,_) => prettyPrint(value,level).replaceFirst("struct",name)
-					case LitAdressedEntry(value, address) => prettyPrint(LitDeclaredEntry(name,value),level) ++ s"@$address"
+					case LitAdressedEntry(value, address,perm) => prettyPrint(LitDeclaredEntry(name,value),level) ++ s"@$address," /* (${perm.getOrElse("?")})" */
 					case u: UserDomainEntry => prettyPrint(value,level).replaceFirst("domain",name)
 					case e: ExtendedUserDomainEntry => prettyPrint(value,level).replaceFirst("domain",name)
 					case _ => s"$name(${prettyPrint(value,level)})"  // can we assum that only structs show theit name?
@@ -138,8 +138,8 @@ object Util{
 					case _ => s"[${v.values.map(x=>prettyPrint(x,level)).mkString(", ")}]"
 				}
 			}
-			case LitPointerEntry(_,v,a) => s"&$a* -> " ++ prettyPrint(v,level)
-			case LitAdressedEntry(value, address) => "(" ++prettyPrint(value,level) ++ s") @$address"
+			case LitPointerEntry(_,v,a, perm) => s"&$a* "/*+ s"(${perm.getOrElse("?")})" */+"-> " ++ prettyPrint(v,level)
+			case LitAdressedEntry(value, address,perm) => "(" ++prettyPrint(value,level) ++ s") @$address"/* +s" (${perm.getOrElse("?")})" */
 			case x => x.toString()
 		}
 	}
@@ -242,18 +242,17 @@ case class UnresolvedInterface(typ: InterfaceT, possibleVals: Seq[GobraModelEntr
 									((possibleVals take 3).map(x=>Util.removeWhitespace(x.toString()))).mkString("---\n") ++"\n"
 }
 case class LitStringEntry(value: String) extends LitEntry {
-	override def toString(): String =s"${'"'}${value}${'"'}"
+	override def toString(): String = s"${'"'}${value}${'"'}"
 }
-case class LitPointerEntry(typ: Type, value: LitEntry, address: BigInt) extends LitEntry with HeapEntry {
-	override def toString(): String = s"(&$address* -> $value)" 
-	//TODO: put permission up
-	val perm: Option[LitPermEntry] = None
+case class ConcatString(v1: LitEntry, v2: LitEntry) extends LitEntry {
+	override def toString(): String = s"$v1 + $v2"
+}
+case class LitPointerEntry(typ: Type, value: LitEntry, address: BigInt,perm: Option[LitPermEntry] = None) extends LitEntry with HeapEntry {
+	override def toString(): String = s"(&$address*"+ s"(${perm.getOrElse("?")})" + s"-> $value)" 
 }
 //entries that are not designated (typed) as a pointer but are represented by a ref (adressable)
-case class LitAdressedEntry(value: LitEntry, address: BigInt) extends LitEntry with HeapEntry {
-	override def toString(): String = s"$value @$address"
-	//TODO: put permission up
-	val perm: Option[LitPermEntry] = None
+case class LitAdressedEntry(value: LitEntry, address: BigInt, perm: Option[LitPermEntry] = None) extends LitEntry with HeapEntry {
+	override def toString(): String = s"$value @$address" +s"(${perm.getOrElse("?")})"// not included for easier readability
 }
 case class LitRecursive(address: BigInt) extends LitEntry {
 	override def toString(): String = s"&$address (recursive)"

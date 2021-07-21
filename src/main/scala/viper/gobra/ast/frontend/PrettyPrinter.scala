@@ -49,7 +49,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
     case n: PTerminationMeasure => showTerminationmeasure(Some(n))
     case PPos(_) => emptyDoc
-    case _=>emptyDoc
+    case _ => emptyDoc
   }
 
   // entire package

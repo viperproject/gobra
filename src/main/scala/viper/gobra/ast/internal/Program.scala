@@ -79,7 +79,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
- def terminationMeasure: Option[Vector[Assertion]]
+  def terminationMeasure: Vector[Assertion]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -92,7 +92,7 @@ sealed trait FunctionMember extends FunctionLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
- def terminationMeasure: Option[Vector[Assertion]]
+  def terminationMeasure: Vector[Assertion]
 }
 
 sealed trait Location extends Expr
@@ -111,7 +111,7 @@ case class Method(
                  override val results: Vector[Parameter.Out],
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
-                 override val terminationMeasure: Option[Vector[Assertion]],
+                 override val terminationMeasure: Vector[Assertion],
                  body: Option[Block]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -122,7 +122,7 @@ case class PureMethod(
                        override val results: Vector[Parameter.Out],
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
-                       override val terminationMeasure: Option[Vector[Assertion]],
+                       override val terminationMeasure: Vector[Assertion],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
@@ -167,7 +167,7 @@ case class Function(
                      override val results: Vector[Parameter.Out],
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
-                     override val terminationMeasure:Option[Vector[Assertion]],
+                     override val terminationMeasure: Vector[Assertion],
                      body: Option[Block]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
@@ -177,7 +177,7 @@ case class PureFunction(
                          override val  results: Vector[Parameter.Out],
                          override val  pres: Vector[Assertion],
                          override val  posts: Vector[Assertion],
-                         override val terminationMeasure:Option[Vector[Assertion]],
+                         override val terminationMeasure: Vector[Assertion],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -252,7 +252,7 @@ case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
 
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
-case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[Vector[Assertion]], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 

@@ -96,7 +96,7 @@ class StatementsImpl extends Statements {
 
         for {
           (cws, vCond) <- split(goE(cond))
-          (iws, vInvs) = (invs ++ terminationMeasure.toList.flatten).map(ctx.ass.invariant(_)(ctx)).unzip
+          (iws, vInvs) = (invs ++ terminationMeasure.toList).map(ctx.ass.invariant(_)(ctx)).unzip
           cpre <- seqnUnit(cws)
           ipre <- seqnUnits(iws)
           vBody <- goS(body)

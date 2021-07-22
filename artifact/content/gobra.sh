@@ -7,10 +7,8 @@
 # Copyright (c) 2011-2021 ETH Zurich.
 
 java \
-  -Xss128m \
-  -Xms2048m \
-  -Xmx2048m \
-  -Xmn512m \
+  -Xss512m \
+  -Xmx512m \
   -cp $HOME/gobra.jar \
   -Dlogback.configurationFile=$HOME/gobra/conf/logback.xml  \
   viper.gobra.GobraRunner \

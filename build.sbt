@@ -50,7 +50,7 @@ lazy val gobra = (project in file("."))
 
     javaOptions ++= Seq(
       "-Xss128m",
-      "-Xmx128m"
+      "-Xmx512m"
     ),
 
     // Run settings

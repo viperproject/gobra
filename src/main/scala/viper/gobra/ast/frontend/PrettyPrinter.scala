@@ -47,7 +47,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
-    case n: PTerminationMeasure => showTerminationmeasure(Some(n))
+    case n: PTerminationMeasure => showTerminationMeasure(Some(n))
     case PPos(_) => emptyDoc
     case _ => emptyDoc
   }
@@ -136,11 +136,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(posts map (showPost(_) <> line))  <>
-          showTerminationmeasure(terminationMeasure) <> line
+          showTerminationMeasure(terminationMeasure) <> line
 
     case PLoopSpec(inv,termination_measures) =>
       hcat(inv map (showInv(_) <> line)) <>
-        showTerminationmeasure(termination_measures) <> line
+        showTerminationMeasure(termination_measures) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {

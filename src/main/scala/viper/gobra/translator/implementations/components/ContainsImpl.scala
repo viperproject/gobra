@@ -43,7 +43,6 @@ class ContainsImpl extends Contains{
 
   private def genTransitivityDomain(): vpr.Domain = {
 
-
     def subTypes(t: vpr.Type): Set[(vpr.Type, vpr.Type)] = t match {
       case g: GenericType => g match {
         case DomainType(_, partialTypVarsMap) =>

@@ -131,9 +131,10 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (exprType(seq) match {
+      case PGhostCollectionUpdate(seq, clauses) => isExpr(seq).out ++ (underlyingType(exprType(seq)) match {
         case SequenceT(t) => clauses.flatMap(wellDefSeqUpdClause(t, _))
         case MathMapT(k, v) => clauses.flatMap(wellDefMapUpdClause(k, v, _))
+        //case t: AdtT => clauses.flatMap(wellDefAdtUpdClause(t, _))
         case t => error(seq, s"expected a sequence or mathematical map, but got $t")
       })
 
@@ -211,6 +212,17 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
     case IntT(_) => isExpr(clause.left).out ++ isExpr(clause.right).out ++
       assignableTo.errors(exprType(clause.right), seqTyp)(clause.right)
     case t => error(clause.left, s"expected an integer type but got $t")
+  }
+
+  private[typing] def wellDefAdtUpdClause(adtType : AdtT, clause : PGhostCollectionUpdateClause) : Messages = {
+    isExpr(clause.left).out ++ isExpr(clause.right).out ++
+      (clause.left match {
+        case  PNamedOperand(id) =>
+            error(clause.left, s"$id is not an field of the adt $adtType", adtMemberSet(adtType).lookup(id.name).isEmpty) ++
+              assignableTo.errors(exprType(clause.right), typeSymbType(
+                adtType.decl.clauses.flatMap(_.args).flatMap(_.fields).filter(f => id.name == f.id.name).head.typ))(clause.right)
+        case _ => error(clause.left, s"expected an identifier not ${clause.left}")
+    })
   }
 
   private[typing] def ghostExprType(expr: PGhostExpression): Type = expr match {

@@ -1949,6 +1949,7 @@ object Desugar {
 
           if (lit.elems.exists(_.key.isEmpty)) {
             //All elements are unkeyed
+
             val wArgs = fields.zip(lit.elems).map  { case (f, PKeyedElement(_, exp)) => exp match {
               case PExpCompositeVal(ev) => exprD(ctx)(ev)
               case PLitCompositeVal(lv) => literalValD(ctx)(lv, f.typ)

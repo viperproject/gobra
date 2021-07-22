@@ -130,10 +130,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: BuiltInMember => showBuiltInMember(n)
   })
   
-   def showTerminationMeasure (list: Option[Vector[Assertion]]): Doc = list match {
-     case Some(measure)=> hcat(measure  map ("decreases" <> showAss(_) <> line))
-     case None => emptyDoc
-   }
+  def showTerminationMeasure(measure: Vector[Assertion]): Doc = hcat(measure  map ("decreases" <> showAss(_) <> line))
 
   def showFunction(f: Function): Doc = f match {
     case Function(name, args, results, pres, posts,terminationMeasure, body) =>
@@ -348,17 +345,17 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
     case UnderscoreTerminationMeasure() =>
-       "decreases" <+> "_"
+      "decreases" <+> "_"
     case StarTerminationMeasure() =>
-       "decreases" <+> "*"
-    case ConditionalMeasureExpression( vector,condition) =>
-       "decreases" <+> showExprList(vector) <+> "if" <+> showExpr(condition)
-    case ConditionalMeasureUnderscore( condition) =>
-       "decreases" <+> "_" <+> "if" <+> showExpr(condition)
-    case ConditionalMeasureAdditionalStar()=>
-       "decreases" <+> "*"
+      "decreases" <+> "*"
+    case ConditionalMeasureExpression(vector, condition) =>
+      "decreases" <+> showExprList(vector) <+> "if" <+> showExpr(condition)
+    case ConditionalMeasureUnderscore(condition) =>
+      "decreases" <+> "_" <+> "if" <+> showExpr(condition)
+    case ConditionalMeasureAdditionalStar() =>
+      "decreases" <+> "*"
     case ExprTupleTerminationMeasure(vector) =>
-       "decreases" <+> showExprList(vector)
+      "decreases" <+> showExprList(vector)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {

@@ -46,6 +46,8 @@ jobs:
 
       - name: Java Version
         run: java --version
+      - name: Sbt Version
+        run: sbt -version
       - name: Z3 Version
         run: z3 -version
       - name: Silver Commit

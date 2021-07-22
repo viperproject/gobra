@@ -37,11 +37,10 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      
-        terminationMeasure=x.terminationMeasure match {
-        case Some(measure) =>sequence(measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
-        case None=> Seq.empty
-    }
+      terminationMeasure = x.terminationMeasure.isEmpty match {
+        case true => Seq.empty
+        case false => sequence(x.terminationMeasure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+      }
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -81,12 +80,11 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      
-        terminationMeasure=x.terminationMeasure match {
-        case Some(measure) => sequence( measure.map(ctx.ass.terminationMeasure(_)(ctx))).res
-        case None=> Seq.empty
+      terminationMeasure = x.terminationMeasure.isEmpty match {
+        case true => Seq.empty
+        case false => sequence(x.terminationMeasure.map(ctx.ass.terminationMeasure(_)(ctx))).res
       }
-
+      
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
       body <- option(x.body.map{ b => block{

@@ -468,16 +468,16 @@ object Desugar {
           case PTupleTerminationMeasure(vector) =>
             val src: Meta = meta(measure)
             val tuple = sequence(vector map exprD(specCtx)).res
-            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
+            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
           case PUnderscoreCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.UnderscoreTerminationMeasure()(src)))
+            Vector(in.UnderscoreTerminationMeasure()(src))
           case PStarCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.StarTerminationMeasure()(src)))
-          case PConditionalMeasureCollection(tuple) => Some(tuple map conditionalMeasureD(specCtx)(meta(measure)))
+            Vector(in.StarTerminationMeasure()(src))
+          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
         }
-        case None => None
+        case None => Vector.empty
       }
 
       // p1' := p1; ... ; pn' := pn
@@ -554,16 +554,16 @@ object Desugar {
           case PTupleTerminationMeasure(vector) =>
             val src: Meta = meta(measure)
             val tuple = sequence(vector map exprD(ctx)).res
-            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
+            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
           case PUnderscoreCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.UnderscoreTerminationMeasure()(src)))
+            Vector(in.UnderscoreTerminationMeasure()(src))
           case PStarCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.StarTerminationMeasure()(src)))
-          case PConditionalMeasureCollection(tuple) => Some(tuple map conditionalMeasureD(ctx)(meta(measure)))  
+            Vector(in.StarTerminationMeasure()(src))
+          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(ctx)(meta(measure))
         }
-        case None => None
+        case None => Vector.empty
       }
 
       val bodyOpt = decl.body.map {
@@ -649,16 +649,16 @@ object Desugar {
           case PTupleTerminationMeasure(vector) =>
             val src: Meta = meta(measure)
             val tuple = sequence(vector map exprD(specCtx)).res
-            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
+            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
           case PUnderscoreCharacter() => 
-              val src: Meta = meta(measure)
-              Some(Vector(in.UnderscoreTerminationMeasure()(src)))
+            val src: Meta = meta(measure)
+            Vector(in.UnderscoreTerminationMeasure()(src))
           case PStarCharacter() => 
-              val src: Meta = meta(measure)
-              Some(Vector(in.StarTerminationMeasure()(src)))
-          case PConditionalMeasureCollection(tuple) => Some(tuple map conditionalMeasureD(specCtx)(meta(measure))) 
+            val src: Meta = meta(measure)
+            Vector(in.StarTerminationMeasure()(src))
+          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
         }
-        case None => None
+        case None => Vector.empty
        }
 
       // s' := s
@@ -755,16 +755,16 @@ object Desugar {
           case PTupleTerminationMeasure(vector) =>
             val src: Meta = meta(measure)
             val tuple = sequence(vector map exprD(ctx)).res
-            Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
+            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
           case PUnderscoreCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.UnderscoreTerminationMeasure()(src)))
+            Vector(in.UnderscoreTerminationMeasure()(src))
           case PStarCharacter() => 
             val src: Meta = meta(measure)
-            Some(Vector(in.StarTerminationMeasure()(src)))
-          case PConditionalMeasureCollection(tuple) => Some(tuple map conditionalMeasureD(ctx)(meta(measure)))
+            Vector(in.StarTerminationMeasure()(src))
+          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(ctx)(meta(measure))
         }
-        case None => None
+        case None => Vector.empty
       }
 
       val bodyOpt = decl.body.map {
@@ -909,13 +909,13 @@ object Desugar {
                     case PTupleTerminationMeasure(vector) =>
                       val src: Meta = meta(measure)
                       val tuple = sequence(vector map exprD(ctx)).res
-                       (vector flatMap getMeasureStmts(ctx), Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src))))
+                       (vector flatMap getMeasureStmts(ctx), Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
                     case PUnderscoreCharacter() => 
                       val src: Meta = meta(measure)
-                      (Vector.empty, Some(Vector(in.UnderscoreTerminationMeasure()(src))))
+                      (Vector.empty, Vector(in.UnderscoreTerminationMeasure()(src)))
                     case PStarCharacter() =>
                       val src: Meta = meta(measure)
-                      (Vector.empty, Some(Vector(in.StarTerminationMeasure()(src))))
+                      (Vector.empty, Vector(in.StarTerminationMeasure()(src)))
                     case PConditionalMeasureCollection(tuple) => {
                       def getCmeasureStmts(ctx: FunctionContext)(ass: PConditionalMeasure): Vector[in.Stmt] = {
                         ass match {
@@ -929,10 +929,10 @@ object Desugar {
                             Vector.empty
                         }
                       }
-                      (tuple flatMap getCmeasureStmts(ctx), Some(tuple map conditionalMeasureD(ctx)(meta(measure))))
+                      (tuple flatMap getCmeasureStmts(ctx), tuple map conditionalMeasureD(ctx)(meta(measure)))
                     }
                   }
-                  case None => (Vector.empty, None)
+                  case None => (Vector.empty, Vector.empty)
                 }
                 
                 dBody = blockD(ctx)(body)
@@ -2133,20 +2133,20 @@ object Desugar {
               case PTupleTerminationMeasure(vector) =>
                 val src: Meta = meta(measure)
                 val tuple = sequence(vector map exprD(specCtx)).res
-                Some(Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
+                Vector(in.ExprTupleTerminationMeasure(tuple)(src))
               case PUnderscoreCharacter() => 
                 val src: Meta = meta(measure)
-                Some(Vector(in.UnderscoreTerminationMeasure()(src)))
+                Vector(in.UnderscoreTerminationMeasure()(src))
               case PStarCharacter() => 
                 val src: Meta = meta(measure)
-                Some(Vector(in.StarTerminationMeasure()(src)))
-              case PConditionalMeasureCollection(tuple) => Some(tuple map conditionalMeasureD(specCtx)(meta(measure)))
+                Vector(in.StarTerminationMeasure()(src))
+              case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
             }
-            case None => None
+            case None => Vector.empty
           }
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts,terminationMeasure, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasure, None)(src)
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasure, None)(src)
           }

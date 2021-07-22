@@ -19,7 +19,7 @@ echo
 quit_or_continue
 
 java \
-  -Xss512m \
+  -Xss128m \
   -Xmx512m \
   -cp $HOME/gobra-test.jar \
   -Dlogback.configurationFile=$HOME/gobra/conf/logback.xml  \

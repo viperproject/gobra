@@ -7,7 +7,7 @@
 # Copyright (c) 2011-2021 ETH Zurich.
 
 java \
-  -Xss512m \
+  -Xss128m \
   -Xmx512m \
   -cp $HOME/gobra.jar \
   -Dlogback.configurationFile=$HOME/gobra/conf/logback.xml  \

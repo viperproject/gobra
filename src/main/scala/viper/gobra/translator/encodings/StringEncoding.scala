@@ -123,7 +123,6 @@ class StringEncoding extends LeafTypeEncoding {
     *   function strSlice(s: Int, l: Int, h: Int): Int
     *     requires 0 <= l
     *     requires 0 <= h
-    *     requires l <= len(s)
     *     requires h <= len(s)
     *     requires l <= h
     *     ensures strLen(s) == h - l
@@ -141,7 +140,6 @@ class StringEncoding extends LeafTypeEncoding {
       pres = Seq(
         vpr.LeCmp(vpr.IntLit(0)(), argL.localVar)(),
         vpr.LeCmp(vpr.IntLit(0)(), argH.localVar)(),
-        vpr.LeCmp(argL.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
         vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
         vpr.LeCmp(argL.localVar, argH.localVar)()
       ),

@@ -24,8 +24,10 @@ echo
 quit_or_continue
 
 java \
-  -Xss512m \
-  -Xmx512m \
+  -Xss128m \
+  -Xms2048m \
+  -Xmx2048m \
+  -Xmn512m \
   -cp $HOME/gobra-test.jar \
   -Dlogback.configurationFile=$HOME/gobra/conf/logback.xml  \
   -DGOBRATESTS_TARGET=${GOBRATESTS_TARGET} \

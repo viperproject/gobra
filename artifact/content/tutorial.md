@@ -673,7 +673,7 @@ func clientChannel() {
 
 A description of how to install and configure Gobra can be found in Gobra's [README](https://github.com/viperproject/gobra/blob/artifact1/README.md) file. After setting up Gobra and obtaining a `gobra.jar` file, one can run it using the command
 ```bash
-java -Xss128m -jar gobra.jar -i [FILES_TO_VERIFY]
+java -Xss512m -Xmx512m -jar gobra.jar -i [FILES_TO_VERIFY]
 ```
 To check the full list of flags available in Gobra, run the command
 ```bash

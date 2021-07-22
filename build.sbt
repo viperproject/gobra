@@ -49,7 +49,8 @@ lazy val gobra = (project in file("."))
     javacOptions ++= Seq("-encoding", "UTF-8", "-charset", "UTF-8", "-docencoding", "UTF-8"),
 
     javaOptions ++= Seq(
-      "-Xss128m"
+      "-Xss128m",
+      "-Xmx1024m"
     ),
 
     // Run settings

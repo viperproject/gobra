@@ -26,25 +26,14 @@ object Nodes {
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(_, members, _) => members
-          case Method(receiver, name, args, results, pres, posts, terminationMeasure, body) => terminationMeasure match{
-        case Some(measure) =>  Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measure ++ body
-        case None=>   Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
-      }
-      case PureMethod(receiver, name, args, results, pres, posts, terminationMeasure,body) =>terminationMeasure match {
-       case Some(measure) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measure ++ body
-       case None=>Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ body
-      }
-      case Function(name, args, results, pres, posts,terminationMeasure, body) =>
-        terminationMeasure match{
-          case Some(measure)=>  Seq(name) ++ args ++ results ++ pres ++ posts++measure ++ body
-          case None=>  Seq(name) ++ args ++ results ++ pres ++ posts ++ body
-        }
-
-      case PureFunction(name, args, results, pres, posts,terminationMeasure, body) =>
-        terminationMeasure match{
-          case Some(measure) =>    Seq(name) ++ args ++ results ++ pres ++ posts++measure ++ body
-          case None=>     Seq(name) ++ args ++ results ++ pres ++ posts ++ body
-        }
+        case Method(receiver, name, args, results, pres, posts, terminationMeasure, body) => 
+          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ terminationMeasure ++ body
+        case PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => 
+          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ terminationMeasure ++ body
+        case Function(name, args, results, pres, posts, terminationMeasure, body) => 
+          Seq(name) ++ args ++ results ++ pres ++ posts++ terminationMeasure ++ body
+        case PureFunction(name, args, results, pres, posts, terminationMeasure, body) =>
+          Seq(name) ++ args ++ results ++ pres ++ posts++ terminationMeasure ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
@@ -58,10 +47,7 @@ object Nodes {
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)
         case If(cond, thn, els) => Seq(cond, thn, els)
-        case While(cond, invs, terminationMeasure, body) =>  terminationMeasure match{
-         case Some(measure)=>  Seq(cond) ++ invs ++ measure++ Seq(body)
-         case None => Seq(cond) ++ invs ++ Seq(body)
-        }
+        case While(cond, invs, terminationMeasure, body) => Seq(cond) ++ invs ++ terminationMeasure ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq

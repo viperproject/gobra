@@ -10,7 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 object ViperChopper {
   /** chops 'choppee' into independent Viper programs */
   def chop(choppee: vpr.Program): Vector[vpr.Program] = {
-    val edges = choppee.members.flatMap(Edges.dependencies)
+    val edges = choppee.members.flatMap(Edges.dependencies).distinct
     val requiredVertices = choppee.collect{
       case m: vpr.Method => Vertex.Method(m.name)
       case f: vpr.Function => Vertex.Function(f.name)
@@ -19,8 +19,8 @@ object ViperChopper {
     val (components, _, componentDAG) = SCC.compute(vertices, edges)
     val roots = Roots.roots(components, componentDAG)
     // TODO: currently, the always vertex is ignored
-    val paths = roots.flatMap(root => Paths.paths(root, componentDAG))
-    val programs = paths.map(path => path.flatMap(_.nodes).distinct)
+    val subtrees = roots.map(root => Subtree.subtree(root, componentDAG))
+    val programs = subtrees.map(subtree => subtree.flatMap(_.nodes).distinct)
     val verticesToProgram = Vertex.inverse(choppee)
     programs.map(verticesToProgram)
   }
@@ -91,17 +91,17 @@ object ViperChopper {
     }
   }
 
-  object Paths {
-    /** Returns all paths starting from `start` in the forest `forest`. */
-    def paths[T](start: T, forest: Seq[Edge[T]]): Vector[Vector[T]] = {
-      def DFS (current: T, prefix: Vector[T]): Vector[Vector[T]] = {
+  object Subtree {
+    /** Returns the subtree starting from `start` in the forest `forest`. */
+    def subtree[T](start: T, forest: Seq[Edge[T]]): Vector[T] = {
+      def DFS (current: T): Vector[T] = {
         val succs = forest.collect{case (curr, succ) if current == curr  => succ}
-        if (succs.length == 0) Vector(prefix.appended(current))
+        if (succs.length == 0) Vector(current)
         else {
-          succs.flatMap(s => DFS(s, prefix.appended(current))).toVector
+          current +: succs.flatMap(s => DFS(s)).toVector
         }
       }
-      DFS(start, Vector())
+      DFS(start)
     }
   }
 
@@ -145,7 +145,7 @@ object ViperChopper {
           val totalDs = (ds ++ fs.keys ++ as.keys).distinct
 
           totalDs.map{ d =>
-            d.copy(functions = fs(d), axioms = as(d))(d.pos, d.info, d.errT)
+            d.copy(functions = fs.getOrElse(d, Seq.empty), axioms = as.getOrElse(d, Seq.empty))(d.pos, d.info, d.errT)
           }
         }
 
@@ -225,6 +225,11 @@ object ViperChopper {
         case n: vpr.PredicateAccess => Vertex.Predicate(n.predicateName) +: unit(n)
         case n: vpr.FieldAccess => Vertex.Field(n.field.name) +: unit(n)
         case n: vpr.Exp => unit(n)
+        case n: vpr.DomainType => {
+            Vertex.DomainType(n) +: (n.partialTypVarsMap.collect{
+            case (_, t: vpr.DomainType) => Vertex.DomainType(t)
+          }.toSeq)
+        }
       }.flatten
     }
   }

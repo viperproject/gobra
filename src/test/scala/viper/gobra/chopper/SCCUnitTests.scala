@@ -106,25 +106,21 @@ class SCCUnitTests extends AnyFunSuite with Matchers with Inside {
     )
   }
 
-  test("Paths: should find paths in forest as expected") {
+  test("Paths: should find subtree in forest as expected") {
     val graph = Seq(
-      ("A", "C"),
-      ("B", "C"),
-      ("C", "D"),
-      ("C", "G"),
-      ("D", "E"),
-      ("D", "F"),
-      ("G", "F")
+      ("C", "A"),
+      ("C", "B"),
+      ("D", "C"),
+      ("G", "C"),
+      ("E", "D"),
+      ("F", "D"),
+      ("F", "G")
     )
-    ViperChopper.Paths.paths("A", graph) shouldEqual Seq(
-      Seq("A", "C", "D", "E"),
-      Seq("A", "C", "D", "F"),
-      Seq("A", "C", "G", "F")
+    ViperChopper.Subtree.subtree("E", graph).toSet shouldEqual Set(
+      "A", "B", "C", "D", "E"
     )
-    ViperChopper.Paths.paths("B", graph) shouldEqual Seq(
-      Seq("B", "C", "D", "E"),
-      Seq("B", "C", "D", "F"),
-      Seq("B", "C", "G", "F")
+    ViperChopper.Subtree.subtree("F", graph).toSet shouldEqual Set(
+      "A", "B", "C", "D", "F", "G"
     )
   }
 }

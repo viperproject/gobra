@@ -16,6 +16,8 @@ import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.Future
+import viper.gobra.util.ViperChopper
+import viper.gobra.reporting.ChoppedViperMessage
 
 object BackendVerifier {
 
@@ -47,18 +49,29 @@ object BackendVerifier {
       case _ =>
     }
 
+    val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)
+    programs.zipWithIndex.foreach{ case (chopped, idx) => 
+      config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
+    }
+
     val verifier = config.backend.create(exePaths)
 
-    val programID = "_programID_" + config.inputFiles.head.getName
-
-    val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
-
-
-    verificationResult.map(
-      result => {
-        convertVerificationResult(result, task.backtrack)
-      })
-
+    val verificationResults = programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
+      val programID = s"_programID_${config.inputFiles.head.getName}_$idx"
+      for {
+        acc <- res
+        next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+      } yield acc :+ next      
+    }
+    
+    verificationResults.map{ results =>
+      val result = results.foldLeft(silver.verifier.Success: VerificationResult){
+        case (acc, silver.verifier.Success) => acc
+        case (silver.verifier.Success, res) => res
+        case (l: silver.verifier.Failure, r: silver.verifier.Failure) => silver.verifier.Failure(l.errors ++ r.errors)
+      }
+      convertVerificationResult(result, task.backtrack)
+    }
   }
 
   /**

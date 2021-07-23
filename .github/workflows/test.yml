@@ -13,7 +13,7 @@ on:
 jobs:
   setup-and-test:
     runs-on: ubuntu-latest
-    container: gobraverifier/gobra-base:v5_z3_4.8.7
+    container: gobraverifier/gobra-base:v6_z3_4.8.7
     env:
       SILVER_REF: "v.21.01-release"
       SILICON_REF: "v.21.01-release"
@@ -84,9 +84,6 @@ jobs:
           # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
           # disabled caching of compiled source files altogether
           key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
-
-      - name: Install pidstat
-        run: apt-get update && apt-get install -y pidstat
 
       - name: Execute all tests
         # run: sbt test

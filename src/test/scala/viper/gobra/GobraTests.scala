@@ -46,6 +46,10 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
+        println("start explicit garbage collection")
+        System.gc()
+        println(s"explicit garbage collection has ended")
+
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,

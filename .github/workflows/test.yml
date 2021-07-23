@@ -87,5 +87,5 @@ jobs:
 
       - name: Execute all tests
         # run: sbt test
-        run: pidstat  1 -e sbt test
+        run: pidstat 10 -r --human -e sbt test
         working-directory: gobra

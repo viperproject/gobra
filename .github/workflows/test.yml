@@ -85,6 +85,9 @@ jobs:
           # disabled caching of compiled source files altogether
           key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
 
+      - name: Install pidstat
+        run: apt-get update && apt-get install -y pidstat
+
       - name: Execute all tests
         # run: sbt test
         run: pidstat  1 -e sbt test

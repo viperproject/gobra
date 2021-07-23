@@ -16,7 +16,7 @@ jobs:
     container: gobraverifier/gobra-base:v6_z3_4.8.7
     env:
       SILVER_REF: "v.21.01-release"
-      SILICON_REF: "3dc747aa5b9f2e3dd7fbd787aa471319426b8d90"
+      SILICON_REF: "memory-experiments"
       CARBON_REF: "v.21.01-release"
     steps:
       - name: Checkout Gobra

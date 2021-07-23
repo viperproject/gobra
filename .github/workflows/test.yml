@@ -16,7 +16,7 @@ jobs:
     container: gobraverifier/gobra-base:v6_z3_4.8.7
     env:
       SILVER_REF: "v.21.01-release"
-      SILICON_REF: "v.21.01-release"
+      SILICON_REF: "3dc747aa5b9f2e3dd7fbd787aa471319426b8d90"
       CARBON_REF: "v.21.01-release"
     steps:
       - name: Checkout Gobra
@@ -34,7 +34,7 @@ jobs:
       - name: Checkout Silicon
         uses: actions/checkout@v2
         with:
-          repository: viperproject/silicon
+          repository: arquintl/silicon
           ref: ${{ env.SILICON_REF }}
           path: silicon
       - name: Checkout Carbon
@@ -90,10 +90,10 @@ jobs:
         working-directory: gobra
 
       - name: Execute precompiled tests
-        run: pidstat 10 -r --human -e java -Xss128m -Xmx512m -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
+        run: pidstat 1 -r --human -e java -Xss128m -Xmx512m -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
         working-directory: gobra
 
       - name: Execute all tests
         # run: sbt test
-        run: pidstat 10 -r --human -e sbt test
+        run: pidstat 1 -r --human -e sbt test
         working-directory: gobra

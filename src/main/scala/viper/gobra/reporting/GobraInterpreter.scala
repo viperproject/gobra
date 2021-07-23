@@ -264,7 +264,7 @@ case class ProductInterpreter(c:sil.Converter) extends GobraDomainInterpreter[St
 }
 case class SharedStructInterpreter(c:sil.Converter) extends GobraDomainInterpreter[StructT]{
 def getterFunc(i:Int,n:Int) = Names.sharedStructDomain ++ Names.getterFunc(i,n) 
-	def interpret(entry:sil.DomainValueEntry,info:StructT) :GobraModelEntry ={
+	def interpret(entry:sil.DomainValueEntry,info:StructT): GobraModelEntry ={
 		val doms = c.domains.find(_.valueName==entry.domain)
 		//val default =  c.non_domain_functions.find(_.fname.startsWith(Names.sharedStructDfltFunc)).get.default
 		//if(entry==default) return LitNilEntry()
@@ -344,11 +344,11 @@ case class IndexedInterpreter(c:sil.Converter) extends GobraDomainInterpreter[Ar
 			}
 			//require(length==info.length) this cannot be enforced because we do not always know the array length ahead of time
 			val offsetFunc = functions.find(_.fname==index(doms.get.name))
-			var address :BigInt= 0;
-			var first =0;
-			var second =(-1);
-			var curr:LitEntry = null;
-			var map:Map[(Int,Int),LitEntry] = Map()
+			var address: BigInt= 0;
+			var first = 0;
+			var second = (-1);
+			var curr: LitEntry = null;
+			var map: Map[(Int,Int),LitEntry] = Map()
 			if(offsetFunc.isDefined){
 				val indexFunc = offsetFunc.get
 				val values = 0.until(length.toInt).map(i=>{

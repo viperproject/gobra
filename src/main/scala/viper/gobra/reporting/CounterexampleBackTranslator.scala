@@ -146,6 +146,174 @@ object Util{
 	def removeWhitespace(in: String): String ={
 		in.replace(" ","").replace("\t","").replace("\n","")
 	}
+	def getSubnodes(s: Vector[PNode]): Seq[PNode] = {
+		s.flatMap(getSubnodes(_)).toSeq
+	}
+	def getSubnodes(o: Option[PNode]): Seq[PNode] = {
+		o.map(getSubnodes(_)).getOrElse(Seq())
+	}
+	/**
+	 * 	extracts all subnodes (includeing itself) WARNING do not use on large pnodes (PPackages, large function etc)
+	 * */
+	def getSubnodes(a: PNode): Seq[PNode] ={
+		val realSubs = a match {
+			case PPackage(packageClause, programs, _) =>  getSubnodes(packageClause) ++ programs.flatMap(getSubnodes(_))
+			case PProgram(packageClause, imports, _) =>  getSubnodes(packageClause) ++ imports.flatMap(getSubnodes(_))
+			case PPackageClause(id) => getSubnodes(id)
+			case PExplicitQualifiedImport(qualifier, _) => getSubnodes(qualifier)
+			case PConstDecl(typ, right, left)  =>  getSubnodes(typ) ++ getSubnodes(right) ++ getSubnodes(left)
+			case PVarDecl(typ, right, left, _) =>  getSubnodes(typ) ++ getSubnodes(right) ++ getSubnodes(left)
+			case PFunctionDecl(id, args, result, spec, body) => getSubnodes(id) ++ getSubnodes(args) ++ getSubnodes(result) ++ getSubnodes(spec) ++getSubnodes(body.map(_._1)) ++getSubnodes(body.map(_._2))
+			case PMethodDecl(id, receiver, args, result, spec, body) => getSubnodes(id) ++ getSubnodes(args) ++ getSubnodes(result) ++ getSubnodes(spec) ++getSubnodes(body.map(_._1)) ++getSubnodes(body.map(_._2)) ++getSubnodes(receiver)
+			case PTypeDef(right, left) => getSubnodes(right) ++ getSubnodes(left)
+			case PTypeAlias(right, left) => getSubnodes(right) ++ getSubnodes(left)
+			case PLabeledStmt(label, stmt) => getSubnodes(label) ++ getSubnodes(stmt)
+			case PExpressionStmt(exp) => getSubnodes(exp)
+			case PGoStmt(exp) => getSubnodes(exp)
+			case PDeferStmt(exp) => getSubnodes(exp)
+			case PExpCompositeVal(exp) => getSubnodes(exp)
+			case PLength(exp) => getSubnodes(exp)
+			case PCapacity(exp) => getSubnodes(exp)
+			case PRange(exp) => getSubnodes(exp)
+			case PAssert(exp) => getSubnodes(exp)
+			case PAssume(exp) => getSubnodes(exp)
+			case PExhale(exp) => getSubnodes(exp)
+			case PInhale(exp) => getSubnodes(exp)
+			case PFold(exp) => getSubnodes(exp)
+			case PUnfold(exp) => getSubnodes(exp)
+			case PSendStmt(channel, msg)  => getSubnodes(channel) ++ getSubnodes(msg)
+			case PAssignment(right, left) => getSubnodes(right) ++ getSubnodes(left)
+			case PAssignmentWithOp(right, op, left) => getSubnodes(right) ++ getSubnodes(op) ++ getSubnodes(left)
+
+			case PShortVarDecl(right, left, addressable) => getSubnodes(right)++ getSubnodes(left)
+			case PIfStmt(ifs, els) => getSubnodes(ifs) ++ getSubnodes(els)
+			case PIfClause(pre, condition, body) => getSubnodes(pre) ++ getSubnodes(condition) ++ getSubnodes(body)
+			case PExprSwitchStmt(pre, exp, cases, dflt) => getSubnodes(pre) ++ getSubnodes(exp) ++getSubnodes(cases) ++getSubnodes(dflt)
+			case PExprSwitchDflt(body) => getSubnodes(body)
+			case PTypeSwitchDflt(body) => getSubnodes(body)
+			case PExprSwitchCase(left, body) => getSubnodes(left) ++getSubnodes(body)
+			case PTypeSwitchStmt(pre, exp, binder, cases, dflt) => getSubnodes(pre) ++ getSubnodes(exp) ++ getSubnodes(binder) ++ getSubnodes(cases) ++getSubnodes(dflt)
+			
+			case PTypeSwitchCase(left, body) => getSubnodes(left) ++ getSubnodes(body)
+			case PForStmt(pre, cond, post, spec, body) => getSubnodes(pre)++getSubnodes(cond)++ getSubnodes(post)++ getSubnodes(spec)++ getSubnodes(body)
+			case PAssForRange(range, ass, body) => getSubnodes(range) ++ getSubnodes(ass)++ getSubnodes(body)
+			case PShortForRange(range, shorts, body) => getSubnodes(range) ++getSubnodes(shorts) ++ getSubnodes(body)
+			
+			case PSelectStmt(send, rec, aRec, sRec, dflt) => getSubnodes(send)++ getSubnodes(rec)++getSubnodes(aRec)++ getSubnodes(sRec)++ getSubnodes(dflt)
+			case PSelectDflt(body) => getSubnodes(body)
+			case PSelectSend(send, body) => getSubnodes(send)++getSubnodes(body)
+			case PSelectRecv(recv, body) => getSubnodes(recv) ++getSubnodes(body)
+			case PSelectAssRecv(recv, ass, body) => getSubnodes(recv) ++getSubnodes(ass) ++ getSubnodes(body)
+			case PSelectShortRecv(recv, shorts, body) => getSubnodes(recv) ++getSubnodes(shorts)++getSubnodes(body)
+			case PReturn(exps) => getSubnodes(exps)
+			case PBreak(label) => getSubnodes(label)
+			case PContinue(label) => getSubnodes(label)
+			case PGoto(label) => getSubnodes(label)
+			
+			case PBlock(stmts) => getSubnodes(stmts)
+			case PSeq(stmts) => getSubnodes(stmts)
+			case PNamedOperand(id) => getSubnodes(id)
+			case PCompositeLit(typ, lit) => getSubnodes(typ) ++ getSubnodes(lit)
+			case PLiteralValue(elems) => getSubnodes(elems)
+			case PKeyedElement(key, exp) => getSubnodes(key)++getSubnodes(exp)
+			case PIdentifierKey(id) => getSubnodes(id)
+			
+			case PLitCompositeVal(lit) =>getSubnodes(lit)
+			case PFunctionLit(args, result, body) => getSubnodes(args) ++ getSubnodes(result) ++ getSubnodes(body)
+			case PInvoke(base, args) => getSubnodes(base) ++ getSubnodes(args)
+			case PDot(base, id) => getSubnodes(base) ++getSubnodes(id)
+			case PIndexedExp(base, index) => getSubnodes(base) ++getSubnodes(index)
+			
+			case PSliceExp(base, low, high, cap) => getSubnodes(base) ++getSubnodes(low) ++getSubnodes(high) ++getSubnodes(cap)
+			case PUnpackSlice(elem) => getSubnodes(elem)
+			case PTypeAssertion(base, typ) => getSubnodes(base) ++getSubnodes(typ)
+			case PDeref(base) => getSubnodes(base)
+			case u: PUnaryExp => getSubnodes(u.operand)
+			case b: PBinaryExp[PNode,PNode] => getSubnodes(b.left) ++ getSubnodes(b.right)
+			case  PUnfolding(pred, op) => getSubnodes(pred) ++ getSubnodes(op)
+			case PMake(typ, args) => getSubnodes(typ) ++ getSubnodes(args)
+			case PNew(typ) => getSubnodes(typ)
+			case PFPredBase(id) => getSubnodes(id)
+			case PDottedBase(recvWithId) => getSubnodes(recvWithId)
+			case PPredConstructor(id, args) =>getSubnodes(id) ++ args.flatMap(getSubnodes(_))
+			case PArrayType(len, elem) => getSubnodes(len) ++ getSubnodes(elem)
+			case PImplicitSizeArrayType(elem) => getSubnodes(elem)
+			case PSliceType(elem) => getSubnodes(elem)
+			case PBiChannelType(elem) => getSubnodes(elem)
+			case PSendChannelType(elem) => getSubnodes(elem)
+			case PRecvChannelType(elem)=> getSubnodes(elem)
+			case PVariadicType(elem) => getSubnodes(elem)
+			case PMapType(key, elem) =>getSubnodes(key)++ getSubnodes(elem)
+			case PStructType(clauses) => getSubnodes(clauses)
+			case PFieldDecls(fields) =>getSubnodes(fields)
+			case PFieldDecl(id, typ) => getSubnodes(id) ++ getSubnodes(typ)
+			case PEmbeddedDecl(typ, id) => getSubnodes(id) ++ getSubnodes(typ)
+			case PMethodReceiveName(typ) => getSubnodes(typ)
+			case PMethodReceivePointer(typ) =>getSubnodes(typ)
+			case PFunctionType(args, result) => getSubnodes(args) ++ getSubnodes(result)
+			case PPredType(args) => getSubnodes(args)
+			case PInterfaceType(embedded, methSpecs, predSpec) => getSubnodes(embedded) ++ getSubnodes(methSpecs) ++ getSubnodes(predSpec)
+			case PInterfaceName(typ) => getSubnodes(typ)
+			case PMethodSig(id, args, result, spec, isGhost) =>		getSubnodes(id) ++getSubnodes(args) ++ getSubnodes(result) ++ getSubnodes(spec)
+			case PNamedParameter(id, typ) => getSubnodes(id) ++ getSubnodes(typ)
+			case PUnnamedParameter(typ) => getSubnodes(typ)
+			case PNamedReceiver(id, typ, addressable) => getSubnodes(typ) ++ getSubnodes(id)
+			case PUnnamedReceiver(typ) => getSubnodes(typ)
+			case PResult(outs) =>getSubnodes(outs)
+			case PEmbeddedName(typ) =>getSubnodes(typ)
+			case PEmbeddedPointer(typ) =>getSubnodes(typ)
+			case PFunctionSpec(pres, posts, isPure) => getSubnodes(pres) ++getSubnodes(posts)
+			case PBodyParameterInfo(shareableParameters) => getSubnodes(shareableParameters)
+			case PLoopSpec(invariants) => getSubnodes(invariants)
+			case PExplicitGhostMember(actual) => getSubnodes(actual)
+			case PFPredicateDecl(id, args, body) => getSubnodes(id) ++ getSubnodes(args) ++ getSubnodes(body)
+			case PMPredicateDecl(id, receiver, args, body) => getSubnodes(id) ++ getSubnodes(args) ++ getSubnodes(body) ++ getSubnodes(receiver)
+			case PMPredicateSig(id, args) => getSubnodes(id) ++ getSubnodes(args)
+			case PImplementationProof(subT, superT, alias, memberProofs) => getSubnodes(subT) ++ getSubnodes(superT) ++ getSubnodes(alias) ++ getSubnodes(memberProofs)
+			case PMethodImplementationProof(id, receiver, args, result, isPure, body) => getSubnodes(id) ++ getSubnodes(receiver) ++ getSubnodes(args) ++ getSubnodes(result) ++ getSubnodes(body.map(_._1)) ++ getSubnodes(body.map(_._2))
+			case PImplementationProofPredicateAlias(left, right) => getSubnodes(left) ++ getSubnodes(right)
+			case PExplicitGhostStatement(actual) => getSubnodes(actual)
+
+			case POld(operand) => getSubnodes(operand)
+			case PLabeledOld(label, operand) => getSubnodes(label) ++ getSubnodes(operand)
+			case PConditional(cond, thn, els) => getSubnodes(cond) ++ getSubnodes(thn) ++ getSubnodes(els)
+			case PImplication(left, right) => getSubnodes(left) ++ getSubnodes(right)
+			case PAccess(exp, perm) => getSubnodes(exp) ++ getSubnodes(perm)
+			case PPredicateAccess(pred, perm) => getSubnodes(pred) ++ getSubnodes(perm)
+			case PForall(vars, triggers, body) => getSubnodes(vars) ++ getSubnodes(triggers) ++ getSubnodes(body)
+			case PExists(vars, triggers, body) => getSubnodes(vars) ++ getSubnodes(triggers) ++ getSubnodes(body)
+			case PTypeOf(exp) => getSubnodes(exp)
+			case PIsComparable(exp) => getSubnodes(exp)
+			case POptionNone(t) => getSubnodes(t)
+			case POptionSome(exp) => getSubnodes(exp)
+			case POptionGet(exp) => getSubnodes(exp)
+			case b: PBinaryGhostExp => getSubnodes(b.left)++ getSubnodes(b.right)
+			case PSequenceConversion(exp) => getSubnodes(exp)
+			case PGhostCollectionUpdate(col, clauses) => getSubnodes(col) ++ getSubnodes(clauses)
+			case PGhostCollectionUpdateClause(left, right) =>  getSubnodes(left) ++ getSubnodes(right)
+			case PRangeSequence(low, high) => getSubnodes(low) ++ getSubnodes(high)
+			case PSetConversion(exp) =>getSubnodes(exp)
+			case PMultisetConversion(exp) =>getSubnodes(exp)
+			case PMapKeys(exp) =>getSubnodes(exp)
+			case PMapValues(exp) =>getSubnodes(exp)
+			case PSequenceType(elem) =>getSubnodes(elem)
+			case PSetType(elem) =>getSubnodes(elem)
+			case PMultisetType(elem) =>getSubnodes(elem)
+			case PMathematicalMapType(keys, values) => getSubnodes(keys) ++ getSubnodes(values)
+			case POptionType(elem) =>getSubnodes(elem)
+			case PGhostSliceType(elem) =>getSubnodes(elem)
+			case PDomainType(funcs, axioms) => getSubnodes(funcs) ++ getSubnodes(axioms)
+			case PDomainFunction(id, args, result) => getSubnodes(id) ++ getSubnodes(args) ++ getSubnodes(result)
+			case PDomainAxiom(exp) =>getSubnodes(exp)
+			case PBoundVariable(id, typ) => getSubnodes(id) ++ getSubnodes(typ)
+			case PTrigger(exps) => getSubnodes(exps)
+			case PExplicitGhostParameter(actual) => getSubnodes(actual)
+			case PExplicitGhostStructClause(actual) => getSubnodes(actual)
+			case t => Seq()
+		}
+		Seq(a) ++ realSubs
+	}
+
 }
 /*
 object GobraCounterexample { 
@@ -155,6 +323,10 @@ object GobraCounterexample {
 */
 class GobraCounterexample(gModel: GobraModelAtLabel) extends Counterexample {
 	val reducedCounterexample: GobraModel =GobraModel(gModel.labeledEntries.last._2.entries.filterNot(_._2.isInstanceOf[FaultEntry]))
+	def getRelevantEntries(node: PNode): Seq[((viper.gobra.reporting.Source.Verifier.Info, String), viper.gobra.reporting.GobraModelEntry)] = {
+		val subnodes= Util.getSubnodes(node)
+		reducedCounterexample.entries.toSeq.filter(x => subnodes.find(y => x._1._1.pnode.toString.split(" ").head==y.toString).isDefined)
+	}
 	override def toString: String = gModel.toString
 	//TODO ensure the counterexamples are sorted alphabetically
 	def testString: String =  gModel.labeledEntries.head._2.entries.toSeq.sortBy(_._1._1.toString).map(x=>Util.removeWhitespace(s"${x._1._1.toString}\t<- ${Util.prettyPrint(x._2,0).replaceAll("&-?\\d*","&").replaceAll("@-?\\d*","@")}")).mkString(";")
@@ -234,7 +406,7 @@ case class LitSparseEntry(full: WithSeq, relevant: Map[(Int, Int), LitEntry]) ex
 	override def toString():String = relevant.toSeq.sortBy(_._1._1).map(x=>s"${if(x._1._2-x._1._1 <=1)s"${x._1._1}" else s"${x._1._1}-${x._1._2}"}:${x._2}").mkString("[",",","]")
 }
 case class LitStructEntry(typ:StructT, values: Map[String, LitEntry]) extends LitEntry { //TODO: Pretty printing
-	override def toString(): String = Util.prettyPrint(this,0) //s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString("; ")}}"
+	override def toString(): String = /* Util.prettyPrint(this,0) // */s"struct{${values.map(x=>s"${x._1} = ${x._2.toString}").mkString(if(values.size < 5)("; ")else(";\n\t"))}}"
 
 }
 case class UnresolvedInterface(typ: InterfaceT, possibleVals: Seq[GobraModelEntry]) extends LitEntry {
@@ -258,11 +430,13 @@ case class LitRecursive(address: BigInt) extends LitEntry {
 	override def toString(): String = s"&$address (recursive)"
 }
 case class LitDeclaredEntry(name: String,value: LitEntry) extends LitEntry {
-	override def toString(): String = { Util.prettyPrint(this,0)
-		/* value match {
-			case LitStructEntry(_,_) => value.toString.replaceFirst("struct",name)
-			case _ => value.toString()
-		} */
+	override def toString(): String = { //Util.prettyPrint(this,0)
+		value match {
+					case LitStructEntry(_,_) => value.toString().replaceFirst("struct",name)
+					case LitAdressedEntry(value, address,perm) => LitDeclaredEntry(name,value).toString() ++ s"@$address,(${perm.getOrElse("?")})"
+					case _: UserDomainEntry | _: ExtendedUserDomainEntry => value.toString.replaceFirst("domain",name)
+					case _ => s"$name(${value})" 
+				} 
 	}
 }
 
@@ -307,7 +481,7 @@ case class UserDomainEntry(name: String, id: String) extends LitEntry {
 }
 
 case class ExtendedUserDomainEntry(original: UserDomainEntry, functions: Seq[FunctionEntry]) extends LitEntry {
-	override def toString(): String = s"$original${functions.map(f => s"\t${f.fname} = ${f.options.getOrElse(Seq(original),f.default)}").mkString("{\n",",\n","\n}")}"
+	override def toString(): String = s"$original${functions.map(f => s"${f.fname} = ${f.options.getOrElse(Seq(original),f.default)}").mkString("{\n\t",if(functions.size > 3)(",\n\t")else(","),"\n}")}"
 }
 
 trait HeapEntry extends GobraModelEntry {

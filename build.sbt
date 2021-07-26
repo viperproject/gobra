@@ -50,7 +50,9 @@ lazy val gobra = (project in file("."))
 
     javaOptions ++= Seq(
       "-Xss128m",
-      "-Xmx1024m"
+      "-XX:MinRAMPercentage=40",
+      "-XX:MaxRAMPercentage=70",
+      "-XshowSettings:vm"
     ),
 
     // Run settings

@@ -62,7 +62,7 @@ class StringEncoding extends LeafTypeEncoding {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
         } yield withSrc(vpr.DomainFuncApp(concatFunc, Seq(lEncoded, rEncoded), Map.empty),concat)
-      case slice @ in.Slice(base, low, high, _, _) :: ctx.String() =>
+      case slice @ in.Slice(base :: ctx.String(), low, high, _, _) =>
         for {
           baseExp <- goE(base)
           lowExp  <- goE(low)

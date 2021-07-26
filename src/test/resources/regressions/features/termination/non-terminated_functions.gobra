@@ -1,130 +1,128 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
 package termination
 
 decreases x
 func f_e(x int) int {
- if(x>2) {
- //:: ExpectedOutput(method_termination_error)
- return f_e(f_e(x-x)+3)
-} else{
- return 0
+  if x > 2 {
+  
+    //:: ExpectedOutput(method_termination_error)
+    return f_e(f_e(x-x)+3)
+  } else {
+    return 0
+  }
 }
-}
-
 
 decreases x
-func g(x int) int{
- if(x>1) {
-  //:: ExpectedOutput(method_termination_error)
- return h(g(x-1)-1)
-} else {
-return 1
-}
+func g(x int) int {
+ if x > 1 {
+   //:: ExpectedOutput(method_termination_error)
+   return h(g(x-1)-1)
+ } else {
+   return 1
+ }
 }
 
- //:: ExpectedOutput(assertion_error)
+
+//:: ExpectedOutput(assertion_error)
 ensures result == 1
 decreases x
 func h(x int) (result int) {
-  if(x>1) {
-  return g(h(x-1)-1)
-} else{
-return 1
+  if x > 1 {
+    return g(h(x-1)-1)
+  } else {
+    return 1
+  }
 }
-}
-
-
-
 
 ghost
 decreases n
-func simple1 (n int) {
-//:: ExpectedOutput(method_termination_error)
-    simple1(n)
-}
+func simple1(n int) {
 
+  //:: ExpectedOutput(method_termination_error)
+  simple1(n)
+}
 
 ghost
 requires x >= 0
 decreases x
-func is_even2(x int) bool{
-   if( x==0 ) {
-   return true
-} else {
-//:: ExpectedOutput(method_termination_error)
-   return is_odd2(x)
+func is_even2(x int) bool {
+  if x == 0 {
+    return true
+  } else {
+   
+    //:: ExpectedOutput(method_termination_error)
+    return is_odd2(x)
+  }
 }
-}
-
 
 ghost
 requires y >= 0
 decreases y
 func is_odd2(y int) bool {
-    if ( y==0 ) {
+  if y == 0 {
     return false
-} else {
+  } else {
     return is_even2(y-1)
+  }
 }
-}
-
-
 
 ghost
 decreases x if 1 <= x
 decreases _ if x <= -1
 decreases *
 func sign2(x int) int {
-
-    if( x==0 ){
+  if x == 0 {
     return sign2(x)
-} else{
-
-    if( 1<x) {
-//:: ExpectedOutput(method_termination_error)
-    return sign2(x)
-}  else {
+  } else {
+    if 1 < x {
     
-    if( x < -1 ) {
-    return sign2(x + 1)
-    
-}  else {
-    return x
-     }
-}
-}
+      //:: ExpectedOutput(method_termination_error)
+      return sign2(x)
+    } else { 
+      if x < -1 {
+        return sign2(x + 1)
+      } else {
+        return x
+      }
+    }
+  }
 }
 
 ghost
 decreases n
 func factorial2(n int) int {
-    if n == 0 {
-        return 1
-    } else {
-//:: ExpectedOutput(method_termination_error)
-        return factorial2(n-1)
-    }
+  if n == 0 {
+    return 1
+  } else {
+  
+    //:: ExpectedOutput(method_termination_error)
+    return factorial2(n-1)
+  }
 }
-
 
 ghost
 decreases i
 func f3(i int) int {
- //:: ExpectedOutput(method_termination_error)
-    if(true || f3(i) != 1) {
+
+  //:: ExpectedOutput(method_termination_error)
+  if true || f3(i) != 1 {
     return 1
-} else {
-  return f3(i)
-}
+  } else {
+    return f3(i)
+  }
 }
 
 ghost
 decreases i
 func f4(i int) int {
-//:: ExpectedOutput(method_termination_error)
-     if(false && f4(i) != 1) {
-     f4(i)
-} else {
-     return 1
-}
+
+  //:: ExpectedOutput(method_termination_error)
+  if false && f4(i) != 1 {
+    f4(i)
+  } else {
+    return 1
+  }
 }
 

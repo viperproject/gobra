@@ -663,7 +663,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a set conversion of an identifier") {
     val expr = SetConversion(
-      LocalVar("xs", sequenceT(boolT))(Internal)
+      LocalVar("xs", sequenceT(boolT))(Internal), boolT
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -676,7 +676,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       RangeSequence(
         IntLit(1)(Internal),
         IntLit(42)(Internal)
-      )(Internal)
+      )(Internal), intT
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -689,7 +689,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       SequenceAppend(
         LocalVar("xs", sequenceT(boolT))(Internal),
         LocalVar("ys", sequenceT(boolT))(Internal)
-      )(Internal)
+      )(Internal), boolT
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -699,8 +699,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show the union of two set conversions") {
     val expr = Union(
-      SetConversion(LocalVar("xs", sequenceT(boolT))(Internal))(Internal),
-      SetConversion(LocalVar("ys", sequenceT(boolT))(Internal))(Internal)
+      SetConversion(LocalVar("xs", sequenceT(boolT))(Internal), boolT)(Internal),
+      SetConversion(LocalVar("ys", sequenceT(boolT))(Internal), boolT)(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -750,7 +750,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show a very simple multiset conversion") {
     val expr = MultisetConversion(
-      LocalVar("xs", sequenceT(boolT))(Internal)
+      LocalVar("xs", sequenceT(boolT))(Internal), boolT
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -763,7 +763,7 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       SequenceAppend(
         LocalVar("xs", sequenceT(boolT))(Internal),
         LocalVar("ys", sequenceT(boolT))(Internal)
-      )(Internal)
+      )(Internal), boolT
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -773,8 +773,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
 
   test("Printer: should correctly show the union of two multiset conversions") {
     val expr = Union(
-      MultisetConversion(LocalVar("xs", sequenceT(boolT))(Internal))(Internal),
-      MultisetConversion(LocalVar("ys", sequenceT(boolT))(Internal))(Internal)
+      MultisetConversion(LocalVar("xs", sequenceT(boolT))(Internal), boolT)(Internal),
+      MultisetConversion(LocalVar("ys", sequenceT(boolT))(Internal), boolT)(Internal)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -785,8 +785,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a nested multiset conversion") {
     val expr = MultisetConversion(
       MultisetConversion(
-        LocalVar("xs", sequenceT(boolT))(Internal)
-      )(Internal)
+        LocalVar("xs", sequenceT(boolT))(Internal), boolT
+      )(Internal), boolT
     )(Internal)
 
     frontend.show(expr) should matchPattern {

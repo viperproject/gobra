@@ -53,7 +53,12 @@ trait GoVerifier {
     verify(config.inputFiles, config)(executor)
   }
 
+  def verifyBlocking(config: Config): VerifierResult = {
+    verifyBlocking(config.inputFiles, config)
+  }
+
   protected[this] def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult]
+  protected[this] def verifyBlocking(input: Vector[Path], config: Config): VerifierResult
 }
 
 trait GoIdeVerifier {
@@ -99,6 +104,32 @@ class Gobra extends GoVerifier with GoIdeVerifier {
           // The Z3 instance died. This is a known issue that is caused by a Z3 bug.
           Future.failed(new KnownZ3BugException("Encountered a known Z3 bug. Please, execute the file again."))
       }
+  }
+
+  override def verifyBlocking(input: Vector[Path], config: Config): VerifierResult = {
+    val finalConfig = getAndMergeInFileConfig(config)
+
+    config.reporter report CopyrightReport(s"${GoVerifier.name} ${GoVerifier.version}\n${GoVerifier.copyright}")
+
+    val task = for {
+      parsedPackage <- performParsing(input, finalConfig)
+      typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+      program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
+      program <- performInternalTransformations(program, finalConfig)
+      viperTask <- performViperEncoding(program, finalConfig)
+    } yield (viperTask, finalConfig)
+
+    task match {
+      case Left(Vector()) => VerifierResult.Success
+      case Left(errors)   => VerifierResult.Failure(errors)
+      case Right((job, finalConfig)) => verifyAstBlocking(finalConfig, job.program, job.backtrack)
+    }
+  }
+
+  def verifyAstBlocking(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo): VerifierResult = {
+    val viperTask = BackendVerifier.Task(ast, backtrack)
+    val result = performVerificationBlocking(viperTask, config)
+    BackTranslator.backTranslate(result)(config)
   }
 
   @scala.annotation.tailrec
@@ -196,6 +227,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
       BackendVerifier.verify(viperTask)(config)
     } else {
       Future(BackendVerifier.Success)
+    }
+  }
+
+  private def performVerificationBlocking(viperTask: BackendVerifier.Task, config: Config): BackendVerifier.Result = {
+    if (config.shouldVerify) {
+      BackendVerifier.verifyBlocking(viperTask)(config)
+    } else {
+      BackendVerifier.Success
     }
   }
 }

@@ -59,8 +59,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           z3Exe = z3Exe
         )
 
-        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
-        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        val (result, elapsedMilis) = time(() => gobraInstance.verifyBlocking(config))
 
         info(s"Time required: $elapsedMilis ms")
 

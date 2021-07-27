@@ -128,14 +128,16 @@ jobs:
       - name: Prepare annotations
         if: ${{ always() }}
         env:
-          JAVA_WARNING_THRESHOLD_GB: 1
-          Z3_WARNING_THRESHOLD_GB: 5
+          JAVA_WARNING_THRESHOLD_GB: 4
+          JAVA_FAILURE_THRESHOLD_GB: 6
+          Z3_WARNING_THRESHOLD_GB: 0.5
+          Z3_FAILURE_THRESHOLD_GB: 1
         # we transform bash variables into awk variables to not cause problems with bash's variable substitution
         # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
         # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
         run: |
-          JAVA_LEVEL=$(awk -v MAX_JAVA_GB=$MAX_JAVA_GB 'BEGIN { print (MAX_JAVA_GB>${{ env.JAVA_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
-          Z3_LEVEL=$(awk -v MAX_Z3_GB=$MAX_Z3_GB 'BEGIN { print (MAX_Z3_GB>${{ env.Z3_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
+          JAVA_LEVEL=$(awk -v MAX_JAVA_GB=$MAX_JAVA_GB 'BEGIN { print (MAX_JAVA_GB>${{ env.JAVA_FAILURE_THRESHOLD_GB }}) ? "failure" : (MAX_JAVA_GB>${{ env.JAVA_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
+          Z3_LEVEL=$(awk -v MAX_Z3_GB=$MAX_Z3_GB 'BEGIN { print (MAX_Z3_GB>${{ env.Z3_FAILURE_THRESHOLD_GB }}) ? "failure" : (MAX_Z3_GB>${{ env.Z3_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
           cat <<EOF > annotations.json
           [
           {

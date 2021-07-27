@@ -149,10 +149,10 @@ jobs:
 
       - name: Create annotations
         if: ${{ always() }}
-        uses: Attest/annotations-action@v1.0.7
+        uses: yuzutech/annotations-action@v0.3.0
         with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          path: 'gobra/annotations.json'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          input: 'gobra/annotations.json'
           title: 'Java RAM Usage'
 
       - name: Upload RAM usage

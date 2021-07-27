@@ -163,7 +163,7 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           input: 'gobra/annotations.json'
-          title: 'Java RAM Usage'
+          title: 'RAM Usage'
 
       - name: Upload RAM usage
         if: ${{ failure() || cancelled() }}

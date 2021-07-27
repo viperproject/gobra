@@ -69,7 +69,7 @@ jobs:
         working-directory: gobra
 
       - name: Set sbt cache variables
-        run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy -Xss128m -Xmx1024m" >> $GITHUB_ENV
+        run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy -Xss128m" >> $GITHUB_ENV
         # note that the cache path is relative to the directory in which sbt is invoked.
 
       - name: Cache SBT
@@ -108,9 +108,11 @@ jobs:
       #  working-directory: gobra
 
       - name: Terminate pidstat
+        if: ${{ always() }}
         run: kill -INT $PIDSTAT_PID
 
       - name: Get max RAM usage by Java and Z3
+        if: ${{ always() }}
         # explanation:
         # - we use variable `max` to keep track of the maximum
         # - `$8` refers to the 8th column in the file which corresponds to the column storing RAM (in kb)
@@ -123,7 +125,8 @@ jobs:
           echo "MAX_Z3_GB=$(awk 'BEGIN {print $MAX_Z3_KB / 1000 / 1000}')" >> $GITHUB_ENV
         working-directory: gobra
 
-      - name: Create annotation
+      - name: Prepare annotations
+        if: ${{ always() }}
         env:
           JAVA_WARNING_THRESHOLD_GB: 1
           Z3_WARNING_THRESHOLD_GB: 5
@@ -144,7 +147,8 @@ jobs:
             }]" > annotations.json
         working-directory: gobra
 
-      - name: Create Java annotation
+      - name: Create annotations
+        if: ${{ always() }}
         uses: Attest/annotations-action@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

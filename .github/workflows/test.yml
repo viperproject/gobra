@@ -121,8 +121,8 @@ jobs:
         run: |
           MAX_JAVA_KB="$(awk -v max=0 '/java$/ {if($8>max){max=$8}}END{print max}' pidstat.txt)"
           MAX_Z3_KB="$(awk -v max=0 '/z3$/ {if($8>max){max=$8}}END{print max}' pidstat.txt)"
-          echo "MAX_JAVA_GB=$(awk 'BEGIN {print $MAX_JAVA_KB / 1000 / 1000}')" >> $GITHUB_ENV
-          echo "MAX_Z3_GB=$(awk 'BEGIN {print $MAX_Z3_KB / 1000 / 1000}')" >> $GITHUB_ENV
+          echo "MAX_JAVA_GB=$(awk -v MAX_JAVA_KB=$MAX_JAVA_KB 'BEGIN {print MAX_JAVA_KB / 1000 / 1000}')" >> $GITHUB_ENV
+          echo "MAX_Z3_GB=$(awk -v MAX_Z3_KB=$MAX_Z3_KB 'BEGIN {print MAX_Z3_KB / 1000 / 1000}')" >> $GITHUB_ENV
         working-directory: gobra
 
       - name: Prepare annotations
@@ -151,7 +151,7 @@ jobs:
         if: ${{ always() }}
         uses: Attest/annotations-action@v1.0.7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          secret: ${{ secrets.GITHUB_TOKEN }}
           path: 'gobra/annotations.json'
           title: 'Java RAM Usage'
 
@@ -159,5 +159,5 @@ jobs:
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v2
         with:
-          name: Pidstat
+          name: pidstat.txt
           path: gobra/pidstat.txt

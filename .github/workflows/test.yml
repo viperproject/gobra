@@ -89,15 +89,71 @@ jobs:
         run: sbt test:assembly
         working-directory: gobra
 
-      - name: Execute precompiled tests
-        # run: pidstat 1 -r --human -e java -Xss128m -Xmx512m -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
-        # uses min and max RAM configuration recommended for running a JVM in a (docker) container
-        # see https://merikan.com/2019/04/jvm-in-a-container/#java-10
-        # run: pidstat 1 -r --human -e java -Xss128m -XX:MinRAMPercentage=40 -XX:MaxRAMPercentage=70 -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
-        run: pidstat 1 -r --human -p ALL -e java -Xss128m -Xmx4096m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
+      - name: Start pidstat and execute it in the background
+        # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
+        # terminate it
+        run: |
+          pidstat 1 -r -p ALL > pidstat.txt &
+          echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
         working-directory: gobra
 
-      - name: Execute all tests
-        # run: sbt test
-        run: pidstat 1 -r --human -p ALL -e sbt test
+      - name: Execute precompiled tests
+        # run: pidstat 1 -r --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
+        run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
         working-directory: gobra
+
+      # - name: Execute all tests
+      ## run: pidstat 1 -r --human -e sbt test
+      #  run: sbt test
+      #  working-directory: gobra
+
+      - name: Terminate pidstat
+        run: kill -INT $PIDSTAT_PID
+
+      - name: Get max RAM usage by Java and Z3
+        # explanation:
+        # - we use variable `max` to keep track of the maximum
+        # - `$8` refers to the 8th column in the file which corresponds to the column storing RAM (in kb)
+        # - `java$` matches only lines that end in the string 'java'
+        # - variable `max` is printed after processing the entire file
+        run: |
+          MAX_JAVA_KB="$(awk -v max=0 '/java$/ {if($8>max){max=$8}}END{print max}' pidstat.txt)"
+          MAX_Z3_KB="$(awk -v max=0 '/z3$/ {if($8>max){max=$8}}END{print max}' pidstat.txt)"
+          echo "MAX_JAVA_GB=$(awk 'BEGIN {print $MAX_JAVA_KB / 1000 / 1000}')" >> $GITHUB_ENV
+          echo "MAX_Z3_GB=$(awk 'BEGIN {print $MAX_Z3_KB / 1000 / 1000}')" >> $GITHUB_ENV
+        working-directory: gobra
+
+      - name: Create annotation
+        env:
+          JAVA_WARNING_THRESHOLD_GB: 1
+          Z3_WARNING_THRESHOLD_GB: 5
+        # we transform bash variables into awk variables to not cause problems with bash's variable substitution
+        run: |
+          JAVA_LEVEL=$(awk -v MAX_JAVA_GB=$MAX_JAVA_GB 'BEGIN { print (MAX_JAVA_GB>${{ env.JAVA_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
+          Z3_LEVEL=$(awk -v MAX_Z3_GB=$MAX_Z3_GB 'BEGIN { print (MAX_Z3_GB>${{ env.Z3_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
+          echo "[
+            {
+              'message': 'Java used up to $MAX_JAVA_GB GB RAM',
+              'path': '.github/workflows/test.yml',
+              'level': $JAVA_LEVEL
+            },
+            {
+              'message': 'Z3 used up to $MAX_Z3_GB GB RAM',
+              'path': '.github/workflows/test.yml',
+              'level': $Z3_LEVEL
+            }]" > annotations.json
+        working-directory: gobra
+
+      - name: Create Java annotation
+        uses: Attest/annotations-action@v1.0.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: 'gobra/annotations.json'
+          title: 'Java RAM Usage'
+
+      - name: Upload RAM usage
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: Pidstat
+          path: gobra/pidstat.txt

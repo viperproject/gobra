@@ -143,15 +143,15 @@ jobs:
           {
               "message": "Java used up to $MAX_JAVA_GB GB RAM",
               "path": ".github/workflows/test.yml",
-              "start_line": "1",
-              "end_line": "1",
+              "start_line": 1,
+              "end_line": 1,
               "annotation_level": "$JAVA_LEVEL"
           },
           {
               "message": "Z3 used up to $MAX_Z3_GB GB RAM",
               "path": ".github/workflows/test.yml",
-              "start_line": "1",
-              "end_line": "1",
+              "start_line": 1,
+              "end_line": 1,
               "annotation_level": "$Z3_LEVEL"
           }]
           EOF

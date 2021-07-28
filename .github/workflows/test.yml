@@ -84,9 +84,9 @@ jobs:
           key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
 
       # compilation of gobra-test.jar is only necessary when tests should be executed independently of sbt
-      # - name: Compile tests
-      #   run: sbt test:assembly
-      #   working-directory: gobra
+      - name: Compile tests
+        run: sbt test:assembly
+        working-directory: gobra
 
       - name: Start pidstat and execute it in the background
         # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
@@ -97,14 +97,14 @@ jobs:
         working-directory: gobra
 
       # the following step executes the tests independently of sbt:
-      # - name: Execute precompiled tests
-      #   run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
-      #   # run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
-      #   working-directory: gobra
-
-      - name: Execute all tests
-        run: sbt test
+      - name: Execute precompiled tests
+        run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
+        # run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
         working-directory: gobra
+
+      # - name: Execute all tests
+      #   run: sbt test
+      #   working-directory: gobra
 
       - name: Terminate pidstat
         if: ${{ always() }}

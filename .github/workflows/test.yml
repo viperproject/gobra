@@ -155,7 +155,7 @@ jobs:
               "annotation_level": "$Z3_LEVEL"
           }]
           EOF
-          echo "CONCLUSION=$(awk -v JAVA_LEVEL=$JAVA_LEVEL Z3_LEVEL=$Z3_LEVEL 'BEGIN { print (JAVA_LEVEL=="failure" || Z3_LEVEL=="failure") ? "failure" : "success"}')" >> $GITHUB_ENV
+          echo "CONCLUSION=$(awk -v JAVA_LEVEL=$JAVA_LEVEL -v Z3_LEVEL=$Z3_LEVEL 'BEGIN { print (JAVA_LEVEL=="failure" || Z3_LEVEL=="failure") ? "failure" : "success"}')" >> $GITHUB_ENV
         working-directory: gobra
 
       - name: Create annotations

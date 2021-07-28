@@ -51,7 +51,6 @@ lazy val gobra = (project in file("."))
     // Run settings
     run / javaOptions ++= Seq(
       "-Xss128m",
-      "-XshowSettings:vm",
       "-Dfile.encoding=UTF-8"
     ),
 

@@ -46,10 +46,6 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
       override def run(input: AnnotatedTestInput): Seq[AbstractOutput] = {
 
-        println("start explicit garbage collection")
-        System.gc()
-        println(s"explicit garbage collection has ended")
-
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
@@ -61,7 +57,6 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
-        // val (result, elapsedMilis) = time(() => gobraInstance.verifyBlocking(config))
         val startTime = System.currentTimeMillis()
         // terminate executor with a larger timeout such that we can distinguish a timeout from terminate taking quite long
         executor.terminate(10 * execution_context_terminate_timeout_ms)

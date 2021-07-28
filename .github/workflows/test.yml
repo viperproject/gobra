@@ -16,7 +16,7 @@ jobs:
     container: gobraverifier/gobra-base:v6_z3_4.8.7
     env:
       SILVER_REF: "v.21.01-release"
-      SILICON_REF: "memory-experiments"
+      SILICON_REF: "v.21.01-release"
       CARBON_REF: "v.21.01-release"
     steps:
       - name: Checkout Gobra
@@ -34,7 +34,7 @@ jobs:
       - name: Checkout Silicon
         uses: actions/checkout@v2
         with:
-          repository: arquintl/silicon
+          repository: viperproject/silicon
           ref: ${{ env.SILICON_REF }}
           path: silicon
       - name: Checkout Carbon
@@ -46,8 +46,6 @@ jobs:
 
       - name: Java Version
         run: java --version
-      - name: Sbt Version
-        run: sbt -version
       - name: Z3 Version
         run: z3 -version
       - name: Silver Commit

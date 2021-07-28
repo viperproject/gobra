@@ -48,16 +48,12 @@ lazy val gobra = (project in file("."))
 
     javacOptions ++= Seq("-encoding", "UTF-8", "-charset", "UTF-8", "-docencoding", "UTF-8"),
 
-    javaOptions ++= Seq(
-      "-Xss128m",
-      // "-Xmx4096m",
-      // "-XX:MinRAMPercentage=40",
-      // "-XX:MaxRAMPercentage=70",
-      "-XshowSettings:vm"
-    ),
-
     // Run settings
-    run / javaOptions ++= Seq("-Dfile.encoding=UTF-8"),
+    run / javaOptions ++= Seq(
+      "-Xss128m",
+      "-XshowSettings:vm",
+      "-Dfile.encoding=UTF-8"
+    ),
 
     fork := true,
 

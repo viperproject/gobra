@@ -6,11 +6,13 @@
 
 package viper.gobra.util
 
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
-
+import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 
-trait GobraExecutionContext extends ExecutionContext
+trait GobraExecutionContext extends ExecutionContext {
+  /** terminate executor and actor system */
+  def terminate(timeoutMSec: Long = 1000): Unit
+}
 
 object DefaultGobraExecutionContext {
   val minimalThreadPoolSize: Int = 1
@@ -38,4 +40,10 @@ class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultGob
   override def execute(runnable: Runnable): Unit = context.execute(runnable)
 
   override def reportFailure(cause: Throwable): Unit = context.reportFailure(cause)
+
+  @throws(classOf[InterruptedException])
+  override def terminate(timeoutMSec: Long = 1000): Unit = {
+    context.shutdown()
+    context.awaitTermination(timeoutMSec, TimeUnit.MILLISECONDS)
+  }
 }

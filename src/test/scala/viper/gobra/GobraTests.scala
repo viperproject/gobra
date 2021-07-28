@@ -7,7 +7,6 @@
 package viper.gobra
 
 import java.nio.file.Path
-
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.{Config, PackageResolver}
@@ -15,7 +14,6 @@ import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
-
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await
@@ -28,6 +26,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   val regressionsDir: String = System.getProperty(regressionsPropertyName, "regressions")
   val testDirectories: Seq[String] = Vector(regressionsDir)
   override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
+
+  private val execution_context_terminate_timeout_ms = 1000 // 1 sec
 
   var gobraInstance: Gobra = _
 
@@ -59,7 +59,15 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           z3Exe = z3Exe
         )
 
-        val (result, elapsedMilis) = time(() => gobraInstance.verifyBlocking(config))
+        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
+        val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        // val (result, elapsedMilis) = time(() => gobraInstance.verifyBlocking(config))
+        val startTime = System.currentTimeMillis()
+        // terminate executor with a larger timeout such that we can distinguish a timeout from terminate taking quite long
+        executor.terminate(10 * execution_context_terminate_timeout_ms)
+        val terminateDurationMs = System.currentTimeMillis() - startTime
+        // check whether timeout has been exceeded and fail test accordingly:
+        assert(terminateDurationMs < execution_context_terminate_timeout_ms)
 
         info(s"Time required: $elapsedMilis ms")
 

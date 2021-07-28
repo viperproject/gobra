@@ -61,30 +61,6 @@ object BackendVerifier {
 
   }
 
-  def verifyBlocking(task: Task)(config: Config): Result = {
-
-    var exePaths: Vector[String] = Vector.empty
-
-    config.z3Exe match {
-      case Some(z3Exe) =>
-        exePaths ++= Vector("--z3Exe", z3Exe)
-      case _ =>
-    }
-
-    (config.backend, config.boogieExe) match {
-      case (Carbon, Some(boogieExe)) =>
-        exePaths ++= Vector("--boogieExe", boogieExe)
-      case _ =>
-    }
-
-    val verifier = config.backend.create(exePaths)
-
-    val programID = s"_programID_${config.inputFiles.head}"
-
-    val verificationResult = verifier.verifyBlocking(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)
-    convertVerificationResult(verificationResult, task.backtrack)
-  }
-
   /**
     * Takes a Viper VerificationResult and converts it to a Gobra Result using the provided backtracking information
     */

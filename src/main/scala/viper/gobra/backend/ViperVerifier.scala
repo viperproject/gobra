@@ -24,6 +24,5 @@ trait ViperVerifierConfig {
 trait ViperVerifier extends Backend[String, ViperVerifierConfig, Reporter, silver.ast.Program, silver.verifier.VerificationResult] {
 
   def verify(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: silver.ast.Program)(executor: GobraExecutionContext): Future[silver.verifier.VerificationResult]
-  def verifyBlocking(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: silver.ast.Program): silver.verifier.VerificationResult
 
 }

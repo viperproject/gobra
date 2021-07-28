@@ -98,7 +98,7 @@ jobs:
         working-directory: gobra
 
       - name: Execute precompiled tests
-        run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
+        run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions/examples/evaluation/impl_errors org.scalatest.run viper.gobra.GobraTests
         # run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
         working-directory: gobra
 
@@ -130,8 +130,8 @@ jobs:
         env:
           JAVA_WARNING_THRESHOLD_GB: 4
           JAVA_FAILURE_THRESHOLD_GB: 6
-          Z3_WARNING_THRESHOLD_GB: 0.5
-          Z3_FAILURE_THRESHOLD_GB: 1
+          Z3_WARNING_THRESHOLD_GB: 1
+          Z3_FAILURE_THRESHOLD_GB: 2
         # we transform bash variables into awk variables to not cause problems with bash's variable substitution
         # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
         # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
@@ -155,6 +155,7 @@ jobs:
               "annotation_level": "$Z3_LEVEL"
           }]
           EOF
+          echo "CONCLUSION=$(awk -v JAVA_LEVEL=$JAVA_LEVEL Z3_LEVEL=$Z3_LEVEL 'BEGIN { print (JAVA_LEVEL=="failure" || Z3_LEVEL=="failure") ? "failure" : "success"}')" >> $GITHUB_ENV
         working-directory: gobra
 
       - name: Create annotations
@@ -164,6 +165,16 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           input: 'gobra/annotations.json'
           title: 'RAM Usage'
+
+      - name: Create annotations (alternative)
+        if: ${{ always() }
+        uses: LouisBrunner/checks-action@v1.1.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: 'RAM Usage (alternative)'
+          conclusion: ${{ env.CONCLUSION }}
+          output: |
+            {"title": "RAM Usage (alternative) title", "summary": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM\nZ3 used up to ${{ env.MAX_Z3_GB }}GB RAM"}
 
       - name: Upload RAM usage
         if: ${{ failure() || cancelled() }}

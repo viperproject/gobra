@@ -167,7 +167,7 @@ jobs:
           title: 'RAM Usage'
 
       - name: Create annotations (alternative)
-        if: ${{ always() }
+        if: ${{ always() }}
         uses: LouisBrunner/checks-action@v1.1.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

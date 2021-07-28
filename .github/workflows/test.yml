@@ -138,43 +138,36 @@ jobs:
         run: |
           JAVA_LEVEL=$(awk -v MAX_JAVA_GB=$MAX_JAVA_GB 'BEGIN { print (MAX_JAVA_GB>${{ env.JAVA_FAILURE_THRESHOLD_GB }}) ? "failure" : (MAX_JAVA_GB>${{ env.JAVA_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
           Z3_LEVEL=$(awk -v MAX_Z3_GB=$MAX_Z3_GB 'BEGIN { print (MAX_Z3_GB>${{ env.Z3_FAILURE_THRESHOLD_GB }}) ? "failure" : (MAX_Z3_GB>${{ env.Z3_WARNING_THRESHOLD_GB }}) ? "warning" : "notice"}')
-          cat <<EOF > annotations.json
-          [
-          {
-              "message": "Java used up to $MAX_JAVA_GB GB RAM",
-              "path": ".github/workflows/test.yml",
-              "start_line": 1,
-              "end_line": 1,
-              "annotation_level": "$JAVA_LEVEL"
-          },
-          {
-              "message": "Z3 used up to $MAX_Z3_GB GB RAM",
-              "path": ".github/workflows/test.yml",
-              "start_line": 1,
-              "end_line": 1,
-              "annotation_level": "$Z3_LEVEL"
-          }]
-          EOF
           echo "CONCLUSION=$(awk -v JAVA_LEVEL=$JAVA_LEVEL -v Z3_LEVEL=$Z3_LEVEL 'BEGIN { print (JAVA_LEVEL=="failure" || Z3_LEVEL=="failure") ? "failure" : "success"}')" >> $GITHUB_ENV
         working-directory: gobra
 
       - name: Create annotations
         if: ${{ always() }}
-        uses: yuzutech/annotations-action@v0.3.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          input: 'gobra/annotations.json'
-          title: 'RAM Usage'
-
-      - name: Create annotations (alternative)
-        if: ${{ always() }}
         uses: LouisBrunner/checks-action@v1.1.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          name: 'RAM Usage (alternative)'
+          name: 'RAM Usage'
           conclusion: ${{ env.CONCLUSION }}
           output: |
-            {"title": "RAM Usage (alternative) title", "summary": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM\nZ3 used up to ${{ env.MAX_Z3_GB }}GB RAM"}
+            {
+            "title": "RAM Usage",
+            "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
+            "annotations": [
+              {
+              "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
+              "path": ".github/workflows/test.yml",
+              "start_line": 1,
+              "end_line": 1,
+              "annotation_level": "${{ env.JAVA_LEVEL }}"
+              },
+              {
+              "message": "Z3 used up to ${{ env.MAX_Z3_GB }}GB RAM",
+              "path": ".github/workflows/test.yml",
+              "start_line": 1,
+              "end_line": 1,
+              "annotation_level": "${{ env.Z3_LEVEL }}"
+              }]
+            }
 
       - name: Upload RAM usage
         if: ${{ failure() || cancelled() }}

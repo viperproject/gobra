@@ -7,6 +7,7 @@
 package viper.gobra
 
 import java.nio.file.Path
+
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
 import viper.gobra.frontend.{Config, PackageResolver}
@@ -14,6 +15,7 @@ import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
 import viper.silver.utility.TimingUtils
+
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
 
 import scala.concurrent.Await

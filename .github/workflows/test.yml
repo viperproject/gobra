@@ -154,7 +154,9 @@ jobs:
             {
             "title": "RAM Usage",
             "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
-            "annotations": [
+            }
+          annotations: |
+            [
               {
               "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
               "path": ".github/workflows/test.yml",
@@ -168,8 +170,8 @@ jobs:
               "start_line": 1,
               "end_line": 1,
               "annotation_level": "${{ env.Z3_LEVEL }}"
-              }]
-            }
+              }
+            ]
 
       - name: Upload RAM usage
         if: ${{ failure() || cancelled() }}

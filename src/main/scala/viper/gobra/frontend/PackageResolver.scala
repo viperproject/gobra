@@ -20,7 +20,10 @@ import scala.jdk.CollectionConverters._
 
 object PackageResolver {
 
-  val extension = """gobra"""
+  val gobraExtension = """gobra"""
+  val goExtension = """go"""
+  val inputFilePattern = s"""(.*\\.(?:${PackageResolver.gobraExtension}|${PackageResolver.goExtension}))$$"""
+  val inputFileRegex = inputFilePattern.r // without Scala string interpolation escapes: """(.*\.(?:gobra|go))$""".r
   /** directory containing the package of built-in members that are automatically unqualifiedly imported */
   val builtInDirectory = "builtin"
   /** directory paths containing stubs relative to src/main/resources */
@@ -141,14 +144,16 @@ object PackageResolver {
   }
 
   /**
-    * Returns all source files with file extension 'extension' in the input resource
+    * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
     */
   private def getSourceFiles(input: InputResource): Vector[InputResource] = {
     val dirContent = input.listContent()
     val res = dirContent
       .filter(resource => Files.isRegularFile(resource.path))
       // only consider files with the particular extension
-      .filter(resource => FilenameUtils.getExtension(resource.path.toString) == extension)
+      .filter(resource =>
+        FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+          FilenameUtils.getExtension(resource.path.toString) == goExtension)
     (dirContent :+ input).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>

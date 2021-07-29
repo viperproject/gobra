@@ -231,7 +231,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     }
 
     def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
-      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
+      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
     }
 
     def filesExist(files: Vector[Path]): Either[String, Unit] = {
@@ -288,8 +288,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   private object InputConverter {
 
-    private val goFileRgx = s"""(.*\\.${PackageResolver.extension})$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
-
     def validate(input: List[String]): Messages = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
@@ -333,7 +331,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       * @return Right with the string converted to a File if the condition is met, otherwise Left containing `input`
       */
     private def isGoFilePath(input: String): Either[String, File] = input match {
-      case goFileRgx(filename) => Right(new File(filename))
+      case PackageResolver.inputFileRegex(filename) => Right(new File(filename))
       case pkgName => Left(pkgName)
     }
 

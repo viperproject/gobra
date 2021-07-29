@@ -42,6 +42,7 @@ object Parser {
   def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
       .map{ getSource }
+      .map{ Gobrafier.gobrafy }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
       parseAst <- parseSources(preprocessedSources, specOnly)(config)

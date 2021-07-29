@@ -9,7 +9,6 @@ type Point struct {
 }
 
 func foo() {
-  // sequences of custom defined types are not supported currently
-  //:: ExpectedOutput(type_error)
-  ghost var xs set[Point]
+  // sequences of custom defined types are supported
+  ghost var xs seq[Point]
 }

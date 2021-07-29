@@ -26,6 +26,7 @@ func spawnThreads(n int) {
 	go worker(-1, wg, PredTrue!<!>) // spawns first worker
 	// { acc(wg.WaitGroupP(), 1/2) && acc(wg.WaitGroupStarted(), 1/2) && !wg.WaitMode() && wg.Token(PredTrue!<!>) }
 
+	invariant 0 <= i && i <= n
 	invariant acc(wg.WaitGroupP(), 1/2)
 	invariant acc(wg.WaitGroupStarted(), 1/2)
 	invariant !wg.WaitMode()

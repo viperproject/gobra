@@ -8,7 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-import viper.gobra.util.Constants
+import viper.gobra.util.{Binary, Constants, Decimal, Hexadecimal, Octal}
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -36,7 +36,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PPackageNode => showPackageId(n)
     case n: PFieldDecl => showFieldDecl(n)
     case n: PMisc => showMisc(n)
-    case n: PSequenceUpdateClause => showSequenceUpdateClause(n)
+    case n: PGhostCollectionUpdateClause => showGhostCollectionUpdateClause(n)
     case n: PAssOp => showAssOp(n)
     case n: PLiteralType => showLiteralType(n)
     case n: PCompositeKey => showCompositeKey(n)
@@ -108,13 +108,15 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
+  def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
+        hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line))
 
     case PLoopSpec(inv) =>
@@ -249,6 +251,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMulOp() => "*"
     case PDivOp() => "/"
     case PModOp() => "%"
+    case PBitAndOp() => "&"
+    case PBitOrOp() => "|"
+    case PBitXorOp() => "^"
+    case PBitClearOp() => "&^"
+    case PShiftLeftOp() => "<<"
+    case PShiftRightOp() => ">>"
   }
 
   def showIfClause(n: PIfClause): Doc = n match {
@@ -262,7 +270,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showTypeSwitchClause(n: PTypeSwitchClause): Doc = n match {
     case PTypeSwitchDflt(body) => "default"  <> ":" <> showNestedStmtList(body.stmts)
-    case PTypeSwitchCase(left, body) => "case" <+> showTypeList(left) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
+    case PTypeSwitchCase(left, body) =>
+      "case" <+> showList(left)(showExprOrType) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
   }
 
   def showSelectClause(n: PSelectClause): Doc = n match {
@@ -364,7 +373,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNegation(operand) => "!" <> showExpr(operand)
       case PNamedOperand(id) => showId(id)
       case PBoolLit(lit) => if(lit) "true" else "false"
-      case PIntLit(lit) => lit.toString
+      case PIntLit(lit, base) =>
+        val prefix = base match {
+          case Binary => "0b"
+          case Octal =>"0o"
+          case Decimal => ""
+          case Hexadecimal => "0x"
+        }
+        prefix + lit.toString(base.base)
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
@@ -408,6 +424,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
       // partially applied predicates
       case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
+      case PBitAnd(left, right) => showExpr(left) <+> "&" <+> showExpr(right)
+      case PBitOr(left, right) => showExpr(left) <+> "|" <+> showExpr(right)
+      case PBitXor(left, right) => showExpr(left) <+> "^" <+> showExpr(right)
+      case PBitClear(left, right) => showExpr(left) <+> "&^" <+> showExpr(right)
+      case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
+      case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
+      case PBitNegation(exp) => "^" <> showExpr(exp)
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
@@ -434,15 +457,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POptionGet(e) => "get" <> parens(showExpr(e))
 
       case expr : PGhostCollectionExp => expr match {
-        case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
+        case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>
+          (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showGhostColUpdateClause)))
         case expr : PSequenceExp => expr match {
           case PSequenceConversion(exp) => "seq" <> parens(showExpr(exp))
           case PRangeSequence(low, high) => "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
           case PSequenceAppend(left, right) => showSubExpr(expr, left) <+> "++" <+> showSubExpr(expr, right)
-          case PSequenceUpdate(seq, clauses) => showExpr(seq) <>
-            (if (clauses.isEmpty) emptyDoc else brackets(showList(clauses)(showSeqUpdateClause)))
         }
         case expr : PUnorderedGhostCollectionExp => expr match {
           case PUnion(left, right) => showSubExpr(expr, left) <+> "union" <+> showSubExpr(expr, right)
@@ -451,6 +473,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
           case PSubset(left, right) => showSubExpr(expr, left) <+> "subset" <+> showSubExpr(expr, right)
           case PSetConversion(exp) => "set" <> parens(showExpr(exp))
           case PMultisetConversion(exp) => "mset" <> parens(showExpr(exp))
+          case PMapKeys(exp) => "domain" <> parens(showExpr(exp))
+          case PMapValues(exp) => "range" <> parens(showExpr(exp))
         }
       }
 
@@ -462,7 +486,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSeqUpdateClause(clause : PSequenceUpdateClause) : Doc =
+  def showGhostColUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 
   def showLiteralType(typ: PLiteralType): Doc = typ match {
@@ -540,6 +564,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PSequenceType(elem) => "seq" <> brackets(showType(elem))
     case PSetType(elem) => "set" <> brackets(showType(elem))
     case PMultisetType(elem) => "mset" <> brackets(showType(elem))
+    case PMathematicalMapType(keys, values) => "dict" <> brackets(showType(keys)) <> showType(values)
     case POptionType(elem) => "option" <> brackets(showType(elem))
     case PGhostSliceType(elem) => "ghost" <+> brackets(emptyDoc) <> showType(elem)
     case PDomainType(funcs, axioms) =>
@@ -610,7 +635,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     }
   }
 
-  def showSequenceUpdateClause(clause : PSequenceUpdateClause) : Doc =
+  def showGhostCollectionUpdateClause(clause : PGhostCollectionUpdateClause) : Doc =
     showExpr(clause.left) <+> "=" <+> showExpr(clause.right)
 }
 

@@ -11,6 +11,7 @@ import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.base.Type.{ImportT, PredT}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
+import viper.gobra.util.Violation.violation
 
 trait AmbiguityResolution { this: TypeInfoImpl =>
 
@@ -99,7 +100,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
 
     case n: PInvoke =>
       exprOrType(n.base) match {
-        case Right(t) => Some(ap.Conversion(t, n.args))
+        case Right(t) if n.args.length == 1 => Some(ap.Conversion(t, n.args.head))
         case Left(e) =>
           resolve(e) match {
             case Some(p: ap.FunctionKind) => Some(ap.FunctionCall(p, n.args))
@@ -107,6 +108,7 @@ trait AmbiguityResolution { this: TypeInfoImpl =>
             case _ if exprType(e).isInstanceOf[PredT] => Some(ap.PredExprInstance(e, n.args))
             case _ => None
           }
+        case _ => violation(s"unexpected case reached: type conversion with arguments ${n.args}, expected single argument instead")
       }
 
     case n: PIndexedExp => exprOrType(n.base) match {

@@ -71,12 +71,12 @@ WORKDIR $HOME
 # - tag (e.g. "v.21.01-release")
 # - commit hash or
 # - branch name (e.g. "origin/artifact" - note the leading "origin/")
-ENV SILVER_COMMIT "v.21.01-release"
-ENV CARBON_COMMIT "v.21.01-release"
-ENV SILICON_COMMIT "v.21.01-release"
+ENV SILVER_COMMIT "v.21.07-release"
+ENV CARBON_COMMIT "v.21.07-release"
+ENV SILICON_COMMIT "v.21.07-release"
 # GOBRA_COMMIT can be set while building the docker image by using `docker build --build-arg GOBRA_COMMIT=<some branch>`
-# by default, "origin/master" is used:
-ARG GOBRA_COMMIT="origin/master"
+# by default, "origin/artifact1" is used:
+ARG GOBRA_COMMIT="origin/artifact1"
 # store GOBRA_COMMIT ARG in an environment variable with the same name such that it is still available after building
 # the container:
 ENV GOBRA_COMMIT $GOBRA_COMMIT
@@ -106,6 +106,9 @@ RUN cd $HOME && \
     git reset --hard $GOBRA_COMMIT && \
     echo "Switched to Gobra commit $GOBRA_COMMIT" && \
     ln --symbolic $HOME/silver && ln --symbolic $HOME/silicon && ln --symbolic $HOME/carbon && \
+    # empty src/test/resources/regressions and src/test/resources/same_package such that no test files end up in the JAR
+    rm -r src/test/resources/regressions/* && \
+    rm -r src/test/resources/same_package/* && \
     # compile and assemble gobra.jar:
     sbt clean assembly && \
     # copy target/scala-2.13/gobra.jar to home directory:
@@ -114,6 +117,9 @@ RUN cd $HOME && \
     sbt clean test:assembly && \
     # copy target/scala-2.13/gobra-test.jar to home directory:
     cp target/scala-2.13/gobra-test.jar $HOME/gobra-test.jar && \
+    # restore src/test/resources/regressions and src/test/resources/same_package that have been deleted before running assembly:
+    git checkout src/test/resources/regressions/* && \
+    git checkout src/test/resources/same_package/* && \
     # delete all temporary files (ignored, non-ignored, and directories):
     git clean -fxd && \
     # recreate symlink:

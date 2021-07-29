@@ -10,7 +10,7 @@ import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, Cer
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
-import viper.silver.verifier.{errors => vprerr, reasons => vprrea}
+import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
 
 object DefaultErrorBackTranslator {
 
@@ -40,13 +40,15 @@ object DefaultErrorBackTranslator {
       case vprrea.AssertionFalse(CertainSource(info)) =>
         AssertionFalseError(info)
       case vprrea.AssertionFalse(CertainSynthesized(info)) =>
-        SynthesizedAssertionFalseError(info)
+        SynthesizedAssertionFalseReason(info)
       case vprrea.SeqIndexExceedsLength(CertainSource(node), CertainSource(index)) =>
         SeqIndexExceedsLengthError(node, index)
       case vprrea.SeqIndexNegative(CertainSource(node), CertainSource(index)) =>
         SeqIndexNegativeError(node, index)
       case vprrea.DivisionByZero(info) =>
         DivisionByZeroReason(CertainSource.unapply(info))
+      case vprrea.MapKeyNotContained(CertainSource(node), CertainSource(index)) =>
+        MapKeyNotContained(node, index)
       //      case vprrea.DummyReason =>
       //      case vprrea.InternalReason(offendingNode, explanation) =>
       //      case vprrea.FeatureUnsupported(offendingNode, explanation) =>
@@ -59,12 +61,13 @@ object DefaultErrorBackTranslator {
       //      case vprrea.ReceiverNull(offendingNode) =>
       //      case vprrea.DivisionByZero(offendingNode) =>
       case vprrea.NegativePermission(CertainSource(info)) =>
-        NegativePermissionError(info)
+        NegativePermissionReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
       //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
       //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
-      //      case vprrea.ReceiverNotInjective(offendingNode) =>
+      case vprrea.ReceiverNotInjective(CertainSource(info)) =>
+        ReceiverNotInjectiveReason(info)
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
     }
 
@@ -155,8 +158,13 @@ class DefaultErrorBackTranslator(
     case (l, r) => l orElse r
   }
 
-  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError =
-    DefaultErrorBackTranslator.translateWithTransformer(viperError, errorTransformer)
+  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError = {
+    val transformedViperError = viperError match {
+      case err: AbstractVerificationError => err.transformedError()
+      case err => err
+    }
+    DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
+  }
 
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {

@@ -71,6 +71,7 @@ object Type {
   }
 
   case class StructT(clauses: ListMap[String, (Boolean, Type)], decl: PStructType, context: ExternalTypeInfo) extends ContextualType {
+    lazy val fieldsAndEmbedded: ListMap[String, Type] = clauses.map(removeFieldIndicator)
     lazy val fields: ListMap[String, Type] = clauses.filter(isField).map(removeFieldIndicator)
     lazy val embedded: ListMap[String, Type] = clauses.filterNot(isField).map(removeFieldIndicator)
     private def isField(clause: (String, (Boolean, Type))): Boolean = clause._2._1
@@ -125,6 +126,8 @@ object Type {
   case class SetT(elem : Type) extends PrettyType(s"set[$elem]") with GhostUnorderedCollectionType
 
   case class MultisetT(elem : Type) extends PrettyType(s"mset[$elem]") with GhostUnorderedCollectionType
+
+  case class MathMapT(key : Type, elem : Type) extends PrettyType(s"mmap[$key]$elem") with GhostUnorderedCollectionType
 
   case object PermissionT extends PrettyType(s"perm") with GhostType
 

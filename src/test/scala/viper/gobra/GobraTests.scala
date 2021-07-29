@@ -50,6 +50,8 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           logLevel = Level.INFO,
           reporter = NoopReporter,
           inputFiles = Vector(input.file),
+          // TODO: enable consistency checks as soon as inconsistencies have been fixed
+          // checkConsistency = true,
           z3Exe = z3Exe
         )
 

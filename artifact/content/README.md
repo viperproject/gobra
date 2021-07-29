@@ -68,7 +68,13 @@ docker run -it --memory=6g --mount type=volume,dst=/home/gobra/sync,volume-drive
 **Note: `$PWD/gobra_sync` has to already exist on the host.**
 
 
+### Logging error and FileNotFoundException
+
+When executing `/home/gobra/gobra.sh`, `/home/gobra/regressions.sh`, or `/home/gobra/benchmark.sh`, Gobra's logging framework might output a blob of error messages. These error messages consist of multiple lines containing the string `"INFO in ch.qos.logback"` and they can end in a FileNotFoundException involving the file `logger.log`. To our knowledge, these error messages can be ignored because they do not impact Gobra further. If the issue persists, we recommend to exit and restart the Docker container.
+
+
 ### Non-Termination and OutOfMemoryError
+
 If you experience an `OutOfMemoryError` exception or the benchmark suite does not terminate, then increase the amount of RAM provided to the container by modifying the value of the `memory` parameter of the `docker run` command. For example, if you want to run the container with 10GB of RAM instead of 6, run Docker as follows:
 ```commandline
 docker run -it --memory=10g --volume $PWD/gobra_sync:/home/gobra/sync gobraverifier/gobra-artifact:v1
@@ -83,7 +89,7 @@ We reimplemented the parser and type checker of Gobra. At this point in time, pa
 
 ## Gobra Syntax
 
-We have created a tutorial for Gobra introducing Gobra's syntax and features in several examples. The tutorial can be found in the Docker container (at `home/gobra/tutorial.md`), in the shared holder of the host, or online in our repository ([here](https://github.com/viperproject/gobra/blob/artifact1/docs/tutorial.md)).
+We have created a tutorial for Gobra, introducing Gobra's syntax and features in several examples. The tutorial can be found in the Docker container (at `home/gobra/tutorial.md`), in the shared holder of the host, or online in our repository ([here](https://github.com/viperproject/gobra/blob/artifact1/artifact/content/tutorial.md)).
 
 There are several ways to exercise the tool on new inputs. One way of doing so is to seed errors, as we did for our evaluation: there, we deliberately broke loop invariants, postconditions, predicate definitions, and the code itself, to trigger verification failures. Such transformations can be applied on examples from the tutorial or the evaluation. These examples are at `home/gobra/test_suite/tutorial_examples` and `home/gobra/test_suite/evaluation` in the Docker container. If a shared folder is used, then you can modify the examples in `/test_suite/tutorial_examples` and `/test_suite/evaluation` in your shared folder on the host, but you will have to target the corresponding files in the Docker container, meaning a file in `home/gobra/sync/test_suite/tutorial_examples` or `home/gobra/sync/test_suite/evaluation`.
 

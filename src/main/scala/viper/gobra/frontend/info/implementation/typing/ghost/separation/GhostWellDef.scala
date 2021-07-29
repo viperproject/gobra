@@ -109,6 +109,7 @@ trait GhostWellDef { this: TypeInfoImpl =>
        | _: PTypeAssertion
        | _: PNamedOperand
        | _: PNegation
+       | _: PBitNegation
        | _: PBinaryExp[_,_]
        | _: PUnfolding
        | _: PLength

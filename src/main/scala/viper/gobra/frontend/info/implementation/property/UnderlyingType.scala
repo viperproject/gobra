@@ -6,9 +6,9 @@
 
 package viper.gobra.frontend.info.implementation.property
 
-import viper.gobra.ast.frontend.{PDeref, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
+import viper.gobra.ast.frontend.{PDeref, PDot, PEmbeddedName, PEmbeddedPointer, PEmbeddedType, PInterfaceType, PNamedOperand, PStructType, PType, PTypeDecl}
 import viper.gobra.frontend.info.ExternalTypeInfo
-import viper.gobra.frontend.info.base.Type.{ChannelT, DeclaredT, FunctionT, GhostSliceT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StructT, Type}
+import viper.gobra.frontend.info.base.Type.{BooleanT, ChannelT, DeclaredT, FunctionT, GhostSliceT, IntT, InterfaceT, MapT, NilType, PointerT, Single, SliceT, StringT, StructT, Type}
 import viper.gobra.frontend.info.base.{SymbolTable => st}
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 
@@ -23,6 +23,11 @@ trait UnderlyingType { this: TypeInfoImpl =>
   lazy val underlyingTypeP: PType => Option[PType] =
     attr[PType, Option[PType]] {
       case PNamedOperand(t) => entity(t) match {
+        case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
+        case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
+        case _ => None // type not defined
+      }
+      case PDot(_, id) => entity(id) match {
         case st.NamedType(decl, _, _) => underlyingTypeP(decl.right)
         case st.TypeAlias(decl, _, _) => underlyingTypeP(decl.right)
         case _ => None // type not defined
@@ -177,5 +182,17 @@ trait UnderlyingType { this: TypeInfoImpl =>
     case _: DeclaredT => true
     case PointerT(t) => t.isInstanceOf[DeclaredT]
     case _ => false
+  }
+
+  def isDefinedType(t: Type): Boolean = {
+    // All of the following are defined types (https://golang.org/ref/spec#Predeclared_identifiers):
+    //   bool byte complex64 complex128 error float32 float64
+    //   int int8 int16 int32 int64 rune string
+    //   uint uint8 uint16 uint32 uint64 uintptr
+    t match {
+      // should be extended as new types are added to the language
+      case _: IntT | BooleanT | _: DeclaredT | StringT => true
+      case _ => false
+    }
   }
 }

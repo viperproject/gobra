@@ -160,6 +160,8 @@ jobs:
           else
             CONCLUSION="success"
           fi
+          echo "MAX_JAVA_KB=$MAX_JAVA_KB" >> $GITHUB_ENV
+          echo "MAX_Z3_KB=$MAX_Z3_KB" >> $GITHUB_ENV
           echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
           echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
           echo "JAVA_LEVEL=$JAVA_LEVEL" >> $GITHUB_ENV

@@ -9,11 +9,14 @@ package viper.gobra.translator.encodings
 import org.apache.commons.codec.binary.Hex
 import org.bitbucket.inkytonik.kiama.==>
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source
+import viper.gobra.theory.Addressability
 import viper.gobra.theory.Addressability.{Exclusive, Shared}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.{Collector, Context}
-import viper.gobra.translator.util.ViperWriter.CodeLevel.unit
+import viper.gobra.translator.util.ViperWriter.CodeLevel._
 import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
 
 class StringEncoding extends LeafTypeEncoding {
@@ -68,6 +71,91 @@ class StringEncoding extends LeafTypeEncoding {
           lowExp  <- goE(low)
           highExp <- goE(high)
         } yield withSrc(vpr.FuncApp(strSlice, Seq(baseExp, lowExp, highExp)), slice)
+      /*
+      case conv@in.Conversion(in.SliceT(in.IntT(_, TypeBounds.Byte), _), expr :: ctx.String()) =>
+        for {
+          e <- goE(expr)
+          t = ctx.typeEncoding.typ(ctx)(in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter))
+        } yield strToByteSliceFuncGenerator(Vector(e), t)()(ctx)
+
+       */
+      case conv@in.Conversion(in.StringT(_), expr :: ctx.Slice(in.IntT(_, TypeBounds.Byte))) =>
+        ???
+    }
+  }
+
+
+  // TODO: fancy doc
+  override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
+
+    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
+    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
+    def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(x)(ctx)
+
+    default(super.statement(ctx)) {
+      case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), _) =>
+        // the argument is not used in the viper encoding. May change in the future to be able to prove more
+        // interesting properties
+        val (pos, info, errT) = conv.vprMeta
+
+        val sliceT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
+        val slice = in.LocalVar(Names.freshName, sliceT)(conv.info)
+        val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
+
+        val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
+        val vprQtfVar= ctx.typeEncoding.variable(ctx)(qtfVar)
+
+        val post = in.SepForall(
+          vars = Vector(qtfVar),
+          triggers = Vector(), //TODO: pick suitable trigger
+          body = in.Implication(
+            in.And(in.AtMostCmp(in.IntLit(BigInt(0))(conv.info), qtfVar)(conv.info), in.LessCmp(qtfVar, in.Length(slice)(conv.info))(conv.info))(conv.info),
+            in.Access(in.Accessible.Address(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)), in.FullPerm(conv.info))(conv.info)
+          )(conv.info)
+        )(conv.info)
+        // val typ = ctx.typeEncoding.typ(ctx)(typeParam.withAddressability(Addressability.Shared))
+        seqn(
+          for {
+            _ <- local(vprSlice)
+            _ <- local(vprQtfVar)
+
+            vprPost <- goA(post)
+            _ <- write(vpr.Inhale(vprPost)(pos, info, errT))
+            ass <- ctx.typeEncoding.assignment(ctx)(in.Assignee.Var(target), slice, conv)
+          } yield ass
+        )
+        /*
+        val info = Source.Parser.Internal
+        val param = in.Parameter.In("str", in.StringT(Addressability.inParameter))(info)
+        val resType = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
+        val res = in.Parameter.Out("res", resType)(info)
+        val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+        val func: in.Function = in.Function(
+          name = in.FunctionProxy(strToByteSliceFuncName)(info),
+          args = Vector(param),
+          results = Vector(res),
+          pres = Vector(),
+          posts = Vector(
+            in.SepForall(
+              vars = Vector(qtfVar),
+              triggers = Vector(), //TODO: pick suitable trigger
+              body = in.Implication(
+                in.And(
+                  in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info),
+                  in.LessCmp(qtfVar, in.Length(res)(info))(info),
+                )(info),
+                in.Access(
+                  in.Accessible.Address(in.Deref(in.IndexedExp(param, qtfVar, resType)(info))(info)),
+                  in.FullPerm(info)
+                )(info)
+              )(info)
+            )(info)
+          ),
+          body = None
+        )(info)
+         */
+
+
     }
   }
 
@@ -209,4 +297,42 @@ class StringEncoding extends LeafTypeEncoding {
       typVars = Seq.empty
     )()
   }
+
+  /*
+  // TODO: doc
+  //TODO: change parameter of type to unit, type to MethodGenerator
+  private val strToByteSliceFuncName: String = "strToByteFunc"
+  private val strToByteSliceFuncGenerator: MethodGenerator[Unit] = new MethodGenerator[Unit] {
+    override def genMethod(x: Unit)(ctx: Context): vpr.Method = {
+
+      val info = Source.Parser.Internal
+      val param = in.Parameter.In("str", in.StringT(Addressability.inParameter))(info)
+      val resType = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
+      val res = in.Parameter.Out("res", resType)(info)
+      val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
+      val post = in.SepForall(
+        vars = Vector(qtfVar),
+        triggers = Vector(), //TODO: pick suitable trigger
+        body = in.Implication(
+          in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(res)(info))(info))(info),
+          in.Access(in.Accessible.Address(in.Deref(in.IndexedExp(param, qtfVar, resType)(info))(info)), in.FullPerm(info))(info)
+        )(info)
+      )(info)
+
+      val func: vpr.Method = vpr.Method(
+        name = strToByteSliceFuncName,
+        args = Vector(param),
+        results = Vector(res),
+        pres = Vector(),
+        posts = Vector(
+
+        ),
+        body = None
+      )(info)
+
+      ctx.method.function(func)(ctx)
+    }
+  }
+   */
+
 }

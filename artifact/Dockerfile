@@ -71,9 +71,9 @@ WORKDIR $HOME
 # - tag (e.g. "v.21.01-release")
 # - commit hash or
 # - branch name (e.g. "origin/artifact" - note the leading "origin/")
-ENV SILVER_COMMIT "21.07-RC"
-ENV CARBON_COMMIT "21.07-RC"
-ENV SILICON_COMMIT "21.07-RC"
+ENV SILVER_COMMIT "v.21.07-release"
+ENV CARBON_COMMIT "v.21.07-release"
+ENV SILICON_COMMIT "v.21.07-release"
 # GOBRA_COMMIT can be set while building the docker image by using `docker build --build-arg GOBRA_COMMIT=<some branch>`
 # by default, "origin/artifact1" is used:
 ARG GOBRA_COMMIT="origin/artifact1"

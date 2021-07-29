@@ -30,8 +30,6 @@ class GobraPackageTests extends GobraTests {
 
   override val testDirectories: Seq[String] = Vector(samePackageDir)
 
-  private val execution_context_terminate_timeout_ms = 1000 // 1 sec
-
   override def buildTestInput(file: Path, prefix: String): DefaultAnnotatedTestInput = {
     // get package clause of file and collect all other files belonging to this package:
     val input = for {
@@ -76,12 +74,7 @@ class GobraPackageTests extends GobraTests {
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
-        val startTime = System.currentTimeMillis()
-        // terminate executor with a larger timeout such that we can distinguish a timeout from terminate taking quite long
-        executor.terminate(10 * execution_context_terminate_timeout_ms)
-        val terminateDurationMs = System.currentTimeMillis() - startTime
-        // check whether timeout has been exceeded and fail test accordingly:
-        assert(terminateDurationMs < execution_context_terminate_timeout_ms)
+        executor.terminateAndAssertInexistanceOfTimeout()
 
         info(s"Time required: $elapsedMilis ms")
 

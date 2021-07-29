@@ -51,7 +51,6 @@ trait BenchmarkTests extends StatisticalTestSuite {
 }
 
 trait GobraFrontendForTesting extends Frontend {
-  private val execution_context_terminate_timeout_ms = 1000 // 1 sec
   val z3PropertyName = "GOBRATESTS_Z3_EXE"
   val z3Exe: Option[String] = Option(System.getProperty(z3PropertyName))
 
@@ -79,12 +78,7 @@ trait GobraFrontendForTesting extends Frontend {
   }
 
   def terminate(): Unit = {
-    val startTime = System.currentTimeMillis()
-    // terminate executor with a larger timeout such that we can distinguish a timeout from terminate taking quite long
-    executor.terminate(10 * execution_context_terminate_timeout_ms)
-    val terminateDurationMs = System.currentTimeMillis() - startTime
-    // check whether timeout has been exceeded and fail test accordingly:
-    assert(terminateDurationMs < execution_context_terminate_timeout_ms)
+    executor.terminateAndAssertInexistanceOfTimeout()
   }
 
   /**

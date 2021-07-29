@@ -1660,7 +1660,7 @@ object Desugar {
               case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
             case baseT: in.StringT =>
-              Violation.violation(dcap.isEmpty, s"expected dcap to be None for slices of strings, but got $dcap instead")
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
               (dlow, dhigh) match {
                 case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
                 case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)

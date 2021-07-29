@@ -135,6 +135,10 @@ jobs:
             local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 '/processName/ {if(curTimestamp==$1){curCount=curCount+$8}else{curTimestamp=$1; curCount=$8}; if(curCount>max){max=curCount}}END{print max}' pidstat.txt)
             echo $result
           }
+          function getMaxMemJavaInKb {
+            local result=$(awk -v max=0 -v curCount=0 -v curTimestamp=0 '/java$/ {if(curTimestamp==$1){curCount=curCount+$8}else{curTimestamp=$1; curCount=$8}; if(curCount>max){max=curCount}}END{print max}' pidstat.txt)
+            echo $result
+          }
           function convertKbToGb {
             # $1 is the value [KB] that should be converted
             local result=$(awk -v value=$1 'BEGIN {print value / 1000 / 1000}')
@@ -148,7 +152,7 @@ jobs:
             local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "failure" : (value>warnThres) ? "warning" : "notice"}')
             echo $result
           }
-          MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
+          MAX_JAVA_KB=$(getMaxMemJavaInKb)
           MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
           MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
           MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)

@@ -167,12 +167,19 @@ class StringEncoding extends LeafTypeEncoding {
       }(domainName = domainName)
     }
 
+    /**
+      * Every string has a non-negative length:
+      *   axiom {
+      *     forall x string :: { strLen(str) } 0 <= strLen(x)
+      *   }
+      */
     val lenAxiom = vpr.AnonymousDomainAxiom {
       val qtfVar = vpr.LocalVarDecl("str", stringType)()
+      val lenApp = vpr.DomainFuncApp(lenFunc, Seq(qtfVar.localVar), Map.empty)()
       vpr.Forall(
         variables = Seq(qtfVar),
-        triggers = Seq(),
-        exp = vpr.LeCmp(vpr.IntLit(0)(), vpr.DomainFuncApp(func = lenFunc, Seq(qtfVar.localVar), Map.empty)())()
+        triggers = Seq(vpr.Trigger(Seq(lenApp))()),
+        exp = vpr.LeCmp(vpr.IntLit(0)(), lenApp)()
       )()
     }(domainName = domainName)
 

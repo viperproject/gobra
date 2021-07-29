@@ -19,7 +19,7 @@ func test2(i *int, ghost p perm) int {
 	return *i
 }
 
-requires p < 1/2
+requires 0 <= p && p < 1/2
 requires acc(i, p)
 ensures acc(i, 1/2)
 func test3(i *int, ghost p perm) int {

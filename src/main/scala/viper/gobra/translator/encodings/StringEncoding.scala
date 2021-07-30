@@ -20,6 +20,8 @@ import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.TypeBounds
 import viper.silver.{ast => vpr}
 
+import scala.annotation.unused
+
 class StringEncoding extends LeafTypeEncoding {
 
   import viper.gobra.translator.util.TypePatterns._
@@ -49,6 +51,7 @@ class StringEncoding extends LeafTypeEncoding {
     * [ len(s: string) ] -> strLen([s])
     * [ (s1: string) + (s2: string) ] -> strConcat([ s1 ], [ s2 ])
     * [ s[low : high] : string -> strSlice([ s ], [ low ], [ high ])
+    * [ string(s :: []byte) ] -> byteSliceToStrFunc([ s ])
     */
   override def expr(ctx: Context): in.Expr ==> CodeWriter[vpr.Exp] = {
 
@@ -79,16 +82,22 @@ class StringEncoding extends LeafTypeEncoding {
   }
 
 
-  // TODO: fancy doc
+  /**
+    * Encodes the (effectul) conversion from a string to a []byte
+    * [ target = []byte(str) ] ->
+    *   [
+    *     var s []byte
+    *     inhale forall i Int :: 0 <= i && i < len(s) ==> acc(&s[i])
+    *     target = s
+    *   ]
+    */
   override def statement(ctx: Context): in.Stmt ==> CodeWriter[vpr.Stmt] = {
 
-    def goT(t: in.Type): vpr.Type = ctx.typeEncoding.typ(ctx)(t)
-    def goE(x: in.Expr): CodeWriter[vpr.Exp] = ctx.expr.translate(x)(ctx)
     def goA(x: in.Assertion): CodeWriter[vpr.Exp] = ctx.ass.translate(x)(ctx)
 
     default(super.statement(ctx)) {
       case conv@in.EffectfulConversion(target, in.SliceT(in.IntT(_, TypeBounds.Byte), _), _) =>
-        // the argument is not used in the viper encoding. May change in the future to be able to prove more
+        // the argument of type string is not used in the viper encoding. May change in the future to be able to prove more
         // interesting properties
         val (pos, info, errT) = conv.vprMeta
 
@@ -256,11 +265,13 @@ class StringEncoding extends LeafTypeEncoding {
     )()
   }
 
-  // TODO: doc
-  //TODO: change parameter of type to unit, type to MethodGenerator
+  /** Generates the function
+    *   requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+    *   pure func byteSliceToStrFunc(s []byte) string
+    */
   private val byteSliceToStrFuncName: String = "byteSliceToStrFunc"
   private val byteSliceToStrFuncGenerator: FunctionGenerator[Unit] = new FunctionGenerator[Unit] {
-    override def genFunction(x: Unit)(ctx: Context): vpr.Function = {
+    override def genFunction(@unused x: Unit)(ctx: Context): vpr.Function = {
       val info = Source.Parser.Internal
       val paramT = in.SliceT(in.IntT(Addressability.sliceElement, TypeBounds.Byte), Addressability.outParameter)
       val param = in.Parameter.In("s", paramT)(info)
@@ -288,8 +299,6 @@ class StringEncoding extends LeafTypeEncoding {
     }
   }
 
-  private def byteSliceToStr(slice: vpr.Exp)(ctx : Context)(pos : vpr.Position = vpr.NoPosition, info : vpr.Info = vpr.NoInfo, errT : vpr.ErrorTrafo = vpr.NoTrafos) : vpr.FuncApp =
+  private def byteSliceToStr(slice: vpr.Exp)(ctx: Context)(pos: vpr.Position, info: vpr.Info, errT: vpr.ErrorTrafo): vpr.FuncApp =
     byteSliceToStrFuncGenerator(Vector(slice), ())(pos, info, errT)(ctx)
 }
-
-// TODO: fix warnings

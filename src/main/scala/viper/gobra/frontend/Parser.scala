@@ -445,7 +445,7 @@ object Parser {
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
           val terminationMeasure = {
             val t = clauses.collect{ case x: DecreasesClause => x.measure}
-            if(t.size <= 1 ) {
+            if(t.size <= 1){
               t.headOption
             } else {
               Violation.violation("Unexpected amount of decreases clause")

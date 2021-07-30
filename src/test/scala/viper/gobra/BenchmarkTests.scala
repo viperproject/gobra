@@ -7,8 +7,7 @@
 package viper.gobra
 
 import java.nio.file.Path
-
-import org.scalatest.DoNotDiscover
+import org.scalatest.{ConfigMap, DoNotDiscover}
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierResult}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -44,6 +43,11 @@ trait BenchmarkTests extends StatisticalTestSuite {
     fe.reset(files)
     fe
   }
+
+  override def afterAll(configMap: ConfigMap): Unit = {
+    super.afterAll(configMap)
+    gobraFrontend.terminate()
+  }
 }
 
 trait GobraFrontendForTesting extends Frontend {
@@ -71,6 +75,10 @@ trait GobraFrontendForTesting extends Frontend {
       case VerifierResult.Success => vpr.Success
       case VerifierResult.Failure(errors) => vpr.Failure(errors.map(GobraTestError))
     }
+  }
+
+  def terminate(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
   }
 
   /**

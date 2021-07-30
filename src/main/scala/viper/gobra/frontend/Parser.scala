@@ -427,12 +427,14 @@ object Parser {
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "decreases" ~> measures ^^ DecreasesClause |
         "pure" <~ eos ^^^ PureClause
       }
 
@@ -441,8 +443,16 @@ object Parser {
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
           val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val terminationMeasure = {
+            val t = clauses.collect{ case x: DecreasesClause => x.measure}
+            if(t.size <= 1 ) {
+              t.headOption
+            } else {
+              Violation.violation("Unexpected amount of decreases clause")
+            }
+          }
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, isPure)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
       }
     }
     

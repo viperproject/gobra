@@ -965,8 +965,8 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
-    case _: SliceT => base.typ
-    case t => Violation.violation(s"expected an array or slice type, but got $t")
+    case _: SliceT | _: StringT => base.typ
+    case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }
 

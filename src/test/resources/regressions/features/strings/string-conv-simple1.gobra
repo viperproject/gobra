@@ -1,0 +1,25 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package strings
+
+func TestSliceToString() {
+	s := []byte{0, 1, 2}
+	str := string(s)
+	// conversion does not affect the available permissions to `s`
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+}
+
+func TestStringToSlice() {
+	str := "hello world"
+	s := []byte(str)
+	// conversion from string to []byte generates
+	// the permissions to a string
+	assert forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
+}
+
+// non-effectful conversions can be used in function specification
+ensures res == uint16(x)
+func TestPureConversion(x uint8) (res uint16) {
+	return uint16(x)
+}

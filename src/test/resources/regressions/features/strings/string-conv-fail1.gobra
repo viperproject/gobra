@@ -1,0 +1,9 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package strings
+
+// effectful conversions cannot be used in function specification
+//:: ExpectedOutput(type_error)
+requires len([]byte(s)) > 5
+func TestEffectulSpec(s string)

@@ -62,7 +62,7 @@ class StringEncoding extends LeafTypeEncoding {
           lEncoded <- goE(l)
           rEncoded <- goE(r)
         } yield withSrc(vpr.DomainFuncApp(concatFunc, Seq(lEncoded, rEncoded), Map.empty),concat)
-      case slice @ in.Slice(base, low, high, _, _) :: ctx.String() =>
+      case slice @ in.Slice(base :: ctx.String(), low, high, _, _) =>
         for {
           baseExp <- goE(base)
           lowExp  <- goE(low)
@@ -122,10 +122,8 @@ class StringEncoding extends LeafTypeEncoding {
     * Generates
     *   function strSlice(s: Int, l: Int, h: Int): Int
     *     requires 0 <= l
-    *     requires 0 <= h
-    *     requires l <= len(s)
-    *     requires h <= len(s)
     *     requires l <= h
+    *     requires h <= len(s)
     *     ensures strLen(s) == h - l
     * where s is a string id and l and r are the lower and upper bounds of the slice
     */
@@ -140,10 +138,8 @@ class StringEncoding extends LeafTypeEncoding {
       typ = stringType,
       pres = Seq(
         vpr.LeCmp(vpr.IntLit(0)(), argL.localVar)(),
-        vpr.LeCmp(vpr.IntLit(0)(), argH.localVar)(),
-        vpr.LeCmp(argL.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
-        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())(),
-        vpr.LeCmp(argL.localVar, argH.localVar)()
+        vpr.LeCmp(argL.localVar, argH.localVar)(),
+        vpr.LeCmp(argH.localVar, vpr.DomainFuncApp(lenFunc, Seq(argS.localVar), Map.empty)())()
       ),
       posts = Seq(
         vpr.EqCmp(
@@ -177,6 +173,22 @@ class StringEncoding extends LeafTypeEncoding {
         variables = Seq(qtfVar),
         triggers = Seq(),
         exp = vpr.LeCmp(vpr.IntLit(0)(), vpr.DomainFuncApp(func = lenFunc, Seq(qtfVar.localVar), Map.empty)())()
+      )()
+    }(domainName = domainName)
+
+    /**
+      * Every string has a non-negative length:
+      *   axiom {
+      *     forall x string :: { strLen(str) } 0 <= strLen(x)
+      *   }
+      */
+    val lenAxiom = vpr.AnonymousDomainAxiom {
+      val qtfVar = vpr.LocalVarDecl("str", stringType)()
+      val lenApp = vpr.DomainFuncApp(lenFunc, Seq(qtfVar.localVar), Map.empty)()
+      vpr.Forall(
+        variables = Seq(qtfVar),
+        triggers = Seq(vpr.Trigger(Seq(lenApp))()),
+        exp = vpr.LeCmp(vpr.IntLit(0)(), lenApp)()
       )()
     }(domainName = domainName)
 

@@ -1,0 +1,99 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+ensures r > 0
+func doInt(i int) (r int)
+
+func do()
+
+func f(x interface{}) {
+	switch i := x.(type) {
+	case nil:
+		assert i == nil
+	case int:
+		v, ok := x.(int)
+		assert ok && v == i
+		res := doInt(i)
+		assert res > 0
+	case bool, string:
+		do()
+	default:
+		do()
+	}
+}
+
+func g() {
+	k := 0
+	x := 1
+	var y interface{} = x
+	switch y.(type) {
+		case int:
+			k = 1 
+	}
+	assert k == 1
+}
+
+func h() {
+	k := 0
+	x := 1
+	var y interface{} = nil 
+	switch y.(type) {
+		case int:
+			k = 2
+		case nil:
+			k = 1 
+	}
+	assert k == 1
+}
+
+func l() {
+	k := 0
+	x := 1
+	var y interface{} = nil 
+	switch y.(type) {
+		case int:
+			k = 2
+		default:
+			k = 1 
+	}
+	assert k == 1
+}
+
+type T int
+
+func (t T)m() {}
+
+func k(i interface{ m(); }) {
+	switch x := i.(type) {
+	case T:
+		var c T = x
+	}
+}
+
+// The following two tests are not supported yet.
+// They require support for interface types in case clauses.
+/*
+func m() {
+	var x interface{} = 0
+	switch x.(type) {
+		case interface{}:
+			return
+	}
+}
+
+type T1 interface{}
+func n() {
+	y := 1
+	res := 0
+
+	var x T1 = y
+	switch x.(type) {
+		case interface{}:
+			res = 1
+	}
+
+	assert res == 1
+}
+*/

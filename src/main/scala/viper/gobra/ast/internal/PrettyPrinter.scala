@@ -10,6 +10,7 @@ import org.bitbucket.inkytonik.kiama
 import org.bitbucket.inkytonik.kiama.util.Trampolines.Done
 import viper.gobra.ast.printing.PrettyPrinterCombinators
 import viper.gobra.theory.Addressability
+import viper.gobra.util.{Binary, Decimal, Hexadecimal, Octal}
 import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
@@ -407,22 +408,21 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case DomainFunctionCall(func, args, _) =>
       func.name <> parens(showExprList(args))
 
-    case IndexedExp(base, index) => showExpr(base) <> brackets(showExpr(index))
+    case IndexedExp(base, index, _) => showExpr(base) <> brackets(showExpr(index))
     case ArrayUpdate(base, left, right) => showExpr(base) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case Length(exp) => "len" <> parens(showExpr(exp))
     case Capacity(exp) => "cap" <> parens(showExpr(exp))
     case RangeSequence(low, high) =>
       "seq" <> brackets(showExpr(low) <+> ".." <+> showExpr(high))
-    case GhostCollectionUpdate(seq, left, right) =>
+    case GhostCollectionUpdate(seq, left, right, _) =>
       showExpr(seq) <> brackets(showExpr(left) <+> "=" <+> showExpr(right))
     case SequenceDrop(left, right) => showExpr(left) <> brackets(showExpr(right) <> colon)
     case SequenceTake(left, right) => showExpr(left) <> brackets(colon <> showExpr(right))
     case SequenceConversion(exp) => "seq" <> parens(showExpr(exp))
     case SetConversion(exp) => "set" <> parens(showExpr(exp))
-    case Cardinality(op) => "|" <> showExpr(op) <> "|"
     case MultisetConversion(exp) => "mset" <> parens(showExpr(exp))
-    case MapKeys(exp) => "domain" <> parens(showExpr(exp))
-    case MapValues(exp) => "range" <> parens(showExpr(exp))
+    case MapKeys(exp, _) => "domain" <> parens(showExpr(exp))
+    case MapValues(exp, _) => "range" <> parens(showExpr(exp))
     case Conversion(typ, exp) => showType(typ) <> parens(showExpr(exp))
     case Receive(channel, _, _, _) => "<-" <+> showExpr(channel)
 
@@ -430,7 +430,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case OptionSome(exp) => "some" <> parens(showExpr(exp))
     case OptionGet(exp) => "get" <> parens(showExpr(exp))
 
-    case Slice(exp, low, high, max) => {
+    case Slice(exp, low, high, max, _) => {
       val maxD = max.map(e => ":" <> showExpr(e)).getOrElse(emptyDoc)
       showExpr(exp) <> brackets(showExpr(low) <> ":" <> showExpr(high) <> maxD)
     }
@@ -472,6 +472,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case FieldRef(recv, field) => showExpr(recv) <> "."  <> field.name
     case StructUpdate(base, field, newVal) => showExpr(base) <> brackets(showField(field) <+> ":=" <+> showExpr(newVal))
     case Negation(op) => "!" <> showExpr(op)
+    case BitNeg(op) => "^" <> showExpr(op)
     case BinaryExpr(left, op, right, _) => showExpr(left) <+> op <+> showExpr(right)
     case lit: Lit => showLit(lit)
     case v: Var => showVar(v)
@@ -486,7 +487,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       braces(space <> showExprList(exprs) <> (if (exprs.nonEmpty) space else emptyDoc))
 
   def showLit(l: Lit): Doc = l match {
-    case IntLit(v, _) => v.toString
+    case IntLit(lit, _, base) =>
+      val prefix = base match {
+        case Binary => "0b"
+        case Octal => "0o"
+        case Decimal => ""
+        case Hexadecimal => "0x"
+      }
+      prefix + lit.toString(base.base)
     case StringLit(s) => "\"" <> s <> "\""
     case BoolLit(b) => if (b) "true" else "false"
     case NilLit(t) => parens("nil" <> ":" <> showType(t))

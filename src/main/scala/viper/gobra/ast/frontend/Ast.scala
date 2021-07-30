@@ -14,6 +14,7 @@ import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
+import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
 
 import scala.collection.immutable
@@ -125,6 +126,16 @@ sealed trait PActualMember extends PMember
 
 sealed trait PGhostifiableMember extends PActualMember with PGhostifiable
 
+/**
+  * node declaring an identifier that is placed in a scope that depends on something.
+  * examples:
+  * - methods and mpredicates depend on their receiver
+  * - struct fields depend on the struct in which they are declared
+  */
+sealed trait PDependentDef extends PNode {
+  def id: PIdnDef
+}
+
 sealed trait PCodeRoot extends PNode
 
 sealed trait PCodeRootWithResult extends PCodeRoot {
@@ -150,7 +161,7 @@ case class PMethodDecl(
                         result: PResult,
                         spec: PFunctionSpec,
                         body: Option[(PBodyParameterInfo, PBlock)]
-                      ) extends PActualMember with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
+                      ) extends PActualMember with PDependentDef with PScope with PCodeRootWithResult with PWithBody with PGhostifiableMember
 
 sealed trait PTypeDecl extends PActualMember with PActualStatement with PGhostifiableStatement with PGhostifiableMember {
 
@@ -202,6 +213,18 @@ case class PDivOp() extends PAssOp
 
 case class PModOp() extends PAssOp
 
+case class PBitAndOp() extends PAssOp
+
+case class PBitOrOp() extends PAssOp
+
+case class PBitXorOp() extends PAssOp
+
+case class PBitClearOp() extends PAssOp
+
+case class PShiftLeftOp() extends PAssOp
+
+case class PShiftRightOp() extends PAssOp
+
 case class PShortVarDecl(right: Vector[PExpression], left: Vector[PUnkLikeId], addressable: Vector[Boolean]) extends PSimpleStmt with PGhostifiableStatement
 
 case class PIfStmt(ifs: Vector[PIfClause], els: Option[PBlock]) extends PActualStatement with PScope with PGhostifiableStatement
@@ -222,7 +245,7 @@ sealed trait PTypeSwitchClause extends PNode
 
 case class PTypeSwitchDflt(body: PBlock) extends PTypeSwitchClause
 
-case class PTypeSwitchCase(left: Vector[PType], body: PBlock) extends PTypeSwitchClause
+case class PTypeSwitchCase(left: Vector[PExpressionOrType], body: PBlock) extends PTypeSwitchClause
 
 case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PSimpleStmt], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
@@ -355,7 +378,9 @@ sealed trait PBasicLiteral extends PLiteral
 
 case class PBoolLit(lit: Boolean) extends PBasicLiteral
 
-case class PIntLit(lit: BigInt) extends PBasicLiteral with PNumExpression
+// The base keeps track of the original representation of the literal. It has no effect on the value of `lit`, it should
+// only be read by pretty-printers
+case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
 case class PNilLit() extends PBasicLiteral
 
@@ -405,6 +430,7 @@ case class PIndexedExp(base: PExpression, index: PExpression) extends PActualExp
   * Gobra extends this with:
   *
   * - Sequence: the number of elements in `exp`.
+  * - Set: the cardinality of `exp`.
   */
 case class PLength(exp : PExpression) extends PActualExpression with PNumExpression
 
@@ -439,6 +465,8 @@ case class PDeref(base: PExpressionOrType) extends PActualExpression with PActua
 
 case class PNegation(operand: PExpression) extends PUnaryExp
 
+case class PBitNegation(operand: PExpression) extends PUnaryExp with PNumExpression
+
 sealed trait PBinaryExp[L <: PExpressionOrType, R <: PExpressionOrType] extends PActualExpression {
   def left: L
   def right: R
@@ -469,6 +497,18 @@ case class PMul(left: PExpression, right: PExpression) extends PBinaryExp[PExpre
 case class PMod(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 case class PDiv(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitAnd(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitOr(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitXor(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PBitClear(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftLeft(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
+
+case class PShiftRight(left: PExpression, right: PExpression) extends PBinaryExp[PExpression, PExpression] with PNumExpression
 
 
 sealed trait PActualExprProofAnnotation extends PActualExpression {
@@ -589,9 +629,9 @@ sealed trait PActualStructClause extends PStructClause
 // TODO: maybe change to misc
 case class PFieldDecls(fields: Vector[PFieldDecl]) extends PActualStructClause
 
-case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode
+case class PFieldDecl(id: PIdnDef, typ: PType) extends PNode with PDependentDef
 
-case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause {
+case class PEmbeddedDecl(typ: PEmbeddedType, id: PIdnDef) extends PActualStructClause with PDependentDef {
   require(id.name == typ.name)
 }
 
@@ -622,7 +662,7 @@ case class PInterfaceName(typ: PNamedOperand) extends PInterfaceClause
 
 // Felix: I see `isGhost` as part of the declaration and not as port of the specification.
 //        In the past, I usually created some ghost wrapper for these cases, but I wanted to get rid of them in the future.
-case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PScope with PCodeRootWithResult
+case class PMethodSig(id: PIdnDef, args: Vector[PParameter], result: PResult, spec: PFunctionSpec, isGhost: Boolean) extends PInterfaceClause with PDependentDef with PScope with PCodeRootWithResult
 
 /**
   * Identifiers
@@ -744,6 +784,7 @@ sealed trait PSpecification extends PGhostNode
 
 case class PFunctionSpec(
                       pres: Vector[PExpression],
+                      preserves: Vector[PExpression],
                       posts: Vector[PExpression],
                       terminationMeasure: Option[PTerminationMeasure],
                       isPure: Boolean = false,
@@ -784,9 +825,9 @@ case class PMPredicateDecl(
                           receiver: PReceiver,
                           args: Vector[PParameter],
                           body: Option[PExpression]
-                          ) extends PGhostMember with PScope with PCodeRoot
+                          ) extends PGhostMember with PDependentDef with PScope with PCodeRoot
 
-case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PScope with PCodeRoot
+case class PMPredicateSig(id: PIdnDef, args: Vector[PParameter]) extends PInterfaceClause with PDependentDef with PScope with PCodeRoot
 
 case class PImplementationProof(
                                  subT: PType, superT: PType,
@@ -896,12 +937,6 @@ sealed trait PGhostCollectionExp extends PGhostExpression
   * that is, membership of a ghost collection.
   */
 case class PIn(left : PExpression, right : PExpression) extends PGhostCollectionExp with PBinaryGhostExp
-
-/**
-  * Denotes the cardinality of `exp`, which is expected
-  * to be either a set or a multiset.
-  */
-case class PCardinality(exp : PExpression) extends PGhostCollectionExp
 
 /**
   * Represents a multiplicity expression of the form "`left` # `right`"

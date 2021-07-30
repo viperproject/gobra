@@ -20,7 +20,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.reporting.Source.Parser
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.{TypeBounds, Violation}
+import viper.gobra.util.{Decimal, NumBase, TypeBounds, Violation}
 import viper.gobra.util.TypeBounds.{IntegerKind, UnboundedInteger}
 import viper.gobra.util.Violation.violation
 
@@ -541,7 +541,7 @@ case class Multiplicity(left : Expr, right : Expr)(val info: Source.Parser.Info)
 
 /**
   * Denotes the length of `exp`, which is expected to be either
-  * of an array type or a sequence type.
+  * of an array type or a sequence type or a set.
   */
 case class Length(exp : Expr)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = IntT(Addressability.rValue)
@@ -558,10 +558,10 @@ case class Capacity(exp : Expr)(val info : Source.Parser.Info) extends Expr {
 /**
   * Represents indexing into an array "`base`[`index`]",
   * where `base` is expected to be of an array or sequence type
-  * and `index` of an integer type.
+  * and `index` of an integer type. `baseUnderlyingType` is the underlyingType of `base`'s type.
   */
-case class IndexedExp(base : Expr, index : Expr)(val info : Source.Parser.Info) extends Expr with Location {
-  override val typ : Type = base.typ match {
+case class IndexedExp(base : Expr, index : Expr, baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr with Location {
+  override val typ : Type = baseUnderlyingType match {
     case t: ArrayT => t.elems
     case t: SequenceT => t.t
     case t: SliceT => t.elems
@@ -615,10 +615,10 @@ case class SequenceAppend(left : Expr, right : Expr)(val info: Source.Parser.Inf
 /**
   * Denotes a ghost collection update "`col`[`left` = `right`]", which results in a
   * collection equal to `col` but 'updated' to have `right` at the `left` position.
+  * `baseUnderlyingType` is the underlyingType of `base`'s type
   */
-case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr)(val info: Source.Parser.Info) extends Expr {
-  /** Is equal to the type of `base`. */
-  require(base.typ.isInstanceOf[SequenceT] || base.typ.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
+case class GhostCollectionUpdate(base : Expr, left : Expr, right : Expr, baseUnderlyingType: Type)(val info: Source.Parser.Info) extends Expr {
+  require(baseUnderlyingType.isInstanceOf[SequenceT] || baseUnderlyingType.isInstanceOf[MathMapT], s"expected sequence or mmap, but got ${base.typ} (${info.origin})")
   override val typ : Type = base.typ.withAddressability(Addressability.rValue)
 }
 
@@ -726,14 +726,6 @@ case class Subset(left : Expr, right : Expr)(val info : Source.Parser.Info) exte
 }
 
 /**
-  * Represents the cardinality of `exp`, which is assumed
-  * to be either a set or a multiset.
-  */
-case class Cardinality(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = IntT(Addressability.rValue)
-}
-
-/**
   * Represents a membership expression "`left` in `right`".
   * Here `right` should be a ghost collection (that is,
   * a sequence, set, or multiset) of a type that is compatible
@@ -802,16 +794,16 @@ case class MathMapLit(keys : Type, values : Type, entries : Seq[(Expr, Expr)])(v
   override val typ : Type = MathMapT(keys, values, Addressability.literal)
 }
 
-case class MapKeys(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = exp.typ match {
+case class MapKeys(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = expUnderlyingType match {
     case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
     case t: MapT => SetT(t.keys, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")
   }
 }
 
-case class MapValues(exp : Expr)(val info : Source.Parser.Info) extends Expr {
-  override val typ : Type = exp.typ match {
+case class MapValues(exp : Expr, expUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override val typ : Type = expUnderlyingType match {
     case t: MathMapT => SetT(t.keys, Addressability.mathDataStructureElement)
     case t: MapT => SetT(t.keys, Addressability.rValue)
     case _ => violation(s"unexpected type ${exp.typ}")
@@ -880,7 +872,7 @@ sealed trait BoolOperation extends Expr {
 }
 
 sealed trait IntOperation extends Expr {
-  override val typ: Type = IntT(Addressability.rValue)
+  override def typ: Type = IntT(Addressability.rValue)
 }
 
 sealed trait StringOperation extends Expr {
@@ -895,7 +887,7 @@ sealed abstract class BinaryExpr(val operator: String) extends Expr {
 }
 
 sealed abstract class BinaryIntExpr(override val operator: String) extends BinaryExpr(operator) with IntOperation {
-  override val typ: Type = (left.typ, right.typ) match {
+  override def typ: Type = (left.typ, right.typ) match {
     // should always produce an exclusive val. from the go spec:
     // (...) must be addressable, that is, either a variable, pointer indirection, or slice indexing operation;
     // or a field selector of an addressable struct operand; or an array indexing operation of an addressable array.
@@ -936,6 +928,19 @@ case class Mul(left: Expr, right: Expr)(val info: Source.Parser.Info) extends Bi
 case class Mod(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("%")
 case class Div(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("/")
 
+/* Bitwise Operators */
+case class BitAnd(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&")
+case class BitOr(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("|")
+case class BitXor(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("^")
+case class BitClear(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("&^")
+case class ShiftLeft(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr("<<") {
+  override val typ: Type = left.typ
+}
+case class ShiftRight(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryIntExpr(">>") {
+  override val typ: Type = left.typ
+}
+case class BitNeg(op: Expr)(val info: Source.Parser.Info) extends IntOperation
+
 case class Concat(left: Expr, right: Expr)(val info: Source.Parser.Info) extends BinaryExpr("+") with StringOperation
 
 case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Expr {
@@ -951,7 +956,7 @@ sealed trait Lit extends Expr
 
 case class DfltVal(typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger)(val info: Source.Parser.Info) extends Lit {
+case class IntLit(v: BigInt, kind: IntegerKind = UnboundedInteger, base: NumBase = Decimal)(val info: Source.Parser.Info) extends Lit {
   override def typ: Type = IntT(Addressability.literal, kind)
 }
 
@@ -970,11 +975,12 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
   * Only the `max` component is optional at this point.
   * Any slicing expression "a[:j]" is assumed to be desugared into "a[0:j]",
   * and any expression "a[i:]" is assumed to be desugared into "a[i:len(a)]".
+  * `baseUnderlyingType` is the underlyingType of `base`'s type.
   */
-case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr])(val info : Source.Parser.Info) extends Expr {
-  override def typ : Type = base.typ match {
+case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
+  override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
-    case t: SliceT => t
+    case _: SliceT => base.typ
     case t => Violation.violation(s"expected an array or slice type, but got $t")
   }
 }

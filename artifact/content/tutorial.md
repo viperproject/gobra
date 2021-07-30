@@ -107,7 +107,7 @@ const minScore int = 10 // typed constant
 
 ## Basic Annotations
 
-All examples shown in this tutorial can be found [here](https://github.com/viperproject/gobra/tree/master/src/test/resources/regressions/examples/tutorial-examples). We start with a simple function `sum` computing the sum of the integers from 0 to `n`. The table below shows a Go implementation (left) and a corresponding annotated version (right).
+All examples shown in this tutorial can be found [here](https://github.com/viperproject/gobra/tree/artifact1/src/test/resources/regressions/examples/tutorial-examples). We start with a simple function `sum` computing the sum of the integers from 0 to `n`. The table below shows a Go implementation (left) and a corresponding annotated version (right).
 
 <table>
 <tr>
@@ -284,7 +284,7 @@ func addToSliceClient() {
 ```
 
 
-## Predicates
+## Predicate
 
 Predicates give a name to a parameterized assertion. A predicate can have any number of parameters, and its body can be any self-framing Gobra assertion using only these parameters as variable names. Predicate  definitions can be recursive, allowing them to denote permission to and properties of recursive heap structures such as linked lists and trees.
 
@@ -506,7 +506,7 @@ func client() {
 }
 ```
 
-Implementation proofs can be placed in a different package than the orginal type definition. In this case, the syntax for the predicate is slightly different. You can find such an example [here](https://github.com/viperproject/gobra/blob/master/src/test/resources/regressions/features/interfaces/counterStream.gobra).
+Implementation proofs can be placed in a different package than the original type definition. In this case, the syntax for the predicate is slightly different. You can find such an example in the Docker container at `/home/gobra/test_suite/tutorial_examples/external-interface` or online [here](https://github.com/viperproject/gobra/tree/artifact1/src/test/resources/regressions/examples/tutorial-examples/external-interface).
 
 ### Comparability
 
@@ -671,7 +671,7 @@ func clientChannel() {
 
 ## Running Gobra
 
-A description of how to install and configure Gobra can be found in Gobra's [README](https://github.com/viperproject/gobra/blob/master/README.md) file. After setting up Gobra and obtaining a `gobra.jar` file, one can run it using the command
+A description of how to install and configure Gobra can be found in Gobra's [README](https://github.com/viperproject/gobra/blob/artifact1/README.md) file. After setting up Gobra and obtaining a `gobra.jar` file, one can run it using the command
 ```bash
 java -Xss128m -jar gobra.jar -i [FILES_TO_VERIFY]
 ```

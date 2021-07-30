@@ -88,6 +88,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
       case (NilType, r) if isPointerType(r) => successProp
       case (VariadicT(t1), VariadicT(t2)) => assignableTo.result(t1, t2)
       case (t1, VariadicT(t2)) => assignableTo.result(t1, t2)
+      case (VariadicT(t1), SliceT(t2)) if identicalTypes(t1, t2) => successProp
 
         // for ghost types
       case (BooleanT, AssertionT) => successProp
@@ -106,7 +107,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
-    case PIndexedExp(b, _) => exprType(b) match {
+    case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
@@ -122,7 +123,8 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   lazy val compatibleWithAssOp: Property[(Type, PAssOp)] = createFlatProperty[(Type, PAssOp)] {
     case (t, op) => s"type error: got $t, but expected type compatible with $op"
   } {
-    case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp()) => true
+    case (Single(IntT(_)), PAddOp() | PSubOp() | PMulOp() | PDivOp() | PModOp() | PBitAndOp() | PBitOrOp() |
+                           PBitXorOp() | PBitClearOp() | PShiftLeftOp() | PShiftRightOp()) => true
     case (Single(StringT), PAddOp()) => true
     case _ => false
   }

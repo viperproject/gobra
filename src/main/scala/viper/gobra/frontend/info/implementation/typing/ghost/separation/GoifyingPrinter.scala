@@ -74,9 +74,10 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, terminationMeasure, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure) =>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
+      hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
       hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
       (terminationMeasure match {
         case Some(measure) => {
@@ -148,7 +149,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty,Option.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Option.empty),
           body
         )
       )
@@ -160,7 +161,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty,Option.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Option.empty),
           body
         )
       )

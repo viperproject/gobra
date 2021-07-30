@@ -28,18 +28,23 @@ object Translator {
        if (errors.nonEmpty) Violation.violation(errors.toString)
      }
 
-     val transformers: Seq[ViperTransformer] = Seq(
-       new AssumeTransformer,
-       new TerminationTransformer
-     )
 
-     val transformedTask = transformers.foldLeft(task) {
-       case (t, transformer) => transformer.transform(t)
-     }
+    if (config.checkConsistency) {
+      val errors = task.program.checkTransitively
+      if (errors.nonEmpty) Violation.violation(errors.toString)
+    }
 
-     config.reporter report GeneratedViperMessage(config.inputFiles.head, () => transformedTask.program, () => transformedTask.backtrack)
-     transformedTask
- 
+    val transformers: Seq[ViperTransformer] = Seq(
+      new AssumeTransformer,
+      new TerminationTransformer
+    )
+
+    val transformedTask = transformers.foldLeft(task) {
+      case (t, transformer) => transformer.transform(t)
+    }
+
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => transformedTask.program, () => transformedTask.backtrack)
+    transformedTask
   }
 
 }

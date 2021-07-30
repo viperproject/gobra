@@ -34,7 +34,7 @@ type ByteOrder interface {
 	ensures acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
 	PutUint64(b []byte, uint64)
 
-	String() string
+	pure String() string
 }
 
 // (joao): Original implementation of BigEndian and LittleEndian. Changed due to lack of support
@@ -44,106 +44,110 @@ type ByteOrder interface {
 // type littleEndian struct{}
 // type bigEndian struct{}
 
-type LittleEndian struct {
-	// TODO: remove field
-	x int // temporary solution to side-step problems with the encoding of interfaces with fields of finite cardinality
-}
-type BigEndian struct {
-	// TODO: remove field
-	x int // temporary solution to side-step problems with the encoding of interfaces with fields of finite cardinality
-}
+const LittleEndian littleEndian = 0;
+const BigEndian bigEndian = 0;
+type littleEndian int
+type bigEndian int
 
-(LittleEndian) implements ByteOrder {
-	pure (e LittleEndian) Uint16(b []byte) uint16 {
+(littleEndian) implements ByteOrder {
+	pure (e littleEndian) Uint16(b []byte) uint16 {
 		return e.Uint16(b)
 	}
 
-	pure (e LittleEndian) Uint32(b []byte) uint32 {
+	pure (e littleEndian) Uint32(b []byte) uint32 {
 		return e.Uint32(b)
 	}
 
-	pure (e LittleEndian) Uint64(b []byte) uint64 {
+	pure (e littleEndian) Uint64(b []byte) uint64 {
 		return e.Uint64(b)
 	}
 
-	(e LittleEndian) PutUint16(b []byte, v uint16) {
+	(e littleEndian) PutUint16(b []byte, v uint16) {
 		e.PutUint16(b, v)
 	}
 
-	(e LittleEndian) PutUint32(b []byte, v uint32) {
+	(e littleEndian) PutUint32(b []byte, v uint32) {
 		e.PutUint32(b, v)
 	}
 
-	(e LittleEndian) PutUint64(b []byte, v uint64) {
+	(e littleEndian) PutUint64(b []byte, v uint64) {
 		e.PutUint64(b, v)
+	}
+
+	pure (e littleEndian) String() string {
+		return e.String()
 	}
 }
 
-(BigEndian) implements ByteOrder {
-	pure (e BigEndian) Uint16(b []byte) uint16 {
+(bigEndian) implements ByteOrder {
+	pure (e bigEndian) Uint16(b []byte) uint16 {
 		return e.Uint16(b)
 	}
 
-	pure (e BigEndian) Uint32(b []byte) uint32 {
+	pure (e bigEndian) Uint32(b []byte) uint32 {
 		return e.Uint32(b)
 	}
 
-	pure (e BigEndian) Uint64(b []byte) uint64 {
+	pure (e bigEndian) Uint64(b []byte) uint64 {
 		return e.Uint64(b)
 	}
 
-	(e BigEndian) PutUint16(b []byte, v uint16) {
+	(e bigEndian) PutUint16(b []byte, v uint16) {
 		e.PutUint16(b, v)
 	}
 
-	(e BigEndian) PutUint32(b []byte, v uint32) {
+	(e bigEndian) PutUint32(b []byte, v uint32) {
 		e.PutUint32(b, v)
 	}
 
-	(e BigEndian) PutUint64(b []byte, v uint64) {
+	(e bigEndian) PutUint64(b []byte, v uint64) {
 		e.PutUint64(b, v)
+	}
+
+	pure (e bigEndian) String() string {
+		return e.String()
 	}
 }
 
 requires acc(&b[0], _) && acc(&b[1], _)
-pure func (e LittleEndian) Uint16(b []byte) uint16 /*{
+pure func (e littleEndian) Uint16(b []byte) uint16 {
 	return uint16(b[0]) | uint16(b[1])<<8
-}*/
+}
 
 
 requires acc(&b[0]) && acc(&b[1])
 ensures acc(&b[0]) && acc(&b[1])
-func (e LittleEndian) PutUint16(b []byte, v uint16) /*{
+func (e littleEndian) PutUint16(b []byte, v uint16) {
 	b[0] = byte(v)
 	b[1] = byte(v >> 8)
-}*/
+}
 
 requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
-pure func (e LittleEndian) Uint32(b []byte) uint32 /*{
+pure func (e littleEndian) Uint32(b []byte) uint32 {
 	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
-}*/
+}
 
 requires acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 ensures acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
-func (e LittleEndian) PutUint32(b []byte, v uint32) /* {
+func (e littleEndian) PutUint32(b []byte, v uint32) {
 	b[0] = byte(v)
 	b[1] = byte(v >> 8)
 	b[2] = byte(v >> 16)
 	b[3] = byte(v >> 24)
-}*/
+}
 
 requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
 requires acc(&b[4], _) && acc(&b[5], _) && acc(&b[6], _) && acc(&b[7], _)
-pure func (e LittleEndian) Uint64(b []byte) uint64 /*{
+pure func (e littleEndian) Uint64(b []byte) uint64 {
 	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
 		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
-}*/
+}
 
 requires acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 requires acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
 ensures acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 ensures acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
-func (e LittleEndian) PutUint64(b []byte, v uint64) /*{
+func (e littleEndian) PutUint64(b []byte, v uint64) {
 	b[0] = byte(v)
 	b[1] = byte(v >> 8)
 	b[2] = byte(v >> 16)
@@ -152,53 +156,52 @@ func (e LittleEndian) PutUint64(b []byte, v uint64) /*{
 	b[5] = byte(v >> 40)
 	b[6] = byte(v >> 48)
 	b[7] = byte(v >> 56)
-}*/
+}
 
 ensures res == "LittleEndian"
-func (l LittleEndian) String() (res string) { return "LittleEndian" }
+pure func (l littleEndian) String() (res string) { return "LittleEndian" }
 
 ensures res == "binary.LittleEndian"
-func (l LittleEndian) GoString() (res string) { return "binary.LittleEndian" }
+pure func (l littleEndian) GoString() (res string) { return "binary.LittleEndian" }
 
 requires acc(&b[0], _) && acc(&b[1], _)
-pure func (e BigEndian) Uint16(b []byte) uint16 /*{
+pure func (e bigEndian) Uint16(b []byte) uint16 {
 	return uint16(b[1]) | uint16(b[0])<<8
-}*/
+}
 
 requires acc(&b[0]) && acc(&b[1])
 ensures acc(&b[0]) && acc(&b[1])
-func (e BigEndian) PutUint16(b []byte, v uint16) /*{
+func (e bigEndian) PutUint16(b []byte, v uint16) {
 	b[0] = byte(v >> 8)
 	b[1] = byte(v)
-}*/
+}
 
 requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
-pure func (e BigEndian) Uint32(b []byte) uint32 /*{
+pure func (e bigEndian) Uint32(b []byte) uint32 {
 	return uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24
-}*/
-
+}
 
 requires acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 ensures acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
-func (e BigEndian) PutUint32(b []byte, v uint32) /*{
+func (e bigEndian) PutUint32(b []byte, v uint32) {
 	b[0] = byte(v >> 24)
 	b[1] = byte(v >> 16)
 	b[2] = byte(v >> 8)
 	b[3] = byte(v)
-}*/
+}
 
 requires acc(&b[0], _) && acc(&b[1], _) && acc(&b[2], _) && acc(&b[3], _)
 requires acc(&b[4], _) && acc(&b[5], _) && acc(&b[6], _) && acc(&b[7], _)
-pure func (e BigEndian) Uint64(b []byte) uint64 /*{
+pure func (e bigEndian) Uint64(b []byte) uint64 {
 	return uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 |
 		uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56
-}*/
+}
 
 requires acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 requires acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
 ensures acc(&b[0]) && acc(&b[1]) && acc(&b[2]) && acc(&b[3])
 ensures acc(&b[4]) && acc(&b[5]) && acc(&b[6]) && acc(&b[7])
-func (e BigEndian) PutUint64(b []byte, v uint64) /*{
+func (e bigEndian) PutUint64(b []byte, v uint64) {
 	b[0] = byte(v >> 56)
 	b[1] = byte(v >> 48)
 	b[2] = byte(v >> 40)
@@ -207,14 +210,13 @@ func (e BigEndian) PutUint64(b []byte, v uint64) /*{
 	b[5] = byte(v >> 16)
 	b[6] = byte(v >> 8)
 	b[7] = byte(v)
-}*/
-
+}
 
 ensures res == "BigEndian"
-func (b BigEndian) String() (res string) { return "BigEndian" }
+pure func (b bigEndian) String() (res string) { return "BigEndian" }
 
 ensures res == "binary.BigEndian"
-func (b BigEndian) GoString() (res string) { return "binary.BigEndian" }
+pure func (b bigEndian) GoString() (res string) { return "binary.BigEndian" }
 
 // Read reads structured binary data from r into data.
 // TODO: add support for io.Reader

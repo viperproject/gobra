@@ -7,7 +7,7 @@
 package viper.gobra.translator.implementations.translator
 
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.{GoCallPreconditionError, PreconditionError, Source}
+import viper.gobra.reporting.{GoCallPreconditionReason, PreconditionError, Source}
 import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
@@ -63,7 +63,7 @@ class StatementsImpl extends Statements {
         and = vu.bigAnd(preCondInstance)(pos, info, errT)
         exhale = vpr.Exhale(and)(pos, info, errT)
         _ <- errorT {
-          case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionError(info))
+          case err.ExhaleFailed(Source(info), _, _) => PreconditionError(info).dueTo(GoCallPreconditionReason(info))
         }
       } yield exhale
     }

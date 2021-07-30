@@ -5,9 +5,9 @@ package mathmaps
 
 func test1() {
 	m := dict[string]int{ "hello": 5, "bye": 3 }
-	assert |domain(m)| == 2
+	assert len(domain(m)) == 2
 	//:: ExpectedOutput(assert_error:assertion_error)
-	assert |domain(m)| != 2
+	assert len(domain(m)) != 2
 }
 
 func test2() {

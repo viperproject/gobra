@@ -15,8 +15,8 @@ import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Stra
 import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
-import viper.gobra.reporting.{ParsedInputMessage, ParserError, ParserErrorMessage, PreprocessedInputMessage, VerifierError}
-import viper.gobra.util.{Constants, Violation}
+import viper.gobra.reporting.{Source => _, _}
+import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import scala.io.BufferedSource
 import scala.util.matching.Regex
@@ -421,11 +421,31 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-    lazy val functionSpec: Parser[PFunctionSpec] =
-    ("requires" ~> expression <~ eos).* ~ ("ensures" ~> expression <~ eos).* ~  ("decreases" ~>  measures ).? ~ "pure".? ^^{
-         case pres ~ posts ~ terminationMeasure ~ isPure =>  PFunctionSpec(pres, posts,terminationMeasure, isPure.nonEmpty)
-       }
-       
+    lazy val functionSpec: Parser[PFunctionSpec] = {
+
+      sealed trait FunctionSpecClause
+      case class RequiresClause(exp: PExpression) extends FunctionSpecClause
+      case class PreservesClause(exp: PExpression) extends FunctionSpecClause
+      case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case object PureClause extends FunctionSpecClause
+
+      lazy val functSpecClause: Parser[FunctionSpecClause] = {
+        "requires" ~> expression <~ eos ^^ RequiresClause |
+        "preserves" ~> expression <~ eos ^^ PreservesClause |
+        "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "pure" <~ eos ^^^ PureClause
+      }
+
+      functSpecClause.* ~ "pure".? ^^ {
+        case clauses ~ pure =>
+          val pres = clauses.collect{ case x: RequiresClause => x.exp }
+          val preserves = clauses.collect{ case x: PreservesClause => x.exp }
+          val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val isPure = pure.nonEmpty || clauses.contains(PureClause)
+          PFunctionSpec(pres, preserves, posts, isPure)
+      }
+    }
+    
     lazy val measures:Parser[PTerminationMeasure]=
     "*"  ^^^ PStarCharacter() | ("_" <~ eos) ^^^ PUnderscoreCharacter() | repsep(expression,",") <~ eos ^^ PTupleTerminationMeasure | firstConditionalMeasure 
 
@@ -464,9 +484,6 @@ object Parser {
         case expression ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, PBoolLit(true))))
       }
 
-
-    
-    
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
         case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
@@ -523,7 +540,13 @@ object Parser {
         "-" ^^^ PSubOp() |
         "*" ^^^ PMulOp() |
         "/" ^^^ PDivOp() |
-        "%" ^^^ PModOp()
+        "%" ^^^ PModOp() |
+        "&" ^^^ PBitAndOp() |
+        "|" ^^^ PBitOrOp() |
+        "^" ^^^ PBitXorOp() |
+        "&^" ^^^ PBitClearOp() |
+        "<<" ^^^ PShiftLeftOp() |
+        ">>" ^^^ PShiftRightOp()
 
     lazy val nonBlankAssignee: Parser[PAssignee] =
       selection | indexedExp | dereference | namedOperand
@@ -613,7 +636,7 @@ object Parser {
     lazy val typeSwitchStmt: Parser[PTypeSwitchStmt] =
       ("switch" ~> (simpleStmt <~ ";").?) ~
         (idnDef <~ ":=").? ~ (primaryExp <~ "." <~ "(" <~ "type" <~ ")") ~
-        ("{" ~> exprSwitchClause.* <~ "}") ^^ {
+        ("{" ~> typeSwitchClause.* <~ "}") ^^ {
         case pre ~ binder ~ exp ~ clauses =>
           val cases = clauses collect { case v: PTypeSwitchCase => v }
           val dflt = clauses collect { case v: PTypeSwitchDflt => v.body }
@@ -624,10 +647,12 @@ object Parser {
     lazy val typeSwitchClause: Parser[PTypeSwitchClause] =
       typeSwitchCase | typeSwitchDflt
 
-    lazy val typeSwitchCase: Parser[PTypeSwitchCase] =
-      ("case" ~> rep1sep(typ, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
+    lazy val typeSwitchCase: Parser[PTypeSwitchCase] = {
+      val typeOrNil = nilLit | typ
+      ("case" ~> rep1sep(typeOrNil, ",") <~ ":") ~ pos((statement <~ eos).*) ^^ {
         case guards ~ stmts => PTypeSwitchCase(guards, PBlock(stmts.get).at(stmts))
       }
+    }
 
     lazy val typeSwitchDflt: Parser[PTypeSwitchDflt] =
       "default" ~> ":" ~> pos((statement <~ eos).*) ^^ (stmts => PTypeSwitchDflt(PBlock(stmts.get).at(stmts)))
@@ -745,12 +770,18 @@ object Parser {
       precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
+        precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
+        precedence5 ~ ("^" ~> precedence6) ^^ PBitXor |
         precedence6
 
     lazy val precedence6: PackratParser[PExpression] = /* Left-associative */
       precedence6 ~ ("*" ~> precedence7) ^^ PMul |
         precedence6 ~ ("/" ~> precedence7) ^^ PDiv |
         precedence6 ~ ("%" ~> precedence7) ^^ PMod |
+        precedence6 ~ ("<<" ~> precedence7) ^^ PShiftLeft |
+        precedence6 ~ (">>" ~> precedence7) ^^ PShiftRight |
+        precedence6 ~ ("&^" ~> precedence7) ^^ PBitClear |
+        precedence6 ~ (not("&&") ~> "&" ~> precedence7) ^^ PBitAnd |
         precedence7
 
     lazy val precedence7: PackratParser[PExpression] =
@@ -764,6 +795,7 @@ object Parser {
       "+" ~> unaryExp ^^ (e => PAdd(PIntLit(0).at(e), e)) |
         "-" ~> unaryExp ^^ (e => PSub(PIntLit(0).at(e), e)) |
         "!" ~> unaryExp ^^ PNegation |
+        "^" ~> unaryExp ^^ PBitNegation |
         reference |
         dereference |
         receiveExp |
@@ -774,7 +806,6 @@ object Parser {
         cap |
         keys |
         values |
-        ghostUnaryExp |
         primaryExp
 
     lazy val make : Parser[PMake] =
@@ -809,9 +840,6 @@ object Parser {
 
     lazy val unfolding: Parser[PUnfolding] =
       "unfolding" ~> predicateAccess ~ ("in" ~> expression) ^^ PUnfolding
-
-    lazy val ghostUnaryExp : Parser[PGhostExpression] =
-      "|" ~> expression <~ "|" ^^ PCardinality
 
     lazy val sequenceConversion : Parser[PSequenceConversion] =
       "seq" ~> ("(" ~> expression <~ ")") ^^ PSequenceConversion
@@ -907,9 +935,27 @@ object Parser {
     lazy val basicLit: Parser[PBasicLiteral] =
       "true" ^^^ PBoolLit(true) |
         "false" ^^^ PBoolLit(false) |
-        "nil" ^^^ PNilLit() |
-        regex("[0-9]+".r) ^^ (lit => PIntLit(BigInt(lit))) |
+        nilLit |
+        intLit |
         stringLit
+
+    lazy val nilLit: Parser[PNilLit] = "nil" ^^^ PNilLit()
+
+    lazy val intLit: Parser[PIntLit] =
+      octalLit | binaryLit | hexLit | decimalLit
+
+    lazy val binaryLit: Parser[PIntLit] =
+      "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
+
+    lazy val octalLit: Parser[PIntLit] =
+      // according to the go language spec, non-zero literals starting with `0` are octal literals
+      "0" ~> ("o"|"O").? ~> regex("[0-7]+".r) ^^ (lit => PIntLit(BigInt(lit, 8), Octal))
+
+    lazy val hexLit: Parser[PIntLit] =
+      "0" ~> ("x"|"X") ~> regex("[0-9A-Fa-f]+".r) ^^ (lit => PIntLit(BigInt(lit, 16), Hexadecimal))
+
+    lazy val decimalLit: Parser[PIntLit] =
+      (exactWord("0") | regex("[1-9][0-9]*".r)) ^^ (lit => PIntLit(BigInt(lit)))
 
     lazy val stringLit: Parser[PStringLit] =
       rawStringLit | interpretedStringLit
@@ -962,7 +1008,7 @@ object Parser {
       (
         ("(" ~> typMinusExpr <~ ")") |
           ("*" ~> typMinusExpr ^^ PDeref) |
-          sliceType | arrayType | mapType | channelType | functionType | structType | interfaceType | predType |
+          sliceType | arrayType | mapType | dictType | channelType | functionType | structType | interfaceType | predType |
           sequenceType | setType | multisetType | optionType | domainType |
           predeclaredType
         ) <~ not("(" | "{")

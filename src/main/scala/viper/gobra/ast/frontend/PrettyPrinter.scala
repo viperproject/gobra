@@ -8,7 +8,7 @@ package viper.gobra.ast.frontend
 
 import org.bitbucket.inkytonik.kiama
 import viper.gobra.ast.printing.PrettyPrinterCombinators
-import viper.gobra.util.Constants
+import viper.gobra.util.{Binary, Constants, Decimal, Hexadecimal, Octal}
 
 trait PrettyPrinter {
   def format(node: PNode): String
@@ -110,6 +110,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showPure: Doc = "pure" <> line
   def showPre(pre: PExpression): Doc = "requires" <+> showExpr(pre)
+  def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
   
@@ -132,10 +133,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, terminationMeasure, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line))  <>
+        hcat(preserves map (showPreserves(_) <> line)) <>
+        hcat(posts map (showPost(_) <> line)) <>
           showTerminationMeasure(terminationMeasure) <> line
 
     case PLoopSpec(inv,termination_measures) =>
@@ -271,6 +273,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PMulOp() => "*"
     case PDivOp() => "/"
     case PModOp() => "%"
+    case PBitAndOp() => "&"
+    case PBitOrOp() => "|"
+    case PBitXorOp() => "^"
+    case PBitClearOp() => "&^"
+    case PShiftLeftOp() => "<<"
+    case PShiftRightOp() => ">>"
   }
 
   def showIfClause(n: PIfClause): Doc = n match {
@@ -284,7 +292,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
 
   def showTypeSwitchClause(n: PTypeSwitchClause): Doc = n match {
     case PTypeSwitchDflt(body) => "default"  <> ":" <> showNestedStmtList(body.stmts)
-    case PTypeSwitchCase(left, body) => "case" <+> showTypeList(left) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
+    case PTypeSwitchCase(left, body) =>
+      "case" <+> showList(left)(showExprOrType) <> ":" <> sequence(ssep(body.stmts map showStmt, line))
   }
 
   def showSelectClause(n: PSelectClause): Doc = n match {
@@ -386,7 +395,14 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PNegation(operand) => "!" <> showExpr(operand)
       case PNamedOperand(id) => showId(id)
       case PBoolLit(lit) => if(lit) "true" else "false"
-      case PIntLit(lit) => lit.toString
+      case PIntLit(lit, base) =>
+        val prefix = base match {
+          case Binary => "0b"
+          case Octal =>"0o"
+          case Decimal => ""
+          case Hexadecimal => "0x"
+        }
+        prefix + lit.toString(base.base)
       case PNilLit() => "nil"
       case PStringLit(lit) => "\"" <> lit <> "\""
       case PCompositeLit(typ, lit) => showLiteralType(typ) <+> showLiteralValue(lit)
@@ -430,6 +446,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       // already using desired notation for predicate constructor instances, i.e. the "{}" delimiters for
       // partially applied predicates
       case PPredConstructor(base, args) => show(base) <> braces(showList(args)(_.fold(text("_"))(showExpr)))
+      case PBitAnd(left, right) => showExpr(left) <+> "&" <+> showExpr(right)
+      case PBitOr(left, right) => showExpr(left) <+> "|" <+> showExpr(right)
+      case PBitXor(left, right) => showExpr(left) <+> "^" <+> showExpr(right)
+      case PBitClear(left, right) => showExpr(left) <+> "&^" <+> showExpr(right)
+      case PShiftLeft(left, right) => showExpr(left) <+> "<<" <+> showExpr(right)
+      case PShiftRight(left, right) => showExpr(left) <+> ">>" <+> showExpr(right)
+      case PBitNegation(exp) => "^" <> showExpr(exp)
     }
     case expr: PGhostExpression => expr match {
       case POld(e) => "old" <> parens(showExpr(e))
@@ -456,7 +479,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case POptionGet(e) => "get" <> parens(showExpr(e))
 
       case expr : PGhostCollectionExp => expr match {
-        case PCardinality(operand) => "|" <> showExpr(operand) <> "|"
         case PIn(left, right) => showSubExpr(expr, left) <+> "in" <+> showSubExpr(expr, right)
         case PMultiplicity(left, right) => showSubExpr(expr, left) <+> "#" <+> showSubExpr(expr, right)
         case PGhostCollectionUpdate(seq, clauses) => showExpr(seq) <>

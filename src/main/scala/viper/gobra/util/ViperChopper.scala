@@ -6,6 +6,7 @@ import viper.silver.{ast => vpr}
 import scala.collection.mutable.Stack
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
+import viper.gobra.util.ViperChopper.Vertex.Always
 
 object ViperChopper {
   /** chops 'choppee' into independent Viper programs */
@@ -18,8 +19,8 @@ object ViperChopper {
     val vertices = (requiredVertices ++ edges.flatten{case (l, r) => List(l, r)}).distinct
     val (components, _, componentDAG) = SCC.compute(vertices, edges)
     val roots = Roots.roots(components, componentDAG)
-    // TODO: currently, the always vertex is ignored
-    val subtrees = roots.map(root => Subtree.subtree(root, componentDAG))
+    val alwaysVertices = edges.collect{case (e: Vertex, Always) => SCC.Component(Vector(e))}
+    val subtrees = roots.map(root => Subtree.subtree(root, componentDAG).appendedAll(alwaysVertices))
     val programs = subtrees.map(subtree => subtree.flatMap(_.nodes).distinct)
     val verticesToProgram = Vertex.inverse(choppee)
     programs.map(verticesToProgram)

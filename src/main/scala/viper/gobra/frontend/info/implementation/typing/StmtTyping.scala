@@ -151,7 +151,7 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
             case PNamedOperand(id) => 
               val declared = this.declared(n.body)
               if (declared.exists(_ == id)) noMessages
-              else error(n, "Taking the address of a variable defined outside of the outline block is not allowed")
+              else error(r, "Taking the address of a variable defined outside of the outline block is not allowed")
             case _ => noMessages
           }
         }.flatten

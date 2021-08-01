@@ -176,8 +176,8 @@ trait Enclosing { this: TypeInfoImpl =>
       ).toSet
 
       val declared = allVariables.filter{
-        case tree.parent(_: PVarDecl) => true
-        case unk: PIdnUnk  => isDef(unk)
+        case _: PIdnDef => true
+        case unk: PIdnUnk => isDef(unk)
         case _ => false
       }
 

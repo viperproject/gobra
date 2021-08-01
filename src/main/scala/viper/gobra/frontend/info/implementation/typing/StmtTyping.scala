@@ -147,6 +147,13 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
         children.collect{
           case n: POld => error(n, "Currently, the old keyword is not supported")
           case n: PReturn => error(n, "Using return in an outlined block is not allowed")
+          case r: PReference => r.operand match {
+            case PNamedOperand(id) => 
+              val declared = this.declared(n.body)
+              if (declared.exists(_ == id)) noMessages
+              else error(n, "Taking the address of a variable defined outside of the outline block is not allowed")
+            case _ => noMessages
+          }
         }.flatten
       } ++
       n.body.collect{case stmt: PReturn => 

@@ -46,3 +46,12 @@ func outline_deep_return() {
 		}
 	)
 }
+
+// taking the reference of a variable defined outside the outlined block is not allowed
+func outline_reference() {
+	z@ := 0
+	outline (
+		//:: ExpectedOutput(type_error)
+		y := &z
+	)
+}

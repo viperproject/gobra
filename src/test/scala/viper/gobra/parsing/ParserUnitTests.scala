@@ -2644,7 +2644,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
 
   test("Parser: should be able to parse conditional termination measure" ) {
     frontend.parseMember("decreases n if n>1\n decreases _ if n<1\n decreases *\n func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Some(PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(Vector(PNamedOperand(PIdnUse("n"))), PGreater(PNamedOperand(PIdnUse("n")), PIntLit(BigInt(1), Decimal))), PConditionalMeasureUnderscore(PLess(PNamedOperand(PIdnUse("n")), PIntLit(BigInt(1), Decimal))), PConditionalMeasureAdditionalStar()))), false), None)) =>
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Some(PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(Vector(PNamedOperand(PIdnUse("n"))), PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal))), PConditionalMeasureUnderscore(PLess(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal))), PConditionalMeasureAdditionalStar()))), false), None)) if one == 1 =>
     }
   }
 

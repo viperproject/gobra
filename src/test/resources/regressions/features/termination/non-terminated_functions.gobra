@@ -25,7 +25,7 @@ func g(x int) int {
 }
 
 
-//:: ExpectedOutput(postcondition_error: assertion_error)
+//:: ExpectedOutput(postcondition_error)
 ensures result == 1
 decreases x
 func h(x int) (result int) {

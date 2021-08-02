@@ -2643,7 +2643,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: should be able to parse conditional termination measure" ) {
-    frontend.parseMember("decreases n if n>1; decreases _ if n<1; decreases * func factorial (n int) int") should matchPattern {
+    frontend.parseMember("decreases n if n>1; decreases _ if n<2; decreases * func factorial (n int) int") should matchPattern {
       case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Some(PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(Vector(PNamedOperand(PIdnUse("n"))), PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal))), PConditionalMeasureUnderscore(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))), PConditionalMeasureAdditionalStar()))), false), None)) if one == 1 && two == 2 =>
     }
   }

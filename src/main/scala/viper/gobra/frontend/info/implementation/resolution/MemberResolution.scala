@@ -224,7 +224,7 @@ trait MemberResolution { this: TypeInfoImpl =>
 
   def tryPackageLookup(importTarget: AbstractImport, id: PIdnUse, errNode: PNode): Option[(Entity, Vector[MemberPath])] = {
     def parseAndTypeCheck(importTarget: AbstractImport): Either[Vector[VerifierError], ExternalTypeInfo] = {
-      val pkgFiles = PackageResolver.resolve(importTarget, config.includeDirs).getOrElse(Vector())
+      val pkgFiles = PackageResolver.resolve(importTarget, config.moduleName, config.includeDirs).getOrElse(Vector())
       val res = for {
         nonEmptyPkgFiles <- if (pkgFiles.isEmpty)
           Left(Vector(NotFoundError(s"No source files for package '$importTarget' found")))

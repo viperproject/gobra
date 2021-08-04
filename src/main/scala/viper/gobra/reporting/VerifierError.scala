@@ -17,7 +17,7 @@ sealed trait VerifierError {
   def id: String
 
   def formattedMessage: String = position match {
-    case Some(pos) => s"<${pos.line}:${pos.column}> $message"
+    case Some(pos) => s"<${pos.file.getFileName.toString}:${pos.line}:${pos.column}> $message"
     case _ => message
   }
 

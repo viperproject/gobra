@@ -1659,6 +1659,14 @@ object Desugar {
               case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
               case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
+            case baseT: in.StringT =>
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
+              }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 

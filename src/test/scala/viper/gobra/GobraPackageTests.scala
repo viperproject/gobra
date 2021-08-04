@@ -74,6 +74,8 @@ class GobraPackageTests extends GobraTests {
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        executor.terminateAndAssertInexistanceOfTimeout()
+
         info(s"Time required: $elapsedMilis ms")
 
         equalConfigs(parsedConfig.get, config) ++ (result match {

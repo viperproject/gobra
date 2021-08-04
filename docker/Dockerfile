@@ -19,6 +19,7 @@ RUN apt-get update && \
         gnupg2 \
         locales \
         unzip \
+        sysstat \
     && \
     rm -rf /var/lib/apt/lists/*
 

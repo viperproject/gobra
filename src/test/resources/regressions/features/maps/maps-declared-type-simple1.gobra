@@ -1,0 +1,27 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct {
+		val int
+}
+
+func test1() {
+    m1 := map[int]cell { 0: cell{42} }
+    m2 := map[cell]int { cell{42}: 0 }
+    assert m1[0] == cell{42}
+    assert m2[cell{42}] == 0
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+func test2() {
+    c := &cell{42}
+    m1 := map[int]*cell { 0: c }
+    m2 := map[*cell]int { c: 0 }
+    assert m1[0] == c
+    assert m2[c] == 0
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

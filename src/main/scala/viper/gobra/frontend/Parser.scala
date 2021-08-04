@@ -1046,18 +1046,23 @@ object Parser {
       "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ { case clauses => PStructType(clauses.flatten) }
 
-    lazy val structClause: Parser[PStructClause] =
+    lazy val structClause: Parser[Option[PStructClause]] =
       fieldDecls | embeddedDecl
 
-    lazy val embeddedDecl: Parser[PEmbeddedDecl] =
-      embeddedType ^^ (et => PEmbeddedDecl(et, PIdnDef(et.name).at(et)))
+    lazy val embeddedDecl: Parser[Option[PEmbeddedDecl]] =
+      embeddedType ^^ (et => Some(PEmbeddedDecl(et, PIdnDef(et.name).at(et))))
 
-    lazy val fieldDecls: Parser[PFieldDecls] =
-      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t =>
-        PFieldDecls(ids map (id => PFieldDecl(id, t.copy).at(id)))
-      }
+    lazy val fieldDecls: Parser[Option[PFieldDecls]] =
+      rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t => {
+        val fields = ids flatMap {
+          // ignore fields starting with a lower case letter when parsing imported packages
+          case id if !specOnly || (id.name.nonEmpty && id.name.charAt(0).isUpper) => Vector(PFieldDecl(id, t.copy).at(id))
+          case _ => Vector()
+        }
+        if (fields.isEmpty) None else Some(PFieldDecls(fields))
+      }}
 
     lazy val interfaceType: Parser[PInterfaceType] =
       "interface" ~> "{" ~> (interfaceClause <~ eos).* <~ "}" ^^ { clauses =>

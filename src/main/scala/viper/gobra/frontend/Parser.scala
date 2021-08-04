@@ -1256,7 +1256,8 @@ object Parser {
     lazy val idnImportPath: Parser[String] =
       // this allows for seemingly meaningless paths such as ".......". It is not problematic that Gobra parses these
       // paths given that it will throw an error if they do not exist in the filesystem
-      "\"" ~> "[.a-zA-Z0-9_/]*".r <~ "\""
+      // the following regex matches an arbitrary string start and ending with double quotes
+      "\"" ~> "[^\"]*".r <~ "\""
       // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**

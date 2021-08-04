@@ -128,11 +128,12 @@ object PackageResolver {
     * Resolves import target using includeDirs to a directory which exists and from which source files should be retrieved
     */
   private def getLookupPath(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, InputResource] = {
+    val moduleNameWithTrailingSlash = if (moduleName.nonEmpty && !moduleName.endsWith("/")) s"$moduleName/" else moduleName
     importTarget match {
       case BuiltInImport => getBuiltInResource.toRight(s"Loading builtin package has failed")
       case RegularImport(importPath) =>
         // if importPath starts with current module name then only consider the remainder
-        val moduleImportPath = if (importPath.startsWith(moduleName)) importPath.substring(moduleName.length) else importPath
+        val moduleImportPath = if (importPath.startsWith(moduleNameWithTrailingSlash)) importPath.substring(moduleNameWithTrailingSlash.length) else importPath
         val resources = getIncludeResources(includeDirs) ++ getStubResources ++ getGoPathResources
         // the desired package should now be located in a subdirectory named after the package name:
         val packageDirs = resources.map(_.resolve(moduleImportPath))

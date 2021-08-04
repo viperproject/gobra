@@ -123,6 +123,12 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: import path with minus") {
+    frontend.parseImportDecl("import m \"foo-bar/math\"") should matchPattern {
+      case Vector(PExplicitQualifiedImport(PIdnDef("m"), "foo-bar/math")) =>
+    }
+  }
+
   test("Parser: spec only function") {
     frontend.parseMember("func foo() { b.bar() }", specOnly = true) should matchPattern {
       case Vector(PFunctionDecl(PIdnDef("foo"), Vector(), PResult(Vector()), PFunctionSpec(Vector(), Vector(), Vector(), false), None)) =>

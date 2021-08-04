@@ -26,7 +26,7 @@ object LoggerDefaults {
 }
 case class Config(
                  inputFiles: Vector[Path],
-                 moduleName: String,
+                 moduleName: String = "",
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,

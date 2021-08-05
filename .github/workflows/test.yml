@@ -14,15 +14,20 @@ jobs:
   setup-and-test:
     runs-on: ubuntu-latest
     container: gobraverifier/gobra-base:v6_z3_4.8.7
-    env:
-      SILVER_REF: "v.21.07-release"
-      SILICON_REF: "v.21.07-release"
-      CARBON_REF: "v.21.07-release"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
         with:
           path: gobra
+
+      - name: Get Viper version
+        shell: bash
+        run: |
+          source viper-toolchain-versions.sh
+          echo "SILVER_REF=$SILVER_REF" >> $GITHUB_ENV
+          echo "SILICON_REF=$SILICON_REF" >> $GITHUB_ENV
+          echo "CARBON_REF=$CARBON_REF" >> $GITHUB_ENV
+        working-directory: gobra
 
       # clone Viper dependencies
       - name: Checkout Silver

@@ -4,8 +4,9 @@ The `Dockerfile` in this directory creates a ready-to-use Docker container with 
 The full steps are as follows:
 1. Executing the following command in the `artifact` directory of this repository (i.e. the directory in which this README is located) builds the image:
     ```
-    docker build -t gobraverifier/gobra-artifact:v1 .
-    ```
+    source ../viper-toolchain-versions.sh
+    docker build --build-arg SILVER_REF=$SILVER_REF --build-arg CARBON_REF=$CARBON_REF --build-arg SILICON_REF=$SILICON_REF -t gobraverifier/gobra-artifact:v1 .
+   ```
    This downloads the specified versions of Gobra, Silver, Silicon, and Carbon into the image and compiles them to `/home/gobra/gobra.jar` and `/home/gobra/gobra-test.jar` inside the docker image.
    `gobra.jar` just contains an executable version of Gobra whereas `gobra-test.jar` also includes the test classes. 
 2. Start the container:

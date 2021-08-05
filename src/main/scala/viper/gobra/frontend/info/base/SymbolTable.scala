@@ -27,13 +27,17 @@ object SymbolTable extends Environments[Entity] {
     * A entity represented by names for whom we have seen more than one
     * declaration so we are unsure what is being represented.
     */
-  case class MultipleEntity() extends ErrorEntity
+  case class MultipleEntity() extends ErrorEntity {
+    override val toString: String = "multiple entities"
+  }
 
   /**
     * An unknown entity, for example one that is represened by names whose
     * declarations are missing.
     */
-  case class UnknownEntity() extends ErrorEntity
+  case class UnknownEntity() extends ErrorEntity {
+    override val toString: String = "unknown"
+  }
 
   /**
     * Special entity that provides an error message
@@ -44,6 +48,7 @@ object SymbolTable extends Environments[Entity] {
     def rep: PNode
     def ghost: Boolean
     def context: ExternalTypeInfo
+    override def toString: String = rep.formattedShort
   }
 
   sealed trait ActualRegular extends Regular
@@ -102,6 +107,7 @@ object SymbolTable extends Environments[Entity] {
   }
   case class TypeSwitchVariable(decl: PTypeSwitchStmt, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = decl
+    override def toString: String = decl.binder.fold("unknown")(_.toString)
   }
   case class RangeVariable(idx: Int, exp: PRange, ghost: Boolean, addressable: Boolean, context: ExternalTypeInfo) extends ActualVariable {
     override def rep: PNode = exp

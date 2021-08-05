@@ -16,4 +16,6 @@ trait Conditions extends Generator {
   /** Returns true, but asserts that the argument holds. */
   def assert(x: vpr.Exp): vpr.Exp
   def assert(x: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): (vpr.Exp, ErrorTransformer)
+  /** Returns 'exp', but asserts that 'cond' holds. */
+  def assert(cond: vpr.Exp, exp: vpr.Exp, reasonT: (Source.Verifier.Info, ErrorReason) => VerificationError): (vpr.Exp, ErrorTransformer)
 }

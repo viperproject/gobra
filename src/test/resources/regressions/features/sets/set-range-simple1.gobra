@@ -20,7 +20,7 @@ func example3() {
 
 func example4() {
   assert set[1..4] == set[int] { 1, 2, 3 }
-  assert |set[1..4]| == 3
+  assert len(set[1..4]) == 3
 }
 
 func example5() {

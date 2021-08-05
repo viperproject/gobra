@@ -26,6 +26,7 @@ object TypeHead {
   case class StructHD(fields: Vector[(String, Boolean)]) extends TypeHead
   case object ArrayHD extends TypeHead
   case object SliceHD extends TypeHead
+  case object MapHD extends TypeHead
   case class InterfaceHD(name: String) extends TypeHead
   case class DomainHD(name: String) extends TypeHead
   case object ChannelHD extends TypeHead
@@ -36,6 +37,7 @@ object TypeHead {
   case object SeqHD extends TypeHead
   case object SetHD extends TypeHead
   case object MSetHD extends TypeHead
+  case object MathMapHD extends TypeHead
   case object OptionHD extends TypeHead
   case class TupleHD(arity: Int) extends TypeHead
   case class PredHD(arity: Int) extends TypeHead
@@ -66,9 +68,11 @@ object TypeHead {
     case SortT => SortHD
     case _: ArrayT => ArrayHD
     case _: SliceT => SliceHD
+    case _: MapT => MapHD
     case _: SequenceT => SeqHD
     case _: SetT => SetHD
     case _: MultisetT => MSetHD
+    case _: MathMapT => MathMapHD
     case _: OptionT => OptionHD
     case t: TupleT => TupleHD(t.ts.size)
     case t: PredT => PredHD(t.args.size)
@@ -90,9 +94,11 @@ object TypeHead {
     case SortT => Vector.empty
     case t: ArrayT => Vector(t.elems)
     case t: SliceT => Vector(t.elems)
+    case t: MapT => Vector(t.keys, t.values)
     case t: SequenceT => Vector(t.t)
     case t: SetT => Vector(t.t)
     case t: MultisetT => Vector(t.t)
+    case t: MathMapT => Vector(t.keys, t.values)
     case t: OptionT => Vector(t.t)
     case t: TupleT => t.ts
     case t: PredT => t.args
@@ -108,10 +114,12 @@ object TypeHead {
     case t: StructTExpr => t.fields.map(_._2)
     case t: ArrayTExpr => Vector(t.elems)
     case t: SliceTExpr => Vector(t.elems)
+    case t: MapTExpr => Vector(t.keys, t.elems)
     case _: PermTExpr => Vector.empty
     case t: SequenceTExpr => Vector(t.elems)
     case t: SetTExpr => Vector(t.elems)
     case t: MultisetTExpr => Vector(t.elems)
+    case t: MathMapTExpr => Vector(t.keys, t.elems)
     case t: OptionTExpr => Vector(t.elems)
     case t: TupleTExpr => t.elems
   }
@@ -126,10 +134,12 @@ object TypeHead {
     case t: StructTExpr => StructHD(t.fields.map(t => (t._1, t._3)))
     case _: ArrayTExpr => ArrayHD
     case _: SliceTExpr => SliceHD
+    case _: MapTExpr => MapHD
     case _: PermTExpr => PermHD
     case _: SequenceTExpr => SeqHD
     case _: SetTExpr => SetHD
     case _: MultisetTExpr => MSetHD
+    case _: MathMapTExpr => MathMapHD
     case _: OptionTExpr => OptionHD
     case t: TupleTExpr => TupleHD(t.elems.size)
   }
@@ -144,6 +154,7 @@ object TypeHead {
     case t: StructHD => t.fields.size
     case ArrayHD => 1
     case SliceHD => 1
+    case MapHD => 2
     case _: InterfaceHD => 0
     case _: DomainHD => 0
     case ChannelHD => 1
@@ -154,6 +165,7 @@ object TypeHead {
     case SeqHD => 1
     case SetHD => 1
     case MSetHD => 1
+    case MathMapHD => 2
     case OptionHD => 1
     case t: TupleHD => t.arity
     case t: PredHD => t.arity

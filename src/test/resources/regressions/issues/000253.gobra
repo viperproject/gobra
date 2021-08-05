@@ -1,0 +1,15 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue253
+
+type pair struct{
+  left, right int
+}
+
+ensures typeOf(res) == pair && res.(pair) == pair{1,2}
+func structTestOut() (res interface{}) {
+  var x pair = pair{1,2}
+  return x
+}
+

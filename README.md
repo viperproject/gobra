@@ -5,12 +5,12 @@
 
 [Gobra](https://www.pm.inf.ethz.ch/research/gobra.html) is a prototype verifier for Go programs, based on the [Viper verification infrastructure](https://www.pm.inf.ethz.ch/research/viper.html).
 
-We call annotated Go programs Gobra programs and use the file extension `.gobra` for them. Examples can be found in [`src/test/resources`](https://github.com/viperproject/gobra/blob/master/src/test/resources).
+We call annotated Go programs Gobra programs and use the file extension `.gobra` for them. A tutorial can be found in [`docs/tutorial.md`](https://github.com/viperproject/gobra/blob/master/docs/tutorial.md). More examples can be found in [`src/test/resources`](https://github.com/viperproject/gobra/blob/master/src/test/resources).
 
 ## Compile and Run Gobra
 ### Preliminaries
-- Java 64-Bit (tested with version 11)
-- SBT (tested with version 1.2.6)
+- Java 64-Bit (tested with version 11 and 15)
+- SBT (tested with version 1.4.4)
 - Git
 
 ### Installation
@@ -20,7 +20,6 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
     - [silver](https://github.com/viperproject/silver)
     - [silicon](https://github.com/viperproject/silicon)
     - [carbon](https://github.com/viperproject/carbon)
-    - [viperserver](https://github.com/viperproject/viperserver)
     - Gobra
 3. Add symbolic links
     - To create a symbolic link from A to B, you have to run
@@ -30,19 +29,14 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silver -> ..\silver
     - Change directory to `gobraHome/carbon` and create the symbolic links:
         - silver -> ..\silver
-    - Change directory to `gobraHome/viperserver` and create the links:
-        - silver -> ..\silver
-        - silicon -> ..\silicon
-        - carbon -> ..\carbon
     - Change to `gobraHome/gobra-one` and create the links:
         - silver -> ..\silver
         - silicon -> ..\silicon
         - carbon -> ..\carbon
-        - viperserver -> ..\viperserver
 4. Install Z3 and Boogie. 
-    Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend.
+    Steps (iii) and (iv) are specific to Boogie and only necessary when using Carbon as verification backend. Gobra uses the Silicon verification backend by default.
     1. Get a Z3 executable. A precompiled executable can be downloaded [here](https://github.com/Z3Prover/z3/releases). 
-      We tested version 4.8.6 64-Bit.
+      We tested version 4.8.7 64-Bit.
     2. Set the environment variable `Z3_EXE` to the path of your Z3 executable.
     3. Get a Boogie executable. Instructions for compilation are given [here](https://github.com/boogie-org/boogie).
         [Mono](https://www.mono-project.com/download/stable/) is required on Linux and macOS to run Boogie.
@@ -72,3 +66,6 @@ The [LICENSE](./LICENSE) lists the exceptions to this rule.
 Note that source files (whenever possible) should list their license in a short header.
 Continuous integration checks these file headers.
 The same checks can be performed locally by running `npx github:viperproject/check-license-header#v1 check --config .github/license-check/config.json --strict` in this repository's root directory.
+
+## Get in touch
+Do you still have questions? Open an issue or contact us on [Zulip](https://gobra.zulipchat.com).

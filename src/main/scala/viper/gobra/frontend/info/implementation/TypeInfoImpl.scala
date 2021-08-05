@@ -19,7 +19,7 @@ import viper.gobra.frontend.info.implementation.typing.ghost._
 import viper.gobra.frontend.info.implementation.typing.ghost.separation.GhostSeparation
 import viper.gobra.frontend.info.{ExternalTypeInfo, Info, TypeInfo}
 
-class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
+class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context, val isMainContext: Boolean = false)(val config: Config) extends Attribution with TypeInfo with ExternalTypeInfo
 
   with NameResolution
   with LabelResolution
@@ -115,18 +115,8 @@ class TypeInfoImpl(final val tree: Info.GoTree, final val context: Info.Context)
     externallyAccessedMembers.contains(m)
   }
 
-  lazy val struct: PNode => Option[Type.StructT] =
-    // lookup PStructType based on PFieldDecl and get then StructT
-    attr[PNode, Option[Type.StructT]] {
-
-      case tree.parent.pair(_: PFieldDecl, decls: PFieldDecls) =>
-        struct(decls)
-
-      case tree.parent.pair(_: PFieldDecls, structDecl: PStructType) =>
-        Some(symbType(structDecl).asInstanceOf[Type.StructT])
-
-      case _ => None
-    }
+  override def struct(n: PNode): Option[Type.StructT] =
+    enclosingStruct(n).map(structDecl => symbType(structDecl).asInstanceOf[Type.StructT])
 
   override def boolConstantEvaluation(expr: PExpression): Option[Boolean] = boolConstantEval(expr)
 

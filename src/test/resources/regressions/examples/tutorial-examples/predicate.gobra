@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package tutorial
+
+type node struct {
+	value int
+	next *node
+}
+
+pred list(ptr *node) {
+	acc(&ptr.value) && acc(&ptr.next) && (ptr.next != nil ==> list(ptr.next))
+}
+
+requires list(ptr)
+ensures  list(ptr)
+func testPredFail(ptr * node) {
+	assert list(ptr) // succeeds
+	// assert acc(&ptr.value) && acc(&ptr.next) // fails if uncommented
+}
+
+requires list(ptr)
+ensures  list(ptr)
+func testPred(ptr * node) {
+	assert list(ptr)
+	unfold list(ptr) // exchanges list(ptr) with its body
+	assert acc(&ptr.value) && acc(&ptr.next) // succeeds
+	fold list(ptr)
+}
+
+requires list(ptr)
+pure func head(ptr *node) int {
+	return unfolding list(ptr) in ptr.value
+}
+
+requires p > 0
+requires acc(list(ptr), p)
+pure func (ptr *node) contains(value int, ghost p perm) bool {
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && ptr.next.contains(value, p))
+}
+
+requires acc(list(ptr), _)
+pure func (ptr *node) contains2(value int) bool {
+	return unfolding list(ptr) in ptr.value == value || (ptr.next != nil && ptr.next.contains2(value))
+}

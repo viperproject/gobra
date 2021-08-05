@@ -6,11 +6,10 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
-import viper.gobra.frontend.info.base.Type.StructT
+import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.frontend.info.base.Type.{InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
-import viper.gobra.frontend.info.base.Type.Type
-import viper.gobra.frontend.info.implementation.resolution.MemberPath
+import viper.gobra.frontend.info.implementation.resolution.{AdvancedMemberSet, MemberPath}
 
 trait ExternalTypeInfo {
 
@@ -60,7 +59,7 @@ trait ExternalTypeInfo {
 
   def scope(n: PIdnNode): PScope
 
-  def struct: PFieldDecl => Option[StructT]
+  def struct(n: PNode): Option[StructT]
 
   def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 
@@ -71,4 +70,9 @@ trait ExternalTypeInfo {
   def keyElementIndices(elems : Vector[PKeyedElement]) : Vector[BigInt]
 
   def getTypeInfo: TypeInfo
+
+  /* memberset within a specific context */
+  def localMemberSet(t: Type): AdvancedMemberSet[TypeMember]
+
+  def localImplementationProofs: Vector[(Type, InterfaceT, Vector[String], Vector[String])]
 }

@@ -1,0 +1,17 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+func m() {
+	var w T1 = T1 {x: 1, y: 2}
+	var z T1 = struct {
+		x int
+		y uint32
+	}(w)
+}
+
+type T1 struct {
+	x int
+	y uint32
+}

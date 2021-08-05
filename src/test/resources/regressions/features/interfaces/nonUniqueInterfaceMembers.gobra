@@ -1,0 +1,41 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// interface method can have same name as types:
+type A struct {}
+type B int
+type C = int
+// interface predicate can have same name as type:
+type mem int
+
+type I interface {
+    pred mem()
+
+    A()
+    B()
+
+    // postcondition cannot be specified due to issue #312
+    C() (res int)
+}
+
+pred (a *A) mem() { true }
+func (a *A) A() {}
+func (a *A) B() {}
+
+ensures res == 42
+func (a *A) C() (res int) {
+    res = 42
+    return
+}
+
+func client(a *A) {
+  var i I = a
+  fold i.mem()
+  i.A()
+  i.B()
+  res := i.C()
+  //:: ExpectedOutput(assert_error:assertion_error)
+  assert false
+}

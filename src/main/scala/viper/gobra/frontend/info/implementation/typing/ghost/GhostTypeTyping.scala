@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info.implementation.typing.ghost
 
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, noMessages}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
@@ -15,14 +15,12 @@ import viper.gobra.frontend.info.implementation.typing.BaseTyping
 trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
 
   private[typing] def wellDefGhostType(typ : PGhostType) : Messages = typ match {
-    case PSequenceType(elem) => isType(elem).out ++
-      error(typ, s"sequences of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
-    case PSetType(elem) => isType(elem).out ++
-      error(typ, s"sets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
-    case PMultisetType(elem) => isType(elem).out ++
-      error(typ, s"multisets of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
-    case POptionType(elem) => isType(elem).out ++
-      error(typ, s"options of custom defined types are currently not supported", elem.isInstanceOf[PNamedOperand])
+    case PSequenceType(elem) => isType(elem).out
+    case PSetType(elem) => isType(elem).out
+    case PMultisetType(elem) => isType(elem).out
+    case PMathematicalMapType(key, value) => isType(key).out ++ isType(value).out
+    case POptionType(elem) => isType(elem).out
+    case n: PGhostSliceType => isType(n.elem).out
 
     case _: PDomainType => noMessages
   }
@@ -31,7 +29,9 @@ trait GhostTypeTyping extends BaseTyping { this : TypeInfoImpl =>
     case PSequenceType(elem) => SequenceT(typeSymbType(elem))
     case PSetType(elem) => SetT(typeSymbType(elem))
     case PMultisetType(elem) => MultisetT(typeSymbType(elem))
+    case PMathematicalMapType(keys, values) => MathMapT(typeSymbType(keys), typeSymbType(values))
     case POptionType(elem) => OptionT(typeSymbType(elem))
+    case PGhostSliceType(elem) => GhostSliceT(typeSymbType(elem))
     case t: PDomainType => DomainT(t, this)
   }
 }

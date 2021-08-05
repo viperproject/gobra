@@ -1,0 +1,58 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+// ##(-I ./)
+import f "foo"
+
+type msg struct {
+    payload int
+}
+
+pred payloadIsOne(m *msg) {
+    acc(m) && m.payload == 1
+}
+
+func structChannel() {
+    c := make(chan *msg, 1) // make a buffered channel
+    assert c.IsChannel()
+    assert c.BufferSize() == 1
+
+    c.Init(payloadIsOne!<_!>, PredTrue!<!>)
+    go sendMsg(c)
+
+    fold PredTrue!<!>()
+    res, ok := <- c
+    if (ok) {
+        unfold payloadIsOne!<_!>(res)
+        assert res.payload == 1
+    }
+}
+
+requires acc(c.SendChannel(), 1/2)
+requires c.SendGivenPerm() == payloadIsOne!<_!>;
+requires c.SendGotPerm() == PredTrue!<!>;
+func sendMsg(c chan *msg) {
+    m@ := msg{1}
+    fold payloadIsOne!<_!>(&m)
+    c <- &m
+}
+
+// "c.SendChannel()" should work across packages, i.e. the mpredicate maps to the same Viper predicate independently of
+// the occurrence in packages
+func intChannel() {
+    c := make(chan int)
+    assert c.IsChannel()
+    assert c.BufferSize() == 0
+
+    c.Init(f.vIsOne!<_!>, PredTrue!<!>)
+    go f.send1(c)
+
+    fold PredTrue!<!>()
+    res, ok := <- c
+    if (ok) {
+        unfold f.vIsOne!<_!>(res)
+        assert res == 1
+    }
+}

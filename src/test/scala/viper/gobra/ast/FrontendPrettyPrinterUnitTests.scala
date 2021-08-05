@@ -15,7 +15,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   val frontend = new TestFrontend()
 
   test("Printer: should show sequence update clauses as expected") {
-    val expr = PSequenceUpdateClause(
+    val expr = PGhostCollectionUpdateClause(
       PNamedOperand(PIdnUse("x")),
       PIntLit(BigInt(42))
     )
@@ -25,10 +25,10 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should show a sequence update with a single clause as expected") {
-    val expr = PSequenceUpdate(
+    val expr = PGhostCollectionUpdate(
       PNamedOperand(PIdnUse("xs")),
       Vector(
-        PSequenceUpdateClause(PIntLit(BigInt(1)), PBoolLit(false))
+        PGhostCollectionUpdateClause(PIntLit(BigInt(1)), PBoolLit(false))
       )
     )
     frontend.show(expr) should matchPattern {
@@ -37,7 +37,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should show a sequence update without any clauses as expected") {
-    val expr = PSequenceUpdate(
+    val expr = PGhostCollectionUpdate(
       PNamedOperand(PIdnUse("xs")),
       Vector()
     )
@@ -47,12 +47,12 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should show a sequence update with multiple clauses as expected") {
-    val expr = PSequenceUpdate(
+    val expr = PGhostCollectionUpdate(
       PNamedOperand(PIdnUse("zs")),
       Vector(
-        PSequenceUpdateClause(PNamedOperand(PIdnUse("i")), PBoolLit(false)),
-        PSequenceUpdateClause(PNamedOperand(PIdnUse("j")), PBoolLit(true)),
-        PSequenceUpdateClause(PNamedOperand(PIdnUse("k")), PBoolLit(false))
+        PGhostCollectionUpdateClause(PNamedOperand(PIdnUse("i")), PBoolLit(false)),
+        PGhostCollectionUpdateClause(PNamedOperand(PIdnUse("j")), PBoolLit(true)),
+        PGhostCollectionUpdateClause(PNamedOperand(PIdnUse("k")), PBoolLit(false))
       )
     )
     frontend.show(expr) should matchPattern {
@@ -454,21 +454,21 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should show the unary size operator for sequences and (multi)sets as expected") {
-    val expr = PCardinality(PNamedOperand(PIdnUse("s")))
+    val expr = PLength(PNamedOperand(PIdnUse("s")))
     frontend.show(expr) should matchPattern {
-      case "|s|" =>
+      case "len(s)" =>
     }
   }
 
   test("Printer: should correctly show the size operator in combination with set union") {
-    val expr = PCardinality(
+    val expr = PLength(
       PUnion(
         PNamedOperand(PIdnUse("s")),
         PNamedOperand(PIdnUse("t"))
       )
     )
     frontend.show(expr) should matchPattern {
-      case "|s union t|" =>
+      case "len(s union t)" =>
     }
   }
 
@@ -555,7 +555,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show the cardinality of a multiset literal") {
-    val expr = PCardinality(
+    val expr = PLength(
       PLiteral.multiset(PMultisetType(PIntType()), Vector(
         PLiteral.multiset(PIntType(), Vector(PIntLit(1))),
         PLiteral.multiset(PIntType(), Vector(PIntLit(2), PIntLit(3)))
@@ -563,7 +563,7 @@ class FrontendPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     )
 
     frontend.show(expr) should matchPattern {
-      case "|mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } }|" =>
+      case "len(mset[mset[int]] { mset[int] { 1 }, mset[int] { 2, 3 } })" =>
     }
   }
 

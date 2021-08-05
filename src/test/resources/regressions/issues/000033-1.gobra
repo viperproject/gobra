@@ -5,7 +5,8 @@ package main
 
 func foo() {
   r := Rectangle{Width: 2, Height: 5}
-  assert r.Area() == 10
+  res := r.Area()
+  assert res == 10
 }
 
 type Rectangle struct {

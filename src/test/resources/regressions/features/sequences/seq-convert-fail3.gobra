@@ -3,7 +3,27 @@
 
 package pkg
 
-func foo(ghost xs seq[int]) {
+func foo() {
+  xs := seq(seq[int] { 42 })
+  test1(xs)
+  test2(xs)
+  test3(xs)
   //:: ExpectedOutput(type_error)
-  ghost ys := |seq(xs)|
+  test4(len(xs))
+}
+
+func test1(ghost s seq[int]) (ghost res int) {
+    return len(s)
+}
+
+ghost func test2(s seq[int]) int {
+    return len(s)
+}
+
+ghost func test3(ghost s seq[int]) int {
+    return len(s)
+}
+
+ghost pure func test4(s seq[int]) int {
+    return len(s)
 }

@@ -48,6 +48,7 @@ object Nodes {
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
         case MakeMap(target, _, initialSpaceArg) => target +: initialSpaceArg.toSeq
+        case SafeMapLookup(resTarget, successTarget, mapLookup) => Vector(resTarget, successTarget, mapLookup)
         case Initialization(left) => Seq(left)
         case SingleAss(left, right) => Seq(left, right)
         case FunctionCall(targets, func, args) => targets ++ Seq(func) ++ args
@@ -110,30 +111,34 @@ object Nodes {
         case StructTExpr(_) => Seq.empty
         case ArrayTExpr(len, elem) => Seq(len, elem)
         case SliceTExpr(elem) => Seq(elem)
+        case MapTExpr(key, elem) => Seq(key, elem)
         case SequenceTExpr(elem) => Seq(elem)
         case SetTExpr(elem) => Seq(elem)
         case MultisetTExpr(elem) => Seq(elem)
+        case MathMapTExpr(key, elem) => Seq(key, elem)
         case OptionTExpr(elem) => Seq(elem)
         case TupleTExpr(elem) => elem
         case DefinedTExpr(_) => Seq.empty
         case PredicateConstructor(pred, _, args) => Seq(pred) ++ args.flatten
-        case IndexedExp(base, idx) => Seq(base, idx)
+        case IndexedExp(base, idx, _) => Seq(base, idx)
         case ArrayUpdate(base, left, right) => Seq(base, left, right)
-        case Slice(base, low, high, max) => Seq(base, low, high) ++ max
+        case Slice(base, low, high, max, _) => Seq(base, low, high) ++ max
         case RangeSequence(low, high) => Seq(low, high)
-        case SequenceUpdate(base, left, right) => Seq(base, left, right)
+        case GhostCollectionUpdate(base, left, right, _) => Seq(base, left, right)
         case SequenceDrop(left, right) => Seq(left, right)
         case SequenceTake(left, right) => Seq(left, right)
         case SequenceConversion(expr) => Seq(expr)
-        case Cardinality(exp) => Seq(exp)
         case SetConversion(expr) => Seq(expr)
         case MultisetConversion(expr) => Seq(expr)
+        case MapKeys(expr, _) => Seq(expr)
+        case MapValues(expr, _) => Seq(expr)
         case Length(expr) => Seq(expr)
         case Capacity(expr) => Seq(expr)
         case OptionNone(_) => Seq.empty
         case OptionSome(exp) => Seq(exp)
         case OptionGet(exp) => Seq(exp)
         case Negation(operand) => Seq(operand)
+        case BitNeg(operand) => Seq(operand)
         case Receive(channel, recvChannel, recvGivenPerm, recvGotPerm) => Seq(channel, recvChannel, recvGivenPerm, recvGotPerm)
         case BinaryExpr(left, _, right, _) => Seq(left, right)
         case Old(op, _) => Seq(op)
@@ -146,20 +151,23 @@ object Nodes {
           case _: NoPerm => Seq.empty
           case FractionalPerm(left, right) => Seq(left, right)
           case _: WildcardPerm => Seq.empty
+          case c: CurrentPerm => Seq(c.acc)
           case PermMinus(exp) => Seq(exp)
           case BinaryExpr(left, _, right, _) => Seq(left, right)
         }
         case l: Lit => l match {
-          case IntLit(_, _) => Seq.empty
+          case IntLit(_, _, _) => Seq.empty
           case BoolLit(_) => Seq.empty
           case StringLit(_) => Seq.empty
           case NilLit(_) => Seq.empty
           case ArrayLit(_, _, elems) => elems.values.toSeq
           case SliceLit(_, elems) => elems.values.toSeq
+          case MapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
           case StructLit(_, args) => args
           case SequenceLit(_, _, args) => args.values.toSeq
           case SetLit(_, args) => args
           case MultisetLit(_, args) => args
+          case MathMapLit(_, _, entries) => entries flatMap { case (x, y) => Seq(x, y) }
         }
         case Parameter.In(_, _) => Seq.empty
         case Parameter.Out(_, _) => Seq.empty

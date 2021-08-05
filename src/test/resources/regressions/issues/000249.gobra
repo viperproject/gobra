@@ -1,0 +1,19 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package issue249
+
+type cell struct {
+    val int
+}
+
+type pair struct {
+    left, right int
+}
+
+func test() {
+    a := &cell{}
+    b := &pair{}
+    //:: ExpectedOutput(type_error)
+    a = b
+}

@@ -1,0 +1,81 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+pure func foo1(x int) int {
+  return x
+}
+
+pure
+func foo2(x int) int {
+  return x
+}
+
+pure
+requires x > 0
+ensures  y > 0
+func foo3(x int) (y int) {
+  return x
+}
+
+
+requires x > 0
+pure
+ensures  y > 0
+func foo4(x int) (y int) {
+  return x
+}
+
+requires x > 0
+ensures  y > 0
+pure
+func foo5(x int) (y int) {
+  return x
+}
+
+requires x > 0
+ensures  y > 0
+pure func foo6(x int) (y int) {
+  return x
+}
+
+type myInt int
+
+pure func (m *myInt) foo7(x int) int {
+  return x
+}
+
+pure
+func (m *myInt) foo8(x int) int {
+  return x
+}
+
+pure
+requires x > 0
+ensures  y > 0
+func (m *myInt) foo9(x int) (y int) {
+  return x
+}
+
+
+requires x > 0
+pure
+ensures  y > 0
+func (m *myInt) foo10(x int) (y int) {
+  return x
+}
+
+requires x > 0
+ensures  y > 0
+pure
+func (m *myInt) foo11(x int) (y int) {
+  return x
+}
+
+requires x > 0
+ensures  y > 0
+pure func (m *myInt) foo12(x int) (y int) {
+  return x
+}
+

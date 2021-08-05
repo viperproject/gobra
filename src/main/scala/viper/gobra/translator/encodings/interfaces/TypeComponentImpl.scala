@@ -33,6 +33,7 @@ class TypeComponentImpl extends TypeComponent {
     case PointerHD => "pointer"
     case ArrayHD => "array"
     case SliceHD => "slice"
+    case MapHD => "map"
     case ChannelHD => "channel"
     case NilHD => "nil"
     case UnitHD => "unit"
@@ -41,6 +42,7 @@ class TypeComponentImpl extends TypeComponent {
     case SeqHD => "seq"
     case SetHD => "set"
     case MSetHD => "mset"
+    case MathMapHD => "dict"
     case OptionHD => "option"
     case t: TupleHD => s"tuple${t.arity}"
     case t: PredHD => s"pred${t.arity}"
@@ -58,8 +60,8 @@ class TypeComponentImpl extends TypeComponent {
       }
 
     case t: TypeHead.StructHD =>
-      val fieldNames = t.fields.collect{ case (n, false) => n }
-      s"struct_${fieldNames.mkString("_")}"
+      val fields = t.fields.map{ case (f, g) => if (g) s"${f}G" else s"${f}A" }
+      s"struct_${fields.mkString("_")}"
   }
 
 

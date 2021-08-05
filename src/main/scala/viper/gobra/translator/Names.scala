@@ -18,9 +18,19 @@ object Names {
     str
   }
 
+  /* sanitizes type name to a valid Viper name */
+  def serializeType(t: vpr.Type): String = {
+    t.toString()
+      .replace('[', '_')
+      .replace("]", "")
+      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
+      .replace(" ", "")
+  }
+
 
   // assert
-  def assertFunc: String = "assertArg"
+  def assertFunc: String = "assertArg1"
+  def typedAssertFunc(t: vpr.Type): String = s"assertArg2_${serializeType(t)}"
 
   // equality
   def equalityDomain: String = "Equality"
@@ -45,14 +55,7 @@ object Names {
 
   // pointer
   def pointerField(t : vpr.Type) : String = {
-    // sanitizes type name to a valid Viper field name
-    val ts = t.toString()
-      .replace('[', '_')
-      .replace("]", "")
-      .replace(",", "") // a parameterized Viper type uses comma-space separated types if there are multiple
-      .replace(" ", "")
-
-    s"val$$_$ts"
+    s"val$$_${serializeType(t)}"
   }
 
   // struct
@@ -62,6 +65,7 @@ object Names {
   // types
   def typesDomain: String = "Types"
   def stringsDomain: String = "String"
+  def mapsDomain: String = "GobraMap"
 
   // array
   def sharedArrayDomain: String = "ShArray"
@@ -91,4 +95,13 @@ object Names {
 
   // built-in members
   def builtInMember: String = "built_in"
+
+  // ints
+  def bitwiseAnd: String = "intBitwiseAnd"
+  def bitwiseOr: String = "intBitwiseOr"
+  def bitwiseXor: String = "intBitwiseXor"
+  def bitClear: String = "intBitClear"
+  def shiftLeft: String = "intShiftLeft"
+  def shiftRight: String = "intShiftRight"
+  def bitwiseNeg: String = "intBitwiseNeg"
 }

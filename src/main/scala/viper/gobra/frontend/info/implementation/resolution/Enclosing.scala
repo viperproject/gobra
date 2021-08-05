@@ -30,6 +30,9 @@ trait Enclosing { this: TypeInfoImpl =>
     case _ => id
   })
 
+  lazy val tryEnclosingUnorderedScope: PNode => Option[PUnorderedScope] =
+    down[Option[PUnorderedScope]](None) { case x: PUnorderedScope => Some(x) }
+
   lazy val enclosingCodeRootWithResult: PStatement => PCodeRootWithResult =
     down((_: PNode) => violation("Statement does not root in a CodeRoot")) { case m: PCodeRootWithResult => m }
 
@@ -42,11 +45,14 @@ trait Enclosing { this: TypeInfoImpl =>
   lazy val enclosingInterface: PNode => PInterfaceType =
     down((_: PNode) => violation("Node does not root in an interface definition")) { case x: PInterfaceType => x }
 
-  def typeSwitchConstraints(id: PIdnNode): Vector[PType] =
+  lazy val enclosingStruct: PNode => Option[PStructType] =
+    down[Option[PStructType]](None) { case x: PStructType => Some(x) }
+
+  def typeSwitchConstraints(id: PIdnNode): Vector[PExpressionOrType] =
     typeSwitchConstraintsLookup(id)(id)
 
-  private lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[PType] =
-    paramAttr[PIdnNode, PNode, Vector[PType]] { id => {
+  private lazy val typeSwitchConstraintsLookup: PIdnNode => PNode => Vector[PExpressionOrType] =
+    paramAttr[PIdnNode, PNode, Vector[PExpressionOrType]] { id => {
       case tree.parent.pair(PTypeSwitchCase(left, _), s: PTypeSwitchStmt)
         if s.binder.exists(_.name == id.name) => left
 
@@ -81,6 +87,13 @@ trait Enclosing { this: TypeInfoImpl =>
           case PShortVarDecl(right, left, _) => Some(typ(left(right.indexOf(n))))
             // no if statement
           case _: PExprSwitchStmt => None
+          case s: PTypeSwitchCase => s match {
+            case tree.parent(p) => p match {
+              case switch: PTypeSwitchStmt => Some(typ(switch.exp))
+              case c => violation(s"The parent of a type-switch case should always be a switch statement, but got $c")
+            }
+            case c => violation(s"The parent of a type-switch case should always be a switch statement, but got $c")
+          }
             // no for stmt
             // no go stmt
           case p: PReturn => Some(typ(enclosingCodeRootWithResult(p).result.outs(p.exps.indexOf(n))))
@@ -120,8 +133,8 @@ trait Enclosing { this: TypeInfoImpl =>
           case PMultiplicity(`n`, s) => Some(typ(s).asInstanceOf[Type.GhostCollectionType].elem)
             // no cardinality
             // no sequence append, sequence conversion
-          case PSequenceUpdateClause(_, `n`) => p match {
-            case tree.parent(pp: PSequenceUpdate) => Some(typ(pp.seq).asInstanceOf[Type.SequenceT].elem)
+          case PGhostCollectionUpdateClause(_, `n`) => p match {
+            case tree.parent(pp: PGhostCollectionUpdate) => Some(typ(pp.col).asInstanceOf[Type.SequenceT].elem)
             case c => Violation.violation(s"Only the root has not parent, but got $c")
           }
             // no range sequence

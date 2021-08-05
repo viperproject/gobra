@@ -143,8 +143,8 @@ trait NameResolution { this: TypeInfoImpl =>
   }
 
   private def defenvin(in: PNode => Environment): PNode ==> Environment = {
-    case n: PPackage => addShallowDefToEnv(rootenv(initialEnv(n):_*))(n)
-    case scope: PUnorderedScope => addShallowDefToEnv(enter(in(scope)))(scope)
+    case n: PPackage => addUnorderedDefToEnv(rootenv(initialEnv(n):_*))(n)
+    case scope: PUnorderedScope => addUnorderedDefToEnv(enter(in(scope)))(scope)
     case scope: PScope if !scopeSpecialCaseWithNoNewScope(scope) =>
       logger.debug(scope.toString)
       enter(in(scope))
@@ -167,39 +167,44 @@ trait NameResolution { this: TypeInfoImpl =>
       leave(out(scope))
   }
 
+  /**
+    * Returns true iff the identifier declares an entity that is added to the symbol lookup table
+    */
   private lazy val doesAddEntry: PIdnDef => Boolean =
     attr[PIdnDef, Boolean] {
-      case tree.parent(_: PMethodDecl) => false
+      case tree.parent(_: PDependentDef) => false
       case _ => true
     }
 
-  private def addShallowDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
+  /**
+    * returns the (package-level) identifiers defined by a member
+    */
+  @scala.annotation.tailrec
+  private def packageLevelDefinitions(m: PMember): Vector[PIdnDef] = {
+    /* Returns identifier definitions with a package scope occurring in a type. */
+    def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
+      case t: PDomainType => t.funcs.map(_.id)
+      case _ => Vector.empty
+    }
 
-    def shallowDefs(n: PUnorderedScope): Vector[PIdnDef] = n match {
-      case n: PPackage => n.declarations flatMap { m =>
-
-        def actualMember(a: PActualMember): Vector[PIdnDef] = a match {
-          case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
-          case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
-          case d: PFunctionDecl => Vector(d.id)
-          case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
-          case _: PMethodDecl => Vector.empty
-        }
-
-        /* Returns identifier definitions with a package scope occurring in a type. */
-        def leakingIdentifier(t: PType): Vector[PIdnDef] = t match {
-          case t: PDomainType => t.funcs.map(_.id)
-          case _ => Vector.empty
-        }
-
-        m match {
-          case a: PActualMember => actualMember(a)
-          case PExplicitGhostMember(a) => actualMember(a)
-          case p: PMPredicateDecl => Vector(p.id)
-          case p: PFPredicateDecl => Vector(p.id)
-          case _: PImplementationProof => Vector.empty
-        }
+    m match {
+      case a: PActualMember => a match {
+        case d: PConstDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PVarDecl => d.left.collect{ case x: PIdnDef => x }
+        case d: PFunctionDecl => Vector(d.id)
+        case d: PTypeDecl => Vector(d.left) ++ leakingIdentifier(d.right)
+        case d: PMethodDecl => Vector(d.id)
       }
+      case PExplicitGhostMember(a) => packageLevelDefinitions(a)
+      case p: PMPredicateDecl => Vector(p.id)
+      case p: PFPredicateDecl => Vector(p.id)
+      case _: PImplementationProof => Vector.empty
+    }
+  }
+
+  private lazy val definitionsForScope: PUnorderedScope => Vector[PIdnDef] =
+    attr[PUnorderedScope, Vector[PIdnDef]] {
+      case n: PPackage => n.declarations flatMap packageLevelDefinitions
 
       // imports do not belong to the root environment but are file/program specific (instead of package specific):
       case n: PProgram => n.imports flatMap {
@@ -207,6 +212,8 @@ trait NameResolution { this: TypeInfoImpl =>
         case _ => Vector.empty
       }
 
+      // note that the identifiers returned for PStructType will be filtered out before creating corresponding
+      // symbol table entries
       case n: PStructType => n.clauses.flatMap { c =>
         def collectStructIds(clause: PActualStructClause): Vector[PIdnDef] = clause match {
           case d: PFieldDecls => d.fields map (_.id)
@@ -222,11 +229,21 @@ trait NameResolution { this: TypeInfoImpl =>
       case n: PInterfaceType =>
         n.methSpecs.map(_.id) ++ n.predSpec.map(_.id)
 
-        // domain members are added at the package level
+      // domain members are added at the package level
       case _: PDomainType => Vector.empty
+  }
+
+  private def addUnorderedDefToEnv(env: Environment)(n: PUnorderedScope): Environment = {
+    addToEnv(env)(definitionsForScope(n).filter(doesAddEntry))
+  }
+
+  private lazy val dependentDefenv: PUnorderedScope => Environment =
+    attr[PUnorderedScope, Environment] {
+      n: PUnorderedScope => addToEnv(rootenv())(definitionsForScope(n).filterNot(doesAddEntry))
     }
 
-    shallowDefs(n).foldLeft(env) {
+  private def addToEnv(env: Environment)(identifiers: Vector[PIdnDef]): Environment = {
+    identifiers.foldLeft(env) {
       case (e, id) => defineIfNew(e, serialize(id), MultipleEntity(), defEntity(id))
     }
   }
@@ -269,21 +286,63 @@ trait NameResolution { this: TypeInfoImpl =>
       case tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PMethodImplementationProof, ip: PImplementationProof)) =>
         tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference method of the super type
 
-      case tree.parent.pair(id: PIdnDef, _: PMethodDecl) => defEntity(id)
+      case tree.parent.pair(id: PIdnUse, tree.parent.pair(alias: PImplementationProofPredicateAlias, ip: PImplementationProof)) if alias.left == id =>
+        tryMethodLikeLookup(ip.superT, id).map(_._1).getOrElse(UnknownEntity()) // reference predicate of the super type
 
-      case tree.parent.pair(id: PIdnDef, _: PMPredicateDecl) => defEntity(id)
+      case tree.parent.pair(id: PIdnDef, _: PDependentDef) => defEntity(id) // PIdnDef that depend on a receiver or type are not placed in the symbol table
 
-      case n@ tree.parent.pair(id: PIdnUse, tree.parent(tree.parent(lv: PLiteralValue))) =>
+      case n@ tree.parent.pair(id: PIdnUse, tree.parent.pair(_: PIdentifierKey, tree.parent(lv: PLiteralValue))) =>
         val litType = expectedMiscType(lv)
         if (underlyingType(litType).isInstanceOf[StructT]) { // if the enclosing literal is a struct then id is a field
           findField(litType, id).getOrElse(UnknownEntity())
-        } else lookup(sequentialDefenv(n), serialize(n), UnknownEntity()) // otherwise it is just a variable
+        } else symbTableLookup(n) // otherwise it is just a variable
 
-      case n =>
-        (n, lookup(sequentialDefenv(n), serialize(n), UnknownEntity())) match {
-          // in case no entity was found in the current package, look for it in unqualifiedly imported packages:
-          case (n: PIdnUse, UnknownEntity()) => tryUnqualifiedPackageLookup(n)
-          case (_, e: Entity) => e
-        }
+      case n => symbTableLookup(n)
     }
+
+  private def symbTableLookup(n: PIdnNode): Entity = {
+    type Level = PIdnNode => Option[Entity]
+
+    /** regular symbol table lookup in the current package */
+    val level0: Level = n => tryLookup(sequentialDefenv(n), serialize(n))
+
+    /** entity lookup in an unqualified import */
+    val level1: Level = {
+      case n: PIdnUse => tryUnqualifiedPackageLookup(n) match {
+        case UnknownEntity() => None
+        case e => Some(e)
+      }
+      case _ => None
+    }
+
+    /** entity lookup inside a definition of an unordered scope (e.g. interface definition) */
+    val level2: Level = n =>
+      tryEnclosingUnorderedScope(n) match {
+        case Some(scope) =>
+          // `n` appears in an unordered scope and due to the way Go works, definitions (e.g. methods & predicates) in
+          // that scope have not been considered so far. Therefore, we perform a second-level lookup just on the definitions that
+          // this unordered scope provides
+          val dependentEnv = dependentDefenv(scope)
+          // perform now a second lookup in this special dependent environment:
+          val res = tryLookup(dependentEnv, serialize(n))
+          res
+        case _ => None
+      }
+
+    /** order of precedence; first level has highest precedence */
+    val levels: Seq[Level] = Seq(level0, level1, level2)
+
+    // returns first successfully defined entity otherwise `UnknownEntity()`
+    levels.iterator.map(_(n)).find(_.isDefined).flatten.getOrElse(UnknownEntity())
+  }
+
+  /**
+    * Performs a lookup of `i` in environment `inv`. Returns the associated entity or `None` if no entity has been found
+    */
+  def tryLookup(env: Environment, i: String): Option[Entity] = {
+    lookup(env, i, UnknownEntity()) match {
+      case UnknownEntity() => None
+      case e => Some(e)
+    }
+  }
 }

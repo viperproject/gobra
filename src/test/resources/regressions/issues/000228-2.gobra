@@ -1,0 +1,71 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package types
+
+type TSlice = []int
+type TArray = [2]int
+type TMap = map[int]string
+type TSeq = seq[int]
+type TSet = set[int]
+type TMSet = mset[int]
+// Cannot parse a dict type in a type declaration
+// type TDict = dict[int]int
+
+func testSlices1() {
+	m := make(TSlice, 2)
+	m[0] = 1
+	l := len(m)
+	assert l == 2
+	e := m[0]
+	assert e == 1
+	assert forall i int :: 0 <= i && i < len(m) ==> acc(&m[i])
+	subslice := m[:1]
+	assert subslice[0] == 1
+	subslice[0] = 10
+	assert m[0] == 10
+}
+
+func testSlices2() {
+	n := TSlice{1, 2, 3}
+	assert n[1] == 2
+}
+
+func testArray1() {
+	n := TArray{0, 1}
+	assert len(n) == 2
+	assert n[0] == 0
+}
+
+func testMap1() {
+	m := make(TMap)
+	m[1] = "one"
+	m[2] = "two"
+	m[3] = "three"
+	assert m[1] == "one"
+	assert m[0] == ""
+	assert len(m) == 3
+	assert domain(m) == set[int]{1, 2, 3}
+}
+
+func testMap2() {
+	m := TMap{1: "one", 2: "two", 3: "three", 4: "four"}
+	assert len(m) == 4
+}
+
+func testSeq1() {
+	s := TSeq{1, 2, 3}
+	assert len(s) == 3
+	assert s[0] == 1
+	s[0] = 2
+}
+
+func testSets1() {
+	s := TSet{10, 11, 12, 13, 14}
+	assert 11 in s
+	assert len(s) == 5
+
+	m := TMSet{10, 10, 11, 12, 13, 14}
+	assert 10 # m == 2
+	assert len(m) == 6
+}

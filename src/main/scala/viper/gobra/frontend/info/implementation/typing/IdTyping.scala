@@ -112,8 +112,8 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
       wellDefAndType.valid(typ)
     })
 
-    case Embbed(PEmbeddedDecl(_, fieldId), _, _) => unsafeMessage(! {
-      wellDefID.valid(fieldId)
+    case Embbed(PEmbeddedDecl(typ, _), _, _) => unsafeMessage(! {
+      wellDefMisc.valid(typ)
     })
 
     case _: MethodImpl => LocalMessages(noMessages) // not typed
@@ -130,6 +130,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
   lazy val idSymType: Typing[PIdnNode] = createTyping { id =>
     entity(id) match {
       case NamedType(decl, _, context) => DeclaredT(decl, context)
+      case TypeAlias(decl, _, context) => context.symbType(decl.right)
       case Import(decl, _) => ImportT(decl)
       case _ => violation(s"expected type, but got $id")
     }
@@ -193,7 +194,7 @@ trait IdTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case Field(PFieldDecl(_, typ), _, context) => context.symbType(typ)
 
-    case Embbed(PEmbeddedDecl(_, fieldId), _, context) => context.typ(fieldId)
+    case Embbed(PEmbeddedDecl(typ, _), _, context) => context.typ(typ)
 
     case Import(decl, _) => ImportT(decl)
 

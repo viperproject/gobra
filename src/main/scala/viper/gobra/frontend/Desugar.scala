@@ -461,8 +461,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(specCtx)
-      val posts = decl.spec.posts map postconditionD(specCtx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -610,8 +610,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(specCtx)
-      val posts = decl.spec.posts map postconditionD(specCtx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -700,8 +700,8 @@ object Desugar {
       }
 
       // translate pre- and postconditions
-      val pres = decl.spec.pres map preconditionD(ctx)
-      val posts = decl.spec.posts map postconditionD(ctx)
+      val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
+      val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -1242,7 +1242,7 @@ object Desugar {
             )
           )(src)
 
-        case l@ in.IndexedExp(base, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
+        case l@ in.IndexedExp(base, _, _) if base.typ.isInstanceOf[in.MapT] && lefts.size == 2 =>
           val resTarget = freshExclusiveVar(lefts(0).op.typ.withAddressability(Addressability.exclusiveVariable))(src)
           val successTarget = freshExclusiveVar(in.BoolT(Addressability.exclusiveVariable))(src)
           in.Block(
@@ -1565,7 +1565,8 @@ object Desugar {
       for {
         dbase <- exprD(ctx)(base)
         dindex <- exprD(ctx)(index)
-      } yield in.IndexedExp(dbase, dindex)(src)
+        baseUnderlyingType = underlyingType(dbase.typ)
+      } yield in.IndexedExp(dbase, dindex, baseUnderlyingType)(src)
     }
 
     def indexedExprD(expr : PIndexedExp)(ctx : FunctionContext) : Writer[in.IndexedExp] =
@@ -1731,7 +1732,7 @@ object Desugar {
             dlow <- option(low map go)
             dhigh <- option(high map go)
             dcap <- option(cap map go)
-          } yield dbase.typ match {
+          } yield underlyingType(dbase.typ) match {
             case _: in.SequenceT => (dlow, dhigh) match {
               case (None, None) => dbase
               case (Some(lo), None) => in.SequenceDrop(dbase, lo)(src)
@@ -1741,12 +1742,20 @@ object Desugar {
                 val drop = in.SequenceDrop(dbase, lo)(src)
                 in.SequenceTake(drop, sub)(src)
             }
-            case _: in.ArrayT | _: in.SliceT => (dlow, dhigh) match {
-              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap)(src)
-              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap)(src)
-              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap)(src)
-              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap)(src)
+            case baseT @ (_: in.ArrayT | _: in.SliceT) => (dlow, dhigh) match {
+              case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), dcap, baseT)(src)
+              case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), dcap, baseT)(src)
+              case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
+              case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
+            case baseT: in.StringT =>
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
+              }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -1795,7 +1804,7 @@ object Desugar {
               arg0 = argsD.lift(0)
               arg1 = argsD.lift(1)
 
-              make: in.MakeStmt = info.symbType(t) match {
+              make: in.MakeStmt = underlyingType(info.symbType(t)) match {
                 case s: SliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case s: GhostSliceT => in.MakeSlice(target, elemD(s).asInstanceOf[in.SliceT], arg0.get, arg1)(src)
                 case c@ChannelT(_, _) =>
@@ -1908,7 +1917,7 @@ object Desugar {
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
-          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(base.typ.addressability), info)(pinfo))(pinfo)
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), info)(pinfo))(pinfo)
       }}
     }
 
@@ -1998,7 +2007,7 @@ object Desugar {
       case class Struct(t: in.Type, st: in.StructT) extends CompositeKind
     }
 
-    def compositeTypeD(t : in.Type) : CompositeKind = t match {
+    def compositeTypeD(t : in.Type) : CompositeKind = underlyingType(t) match {
       case _ if isStructType(t) => CompositeKind.Struct(t, structType(t).get)
       case t: in.ArrayT => CompositeKind.Array(t)
       case t: in.SliceT => CompositeKind.Slice(t)
@@ -2198,8 +2207,8 @@ object Desugar {
           val returnsWithSubs = m.result.outs.zipWithIndex map { case (p,i) => outParameterD(p,i,xInfo) }
           val (returns, _) = returnsWithSubs.unzip
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
-          val pres = m.spec.pres map preconditionD(specCtx)
-          val posts = m.spec.posts map postconditionD(specCtx)
+          val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
+          val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
 
           val mem = if (m.spec.isPure) {
             in.PureMethod(recv, proxy, args, returns, pres, posts, None)(src)
@@ -2601,12 +2610,15 @@ object Desugar {
 
     def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
-      val td = embeddedTypeD(???, fieldAddrMod)(src) // TODO fix me or embeddedTypeD
+      val td = typeD(embedded._2, fieldAddrMod)(src)
       in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src), ghost = false)(src) // TODO: fix ghost attribute
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
+      val struct = context.struct(decl)
+      val embedded: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      embeddedDeclD(embedded, addrMod, struct.get)(src)
+    }
 
     def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)
@@ -2703,7 +2715,7 @@ object Desugar {
         case PIn(left, right) => for {
           dleft <- go(left)
           dright <- go(right)
-        } yield dright.typ match {
+        } yield underlyingType(dright.typ) match {
           case _: in.SequenceT | _: in.SetT => in.Contains(dleft, dright)(src)
           case _: in.MultisetT => in.LessCmp(in.IntLit(0)(src), in.Contains(dleft, dright)(src))(src)
           case t => violation(s"expected a sequence or (multi)set type, but got $t")
@@ -2726,9 +2738,11 @@ object Desugar {
 
         case PGhostCollectionUpdate(col, clauses) => clauses.foldLeft(go(col)) {
           case (dcol, clause) => for {
+            dcolExp <- dcol
+            baseUnderlyingType = underlyingType(dcolExp.typ)
             dleft <- go(clause.left)
             dright <- go(clause.right)
-          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright)(src)
+          } yield in.GhostCollectionUpdate(dcol.res, dleft, dright, baseUnderlyingType)(src)
         }
 
         case PSequenceConversion(op) => for {
@@ -2793,11 +2807,13 @@ object Desugar {
 
         case PMapKeys(exp) => for {
           e <- go(exp)
-        } yield in.MapKeys(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapKeys(e, t)(src)
 
         case PMapValues(exp) => for {
           e <- go(exp)
-        } yield in.MapValues(e)(src)
+          t = underlyingType(e.typ)
+        } yield in.MapValues(e, t)(src)
 
         case _ => Violation.violation(s"cannot desugar expression to an internal expression, $expr")
       }

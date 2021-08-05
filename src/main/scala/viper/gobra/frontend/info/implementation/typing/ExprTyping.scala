@@ -249,7 +249,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n@PIndexedExp(base, index) =>
       isExpr(base).out ++ isExpr(index).out ++
-        ((exprType(base), exprType(index)) match {
+        ((underlyingType(exprType(base)), exprType(index)) match {
           case (ArrayT(l, _), IntT(_)) =>
             val idxOpt = intConstantEval(index)
             error(n, s"index $index is out of bounds", !idxOpt.forall(i => i >= 0 && i < l))
@@ -284,7 +284,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       low.fold(noMessages)(isExpr(_).out) ++
       high.fold(noMessages)(isExpr(_).out) ++
       cap.fold(noMessages)(isExpr(_).out) ++
-      ((exprType(base), low map exprType, high map exprType, cap map exprType) match {
+      ((underlyingType(exprType(base)), low map exprType, high map exprType, cap map exprType) match {
         case (ArrayT(l, _), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) =>
           val (lowOpt, highOpt, capOpt) = (low map intConstantEval, high map intConstantEval, cap map intConstantEval)
           error(n, s"index $low is out of bounds", !lowOpt.forall(_.forall(i => 0 <= i && i <= l))) ++
@@ -307,6 +307,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (_: SliceT | _: GhostSliceT, None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => //noMessages
           val lowOpt = low.map(intConstantEval)
           error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
+
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
+          // slice expressions of string type cannot have a third argument
+          val (lenOpt, lowOpt, highOpt) = (
+            stringConstantEval(base) map (_.length),
+            low flatMap intConstantEval,
+            high flatMap intConstantEval
+          )
+          val lowError = error(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val highError = error(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val lowLessHighError = (lowOpt, highOpt) match {
+            case (Some(l), Some(h)) =>
+              // this error message is the same shown by the go compiler
+              error(n, s"invalid slice index: $l > $h", l > h)
+            case _ => noMessages
+          }
+          return lowError ++ highError ++ lowLessHighError
 
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
@@ -405,7 +422,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         resolve(n.pred.pred).exists(_.isInstanceOf[ap.PredExprInstance]))
 
     case PLength(op) => isExpr(op).out ++ {
-      exprType(op) match {
+      underlyingType(exprType(op)) match {
         case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT | _: MathMapT => noMessages
         case _: SequenceT | _: SetT | _: MultisetT => isPureExpr(op)
         case typ => error(op, s"expected an array, string, sequence or slice type, but got $typ")
@@ -425,25 +442,28 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       args.flatMap { arg =>
         assignableTo.errors(exprType(arg), INT_TYPE)(arg) ++
           error(arg, s"arguments to make must be non-negative", intConstantEval(arg).exists(_ < 0))
-      } ++ (typ match {
-        case _: PSliceType | _: PGhostSliceType =>
-          error(m, s"too many arguments to make($typ)", args.length > 2) ++
-            error(m, s"missing len argument to make($typ)", args.isEmpty) ++
-            check(args){
-              case args if args.length == 2 =>
-                val maybeLen = intConstantEval(args(0))
-                val maybeCap = intConstantEval(args(1))
-                error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
-            }
+      } ++ (underlyingTypeP(typ) match {
+        case None => violation(s"unexpected case reached: underlyingTypeP($typ) returned None")
+        case Some(t) => t match {
+          case _: PSliceType | _: PGhostSliceType =>
+            error(m, s"too many arguments to make($typ)", args.length > 2) ++
+              error(m, s"missing len argument to make($typ)", args.isEmpty) ++
+              check(args) {
+                case args if args.length == 2 =>
+                  val maybeLen = intConstantEval(args(0))
+                  val maybeCap = intConstantEval(args(1))
+                  error(m, s"len larger than cap in make($typ)", maybeLen.isDefined && maybeCap.isDefined && maybeLen.get > maybeCap.get)
+              }
 
-        case _: PChannelType =>
-          error(m, s"too many arguments passed to make($typ)", args.length > 1)
+          case _: PChannelType =>
+            error(m, s"too many arguments passed to make($typ)", args.length > 1)
 
-        case PMapType(k, _) =>
-          error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
-            error(m, s"key type $k is not comparable", !comparableType(symbType(k))) // TODO: add check that type does not contain ghost
+          case PMapType(k, _) =>
+            error(m, s"too many arguments passed to make($typ)", args.length > 1) ++
+              error(m, s"key type $k is not comparable", !comparableType(symbType(k))) // TODO: add check that type does not contain ghost
 
-        case _ => error(typ, s"cannot make type $typ")
+          case _ => error(typ, s"cannot make type $typ")
+        }
       })
 
     case PBlankIdentifier() => noMessages
@@ -547,7 +567,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case p => violation(s"expected conversion, function call, predicate call, or predicate expression instance, but got $p")
     }
 
-    case PIndexedExp(base, index) => (exprType(base), exprType(index)) match {
+    case PIndexedExp(base, index) => (underlyingType(exprType(base)), exprType(index)) match {
       case (ArrayT(_, elem), IntT(_)) => elem
       case (PointerT(ArrayT(_, elem)), IntT(_)) => elem
       case (SequenceT(elem), IntT(_)) => elem
@@ -561,14 +581,17 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case (bt, it) => violation(s"$it is not a valid index for the the base $bt")
     }
 
-    case PSliceExp(base, low, high, cap) => (exprType(base), low map exprType, high map exprType, cap map exprType) match {
-      case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
-      case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-      case (SequenceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None) => SequenceT(elem)
-      case (SliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
-      case (GhostSliceT(elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => GhostSliceT(elem)
-      case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
-    }
+    case PSliceExp(base, low, high, cap) =>
+      val baseType = exprType(base)
+      (underlyingType(baseType), low map exprType, high map exprType, cap map exprType) match {
+        case (ArrayT(_, elem), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) if addressable(base) => SliceT(elem)
+        case (PointerT(ArrayT(_, elem)), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => SliceT(elem)
+        case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
+        case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
+        case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
+      }
 
     case PTypeAssertion(_, typ) =>
       val resT = typeSymbType(typ)
@@ -894,7 +917,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private[typing] def typeOfPLength(expr: PLength): Type =
-    exprType(expr.exp) match {
+    underlyingType(exprType(expr.exp)) match {
       case _: ArrayT | _: SliceT | _: GhostSliceT | StringT | _: VariadicT | _: MapT => INT_TYPE
       case _: SequenceT | _: SetT | _: MultisetT | _: MathMapT => UNTYPED_INT_CONST
       case t => violation(s"unexpected argument ${expr.exp} of type $t passed to len")

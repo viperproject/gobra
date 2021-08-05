@@ -764,10 +764,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
     )(p.info))(ctx)
 
     val pres = vItfMeth.pres.map { exp =>
-      instantiateInterfaceSpecForProof(exp, vItfMeth.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+      val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector
+      val parameters = p.args ++ p.results
+      instantiateInterfaceSpecForProof(exp, variablesOfExp, p.receiver, parameters, p.superT)(p)(ctx)
     }
     val posts = vItfMeth.posts.map { exp =>
-      instantiateInterfaceSpecForProof(exp, vItfMeth.formalArgs.toVector, p.receiver, p.args, p.superT)(p)(ctx)
+      val variablesOfExp = vItfMeth.formalArgs.toVector ++ vItfMeth.formalReturns.toVector
+      val parameters = p.args ++ p.results
+      instantiateInterfaceSpecForProof(exp, variablesOfExp, p.receiver, parameters, p.superT)(p)(ctx)
     }
 
     val (pos, info, errT) = p.vprMeta
@@ -784,16 +788,16 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * */
   private def instantiateInterfaceSpecForProof(
                          exp: vpr.Exp,
-                         formalsOfExp: Vector[vpr.LocalVarDecl],
+                         variablesOfExpression: Vector[vpr.LocalVarDecl], /** The first variable must be the receiver */
                          recv: in.Parameter.In,
-                         ins: Vector[in.Parameter.In],
+                         otherParameters: Vector[in.Parameter],
                          itfT: in.InterfaceT
                        )(src: in.Node)(ctx: Context): vpr.Exp = {
     val impl = recv.typ
     val vRecvDecls = ctx.typeEncoding.variable(ctx)(recv)
     val vRecv = vRecvDecls.localVar
 
-    val vArgDecls = ins map ctx.typeEncoding.variable(ctx)
+    val vArgDecls = otherParameters map ctx.typeEncoding.variable(ctx)
     val vArgs = vArgDecls map (_.localVar)
 
 
@@ -802,7 +806,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     val nameMap = matchingFuncs.map{ case (itfProxy, implProxy) => (itfProxy.uniqueName, proofName(implProxy, itfProxy)) }.toMap
 
     val newRecv = boxInterface(vRecv, types.typeToExpr(impl)()(ctx))()(ctx)
-    val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, formalsOfExp, newRecv +: vArgs, Set.empty)
+    val changedFormals = vpr.utility.Expressions.instantiateVariables(exp, variablesOfExpression, newRecv +: vArgs, Set.empty)
     val changedFuncs = changedFormals.transform{
       case call: vpr.FuncApp if nameMap.isDefinedAt(call.funcname) =>
         val recv = vRecv // maybe check that receiver is the same as newRecv

@@ -6,11 +6,18 @@
 
 package viper.gobra.util
 
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
-
+import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
 
-trait GobraExecutionContext extends ExecutionContext
+trait GobraExecutionContext extends ExecutionContext {
+  /** terminate executor */
+  def terminate(timeoutMSec: Long = 1000): Unit
+  /**
+    * In contrast to `terminate`, this function terminates the context but also checks whether it was successfully
+    * shutdown meaning that no timeout has occurred while doing so.
+    */
+  def terminateAndAssertInexistanceOfTimeout(): Unit
+}
 
 object DefaultGobraExecutionContext {
   val minimalThreadPoolSize: Int = 1
@@ -38,4 +45,25 @@ class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultGob
   override def execute(runnable: Runnable): Unit = context.execute(runnable)
 
   override def reportFailure(cause: Throwable): Unit = context.reportFailure(cause)
+
+  @throws(classOf[InterruptedException])
+  override def terminate(timeoutMSec: Long = 1000): Unit = {
+    context.shutdown()
+    context.awaitTermination(timeoutMSec, TimeUnit.MILLISECONDS)
+  }
+
+  /**
+    * In contrast to `terminate`, this function terminates the context but also checks whether it was successfully
+    * shutdown meaning that no timeout has occurred while doing so.
+    */
+  @throws(classOf[InterruptedException])
+  override def terminateAndAssertInexistanceOfTimeout(): Unit = {
+    val timeoutMs = 1000 // 1 sec
+    val startTime = System.currentTimeMillis()
+    // terminate executor with a larger timeout such that we can distinguish a timeout from terminate taking quite long
+    terminate(10 * timeoutMs)
+    val terminateDurationMs = System.currentTimeMillis() - startTime
+    // check whether timeout has been exceeded and cause an assertion failure:
+    assert(terminateDurationMs < timeoutMs)
+  }
 }

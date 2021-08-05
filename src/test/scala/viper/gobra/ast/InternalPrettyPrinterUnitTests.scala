@@ -28,7 +28,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a standard sequence index expression") {
     val expr = IndexedExp(
       LocalVar("xs", sequenceT(intT))(Internal),
-      IntLit(BigInt(42))(Internal)
+      IntLit(BigInt(42))(Internal),
+      sequenceT(intT)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -40,7 +41,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
     val expr = GhostCollectionUpdate(
       LocalVar("xs", sequenceT(boolT))(Internal),
       IntLit(BigInt(4))(Internal),
-      BoolLit(false)(Internal)
+      BoolLit(false)(Internal),
+      sequenceT(boolT)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -915,7 +917,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   test("Printer: should correctly show a simple array indexing expression") {
     val expr = IndexedExp(
       LocalVar("a", exclusiveArrayT(124, intT))(Internal),
-      IntLit(42)(Internal)
+      IntLit(42)(Internal),
+      sequenceT(intT)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -924,12 +927,14 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show an array indexing operation with a slightly more complex right-hand side") {
+    val typ = exclusiveArrayT(124, intT)
     val expr = IndexedExp(
-      LocalVar("a", exclusiveArrayT(124, intT))(Internal),
+      LocalVar("a", typ)(Internal),
       Add(
         LocalVar("x", intT)(Internal),
         IntLit(2)(Internal)
-      )(Internal)
+      )(Internal),
+      typ
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -938,12 +943,16 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a small chain of array indexing operations") {
+    val typExt = exclusiveArrayT(12, exclusiveArrayT(24, boolT))
+    val typIn = exclusiveArrayT(24, boolT)
     val expr = IndexedExp(
       IndexedExp(
-        LocalVar("a", exclusiveArrayT(12, exclusiveArrayT(24, boolT)))(Internal),
-        IntLit(2)(Internal)
+        LocalVar("a", typIn)(Internal),
+        IntLit(2)(Internal),
+        typIn
       )(Internal),
-      IntLit(4)(Internal)
+      IntLit(4)(Internal),
+      typExt
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -952,11 +961,13 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should be able to correctly show a very simple 'acc' predicate applied on an array") {
+    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
     val expr = Access(
       Accessible.Address(
         IndexedExp(
-          LocalVar("a", sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared))))(Internal),
-          IntLit(2)(Internal)
+          LocalVar("a", typ)(Internal),
+          IntLit(2)(Internal),
+          typ
         )(Internal)
       ),
       FullPerm(Internal)
@@ -968,10 +979,12 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
   }
 
   test("Printer: should correctly show a simple assignee indexed expression") {
+    val typ = sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared)))
     val expr = Assignee.Index(
       IndexedExp(
-        LocalVar("a", sharedArrayT(12, sharedArrayT(24, BoolT(Addressability.Shared))))(Internal),
-        Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal)
+        LocalVar("a", typ)(Internal),
+        Add(IntLit(2)(Internal), IntLit(3)(Internal))(Internal),
+        typ
       )(Internal)
     )
 
@@ -1175,7 +1188,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
       IntLit(2)(Internal),
       IntLit(4)(Internal),
-      Some(IntLit(6)(Internal))
+      Some(IntLit(6)(Internal)),
+      SliceT(intT, Addressability.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {
@@ -1188,7 +1202,8 @@ class InternalPrettyPrinterUnitTests extends AnyFunSuite with Matchers with Insi
       LocalVar("s", SliceT(intT, Addressability.Exclusive))(Internal),
       IntLit(8)(Internal),
       IntLit(4)(Internal),
-      None
+      None,
+      SliceT(intT, Addressability.Exclusive)
     )(Internal)
 
     frontend.show(expr) should matchPattern {

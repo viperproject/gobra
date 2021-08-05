@@ -107,7 +107,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
   }
 
   lazy val assignable: Property[PExpression] = createBinaryProperty("assignable") {
-    case PIndexedExp(b, _) => exprType(b) match {
+    case PIndexedExp(b, _) => underlyingType(exprType(b)) match {
       case _: ArrayT => assignable(b)
       case _: SliceT | _: GhostSliceT => assignable(b)
       case _: VariadicT => assignable(b)
@@ -160,7 +160,7 @@ trait Assignability extends BaseProperty { this: TypeInfoImpl =>
               })
           } else if (elems.size == s.embedded.size + s.fields.size) {
             propForall(
-              elems.map(_.exp).zip((s.embedded ++ s.fields).values),/*
+              elems.map(_.exp).zip(s.fieldsAndEmbedded.values),/*
               elems.map(_.exp).zip(decl.clauses.flatMap { cl =>
                 def clauseInducedTypes(clause: PActualStructClause): Vector[Type] = clause match {
                   case PEmbeddedDecl(embeddedType, _) => Vector(context.typ(embeddedType))

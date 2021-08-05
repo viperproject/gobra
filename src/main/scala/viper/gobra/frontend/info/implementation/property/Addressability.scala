@@ -53,7 +53,7 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
       case PBlankIdentifier() => AddrMod.defaultValue
       case _: PDeref => AddrMod.dereference
       case PIndexedExp(base, _) =>
-        val baseType = exprType(base)
+        val baseType = underlyingType(exprType(base))
         baseType match {
           case _: SliceT | _: GhostSliceT => AddrMod.sliceLookup
           case _: VariadicT => AddrMod.variadicLookup

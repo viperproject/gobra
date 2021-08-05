@@ -8,3 +8,12 @@ func foo(s []int) {
   //:: ExpectedOutput(assignment_error:permission_error)
   n := s[0]
 }
+
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i]) && acc(s[i])
+func bar(s []*int)
+
+func barRun() {
+  s := make([]*int, 2)
+  //:: ExpectedOutput(precondition_error:receiver_not_injective)
+  bar(s)
+}

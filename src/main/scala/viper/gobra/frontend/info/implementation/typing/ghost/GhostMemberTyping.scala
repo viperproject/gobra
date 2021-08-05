@@ -23,7 +23,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PMPredicateDecl(_, receiver, args, body) =>
       body.fold(noMessages)(assignableToSpec) ++
-        isClassType.errors(miscType(receiver))(member) ++
+        isReceiverType.errors(miscType(receiver))(member) ++
         nonVariadicArguments(args)
 
     case ip: PImplementationProof =>
@@ -102,7 +102,7 @@ trait GhostMemberTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  private def isPurePostcondition(spec: PFunctionSpec): Messages = spec.posts flatMap isPureExpr
+  private def isPurePostcondition(spec: PFunctionSpec): Messages = (spec.posts ++ spec.preserves) flatMap isPureExpr
 
   private[typing] def nonVariadicArguments(args: Vector[PParameter]): Messages = args.flatMap {
     p: PParameter => error(p, s"Pure members cannot have variadic arguments, but got $p", p.typ.isInstanceOf[PVariadicType])

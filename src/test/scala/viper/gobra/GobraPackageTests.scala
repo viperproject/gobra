@@ -12,7 +12,6 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.backend.ViperVerifierConfig
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -43,7 +42,7 @@ class GobraPackageTests extends GobraTests {
         .sortBy(_.toString)
         .toSeq
     } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, Seq())
-    DefaultAnnotatedTestInput(input.get)
+    GobraAnnotatedTestInput(input.get)
   }
 
   override val gobraInstanceUnderTest: SystemUnderTest =

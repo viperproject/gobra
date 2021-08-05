@@ -57,7 +57,7 @@ object BackendVerifier {
     val verifier = config.backend.create(exePaths)
 
     val verificationResults = programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
-      val programID = s"_programID_${config.inputFiles.head.getName}_$idx"
+      val programID = s"_programID_${config.inputFiles.head.getFileName()}_$idx"
       for {
         acc <- res
         next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)

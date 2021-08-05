@@ -147,11 +147,11 @@ case class GeneratedViperMessage(input: Path, vprAst: () => vpr.Program, backtra
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())
 }
 
-case class ChoppedViperMessage(input: File, idx: Int, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
+case class ChoppedViperMessage(input: Path, idx: Int, vprAst: () => vpr.Program, backtrack: () => BackTranslator.BackTrackInfo) extends GobraMessage {
   override val name: String = s"chopped_viper_message"
 
   override def toString: String = s"chopped_viper_message(" +
-    s"file=${input.toPath}, " +
+    s"file=${input}, " +
     s"vprFormated=$vprAstFormatted)"
 
   lazy val vprAstFormatted: String = silver.ast.pretty.FastPrettyPrinter.pretty(vprAst())

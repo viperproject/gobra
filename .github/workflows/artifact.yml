@@ -23,7 +23,7 @@ jobs:
       - name: Docker build
         run: |
           source ../viper-toolchain-versions.sh
-          docker build --build-arg GOBRA_REF=$GITHUB_SHA SILVER_REF=$SILVER_REF --build-arg CARBON_REF=$CARBON_REF --build-arg SILICON_REF=$SILICON_REF -t gobraverifier/gobra-artifact:v1 .
+          docker build --build-arg GOBRA_REF=$GITHUB_SHA --build-arg SILVER_REF=$SILVER_REF --build-arg CARBON_REF=$CARBON_REF --build-arg SILICON_REF=$SILICON_REF -t gobraverifier/gobra-artifact:v1 .
         working-directory: gobra/artifact
 
       # save docker image

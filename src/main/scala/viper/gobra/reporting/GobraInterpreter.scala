@@ -552,6 +552,7 @@ case class PointerInterpreter(c:sil.Converter) extends sil.AbstractInterpreter[s
 			case InterfaceT(decl, context) => "val$_Tuple2_RefTypes" //TODO: make this more general
 			case DomainT(decl,context) => "TODO: resolve Domain field"
 			case ch:ChannelT => Names.pointerField(vpr.Int)
+			case s:SliceT => "val$_Slice_Ref"
 			case x => s"$x" //TODO: resolve all types 
 		}
 	}
@@ -593,16 +594,17 @@ case class StringInterpreter(c: sil.Converter) extends sil.ModelInterpreter[Gobr
 			FaultEntry("could not resolve string")
 		}
 	}
-	def hexToChar(input:Seq[String]):String ={
-		input.map(Integer.parseInt(_,16)).map(_.toChar).mkString
+	def hexToChar(input:Seq[Byte]):String ={
+		input.map(_.toChar).mkString
 	}
-	def toArray(input:String) : Seq[String] ={
-		if(input=="") Seq()
+	def toArray(input:String) : Seq[Byte] ={
+		org.apache.commons.codec.binary.Hex.decodeHex(input.toCharArray())
+		/* if(input=="") Seq()
 		else if(input.size<2) throw new IllegalArgumentException()
 		else {
 			val (first,second) = input.splitAt(2)
 			first+:toArray(second)
-		}
+		} */
 	}
 }
 case class InterfaceInterpreter(c:sil.Converter) extends GobraDomainInterpreter[InterfaceT]{

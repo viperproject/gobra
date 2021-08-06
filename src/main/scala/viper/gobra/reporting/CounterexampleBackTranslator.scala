@@ -30,7 +30,7 @@ object CounterexampleConfigs{
 }
 
 case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo){
-	def translate(counterexample: silver.verifier.Counterexample): Option[GobraCounterexample] = {
+	def translate(counterexample: silver.verifier.Counterexample, error: PNode): Option[GobraCounterexample] = {
 		val typeinfo = backtrack.typeInfo
 		InterpreterCache.setTypeInfo(typeinfo)
 		val converter: sil.Converter = counterexample match {
@@ -74,6 +74,8 @@ case class CounterexampleBackTranslator(backtrack: BackTranslator.BackTrackInfo)
 		lazy val ret = Some(new GobraCounterexample(glabelModel))
 		backtrack.config.counterexample match {
 			case Some(CounterexampleConfigs.NativeCounterexamples) => Some(new GobraNativeCounterexample(counterexample.asInstanceOf[SiliconMappedCounterexample]))
+			//TODO get error
+			case Some(CounterexampleConfigs.ReducedCounterexamples) => Some(new ReducedCounterexample(glabelModel,error))
 			case _ => ret
 		}
 	
@@ -322,10 +324,19 @@ object GobraCounterexample {
 }
 */
 class GobraCounterexample(gModel: GobraModelAtLabel) extends Counterexample {
-	val reducedCounterexample: GobraModel =GobraModel(gModel.labeledEntries.last._2.entries.filterNot(_._2.isInstanceOf[FaultEntry]))
+	lazy val reducedCounterexample: GobraModel =GobraModel(gModel.labeledEntries.last._2.entries.filterNot(_._2.isInstanceOf[FaultEntry]))
 	def getRelevantEntries(node: PNode): Seq[((viper.gobra.reporting.Source.Verifier.Info, String), viper.gobra.reporting.GobraModelEntry)] = {
 		val subnodes= Util.getSubnodes(node)
 		reducedCounterexample.entries.toSeq.filter(x => subnodes.find(y => x._1._1.pnode.toString.split(" ").head==y.toString).isDefined)
+	}
+	def getIrrelevantEntries(node: PNode): Seq[((viper.gobra.reporting.Source.Verifier.Info, String), viper.gobra.reporting.GobraModelEntry)] = {
+		val subnodes= Util.getSubnodes(node)
+		reducedCounterexample.entries.toSeq.filterNot(x => subnodes.find(y => x._1._1.pnode.toString.split(" ").head==y.toString).isDefined)
+	}
+
+	def listOfNodes(node: PNode): Seq[(PNode,GobraModelEntry)] = {
+		val subnodes = Util.getSubnodes(node)
+		subnodes.collect(x => reducedCounterexample.entries.toSeq.find( _._1._1.pnode.toString == x)match { case Some(v) => (x,v._2)})
 	}
 	override def toString: String = gModel.toString
 	//TODO ensure the counterexamples are sorted alphabetically
@@ -337,6 +348,9 @@ class GobraNativeCounterexample(s: SiliconMappedCounterexample) extends GobraCou
 	//override val gModel: GobraModelAtLabel = null
 	//val model: Null = null
 	override def toString(): String = s.toString
+}
+class ReducedCounterexample(gModel: GobraModelAtLabel, error: PNode) extends GobraCounterexample(gModel) {
+	override def toString(): String = getRelevantEntries(error).map(x=>s"${x._1._1.pnode.toString}\t<- ${Util.prettyPrint(x._2,0)}").mkString("\n")
 }
 
 case class GobraModelAtLabel(labeledEntries: Map[String, GobraModel]) {

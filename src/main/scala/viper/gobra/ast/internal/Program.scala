@@ -352,7 +352,7 @@ sealed trait Accessible extends Node {
 }
 
 object Accessible {
-  case class Predicate(op: PredicateAccess) extends Accessible
+  case class Predicate(op: PredicateAccess) extends Accessible with TriggerExpr
   case class ExprAccess(op: Expr) extends Accessible
   case class Address(op: Location) extends Accessible {
     require(op.typ.addressability == Addressability.Shared, s"expected shared location, but got $op :: ${op.typ}")
@@ -368,7 +368,7 @@ case class MemoryPredicateAccess(arg: Expr)(val info: Source.Parser.Info) extend
 
 
 
-sealed trait Expr extends Node with Typed
+sealed trait Expr extends Node with Typed with TriggerExpr
 
 object Expr {
   def getSubExpressions(x: Expr): Set[Expr] = {
@@ -393,7 +393,8 @@ case class LabeledOld(label: LabelProxy, operand: Expr)(val info: Source.Parser.
 
 case class Conditional(cond: Expr, thn: Expr, els: Expr, typ: Type)(val info: Source.Parser.Info) extends Expr
 
-case class Trigger(exprs: Vector[Expr])(val info: Source.Parser.Info) extends Node
+trait TriggerExpr extends Node
+case class Trigger(exprs: Vector[TriggerExpr])(val info: Source.Parser.Info) extends Node
 
 case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT(Addressability.rValue)

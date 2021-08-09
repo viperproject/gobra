@@ -23,7 +23,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
 
   private[typing] def wellDefGhostMisc(misc: PGhostMisc) = misc match {
     case PBoundVariable(_, _) => noMessages
-    case PTrigger(exprs) => exprs.flatMap(isPureExpr)
+    case PTrigger(exprs) => exprs.flatMap(isWeaklyPureExpr)
     case PExplicitGhostParameter(_) => noMessages
     case p: PPredConstructorBase => p match {
       case PFPredBase(id) => entity(id) match {

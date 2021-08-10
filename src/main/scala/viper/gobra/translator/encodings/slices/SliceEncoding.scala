@@ -102,7 +102,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         case Some(maxT) => withSrc(fullSliceFromSlice(vpr.Ref, baseT, lowT, highT, maxT)(ctx), exp)
       }
 
-      case (lit : in.SliceLit) :: ctx.Slice(_) => {
+      case (lit : in.SliceLit) :: ctx.Slice(_) =>
         val litA = lit.asArrayLit
         val tmp = in.LocalVar(Names.freshName, litA.typ.withAddressability(Addressability.pointerBase))(lit.info)
         val tmpT = ctx.typeEncoding.variable(ctx)(tmp)
@@ -115,38 +115,8 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
           _ <- write(initT)
           _ <- write(assignT)
         } yield sliceT
-      }
-    }
-  }
 
-  /**
-    * Encodes the comparison of two expressions.
-    *
-    * [lhs: []T == rhs: []T] ->
-    *   len([lhs]) == len([rhs]) &&
-    *   cap([lhs]) == cap([rhs]) &&
-    *   offset([lhs]) == offset([rhs]) &&
-    *   array([lhs]) == array([rhs])
-    *
-    * [lhs: *[]T° == rhs] -> [lhs] == [rhs]
-    */
-  override def equal(ctx: Context): (in.Expr, in.Expr, in.Node) ==> CodeWriter[vpr.Exp] = {
-    case (lhs :: ctx.Slice(t), rhs, src) => for {
-      lhsT <- ctx.expr.translate(lhs)(ctx)
-      rhsT <- ctx.expr.translate(rhs)(ctx)
-      typT = ctx.typeEncoding.typ(ctx)(t)
-      offsetT = vpr.EqCmp(withSrc(ctx.slice.offset(lhsT), src), withSrc(ctx.slice.offset(rhsT), src))()
-      lenT = vpr.EqCmp(withSrc(ctx.slice.len(lhsT), src), withSrc(ctx.slice.len(rhsT), src))()
-      capT = vpr.EqCmp(withSrc(ctx.slice.cap(lhsT), src), withSrc(ctx.slice.cap(rhsT), src))()
-      arrayT = vpr.EqCmp(withSrc(ctx.slice.array(lhsT, typT), src), withSrc(ctx.slice.array(rhsT, typT), src))()
-    } yield Seq(offsetT, lenT, capT, arrayT).reduce[vpr.Exp] {
-      case (l, r) => withSrc(vpr.And(l, r), src)
     }
-
-    case (lhs :: ctx.*(ctx.Slice(_)) / Exclusive, rhs, src) => for {
-      vLhs <- ctx.expr.translate(lhs)(ctx)
-      vRhs <- ctx.expr.translate(rhs)(ctx)
-    } yield withSrc(vpr.EqCmp(vLhs, vRhs), src)
   }
 
   /**
@@ -168,7 +138,6 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         val sliceT = in.SliceT(typeParam.withAddressability(Shared), Addressability.Exclusive)
         val slice = in.LocalVar(Names.freshName, sliceT)(makeStmt.info)
         val vprSlice = ctx.typeEncoding.variable(ctx)(slice)
-        val typ = ctx.typeEncoding.typ(ctx)(typeParam.withAddressability(Addressability.Shared))
         seqn(
           for {
             // var a [ []T ]
@@ -211,7 +180,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
             eqValueAssertion <- boundedQuant(
               length = vprLength,
               trigger = (idx: vpr.LocalVar) =>
-                Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx, typ)(pos, info, errT)))(pos, info, errT)),
+                Seq(vpr.Trigger(Seq(ctx.slice.loc(vprSlice.localVar, idx)(pos, info, errT)))(pos, info, errT)),
               body = (x: in.BoundVar) =>
                 ctx.typeEncoding.equal(ctx)(in.IndexedExp(slice, x, sliceT)(makeStmt.info), in.DfltVal(typeParam.withAddressability(Exclusive))(makeStmt.info), makeStmt)
             )(makeStmt)(ctx)
@@ -229,14 +198,14 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * getCellPerms[loc: []T] -> forall idx :: {loc(a, idx) 0 <= idx < cap(l) ==> Footprint[ loc[idx] ]
     */
   def getCellPerms(ctx: Context)(expr: in.Location, perm: in.Permission): CodeWriter[vpr.Exp] = expr match {
-    case loc :: ctx.Slice(t) / Exclusive =>
+    case loc :: ctx.Slice(_) / Exclusive =>
       val (pos, info, errT) = loc.vprMeta
 
       val cap = in.Capacity(loc)(loc.info)
       val vprCap = ctx.expr.translate(cap)(ctx).res
       val vprLoc = ctx.expr.translate(loc)(ctx).res
       val trigger = (idx: vpr.LocalVar) =>
-        Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx, ctx.typeEncoding.typ(ctx)(t.withAddressability(Shared)))(pos, info, errT)))(pos, info, errT))
+        Seq(vpr.Trigger(Seq(ctx.slice.loc(vprLoc, idx)(pos, info, errT)))(pos, info, errT))
       val underlyingBaseTyp = underlyingType(loc.typ)(ctx)
       val body = (idx: in.BoundVar) => ctx.typeEncoding.addressFootprint(ctx)(in.IndexedExp(loc, idx, underlyingBaseTyp)(loc.info), perm)
       boundedQuant(vprCap, trigger, body)(loc)(ctx).map(forall =>
@@ -282,11 +251,10 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
     * Ref[ (e: []T)[idx] ] -> slice_get(Ref[e], [idx])
     */
   override def reference(ctx : Context) : in.Location ==> CodeWriter[vpr.Exp] = default(super.reference(ctx)) {
-    case (exp @ in.IndexedExp(base :: ctx.Slice(typ), idx, _)) :: _ / Shared => for {
+    case (exp @ in.IndexedExp(base :: ctx.Slice(_), idx, _)) :: _ / Shared => for {
       baseT <- ctx.expr.translate(base)(ctx)
       idxT <- ctx.expr.translate(idx)(ctx)
-      typT = ctx.typeEncoding.typ(ctx)(typ)
-    } yield withSrc(ctx.slice.loc(baseT, idxT, typT), exp)
+    } yield withSrc(ctx.slice.loc(baseT, idxT), exp)
   }
 
   /** An application of the "sconstruct[`typ`](...)" Viper function. */
@@ -350,7 +318,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
 
       // postconditions
       val result = vpr.Result(ctx.slice.typ(typ))()
-      val post1 = vpr.EqCmp(ctx.slice.array(result, typ)(), aDecl.localVar)()
+      val post1 = vpr.EqCmp(ctx.slice.array(result)(), aDecl.localVar)()
       val post2 = vpr.EqCmp(ctx.slice.offset(result)(), offsetDecl.localVar)()
       val post3 = vpr.EqCmp(ctx.slice.len(result)(), lenDecl.localVar)()
       val post4 = vpr.EqCmp(ctx.slice.cap(result)(), capDecl.localVar)()
@@ -403,7 +371,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), iDecl.localVar)()
       val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.Sub(jDecl.localVar, iDecl.localVar)())()
       val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.Sub(kDecl.localVar, iDecl.localVar)())()
-      val post4 = vpr.EqCmp(ctx.slice.array(result, typ)(), aDecl.localVar)()
+      val post4 = vpr.EqCmp(ctx.slice.array(result)(), aDecl.localVar)()
 
       // function body
       val body = construct(
@@ -462,13 +430,13 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), vpr.Add(ctx.slice.offset(sDecl.localVar)(), iDecl.localVar)())()
       val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.Sub(jDecl.localVar, iDecl.localVar)())()
       val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.Sub(kDecl.localVar, iDecl.localVar)())()
-      val post4 = vpr.EqCmp(ctx.slice.array(result, typ)(), ctx.slice.array(sDecl.localVar, typ)())()
+      val post4 = vpr.EqCmp(ctx.slice.array(result)(), ctx.slice.array(sDecl.localVar)())()
 
       // function body
       val offset = ctx.slice.offset(sDecl.localVar)()
       val body = fullSliceFromArray(
         typ,
-        ctx.slice.array(sDecl.localVar, typ)(),
+        ctx.slice.array(sDecl.localVar)(),
         vpr.Add(offset, iDecl.localVar)(),
         vpr.Add(offset, jDecl.localVar)(),
         vpr.Add(offset, kDecl.localVar)()
@@ -520,7 +488,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), iDecl.localVar)()
       val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.Sub(jDecl.localVar, iDecl.localVar)())()
       val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.Sub(ctx.array.len(aDecl.localVar)(), iDecl.localVar)())()
-      val post4 = vpr.EqCmp(ctx.slice.array(result, typ)(), aDecl.localVar)()
+      val post4 = vpr.EqCmp(ctx.slice.array(result)(), aDecl.localVar)()
 
       // function body
       val body = fullSliceFromArray(
@@ -577,7 +545,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), vpr.Add(ctx.slice.offset(sDecl.localVar)(), iDecl.localVar)())()
       val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.Sub(jDecl.localVar, iDecl.localVar)())()
       val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.Sub(ctx.slice.cap(sDecl.localVar)(), iDecl.localVar)())()
-      val post4 = vpr.EqCmp(ctx.slice.array(result, typ)(), ctx.slice.array(sDecl.localVar, typ)())()
+      val post4 = vpr.EqCmp(ctx.slice.array(result)(), ctx.slice.array(sDecl.localVar)())()
 
       // function body
       val body = fullSliceFromSlice(
@@ -630,7 +598,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
       val post1 = vpr.EqCmp(ctx.slice.offset(result)(), vpr.IntLit(0)())()
       val post2 = vpr.EqCmp(ctx.slice.len(result)(), vpr.IntLit(0)())()
       val post3 = vpr.EqCmp(ctx.slice.cap(result)(), vpr.IntLit(0)())()
-      val post4 = vpr.EqCmp(ctx.slice.array(result, typT)(), dfltArrayT)()
+      val post4 = vpr.EqCmp(ctx.slice.array(result)(), dfltArrayT)()
 
       // function body
       val body: vpr.FuncApp = construct(

@@ -1046,22 +1046,25 @@ object Parser {
       "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ { case clauses => PStructType(clauses.flatten) }
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ { case clauses => PStructType(clauses) }
 
-    lazy val structClause: Parser[Option[PStructClause]] =
+    lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl
 
-    lazy val embeddedDecl: Parser[Option[PEmbeddedDecl]] =
-      embeddedType ^^ (et => Some(PEmbeddedDecl(et, PIdnDef(et.name).at(et))))
+    lazy val embeddedDecl: Parser[PEmbeddedDecl] =
+      embeddedType ^^ (et => PEmbeddedDecl(et, PIdnDef(et.name).at(et)))
 
-    lazy val fieldDecls: Parser[Option[PFieldDecls]] =
+    lazy val fieldDecls: Parser[PFieldDecls] =
       rep1sep(idnDef, ",") ~ typ ^^ { case ids ~ t => {
-        val fields = ids flatMap {
-          // ignore fields starting with a lower case letter when parsing imported packages
-          case id if !specOnly || (id.name.nonEmpty && id.name.charAt(0).isUpper) => Vector(PFieldDecl(id, t.copy).at(id))
-          case _ => Vector()
+        val fields = ids map {
+          // fields starting with a lower case letter when parsing imported packages are ignored by prepending a dollar sign making them invalid identifiers
+          // they are not simply dropped as an empty interface has special semantics in Go
+          case id if specOnly && id.name.nonEmpty && id.name.charAt(0).isLower =>
+            val freshId = PIdnDef(s"$$$id").at(id)
+            PFieldDecl(freshId, t.copy).at(id)
+          case id => PFieldDecl(id, t.copy).at(id)
         }
-        if (fields.isEmpty) None else Some(PFieldDecls(fields))
+        PFieldDecls(fields)
       }}
 
     lazy val interfaceType: Parser[PInterfaceType] =

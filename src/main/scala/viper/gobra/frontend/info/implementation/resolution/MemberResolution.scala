@@ -252,7 +252,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         // alternativeErr is a function to compute the message only when needed
         val alternativeErr = () => context.getImportCycle(importTarget) match {
           case Some(cycle) => message(errNode, s"Package '$importTarget' is part of this import cycle: ${cycle.mkString("[", ", ", "]")}")
-          case _ => message(errNode, s"Package '$importTarget' contains errors")
+          case _ => message(errNode, s"Package '$importTarget' contains errors: $errs")
         }
         notFoundErr.map(e => message(errNode, e.message))
           .getOrElse(alternativeErr())

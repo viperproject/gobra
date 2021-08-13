@@ -2295,7 +2295,7 @@ object Desugar {
             definedMethods -= proxy
             val proxies = computeMemberProxies(definedMethods.values, interfaceImplementations, definedTypes)
             if (m.spec.isPure) {
-              val default = defaultValue(src)(returns.head.typ)
+              val default = in.DfltVal(returns.head.typ)(src)
               def helper(list: List[in.Type]): in.Expr = {
                 list match {
                   case x::xs => {

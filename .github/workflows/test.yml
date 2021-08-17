@@ -119,7 +119,7 @@ jobs:
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
           # TODO: activate debug
-          NOTICE_LEVEL: "debug"
+          NOTICE_LEVEL: "warning"
           WARNING_LEVEL: "warning"
           FAILURE_LEVEL: "error"
 

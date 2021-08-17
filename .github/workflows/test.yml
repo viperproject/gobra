@@ -88,14 +88,14 @@ jobs:
 #      #   run: sbt test:assembly
 #      #   working-directory: gobra
 #
-#      - name: Start pidstat and execute it in the background
-#        # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
-#        # terminate it
-#        run: |
-#          pidstat 1 -r -p ALL > pidstat.txt &
-#          echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
-#        working-directory: gobra
-#
+      - name: Start pidstat and execute it in the background
+        # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
+        # terminate it
+        run: |
+          pidstat 1 -r -p ALL > pidstat.txt &
+          echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
+        working-directory: gobra
+
 #      # the following step executes the tests independently of sbt:
 #      # - name: Execute precompiled tests
 #      #   run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
@@ -106,10 +106,10 @@ jobs:
 ##        run: sbt test
 ##        working-directory: gobra
 #
-#      - name: Terminate pidstat
-#        if: ${{ always() }}
-#        run: kill -INT $PIDSTAT_PID
-#
+      - name: Terminate pidstat
+        if: ${{ always() }}
+        run: kill -INT $PIDSTAT_PID
+
 #      - name: Get max RAM usage by Java and Z3
 #        if: ${{ always() }}
 #        shell: bash
@@ -206,10 +206,10 @@ jobs:
 #              }
 #            ]
 #
-#      - name: Upload RAM usage
-#      # TODO: check if this needs to be conditional
-#        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: pidstat.txt
-#          path: gobra/pidstat.txt
+      - name: Upload RAM usage
+      # TODO: check if this needs to be conditional
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: pidstat.txt
+          path: gobra/pidstat.txt

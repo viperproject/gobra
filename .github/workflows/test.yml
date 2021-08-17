@@ -150,7 +150,7 @@ jobs:
             # $2 is the threshold causing a warning
             # $3 is the threshold causing an error
             # writes ${{ env.NOTICE_LEVEL }}, ${{ env.WARNING_LEVEL}} or ${{ env.FAILURE_LEVEL }} to standard output
-            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? ${{ env.FAILURE_LEVEL }} : (value>warnThres) ? ${{ env.WARNING_LEVEL }} : ${{ env.NOTICE_LEVEL}} }')
+            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
             echo $result
           }
           MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')

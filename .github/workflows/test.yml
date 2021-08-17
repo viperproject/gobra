@@ -167,6 +167,9 @@ jobs:
           echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
         working-directory: gobra
 
+      - name: Echo
+        run: echo ${{ github.event.pull_request.head.repo.full_name }}
+
       - name: Create annotations
       #TODO: proper comment
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}

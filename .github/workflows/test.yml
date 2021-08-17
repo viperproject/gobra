@@ -159,7 +159,7 @@ jobs:
           MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
           JAVA_LEVEL=$(getLevel $MAX_JAVA_GB ${{ env.JAVA_WARNING_THRESHOLD_GB }} ${{ env.JAVA_FAILURE_THRESHOLD_GB }})
           Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
-          if [[ "$JAVA_LEVEL" = "$FAILURE_LEVEL" || "$Z3_LEVEL" = "$FAILURE_LEVEL" ]]
+          if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
           then
             CONCLUSION="failure"
           else

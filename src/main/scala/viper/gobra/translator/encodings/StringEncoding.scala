@@ -107,7 +107,7 @@ class StringEncoding extends LeafTypeEncoding {
         val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(conv.info)
         val post = in.SepForall(
           vars = Vector(qtfVar),
-          triggers = Vector(),
+          triggers = Vector(in.Trigger(Vector(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)))(conv.info)),
           body = in.Implication(
             in.And(in.AtMostCmp(in.IntLit(BigInt(0))(conv.info), qtfVar)(conv.info), in.LessCmp(qtfVar, in.Length(slice)(conv.info))(conv.info))(conv.info),
             in.Access(in.Accessible.Address(in.IndexedExp(slice, qtfVar, sliceT)(conv.info)), in.FullPerm(conv.info))(conv.info)
@@ -279,7 +279,7 @@ class StringEncoding extends LeafTypeEncoding {
       val qtfVar = in.BoundVar("i", in.IntT(Addressability.boundVariable))(info)
       val pre = in.SepForall(
         vars = Vector(qtfVar),
-        triggers = Vector(),
+        triggers = Vector(in.Trigger(Vector(in.IndexedExp(param, qtfVar, paramT)(info)))(info)),
         body = in.Implication(
           in.And(in.AtMostCmp(in.IntLit(BigInt(0))(info), qtfVar)(info), in.LessCmp(qtfVar, in.Length(param)(info))(info))(info),
           in.Access(in.Accessible.Address(in.IndexedExp(param, qtfVar, paramT)(info)), in.WildcardPerm(info))(info)

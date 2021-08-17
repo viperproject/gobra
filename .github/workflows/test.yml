@@ -169,7 +169,7 @@ jobs:
 
       - name: Create annotations
       #TODO: proper comment
-        if: ${{ github.event.pull_request.head.repo.full_name == 'viperproject/gobra' }}
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         uses: LouisBrunner/checks-action@v1.1.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -202,7 +202,7 @@ jobs:
 
       - name: Upload RAM usage
       # TODO: check if this needs to be conditional
-        if: ${{ github.event.pull_request.head.repo.full_name == 'viperproject/gobra' }}
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         uses: actions/upload-artifact@v2
         with:
           name: pidstat.txt

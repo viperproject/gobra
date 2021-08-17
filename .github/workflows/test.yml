@@ -168,7 +168,7 @@ jobs:
 #        working-directory: gobra
 
       - name: Echo
-        run: echo "the full name is $GITHUB_REPOSITORY"
+        run: echo "the full name is ${{ github.event.pull_request.head.repo }}"
 
 #      - name: Create annotations
 #      #TODO: proper comment

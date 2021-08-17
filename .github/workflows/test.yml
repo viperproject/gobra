@@ -170,43 +170,43 @@ jobs:
       - name: Echo
         run: echo "the full name is ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.repository == github.event.pull_request.head.repo.full_name) }}"
 
-#      - name: Create annotations
-#      #TODO: proper comment
-#        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-#        uses: LouisBrunner/checks-action@v1.1.2
-#        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-#          name: 'RAM Usage'
-#          conclusion: ${{ env.CONCLUSION }}
-#          output: |
-#            {
-#            "title": "RAM Usage",
-#            "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
-#            }
-#          # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
-#          # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
-#          annotations: |
-#            [
-#              {
-#              "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
-#              "path": ".github/workflows/test.yml",
-#              "start_line": 1,
-#              "end_line": 1,
-#              "annotation_level": "${{ env.JAVA_LEVEL }}"
-#              },
-#              {
-#              "message": "Z3 used up to ${{ env.MAX_Z3_GB }}GB RAM",
-#              "path": ".github/workflows/test.yml",
-#              "start_line": 1,
-#              "end_line": 1,
-#              "annotation_level": "${{ env.Z3_LEVEL }}"
-#              }
-#            ]
-#
-#      - name: Upload RAM usage
-#      # TODO: check if this needs to be conditional
-#        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: pidstat.txt
-#          path: gobra/pidstat.txt
+      - name: Create annotations
+      #TODO: proper comment
+        if: ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.repository == github.event.pull_request.head.repo.full_name) }}
+        uses: LouisBrunner/checks-action@v1.1.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: 'RAM Usage'
+          conclusion: ${{ env.CONCLUSION }}
+          output: |
+            {
+            "title": "RAM Usage",
+            "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
+            }
+          # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
+          # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
+          annotations: |
+            [
+              {
+              "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
+              "path": ".github/workflows/test.yml",
+              "start_line": 1,
+              "end_line": 1,
+              "annotation_level": "${{ env.JAVA_LEVEL }}"
+              },
+              {
+              "message": "Z3 used up to ${{ env.MAX_Z3_GB }}GB RAM",
+              "path": ".github/workflows/test.yml",
+              "start_line": 1,
+              "end_line": 1,
+              "annotation_level": "${{ env.Z3_LEVEL }}"
+              }
+            ]
+
+      - name: Upload RAM usage
+      # TODO: check if this needs to be conditional
+        if: ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.repository == github.event.pull_request.head.repo.full_name) }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: pidstat.txt
+          path: gobra/pidstat.txt

@@ -183,7 +183,7 @@ jobs:
       - name: Create annotations
       #TODO: proper comment
         if: ${{ always() }}
-        # echo message format described in https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+        # message format described in https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
         run: |
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"

@@ -94,7 +94,7 @@ jobs:
         run: |
           pidstat 1 -r -p ALL > pidstat.txt &
           echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
-        working-directory: gobra
+#        working-directory: gobra
 
 #      # the following step executes the tests independently of sbt:
 #      # - name: Execute precompiled tests

@@ -168,7 +168,8 @@ jobs:
         working-directory: gobra
 
       - name: Create annotations
-        if: ${{ github.repository == 'viperproject/gobra' }}
+        if: ${{ always() }}
+        continue-on-error: true
         uses: LouisBrunner/checks-action@v1.1.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -200,7 +201,8 @@ jobs:
             ]
 
       - name: Upload RAM usage
-        if: ${{ github.repository == 'viperproject/gobra' }}
+        if: ${{ always() }}
+        continue-on-error: true
         uses: actions/upload-artifact@v2
         with:
           name: pidstat.txt

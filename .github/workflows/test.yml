@@ -106,6 +106,9 @@ jobs:
       #   run: sbt test
       #   working-directory: gobra
 
+      - name: Echo
+        run: echo "the full name is ${{ github.event.pull_request.head.repo.full_name }}"
+
       - name: Terminate pidstat
         if: ${{ always() }}
         run: kill -INT $PIDSTAT_PID

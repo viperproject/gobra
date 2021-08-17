@@ -1,0 +1,11 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package strings
+
+// fails because the conversion from []byte to string
+// requires a read permission to the elements of the slice
+func TestMissingPerm(b []byte) {
+	//:: ExpectedOutput(precondition_error:permission_error)
+	str := string(b)
+}

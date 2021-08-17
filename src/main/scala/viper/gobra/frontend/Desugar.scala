@@ -18,7 +18,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{DesugarWriter, Violation}
+import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
 import scala.collection.Iterable
@@ -1815,8 +1815,23 @@ object Desugar {
       info.resolve(expr) match {
         case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
         case Some(ap.Conversion(typ, arg)) =>
-          val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
-          for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          val typType = info.symbType(typ)
+          val argType = info.typ(arg)
+
+          (underlyingType(typType), underlyingType(argType)) match {
+            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
+              val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
+              for {
+                target <- freshDeclaredExclusiveVar(resT)(src)
+                dArg <- exprD(ctx)(arg)
+                conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
+                _ <- write(conv)
+              } yield target
+            case _ =>
+              val desugaredTyp = typeD(typType, info.addressability(expr))(src)
+              for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          }
+
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
         case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }

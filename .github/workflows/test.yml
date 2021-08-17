@@ -107,7 +107,7 @@ jobs:
       #   working-directory: gobra
 
       - name: Echo
-        run: echo "the full name is ${{ github.event.pull_request.head.repo.full_name }}"
+        run: echo "the full name is ${{ github.repository }}"
 
       - name: Terminate pidstat
         if: ${{ always() }}

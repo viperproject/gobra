@@ -114,8 +114,8 @@ jobs:
         if: ${{ always() }}
         shell: bash
         env:
-          JAVA_WARNING_THRESHOLD_GB: 4.5
-          JAVA_FAILURE_THRESHOLD_GB: 5.5
+          JAVA_WARNING_THRESHOLD_GB: 0
+          JAVA_FAILURE_THRESHOLD_GB: 0
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
           # Output levels according to severity. They identify the kinds of annotations to be printed by Github.

@@ -20,7 +20,8 @@ jobs:
       CARBON_REF: "v.21.07-release"
       CONCLUSION_SUCCESS: "success"
       CONCLUSION_FAILURE: "failure"
-      # Output levels according to severity. They identify the kinds of annotations to be printed by Github.
+      # Output levels according to severity.
+      # They identify the kinds of annotations to be printed by Github.
       NOTICE_LEVEL: "info"
       WARNING_LEVEL: "warning"
       FAILURE_LEVEL: "error"
@@ -120,7 +121,7 @@ jobs:
         if: ${{ always() }}
         shell: bash
         env:
-          JAVA_WARNING_THRESHOLD_GB: 4.5
+          JAVA_WARNING_THRESHOLD_GB: 0
           JAVA_FAILURE_THRESHOLD_GB: 5.5
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
@@ -180,8 +181,6 @@ jobs:
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
         run: |
           JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
-          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-
           if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
           then
             echo "$JAVA_MESSAGE"
@@ -189,15 +188,13 @@ jobs:
             echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
           fi 
 
+          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
           if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
           then
             echo "$Z3_LEVEL"
           else
             echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
           fi 
-
-
-
 
           if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
           then

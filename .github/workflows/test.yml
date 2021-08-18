@@ -101,10 +101,10 @@ jobs:
       #   run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
       #   # run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
       #   working-directory: gobra
-
-      - name: Execute all tests
-        run: sbt test
-        working-directory: gobra
+#
+#      - name: Execute all tests
+#        run: sbt test
+#        working-directory: gobra
 
       - name: Terminate pidstat
         if: ${{ always() }}

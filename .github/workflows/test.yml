@@ -165,7 +165,7 @@ jobs:
           Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
           if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
           then
-            CONCLUSION="failure"
+            CONCLUSION="${{ env.FAILURE_LEVEL }}"
           else
             CONCLUSION="success"
           fi
@@ -183,7 +183,7 @@ jobs:
         run: |
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          if [ $CONCLUSION = "failure" ]
+          if [ $CONCLUSION = "${{ env.FAILURE_LEVEL }}" ]
           then
             # the whole step fails when this comparison fails
             exit 1

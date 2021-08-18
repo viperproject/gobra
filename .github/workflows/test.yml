@@ -115,11 +115,13 @@ jobs:
         shell: bash
         env:
           JAVA_WARNING_THRESHOLD_GB: 4.5
-          JAVA_FAILURE_THRESHOLD_GB: 0.0
+          JAVA_FAILURE_THRESHOLD_GB: 5.5
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
-          # TODO: comment debug requiring a secret not available for forks, that's a compromise we must accept
-          NOTICE_LEVEL: "warning"
+          # Output levels according to severity. They identify the kinds of annotations to be printed by Github.
+          # Currently, NOTICE_LEVEL has the same value as WARNING_LEVEL, i.e., "warning". Alternatively, one could use
+          # "debug" for the NOTICE_LEVEL.
+          NOTICE_LEVEL: "debug"
           WARNING_LEVEL: "warning"
           FAILURE_LEVEL: "error"
 
@@ -172,14 +174,6 @@ jobs:
           echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
         working-directory: gobra
 
-# TODO: remove
-#      - name: Echo
-#        run: echo "the full name is ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.repository == github.event.pull_request.head.repo.full_name) }}"
-#
-## TODO: remove
-#      - name: Create annotations test
-#        run: echo "::error file=.github/workflows/test.yml,line=1::Something went wrong"
-
       - name: Create annotations
       #TODO: proper comment
         if: ${{ always() }}
@@ -188,39 +182,6 @@ jobs:
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
           return $([ $CONCLUSION = "success" ])  
-
-# TODO
-# Make fail when conclusion is failure
-#        uses: LouisBrunner/checks-action@v1.1.2
-#        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-#          name: 'RAM Usage'
-#          conclusion: ${{ env.CONCLUSION }}
-#          # Check what this does
-#          output: |
-#            {
-#            "title": "RAM Usage",
-#            "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
-#            }
-#          # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
-#          # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
-#          annotations: |
-#            [
-#              {
-#              "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
-#              "path": ".github/workflows/test.yml",
-#              "start_line": 1,
-#              "end_line": 1,
-#              "annotation_level": "${{ env.JAVA_LEVEL }}"
-#              },
-#              {
-#              "message": "Z3 used up to ${{ env.MAX_Z3_GB }}GB RAM",
-#              "path": ".github/workflows/test.yml",
-#              "start_line": 1,
-#              "end_line": 1,
-#              "annotation_level": "${{ env.Z3_LEVEL }}"
-#              }
-#            ]
 
       - name: Upload RAM usage
         if: ${{ always() }}

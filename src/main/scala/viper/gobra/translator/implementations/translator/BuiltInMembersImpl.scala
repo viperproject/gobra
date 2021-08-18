@@ -359,18 +359,17 @@ class BuiltInMembersImpl extends BuiltInMembers {
       )(src)
     }
 
-    def quantify(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Assertion): in.Assertion = {
+    def quantify(trigger: in.BoundVar => Vector[in.Trigger], range: in.BoundVar => in.Expr, body: in.BoundVar => in.Assertion): in.Assertion = {
       val i = freshBoundVar()
-      val triggers = Vector()
-      in.SepForall(Vector(i), triggers, in.Implication(bound(i), exprF(i))(src))(src)
+      in.SepForall(Vector(i), trigger(i), in.Implication(range(i), body(i))(src))(src)
     }
 
-    def quantifyPure(bound: in.BoundVar => in.Expr)(exprF: in.BoundVar => in.Expr): in.Expr = {
+    def quantifyPure(trigger: in.BoundVar => Vector[in.Trigger], range: in.BoundVar => in.Expr, body: in.BoundVar => in.Expr): in.Expr = {
       val i = freshBoundVar()
-      val triggers = Vector()
+      val triggers = trigger(i)
       val expr = in.Conditional(
-        bound(i),
-        exprF(i),
+        range(i),
+        body(i),
         in.BoolLit(b = true)(src),
         in.BoolT(Addressability.rValue)
       )(src)
@@ -378,9 +377,11 @@ class BuiltInMembersImpl extends BuiltInMembers {
     }
 
     def accessSlice(sliceExpr: in.Expr, perm: in.Expr): in.Assertion =
-      quantify{ i => bound(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) } {
-        i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src)
-      }
+      quantify(
+        trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)))(src)) },
+        range = { i => bound(i, in.IntLit(0)(src), in.Length(sliceExpr)(src)) },
+        body = { i => in.Access(in.Accessible.Address(in.IndexedExp(sliceExpr, i, sliceExpr.typ)(src)), perm)(src) }
+      )
 
     (x.tag, x.argsT) match {
       case (CloseFunctionTag, Vector(channelT, dividendT, divisorT /* permissionAmountT */, predicateT)) =>
@@ -423,8 +424,10 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )
         in.Function(x.name, args, Vector(), pres, posts, None)(src)
 
+        // TODO: double check append triggers
       case (AppendFunctionTag, Vector(_: in.PermissionT, dst, _)) =>
         /**
+          * // TODO: update triggers to quantifiers and PR code snippet
           * requires p > 0
           * requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i])
           * requires forall i int :: 0 <= i && i < len(stuff) ==> acc(&stuff[i], p)
@@ -466,19 +469,27 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )(src)
         val postRes = accessSlice(resultParam, in.FullPerm(src))
         val postVariadic = accessSlice(variadicParam, pParam)
-        val postCmpSlice = quantify{ bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) }{
-          i => in.ExprAssertion(
-            in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)
-          )(src)
-        }
-        val postCmpVariadic = quantify{ bound(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) } { i =>
-          in.ExprAssertion(
-            in.EqCmp(
-              in.IndexedExp(resultParam, i, sliceType)(src),
-              in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
+        val postCmpSlice = quantify(
+          trigger = { _ => Vector() },
+          range = { bound(_, in.IntLit(0)(src), in.Length(sliceParam)(src)) },
+          body = {
+            i => in.ExprAssertion(
+              in.EqCmp(in.IndexedExp(resultParam, i, sliceType)(src), in.Old(in.IndexedExp(sliceParam, i, sliceType)(src), elemType)(src))(src)
             )(src)
-          )(src)
-        }
+          }
+        )
+        val postCmpVariadic = quantify(
+          trigger = { _ => Vector() },
+          range = { bound(_,  in.Length(sliceParam)(src), in.Length(resultParam)(src)) },
+          body = { i =>
+            in.ExprAssertion(
+              in.EqCmp(
+                in.IndexedExp(resultParam, i, sliceType)(src),
+                in.IndexedExp(variadicParam, in.Sub(i, in.Length(sliceParam)(src))(src), sliceType)(src),
+              )(src)
+            )(src)
+          }
+        )
 
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
@@ -487,16 +498,16 @@ class BuiltInMembersImpl extends BuiltInMembers {
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
           * requires 0 < p && p < 1
-          * requires forall i int :: (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
-          * requires forall i int :: (0 <= i && i < len(src)) ==> acc(&src[i], p)
-          * requires forall i int :: (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
+          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst)) ==> acc(&dst[i], 1-p)
+          * requires forall i int :: { src[i] } (0 <= i && i < len(src)) ==> acc(&src[i], p)
+          * requires forall i int :: { dst[i] } (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
           * ensures len(dst) <= len(src) ==> res == len(dst)
           * ensures len(src) < len(dst) ==> res == len(src)
-          * ensures forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i], 1-p)
-          * ensures forall i int :: 0 <= i && i < len(src) ==> acc(&src[i], p)
-          * ensures forall i int :: (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
-          * ensures forall i int :: (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
-          * ensures forall i int :: (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
+          * ensures forall i int :: { dst[i] } 0 <= i && i < len(dst) ==> acc(&dst[i], 1-p)
+          * ensures forall i int :: { src[i] } 0 <= i && i < len(src) ==> acc(&src[i], p)
+          * ensures forall i int :: { dst[i] } (0 <= i && i < len(dst) && (forall j int :: 0 <= j && j < len(src) ==> &dst[i] != &src[j])) ==> acc(&dst[i], p)
+          * ensures forall i int :: { dst[i] } (0 <= i && i < len(src) && i < len(dst)) ==> dst[i] == old(src[i])
+          * ensures forall i int :: { dst[i] } (len(src) <= i && i < len(dst)) ==> dst[i] == old(dst[i])
           * func copy(dst, src []int, ghost p perm) (res int)
           */
 
@@ -522,23 +533,40 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val pPre = in.ExprAssertion(
           in.And(in.LessCmp(in.NoPerm(src), pParam)(src), in.LessCmp(pParam, in.FullPerm(src))(src))(src)
         )(src)
-        val preDst = quantify(i => bound(i, in.IntLit(0)(src), in.Length(dstParam)(src))) { i =>
-          in.Access(
-            in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)),
-            in.PermSub(in.FullPerm(src), pParam)(src)
-          )(src)
-        }
-        val preSrc = quantify(i => bound(i, in.IntLit(0)(src), in.Length(srcParam)(src))) { i =>
-          in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src)
-        }
-        val preDistinct = quantify { i =>
-          in.And(
-            bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
-            quantifyPure { j => bound(j, in.IntLit(0)(src), in.Length(srcParam)(src)) } { j =>
-              in.UneqCmp(in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src), in.Ref(in.IndexedExp(srcParam, j, srcUnderlyingType)(src))(src))(src)
-            }
-          )(src)
-        } { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), pParam)(src) }
+        val preDst = quantify(
+          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          range = { i => bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)) },
+          body = { i =>
+            in.Access(
+              in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)),
+              in.PermSub(in.FullPerm(src), pParam)(src)
+            )(src)
+          }
+        )
+        val preSrc = quantify(
+          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)))(src)) },
+          range = { i => bound(i, in.IntLit(0)(src), in.Length(srcParam)(src)) },
+          body = { i => in.Access(in.Accessible.Address(in.IndexedExp(srcParam, i, srcUnderlyingType)(src)), pParam)(src) }
+        )
+        val preDistinct = quantify(
+          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          range = { i =>
+            in.And(
+              bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
+              quantifyPure(
+                // no suitable trigger found for this quantifier
+                trigger = { _ => Vector() },
+                range = { j => bound(j, in.IntLit(0)(src), in.Length(srcParam)(src)) },
+                body = { j =>
+                  in.UneqCmp(
+                    in.Ref(in.IndexedExp(dstParam, i, dstUnderlyingType)(src))(src),
+                    in.Ref(in.IndexedExp(srcParam, j, srcUnderlyingType)(src))(src)
+                  )(src)
+                }
+              )
+            )(src)
+          },
+          body = { i => in.Access(in.Accessible.Address(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)), pParam)(src) })
 
         val pres = Vector(pPre, preDst, preSrc, preDistinct)
 
@@ -557,27 +585,35 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val postDst = preDst
         val postSrc = preSrc
         val postDistinct = preDistinct
-        val postUpdate = quantify { i =>
-          in.And(
-            bound(i, in.IntLit(0)(src), in.Length(srcParam)(src)),
-            bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
-          )(src)
-        } { i =>
-          in.ExprAssertion(
-            in.EqCmp(
-              in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
-              in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
+        val postUpdate = quantify(
+          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          range = { i =>
+            in.And(
+              bound(i, in.IntLit(0)(src), in.Length(srcParam)(src)),
+              bound(i, in.IntLit(0)(src), in.Length(dstParam)(src)),
             )(src)
-          )(src)
-        }
-        val postSame = quantify(i => bound(i, in.Length(srcParam)(src), in.Length(dstParam)(src))) { i =>
-          in.ExprAssertion(
-            in.EqCmp(
-              in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
-              in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
+          },
+          body = { i =>
+            in.ExprAssertion(
+              in.EqCmp(
+                in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
+                in.Old(in.IndexedExp(srcParam, i, srcUnderlyingType)(src), srcUnderlyingType.elems)(src)
+              )(src)
             )(src)
-          )(src)
-        }
+          }
+        )
+        val postSame = quantify(
+          trigger = { i => Vector(in.Trigger(Vector(in.IndexedExp(dstParam, i, dstUnderlyingType)(src)))(src)) },
+          range = { i => bound(i, in.Length(srcParam)(src), in.Length(dstParam)(src)) },
+          body = { i =>
+            in.ExprAssertion(
+              in.EqCmp(
+                in.IndexedExp(dstParam, i, dstUnderlyingType)(src),
+                in.Old(in.IndexedExp(dstParam, i, dstUnderlyingType)(src), dstUnderlyingType.elems)(src)
+              )(src)
+            )(src)
+          }
+        )
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
 
@@ -601,7 +637,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
             assert(arg.addressability == Addressability.inParameter)
             in.Parameter.In(s"arg$idx", arg)(src)
         }
-        val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(true)(src))(src))
+        val body: Option[in.Assertion] = Some(in.ExprAssertion(in.BoolLit(b = true)(src))(src))
         in.FPredicate(x.name, params, body)(src)
       case (tag, args) => violation(s"no fpredicate generation defined for tag $tag and arguments $args")
     }

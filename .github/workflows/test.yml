@@ -183,7 +183,7 @@ jobs:
         run: |
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          if [ $CONCLUSION = "success" ]
+          if [ $CONCLUSION = "failure" ]
           then
             # the whole step fails when this comparison fails
             exit 1

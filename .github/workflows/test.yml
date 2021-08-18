@@ -18,6 +18,8 @@ jobs:
       SILVER_REF: "v.21.07-release"
       SILICON_REF: "v.21.07-release"
       CARBON_REF: "v.21.07-release"
+      CONCLUSION_SUCCESS: "success"
+      CONCLUSION_FAILURE: "failure"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
@@ -165,9 +167,9 @@ jobs:
           Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
           if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
           then
-            CONCLUSION="${{ env.FAILURE_LEVEL }}"
+            CONCLUSION="${{ env.CONCLUSION_FAILURE }}"
           else
-            CONCLUSION="success"
+            CONCLUSION="${{ env.CONCLUSION_SUCCESS }}"
           fi
           echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
           echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
@@ -183,7 +185,7 @@ jobs:
         run: |
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          if [ $CONCLUSION = "${{ env.FAILURE_LEVEL }}" ]
+          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
           then
             # the whole step fails when this comparison fails
             exit 1

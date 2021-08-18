@@ -190,7 +190,7 @@ jobs:
           Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
           if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
           then
-            echo "$Z3_LEVEL"
+            echo "$Z3_MESSAGE"
           else
             echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
           fi 

@@ -28,7 +28,6 @@ object BuiltInMemberTag {
     def ghost: Boolean
   }
 
-  // TODO: Maybe remove, does not seem to be a sypertype of any type
   sealed trait ActualBuiltInMember extends BuiltInMemberTag
 
   sealed trait GhostBuiltInMember extends BuiltInMemberTag {

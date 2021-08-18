@@ -248,6 +248,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MakeMap(target, typeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
 
+    case EffectfulConversion(target, newType, expr) =>
+      showVar(target) <+> "=" <+> showType(newType) <> parens(showExpr(expr))
+
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))
 
@@ -632,6 +635,9 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
     case MakeMap(target, typeParam, initialSpaceArg) =>
       showVar(target) <+> "=" <+> "make" <> parens(showType(typeParam) <> opt(initialSpaceArg)(comma <+> showExpr(_)))
+
+    case EffectfulConversion(target, newType, expr) =>
+      showVar(target) <+> "=" <+> showType(newType) <> parens(showExpr(expr))
 
     case SafeTypeAssertion(resTarget, successTarget, expr, typ) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> showExpr(expr) <> "." <> parens(showType(typ))

@@ -288,6 +288,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
+          * requires dividend >= 0
           * requires divisor > 0
           * requires acc(c.SendChannel(), dividend/divisor /* p */)
           * ensures c.ClosureDebt(P, dividend, divisor /* p */) && c.Token(P)
@@ -301,6 +302,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val predicateParam = in.Parameter.In("P", in.PredT(Vector(), Addressability.inParameter))(src)
         val sendChannelInst = builtInMPredAccessible(BuiltInMemberTag.SendChannelMPredTag, recvParam, Vector())(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
+          in.ExprAssertion(in.AtLeastCmp(dividendParam, in.IntLit(0)(src))(src))(src),
           in.ExprAssertion(in.GreaterCmp(divisorParam, in.IntLit(0)(src))(src))(src),
           in.Access(sendChannelInst, in.FractionalPerm(dividendParam, divisorParam)(src))(src)
           // in.Access(sendChannelInst, permissionAmountParam)(src)
@@ -383,8 +385,9 @@ class BuiltInMembersImpl extends BuiltInMembers {
     (x.tag, x.argsT) match {
       case (CloseFunctionTag, Vector(channelT, dividendT, divisorT /* permissionAmountT */, predicateT)) =>
         /**
+          * requires dividend >= 0
           * requires divisor > 0
-          * requires acc(c.SendChannel(), dividene/divisor /* p */) && c.ClosureDebt(P, divisor - dividend, divisor /* 1-p */) && P()
+          * requires acc(c.SendChannel(), dividend/divisor /* p */) && c.ClosureDebt(P, divisor - dividend, divisor /* 1-p */) && P()
           * ensures c.Closed()
           * func close(c chan T, ghost dividend int, divisor int /* p perm */, P pred())
           */
@@ -407,6 +410,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
         )
         val closureDebtInst = builtInMPredAccessible(BuiltInMemberTag.ClosureDebtMPredTag, channelParam, closureDebtArgs)(src)(ctx)
         val pres: Vector[in.Assertion] = Vector(
+          in.ExprAssertion(in.AtLeastCmp(dividendParam, in.IntLit(0)(src))(src))(src),
           in.ExprAssertion(in.GreaterCmp(divisorParam, in.IntLit(0)(src))(src))(src),
           in.Access(sendChannelInst, in.FractionalPerm(dividendParam, divisorParam)(src))(src),
           // in.Access(sendChannelInst, permissionAmountParam)(src),

@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PParameter, PPkgDef, PScope, PType}
+import viper.gobra.ast.frontend.{PEmbeddedDecl, PExpression, PFieldDecl, PIdnNode, PIdnUse, PKeyedElement, PMPredicateDecl, PMPredicateSig, PMember, PMethodDecl, PMethodSig, PMisc, PNode, PParameter, PPkgDef, PScope, PType}
 import viper.gobra.frontend.info.base.BuiltInMemberTag.BuiltInMemberTag
 import viper.gobra.frontend.info.base.Type.{AbstractType, InterfaceT, StructT, Type}
 import viper.gobra.frontend.info.base.SymbolTable.{Embbed, Field, MPredicateImpl, MPredicateSpec, MethodImpl, MethodSpec, Regular, TypeMember}
@@ -67,7 +67,7 @@ trait ExternalTypeInfo {
 
   def scope(n: PIdnNode): PScope
 
-  def struct: PFieldDecl => Option[StructT]
+  def struct(n: PNode): Option[StructT]
 
   def boolConstantEvaluation(expr: PExpression): Option[Boolean]
 

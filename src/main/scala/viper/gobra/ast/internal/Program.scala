@@ -932,6 +932,8 @@ case class Conversion(newType: Type, expr: Expr)(val info: Source.Parser.Info) e
   override def typ: Type = newType
 }
 
+case class EffectfulConversion(target: LocalVar, newType: Type, expr: Expr)(val info: Source.Parser.Info) extends Stmt
+
 case class Receive(channel: Expr, recvChannel: MPredicateProxy, recvGivenPerm: MethodProxy, recvGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Expr {
   require(channel.typ.isInstanceOf[ChannelT])
   override def typ: Type = channel.typ.asInstanceOf[ChannelT].elem
@@ -965,8 +967,8 @@ case class NilLit(typ: Type)(val info: Source.Parser.Info) extends Lit
 case class Slice(base : Expr, low : Expr, high : Expr, max : Option[Expr], baseUnderlyingType: Type)(val info : Source.Parser.Info) extends Expr {
   override def typ : Type = baseUnderlyingType match {
     case t: ArrayT => SliceT(t.elems, Addressability.sliceElement)
-    case _: SliceT => base.typ
-    case t => Violation.violation(s"expected an array or slice type, but got $t")
+    case _: SliceT | _: StringT => base.typ
+    case t => Violation.violation(s"expected an array, slice or string type, but got $t")
   }
 }
 

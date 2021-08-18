@@ -18,7 +18,7 @@ import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{DesugarWriter, Violation}
+import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
 import scala.collection.Iterable
@@ -1660,6 +1660,14 @@ object Desugar {
               case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
               case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
+            case baseT: in.StringT =>
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
+              }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -1808,8 +1816,23 @@ object Desugar {
       info.resolve(expr) match {
         case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
         case Some(ap.Conversion(typ, arg)) =>
-          val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
-          for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          val typType = info.symbType(typ)
+          val argType = info.typ(arg)
+
+          (underlyingType(typType), underlyingType(argType)) match {
+            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
+              val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
+              for {
+                target <- freshDeclaredExclusiveVar(resT)(src)
+                dArg <- exprD(ctx)(arg)
+                conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
+                _ <- write(conv)
+              } yield target
+            case _ =>
+              val desugaredTyp = typeD(typType, info.addressability(expr))(src)
+              for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          }
+
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
         case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }
@@ -1821,7 +1844,7 @@ object Desugar {
         case MemberPath.Deref => in.Deref(e)(pinfo)
         case MemberPath.Ref => in.Ref(e)(pinfo)
         case MemberPath.Next(g) =>
-          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(base.typ.addressability), info)(pinfo))(pinfo)
+          in.FieldRef(e, embeddedDeclD(g.decl, Addressability.fieldLookup(e.typ.addressability), info)(pinfo))(pinfo)
       }}
     }
 
@@ -2514,12 +2537,15 @@ object Desugar {
 
     def embeddedDeclD(embedded: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(embedded._1, struct)
-      val td = embeddedTypeD(???, fieldAddrMod)(src) // TODO fix me or embeddedTypeD
+      val td = typeD(embedded._2, fieldAddrMod)(src)
       in.Field(idname, td, ghost = false)(src) // TODO: fix ghost attribute
     }
 
-    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field =
-      in.Field(idName(decl.id, context.getTypeInfo), embeddedTypeD(decl.typ, addrMod)(src), ghost = false)(src) // TODO: fix ghost attribute
+    def embeddedDeclD(decl: PEmbeddedDecl, addrMod: Addressability, context: ExternalTypeInfo)(src: Meta): in.Field = {
+      val struct = context.struct(decl)
+      val embedded: (String, Type) = (decl.id.name, context.typ(decl.typ))
+      embeddedDeclD(embedded, addrMod, struct.get)(src)
+    }
 
     def fieldDeclD(field: (String, Type), fieldAddrMod: Addressability, struct: StructT)(src: Source.Parser.Info): in.Field = {
       val idname = nm.field(field._1, struct)

@@ -125,7 +125,6 @@ jobs:
           JAVA_FAILURE_THRESHOLD_GB: 5.5
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
-
         # awk is used to perform the computations such that the computations are performed with floating point precision
         # we transform bash variables into awk variables to not cause problems with bash's variable substitution
         # after computing the memory usage (in KB) a few more computations are performed. At the very end, all (local)

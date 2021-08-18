@@ -115,10 +115,10 @@ jobs:
         shell: bash
         env:
           JAVA_WARNING_THRESHOLD_GB: 4.5
-          JAVA_FAILURE_THRESHOLD_GB: 5.5
+          JAVA_FAILURE_THRESHOLD_GB: 0.0
           Z3_WARNING_THRESHOLD_GB: 0.5
           Z3_FAILURE_THRESHOLD_GB: 1
-          # TODO: activate debug
+          # TODO: comment debug requiring a secret not available for forks, that's a compromise we must accept
           NOTICE_LEVEL: "warning"
           WARNING_LEVEL: "warning"
           FAILURE_LEVEL: "error"

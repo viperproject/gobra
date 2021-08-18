@@ -177,13 +177,13 @@ jobs:
         working-directory: gobra
 
       - name: Create annotations
-      #TODO: proper comment
         if: ${{ always() }}
-        # message format described in https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions
+        # Outputs the memory consumption of JAVA and Z3. The message format is described in
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
         run: |
           echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
           echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          return $([ $CONCLUSION = "success" ])  
+          return $([ $CONCLUSION = "success" ]) # the whole step fails when this comparison fails
 
       - name: Upload RAM usage
         if: ${{ always() }}

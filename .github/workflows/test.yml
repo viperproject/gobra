@@ -120,8 +120,10 @@ jobs:
           Z3_FAILURE_THRESHOLD_GB: 1
           # Output levels according to severity. They identify the kinds of annotations to be printed by Github.
           # Currently, NOTICE_LEVEL has the same value as WARNING_LEVEL, i.e., "warning". Alternatively, one could use
-          # "debug" for the NOTICE_LEVEL.
-          NOTICE_LEVEL: "debug"
+          # "debug" for the NOTICE_LEVEL. However, this option requires enabling debug logging at the repository level,
+          # which causes additional (unwanted) debug messages to be printed.
+          # (https://docs.github.com/en/enterprise-server@2.22/actions/reference/workflow-commands-for-github-actions#setting-a-debug-message)
+          NOTICE_LEVEL: "warning"
           WARNING_LEVEL: "warning"
           FAILURE_LEVEL: "error"
 

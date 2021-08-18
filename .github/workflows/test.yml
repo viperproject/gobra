@@ -186,7 +186,7 @@ jobs:
           if [ $CONCLUSION = "success" ]
           then
             # the whole step fails when this comparison fails
-            false
+            exit 1
           fi
 
       - name: Upload RAM usage

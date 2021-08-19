@@ -14,6 +14,7 @@ import viper.gobra.translator.interfaces.TranslatorConfig
 import viper.gobra.translator.interfaces.translator.Programs
 import viper.gobra.translator.util.ViperWriter.MemberWriter
 import viper.gobra.util.Violation
+import viper.gobra.reporting.BackTranslator.VerificationBackTrackInfo
 import viper.silver.{ast => vpr}
 
 class ProgramsImpl extends Programs {
@@ -78,11 +79,9 @@ class ProgramsImpl extends Programs {
 
     val (error, _, prog) = progW.execute
 
-    val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT)
+    val backTrackInfo = BackTrackInfo(error.errorT, error.reasonT,prog,null,null) //config is added as needed, but typeInfo is missing (resolved in Translator)
 
-    BackendVerifier.Task(
-      program = prog,
-      backtrack = backTrackInfo
-    )
+
+    BackendVerifier.Task(prog,backTrackInfo)
   }
 }

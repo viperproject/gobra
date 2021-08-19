@@ -158,14 +158,15 @@ class DefaultErrorBackTranslator(
     case (l, r) => l orElse r
   }
 
-  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError = {
-    val transformedViperError = viperError match {
-      case err: AbstractVerificationError => err.transformedError()
-      case err => err
+  override def translate(viperError: viper.silver.verifier.VerificationError): VerificationError ={
+    val ret = DefaultErrorBackTranslator.translateWithTransformer(viperError, errorTransformer) 
+    ret.counterexample = backtrack.config.counterexample match {
+              case Some(x) => viperError.counterexample match {case Some(x) => CounterexampleBackTranslator(backtrack).translate(x, ret.info.pnode)
+                                                case None => None}
+              case None => None
     }
-    DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
-  }
-
+    ret
+}
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {
     DefaultErrorBackTranslator.translateWithTransformer(viperReason, reasonTransformer)

@@ -72,10 +72,10 @@ object Names {
   def sharedArrayDomain: String = "ShArray"
   def arrayConversionFunc: String = "arrayConversion"
   def arrayDefaultFunc: String = "arrayDefault"
-  def location(domain:String) = s"${domain}loc" //  function ShArrayloc(a: ShArray[T], i: Int): T
-  def length(domain:String) = s"${domain}len" // function ShArraylen(a: ShArray[T]): Int
-  def first(domain:String) = s"${domain}first" // function ShArrayfirst(r: T): ShArray[T]
-  def second(domain:String) = s"${domain}second" // function ShArraysecond(r: T): Int
+  def location(domain: String) = s"${domain}loc" //  function ShArrayloc(a: ShArray[T], i: Int): T
+  def length(domain: String) = s"${domain}len" // function ShArraylen(a: ShArray[T]): Int
+  def first(domain: String) = s"${domain}first" // function ShArrayfirst(r: T): ShArray[T]
+  def second(domain: String) = s"${domain}second" // function ShArraysecond(r: T): Int
 
   // slices
   def fullSliceFromArray: String = "sfullSliceFromArray"

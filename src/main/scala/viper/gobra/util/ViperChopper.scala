@@ -174,9 +174,6 @@ object ViperChopper {
           {
             val from = Vertex.Method(m.name)
             usages(m).map(from -> _)
-          } ++ {
-            val from = Vertex.MethodSpec(m.name)
-            (m.pres ++ m.posts ++ m.formalArgs ++ m.formalReturns).flatMap(exp => usages(exp).map(from -> _))
           }
 
         case f: vpr.Function =>
@@ -223,7 +220,7 @@ object ViperChopper {
       }
 
       n.deepCollect{
-        case n: vpr.MethodCall => Vertex.MethodSpec(n.methodName) +: unit(n)
+        case n: vpr.MethodCall => Vertex.Method(n.methodName) +: unit(n)
         case n: vpr.FuncApp => Vertex.Function(n.funcname) +: unit(n)
         case n: vpr.DomainFuncApp => Vertex.DomainFunction(n.funcname) +: unit(n)
         case n: vpr.PredicateAccess => Vertex.Predicate(n.predicateName) +: unit(n)

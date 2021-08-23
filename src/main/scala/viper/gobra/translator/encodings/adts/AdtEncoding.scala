@@ -513,6 +513,30 @@ class AdtEncoding extends LeafTypeEncoding {
         )(aPos, aInfo, adtName, aErrT)
       }
 
+      val rankAxioms = {
+        def rankAxiom(c: AdtClause): vpr.AnonymousDomainAxiom = {
+          val (cPos, cInfo, cErrT) = c.vprMeta
+          val argsDecl = clauseArgsAsLocalVarDecl(c)(ctx)
+          val args = argsDecl.map(_.localVar)
+          val constructor = constructorCall(c, args)(cPos, cInfo, cErrT)
+
+          val lessExpr = args.map(a => vpr.LtCmp(
+            ctx.rank.rank(a)(cPos, cInfo, cErrT),
+            ctx.rank.rank(constructor)(cPos, cInfo, cErrT))(cPos, cInfo, cErrT) : vpr.Exp
+          ).reduceLeft((e1, e2) =>
+            vpr.And(e1, e2)(cPos, cInfo, cErrT)
+          )
+
+
+          vpr.AnonymousDomainAxiom(
+            vpr.Forall(argsDecl,
+              Seq(vpr.Trigger(Seq(constructor))(cPos, cInfo, cErrT)),
+              lessExpr)(cPos, cInfo, cErrT)
+          )(cPos, cInfo, adtName, cErrT)
+        }
+
+        adt.clauses.filter(_.args.nonEmpty).map(rankAxiom)
+      }
 
       val additionalAxioms  = adt.derives.derivable match {
         case _: Collection =>
@@ -521,7 +545,7 @@ class AdtEncoding extends LeafTypeEncoding {
         case _ => Vector.empty
       }
 
-      val axioms = (tagAxioms ++ destructorAxioms ++ contAxioms ++ additionalAxioms) :+ exclusiveAxiom
+      val axioms = (tagAxioms ++ destructorAxioms ++ contAxioms ++ additionalAxioms ++ rankAxioms) :+ exclusiveAxiom
       val funcs = (clauses ++ destructors) :+ defaultFunc :+ tagFunc
 
       ml.unit(Vector(vpr.Domain(adtName, functions = funcs, axioms = axioms)(pos = aPos, info = aInfo, errT = aErrT)))

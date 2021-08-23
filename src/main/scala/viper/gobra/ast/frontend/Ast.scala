@@ -815,7 +815,7 @@ case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PMatchStatement(exp: PExpression, clauses: Vector[PMatchStmtCase], strict: Boolean = true) extends PGhostStatement
 
-case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement]) extends PGhostMisc with PScope
+case class PMatchStmtCase(pattern: PMatchPattern, stmt: Vector[PStatement], default: Boolean = false) extends PGhostMisc with PScope
 
 case class PMatchExp(exp: PExpression, clauses: Vector[PMatchExpClause]) extends PGhostExpression {
   val caseClauses: Vector[PMatchExpCase] = clauses collect {case c: PMatchExpCase => c}

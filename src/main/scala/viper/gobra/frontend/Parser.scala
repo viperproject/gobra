@@ -1295,10 +1295,17 @@ object Parser {
       "match" ~> matchStmt
 
     lazy val matchStmt: Parser[PMatchStatement] =
-      expression ~ ("{" ~> rep1(matchClause) <~ "}") ^^ {case (e ~ m) => PMatchStatement(e,m)}
+      expression ~ ("{" ~> (rep1(matchClause) ~ defaultClause.?) <~ "}") ^^ {case e ~ (m ~ None) => PMatchStatement(e,m)
+      case e ~ (m ~ Some(d)) => PMatchStatement(e, m :+ d)}
 
     lazy val matchClause: Parser[PMatchStmtCase] =
-      matchCase ~ statementList  ^^ PMatchStmtCase
+      matchCase ~ statementList  ^^ {case m ~ s => PMatchStmtCase(m, s)}
+
+    lazy val defaultWildcard: Parser[PMatchPattern] =
+      success(PMatchWildcard())
+
+    lazy val defaultClause: Parser[PMatchStmtCase] =
+      "default" ~> ":" ~> defaultWildcard ~ statementList ^^ {case m ~ s => PMatchStmtCase(m, s, default = true)}
 
     lazy val matchCase: Parser[PMatchPattern] =
       "case" ~> matchExpression <~ ":"

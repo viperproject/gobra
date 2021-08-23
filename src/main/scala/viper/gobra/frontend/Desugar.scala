@@ -31,11 +31,11 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)(config)
+      val d = new Desugarer(importedPackage.positions, typeInfo)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)(config)
+    val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
@@ -144,7 +144,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo)(config: Config) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
 
     // TODO: clean initialization
 
@@ -1186,7 +1186,7 @@ object Desugar {
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
-        val abstractType = f.symb.tag.typ(config)
+        val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
           case _: ap.BuiltInFunction =>
             p.args.map(info.typ)
@@ -1260,9 +1260,10 @@ object Desugar {
             variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
             len = res.length
             argList = res.lastOption.map(_.typ) match {
-              case Some(in.SliceT(elems, _)) if len == parameterCount && elems == variadicInTyp =>
-                // corresponds to the case where an unpacked slice is already passed as an argument
-                res
+              case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
+                len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
+                  // corresponds to the case where an unpacked slice is already passed as an argument
+                  res
               case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
                 // supports chaining function calls with variadic functions of one argument
                 val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)

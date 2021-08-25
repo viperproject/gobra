@@ -69,6 +69,8 @@ object Nodes {
           Seq(resTarget, successTarget, channel, recvChannel, recvGivenPerm, recvGotPerm, closed)
         case Send(channel, expr, sendChannel, sendGivenPerm, sendGotPerm) =>
           Seq(channel, expr, sendChannel, sendGivenPerm, sendGotPerm)
+        case EffectfulConversion(target, _, expr) =>
+          Seq(target, expr)
       }
       case a: Assignee => Seq(a.op)
       case a: Assertion => a match {

@@ -1,0 +1,23 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg
+
+type cell struct {
+		val int
+}
+
+func test1() {
+    s := seq[cell] { 1: cell{42} }
+    assert s[1] == cell{42}
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}
+
+func test2() {
+    c := &cell{42}
+    s := seq[*cell] { 0: c }
+    assert s[0] == c
+    //:: ExpectedOutput(assert_error:assertion_error)
+    assert false
+}

@@ -57,6 +57,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
         val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
+        executor.terminateAndAssertInexistanceOfTimeout()
 
         info(s"Time required: $elapsedMilis ms")
 

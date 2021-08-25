@@ -42,8 +42,7 @@ import scala.concurrent.duration.Duration
   *   run times of all these tests, and
   * 4. Print the timing info (per phase) into STDOUT, and write mean and standard deviation
   *    to file data.csv
-  * 5. Create JAR files (e.g., target/scala-2.13/gobra_2.13-0.1.0-SNAPSHOT.jar,
-  *                            target/scala-2.13/gobra_2.13-0.1.0-SNAPSHOT-tests.jar)
+  * 5. Create JAR files by running `sbt test:assembly`. This creates the JAR `target/scala-2.13/gobra-test.jar`
   *    that can be used to run tests with SBT without the need to distribute/ recompile
   *    the Gobra sources. To run the test without recompiling the sources, these
   *    JAR files should be put into a directory test-location/lib/
@@ -53,7 +52,12 @@ import scala.concurrent.duration.Duration
   *    "test:runMain org.scalatest.tools.Runner -o -s viper.gobra.OverallBenchmarkTests"
   *    ```
   *    Note that this command takes the same JVM property arguments as used above.
-  *    Linard (26.1.2021): I was not able to execute the tests using the generated JAR. This might have changed since Scala 2.13.
+  *    Linard (26.1.2021): I was not able to execute the tests using SBT. This might have changed since Scala 2.13.
+  *                       `-R target/scala-2.13/test-classes` seems to be missing in the command above
+  *                       However, the following command can be used to execute the benchmarks without SBT:
+  *                       ```
+  *                       java -Xss128m -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_TARGET=<path to directory> org.scalatest.run viper.gobra.DetailedBenchmarkTests
+  *                       ```
   *
   * The warmup and the target must be disjoint (not in a sub-directory relation).
   *

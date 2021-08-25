@@ -15,6 +15,7 @@ import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused
@@ -306,7 +307,15 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(p: ap.Conversion)) => go(p.arg)
+        case (Right(_), Some(p: ap.Conversion)) =>
+          val dstTyp = symbType(p.typ)
+          val exprTyp = typ(p.arg)
+          (underlyingType(dstTyp), underlyingType(exprTyp)) match {
+            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
+              // this is an effectful conversion which produces permissions to the resulting slice
+              false
+            case _ => go(p.arg)
+          }
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong

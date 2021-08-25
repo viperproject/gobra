@@ -1055,6 +1055,95 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
+          case n: POutline => 
+            val src: Meta = meta(n, info)
+            val variables = info.variables(n.body).toVector
+            val modified = info.modified(n.body).toVector
+            val declared = info.declared(n.body).toVector
+            // create in parameters
+            val readWithSubsAux = variables.map {id => 
+              val param = in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+              val local = localAlias(localVarContextFreeD(id, info))
+              (param, local)
+            }
+            val (readArgs, readArgsSubs) = readWithSubsAux.unzip
+            val modifiedArgsWithSubsAux = modified.map {id => 
+              val param = in.Parameter.In(idName(id, info), typeD(info.typ(id), Addressability.inParameter)(src))(src)
+              val local = localAlias(localVarContextFreeD(id, info))
+              (param, local)
+            }
+            val (modifiedArgs, modifiedArgsSubs) = modifiedArgsWithSubsAux.unzip
+            // create out parameters
+            val returns = (modified ++ declared).zipWithIndex.map { case (id, idx) => 
+              in.Parameter.Out(nm.outParam(idx, info.codeRoot(n), info), typeD(info.typ(id), Addressability.outParameter)(src))(src)
+            }
+            // add temporary return variables to initialization
+            val targets = (modified ++ declared).map(id => 
+              freshExclusiveVar(typeD(info.typ(id), Addressability.callResult)(src))(src)
+            )
+            // add declared and modified variables to initalization
+            val declaredLocalVars = declared.map(id => 
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
+            )
+            val modifiedLocalVars = modified.map(id => 
+              in.LocalVar(idName(id, info), typeD(info.typ(id), Addressability.exclusiveVariable)(src))(src)
+            )
+            val blockInit = targets ++ declaredLocalVars
+            // create arguments for function call
+            val outArgs = (variables ++ modified).map{id => 
+              val typ = info.typ(id)
+              val add = info.addressableVar(id)
+              in.LocalVar(idName(id, info),typeD(typ, add)(src))(src)
+            }
+            // add function call
+            val proxy = in.FunctionProxy(nm.outlinedFunction(info))(meta(n, info))
+            val functionCall = in.FunctionCall(targets, proxy, outArgs)(src)
+            // init declared variables
+            val declareInits = declaredLocalVars.map(lvar => in.Initialization(lvar)(src))
+            // assign return values to variables
+            val returnTargets = targets.zip (modifiedLocalVars ++ declaredLocalVars)
+            val returnAssigns = returnTargets.map{ case (t, r) => 
+              in.SingleAss(in.Assignee.Var(r), t)(src)
+            }
+            // create context for body translation
+            val outlinedContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
+            // init new variables
+            val newVariablesInit = (readArgsSubs ++ modifiedArgsSubs).map(v => in.Initialization(v)(v.info))
+            // assign in parameters to local variables
+            val argInits = (readWithSubsAux ++ modifiedArgsWithSubsAux).flatMap{
+              case (p, q) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
+              case _ => None
+            }
+            // extends context
+            (readArgsSubs ++ modifiedArgsSubs).zip(variables ++ modified).foreach{case (lvar, id) =>
+              outlinedContext.addSubst(id, lvar)
+            }
+            // assign local variables to out parameters
+            val outParamAssigns = (modifiedArgsSubs ++ declaredLocalVars).zip(returns).map{case (lvar, param) =>               
+              in.SingleAss(in.Assignee.Var(param), lvar)(src)
+            }
+            // desugar outlined function body
+            val desugaredBlockStmts = sequence(n.body map (s => seqn(stmtD(outlinedContext)(s))))
+            val blockContent = blockV(desugaredBlockStmts)(src)
+            // create block
+            val blockBody = newVariablesInit ++ argInits ++ Vector(blockContent) ++ outParamAssigns
+            val block = in.Block(readArgsSubs ++ modifiedArgsSubs, blockBody)(src)
+            // create spec context
+            val specContext = new FunctionContext(_ => violation("Body of outline statement must not contain a return statement."))
+            (modified ++ declared).zip(returns).foreach{case (id, out) =>
+              specContext.addSubst(id, out)
+            }
+            // translate pre- and postconditions
+            val pres = n.spec.pres map preconditionD(ctx)
+            val posts = n.spec.posts map postconditionD(specContext)
+            // create function and add as member
+            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, Some(block))(src)
+            definedFunctions += proxy -> function
+            AdditionalMembers.addMember(function)
+            // write function call and result assignments
+            val stmts = Vector(functionCall) ++ declareInits ++ returnAssigns
+            create(stmts, blockInit, in.Seqn(Vector.empty)(src))
+
           case _ => ???
         }
       }
@@ -3041,6 +3130,7 @@ object Desugar {
     private val BUILTIN_PREFIX = "B"
 
     private var counter = 0
+    private var outlineCounter = 0
 
     private var scopeCounter = 0
     private var scopeMap: Map[PScope, Int] = Map.empty
@@ -3070,6 +3160,11 @@ object Desugar {
     def typ     (n: String, context: ExternalTypeInfo): String = nameWithoutScope(TYPE_PREFIX)(n, context)
     def field   (n: String, @unused s: StructT): String = s"$n$FIELD_PREFIX" // Field names must preserve their equality from the Go level
     def function(n: String, context: ExternalTypeInfo): String = nameWithoutScope(FUNCTION_PREFIX)(n, context)
+    def outlinedFunction(context: ExternalTypeInfo): String = {
+      val name = nameWithoutScope(FUNCTION_PREFIX)("outline_"+outlineCounter, context)
+      outlineCounter += 1
+      name
+    }
     def spec    (n: String, t: Type.InterfaceT, context: ExternalTypeInfo): String =
       nameWithoutScope(s"$METHODSPEC_PREFIX${interface(t)}")(n, context)
     def method  (n: String, t: PMethodRecvType, context: ExternalTypeInfo): String = t match {

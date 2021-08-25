@@ -137,6 +137,29 @@ trait StmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case _: PSeq => noMessages
     case _: PEmptyStmt => noMessages
 
+    case n: POutline =>
+      error(n.spec, "Currently, outline statements do not support the pure annotation.", n.spec.isPure) ++ 
+      error(n.spec, "Currently, the old keyword is not supported", (n.spec.posts ++ n.spec.pres).exists{exp => 
+        allChildren(exp).exists{case _: POld => true case _ => false}
+      }) ++
+      n.body.flatMap{stmt => 
+        val children = allChildren(stmt)
+        children.collect{
+          case n: POld => error(n, "Currently, the old keyword is not supported")
+          case n: PReturn => error(n, "Using return in an outlined block is not allowed")
+          case r: PReference => r.operand match {
+            case PNamedOperand(id) => 
+              val declared = this.declared(n.body)
+              if (declared.exists(_ == id)) noMessages
+              else error(r, "Taking the address of a variable defined outside of the outline block is not allowed")
+            case _ => noMessages
+          }
+        }.flatten
+      } ++
+      n.body.collect{case stmt: PReturn => 
+          error(stmt, "Using return in an outlined block is not allowed")
+      }.flatten
+
     case s => violation(s"$s was not handled")
   }
 }

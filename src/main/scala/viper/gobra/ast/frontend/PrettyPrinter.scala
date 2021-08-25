@@ -47,7 +47,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
+    case n: PTerminationMeasure => showTerminationMeasure(Some(n))
     case PPos(_) => emptyDoc
+    case _ => emptyDoc
   }
 
   // entire package
@@ -111,16 +113,36 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
+  
+   
+  def showConditionalMeasureCollection(n: PConditionalMeasureCollection): Doc = showList(n.tuple)(showConditionalMeasure)
+  def showConditionalMeasure(conditionalMeasure: PConditionalMeasure) : Doc = conditionalMeasure match {
+    case PConditionalMeasureExpression(expression, condition) => "decreases" <+> showExprList(expression) <+> "if" <+> showExpr(condition)
+    case PConditionalMeasureUnderscore(condition) => "decreases" <+> "_" <+> "if" <+> showExpr(condition)
+    case PConditionalMeasureAdditionalStar() => "decreases" <+> "*"
+  }
+  
+  def showTerminationMeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+    case Some(terminationMeasure) => terminationMeasure match {
+      case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
+      case PStarCharacter() => "decreases" <+> "*"
+      case PUnderscoreCharacter() => "decreases" <+> "_"
+      case x: PConditionalMeasureCollection => showConditionalMeasureCollection(x)
+    }
+    case None=> ""
+  }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
-        hcat(posts map (showPost(_) <> line))
+        hcat(posts map (showPost(_) <> line)) <>
+          showTerminationMeasure(terminationMeasure) <> line
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (showInv(_) <> line))
+    case PLoopSpec(inv,termination_measures) =>
+      hcat(inv map (showInv(_) <> line)) <>
+        showTerminationMeasure(termination_measures) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {

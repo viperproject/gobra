@@ -12,7 +12,7 @@ import viper.gobra.translator.Names
 import viper.gobra.translator.interfaces.translator.Statements
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{Comments, ViperUtil => vu}
-import viper.gobra.translator.util.ViperWriter.CodeWriter
+import viper.gobra.translator.util.ViperWriter.{CodeWriter}
 import viper.gobra.util.Violation
 import viper.silver.verifier.{errors => err}
 import viper.silver.{ast => vpr}
@@ -92,11 +92,11 @@ class StatementsImpl extends Statements {
             e <- goS(els)
           } yield vpr.If(c, vu.toSeq(t), vu.toSeq(e))(pos, info, errT)
 
-      case in.While(cond, invs, body) =>
+      case in.While(cond, invs, terminationMeasure, body) =>
 
         for {
           (cws, vCond) <- split(goE(cond))
-          (iws, vInvs) = invs.map(ctx.ass.invariant(_)(ctx)).unzip
+          (iws, vInvs) = (invs ++ terminationMeasure.toList).map(ctx.ass.invariant(_)(ctx)).unzip
           cpre <- seqnUnit(cws)
           ipre <- seqnUnits(iws)
           vBody <- goS(body)

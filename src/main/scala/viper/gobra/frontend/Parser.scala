@@ -421,7 +421,7 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-    lazy val outline: Parser[POutline] = 
+    lazy val outline: Parser[POutline] =
       (functionSpec <~ "outline") ~ ("(" ~> repsep(statement, eos) <~ eos.? <~ ")") ^^ {
         case spec ~ body => POutline(body, spec)
       }
@@ -434,12 +434,14 @@ object Parser {
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "decreases" ~> measures ^^ DecreasesClause |
         "pure" <~ eos ^^^ PureClause
       }
 
@@ -448,10 +450,56 @@ object Parser {
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
           val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val terminationMeasure = {
+            val t = clauses.collect{ case x: DecreasesClause => x.measure}
+            if(t.size <= 1){
+              t.headOption
+            } else {
+              Violation.violation("Unexpected amount of decreases clause")
+            }
+          }
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, isPure)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
       }
     }
+    
+    lazy val measures:Parser[PTerminationMeasure]=
+    "*"  ^^^ PStarCharacter() | ("_" <~ eos) ^^^ PUnderscoreCharacter() | repsep(expression,",") <~ eos ^^ PTupleTerminationMeasure | firstConditionalMeasure 
+
+    lazy val firstConditionalMeasure: Parser[PConditionalMeasureCollection]=
+      repsep(expression,",") ~ ("if" ~> expression <~ eos ) ~ ConditionalUnderscore.? ^^ {
+        case expression ~ condition ~ Some(PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, condition)) ++ tuple)
+        case expression ~ condition ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, condition)))
+      } | (repsep(expression,",") <~ eos) ~ ConditionalUnderscore.? ^^ {
+        case expression ~ Some(PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, PBoolLit(true))) ++ tuple)
+        case expression ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, PBoolLit(true))))
+      } | "_"  ~  ("if" ~> expression <~ eos ) ~ ConditionalExpressions.? ^^ {
+        case _ ~ condition ~ Some(PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(condition)) ++ tuple)
+        case _ ~ condition ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(condition)))
+      } | ("_" <~ eos) ~ ConditionalExpressions.? ^^ {
+        case _ ~ Some(PConditionalMeasureCollection(tuple)) => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(PBoolLit(true))) ++ tuple)
+        case _ ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(PBoolLit(true))))
+      }
+
+    lazy val ConditionalUnderscore: Parser[PConditionalMeasureCollection]=
+      ("decreases" ~> "*") ^^^ PConditionalMeasureCollection(Vector(PConditionalMeasureAdditionalStar())) |
+      ("decreases" ~> "_") ~ ("if" ~> expression <~ eos) ~ ("decreases" ~> "*").? ^^ {
+        case _ ~ condition ~ Some(_) => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(condition)) :+ PConditionalMeasureAdditionalStar())
+        case _ ~ condition ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(condition)))
+      } | ("decreases" ~> "_" <~ eos) ~ ("decreases" ~> "*").? ^^ {
+         case _ ~ Some(_) => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(PBoolLit(true))) :+ PConditionalMeasureAdditionalStar())
+         case _ ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureUnderscore(PBoolLit(true))))
+      }
+
+    lazy val ConditionalExpressions: Parser[PConditionalMeasureCollection]=
+      ("decreases" ~> "*") ^^^ PConditionalMeasureCollection(Vector(PConditionalMeasureAdditionalStar())) |
+      ("decreases" ~> repsep(expression,",")) ~ ("if" ~> expression <~ eos ) ~ ("decreases" ~> "*").? ^^ {
+        case expression ~ condition ~ Some(_) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, condition)) :+ PConditionalMeasureAdditionalStar())
+        case expression ~ condition ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, condition))) 
+      } | ("decreases" ~> repsep(expression,",") <~ eos ) ~ ("decreases" ~> "*").? ^^{
+        case expression ~ Some(_) => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, PBoolLit(true))) :+ PConditionalMeasureAdditionalStar())  
+        case expression ~ None => PConditionalMeasureCollection(Vector(PConditionalMeasureExpression(expression, PBoolLit(true))))
+      }
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
@@ -677,9 +725,10 @@ object Parser {
           case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
         }
 
-
-    lazy val loopSpec: Parser[PLoopSpec] =
-      ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
+ lazy val loopSpec: Parser[PLoopSpec] =
+      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> measures).? ^^ {
+        case invariants ~ terminationMeasure => PLoopSpec(invariants, terminationMeasure)
+      }
 
     lazy val assForRange: Parser[PAssForRange] =
       ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^

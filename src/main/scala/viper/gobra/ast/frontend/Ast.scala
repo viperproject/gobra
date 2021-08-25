@@ -765,10 +765,22 @@ object PGhostifier {
   def unapply[T <: PNode](arg: PGhostifier[T]): Option[T] = Some(arg.actual)
 }
 
-
 /**
   * Specification
   */
+sealed trait PTerminationMeasure extends PNode
+
+case class PStarCharacter() extends PTerminationMeasure
+case class PUnderscoreCharacter() extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
+case class PConditionalMeasureCollection(tuple: Vector[PConditionalMeasure]) extends PTerminationMeasure
+
+sealed trait PConditionalMeasure extends PNode
+
+case class PConditionalMeasureExpression(tuple: Vector[PExpression], condition: PExpression) extends PConditionalMeasure
+case class PConditionalMeasureUnderscore(condition: PExpression)extends PConditionalMeasure
+case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
+
 
 sealed trait PSpecification extends PGhostNode
 
@@ -776,6 +788,7 @@ case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
+                      terminationMeasure: Option[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
@@ -790,7 +803,8 @@ case class PBodyParameterInfo(
 
 
 case class PLoopSpec(
-                    invariants: Vector[PExpression]
+                    invariants: Vector[PExpression],
+                    terminationMeasure: Option[PTerminationMeasure],
                     ) extends PSpecification
 
 

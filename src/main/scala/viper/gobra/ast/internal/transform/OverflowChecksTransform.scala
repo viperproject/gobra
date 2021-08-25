@@ -25,27 +25,27 @@ object OverflowChecksTransform extends InternalTransform {
     // adds overflow checks per statement that contains subexpressions of bounded integer type and adds assume
     /// statements at the beginning of a function or method body assuming that the value of an argument (of
     // bounded integer type) respects the bounds.
-    case f@Function(name, args, results, pres, posts, body) =>
-      Function(name, args, results, pres, posts, body map computeNewBody)(f.info)
+    case f@Function(name, args, results, pres, posts,terminationMeasure, body) =>
+      Function(name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(f.info)
 
     // same as functions
-    case m@Method(receiver, name, args, results, pres, posts, body) =>
-      Method(receiver, name, args, results, pres, posts, body map computeNewBody)(m.info)
+    case m@Method(receiver, name, args, results, pres, posts, terminationMeasure,body) =>
+      Method(receiver, name, args, results, pres, posts, terminationMeasure, body map computeNewBody)(m.info)
 
     // Adds pre-conditions stating the bounds of each argument and a post-condition to check if the body expression
     // overflows
-    case f@PureFunction(name, args, results, pres, posts, body) => body match {
+    case f@PureFunction(name, args, results, pres, posts, terminationMeasure, body) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureFunction(name, args, results, pres, newPost, body)(f.info)
+        PureFunction(name, args, results, pres, newPost,terminationMeasure, body)(f.info)
       case None => f
     }
 
     // Same as pure functions
-    case m@PureMethod(receiver, name, args, results, pres, posts, body) => body match {
+    case m@PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => body match {
       case Some(expr) =>
         val newPost = posts ++ getPureBlockPosts(expr, results)
-        PureMethod(receiver, name, args, results, pres, newPost, body)(m.info)
+        PureMethod(receiver, name, args, results, pres, newPost,terminationMeasure, body)(m.info)
       case None => m
     }
 
@@ -86,10 +86,10 @@ object OverflowChecksTransform extends InternalTransform {
       val ifStmt = If(cond, stmtTransform(thn), stmtTransform(els))(i.info)
       Seqn(Vector(assertCond, ifStmt))(i.info)
 
-    case w@While(cond, invs, body) =>
+    case w@While(cond, invs, terminationMeasure,body) =>
       val condInfo = createAnnotatedInfo(cond.info)
       val assertCond = Assert(assertionExprInBounds(cond, cond.typ)(condInfo))(condInfo)
-      val whileStmt = While(cond, invs, stmtTransform(body))(w.info)
+      val whileStmt = While(cond, invs, terminationMeasure,stmtTransform(body))(w.info)
       Seqn(Vector(assertCond, whileStmt))(w.info)
 
     case ass@SingleAss(l, r) =>

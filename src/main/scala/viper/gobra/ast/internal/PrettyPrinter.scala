@@ -130,29 +130,31 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: GlobalConstDecl => showGlobalConstDecl(n)
     case n: BuiltInMember => showBuiltInMember(n)
   })
+  
+  def showTerminationMeasure(measure: Vector[Assertion]): Doc = hcat(measure  map ("decreases" <> showAss(_) <> line))
 
   def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, body) =>
+    case Function(name, args, results, pres, posts,terminationMeasure, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, body) =>
+    case PureFunction(name, args, results, pres, posts, terminationMeasure, body) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, body) =>
+    case Method(receiver, name, args, results, pres, posts,terminationMeasure, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block(showStmt(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block(showStmt(b)))
   }
 
   def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, body) =>
+    case PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts)) <> opt(body)(b => block("return" <+> showExpr(b)))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block("return" <+> showExpr(b)))
   }
 
   def showMethodSubtypeProof(m: MethodSubtypeProof): Doc = m match {
@@ -234,8 +236,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Seqn(stmts) => ssep(stmts map showStmt, line)
     case Label(label) => showProxy(label)
     case If(cond, thn, els) => "if" <> parens(showExpr(cond)) <+> block(showStmt(thn)) <+> "else" <+> block(showStmt(els))
-    case While(cond, invs, body) => "while" <> parens(showExpr(cond)) <> line <>
-      hcat(invs  map ("invariant " <> showAss(_) <> line)) <> block(showStmt(body))
+    case While(cond, invs, terminationMeasure, body) => "while" <> parens(showExpr(cond)) <> line <>
+      hcat(invs  map ("invariant " <> showAss(_) <> line)) <> showTerminationMeasure(terminationMeasure) <> block(showStmt(body))
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 
@@ -346,6 +348,18 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
+    case UnderscoreTerminationMeasure() =>
+      "decreases" <+> "_"
+    case StarTerminationMeasure() =>
+      "decreases" <+> "*"
+    case ConditionalMeasureExpression(vector, condition) =>
+      "decreases" <+> showExprList(vector) <+> "if" <+> showExpr(condition)
+    case ConditionalMeasureUnderscore(condition) =>
+      "decreases" <+> "_" <+> "if" <+> showExpr(condition)
+    case ConditionalMeasureAdditionalStar() =>
+      "decreases" <+> "*"
+    case ExprTupleTerminationMeasure(vector) =>
+      "decreases" <+> showExprList(vector)
   })
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
@@ -582,27 +596,27 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts, _) =>
+    case Function(name, args, results, pres, posts,terminationMeasure, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure)
   }
 
   override def showPureFunction(f: PureFunction): Doc = f match {
-    case PureFunction(name, args, results, pres, posts, _) =>
+    case PureFunction(name, args, results, pres, posts,terminationMeasure, _) =>
       "pure func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure)
   }
 
   override def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts, _) =>
+    case Method(receiver, name, args, results, pres, posts,terminationMeasure, _) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure)
   }
 
   override def showPureMethod(m: PureMethod): Doc = m match {
-    case PureMethod(receiver, name, args, results, pres, posts, _) =>
+    case PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, _) =>
       "pure func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
-        spec(showPreconditions(pres) <> showPostconditions(posts))
+        spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure)
   }
 
   override def showFPredicate(predicate: FPredicate): Doc = predicate match {
@@ -622,8 +636,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Seqn(_) => emptyDoc
     case Label(label) => showProxy(label)
     case If(cond, _, _) => "if" <> parens(showExpr(cond)) <+> "{...}" <+> "else" <+> "{...}"
-    case While(cond, invs, _) => "while" <> parens(showExpr(cond)) <> line <>
-      hcat(invs  map ("invariant " <> showAss(_) <> line))
+    case While(cond, invs, terminationMeasure, _) => "while" <> parens(showExpr(cond)) <> line <>
+      hcat(invs  map ("invariant " <> showAss(_) <> line)) <> showTerminationMeasure(terminationMeasure)
 
     case New(target, expr) => showVar(target) <+> "=" <+> "new" <> parens(showExpr(expr))
 

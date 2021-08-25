@@ -15,3 +15,4 @@ import viper.gobra.backend.BackendVerifier.Task
 trait ViperTransformer {
   def transform(task: Task): Task
 }
+

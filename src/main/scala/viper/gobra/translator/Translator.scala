@@ -22,6 +22,12 @@ object Translator {
     val translationConfig = new DfltTranslatorConfig()
     val programTranslator = new ProgramsImpl()
     val task = programTranslator.translate(program)(translationConfig)
+    
+    if (config.checkConsistency) {
+       val errors = task.program.checkTransitively
+       if (errors.nonEmpty) Violation.violation(errors.toString)
+     }
+
 
     if (config.checkConsistency) {
       val errors = task.program.checkTransitively

@@ -13,6 +13,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.termination
 
 class MethodsImpl extends Methods {
 
@@ -37,9 +38,9 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      terminationMeasure = x.terminationMeasure.isEmpty match {
-        case true => Seq.empty
-        case false => sequence(x.terminationMeasure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+      terminationMeasure = x.terminationMeasure match {
+        case Some(measure) => translateTerminationMeasure(measure)(ctx)
+        case None => Seq.empty
       }
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
@@ -80,9 +81,9 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      terminationMeasure = x.terminationMeasure.isEmpty match {
-        case true => Seq.empty
-        case false => sequence(x.terminationMeasure.map(ctx.ass.terminationMeasure(_)(ctx))).res
+      terminationMeasure = x.terminationMeasure match {
+        case Some(measure) => translateTerminationMeasure(measure)(ctx)
+        case None => Seq.empty
       }
       
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
@@ -106,4 +107,38 @@ class MethodsImpl extends Methods {
 
     } yield method
   }
+
+  def translateTerminationMeasure(x: in.Assertion)(ctx: Context): Vector[vpr.Exp] = {
+    val (pos, info, errT) = x.vprMeta
+    x match {
+      case in.TupleTerminationMeasure(vector) =>
+        val res = (vector.map(ctx.expr.translate(_)(ctx))) map getExprs
+        Vector(termination.DecreasesTuple(res, None)(pos, info, errT))
+      case in.WildcardMeasure() =>
+        Vector(termination.DecreasesWildcard(None)(pos, info, errT))
+      case in.StarMeasure() =>
+        Vector(termination.DecreasesStar()(pos, info, errT))
+      case in.ConditionalTerminationMeasures(clauses) =>
+        clauses.map(translateClause(_)(x)(ctx))
+    }
+  }
+
+  def translateClause(x: in.ConditionalTerminationMeasureClause)(ass: in.Assertion)(ctx: Context): vpr.Exp = {
+    val(pos, info, errT) = ass.vprMeta
+    x match {
+      case in.ConditionalTerminationMeasureIfClause(measure, cond) =>
+        measure match {
+          case in.WildcardMeasure() =>
+            termination.DecreasesWildcard(Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
+          case in.TupleTerminationMeasure(vector) =>
+            val res = (vector.map(ctx.expr.translate(_)(ctx))) map getExprs
+            termination.DecreasesTuple(res, Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
+        }
+      case in.StarMeasure() =>
+        termination.DecreasesStar()(pos, info, errT)
+    }
+  }
+
+  def getExprs(x: CodeWriter[vpr.Exp]): vpr.Exp = x.res
+
 }

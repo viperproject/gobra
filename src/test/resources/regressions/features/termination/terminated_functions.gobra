@@ -32,6 +32,7 @@ func ack(m int, n int) (result int) {
 }
 
 ghost
+decreases
 func facade(i int) int {
   return compute(i, 0)
 }
@@ -105,6 +106,7 @@ func sign(x int) int {
 }
 
 ghost
+decreases *
 func caller(x int) int {
  return sign(x)
 }

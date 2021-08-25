@@ -17,5 +17,4 @@ trait Assertions
   def invariant(x: in.Assertion)(ctx: Context): (CodeWriter[Unit], vpr.Exp)
   def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp]
   def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp]
-  def terminationMeasure(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp]
 }

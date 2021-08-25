@@ -18,6 +18,13 @@ jobs:
       SILVER_REF: "v.21.07-release"
       SILICON_REF: "v.21.07-release"
       CARBON_REF: "v.21.07-release"
+      CONCLUSION_SUCCESS: "success"
+      CONCLUSION_FAILURE: "failure"
+      # Output levels according to severity.
+      # They identify the kinds of annotations to be printed by Github.
+      NOTICE_LEVEL: "info"
+      WARNING_LEVEL: "warning"
+      FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
@@ -144,8 +151,8 @@ jobs:
             # $1 is the value that should be comparing against the thresholds
             # $2 is the threshold causing a warning
             # $3 is the threshold causing an error
-            # writes `notice`, `warning` or `failure` to standard output
-            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "failure" : (value>warnThres) ? "warning" : "notice"}')
+            # writes ${{ env.NOTICE_LEVEL }}, ${{ env.WARNING_LEVEL}} or ${{ env.FAILURE_LEVEL }} to standard output
+            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
             echo $result
           }
           MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
@@ -154,11 +161,11 @@ jobs:
           MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
           JAVA_LEVEL=$(getLevel $MAX_JAVA_GB ${{ env.JAVA_WARNING_THRESHOLD_GB }} ${{ env.JAVA_FAILURE_THRESHOLD_GB }})
           Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
-          if [[ "$JAVA_LEVEL" = "failure" || "$Z3_LEVEL" = "failure" ]]
+          if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
           then
-            CONCLUSION="failure"
+            CONCLUSION="${{ env.CONCLUSION_FAILURE }}"
           else
-            CONCLUSION="success"
+            CONCLUSION="${{ env.CONCLUSION_SUCCESS }}"
           fi
           echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
           echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
@@ -169,35 +176,30 @@ jobs:
 
       - name: Create annotations
         if: ${{ always() }}
-        uses: LouisBrunner/checks-action@v1.1.2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: 'RAM Usage'
-          conclusion: ${{ env.CONCLUSION }}
-          output: |
-            {
-            "title": "RAM Usage",
-            "summary": "Java RAM usage caused a ${{ env.JAVA_LEVEL }}.\nZ3 RAM usage caused a ${{ env.Z3_LEVEL }}."
-            }
-          # the required and optional JSON fields can be found in section "Properties of the `annotations` items" here:
-          # https://docs.github.com/en/rest/reference/checks#create-a-check-run--parameters
-          annotations: |
-            [
-              {
-              "message": "Java used up to ${{ env.MAX_JAVA_GB }}GB RAM",
-              "path": ".github/workflows/test.yml",
-              "start_line": 1,
-              "end_line": 1,
-              "annotation_level": "${{ env.JAVA_LEVEL }}"
-              },
-              {
-              "message": "Z3 used up to ${{ env.MAX_Z3_GB }}GB RAM",
-              "path": ".github/workflows/test.yml",
-              "start_line": 1,
-              "end_line": 1,
-              "annotation_level": "${{ env.Z3_LEVEL }}"
-              }
-            ]
+        # Outputs the memory consumption of JAVA and Z3. The message format is described in
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
+        run: |
+          JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
+          if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+          then
+            echo "$JAVA_MESSAGE"
+          else
+            echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
+          fi 
+
+          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
+          if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+          then
+            echo "$Z3_MESSAGE"
+          else
+            echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
+          fi 
+
+          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
+          then
+            # the whole step fails when this comparison fails
+            exit 1
+          fi
 
       - name: Upload RAM usage
         if: ${{ always() }}

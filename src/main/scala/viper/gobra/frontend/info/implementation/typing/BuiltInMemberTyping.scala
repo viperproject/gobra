@@ -49,7 +49,9 @@ trait BuiltInMemberTyping extends BaseTyping { this: TypeInfoImpl =>
               case t: SliceT => v match {
                 case Vector(v: VariadicT) if assignableTo(v.elem, t.elem) => FunctionT(ts, s)
                 case tail if tail.forall(assignableTo(_, t.elem)) => FunctionT(Vector(PermissionT, s, VariadicT(t.elem)), s)
+                case _ => Violation.violation(s"Unexpected pattern found for v: $v")
               }
+              case t => Violation.violation(s"expected $s to have a slice type as underlying type, got $t instead")
             }
           })
       }

@@ -292,6 +292,7 @@ class StringEncoding extends LeafTypeEncoding {
         results = Vector(res),
         pres = Vector(pre),
         posts = Vector(),
+        terminationMeasure = None,
         body = None
       )(info)
       val translatedFunc = ctx.pureMethod.pureFunction(func)(ctx)

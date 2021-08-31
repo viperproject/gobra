@@ -19,7 +19,7 @@ import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
 import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation.violation
-import viper.gobra.util.{DesugarWriter, Violation}
+import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
 import scala.annotation.{tailrec, unused}
 import scala.collection.Iterable
@@ -32,11 +32,11 @@ object Desugar {
     val importedPrograms = info.context.getContexts map { tI => {
       val typeInfo: TypeInfo = tI.getTypeInfo
       val importedPackage = typeInfo.tree.originalRoot
-      val d = new Desugarer(importedPackage.positions, typeInfo)(config)
+      val d = new Desugarer(importedPackage.positions, typeInfo)
       (d, d.packageD(importedPackage))
     }}
     // desugar the main package, i.e. the package on which verification is performed:
-    val mainDesugarer = new Desugarer(pkg.positions, info)(config)
+    val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
     config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
@@ -145,7 +145,7 @@ object Desugar {
     }
   }
 
-  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo)(config: Config) {
+  private class Desugarer(pom: PositionManager, info: viper.gobra.frontend.info.TypeInfo) {
 
     // TODO: clean initialization
 
@@ -1219,7 +1219,7 @@ object Desugar {
 
     def functionCallD(ctx: FunctionContext)(p: ap.FunctionCall)(src: Meta): Writer[in.Expr] = {
       def getBuiltInFuncType(f: ap.BuiltInFunctionKind): FunctionT = {
-        val abstractType = f.symb.tag.typ(config)
+        val abstractType = info.typ(f.symb.tag)
         val argsForTyping = f match {
           case _: ap.BuiltInFunction =>
             p.args.map(info.typ)
@@ -1293,9 +1293,10 @@ object Desugar {
             variadicInTyp = typeD(variadicTyp, Addressability.sliceElement)(src)
             len = res.length
             argList = res.lastOption.map(_.typ) match {
-              case Some(in.SliceT(elems, _)) if len == parameterCount && elems == variadicInTyp =>
-                // corresponds to the case where an unpacked slice is already passed as an argument
-                res
+              case Some(t) if underlyingType(t).isInstanceOf[in.SliceT] &&
+                len == parameterCount && underlyingType(t).asInstanceOf[in.SliceT].elems == variadicInTyp =>
+                  // corresponds to the case where an unpacked slice is already passed as an argument
+                  res
               case Some(in.TupleT(_, _)) if len == 1 && parameterCount == 1 =>
                 // supports chaining function calls with variadic functions of one argument
                 val argsMap = getArgsMap(res.last.asInstanceOf[in.Tuple].args, variadicInTyp)
@@ -1692,6 +1693,14 @@ object Desugar {
               case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, dcap, baseT)(src)
               case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, dcap, baseT)(src)
             }
+            case baseT: in.StringT =>
+              Violation.violation(dcap.isEmpty, s"expected dcap to be None when slicing strings, but got $dcap instead")
+              (dlow, dhigh) match {
+                case (None, None) => in.Slice(dbase, in.IntLit(0)(src), in.Length(dbase)(src), None, baseT)(src)
+                case (Some(lo), None) => in.Slice(dbase, lo, in.Length(dbase)(src), None, baseT)(src)
+                case (None, Some(hi)) => in.Slice(dbase, in.IntLit(0)(src), hi, None, baseT)(src)
+                case (Some(lo), Some(hi)) => in.Slice(dbase, lo, hi, None, baseT)(src)
+              }
             case t => Violation.violation(s"desugaring of slice expressions of base type $t is currently not supported")
           }
 
@@ -1840,8 +1849,23 @@ object Desugar {
       info.resolve(expr) match {
         case Some(p: ap.FunctionCall) => functionCallD(ctx)(p)(src)
         case Some(ap.Conversion(typ, arg)) =>
-          val desugaredTyp = typeD(info.symbType(typ), info.addressability(expr))(src)
-          for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          val typType = info.symbType(typ)
+          val argType = info.typ(arg)
+
+          (underlyingType(typType), underlyingType(argType)) match {
+            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
+              val resT = typeD(SliceT(IntT(TypeBounds.Byte)), Addressability.Exclusive)(src)
+              for {
+                target <- freshDeclaredExclusiveVar(resT)(src)
+                dArg <- exprD(ctx)(arg)
+                conv: in.EffectfulConversion = in.EffectfulConversion(target, resT, dArg)(src)
+                _ <- write(conv)
+              } yield target
+            case _ =>
+              val desugaredTyp = typeD(typType, info.addressability(expr))(src)
+              for { expr <- exprD(ctx)(arg) } yield in.Conversion(desugaredTyp, expr)(src)
+          }
+
         case Some(_: ap.PredicateCall) => Violation.violation(s"cannot desugar a predicate call ($expr) to an expression")
         case p => Violation.violation(s"expected function call, predicate call, or conversion, but got $p")
       }

@@ -117,9 +117,9 @@ trait GhostAssignability {
       case p: ap.MethodExpr => GhostType.ghostTuple(false +: argTyping(p.symb.args, p.symb.ghost, p.symb.context).toTuple)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
-      case ap.BuiltInFunction(_, symb) => symb.tag.argGhostTyping(call.args.map(typ))(config)
-      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.argGhostTyping(Vector(typ(recv)))(config)
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: symb.tag.argGhostTyping(Vector(typeSymbType(typ)))(config).toTuple)
+      case ap.BuiltInFunction(_, symb) => argGhostTyping(symb.tag, call.args.map(typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => argGhostTyping(symb.tag, Vector(typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => GhostType.ghostTuple(false +: argGhostTyping(symb.tag, Vector(typeSymbType(typ))).toTuple)
       case p: ap.ImplicitlyReceivedInterfaceMethod => argTyping(p.symb.args, p.symb.ghost, p.symb.context)
       case _ => GhostType.notGhost // conservative choice
     }
@@ -151,9 +151,9 @@ trait GhostAssignability {
       case p: ap.MethodExpr => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _: ap.PredicateKind => GhostType.isGhost
       case _: ap.DomainFunction => GhostType.isGhost
-      case ap.BuiltInFunction(_, symb) => symb.tag.returnGhostTyping(call.args.map(typ))(config)
-      case ap.BuiltInReceivedMethod(recv, _, _, symb) => symb.tag.returnGhostTyping(Vector(typ(recv)))(config)
-      case ap.BuiltInMethodExpr(typ, _, _, symb) => symb.tag.returnGhostTyping(Vector(typeSymbType(typ)))(config)
+      case ap.BuiltInFunction(_, symb) => returnGhostTyping(symb.tag, call.args.map(typ))
+      case ap.BuiltInReceivedMethod(recv, _, _, symb) => returnGhostTyping(symb.tag, Vector(typ(recv)))
+      case ap.BuiltInMethodExpr(typ, _, _, symb) => returnGhostTyping(symb.tag, Vector(typeSymbType(typ)))
       case p: ap.ImplicitlyReceivedInterfaceMethod => resultTyping(p.symb.result, p.symb.ghost, p.symb.context)
       case _ => GhostType.isGhost // conservative choice
     }

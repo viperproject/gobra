@@ -64,6 +64,7 @@ object GobraStrategy {
       case (_: PredExprUnfold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprUnfold(base, args, p)(meta)
       case (s: SafeTypeAssertion, Seq(resTarget: LocalVar, successTarget: LocalVar, expr: Expr)) => SafeTypeAssertion(resTarget, successTarget, expr, s.typ)(meta)
       case (_: SafeMapLookup, Seq(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)) => SafeMapLookup(resTarget, successTarget, mapLookup)(meta)
+      case (_: EffectfulConversion, Seq(target: LocalVar, newType: Type, expr: Expr)) => EffectfulConversion(target, newType, expr)(meta)
         // Assertions
       case (_: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (_: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)

@@ -487,10 +487,10 @@ object Parser {
     lazy val conditionalStar: Parser[Vector[PConditionalTerminationMeasureClause]] =
       "*" ^^^ Vector(PStarMeasure())
 
-       lazy val methodDecl: Parser[PMethodDecl] =
-         functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
-           case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
-         }
+    lazy val methodDecl: Parser[PMethodDecl] =
+      functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
+        case spec ~ rcv ~ name ~ sig ~ body => PMethodDecl(name, rcv, sig._1, sig._2, spec, body)
+      }
 
     /**
       * Statements

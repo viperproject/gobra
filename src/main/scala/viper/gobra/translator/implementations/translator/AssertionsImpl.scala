@@ -13,11 +13,9 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
-import viper.gobra.translator.util.ViperWriter.{ CodeWriter, DataContainer, MemberWriter}
+import viper.gobra.translator.util.ViperWriter.{ CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
-
 
 class AssertionsImpl extends Assertions {
 

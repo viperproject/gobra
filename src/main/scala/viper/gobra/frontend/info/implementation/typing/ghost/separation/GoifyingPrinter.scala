@@ -89,6 +89,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
               case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
                 case PWildcardMeasure() => specComment <+> showPre(cond) <> line
                 case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
               }
             }))
           }
@@ -109,6 +110,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
               case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
                 case PWildcardMeasure() => specComment <+> showPre(cond) <> line
                 case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
               }
             }))
           }

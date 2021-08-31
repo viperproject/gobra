@@ -14,6 +14,7 @@ import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
 import viper.silver.plugin.standard.termination
+import viper.gobra.util.Violation.violation
 
 class MethodsImpl extends Methods {
 
@@ -120,6 +121,7 @@ class MethodsImpl extends Methods {
         Vector(termination.DecreasesStar()(pos, info, errT))
       case in.ConditionalTerminationMeasures(clauses) =>
         clauses.map(translateClause(_)(x)(ctx))
+      case _ => violation("assertion not subtype of TerminationMeasure")
     }
   }
 
@@ -133,6 +135,7 @@ class MethodsImpl extends Methods {
           case in.TupleTerminationMeasure(vector) =>
             val res = (vector.map(ctx.expr.translate(_)(ctx))) map getExprs
             termination.DecreasesTuple(res, Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
+          case in.StarMeasure() => violation("Star measure occurs in if clause")
         }
       case in.StarMeasure() =>
         termination.DecreasesStar()(pos, info, errT)

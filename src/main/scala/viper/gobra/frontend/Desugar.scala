@@ -467,23 +467,8 @@ object Desugar {
       val terminationMeasure = decl.spec.terminationMeasure match {
         case Some(measure) => Some(terminationMeasureD(specCtx)(meta(measure))(measure))
         case None => None
-      } /* decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(specCtx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
-        }
-        case None => Vector.empty
       }
-       */
+
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
@@ -557,23 +542,7 @@ object Desugar {
         case Some(measure) => Some(terminationMeasureD(ctx)(meta(measure))(measure))
         case None => None
       }
-        /*decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(ctx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(ctx)(meta(measure))
-        }
-        case None => Vector.empty
-      }
-*/
+
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
           val res = b.nonEmptyStmts match {
@@ -585,8 +554,6 @@ object Desugar {
 
       in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
-
-
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
@@ -656,23 +623,7 @@ object Desugar {
         case Some(measure) => Some(terminationMeasureD(specCtx)(meta(measure))(measure))
         case None => None
       }
-        /*decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(specCtx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
-        }
-        case None => Vector.empty
-       }   
-*/
+
       // s' := s
       val recvInits = (recvWithSubs match {
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
@@ -827,7 +778,7 @@ object Desugar {
       val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
       blockV(dStatements)(meta(block))
     }
-    
+
      def getMeasureStmts(ctx: FunctionContext)(ass:PExpression):Vector[in.Stmt]={
       val measure=exprD(ctx)(ass)
       measure.stmts
@@ -916,7 +867,7 @@ object Desugar {
                   }
                   case None => (Vector.empty, None)
                 }
-                
+
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -1912,19 +1863,23 @@ object Desugar {
         case in.IntT(_, kind) => unit(in.IntTExpr(kind)(src))
         case in.StringT(_) => unit(in.StringTExpr()(src))
         case in.PermissionT(_) => unit(in.PermTExpr()(src))
-        case in.ArrayT(length, elems, _) => unit(in.ArrayTExpr(in.IntLit(length, UnboundedInteger)(src),typeAsExpr(elems)(src).res)(src))
-        case in.SliceT(elems, _) =>unit(in.SliceTExpr(typeAsExpr(elems)(src).res)(src))
-        case in.MapT(keys, values, _) => unit(in.MapTExpr(typeAsExpr(keys)(src).res,typeAsExpr(values)(src).res)(src))
+        case in.ArrayT(length, elems, _) => unit(in.ArrayTExpr(in.IntLit(length, UnboundedInteger)(src), typeAsExpr(elems)(src).res)(src))
+        case in.SliceT(elems, _) => unit(in.SliceTExpr(typeAsExpr(elems)(src).res)(src))
+        case in.MapT(keys, values, _) => unit(in.MapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
         case in.SequenceT(t, _) => unit(in.SequenceTExpr(typeAsExpr(t)(src).res)(src))
         case in.SetT(t, _) => unit(in.SetTExpr(typeAsExpr(t)(src).res)(src))
         case in.MultisetT(t, _) => unit(in.MultisetTExpr(typeAsExpr(t)(src).res)(src))
-        case in.MathMapT(keys, values, _) => unit(in.MathMapTExpr(typeAsExpr(keys)(src).res,typeAsExpr(values)(src).res)(src))
+        case in.MathMapT(keys, values, _) => unit(in.MathMapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
         case in.OptionT(t, _) => unit(in.OptionTExpr(typeAsExpr(t)(src).res)(src))
         case in.DefinedT(name, _) => unit(in.DefinedTExpr(name)(src))
         case in.PointerT(t, _) => unit(in.PointerTExpr(typeAsExpr(t)(src).res)(src))
         case in.TupleT(ts, _) => unit(in.TupleTExpr(sequence(ts map(typeAsExpr(_)(src))).res)(src))
+        case in.StructT(_, fields: Vector[in.Field], _) => unit(in.StructTExpr(fields.map (field => transformField(field)(src)))(src))
+        case _ => Violation.violation(s"no corresponding type expression matched: $t")
       }
     }
+
+    def transformField(field: in.Field)(src: Source.Parser.Info): (String, in.Expr, Boolean) = (field.name, typeAsExpr(field.typ)(src).res, field.ghost)
 
     def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
 
@@ -2179,41 +2134,6 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-    def defaultValue(src: Source.Parser.Info)(t: in.Type): in.Expr = {
-      t match {
-        case in.BoolT(_)=> in.BoolLit(true)(src)
-        case in.StringT(_)=> in.StringLit("")(src)
-        case in.IntT(_,_) => in.IntLit(0)(src)
-        case in.PermissionT(_) => in.FullPerm(src)
-        case in.ArrayT(_,typ,_) => in.ArrayLit(0, typ, Map.empty)(src)
-        case in.SliceT(typ,_) => in.SliceLit(typ, Map.empty)(src)
-        case in.MapT(typ1,typ2,_) => in.MapLit(typ1, typ2, Seq.empty)(src)
-        case in.SequenceT(typ,_) => in.SequenceLit(0, typ, Map.empty)(src)
-        case in.SetT(typ,_) => in.SetLit(typ, Vector.empty)(src)
-        case in.MultisetT(typ,_) => in.MultisetLit(typ, Vector.empty)(src)
-        case in.MathMapT(typ1,typ2,_) => in.MathMapLit(typ1, typ2, Seq.empty)(src)
-        case in.OptionT(typ,_) => in.OptionTExpr(defaultValue(src)(typ))(src)
-        case in.DefinedT(name,addr) => val typ = definedTypes.get(name, addr)
-          typ match {
-            case Some(typ) => defaultValue(src)(typ)
-            case None => Violation.violation(s"Type not defined $t")
-          }
-        case in.PointerT(typ,_) => in.PointerTExpr(defaultValue(src)(typ))(src)
-        case in.TupleT(vectorTyp,_) => in.Tuple(vectorTyp map defaultValue(src))(src)
-        case in.StructT(name,fields,addr) => val typ = definedTypes.get(name, addr)
-          def getSecond(list: List[in.Field])(result: Vector[in.Type]): Vector[in.Type] = {
-            list match {
-              case x::xs => getSecond(xs)(result ++ Vector(x.typ))
-              case Nil => Vector.empty
-            }
-          }
-          typ match {
-            case Some(typ) => in.StructLit(typ, getSecond(fields.toList)(Vector.empty) map defaultValue(src))(src)
-            case None => Violation.violation(s"Type not defined $t")
-          }
-      }
-    }
-
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
       Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
@@ -2264,7 +2184,7 @@ object Desugar {
             definedMethods -= proxy
             val proxies = computeMemberProxies(definedMethods.values, interfaceImplementations, definedTypes)
             if (m.spec.isPure) {
-              val helperProxy = in.MethodProxy(proxy.name + "_helper", proxy.uniqueName + "_helper")(src)
+              val helperProxy = in.MethodProxy(proxy.name, proxy.uniqueName + "_helper")(src)
               val helperFunction = in.PureMethod(recv, helperProxy, args, returns, pres, posts, terminationMeasure, None)(src)
               val default = in.PureMethodCall(recv, helperProxy, args, returns.head.typ)(src)
               definedMethods += (helperProxy -> helperFunction)
@@ -2992,6 +2912,7 @@ object Desugar {
           case PTupleTerminationMeasure(tuple) =>
             val vector = tuple flatMap getMeasureStmts(ctx)
             vector ++ condition.stmts
+          case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
         }
       case PStarMeasure() =>
         Vector.empty
@@ -3021,6 +2942,7 @@ object Desugar {
           case PTupleTerminationMeasure(tuple) =>
             val vector = sequence(tuple map exprD(ctx)).res
             in.ConditionalTerminationMeasureIfClause(in.TupleTerminationMeasure(vector)(src), condition.res)(src)
+          case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
         }
       case PStarMeasure() =>
         in.StarMeasure()(src)

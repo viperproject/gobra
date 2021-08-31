@@ -85,6 +85,7 @@ object Nodes {
         case WildcardMeasure() => Seq.empty
         case StarMeasure() => Seq.empty
         case ConditionalTerminationMeasures(clauses) => clauses
+        case ConditionalTerminationMeasureIfClause(measure, cond) => Seq(measure) ++ Seq(cond)
       }
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {

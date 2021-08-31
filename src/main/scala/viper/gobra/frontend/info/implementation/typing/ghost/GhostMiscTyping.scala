@@ -273,6 +273,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
                 measure match {
                   case PWildcardMeasure() => assignableToSpec(cond)
                   case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p)) ++ assignableToSpec(cond)
+                  case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
                 }
               case PStarMeasure() => noMessages
             })
@@ -292,6 +293,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
               measure match {
                 case PWildcardMeasure() => assignableToSpec(cond)
                 case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p)) ++ assignableToSpec(cond)
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
               }
             case PStarMeasure() => noMessages
           })

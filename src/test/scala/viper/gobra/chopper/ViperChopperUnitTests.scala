@@ -19,7 +19,7 @@ class ViperChopperUnitTests extends AnyFunSuite with Matchers with Inside {
       ast.Function("functionA", Seq.empty, ast.Int, Seq.empty, Seq.empty, None)()
     )
     val program = ast.Program(Seq.empty, Seq.empty, functions, Seq.empty, Seq.empty, Seq.empty)()
-    ViperChopper.chop(program) shouldEqual Vector(program)
+    ViperChopper.chop(program)() shouldEqual Vector(program)
   }
 
   test("ViperChopper 2: should chop program as expected") {
@@ -28,7 +28,7 @@ class ViperChopperUnitTests extends AnyFunSuite with Matchers with Inside {
       ast.Function("functionB", Seq.empty, ast.Int, Seq.empty, Seq.empty, None)()
     )
     val program = ast.Program(Seq.empty, Seq.empty, functions, Seq.empty, Seq.empty, Seq.empty)()
-    val result = ViperChopper.chop(program)
+    val result = ViperChopper.chop(program)()
     result.length shouldBe 2
     result shouldEqual Vector(
       ast.Program(Seq.empty, Seq.empty, Seq(
@@ -45,7 +45,7 @@ class ViperChopperUnitTests extends AnyFunSuite with Matchers with Inside {
       ast.Method("methodA", Seq.empty, Seq.empty, Seq.empty, Seq.empty, None)()
     )
     val program = ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, methods, Seq.empty)()
-    ViperChopper.chop(program) shouldEqual Vector(program)
+    ViperChopper.chop(program)() shouldEqual Vector(program)
   }
 
   test("ViperChopper 4: should chop program as expected") {
@@ -54,7 +54,7 @@ class ViperChopperUnitTests extends AnyFunSuite with Matchers with Inside {
       ast.Method("methodB", Seq.empty, Seq.empty, Seq.empty, Seq.empty, None)()
     )
     val program = ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, methods, Seq.empty)()
-    val result = ViperChopper.chop(program)
+    val result = ViperChopper.chop(program)()
     result.length shouldBe 2
     result shouldEqual Vector(
       ast.Program(Seq.empty, Seq.empty, Seq.empty, Seq.empty, Seq(

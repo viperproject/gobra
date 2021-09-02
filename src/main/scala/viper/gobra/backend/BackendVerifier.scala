@@ -6,10 +6,11 @@
 
 package viper.gobra.backend
 
+import viper.gobra.ast.frontend.PFunctionDecl
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
-import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
+import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter, ChoppedViperMessage, Source}
 import viper.gobra.util.GobraExecutionContext
 import viper.silver
 import viper.silver.verifier.VerificationResult
@@ -17,7 +18,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.Future
 import viper.gobra.util.ViperChopper
-import viper.gobra.reporting.ChoppedViperMessage
 
 object BackendVerifier {
 
@@ -49,19 +49,29 @@ object BackendVerifier {
       case _ =>
     }
 
-    val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)
+    println("Maps: " + config.isolate)
+    val isolate = config.isolate.map { names => (m: vpr.Method) => m match {
+      case Source(Source.Verifier.Info(x: PFunctionDecl, _, _, _)) if names.contains(x.id.name) => true
+      case _ => false
+    }}
+    val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)(isolate = isolate)
     programs.zipWithIndex.foreach{ case (chopped, idx) => 
       config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
     }
 
     val verifier = config.backend.create(exePaths)
 
+    // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
+    //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
+    //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+    // }
+
     val verificationResults = programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
-      val programID = s"_programID_${config.inputFiles.head.getFileName()}_$idx"
+      val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
       for {
         acc <- res
         next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-      } yield acc :+ next      
+      } yield acc :+ next
     }
     
     verificationResults.map{ results =>

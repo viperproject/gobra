@@ -6,7 +6,7 @@
 
 package viper.gobra.backend
 
-import viper.gobra.ast.frontend.PFunctionDecl
+import viper.gobra.ast.frontend.{PFunctionDecl, PMethodDecl}
 import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
@@ -52,9 +52,10 @@ object BackendVerifier {
     println("Maps: " + config.isolate)
     val isolate = config.isolate.map { names => (m: vpr.Method) => m match {
       case Source(Source.Verifier.Info(x: PFunctionDecl, _, _, _)) if names.contains(x.id.name) => true
+      case Source(Source.Verifier.Info(x: PMethodDecl, _, _, _)) if names.contains(x.id.name) => true
       case _ => false
     }}
-    val programs: Vector[vpr.Program] = ViperChopper.chop(task.program)(isolate = isolate)
+    val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
     programs.zipWithIndex.foreach{ case (chopped, idx) => 
       config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
     }

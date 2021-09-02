@@ -121,7 +121,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val isolate: ScallopOption[List[String]] = opt[List[String]](
     name = "isolate",
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
-    default = Some(List())
+    default = None
   )(listArgConverter(dir => dir))
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](

@@ -130,7 +130,6 @@ object ViperChopper {
         case None => start
         case Some(f) => start.filter(_.exists(f))
       }
-      println("filtered: " + filtered.size)
       val x = mutable.Set(filtered:_*)
 
       // remove always merge
@@ -156,6 +155,8 @@ object ViperChopper {
         }
 
       } while(performedUpdate)
+
+      println("final: " + x.size)
 
       x.toVector
     }

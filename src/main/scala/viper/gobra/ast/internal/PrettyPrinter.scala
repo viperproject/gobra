@@ -15,6 +15,7 @@ import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String
@@ -328,6 +329,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showExprList[T <: Expr](list: Vector[T]): Doc =
     showList(list)(showExpr)
 
+  //protected def showAssList[T <: Assertion](list: Vector[T]): Doc =
+    //showList(list)(showAss)
+
+  protected def showTupleMeasureNodeList[T <: Node](list: Vector[T]): Doc =
+    showList(list)(showTupleMeasureArgument)
+
   protected def showExprMap[K, V <: Expr](map : Map[K, V])(f : K => Doc) : Doc =
     showMap(map)(f, showExpr)
 
@@ -341,8 +348,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Index(e) => showExpr(e)
   })
 
-  // assertions
+  def showTupleMeasureArgument(n: Node): Doc = n match {
+    case n: PredicateAccess => showPredicateAcc(n)
+    case n: Expr => showExpr(n)
+    case _ => violation("Invalid node for tuple termination measure")
+  }
 
+  // assertions
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
@@ -356,7 +368,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case StarMeasure() =>
       "decreases" <+> "*"
     case TupleTerminationMeasure(vector) =>
-      "decreases" <+> showExprList(vector)
+      "decreases" <+> showTupleMeasureNodeList(vector)
     case ConditionalTerminationMeasures(clauses) => hcat(clauses map (showClause(_) <> line))
   })
 

@@ -84,12 +84,14 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
             case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
             case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
             case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
+            case PInferTerminationMeasure() => specComment <+> "decreases" <+> "infer" <> line
             case PConditionalTerminationMeasures(clauses) => hcat(clauses map(p => p match {
               case PStarMeasure() => emptyDoc
               case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
                 case PWildcardMeasure() => specComment <+> showPre(cond) <> line
                 case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
                 case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
               }
             }))
           }
@@ -105,12 +107,14 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
             case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
             case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
             case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
+            case PInferTerminationMeasure() => specComment <+> "decreases" <+> "infer" <> line
             case PConditionalTerminationMeasures(clauses) => hcat(clauses map (p => p match {
               case PStarMeasure() => emptyDoc
               case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
                 case PWildcardMeasure() => specComment <+> showPre(cond) <> line
                 case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
                 case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
               }
             }))
           }

@@ -199,12 +199,19 @@ class StatementsImpl extends Statements {
     val (pos, info, errT) = x.vprMeta
     x match {
       case in.TupleTerminationMeasure(vector) =>
-        val res = (vector.map(ctx.expr.translate(_)(ctx))) map getExprs
+        val res = vector.map(n => n match {
+          case e: in.Expr => ctx.expr.translate(e)(ctx).res
+          case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
+          case _ => violation("invalid tuple measure argument")
+        })
+        //val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
         Vector(termination.DecreasesTuple(res, None)(pos, info, errT))
       case in.WildcardMeasure() =>
         Vector(termination.DecreasesWildcard(None)(pos, info, errT))
       case in.StarMeasure() =>
         Vector(termination.DecreasesStar()(pos, info, errT))
+      case in.InferTerminationMeasure() =>
+        violation("Infer measure should already be hanled by internal transformation")
       case in.ConditionalTerminationMeasures(clauses) =>
         clauses.map(translateClause(_)(x)(ctx))
       case _ => violation("assertion not subtype of TerminationMeasure")
@@ -219,9 +226,15 @@ class StatementsImpl extends Statements {
           case in.WildcardMeasure() =>
             termination.DecreasesWildcard(Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
           case in.TupleTerminationMeasure(vector) =>
-            val res = (vector.map(ctx.expr.translate(_)(ctx))) map getExprs
+            val res = vector.map(n => n match {
+              case e: in.Expr => ctx.expr.translate(e)(ctx).res
+              case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
+              case _ => violation("invalid tuple measure argument")
+            })
+           // val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
             termination.DecreasesTuple(res, Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
           case in.StarMeasure() => violation("Star measure occurs in if clause")
+          case in.InferTerminationMeasure() => violation("Infer measure occurs in if clause")
         }
       case in.StarMeasure() =>
         termination.DecreasesStar()(pos, info, errT)

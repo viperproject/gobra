@@ -859,9 +859,9 @@ object Desugar {
                   case Some(measure) => measure match {
                     case PStarMeasure() => (Vector.empty, Some(in.StarMeasure()(src)))
                     case PWildcardMeasure() => (Vector.empty, Some(in.WildcardMeasure()(src)))
+                    case PInferTerminationMeasure() => (Vector.empty, Some(in.InferTerminationMeasure()(src)))
                     case PTupleTerminationMeasure(tuple) =>
-                      val vector = sequence(tuple map exprD(ctx)).res
-                      (tuple flatMap getExprStmts(ctx), Some(in.TupleTerminationMeasure(vector)(src)))
+                      (tuple flatMap getExprStmts(ctx), Some(terminationMeasureD(ctx)(meta(measure))(measure)))
                     case PConditionalTerminationMeasures(clauses) =>
                       (clauses flatMap getClauseStmts(ctx), Some(in.ConditionalTerminationMeasures(clauses map clauseD(ctx)(src))(src)))
                   }
@@ -2208,7 +2208,7 @@ object Desugar {
             definedMethods -= proxy
             val proxies = computeMemberProxies(definedMethods.values, interfaceImplementations, definedTypes)
             if (m.spec.isPure) {
-              val helperProxy = in.MethodProxy(proxy.name, proxy.uniqueName + "_helper")(src)
+              val helperProxy = in.MethodProxy(proxy.name, proxy.uniqueName + "_helper" )(src)
               val helperFunction = in.PureMethod(recv, helperProxy, args, returns, pres, posts, terminationMeasure, None)(src)
               val default = in.PureMethodCall(recv, helperProxy, args, returns.head.typ)(src)
               definedMethods += (helperProxy -> helperFunction)
@@ -2937,6 +2937,7 @@ object Desugar {
             val vector = tuple flatMap getMeasureStmts(ctx)
             vector ++ condition.stmts
           case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
         }
       case PStarMeasure() =>
         Vector.empty
@@ -2947,11 +2948,23 @@ object Desugar {
       measure.stmts
     }
 
+    def elementD(expr: PExpression)(ctx: FunctionContext)(src: Meta): in.Node = expr match {
+      case p: PInvoke => info.resolve(p) match {
+        case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src).res
+          //assertionD(ctx)(p).res
+        case _ => exprD(ctx)(p).res
+          //(exprD(ctx)(p) map (in.ExprAssertion(_)(src))).res
+      }
+      case _ => exprD(ctx)(expr).res
+        //(exprD(ctx)(expr) map (in.ExprAssertion(_)(src))).res
+    }
+
     def terminationMeasureD(ctx: FunctionContext)(src: Meta)(ter: PTerminationMeasure): in.Assertion = ter match {
       case PStarMeasure() => in.StarMeasure()(src)
       case PWildcardMeasure() => in.WildcardMeasure()(src)
+      case PInferTerminationMeasure() => in.InferTerminationMeasure()(src)
       case PTupleTerminationMeasure(tuple) =>
-        val vector = sequence(tuple map exprD(ctx)).res
+        val vector = tuple.map(x => elementD(x)(ctx)(src))
         in.TupleTerminationMeasure(vector)(src)
       case PConditionalTerminationMeasures(clauses) =>
         in.ConditionalTerminationMeasures(clauses map clauseD(ctx)(src))(src)
@@ -2964,9 +2977,10 @@ object Desugar {
           case PWildcardMeasure() =>
             in.ConditionalTerminationMeasureIfClause(in.WildcardMeasure()(src), condition.res)(src)
           case PTupleTerminationMeasure(tuple) =>
-            val vector = sequence(tuple map exprD(ctx)).res
+            val vector = tuple.map(x => elementD(x)(ctx)(src))
             in.ConditionalTerminationMeasureIfClause(in.TupleTerminationMeasure(vector)(src), condition.res)(src)
           case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
         }
       case PStarMeasure() =>
         in.StarMeasure()(src)

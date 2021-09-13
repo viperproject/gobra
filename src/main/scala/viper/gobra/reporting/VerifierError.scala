@@ -286,6 +286,11 @@ case class LoopTerminationError(info: Source.Verifier.Info) extends Verification
   override def localMessage: String = s"The loop ${info.trySrc[PSendStmt](" ")}might not terminate"
 }
 
+case class InferTerminationFailed(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "infer_termination_measure_failed"
+  override def localMessage: String = "Inferred termination measure cannot verify the termination"
+}
+
 sealed trait VerificationErrorReason {
   def id: String
   def message: String
@@ -415,6 +420,11 @@ case class TupleDecreasesFalseError(info: Source.Verifier.Info) extends Verifica
 case class TupleBoundedFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "tuple_bounded_false_error"
   override def message: String = s"Termination measure ${info.origin.tag.trim} might not be bounded."
+}
+
+case class InferTerminationMeasureFailedReason(node: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "infer_termination_measure_failed"
+  override def message: String = s"Inferred measures cannot verify the termination. Please provide one by yourself"
 }
 
 sealed trait VerificationErrorClarification {

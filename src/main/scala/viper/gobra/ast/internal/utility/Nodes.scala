@@ -86,6 +86,7 @@ object Nodes {
         case TupleTerminationMeasure(vector) => vector
         case WildcardMeasure() => Seq.empty
         case StarMeasure() => Seq.empty
+        case InferTerminationMeasure() => Seq.empty
         case ConditionalTerminationMeasures(clauses) => clauses
         case ConditionalTerminationMeasureIfClause(measure, cond) => Seq(measure) ++ Seq(cond)
       }

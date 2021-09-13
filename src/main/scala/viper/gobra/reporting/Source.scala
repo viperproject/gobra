@@ -26,6 +26,7 @@ object Source {
   sealed trait Annotation
   case object OverflowCheckAnnotation extends Annotation
   case class AutoImplProofAnnotation(subT: String, superT: String) extends Annotation
+  case object InferTerminationMeasureAnnotation extends Annotation
 
   object Parser {
 

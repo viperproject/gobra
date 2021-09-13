@@ -623,7 +623,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, None, None)(src)
+        in.Function(x.name, args, results, pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

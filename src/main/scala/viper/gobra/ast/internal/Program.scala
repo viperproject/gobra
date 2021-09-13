@@ -359,8 +359,9 @@ sealed trait ConditionalTerminationMeasureClause extends Assertion
 case class ConditionalTerminationMeasureIfClause(measure: UnconditionalTerminationMeasure, cond: Expr)(val info: Source.Parser.Info) extends ConditionalTerminationMeasureClause
 case class StarMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure with ConditionalTerminationMeasureClause
 case class WildcardMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Expr])(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
+case class TupleTerminationMeasure(tuple: Vector[Node])(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
 case class ConditionalTerminationMeasures(clauses: Vector[ConditionalTerminationMeasureClause])(val info: Source.Parser.Info) extends TerminationMeasure
+case class InferTerminationMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
 
 sealed trait Accessible extends Node {
   def op: Node

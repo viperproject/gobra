@@ -13,6 +13,7 @@ import viper.gobra.translator.interfaces.translator.Predicates
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.{ast => vpr}
+import viper.silver.plugin.standard.predicateinstance
 
 class PredicatesImpl extends Predicates {
 
@@ -102,6 +103,22 @@ class PredicatesImpl extends Predicates {
         vPerm <- ctx.typeEncoding.expr(ctx)(perm)
       } yield vpr.PredicateAccessPredicate(pacc, vPerm)(pos, info, errT)
   }
+
+  override def predicate(ctx: Context): (in.PredicateAccess) ==> CodeWriter[predicateinstance.PredicateInstance] = {
+    case acc@ in.FPredicateAccess(pred, args) =>
+      val (pos, info, errT) = acc.vprMeta
+      for {
+        vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
+      } yield predicateinstance.PredicateInstance(vArgs, pred.name)(pos, info, errT)
+
+    case acc@ in.MPredicateAccess(recv, pred, args) =>
+      val (pos, info, errT) = acc.vprMeta
+      for {
+        vRecv <- ctx.expr.translate(recv)(ctx)
+        vArgs <- cl.sequence(args map (ctx.expr.translate(_)(ctx)))
+      } yield predicateinstance.PredicateInstance(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
+  }
+
 
   /** Returns proxy(args) */
   override def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {

@@ -18,6 +18,9 @@ import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
+import viper.gobra.frontend.{GoLexer, GoParser}
+import org.antlr.v4.runtime.{CharStreams, CommonTokenStream}
+
 import scala.io.BufferedSource
 import scala.util.matching.Regex
 
@@ -43,12 +46,27 @@ object Parser {
     val preprocessedSources = input
       .map{ getSource }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
+    val charStreams  = input.map{source => CharStreams.fromPath(source)}
+    val lexers = charStreams.map{charStream => new GoLexer(charStream)}
+    val tokenBuffers = lexers.map{lexer => new CommonTokenStream(lexer)}
+    val goParsers = tokenBuffers.map{tokens => new GoParser(tokens)}
+    val parseTrees = time { goParsers.map{parser => parser.sourceFile()} }
+    for ((tree, parser) <- parseTrees zip goParsers) {
+      //println(tree.toStringTree(parser))
+    }
     for {
-      parseAst <- parseSources(preprocessedSources, specOnly)(config)
+      parseAst <- time {parseSources(preprocessedSources, specOnly)(config)}
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
   }
 
+  private def time[R](block: => R): R = {
+    val t0 = System.nanoTime()/1000000000.0
+    val result = block    // call-by-name
+    val t1 = System.nanoTime()/1000000000.0
+    println("Elapsed time: " + (t1 - t0) + "s")
+    result
+}
   private def getSource(path: Path): FromFileSource = {
     val inputStream = Files.newInputStream(path)
     val bufferedSource = new BufferedSource(inputStream)

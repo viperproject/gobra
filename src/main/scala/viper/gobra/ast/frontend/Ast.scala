@@ -769,18 +769,16 @@ object PGhostifier {
   * Specification
   */
 sealed trait PTerminationMeasure extends PNode
+sealed trait PUnconditionalTerminationMeasure extends PTerminationMeasure
+sealed trait PConditionalTerminationMeasureClause extends PNode
 
-case class PStarCharacter() extends PTerminationMeasure
-case class PUnderscoreCharacter() extends PTerminationMeasure
-case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PTerminationMeasure
-case class PConditionalMeasureCollection(tuple: Vector[PConditionalMeasure]) extends PTerminationMeasure
+case class PConditionalTerminationMeasureIfClause(measure: PUnconditionalTerminationMeasure, cond: PExpression) extends PConditionalTerminationMeasureClause
 
-sealed trait PConditionalMeasure extends PNode
-
-case class PConditionalMeasureExpression(tuple: Vector[PExpression], condition: PExpression) extends PConditionalMeasure
-case class PConditionalMeasureUnderscore(condition: PExpression)extends PConditionalMeasure
-case class PConditionalMeasureAdditionalStar() extends PConditionalMeasure
-
+case class PStarMeasure() extends PUnconditionalTerminationMeasure with PConditionalTerminationMeasureClause
+case class PWildcardMeasure() extends PUnconditionalTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PUnconditionalTerminationMeasure
+case class PConditionalTerminationMeasures(clauses: Vector[PConditionalTerminationMeasureClause]) extends PTerminationMeasure
+case class PInferTerminationMeasure() extends PUnconditionalTerminationMeasure
 
 sealed trait PSpecification extends PGhostNode
 

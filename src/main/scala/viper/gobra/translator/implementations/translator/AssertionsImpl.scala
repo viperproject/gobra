@@ -13,11 +13,9 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
-import viper.gobra.translator.util.ViperWriter.{ CodeWriter, DataContainer, MemberWriter}
+import viper.gobra.translator.util.ViperWriter.{ CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
-
 
 class AssertionsImpl extends Assertions {
 
@@ -64,41 +62,8 @@ class AssertionsImpl extends Assertions {
           reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
         } yield reducedForall
       
-      case t: in.TerminationMeasure => t match {
-        
-        case in.ExprTupleTerminationMeasure(vector) =>
-          for {
-            v <- sequence(vector.map(goE(_)))
-          } yield termination.DecreasesTuple(v, None)(pos, info, errT)
-        
-        case in.ExprTerminationMeasure(exp) =>
-          for {
-            e <- goE(exp)
-          } yield termination.DecreasesTuple(Seq(e), None)(pos, info, errT)
-
-        case in.ConditionalMeasureUnderscore(condition) =>
-          for {
-            e <- goE(condition)
-          } yield termination.DecreasesWildcard(Some(e))(pos, info, errT)
-
-        case in.ConditionalMeasureExpression(vector, condition) =>
-          for {
-            e <- goE(condition); v <- sequence(vector.map(goE(_)))
-          } yield termination.DecreasesTuple(v, Some(e))(pos, info, errT)
-
-        case in.StarTerminationMeasure() =>
-          Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT))
-
-        case in.ConditionalMeasureAdditionalStar() =>
-          Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT))
-        
-        case _ =>
-          Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT))
-       }
-      
       case _ => Violation.violation(s"Assertion $ass did not match with any implemented case.")
     }
-
     ret
   }
 
@@ -133,40 +98,5 @@ class AssertionsImpl extends Assertions {
   override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
 
   override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
-  
-  override def terminationMeasure(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] =
-  
-    x match {   
-      case in.ExprTupleTerminationMeasure(vector) =>
-        val (pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesTuple(sequence(vector.map(ctx.expr.translate(_)(ctx))).res,None)(pos, info, errT)))(ctx)  
-      
-      case in.ExprTerminationMeasure(exp) =>
-        val (pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesTuple(Seq(ctx.expr.translate(exp)(ctx).res),None)(pos, info, errT)))(ctx)
 
-      case in.UnderscoreTerminationMeasure() =>
-        val (pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesWildcard(None)(pos, info, errT)))(ctx)
-
-      case in.StarTerminationMeasure() =>
-        val(pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT)))(ctx)
-
-      case in.ConditionalMeasureUnderscore(condition) =>
-        val(pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesWildcard(Some(ctx.expr.translate(condition)(ctx).res))(pos, info, errT)))(ctx)
-
-      case in.ConditionalMeasureAdditionalStar() =>
-        val(pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT)))(ctx)
-
-      case in.ConditionalMeasureExpression(vector, condition) =>
-        val(pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesTuple(sequence(vector.map(ctx.expr.translate(_)(ctx))).res,Some(ctx.expr.translate(condition)(ctx).res))(pos, info, errT)))(ctx)
-
-      case _ => 
-        val(pos, info, errT) = x.vprMeta
-        MemL.pure(Writer(DataContainer.empty, termination.DecreasesStar()(pos, info, errT)))(ctx)
-    }
 }

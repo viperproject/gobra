@@ -204,4 +204,7 @@ trait Enclosing { this: TypeInfoImpl =>
 
     def declared (s: Vector[PStatement]): Set[PIdnNode] =
       variableAnalysis(s)._3
+
+  lazy val tryEnclosingMember: PNode => Option[PMember] =
+    down[Option[PMember]](None) { case x: PMember => Some(x) }
 }

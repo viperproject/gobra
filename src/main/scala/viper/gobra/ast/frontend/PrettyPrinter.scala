@@ -115,21 +115,22 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
   
    
-  def showConditionalMeasureCollection(n: PConditionalMeasureCollection): Doc = showList(n.tuple)(showConditionalMeasure)
-  def showConditionalMeasure(conditionalMeasure: PConditionalMeasure) : Doc = conditionalMeasure match {
-    case PConditionalMeasureExpression(expression, condition) => "decreases" <+> showExprList(expression) <+> "if" <+> showExpr(condition)
-    case PConditionalMeasureUnderscore(condition) => "decreases" <+> "_" <+> "if" <+> showExpr(condition)
-    case PConditionalMeasureAdditionalStar() => "decreases" <+> "*"
+  def showConditionalMeasure(n: PConditionalTerminationMeasures): Doc = showList(n.clauses)(showClause)
+  def showClause(clause: PConditionalTerminationMeasureClause) : Doc = clause match {
+    case PStarMeasure() => "decreases" <+> "*"
+    case PConditionalTerminationMeasureIfClause(measure, cond) =>
+      showTerminationMeasure(Some(measure)) <+> showExpr(cond)
   }
   
-  def showTerminationMeasure(ter:Option[PTerminationMeasure]): Doc = ter match  {
+  def showTerminationMeasure(ter: Option[PTerminationMeasure]): Doc = ter match {
     case Some(terminationMeasure) => terminationMeasure match {
       case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
-      case PStarCharacter() => "decreases" <+> "*"
-      case PUnderscoreCharacter() => "decreases" <+> "_"
-      case x: PConditionalMeasureCollection => showConditionalMeasureCollection(x)
+      case PStarMeasure() => "decreases" <+> "*"
+      case PWildcardMeasure() => "decreases" <+> "_"
+      case PInferTerminationMeasure() => "decreases" <+> "infer"
+      case x: PConditionalTerminationMeasures => showConditionalMeasure(x)
     }
-    case None=> ""
+    case None => ""
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
@@ -140,9 +141,9 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         hcat(posts map (showPost(_) <> line)) <>
           showTerminationMeasure(terminationMeasure) <> line
 
-    case PLoopSpec(inv,termination_measures) =>
+    case PLoopSpec(inv,terminationMeasure) =>
       hcat(inv map (showInv(_) <> line)) <>
-        showTerminationMeasure(termination_measures) <> line
+        showTerminationMeasure(terminationMeasure) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {

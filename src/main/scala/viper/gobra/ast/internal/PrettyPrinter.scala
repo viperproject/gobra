@@ -15,6 +15,7 @@ import viper.silver.ast.{Position => GobraPosition}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import viper.gobra.util.Violation.violation
 
 trait PrettyPrinter {
   def format(node : Node): String
@@ -131,10 +132,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: BuiltInMember => showBuiltInMember(n)
   })
   
-  def showTerminationMeasure(measure: Vector[Assertion]): Doc = hcat(measure  map ("decreases" <> showAss(_) <> line))
+  def showTerminationMeasure(measure: Option[Assertion]): Doc = measure match {
+    case Some(measure) => showAss(measure)
+    case None => ""
+  }
 
   def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts,terminationMeasure, body) =>
+    case Function(name, args, results, pres, posts, terminationMeasure, body) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block(showStmt(b)))
   }
@@ -146,7 +150,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   }
 
   def showMethod(m: Method): Doc = m match {
-    case Method(receiver, name, args, results, pres, posts,terminationMeasure, body) =>
+    case Method(receiver, name, args, results, pres, posts, terminationMeasure, body) =>
       "func" <+> parens(showVarDecl(receiver)) <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure) <> opt(body)(b => block(showStmt(b)))
   }
@@ -325,6 +329,12 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   protected def showExprList[T <: Expr](list: Vector[T]): Doc =
     showList(list)(showExpr)
 
+  //protected def showAssList[T <: Assertion](list: Vector[T]): Doc =
+    //showList(list)(showAss)
+
+  protected def showTupleMeasureNodeList[T <: Node](list: Vector[T]): Doc =
+    showList(list)(showTupleMeasureArgument)
+
   protected def showExprMap[K, V <: Expr](map : Map[K, V])(f : K => Doc) : Doc =
     showMap(map)(f, showExpr)
 
@@ -338,8 +348,13 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Assignee.Index(e) => showExpr(e)
   })
 
-  // assertions
+  def showTupleMeasureArgument(n: Node): Doc = n match {
+    case n: PredicateAccess => showPredicateAcc(n)
+    case n: Expr => showExpr(n)
+    case _ => violation("Invalid node for tuple termination measure")
+  }
 
+  // assertions
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
@@ -348,19 +363,19 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
     case SepForall(vars, triggers, body) =>
       "forall" <+> showVarDeclList(vars) <+> "::" <+> showTriggers(triggers) <+> showAss(body)
-    case UnderscoreTerminationMeasure() =>
+    case WildcardMeasure() =>
       "decreases" <+> "_"
-    case StarTerminationMeasure() =>
+    case StarMeasure() =>
       "decreases" <+> "*"
-    case ConditionalMeasureExpression(vector, condition) =>
-      "decreases" <+> showExprList(vector) <+> "if" <+> showExpr(condition)
-    case ConditionalMeasureUnderscore(condition) =>
-      "decreases" <+> "_" <+> "if" <+> showExpr(condition)
-    case ConditionalMeasureAdditionalStar() =>
-      "decreases" <+> "*"
-    case ExprTupleTerminationMeasure(vector) =>
-      "decreases" <+> showExprList(vector)
+    case TupleTerminationMeasure(vector) =>
+      "decreases" <+> showTupleMeasureNodeList(vector)
+    case ConditionalTerminationMeasures(clauses) => hcat(clauses map (showClause(_) <> line))
   })
+
+  def showClause(clause: ConditionalTerminationMeasureClause): Doc = clause match {
+    case ConditionalTerminationMeasureIfClause(measure, cond) => showAss(measure) <+> "if" <+> showExpr(cond)
+    case StarMeasure() => "decreases" <+> "*"
+  }
 
   def showAcc(acc: Accessible): Doc = updatePositionStore(acc) <> (acc match {
     case Accessible.Address(der) => showExpr(der)
@@ -596,7 +611,7 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
 
 
   override def showFunction(f: Function): Doc = f match {
-    case Function(name, args, results, pres, posts,terminationMeasure, _) =>
+    case Function(name, args, results, pres, posts, terminationMeasure, _) =>
       "func" <+> name.name <> parens(showFormalArgList(args)) <+> parens(showVarDeclList(results)) <>
         spec(showPreconditions(pres) <> showPostconditions(posts)) <> showTerminationMeasure(terminationMeasure)
   }

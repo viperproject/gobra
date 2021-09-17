@@ -663,7 +663,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
   private def function(p: in.PureMethod)(ctx: Context): MemberWriter[Vector[vpr.Function]] = {
     Violation.violation(p.results.size == 1, s"expected a single result, but got ${p.results}")
     Violation.violation(p.posts.isEmpty, s"expected no postcondition, but got ${p.posts}")
-    Violation.violation(p.body.isEmpty, s"expected no body, but got ${p.body}")
+    //Violation.violation(p.body.isEmpty, s"expected no body, but got ${p.body}")
 
     val itfT = p.receiver.typ.asInstanceOf[in.InterfaceT]
     val impls = ctx.table.implementations(itfT)
@@ -723,7 +723,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
-      terminationMeasure = Vector.empty,
+      terminationMeasure = Option.empty,
       body = Some(body)
     )(p.info))(ctx)
 
@@ -761,7 +761,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
-      terminationMeasure = Vector.empty,
+      terminationMeasure = Option.empty,
       body = Some(body)
     )(p.info))(ctx)
 

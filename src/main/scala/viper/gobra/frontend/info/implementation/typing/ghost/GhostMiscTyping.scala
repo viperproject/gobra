@@ -265,15 +265,19 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       (terminationMeasure match {
         case Some(measure) =>
           measure match {
-            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p))
-            case PUnderscoreCharacter() => noMessages
-            case PStarCharacter() => noMessages
-            case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
-              case PConditionalMeasureExpression(expression, condition) => 
-                expression.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p)) ++ assignableToSpec(condition)
-              case PConditionalMeasureUnderscore(condition) => 
-                assignableToSpec(condition)
-              case PConditionalMeasureAdditionalStar() => noMessages
+            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
+            case PWildcardMeasure() => noMessages
+            case PStarMeasure() => noMessages
+            case PInferTerminationMeasure() => noMessages
+            case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
+              case PConditionalTerminationMeasureIfClause(measure, cond) =>
+                measure match {
+                  case PWildcardMeasure() => assignableToSpec(cond)
+                  case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
+                  case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                  case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+                }
+              case PStarMeasure() => noMessages
             })
           }
         case None => noMessages
@@ -283,15 +287,19 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     (terminationMeasure match {
       case Some(measure) =>
         measure match {
-          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p))
-          case PUnderscoreCharacter() => noMessages
-          case PStarCharacter() => noMessages
-          case PConditionalMeasureCollection(tuple) => tuple.flatMap(p => p match {
-            case PConditionalMeasureExpression(expression, condition) => 
-              expression.flatMap(p => comparableType.errors(exprType(p))(p) ++ isPureExpr(p)) ++ assignableToSpec(condition)
-            case PConditionalMeasureUnderscore(condition) => 
-              assignableToSpec(condition)
-            case PConditionalMeasureAdditionalStar() => noMessages
+          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) /*++ isPureExpr(p)*/)
+          case PWildcardMeasure() => noMessages
+          case PStarMeasure() => noMessages
+          case PInferTerminationMeasure() => noMessages
+          case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
+            case PConditionalTerminationMeasureIfClause(measure, cond) =>
+              measure match {
+                case PWildcardMeasure() => assignableToSpec(cond)
+                case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+              }
+            case PStarMeasure() => noMessages
           })
         }
       case None => noMessages

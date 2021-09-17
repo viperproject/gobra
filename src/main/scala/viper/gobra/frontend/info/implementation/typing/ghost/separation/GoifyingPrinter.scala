@@ -69,7 +69,6 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     PResult(aOuts)
   }
 
-
   /**
     * Shows the Goified version of the function / method specification
     */
@@ -83,34 +82,40 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
         case Some(measure) => {
           measure match {
             case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
-            case PStarCharacter() => specComment <+> "decreases" <+> "*" <> line
-            case PUnderscoreCharacter() => specComment <+> "decreases" <+> "_" <> line
-            case PConditionalMeasureCollection(tuple) => hcat(tuple map(p => p match {
-              case PConditionalMeasureExpression(expression, condition) =>
-                hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
-              case PConditionalMeasureUnderscore(condition) =>
-                specComment <+> showPre(condition) <> line
-              case PConditionalMeasureAdditionalStar() => emptyDoc
+            case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
+            case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
+            case PInferTerminationMeasure() => specComment <+> "decreases" <+> "infer" <> line
+            case PConditionalTerminationMeasures(clauses) => hcat(clauses map(p => p match {
+              case PStarMeasure() => emptyDoc
+              case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
+                case PWildcardMeasure() => specComment <+> showPre(cond) <> line
+                case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+              }
             }))
           }
         }
         case None => emptyDoc
       })
    
-    case PLoopSpec(inv, terminationMeasure ) =>
+    case PLoopSpec(inv, terminationMeasure) =>
       hcat(inv map (p => specComment <+> showInv(p) <> line)) <>
       (terminationMeasure match {
         case Some(measure) => {
           measure match {
             case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
-            case PStarCharacter() => specComment <+> "decreases" <+> "*" <> line
-            case PUnderscoreCharacter() => specComment <+> "decreases" <+> "_" <> line
-            case PConditionalMeasureCollection(tuple) => hcat(tuple map(p => p match {
-              case PConditionalMeasureExpression(expression, condition) => 
-                hcat(expression map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(condition) <> line
-              case PConditionalMeasureUnderscore(condition) => 
-                specComment <+> showPre(condition) <> line
-              case PConditionalMeasureAdditionalStar() => emptyDoc
+            case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
+            case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
+            case PInferTerminationMeasure() => specComment <+> "decreases" <+> "infer" <> line
+            case PConditionalTerminationMeasures(clauses) => hcat(clauses map (p => p match {
+              case PStarMeasure() => emptyDoc
+              case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
+                case PWildcardMeasure() => specComment <+> showPre(cond) <> line
+                case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
+                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+              }
             }))
           }
         }

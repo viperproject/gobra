@@ -465,22 +465,10 @@ object Desugar {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
       val terminationMeasure = decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(specCtx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
-        }
-        case None => Vector.empty
+        case Some(measure) => Some(terminationMeasureD(specCtx)(meta(measure))(measure))
+        case None => None
       }
-        
+
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
         case (p, Some(q)) => Some(singleAss(in.Assignee.Var(q), p)(p.info))
@@ -551,20 +539,8 @@ object Desugar {
       val pres = decl.spec.pres map preconditionD(ctx)
       val posts = decl.spec.posts map postconditionD(ctx)
       val terminationMeasure = decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(ctx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(ctx)(meta(measure))
-        }
-        case None => Vector.empty
+        case Some(measure) => Some(terminationMeasureD(ctx)(meta(measure))(measure))
+        case None => None
       }
 
       val bodyOpt = decl.body.map {
@@ -578,8 +554,6 @@ object Desugar {
 
       in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
-
-
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
@@ -646,21 +620,9 @@ object Desugar {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
       val terminationMeasure = decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(specCtx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
-        }
-        case None => Vector.empty
-       }   
+        case Some(measure) => Some(terminationMeasureD(specCtx)(meta(measure))(measure))
+        case None => None
+      }
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -752,20 +714,8 @@ object Desugar {
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
       val terminationMeasure = decl.spec.terminationMeasure match {
-        case Some(measure) => measure match {
-          case PTupleTerminationMeasure(vector) =>
-            val src: Meta = meta(measure)
-            val tuple = sequence(vector map exprD(ctx)).res
-            Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-          case PUnderscoreCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.UnderscoreTerminationMeasure()(src))
-          case PStarCharacter() => 
-            val src: Meta = meta(measure)
-            Vector(in.StarTerminationMeasure()(src))
-          case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(ctx)(meta(measure))
-        }
-        case None => Vector.empty
+        case Some(measure) => Some(terminationMeasureD(ctx)(meta(measure))(measure))
+        case None => None
       }
 
       val bodyOpt = decl.body.map {
@@ -828,7 +778,7 @@ object Desugar {
       val dStatements = sequence(block.nonEmptyStmts map (s => seqn(stmtD(ctx)(s))))
       blockV(dStatements)(meta(block))
     }
-    
+
      def getMeasureStmts(ctx: FunctionContext)(ass:PExpression):Vector[in.Stmt]={
       val measure=exprD(ctx)(ass)
       measure.stmts
@@ -906,36 +856,18 @@ object Desugar {
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
                 (dTerPre, dTer) = spec.terminationMeasure match {
-                  case Some(measure) => measure match { 
-                    case PTupleTerminationMeasure(vector) =>
-                      val src: Meta = meta(measure)
-                      val tuple = sequence(vector map exprD(ctx)).res
-                       (vector flatMap getMeasureStmts(ctx), Vector(in.ExprTupleTerminationMeasure(tuple)(src)))
-                    case PUnderscoreCharacter() => 
-                      val src: Meta = meta(measure)
-                      (Vector.empty, Vector(in.UnderscoreTerminationMeasure()(src)))
-                    case PStarCharacter() =>
-                      val src: Meta = meta(measure)
-                      (Vector.empty, Vector(in.StarTerminationMeasure()(src)))
-                    case PConditionalMeasureCollection(tuple) => {
-                      def getCmeasureStmts(ctx: FunctionContext)(ass: PConditionalMeasure): Vector[in.Stmt] = {
-                        ass match {
-                          case PConditionalMeasureExpression(expressions, cond) =>
-                            val vector = expressions flatMap getMeasureStmts(ctx)
-                            val condition = exprD(ctx)(cond)
-                            vector ++ condition.stmts
-                          case PConditionalMeasureUnderscore(cond) =>
-                            exprD(ctx)(cond).stmts
-                          case PConditionalMeasureAdditionalStar() =>
-                            Vector.empty
-                        }
-                      }
-                      (tuple flatMap getCmeasureStmts(ctx), tuple map conditionalMeasureD(ctx)(meta(measure)))
-                    }
+                  case Some(measure) => measure match {
+                    case PStarMeasure() => (Vector.empty, Some(in.StarMeasure()(src)))
+                    case PWildcardMeasure() => (Vector.empty, Some(in.WildcardMeasure()(src)))
+                    case PInferTerminationMeasure() => (Vector.empty, Some(in.InferTerminationMeasure()(src)))
+                    case PTupleTerminationMeasure(tuple) =>
+                      (tuple flatMap getExprStmts(ctx), Some(terminationMeasureD(ctx)(meta(measure))(measure)))
+                    case PConditionalTerminationMeasures(clauses) =>
+                      (clauses flatMap getClauseStmts(ctx), Some(in.ConditionalTerminationMeasures(clauses map clauseD(ctx)(src))(src)))
                   }
-                  case None => (Vector.empty, Vector.empty)
+                  case None => (Vector.empty, None)
                 }
-                
+
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
@@ -1239,7 +1171,7 @@ object Desugar {
             val posts = n.spec.posts map postconditionD(specContext)
             // create function and add as member
             // TODO: currently, termination measures are not supported in outline blocks
-            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, Vector(), Some(block))(src)
+            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, None, Some(block))(src)
             definedFunctions += proxy -> function
             AdditionalMembers.addMember(function)
             // write function call and result assignments
@@ -2045,19 +1977,23 @@ object Desugar {
         case in.IntT(_, kind) => unit(in.IntTExpr(kind)(src))
         case in.StringT(_) => unit(in.StringTExpr()(src))
         case in.PermissionT(_) => unit(in.PermTExpr()(src))
-        case in.ArrayT(length, elems, _) => unit(in.ArrayTExpr(in.IntLit(length, UnboundedInteger)(src),typeAsExpr(elems)(src).res)(src))
-        case in.SliceT(elems, _) =>unit(in.SliceTExpr(typeAsExpr(elems)(src).res)(src))
-        case in.MapT(keys, values, _) => unit(in.MapTExpr(typeAsExpr(keys)(src).res,typeAsExpr(values)(src).res)(src))
+        case in.ArrayT(length, elems, _) => unit(in.ArrayTExpr(in.IntLit(length, UnboundedInteger)(src), typeAsExpr(elems)(src).res)(src))
+        case in.SliceT(elems, _) => unit(in.SliceTExpr(typeAsExpr(elems)(src).res)(src))
+        case in.MapT(keys, values, _) => unit(in.MapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
         case in.SequenceT(t, _) => unit(in.SequenceTExpr(typeAsExpr(t)(src).res)(src))
         case in.SetT(t, _) => unit(in.SetTExpr(typeAsExpr(t)(src).res)(src))
         case in.MultisetT(t, _) => unit(in.MultisetTExpr(typeAsExpr(t)(src).res)(src))
-        case in.MathMapT(keys, values, _) => unit(in.MathMapTExpr(typeAsExpr(keys)(src).res,typeAsExpr(values)(src).res)(src))
+        case in.MathMapT(keys, values, _) => unit(in.MathMapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
         case in.OptionT(t, _) => unit(in.OptionTExpr(typeAsExpr(t)(src).res)(src))
         case in.DefinedT(name, _) => unit(in.DefinedTExpr(name)(src))
         case in.PointerT(t, _) => unit(in.PointerTExpr(typeAsExpr(t)(src).res)(src))
         case in.TupleT(ts, _) => unit(in.TupleTExpr(sequence(ts map(typeAsExpr(_)(src))).res)(src))
+        case in.StructT(_, fields: Vector[in.Field], _) => unit(in.StructTExpr(fields.map (field => transformField(field)(src)))(src))
+        case _ => Violation.violation(s"no corresponding type expression matched: $t")
       }
     }
+
+    def transformField(field: in.Field)(src: Source.Parser.Info): (String, in.Expr, Boolean) = (field.name, typeAsExpr(field.typ)(src).res, field.ghost)
 
     def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
 
@@ -2312,41 +2248,6 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-    def defaultValue(src: Source.Parser.Info)(t: in.Type): in.Expr = {
-      t match {
-        case in.BoolT(_)=> in.BoolLit(true)(src)
-        case in.StringT(_)=> in.StringLit("")(src)
-        case in.IntT(_,_) => in.IntLit(0)(src)
-        case in.PermissionT(_) => in.FullPerm(src)
-        case in.ArrayT(_,typ,_) => in.ArrayLit(0, typ, Map.empty)(src)
-        case in.SliceT(typ,_) => in.SliceLit(typ, Map.empty)(src)
-        case in.MapT(typ1,typ2,_) => in.MapLit(typ1, typ2, Seq.empty)(src)
-        case in.SequenceT(typ,_) => in.SequenceLit(0, typ, Map.empty)(src)
-        case in.SetT(typ,_) => in.SetLit(typ, Vector.empty)(src)
-        case in.MultisetT(typ,_) => in.MultisetLit(typ, Vector.empty)(src)
-        case in.MathMapT(typ1,typ2,_) => in.MathMapLit(typ1, typ2, Seq.empty)(src)
-        case in.OptionT(typ,_) => in.OptionTExpr(defaultValue(src)(typ))(src)
-        case in.DefinedT(name,addr) => val typ = definedTypes.get(name, addr)
-          typ match {
-            case Some(typ) => defaultValue(src)(typ)
-            case None => Violation.violation(s"Type not defined $t")
-          }
-        case in.PointerT(typ,_) => in.PointerTExpr(defaultValue(src)(typ))(src)
-        case in.TupleT(vectorTyp,_) => in.Tuple(vectorTyp map defaultValue(src))(src)
-        case in.StructT(name,fields,addr) => val typ = definedTypes.get(name, addr)
-          def getSecond(list: List[in.Field])(result: Vector[in.Type]): Vector[in.Type] = {
-            list match {
-              case x::xs => getSecond(xs)(result ++ Vector(x.typ))
-              case Nil => Vector.empty
-            }
-          }
-          typ match {
-            case Some(typ) => in.StructLit(typ, getSecond(fields.toList)(Vector.empty) map defaultValue(src))(src)
-            case None => Violation.violation(s"Type not defined $t")
-          }
-      }
-    }
-
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
       Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
@@ -2381,20 +2282,8 @@ object Desugar {
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
           val terminationMeasure = m.spec.terminationMeasure match {
-            case Some(measure) => measure match {
-              case PTupleTerminationMeasure(vector) =>
-                val src: Meta = meta(measure)
-                val tuple = sequence(vector map exprD(specCtx)).res
-                Vector(in.ExprTupleTerminationMeasure(tuple)(src))
-              case PUnderscoreCharacter() => 
-                val src: Meta = meta(measure)
-                Vector(in.UnderscoreTerminationMeasure()(src))
-              case PStarCharacter() => 
-                val src: Meta = meta(measure)
-                Vector(in.StarTerminationMeasure()(src))
-              case PConditionalMeasureCollection(tuple) => tuple map conditionalMeasureD(specCtx)(meta(measure))
-            }
-            case None => Vector.empty
+            case Some(measure) => Some(terminationMeasureD(specCtx)(meta(measure))(measure))
+            case None => None
           }
 
           val mem = if (m.spec.isPure) {
@@ -2409,7 +2298,10 @@ object Desugar {
             definedMethods -= proxy
             val proxies = computeMemberProxies(definedMethods.values, interfaceImplementations, definedTypes)
             if (m.spec.isPure) {
-              val default = in.DfltVal(returns.head.typ)(src)
+              val helperProxy = in.MethodProxy(proxy.name, proxy.uniqueName + "_helper" )(src)
+              val helperFunction = in.PureMethod(recv, helperProxy, args, returns, pres, posts, terminationMeasure, None)(src)
+              val default = in.PureMethodCall(recv, helperProxy, args, returns.head.typ)(src)
+              definedMethods += (helperProxy -> helperFunction)
               def helper(list: List[in.Type]): in.Expr = {
                 list match {
                   case x::xs => {
@@ -3124,35 +3016,64 @@ object Desugar {
     def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
     }
-    
-    def terminationMeasureD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
-      val src: Meta = meta(ass)
-      val measure = exprD(ctx)(ass) map (in.ExprTerminationMeasure(_)(src))
-      Violation.violation(measure.stmts.isEmpty && measure.decls.isEmpty, s"$ass is not an assertion")
-      measure.res
+
+    def getClauseStmts(ctx: FunctionContext)(clause: PConditionalTerminationMeasureClause): Vector[in.Stmt] = clause match {
+      case PConditionalTerminationMeasureIfClause(measure, cond) =>
+        val condition = exprD(ctx)(cond)
+        measure match {
+          case PWildcardMeasure() =>
+            condition.stmts
+          case PTupleTerminationMeasure(tuple) =>
+            val vector = tuple flatMap getMeasureStmts(ctx)
+            vector ++ condition.stmts
+          case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+        }
+      case PStarMeasure() =>
+        Vector.empty
     }
 
-    def conditionalMeasureD(ctx:FunctionContext)(src:Meta)(ass:PConditionalMeasure):in.Assertion={
-      
-      def singleConditionalMeasureD(ctx: FunctionContext)(ass: PExpression): in.Expr = {
-        val measure = exprD(ctx)(ass)
-        Violation.violation(measure.stmts.isEmpty && measure.decls.isEmpty, s"$ass is not an assertion")
-        measure.res
+    def getExprStmts(ctx: FunctionContext)(expr: PExpression): Vector[in.Stmt] = {
+      val measure = exprD(ctx)(expr)
+      measure.stmts
+    }
+
+    def elementD(expr: PExpression)(ctx: FunctionContext)(src: Meta): in.Node = expr match {
+      case p: PInvoke => info.resolve(p) match {
+        case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src).res
+          //assertionD(ctx)(p).res
+        case _ => exprD(ctx)(p).res
+          //(exprD(ctx)(p) map (in.ExprAssertion(_)(src))).res
       }
-      
-      ass match{
-        case PConditionalMeasureExpression(expressions, cond) =>
-          val vector = expressions map singleConditionalMeasureD(ctx)
-          val condition = exprD(ctx)(cond)
-          Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not a condition")
-          in.ConditionalMeasureExpression(vector, condition.res)(src)
-        case PConditionalMeasureUnderscore(cond) =>
-          val condition = exprD(ctx)(cond)
-          Violation.violation(condition.stmts.isEmpty && condition.decls.isEmpty, s"$ass is not a condition")
-          in.ConditionalMeasureUnderscore(condition.res)(src)
-        case PConditionalMeasureAdditionalStar() =>
-          in.ConditionalMeasureAdditionalStar()(src)
-      }
+      case _ => exprD(ctx)(expr).res
+        //(exprD(ctx)(expr) map (in.ExprAssertion(_)(src))).res
+    }
+
+    def terminationMeasureD(ctx: FunctionContext)(src: Meta)(ter: PTerminationMeasure): in.Assertion = ter match {
+      case PStarMeasure() => in.StarMeasure()(src)
+      case PWildcardMeasure() => in.WildcardMeasure()(src)
+      case PInferTerminationMeasure() => in.InferTerminationMeasure()(src)
+      case PTupleTerminationMeasure(tuple) =>
+        val vector = tuple.map(x => elementD(x)(ctx)(src))
+        in.TupleTerminationMeasure(vector)(src)
+      case PConditionalTerminationMeasures(clauses) =>
+        in.ConditionalTerminationMeasures(clauses map clauseD(ctx)(src))(src)
+    }
+
+    def clauseD(ctx: FunctionContext)(src: Meta)(clause: PConditionalTerminationMeasureClause): in.ConditionalTerminationMeasureClause = clause match {
+      case PConditionalTerminationMeasureIfClause(measure, cond) =>
+        val condition = exprD(ctx)(cond)
+        measure match {
+          case PWildcardMeasure() =>
+            in.ConditionalTerminationMeasureIfClause(in.WildcardMeasure()(src), condition.res)(src)
+          case PTupleTerminationMeasure(tuple) =>
+            val vector = tuple.map(x => elementD(x)(ctx)(src))
+            in.ConditionalTerminationMeasureIfClause(in.TupleTerminationMeasure(vector)(src), condition.res)(src)
+          case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
+          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
+        }
+      case PStarMeasure() =>
+        in.StarMeasure()(src)
     }
 
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {

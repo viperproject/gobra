@@ -36,23 +36,21 @@ pred (a *UDPAddr) mem() {
 }
 
 (*UDPAddr) implements Addr {
-	(e *UDPAddr) Network(ghost p perm) string {
-		return e.Network(p)
+	(e *UDPAddr) Network() string {
+		return e.Network()
 	}
 
-	(e *UDPAddr) String(ghost p perm) string {
-		return e.String(p)
+	(e *UDPAddr) String() string {
+		return e.String()
 	}
 }
 
 // Network returns the address's network name, "udp".
 ensures res == "udp"
-func (a *UDPAddr) Network(ghost p perm) (res string) { return "udp" }
+func (a *UDPAddr) Network() (res string) { return "udp" }
 
-requires p > 0
-requires acc(a.mem(), p)
-ensures acc(a.mem(), p)
-func (a *UDPAddr) String(ghost p perm) string // {
+preserves acc(a.mem(), 1/1000)
+func (a *UDPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"
 //	}

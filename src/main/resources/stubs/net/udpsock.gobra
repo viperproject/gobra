@@ -176,12 +176,11 @@ func (c *UDPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
 //}
 
 // WriteToUDP acts like WriteTo but takes a UDPAddr.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr, ghost p perm) (int, error) // {
+requires c.mem() && acc(addr.mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}
@@ -193,12 +192,11 @@ func (c *UDPConn) WriteToUDP(b []byte, addr *UDPAddr, ghost p perm) (int, error)
 //}
 
 // WriteTo implements the PacketConn WriteTo method.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *UDPConn) WriteTo(b []byte, addr Addr, ghost p perm) (int, error) // {
+requires c.mem() && acc(addr.mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *UDPConn) WriteTo(b []byte, addr Addr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}

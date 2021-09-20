@@ -42,6 +42,7 @@ pred (a *IPAddr) mem() {
     acc(a)
 }
 
+/* (joao) Causes errors for importing packages -> Uncommenting this causes
 (*IPAddr) implements Addr {
 	(e *IPAddr) Network() string {
 		return e.Network()
@@ -51,6 +52,7 @@ pred (a *IPAddr) mem() {
 		return e.String()
 	}
 }
+// */
 
 // Network returns the address's network name, "ip".
 ensures res == "ip"

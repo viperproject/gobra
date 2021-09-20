@@ -13,10 +13,12 @@ import "time"
 type Addr interface {
 	pred mem()
 
-	preserves acc(mem(), 1/1000)
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
 	Network() string
 
-	preserves acc(mem(), 1/1000)
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
 	String() string
 }
 

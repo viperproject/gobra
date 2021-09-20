@@ -41,24 +41,24 @@ pred (a *IPAddr) mem() {
     acc(a)
 }
 
+/* (joao) Causes errors for importing packages -> Uncommenting this causes
 (*IPAddr) implements Addr {
-	(e *IPAddr) Network(ghost p perm) string {
-		return e.Network(p)
+	(e *IPAddr) Network() string {
+		return e.Network()
 	}
 
-	(e *IPAddr) String(ghost p perm) string {
-		return e.String(p)
+	(e *IPAddr) String() string {
+		return e.String()
 	}
 }
+// */
 
 // Network returns the address's network name, "ip".
 ensures res == "ip"
-func (a *IPAddr) Network(ghost p perm) (res string) { return "ip" }
+func (a *IPAddr) Network() (res string) { return "ip" }
 
-requires p > 0
-requires acc(a.mem(), p)
-ensures acc(a.mem(), p)
-func (a *IPAddr) String(ghost p perm) string // {
+preserves acc(a.mem(), 1/1000)
+func (a *IPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"
 //	}
@@ -179,12 +179,11 @@ func (c *IPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
 //}
 
 // WriteToIP acts like WriteTo but takes an IPAddr.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *IPConn) WriteToIP(b []byte, addr *IPAddr, ghost p perm) (int, error) // {
+requires c.mem() && acc(addr.mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *IPConn) WriteToIP(b []byte, addr *IPAddr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}
@@ -196,12 +195,11 @@ func (c *IPConn) WriteToIP(b []byte, addr *IPAddr, ghost p perm) (int, error) //
 //}
 
 // WriteTo implements the PacketConn WriteTo method.
-requires p > 0
-requires c.mem() && acc(addr.mem(), p)
-requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-ensures c.mem() && acc(addr.mem(), p)
-ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-func (c *IPConn) WriteTo(b []byte, addr Addr, ghost p perm) (int, error) // {
+requires c.mem() && acc(addr.mem(), 1/1000)
+requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+func (c *IPConn) WriteTo(b []byte, addr Addr) (int, error) // {
 //	if !c.ok() {
 //		return 0, syscall.EINVAL
 //	}

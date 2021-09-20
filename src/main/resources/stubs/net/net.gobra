@@ -13,15 +13,13 @@ import "time"
 type Addr interface {
 	pred mem()
 
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	Network(ghost p perm) string
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	Network() string
 
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	String(ghost p perm) string
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	String() string
 }
 
 // Conn is a generic stream-oriented network connection.
@@ -37,30 +35,26 @@ type Conn interface {
 	Read(b []byte) (n int, err error)
 
 	// Write writes data to the connection.
-	requires p > 0
 	requires mem()
-	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
+	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
 	ensures mem()
-	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], p)
-	Write(b []byte, ghost p perm) (n int, err error)
+	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
+	Write(b []byte) (n int, err error)
 
 	// Close closes the connection.
 	// Any blocked Read or Write operations will be unblocked and return errors.
 	requires mem()
-	ensures mem()
 	Close() error
 
 	// LocalAddr returns the local network address.
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	LocalAddr(ghost p perm) Addr
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	LocalAddr() Addr
 
 	// RemoteAddr returns the remote network address.
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	RemoteAddr(ghost p perm) Addr
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	RemoteAddr() Addr
 
 	// SetDeadline sets the read and write deadlines associated
 	// with the connection.
@@ -93,21 +87,18 @@ type PacketConn interface {
 	ensures 0 <= n && n <= len(p)
 	ReadFrom(p []byte) (n int, addr Addr, err error)
 
-	requires permission > 0
 	requires mem()
-	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
+	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
 	ensures mem()
-	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], permission)
-	WriteTo(p []byte, addr Addr, ghost permission perm) (n int, err error)
+	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
+	WriteTo(p []byte, addr Addr) (n int, err error)
 
 	requires mem()
-	ensures mem()
 	Close() error
 
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	LocalAddr(ghost p perm) Addr
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	LocalAddr() Addr
 
 	requires mem()
 	ensures mem()
@@ -148,15 +139,13 @@ type Error interface {
 
 	// error // (joao) support for embeddings is buggy
 
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	Timeout(ghost p perm) bool   // Is the error a timeout?
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	Timeout() bool   // Is the error a timeout?
 
-	requires p > 0
-	requires acc(mem(), p)
-	ensures acc(mem(), p)
-	Temporary(ghost p perm) bool // Is the error temporary?
+	requires acc(mem(), 1/1000)
+	ensures acc(mem(), 1/1000)
+	Temporary() bool // Is the error temporary?
 }
 
 // Various errors contained in OpError.
@@ -188,10 +177,9 @@ requires acc(e.mem())
 ensures acc(e.mem())
 func (e *OpError) Error() string 
 
-requires p > 0
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
-func (e *OpError) Timeout(ghost p perm) bool /*{
+requires acc(e.mem(), 1/1000)
+ensures acc(e.mem(), 1/1000)
+func (e *OpError) Timeout() bool /*{
 	if ne, ok := e.Err.(*os.SyscallError); ok {
 		t, ok := ne.Err.(timeout)
 		return ok && t.Timeout()
@@ -200,10 +188,9 @@ func (e *OpError) Timeout(ghost p perm) bool /*{
 	return ok && t.Timeout()
 }*/
 
-requires p > 0
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
-func (e *OpError) Temporary(ghost p perm) bool /*{
+requires acc(e.mem(), 1/1000)
+ensures acc(e.mem(), 1/1000)
+func (e *OpError) Temporary() bool /*{
 	if e.Op == "accept" && isConnError(e.Err) {
 		return true
 	}
@@ -217,12 +204,12 @@ func (e *OpError) Temporary(ghost p perm) bool /*{
 }*/
 
 (*OpError) implements Error {
-	(e *OpError) Timeout(ghost p perm) bool {
-		return e.Timeout(p)
+	(e *OpError) Timeout() bool {
+		return e.Timeout()
 	}
 
-	(e *OpError) Temporary(ghost p perm) bool {
-		return e.Temporary(p)
+	(e *OpError) Temporary() bool {
+		return e.Temporary()
 	}
 }
 
@@ -243,13 +230,12 @@ type AddrError struct {
 
 pred (e *AddrError) mem() { acc(e) }
 
-requires p > 0
-requires e != nil ==> acc(e, p)
+requires e != nil ==> acc(e, 1/1000)
 ensures e == nil ==> ret == "<nil>"
-ensures e != nil ==> acc(e, p)
+ensures e != nil ==> acc(e, 1/1000)
 ensures (e != nil && e.Addr != "") ==> ret == "address " + e.Addr + ": " + e.Err
 ensures (e != nil && e.Addr == "") ==> ret == e.Err
-func (e *AddrError) Error(ghost p perm) (ret string) {
+func (e *AddrError) Error() (ret string) {
 	if e == nil {
 		return "<nil>"
 	}
@@ -260,27 +246,24 @@ func (e *AddrError) Error(ghost p perm) (ret string) {
 	return s
 }
 
-// TODO: if the method is annotated with pure, then the implementation proof fails
+// (joao) if the method is annotated with pure, then the implementation proof fails
 // because the "pure" annotation of the interface and implementation do not match
-requires 0 <= p
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
+preserves acc(e.mem(), 1/1000)
 ensures !res
-/* pure */ func (e *AddrError) Timeout(ghost p perm) (res bool)   { return false }
+/* pure */ func (e *AddrError) Timeout() (res bool)   { return false }
 
-requires 0 <= p
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
+requires acc(e.mem(), 1/1000)
+ensures acc(e.mem(), 1/1000)
 ensures !res
-/* pure */ func (e *AddrError) Temporary(ghost p perm) (res bool) { return false }
+/* pure */ func (e *AddrError) Temporary() (res bool) { return false }
 
 (*AddrError) implements Error {
-	(e *AddrError) Timeout(ghost p perm) bool {
-		return e.Timeout(p)
+	(e *AddrError) Timeout() bool {
+		return e.Timeout()
 	}
 
-	(e *AddrError) Temporary(ghost p perm) bool {
-		return e.Temporary(p)
+	(e *AddrError) Temporary() bool {
+		return e.Temporary()
 	}
 }
 
@@ -310,10 +293,8 @@ type DNSError struct {
 
 pred (e *DNSError) mem() { acc(e) }
 
-requires p > 0
-requires e != nil ==> acc(e, p)
-ensures e != nil ==> acc(e, p)
-func (e *DNSError) Error(ghost p perm) string {
+preserves e != nil ==> acc(e, 1/1000)
+func (e *DNSError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
@@ -326,26 +307,22 @@ func (e *DNSError) Error(ghost p perm) string {
 }
 
 // Timeout reports whether the DNS lookup is known to have timed out.
-requires p > 0
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
+preserves acc(e.mem(), 1/1000)
 ensures unfolding acc(e.mem(), _) in res == e.IsTimeout
-/* pure */ func (e *DNSError) Timeout(ghost p perm) (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout }
+/* pure */ func (e *DNSError) Timeout() (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
-requires p > 0
-requires acc(e.mem(), p)
-ensures acc(e.mem(), p)
+preserves acc(e.mem(), 1/1000)
 ensures unfolding acc(e.mem(), _) in res == e.IsTimeout || e.IsTemporary
-/* pure */ func (e *DNSError) Temporary(ghost p perm) (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout || e.IsTemporary }
+/* pure */ func (e *DNSError) Temporary() (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout || e.IsTemporary }
 
 (*DNSError) implements Error {
-	(e *DNSError) Timeout(ghost p perm) bool {
-		return e.Timeout(p)
+	(e *DNSError) Timeout() bool {
+		return e.Timeout()
 	}
 
-	(e *DNSError) Temporary(ghost p perm) bool {
-		return e.Temporary(p)
+	(e *DNSError) Temporary() bool {
+		return e.Temporary()
 	}
 }
 

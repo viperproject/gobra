@@ -34,6 +34,7 @@ pred (a *UDPAddr) mem() {
     acc(a)
 }
 
+/* (joao) Causes errors for importing packages (e.g. scion.gobra in verifiedScion)
 (*UDPAddr) implements Addr {
 	(e *UDPAddr) Network() string {
 		return e.Network()
@@ -43,12 +44,14 @@ pred (a *UDPAddr) mem() {
 		return e.String()
 	}
 }
+*/
 
 // Network returns the address's network name, "udp".
 ensures res == "udp"
 func (a *UDPAddr) Network() (res string) { return "udp" }
 
-preserves acc(a.mem(), 1/1000)
+requires acc(a.mem(), 1/1000)
+ensures acc(a.mem(), 1/1000)
 func (a *UDPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"

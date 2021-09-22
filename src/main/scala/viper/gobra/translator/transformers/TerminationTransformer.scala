@@ -14,6 +14,7 @@
  import viper.silver.frontend.{DefaultStates, ViperAstProvider}
  import viper.silver.plugin.standard.termination.TerminationPlugin
  import viper.silver.reporter.{NoopReporter, Reporter}
+ import viper.silver.plugin.standard.predicateinstance.PredicateInstancePlugin
 
  class TerminationTransformer extends ViperTransformer {
 
@@ -56,8 +57,10 @@
 
    private def executeTerminationPlugin(task: BackendVerifier.Task): BackendVerifier.Task = {
      val plugin = new TerminationPlugin(null, null, null)
+     val predInstancePlugin = new PredicateInstancePlugin()
      val transformedProgram = plugin.beforeVerify(task.program)
-     task.copy(program = transformedProgram)
+     val programWithoutPredicateInstances = predInstancePlugin.beforeVerify(transformedProgram)
+     task.copy(program = programWithoutPredicateInstances)
    }
 
    /**

@@ -2291,7 +2291,6 @@ object Desugar {
           } else {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasure, None)(src)
           }
-
           definedMethods += (proxy -> mem)
           AdditionalMembers.addFinalizingComputation(() => {
             //Todo: Remove mem and readd with a body
@@ -2306,7 +2305,8 @@ object Desugar {
                 list match {
                   case x::xs => {
                     val implProxy = proxies.get(x) match {
-                      case Some(set) => val setfiltered = set.filter(_.name == mem.name.name)
+                      case Some(set) =>
+                        val setfiltered = set.filter(_.name == mem.name.name)
                         Violation.violation(setfiltered.size == 1, s"None unique method proxy for implementation found")
                         Violation.violation(setfiltered.head.isInstanceOf[in.MethodProxy], s"Unexpected proxy type for implementation")
                         setfiltered.head.asInstanceOf[in.MethodProxy]
@@ -2340,7 +2340,7 @@ object Desugar {
                     val typ = iterator.next()
                     val implProxy = proxies.get(typ) match {
                       case Some(set) => val setfiltered = set.filter(_.name == mem.name.name)
-                        Violation.violation(setfiltered.size == 1, s"None unique method proxy for implementation found")
+                        Violation.violation(setfiltered.size == 1, s"None unique method proxy for implementation found $setfiltered")
                         Violation.violation(setfiltered.head.isInstanceOf[in.MethodProxy], s"Unexpected proxy type for implementation")
                         setfiltered.head.asInstanceOf[in.MethodProxy]
                       case None => Violation.violation(s"Method proxies not found for the type $typ")

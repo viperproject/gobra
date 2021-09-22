@@ -498,8 +498,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        // TODO: Maybe should add termination measure here
-        in.Function(x.name, args, results, pres, posts, None, None)(src)
+        in.Function(x.name, args, results, pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**

@@ -63,8 +63,8 @@ class PureMethodsImpl extends PureMethods {
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         typ = resultType,
-        pres = pres,
-        posts = posts ++ terminationMeasure,
+        pres = pres ++ terminationMeasure,
+        posts = posts,
         body = body
       )(pos, info, errT)
 
@@ -108,8 +108,8 @@ class PureMethodsImpl extends PureMethods {
         name = func.name.name,
         formalArgs = vArgs,
         typ = resultType,
-        pres = pres,
-        posts = posts ++ terminationMeasure,
+        pres = pres ++ terminationMeasure,
+        posts = posts,
         body = body
       )(pos, info, errT)
 

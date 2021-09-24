@@ -10,7 +10,7 @@ func factorial(n int) int {
   if n == 0 {
     return 1
   } else {
-    return factorial(n-1)
+    return 1 * factorial(n-1)
   }
 }
 
@@ -242,4 +242,36 @@ func factorial4(n int) int {
   } else {
     return factorial4(n)
   }
+}
+
+type list struct {
+  next *list
+  value int
+}
+
+
+pred List(self *list) {
+  acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+}
+
+requires List(x)
+ensures List(x)
+decreases List(x)
+func length(x *list) int {
+unfold List(x)
+if x.next == nil {
+  fold List(x)
+  return 1
+} else {
+  var y int = 1 + length(x.next)
+  fold List(x)
+  return y
+}
+}
+
+ghost
+requires n >= 0
+decreases n
+pure func factorial2(n int) int {
+   return n == 0 ? 1 :  1 * factorial2(n-1)
 }

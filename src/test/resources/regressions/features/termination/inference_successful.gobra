@@ -1,0 +1,75 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+
+ghost
+requires n >= 0
+decreases infer
+func factorial5(n int) int {
+  if n == 0 {
+    return 1
+  } else {
+    return factorial5(n-1)
+  }
+}
+
+ghost
+requires m >= 0
+requires n >= 0
+ensures result >= 0
+decreases infer
+func ack3(m int, n int) (result int) {
+  if m == 0 {
+    return n+1
+  } else {
+    if n == 0 {
+      ack3(m-1, 1)
+    } else {
+      ack3(m-1, ack3(m, n - 1))
+    }
+  }
+}
+
+ghost
+decreases infer
+func fun2_infer(x int) int {
+  if(x>5) {
+   if(x>10) {
+    return fun2_infer(x-2)
+} else {
+   return fun2_infer(x-1)
+}
+} else{
+   return 1
+}
+}
+
+ghost
+decreases infer
+func sum4(ghost s seq[int]) int {
+    ghost res := 0
+    invariant i>=0
+    invariant len(s)>=i
+    decreases infer
+    for i := 0; i < len(s); i++ {
+        res += s[i]
+    }
+}
+
+ghost
+decreases infer
+func loop() int {
+ghost res:=20
+ghost n:=30
+invariant res>=10
+decreases infer
+for res != 10 {
+  res -= 1
+}
+}
+
+
+
+

@@ -126,3 +126,18 @@ func f4(i int) int {
   }
 }
 
+ghost
+requires n >= 0
+decreases
+pure func factorial2(n int) int {
+
+   //:: ExpectedOutput(method_termination_error)
+   return n == 0 ? 1 :  1 * factorial2(n-1)
+}
+
+
+
+
+
+
+

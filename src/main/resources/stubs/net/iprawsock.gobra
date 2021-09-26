@@ -39,7 +39,7 @@ type IPAddr struct {
 }
 
 pred (a *IPAddr) mem() {
-    acc(a)
+    acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i])
 }
 
 /* (joao) Causes errors for importing packages -> Uncommenting this causes

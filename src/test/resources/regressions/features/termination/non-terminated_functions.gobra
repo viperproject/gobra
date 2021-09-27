@@ -136,7 +136,12 @@ pure func factorial2(n int) int {
 }
 
 
+decreases n
+pure func infinite(n int) int {
 
+  //:: ExpectedOutput(function_termination_error)
+  return infinite(n)
+}
 
 
 

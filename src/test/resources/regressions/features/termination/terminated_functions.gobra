@@ -275,3 +275,19 @@ decreases n
 pure func factorial2(n int) int {
    return n == 0 ? 1 :  1 * factorial2(n-1)
 }
+
+ghost
+requires m >= 0
+requires n >= 0
+ensures result >= 0
+decreases m,n
+pure func ack2(m int, n int) (result int) {
+ return m==0? n + 1: n == 0 ? ack2(m-1, 1) : ack2(m-1, ack2(m,n-1))
+}
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+decreases len(s)
+pure func GhostSum2(ghost s ghost []int) int {
+    return len(s) == 0? 0 : 1 + GhostSum2(s[:len(s)-1])
+}

@@ -11,7 +11,7 @@ on:
     tags:
       - v*
 env:
-  IMAGE_NAME: ghtoken_product_demo
+  IMAGE_NAME: gobra
 
 jobs:
   # Push image to GitHub Packages.
@@ -21,7 +21,6 @@ jobs:
     permissions:
       packages: write
       contents: read
-
     steps:
       - uses: actions/checkout@v2
 

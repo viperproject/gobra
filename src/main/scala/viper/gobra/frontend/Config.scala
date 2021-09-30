@@ -29,6 +29,7 @@ case class Config(
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
+                 isolate: Option[Vector[String]] = None,
                  // backendConfig is used for the ViperServer
                  backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
@@ -53,6 +54,11 @@ case class Config(
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
+      isolate = (isolate, other.isolate) match {
+        case (None, r) => r
+        case (l, None) => l
+        case (Some(l), Some(r)) => Some((l ++ r).distinct)
+      },
       z3Exe = z3Exe orElse other.z3Exe,
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
@@ -111,6 +117,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
     default = Some(List())
   )(listArgConverter(dir => new File(dir)))
+
+  val isolate: ScallopOption[List[String]] = opt[List[String]](
+    name = "isolate",
+    descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
+    default = None
+  )(listArgConverter(dir => dir))
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
@@ -273,6 +285,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
   lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), includeDirs)
+  lazy val isolated: Option[Vector[String]] = isolate.toOption.map(_.toVector)
 
   /** set log level */
 
@@ -370,6 +383,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       printInternal = printInternal(),
       printVpr = printVpr()),
     backend = backend(),
+    isolate = isolated,
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),

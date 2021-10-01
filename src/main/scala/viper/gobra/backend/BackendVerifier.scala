@@ -18,6 +18,7 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.Future
 import viper.gobra.util.ViperChopper
+import viper.silver.ast.SourcePosition
 
 object BackendVerifier {
 
@@ -50,11 +51,20 @@ object BackendVerifier {
     }
 
     println("Maps: " + config.isolate)
-    val isolate = config.isolate.map { names => (m: vpr.Method) => m match {
-      case Source(Source.Verifier.Info(x: PFunctionDecl, _, _, _)) if names.contains(x.id.name) => true
-      case Source(Source.Verifier.Info(x: PMethodDecl, _, _, _)) if names.contains(x.id.name) => true
-      case _ => false
-    }}
+    val isolate = {
+      def hit(x: SourcePosition, target: SourcePosition): Boolean = {
+        (target.end match {
+          case None => x.start.line == target.start.line
+          case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
+        }) && x.file.getFileName == target.file.getFileName
+      }
+
+      config.isolate.map { names => (m: vpr.Method) => m match {
+        case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+        case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+        case _ => false
+      }}
+    }
     val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
     programs.zipWithIndex.foreach{ case (chopped, idx) => 
       config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)

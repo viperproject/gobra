@@ -180,7 +180,8 @@ object ViperChopper {
           def price(xs: Set[Vertex]): Int = xs.toVector.map{
             case _: Vertex.Method | _: Vertex.MethodSpec => 0
             case _: Vertex.Field => 1
-            case _: Vertex.Predicate => 2
+            case _: Vertex.PredicateSig => 2
+            case _: Vertex.PredicateBody => 3
             case _: Vertex.Function => 3
             case _: Vertex.DomainFunction => 1
             case _: Vertex.DomainType => 1
@@ -204,7 +205,8 @@ object ViperChopper {
     case class Method(methodName: String) extends Vertex
     case class MethodSpec(methodName: String) extends Vertex
     case class Function(functionName: String) extends Vertex
-    case class Predicate(predicateName: String) extends Vertex
+    case class PredicateSig(predicateName: String) extends Vertex
+    case class PredicateBody(predicateName: String) extends Vertex
     case class Field(fieldName: String) extends Vertex
     case class DomainFunction(funcName: String) extends Vertex
     case class DomainAxiom(v: vpr.DomainAxiom, d: vpr.Domain) extends Vertex
@@ -229,7 +231,12 @@ object ViperChopper {
           (ms ++ filteredStubs).toSeq
         }
         val funcs = vertices.collect{ case v: Function => functionTable(v.functionName) }.toSeq
-        val preds = vertices.collect{ case v: Predicate => predicateTable(v.predicateName) }.toSeq
+        val preds = {
+          val psigs = vertices.collect{ case v: PredicateSig => val p = predicateTable(v.predicateName); p.copy(body = None)(p.pos, p.info, p.errT) }.toSeq
+          val pbodies = vertices.collect{ case v: PredicateBody => predicateTable(v.predicateName) }.toSeq
+          val filteredSigs = psigs.filterNot(sig => pbodies.exists(_.name == sig.name))
+          pbodies ++ filteredSigs
+        }
         val fields = vertices.collect{ case v: Field => fieldTable(v.fieldName) }.toSeq
         val domains = {
           val fs = vertices.collect{ case v: DomainFunction => domainFunctionTable(v.funcName) }.toSeq.groupMap(_._2)(_._1)
@@ -273,8 +280,14 @@ object ViperChopper {
           usages(f).map(from -> _)
 
         case p: vpr.Predicate =>
-          val from = Vertex.Predicate(p.name)
-          usages(p).map(from -> _)
+          {
+            val from = Vertex.PredicateSig(p.name)
+            p.formalArgs.flatMap(exp => usages(exp).map(from -> _))
+          } ++ {
+            val from = Vertex.PredicateBody(p.name)
+            usages(p).map(from -> _)
+          } ++ { Seq(Vertex.PredicateBody(p.name) -> Vertex.PredicateSig(p.name)) }
+
 
         case f: vpr.Field =>
           f.typ match {
@@ -315,7 +328,10 @@ object ViperChopper {
         case n: vpr.MethodCall => Vertex.MethodSpec(n.methodName) +: unit(n)
         case n: vpr.FuncApp => Vertex.Function(n.funcname) +: unit(n)
         case n: vpr.DomainFuncApp => Vertex.DomainFunction(n.funcname) +: unit(n)
-        case n: vpr.PredicateAccess => Vertex.Predicate(n.predicateName) +: unit(n)
+        case n: vpr.PredicateAccess => Vertex.PredicateSig(n.predicateName) +: unit(n)
+        case n: vpr.Unfold => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
+        case n: vpr.Fold => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
+        case n: vpr.Unfolding => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
         case n: vpr.FieldAccess => Vertex.Field(n.field.name) +: unit(n)
         case n: vpr.Exp => unit(n)
         case n: vpr.DomainType =>

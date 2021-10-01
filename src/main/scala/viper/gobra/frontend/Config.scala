@@ -43,6 +43,7 @@ case class Config(
                    checkOverflows: Boolean = false,
                    checkConsistency: Boolean = false,
                    shouldVerify: Boolean = true,
+                   shouldChop: Boolean = false,
                    // The go language specification states that int and uint variables can have either 32bit or 64, as long
                    // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                    // 64 bit otherwise.
@@ -192,6 +193,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val doChop: ScallopOption[Boolean] = toggle(
+    name = "chop",
+    descrYes = "Perform the chopping step",
+    default = Some(false),
+    noshort = true
+  )
+
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
@@ -316,6 +324,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
+  def shouldChop: Boolean = doChop.getOrElse(false) || isolate.isDefined
 
   private object InputConverter {
 
@@ -411,6 +420,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
-    shouldVerify = shouldVerify
+    shouldVerify = shouldVerify,
+    shouldChop = shouldChop
   )
 }

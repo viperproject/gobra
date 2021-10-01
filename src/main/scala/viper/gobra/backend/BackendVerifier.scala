@@ -50,40 +50,49 @@ object BackendVerifier {
       case _ =>
     }
 
-    println("Maps: " + config.isolate)
-    val isolate = {
-      def hit(x: SourcePosition, target: SourcePosition): Boolean = {
-        (target.end match {
-          case None => x.start.line == target.start.line
-          case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
-        }) && x.file.getFileName == target.file.getFileName
+    val verificationResults =  if (config.shouldChop) {
+      println("Maps: " + config.isolate)
+      val isolate = {
+        def hit(x: SourcePosition, target: SourcePosition): Boolean = {
+          (target.end match {
+            case None => x.start.line == target.start.line
+            case Some(pos) => target.start.line <= x.start.line && x.start.line <= pos.line
+          }) && x.file.getFileName == target.file.getFileName
+        }
+
+        config.isolate.map { names => (m: vpr.Method) => m match {
+          case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+          case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
+          case _ => false
+        }}
+      }
+      val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
+      programs.zipWithIndex.foreach{ case (chopped, idx) =>
+        config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
       }
 
-      config.isolate.map { names => (m: vpr.Method) => m match {
-        case Source(Source.Verifier.Info(_: PFunctionDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-        case Source(Source.Verifier.Info(_: PMethodDecl, _, origin, _)) => names.exists(hit(_, origin.pos))
-        case _ => false
-      }}
-    }
-    val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
-    programs.zipWithIndex.foreach{ case (chopped, idx) => 
-      config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
+      val verifier = config.backend.create(exePaths)
+
+      // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
+      //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
+      //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+      // }
+
+      programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
+        val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
+        for {
+          acc <- res
+          next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
+        } yield acc :+ next
+      }
+    } else {
+      val verifier = config.backend.create(exePaths)
+
+      val programID = s"_programID_${config.inputFiles.head}"
+
+      verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor).map(Vector(_))
     }
 
-    val verifier = config.backend.create(exePaths)
-
-    // val verificationResults = Future.traverse(programs.zipWithIndex) { case (program, idx) =>
-    //   val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
-    //   verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-    // }
-
-    val verificationResults = programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
-      val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
-      for {
-        acc <- res
-        next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
-      } yield acc :+ next
-    }
     
     verificationResults.map{ results =>
       val result = results.foldLeft(silver.verifier.Success: VerificationResult){

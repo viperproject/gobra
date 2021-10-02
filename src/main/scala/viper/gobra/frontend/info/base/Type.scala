@@ -41,6 +41,9 @@ object Type {
 
   case class IntT(kind: TypeBounds.IntegerKind) extends PrettyType(kind.name)
 
+  case object Float32T extends PrettyType("float32")
+  case object Float64T extends PrettyType("float64")
+
   case class ArrayT(length: BigInt, elem: Type) extends PrettyType(s"[$length]$elem") {
     require(length >= 0, "The length of an array must be non-negative")
   }

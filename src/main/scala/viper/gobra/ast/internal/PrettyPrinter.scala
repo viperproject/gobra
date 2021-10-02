@@ -542,6 +542,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case BoolT(_) => "bool"
     case IntT(_, kind) => kind.name
     case StringT(_) => "string"
+    case Float32T(_) => "float32"
+    case Float64T(_) => "float64"
     case VoidT => "void"
     case PermissionT(_) => "perm"
     case DefinedT(name, _) => name

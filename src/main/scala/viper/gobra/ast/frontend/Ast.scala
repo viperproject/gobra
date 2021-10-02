@@ -382,6 +382,9 @@ case class PBoolLit(lit: Boolean) extends PBasicLiteral
 // only be read by pretty-printers
 case class PIntLit(lit: BigInt, base: NumBase = Decimal) extends PBasicLiteral with PNumExpression
 
+// TODO: add support for float literals
+// case class PFloatLit(lit: Double) extends PBasicLiteral with PNumExpression
+
 case class PNilLit() extends PBasicLiteral
 
 case class PStringLit(lit: String) extends PBasicLiteral
@@ -579,6 +582,10 @@ case class PUInt32Type() extends PPredeclaredType("uint32") with PIntegerType
 case class PUInt64Type() extends PPredeclaredType("uint64") with PIntegerType
 case class PByte() extends PPredeclaredType("byte") with PIntegerType
 case class PUIntPtr() extends PPredeclaredType("uintptr") with PIntegerType
+
+sealed trait PFloatType extends PType
+case class PFloat32() extends PPredeclaredType("float32") with PFloatType
+case class PFloat64() extends PPredeclaredType("float64") with PFloatType
 
 
 // TODO: add more types

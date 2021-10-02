@@ -1094,6 +1094,16 @@ case class IntT(addressability: Addressability, kind: IntegerKind = UnboundedInt
   override def withAddressability(newAddressability: Addressability): IntT = IntT(newAddressability, kind)
 }
 
+case class Float32T(addressability: Addressability) extends PrettyType("float32") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float32T]
+  override def withAddressability(newAddressability: Addressability): Float32T = Float32T(newAddressability)
+}
+
+case class Float64T(addressability: Addressability) extends PrettyType("float64") {
+  override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[Float64T]
+  override def withAddressability(newAddressability: Addressability): Float64T = Float64T(newAddressability)
+}
+
 case class StringT(addressability: Addressability) extends PrettyType("string") {
   override def equalsWithoutMod(t: Type): Boolean = t.isInstanceOf[StringT]
   override def withAddressability(newAddressability: Addressability): StringT = StringT(newAddressability)

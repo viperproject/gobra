@@ -122,8 +122,8 @@ trait MemberResolution { this: TypeInfoImpl =>
 
       case s: StructT =>
         AdvancedMemberSet.union(s.decl.embedded map { e =>
-          val et = miscType(e.typ)
-          (cont(et) union go(pastDeref = false)(et)).promote(createEmbbed(e))
+          val et = s.context.typ(e.typ)
+          (cont(et) union go(pastDeref = false)(et)).promote(s.context.createEmbbed(e))
         })
 
       case s: InterfaceT if !pastDeref => cont(s)

@@ -49,6 +49,7 @@ case class FileWriterReporter(name: String = "filewriter_reporter",
     case DesugaredMessage(file, internal) if printInternal => write(file, "internal", internal().formatted)
     case AppliedInternalTransformsMessage(file, internal) if printInternal => write(file, "internal", internal().formatted)
     case m@GeneratedViperMessage(file, _, _) if printVpr => write(file, "vpr", m.vprAstFormatted)
+    case m: ChoppedViperMessage if printVpr => write(m.input, s"chopped${m.idx}.vpr", m.vprAstFormatted)
     case CopyrightReport(text) => println(text)
     case _ => // ignore
   }

@@ -948,12 +948,17 @@ object Parser {
         "false" ^^^ PBoolLit(false) |
         nilLit |
         intLit |
+        // TODO
+        // floatLit |
         stringLit
 
     lazy val nilLit: Parser[PNilLit] = "nil" ^^^ PNilLit()
 
     lazy val intLit: Parser[PIntLit] =
       octalLit | binaryLit | hexLit | decimalLit
+
+    // TODO
+    // lazy val floatLit: Parser[PFloatLit] = ???
 
     lazy val binaryLit: Parser[PIntLit] =
       "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
@@ -1150,7 +1155,10 @@ object Parser {
         exactWord("uint16") ^^^ PUInt16Type() |
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
-        exactWord("uintptr") ^^^ PUIntPtr()
+        exactWord("uintptr") ^^^ PUIntPtr() |
+        // floats
+        exactWord("float32") ^^^ PFloat32() |
+        exactWord("float64") ^^^ PFloat64()
 
     lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
       exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |

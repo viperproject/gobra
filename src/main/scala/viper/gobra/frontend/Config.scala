@@ -19,32 +19,35 @@ import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.{FileResource, RegularImport}
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
+import viper.silver.ast.SourcePosition
 
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 case class Config(
-                 inputFiles: Vector[Path],
-                 includeDirs: Vector[Path] = Vector(),
-                 reporter: GobraReporter = StdIOReporter(),
-                 backend: ViperBackend = ViperBackends.SiliconBackend,
-                 // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
-                 z3Exe: Option[String] = None,
-                 boogieExe: Option[String] = None,
-                 logLevel: Level = LoggerDefaults.DefaultLevel,
-                 shouldParse: Boolean = true,
-                 shouldTypeCheck: Boolean = true,
-                 shouldDesugar: Boolean = true,
-                 shouldViperEncode: Boolean = true,
-                 checkOverflows: Boolean = false,
-                 checkConsistency: Boolean = false,
-                 shouldVerify: Boolean = true,
-                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                 // 64 bit otherwise.
-                 int32bit: Boolean = false
+                   inputFiles: Vector[Path],
+                   includeDirs: Vector[Path] = Vector(),
+                   reporter: GobraReporter = StdIOReporter(),
+                   backend: ViperBackend = ViperBackends.SiliconBackend,
+                   isolate: Option[Vector[SourcePosition]] = None,
+                   // backendConfig is used for the ViperServer
+                   backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
+                   z3Exe: Option[String] = None,
+                   boogieExe: Option[String] = None,
+                   logLevel: Level = LoggerDefaults.DefaultLevel,
+                   shouldParse: Boolean = true,
+                   shouldTypeCheck: Boolean = true,
+                   shouldDesugar: Boolean = true,
+                   shouldViperEncode: Boolean = true,
+                   checkOverflows: Boolean = false,
+                   checkConsistency: Boolean = false,
+                   shouldVerify: Boolean = true,
+                   shouldChop: Boolean = false,
+                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                   // 64 bit otherwise.
+                   int32bit: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
@@ -53,6 +56,11 @@ case class Config(
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
+      isolate = (isolate, other.isolate) match {
+        case (None, r) => r
+        case (l, None) => l
+        case (Some(l), Some(r)) => Some((l ++ r).distinct)
+      },
       z3Exe = z3Exe orElse other.z3Exe,
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
@@ -111,6 +119,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     descr = "Uses the provided directories to perform package-related lookups before falling back to $GOPATH",
     default = Some(List())
   )(listArgConverter(dir => new File(dir)))
+
+  val isolate: ScallopOption[List[String]] = opt[List[String]](
+    name = "isolate",
+    descr = "Work in progress", // TODO
+    default = None
+  )
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
@@ -179,6 +193,13 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = true
   )
 
+  val doChop: ScallopOption[Boolean] = toggle(
+    name = "chop",
+    descrYes = "Perform the chopping step",
+    default = Some(false),
+    noshort = true
+  )
+
   val z3Exe: ScallopOption[String] = opt[String](
     name = "z3Exe",
     descr = "The Z3 executable",
@@ -218,6 +239,23 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   /** Argument Dependencies */
   if (!isInputOptional) {
     requireAtLeastOne(input)
+  }
+
+  def isolatedPosition(isolateOption: Option[List[String]], inputOption: Option[List[String]]): Option[List[SourcePosition]] = {
+    isolateOption.map{ isolatedArgs =>
+      val singlePath = inputOption.flatMap(inputs => InputConverter.identifyInput(inputs).collect{ case Right(Vector(f)) => f })
+
+      singlePath match {
+        case Some(f) =>
+          // all isolated arguments are line numbers
+          val lineNumbers = isolatedArgs.flatMap(_.toIntOption)
+          lineNumbers.map(lineNumber => SourcePosition(f, lineNumber, 0))
+
+        case None =>
+          // all isolated arguments are pairs of path and line number
+          ???
+      }
+    }
   }
 
   /** File Validation */
@@ -273,6 +311,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
   lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), includeDirs)
+  lazy val isolated: Option[Vector[SourcePosition]] = isolatedPosition(isolate.toOption, input.toOption).map(_.toVector)
 
   /** set log level */
 
@@ -285,6 +324,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
+  def shouldChop: Boolean = doChop.getOrElse(false) || isolate.isDefined
 
   private object InputConverter {
 
@@ -349,7 +389,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       * Decides whether the provided input strings should be interpreted as a single package name (Left) or
       * a vector of file paths (Right). If a mix is provided None is returned.
       */
-    private def identifyInput(input: List[String]): Option[Either[String, Vector[Path]]] = {
+    def identifyInput(input: List[String]): Option[Either[String, Vector[Path]]] = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
         case (pkgs,  files) if pkgs.length == 1 && files.isEmpty => pkgs.head.swap.map(Left(_)).toOption
@@ -370,6 +410,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       printInternal = printInternal(),
       printVpr = printVpr()),
     backend = backend(),
+    isolate = isolated,
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
@@ -379,6 +420,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     shouldViperEncode = shouldViperEncode,
     checkOverflows = checkOverflows(),
     int32bit = int32Bit(),
-    shouldVerify = shouldVerify
+    shouldVerify = shouldVerify,
+    shouldChop = shouldChop
   )
 }

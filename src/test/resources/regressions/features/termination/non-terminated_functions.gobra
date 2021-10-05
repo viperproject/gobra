@@ -126,3 +126,23 @@ func f4(i int) int {
   }
 }
 
+ghost
+requires n >= 0
+decreases
+pure func factorial2(n int) int {
+
+   //:: ExpectedOutput(function_termination_error)
+   return n == 0 ? 1 :  1 * factorial2(n-1)
+}
+
+
+decreases n
+pure func infinite(n int) int {
+
+  //:: ExpectedOutput(function_termination_error)
+  return infinite(n)
+}
+
+
+
+

@@ -10,7 +10,7 @@ func factorial(n int) int {
   if n == 0 {
     return 1
   } else {
-    return factorial(n-1)
+    return 1 * factorial(n-1)
   }
 }
 
@@ -242,4 +242,52 @@ func factorial4(n int) int {
   } else {
     return factorial4(n)
   }
+}
+
+type list struct {
+  next *list
+  value int
+}
+
+
+pred List(self *list) {
+  acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+}
+
+requires List(x)
+ensures List(x)
+decreases List(x)
+func length(x *list) int {
+unfold List(x)
+if x.next == nil {
+  fold List(x)
+  return 1
+} else {
+  var y int = 1 + length(x.next)
+  fold List(x)
+  return y
+}
+}
+
+ghost
+requires n >= 0
+decreases n
+pure func factorial2(n int) int {
+   return n == 0 ? 1 :  1 * factorial2(n-1)
+}
+
+ghost
+requires m >= 0
+requires n >= 0
+ensures result >= 0
+decreases m,n
+pure func ack2(m int, n int) (result int) {
+ return m==0? n + 1: n == 0 ? ack2(m-1, 1) : ack2(m-1, ack2(m,n-1))
+}
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+decreases len(s)
+pure func GhostSum2(ghost s ghost []int) int {
+    return len(s) == 0? 0 : 1 + GhostSum2(s[:len(s)-1])
 }

@@ -284,7 +284,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.ExprAssertion(sendChannelInvEq)(src),
           in.ExprAssertion(recvChannelInvEq)(src),
         )
-        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, None, None)(src)
+        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**

@@ -287,7 +287,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
     (terminationMeasure match {
       case Some(measure) =>
         measure match {
-          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) /*++ isPureExpr(p)*/)
+          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
           case PWildcardMeasure() => noMessages
           case PStarMeasure() => noMessages
           case PInferTerminationMeasure() => noMessages

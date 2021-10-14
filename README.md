@@ -17,10 +17,11 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
 1. Create a folder for your Gobra development. We will refer to this folder as `gobraHome`.
 2. Clone Gobra and Viper dependencies
     - Change directory to `gobraHome`
-    - [silver](https://github.com/viperproject/silver)
-    - [silicon](https://github.com/viperproject/silicon)
-    - [carbon](https://github.com/viperproject/carbon)
+    - [silver](https://github.com/viperproject/silver) (tag `v.21.07-release`)
+    - [silicon](https://github.com/viperproject/silicon) (tag `v.21.07-release`)
+    - [carbon](https://github.com/viperproject/carbon) (tag `v.21.07-release`)
     - Gobra
+    > To switch to tag `X`, execute the command ```git checkout X``` inside the cloned repository.
 3. Add symbolic links
     - To create a symbolic link from A to B, you have to run
         - `mklink /D A B` (Windows (as admin)) resp.

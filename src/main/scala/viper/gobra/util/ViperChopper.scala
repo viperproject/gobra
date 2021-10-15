@@ -290,11 +290,8 @@ object ViperChopper {
 
 
         case f: vpr.Field =>
-          f.typ match {
-            case t: vpr.DomainType =>
-              Vector(Vertex.Field(f.name) -> Vertex.DomainType(t))
-            case _ => Vector.empty
-          }
+          val from = Vertex.Field(f.name)
+          usages(f).map(from -> _)
 
         case d: vpr.Domain =>
           d.axioms.flatMap { ax =>
@@ -315,37 +312,21 @@ object ViperChopper {
     /** Returns all entities referenced in the subtree of node `n`. */
     def usages(n: vpr.Node): Seq[Vertex] = {
 
-      def types(t: vpr.Type): Seq[vpr.Type] = {
-        n match {
-          case t: vpr.GenericType => t +: t.typeArguments.flatMap(types)
-          case _ => Seq(t)
-        }
-      }
-
-      def unit(n: vpr.Node): Seq[Vertex] = {
-        n match {
-          case n: vpr.Exp =>
-            val ts = types(n.typ)
-            ts.collect{ case t: vpr.DomainType => Vertex.DomainType(t) }.distinct
-
-          case _ => Seq.empty
-        }
-      }
+      def deepType(t: vpr.Type): Seq[vpr.Type] = t +: (t match {
+        case t: vpr.GenericType => t.typeArguments.flatMap(deepType)
+        case _ => Seq.empty
+      })
 
       n.deepCollect{
-        case n: vpr.MethodCall => Vertex.MethodSpec(n.methodName) +: unit(n)
-        case n: vpr.FuncApp => Vertex.Function(n.funcname) +: unit(n)
-        case n: vpr.DomainFuncApp => Vertex.DomainFunction(n.funcname) +: unit(n)
-        case n: vpr.PredicateAccess => Vertex.PredicateSig(n.predicateName) +: unit(n)
-        case n: vpr.Unfold => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
-        case n: vpr.Fold => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
-        case n: vpr.Unfolding => Vertex.PredicateBody(n.acc.loc.predicateName) +: unit(n)
-        case n: vpr.FieldAccess => Vertex.Field(n.field.name) +: unit(n)
-        case n: vpr.Exp => unit(n)
-        case n: vpr.DomainType =>
-          Vertex.DomainType(n) +: n.partialTypVarsMap.collect{
-            case (_, t: vpr.DomainType) => Vertex.DomainType(t)
-          }.toSeq
+        case n: vpr.MethodCall      => Seq(Vertex.MethodSpec(n.methodName))
+        case n: vpr.FuncApp         => Seq(Vertex.Function(n.funcname))
+        case n: vpr.DomainFuncApp   => Seq(Vertex.DomainFunction(n.funcname))
+        case n: vpr.PredicateAccess => Seq(Vertex.PredicateSig(n.predicateName))
+        case n: vpr.Unfold          => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
+        case n: vpr.Fold            => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
+        case n: vpr.Unfolding       => Seq(Vertex.PredicateBody(n.acc.loc.predicateName))
+        case n: vpr.FieldAccess     => Seq(Vertex.Field(n.field.name))
+        case n: vpr.Type => deepType(n).collect{ case t: vpr.DomainType => Vertex.DomainType(t) }
       }.flatten
     }
   }

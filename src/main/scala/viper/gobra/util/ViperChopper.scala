@@ -315,12 +315,20 @@ object ViperChopper {
     /** Returns all entities referenced in the subtree of node `n`. */
     def usages(n: vpr.Node): Seq[Vertex] = {
 
+      def types(t: vpr.Type): Seq[vpr.Type] = {
+        n match {
+          case t: vpr.GenericType => t +: t.typeArguments.flatMap(types)
+          case _ => Seq(t)
+        }
+      }
+
       def unit(n: vpr.Node): Seq[Vertex] = {
         n match {
-          case n: vpr.Exp if n.typ.isInstanceOf[vpr.DomainType] =>
-            Vector(Vertex.DomainType(n.typ.asInstanceOf[vpr.DomainType]))
+          case n: vpr.Exp =>
+            val ts = types(n.typ)
+            ts.collect{ case t: vpr.DomainType => Vertex.DomainType(t) }.distinct
 
-          case _ => Vector.empty
+          case _ => Seq.empty
         }
       }
 

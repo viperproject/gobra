@@ -100,8 +100,8 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
       case InterfaceT(PInterfaceType(es, methSpecs, predSpecs), ctxt) =>
-        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => createMethodSpec(m))) union
-          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => createMPredSpec(m))) union
+        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
+          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m))) union
           AdvancedMemberSet.union {
             es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {

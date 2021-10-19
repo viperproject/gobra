@@ -60,6 +60,22 @@ RUN sbt assembly
 
 FROM openjdk:11-jre-slim
 
+# Install Boogie
+
+
+RUN apt-get update; \
+	apt-get install -y apt-transport-https wget && \
+	wget https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -O packages-microsoft-prod.deb && \
+	dpkg -i packages-microsoft-prod.deb &&\
+	rm packages-microsoft-prod.deb && \
+	apt-get update && \
+	apt-get install -y dotnet-sdk-5.0 && \
+        apt-get remove -y apt-transport-https wget && apt-get autoremove -y
+
+RUN dotnet tool install --global boogie
+
+ENV BOOGIE_EXE /root/.dotnet/tools/boogie
+
 # copy downloaded & unziped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
 # executing `which z3` and setting Z3_EXE based on its result is unfortunately not possible, therefore it is hardcoded

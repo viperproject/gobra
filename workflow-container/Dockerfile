@@ -76,7 +76,7 @@ RUN apt-get update; \
 	rm packages-microsoft-prod.deb && \
 	apt-get update && \
 	apt-get install -y dotnet-sdk-5.0 && \
-        apt-get remove -y apt-transport-https wget && apt-get autoremove -y
+      apt-get remove -y apt-transport-https wget && apt-get autoremove -y
 
 RUN dotnet tool install --global boogie
 

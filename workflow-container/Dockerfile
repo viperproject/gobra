@@ -30,7 +30,13 @@ RUN curl -L $Z3_URL --output /z3.zip && \
     rm /z3.zip && \
     cp /z3/$Z3_BIN /usr/bin/ && \
     rm -r /z3
-### end copy of docker/Dockerfile
+
+# Download Boogie
+ENV BOOGIE_URL="https://github.com/viperproject/boogie-builder/releases/download/bae82d3a7b383161/boogie-linux.zip"
+
+RUN curl -L $BOOGIE_URL --output /boogie.zip && \
+    unzip /boogie.zip -d /boogie/ && \
+    rm /boogie.zip
 
 ARG VIPER_BRANCH=tags/v.21.07-release
 
@@ -66,25 +72,16 @@ RUN sbt assembly
 
 FROM openjdk:11-jre-slim
 
-# Install Boogie
+# copy downloaded & unzipped boogie
+COPY --from=build /boogie/binaries-linux /boogie
+ENV BOOGIE_EXE=/boogie/Boogie
 
+# To fix boogie exception
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
-RUN apt-get update; \
-	apt-get install -y apt-transport-https wget && \
-	wget https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -O packages-microsoft-prod.deb && \
-	dpkg -i packages-microsoft-prod.deb &&\
-	rm packages-microsoft-prod.deb && \
-	apt-get update && \
-	apt-get install -y dotnet-sdk-5.0 && \
-      apt-get remove -y apt-transport-https wget && apt-get autoremove -y
-
-RUN dotnet tool install --global boogie
-
-ENV BOOGIE_EXE /root/.dotnet/tools/boogie
 
 # copy downloaded & unziped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
-# executing `which z3` and setting Z3_EXE based on its result is unfortunately not possible, therefore it is hardcoded
 ENV Z3_EXE /usr/bin/z3
 
 WORKDIR /gobra

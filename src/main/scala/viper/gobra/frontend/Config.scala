@@ -45,7 +45,10 @@ case class Config(
                  // The go language specification states that int and uint variables can have either 32bit or 64, as long
                  // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
                  // 64 bit otherwise.
-                 int32bit: Boolean = false
+                 int32bit: Boolean = false,
+                 // the following option is currently not controllable via CLI as it is meaningless without a constantly
+                 // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+                 cacheParser: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config

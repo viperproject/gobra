@@ -8,9 +8,10 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path}
-
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
+import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
+import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
@@ -58,6 +59,8 @@ object Parser {
     FromFileSource(path, content)
   }
 
+  // cache maps file path and file content to the parse result
+  var sourceCache: Map[(String, String), (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
   private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
@@ -87,8 +90,37 @@ object Parser {
       }
     }
 
+    def parseSourceCached(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+      var cacheHit = true
+      def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
+        cacheHit = false
+        val res = parseSource(source)
+        sourceCache += (source.path.toString, source.content) -> (res, positions)
+        (res, positions)
+      }
+      val (res, pos) = sourceCache.getOrElse((source.path.toString, source.content), parseAndStore())
+      if (cacheHit) {
+        // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
+        // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
+        // from the cached positions to the position manager
+        val copyPosStrategy = strategyWithName[Any]("copyPositionInformation", {
+          case n: PNode =>
+            val start = pos.getStart(n)
+            val finish = pos.getFinish(n)
+            start.map(positions.setStart(n, _))
+            finish.map(positions.setFinish(n, _))
+            Some(n): Option[Any]
+          case n => Some(n)
+        })
+        res.map(prog => rewrite(topdown(copyPosStrategy))(prog))
+      } else {
+        res
+      }
+    }
+
     val parsedPrograms = {
-      val parserResults = sources.map(parseSource)
+      val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
+      val parserResults = sources.map(parsingFn)
       val (errors, programs) = parserResults.partitionMap(identity)
 
       if (errors.nonEmpty) {
@@ -1046,7 +1078,7 @@ object Parser {
       "axiom" ~> "{" ~> expression <~ eos.? <~ "}" ^^ PDomainAxiom
 
     lazy val structType: Parser[PStructType] =
-      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ { case clauses => PStructType(clauses) }
+      "struct" ~> "{" ~> repsep(structClause, eos) <~ eos.? <~ "}" ^^ PStructType
 
     lazy val structClause: Parser[PStructClause] =
       fieldDecls | embeddedDecl

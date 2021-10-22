@@ -33,8 +33,7 @@ import (
 
 // IPAddr represents the address of an IP end point.
 type IPAddr struct {
-// TODO(Gobra): cannot have fields and types with the same identifier
-//	IP   IP
+	IP   IP
 	Zone string // IPv6 scoped addressing zone
 }
 

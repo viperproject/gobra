@@ -11,122 +11,122 @@ import "time"
 
 // Addr represents a network end point address.
 type Addr interface {
-	pred mem()
+	pred Mem()
 
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	Network() string
 
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	String() string
 }
 
 // Conn is a generic stream-oriented network connection.
 // Multiple goroutines may invoke methods on a Conn simultaneously.
 type Conn interface {
-	pred mem()
+	pred Mem()
 
 	// Read reads data from the connection.
-	requires mem()
+	requires Mem()
 	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-	ensures mem()
+	ensures Mem()
 	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 	Read(b []byte) (n int, err error)
 
 	// Write writes data to the connection.
-	requires mem()
+	requires Mem()
 	requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
-	ensures mem()
+	ensures Mem()
 	ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
 	Write(b []byte) (n int, err error)
 
 	// Close closes the connection.
 	// Any blocked Read or Write operations will be unblocked and return errors.
-	requires mem()
+	requires Mem()
 	Close() error
 
 	// LocalAddr returns the local network address.
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	LocalAddr() Addr
 
 	// RemoteAddr returns the remote network address.
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	RemoteAddr() Addr
 
 	// SetDeadline sets the read and write deadlines associated
 	// with the connection.
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetDeadline(t time.Time) error
 
 	// SetReadDeadline sets the deadline for future Read calls
 	// and any currently-blocked Read call.
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetReadDeadline(t time.Time) error
 
 	// SetWriteDeadline sets the deadline for future Write calls
 	// and any currently-blocked Write call.
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetWriteDeadline(t time.Time) error
 }
 
 // PacketConn is a generic packet-oriented network connection.
 // Multiple goroutines may invoke methods on a PacketConn simultaneously.
 type PacketConn interface {
-	pred mem()
+	pred Mem()
 
-	requires mem()
+	requires Mem()
 	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
-	ensures mem()
+	ensures Mem()
 	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i])
 	ensures 0 <= n && n <= len(p)
 	ReadFrom(p []byte) (n int, addr Addr, err error)
 
-	requires mem()
+	requires Mem()
 	requires forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
-	ensures mem()
+	ensures Mem()
 	ensures forall i int :: 0 <= i && i < len(p) ==> acc(&p[i], 1/1000)
 	WriteTo(p []byte, addr Addr) (n int, err error)
 
-	requires mem()
+	requires Mem()
 	Close() error
 
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	LocalAddr() Addr
 
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetDeadline(t time.Time) error
 
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetReadDeadline(t time.Time) error
 
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	SetWriteDeadline(t time.Time) error
 }
 
 // A Listener is a generic network listener for stream-oriented protocols.
 // Multiple goroutines may invoke methods on a Listener simultaneously.
 type Listener interface {
-	pred mem()
+	pred Mem()
 
 	// Accept waits for and returns the next connection to the listener.
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	Accept() (Conn, error)
 
 	// Close closes the listener.
 	// Any blocked Accept operations will be unblocked and return errors.
-	requires mem()
-	ensures mem()
+	requires Mem()
+	ensures Mem()
 	Close() error
 
 	// Addr returns the listener's network address.
@@ -135,16 +135,16 @@ type Listener interface {
 
 // An Error represents a network error.
 type Error interface {
-	pred mem()
+	pred Mem()
 
 	// error // (joao) support for embeddings is buggy
 
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	Timeout() bool   // Is the error a timeout?
 
-	requires acc(mem(), 1/1000)
-	ensures acc(mem(), 1/1000)
+	requires acc(Mem(), 1/1000)
+	ensures acc(Mem(), 1/1000)
 	Temporary() bool // Is the error temporary?
 }
 
@@ -166,19 +166,19 @@ type OpError struct {
 	Err error
 }
 
-pred (op *OpError) mem() {
+pred (op *OpError) Mem() {
 	acc(op)
 }
 
-requires acc(e.mem(), _)
-pure func (e *OpError) Unwrap() error { return unfolding acc(e.mem(), _) in e.Err }
+requires acc(e.Mem(), _)
+pure func (e *OpError) Unwrap() error { return unfolding acc(e.Mem(), _) in e.Err }
 
-requires acc(e.mem())
-ensures acc(e.mem())
+requires acc(e.Mem())
+ensures acc(e.Mem())
 func (e *OpError) Error() string 
 
-requires acc(e.mem(), 1/1000)
-ensures acc(e.mem(), 1/1000)
+requires acc(e.Mem(), 1/1000)
+ensures acc(e.Mem(), 1/1000)
 func (e *OpError) Timeout() bool /*{
 	if ne, ok := e.Err.(*os.SyscallError); ok {
 		t, ok := ne.Err.(timeout)
@@ -188,8 +188,8 @@ func (e *OpError) Timeout() bool /*{
 	return ok && t.Timeout()
 }*/
 
-requires acc(e.mem(), 1/1000)
-ensures acc(e.mem(), 1/1000)
+requires acc(e.Mem(), 1/1000)
+ensures acc(e.Mem(), 1/1000)
 func (e *OpError) Temporary() bool /*{
 	if e.Op == "accept" && isConnError(e.Err) {
 		return true
@@ -228,7 +228,7 @@ type AddrError struct {
 	Addr string
 }
 
-pred (e *AddrError) mem() { acc(e) }
+pred (e *AddrError) Mem() { acc(e) }
 
 requires e != nil ==> acc(e, 1/1000)
 ensures e == nil ==> ret == "<nil>"
@@ -248,12 +248,12 @@ func (e *AddrError) Error() (ret string) {
 
 // (joao) if the method is annotated with pure, then the implementation proof fails
 // because the "pure" annotation of the interface and implementation do not match
-preserves acc(e.mem(), 1/1000)
+preserves acc(e.Mem(), 1/1000)
 ensures !res
 /* pure */ func (e *AddrError) Timeout() (res bool)   { return false }
 
-requires acc(e.mem(), 1/1000)
-ensures acc(e.mem(), 1/1000)
+requires acc(e.Mem(), 1/1000)
+ensures acc(e.Mem(), 1/1000)
 ensures !res
 /* pure */ func (e *AddrError) Temporary() (res bool) { return false }
 
@@ -291,7 +291,7 @@ type DNSError struct {
 	IsNotFound  bool
 }
 
-pred (e *DNSError) mem() { acc(e) }
+pred (e *DNSError) Mem() { acc(e) }
 
 preserves e != nil ==> acc(e, 1/1000)
 func (e *DNSError) Error() string {
@@ -307,14 +307,14 @@ func (e *DNSError) Error() string {
 }
 
 // Timeout reports whether the DNS lookup is known to have timed out.
-preserves acc(e.mem(), 1/1000)
-ensures unfolding acc(e.mem(), _) in res == e.IsTimeout
-/* pure */ func (e *DNSError) Timeout() (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout }
+preserves acc(e.Mem(), 1/1000)
+ensures unfolding acc(e.Mem(), _) in res == e.IsTimeout
+/* pure */ func (e *DNSError) Timeout() (res bool) { return unfolding acc(e.Mem(), _) in e.IsTimeout }
 
 // Temporary reports whether the DNS error is known to be temporary.
-preserves acc(e.mem(), 1/1000)
-ensures unfolding acc(e.mem(), _) in res == e.IsTimeout || e.IsTemporary
-/* pure */ func (e *DNSError) Temporary() (res bool) { return unfolding acc(e.mem(), _) in e.IsTimeout || e.IsTemporary }
+preserves acc(e.Mem(), 1/1000)
+ensures unfolding acc(e.Mem(), _) in res == e.IsTimeout || e.IsTemporary
+/* pure */ func (e *DNSError) Temporary() (res bool) { return unfolding acc(e.Mem(), _) in e.IsTimeout || e.IsTemporary }
 
 (*DNSError) implements Error {
 	(e *DNSError) Timeout() bool {

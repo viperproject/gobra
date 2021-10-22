@@ -37,11 +37,11 @@ type IPAddr struct {
 	Zone string // IPv6 scoped addressing zone
 }
 
-pred (a *IPAddr) mem() {
+pred (a *IPAddr) Mem() {
     acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i])
 }
 
-/* (joao) Causes errors for importing packages -> Uncommenting this causes
+/* (joao) commented due to issue 341 (https://github.com/viperproject/gobra/issues/341)
 (*IPAddr) implements Addr {
 	(e *IPAddr) Network() string {
 		return e.Network()
@@ -51,13 +51,13 @@ pred (a *IPAddr) mem() {
 		return e.String()
 	}
 }
-// */
+*/
 
 // Network returns the address's network name, "ip".
 ensures res == "ip"
 func (a *IPAddr) Network() (res string) { return "ip" }
 
-preserves acc(a.mem(), 1/1000)
+preserves a != nil ==> acc(a.Mem(), 1/1000)
 func (a *IPAddr) String() string // {
 //	if a == nil {
 //		return "<nil>"
@@ -109,11 +109,12 @@ func (a *IPAddr) String() string // {
 // IPConn is the implementation of the Conn and PacketConn interfaces
 // for IP network connections.
 type IPConn struct {
+// TODO(Gobra): abstract types would be useful here
 // TODO(Gobra): embedded fields not supported
 //	conn
 }
 
-pred (i *IPConn) mem() {
+pred (i *IPConn) Mem() {
     acc(i)
 }
 
@@ -127,9 +128,9 @@ pred (i *IPConn) mem() {
 //}
 
 // ReadFromIP acts like ReadFrom but returns an IPAddr.
-requires c.mem()
+requires c.Mem()
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-ensures c.mem()
+ensures c.Mem()
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 ensures 0 <= retInt && retInt <= len(b)
 func (c *IPConn) ReadFromIP(b []byte) (retInt int, *IPAddr, error) // {
@@ -144,9 +145,9 @@ func (c *IPConn) ReadFromIP(b []byte) (retInt int, *IPAddr, error) // {
 //}
 
 // ReadFrom implements the PacketConn ReadFrom method.
-requires c.mem()
+requires c.Mem()
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
-ensures c.mem()
+ensures c.Mem()
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i])
 ensures 0 <= retInt && retInt <= len(b)
 func (c *IPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
@@ -179,9 +180,9 @@ func (c *IPConn) ReadFrom(b []byte) (retInt int, Addr, error) // {
 //}
 
 // WriteToIP acts like WriteTo but takes an IPAddr.
-requires c.mem() && acc(addr.mem(), 1/1000)
+requires c.Mem() && acc(addr.Mem(), 1/1000)
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
-ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures c.Mem() && acc(addr.Mem(), 1/1000)
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
 func (c *IPConn) WriteToIP(b []byte, addr *IPAddr) (int, error) // {
 //	if !c.ok() {
@@ -195,9 +196,9 @@ func (c *IPConn) WriteToIP(b []byte, addr *IPAddr) (int, error) // {
 //}
 
 // WriteTo implements the PacketConn WriteTo method.
-requires c.mem() && acc(addr.mem(), 1/1000)
+requires c.Mem() && acc(addr.Mem(), 1/1000)
 requires forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
-ensures c.mem() && acc(addr.mem(), 1/1000)
+ensures c.Mem() && acc(addr.Mem(), 1/1000)
 ensures forall i int :: 0 <= i && i < len(b) ==> acc(&b[i], 1/1000)
 func (c *IPConn) WriteTo(b []byte, addr Addr) (int, error) // {
 //	if !c.ok() {

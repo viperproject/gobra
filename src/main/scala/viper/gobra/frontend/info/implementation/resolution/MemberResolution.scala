@@ -100,8 +100,8 @@ trait MemberResolution { this: TypeInfoImpl =>
   lazy val interfaceMethodSet: InterfaceT => AdvancedMemberSet[TypeMember] =
     attr[InterfaceT, AdvancedMemberSet[TypeMember]] {
       case InterfaceT(PInterfaceType(es, methSpecs, predSpecs), ctxt) =>
-        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => createMethodSpec(m))) union
-          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => createMPredSpec(m))) union
+        AdvancedMemberSet.init[TypeMember](methSpecs.map(m => ctxt.createMethodSpec(m))) union
+          AdvancedMemberSet.init[TypeMember](predSpecs.map(m => ctxt.createMPredSpec(m))) union
           AdvancedMemberSet.union {
             es.map(e => interfaceMethodSet(
               entity(e.typ.id) match {
@@ -122,8 +122,8 @@ trait MemberResolution { this: TypeInfoImpl =>
 
       case s: StructT =>
         AdvancedMemberSet.union(s.decl.embedded map { e =>
-          val et = miscType(e.typ)
-          (cont(et) union go(pastDeref = false)(et)).promote(createEmbbed(e))
+          val et = s.context.typ(e.typ)
+          (cont(et) union go(pastDeref = false)(et)).promote(s.context.createEmbbed(e))
         })
 
       case s: InterfaceT if !pastDeref => cont(s)

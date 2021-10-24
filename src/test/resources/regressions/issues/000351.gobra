@@ -1,0 +1,14 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+import "pkg2"
+
+// ##(-I ./000351/)
+
+type T []pkg2.M2
+
+pred (t T) Mem() {
+  (&t[0]).Mem()
+}

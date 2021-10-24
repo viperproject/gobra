@@ -3,9 +3,8 @@
 
 package test
 
-import "pkg2"
-
 // ##(-I ./000351/)
+import "pkg2"
 
 type T []pkg2.M2
 

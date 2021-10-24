@@ -3,6 +3,7 @@
 
 package pkg2
 
+// ##(-I ../)
 import "pkg"
 
 type M2 = pkg.M

@@ -78,7 +78,7 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     }
     createTyping {
       case typ: PActualType => handleTypeAlias(actualTypeSymbType(typ))
-      case typ: PGhostType  => ghostTypeSymbType(typ)
+      case typ: PGhostType  => handleTypeAlias(ghostTypeSymbType(typ))
     }
   }
 

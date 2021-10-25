@@ -542,8 +542,6 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   lazy val exprType: Typing[PExpression] = {
-    // TODO: currently, this is required in order for Gobra to handle type alias to types from another package. This
-    //       should be eventually generalized to all typing operations.
     def handleTypeAlias(t: Type): Type = t match {
       case DeclaredT(PTypeAlias(right, _), context) => context.symbType(right)
       case _ => t

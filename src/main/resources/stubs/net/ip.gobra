@@ -145,12 +145,10 @@ func (ip IP) To16() (res IP) {
 }
 
 // DefaultMask returns the default IP mask for the IP address ip.
-// (joao) Conservative spec
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) DefaultMask() IPMask
 
 // Mask returns the result of masking the IP address ip with mask.
-// (joao) Conservative spec
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) Mask(mask IPMask) IP
 

@@ -16,7 +16,7 @@ import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult, InferTerminationFailed, VerificationError}
+import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -24,13 +24,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-
-import viper.gobra.util.Violation.violation
-import scala.annotation.tailrec
-import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source
-import scala.collection.mutable
-import viper.gobra.frontend.info.implementation.resolution.Enclosing
 
 object GoVerifier {
 

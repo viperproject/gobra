@@ -127,7 +127,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
       case PStarMeasure() => "decreases" <+> "*"
       case PWildcardMeasure() => "decreases" <+> "_"
-      case PInferTerminationMeasure() => "decreases" <+> "infer"
       case x: PConditionalTerminationMeasures => showConditionalMeasure(x)
     }
     case None => ""

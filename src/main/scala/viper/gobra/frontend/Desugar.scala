@@ -859,7 +859,6 @@ object Desugar {
                   case Some(measure) => measure match {
                     case PStarMeasure() => (Vector.empty, Some(in.StarMeasure()(src)))
                     case PWildcardMeasure() => (Vector.empty, Some(in.WildcardMeasure()(src)))
-                    case PInferTerminationMeasure() => (Vector.empty, Some(in.InferTerminationMeasure()(src)))
                     case PTupleTerminationMeasure(tuple) =>
                       (tuple flatMap getExprStmts(ctx), Some(terminationMeasureD(ctx)(meta(measure))(measure)))
                     case PConditionalTerminationMeasures(clauses) =>
@@ -2937,7 +2936,6 @@ object Desugar {
             val vector = tuple flatMap getMeasureStmts(ctx)
             vector ++ condition.stmts
           case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
         }
       case PStarMeasure() =>
         Vector.empty
@@ -2962,7 +2960,6 @@ object Desugar {
     def terminationMeasureD(ctx: FunctionContext)(src: Meta)(ter: PTerminationMeasure): in.Assertion = ter match {
       case PStarMeasure() => in.StarMeasure()(src)
       case PWildcardMeasure() => in.WildcardMeasure()(src)
-      case PInferTerminationMeasure() => in.InferTerminationMeasure()(src)
       case PTupleTerminationMeasure(tuple) =>
         val vector = tuple.map(x => elementD(x)(ctx)(src))
         in.TupleTerminationMeasure(vector)(src)
@@ -2980,7 +2977,6 @@ object Desugar {
             val vector = tuple.map(x => elementD(x)(ctx)(src))
             in.ConditionalTerminationMeasureIfClause(in.TupleTerminationMeasure(vector)(src), condition.res)(src)
           case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-          case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
         }
       case PStarMeasure() =>
         in.StarMeasure()(src)

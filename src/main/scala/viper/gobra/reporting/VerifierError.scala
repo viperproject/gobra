@@ -286,11 +286,6 @@ case class LoopTerminationError(info: Source.Verifier.Info) extends Verification
   override def localMessage: String = s"The loop ${info.trySrc[PSendStmt](" ")}might not terminate"
 }
 
-case class InferTerminationFailed(info: Source.Verifier.Info) extends VerificationError {
-  override def localId: String = "infer_termination_measure_failed"
-  override def localMessage: String = "Inferred termination measure cannot verify the termination"
-}
-
 sealed trait VerificationErrorReason {
   def id: String
   def message: String

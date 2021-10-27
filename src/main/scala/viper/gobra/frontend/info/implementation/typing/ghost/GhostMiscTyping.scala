@@ -268,14 +268,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
             case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
             case PWildcardMeasure() => noMessages
             case PStarMeasure() => noMessages
-            case PInferTerminationMeasure() => noMessages
             case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
               case PConditionalTerminationMeasureIfClause(measure, cond) =>
                 measure match {
                   case PWildcardMeasure() => assignableToSpec(cond)
                   case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
                   case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-                  case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
                 }
               case PStarMeasure() => noMessages
             })
@@ -290,14 +288,12 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
           case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
           case PWildcardMeasure() => noMessages
           case PStarMeasure() => noMessages
-          case PInferTerminationMeasure() => noMessages
           case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
             case PConditionalTerminationMeasureIfClause(measure, cond) =>
               measure match {
                 case PWildcardMeasure() => assignableToSpec(cond)
                 case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
                 case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
               }
             case PStarMeasure() => noMessages
           })

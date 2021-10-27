@@ -776,7 +776,6 @@ case class PStarMeasure() extends PUnconditionalTerminationMeasure with PConditi
 case class PWildcardMeasure() extends PUnconditionalTerminationMeasure
 case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PUnconditionalTerminationMeasure
 case class PConditionalTerminationMeasures(clauses: Vector[PConditionalTerminationMeasureClause]) extends PTerminationMeasure
-case class PInferTerminationMeasure() extends PUnconditionalTerminationMeasure
 
 sealed trait PSpecification extends PGhostNode
 

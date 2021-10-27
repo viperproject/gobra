@@ -457,7 +457,7 @@ object Parser {
     }
 
     lazy val measures: Parser[PTerminationMeasure] =
-      ("infer" <~ eos) ^^^ PInferTerminationMeasure() | "*" ^^^ PStarMeasure() | ("_" <~ eos) ^^^ PWildcardMeasure() | repsep(expression, ",") <~ eos ^^ PTupleTerminationMeasure | conditionalMeasure
+      "*" ^^^ PStarMeasure() | ("_" <~ eos) ^^^ PWildcardMeasure() | repsep(expression, ",") <~ eos ^^ PTupleTerminationMeasure | conditionalMeasure
 
     lazy val conditionalMeasure: Parser[PConditionalTerminationMeasures] =
       conditionalTuple ~ ("decreases" ~> conditionalWildcard).? ~ ("decreases" ~> conditionalStar).? ^^ {

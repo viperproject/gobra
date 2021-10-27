@@ -537,9 +537,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  lazy val exprType: Typing[PExpression] = createTyping {
-    case expr: PActualExpression => actualExprType(expr)
-    case expr: PGhostExpression => ghostExprType(expr)
+  lazy val exprType: Typing[PExpression] = {
+    def handleTypeAlias(t: Type): Type = t match {
+      case DeclaredT(PTypeAlias(right, _), context) => context.symbType(right)
+      case _ => t
+    }
+    createTyping {
+      case expr: PActualExpression => handleTypeAlias(actualExprType(expr))
+      case expr: PGhostExpression => handleTypeAlias(ghostExprType(expr))
+    }
   }
 
   private def actualExprType(expr: PActualExpression): Type = expr match {

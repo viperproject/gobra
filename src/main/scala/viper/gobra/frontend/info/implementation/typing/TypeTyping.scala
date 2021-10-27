@@ -69,9 +69,17 @@ trait TypeTyping extends BaseTyping { this: TypeInfoImpl =>
     case t: PExpressionAndType => wellDefExprAndType(t).out
   }
 
-  lazy val typeSymbType: Typing[PType] = createTyping {
-    case typ: PActualType => actualTypeSymbType(typ)
-    case typ: PGhostType  => ghostTypeSymbType(typ)
+  lazy val typeSymbType: Typing[PType] = {
+    // TODO: currently, this is required in order for Gobra to handle type alias to types from another package. This
+    //       should be eventually generalized to all typing operations.
+    def handleTypeAlias(t: Type): Type = t match {
+      case DeclaredT(PTypeAlias(right, _), context) => context.symbType(right)
+      case _ => t
+    }
+    createTyping {
+      case typ: PActualType => handleTypeAlias(actualTypeSymbType(typ))
+      case typ: PGhostType  => handleTypeAlias(ghostTypeSymbType(typ))
+    }
   }
 
   private[typing] def actualTypeSymbType(typ: PActualType): Type = typ match {

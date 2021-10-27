@@ -1,0 +1,12 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package test
+
+// ##(-I ./000344/)
+
+import "pkg"
+
+pred P(t *pkg.TE) {
+    acc(&t.T)
+}

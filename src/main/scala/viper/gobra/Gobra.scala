@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.{InferTerminationMeasureTransform, OverflowChecksTransform}
+import viper.gobra.ast.internal.transform.OverflowChecksTransform
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
@@ -66,12 +66,7 @@ trait GoIdeVerifier {
   protected[this] def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult]
 }
 
-case class InferenceState(program: Program, current: Integer, mapToHeuristic: mutable.Map[in.Member, Integer], typeInfo: TypeInfo) {
-}
-
 class Gobra extends GoVerifier with GoIdeVerifier {
-
-  val maxHeuristic = 3
 
   override def verify(input: Vector[Path], config: Config)(executor: GobraExecutionContext): Future[VerifierResult] = {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
@@ -87,100 +82,16 @@ class Gobra extends GoVerifier with GoIdeVerifier {
         parsedPackage <- performParsing(input, finalConfig)
         typeInfo <- performTypeChecking(parsedPackage, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
-        program <- performInternalTransformations(program, finalConfig, InferenceState(program, 1, mutable.Map.empty, typeInfo))
+        program <- performInternalTransformations(program, finalConfig)
         viperTask <- performViperEncoding(program, finalConfig)
-      } yield (viperTask, finalConfig, InferenceState(program, 1, mutable.Map.empty, typeInfo))
+      } yield (viperTask, finalConfig)
     }
 
-    def updateInferenceState(inferenceState: InferenceState, errors: Vector[VerifierError], members: Vector[in.Member]): Either[Vector[VerifierError], InferenceState] = {
-      val map = inferenceState.mapToHeuristic
-      members.foreach { member =>
-        if(!map.contains(member)) {
-          val mappedErrors = mapErrorToMember(errors, member, inferenceState.typeInfo)
-          mappedErrors match {
-            case Some(list) =>
-              if (list.isEmpty) {
-                map += (member -> inferenceState.current)
-              } else {
-                ()
-              }
-            case None => ()
-          }
-        } else {
-          ()
-        }
-      }
-      Right(InferenceState(inferenceState.program, inferenceState.current+1, map, inferenceState.typeInfo))
-    }
-
-    def verifyTask(task: Either[Vector[VerifierError], (BackendVerifier.Task, Config, InferenceState)]): Future[VerifierResult] = task match {
+    task.flatMap{
       case Left(Vector()) => Future(VerifierResult.Success)
       case Left(errors)   => Future(VerifierResult.Failure(errors))
-      case Right((job, finalConfig, inferenceState)) =>
-        if(inferenceState.current == maxHeuristic) {
-          verifyAst(finalConfig, job.program, job.backtrack)(executor)
-        } else {
-          val res = verifyAst(finalConfig, job.program, job.backtrack)(executor)
-          val result = Await.result(res, Duration.Inf)
-          if (checkVerifierResult(result)) {
-            result match {
-              case VerifierResult.Failure(errors) =>
-                val task = for {
-                  updatedInferenceState <- updateInferenceState(inferenceState, errors, inferenceState.program.members)
-                  program <- performInternalTransformations(updatedInferenceState.program, finalConfig, updatedInferenceState)
-                  viperTask <- performViperEncoding(program, finalConfig)
-                } yield (viperTask, finalConfig, updatedInferenceState)
-                verifyTask(task)
-              case _ => violation("verification has already succeeded")
-            }
-          } else {
-            res
-          }
-        }
+      case Right((job, finalConfig)) => verifyAst(finalConfig, job.program, job.backtrack)(executor)
     }
-
-    @tailrec
-    def checkVerifierResult(res: VerifierResult): Boolean = {
-      res match {
-        case VerifierResult.Success => false
-        case VerifierResult.Failure(errors) =>
-          if(errors.isEmpty) {
-            true
-          } else {
-            errors.head match {
-              case InferTerminationFailed(_) => checkVerifierResult(VerifierResult.Failure(errors.tail))
-              case _ => false
-            }
-          }
-      }
-    }
-
-    def mapErrorToMember(errors: Vector[VerifierError], member: in.Member, typeInfo: TypeInfo): Option[List[VerifierError]] = {
-      member.info match {
-        case Source.Parser.Single(pnode, _) =>
-          val result = scala.collection.mutable.ListBuffer[VerifierError]()
-          errors.foreach { error =>
-            if(error.isInstanceOf[VerificationError]) {
-              val info = typeInfo.asInstanceOf[Enclosing]
-              val err = error.asInstanceOf[VerificationError]
-              val pMember = info.tryEnclosingMember(err.info.pnode)
-              pMember match {
-                case Some(mem) =>
-                  if (mem == pnode) {
-                    result += error
-                  }
-                case None =>
-                  ()
-              }
-            }
-          }
-          Some(result.toList)
-
-        case _ => None
-      }
-    }
-
-    task.flatMap(verifyTask)
   }
 
   override def verifyAst(config: Config, ast: vpr.Program, backtrack: BackTranslator.BackTrackInfo)(executor: GobraExecutionContext): Future[VerifierResult] = {
@@ -268,17 +179,13 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * Applies transformations to programs in the internal language. Currently, only adds overflow checks but it can
     * be easily extended to perform more transformations
     */
-  private def performInternalTransformations(program: Program, config: Config, inferenceState: InferenceState): Either[Vector[VerifierError], Program] = {
+  private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
     if (config.checkOverflows) {
-      val Transform = InferTerminationMeasureTransform(inferenceState.current, inferenceState.mapToHeuristic)
-      val result = Transform.transform(OverflowChecksTransform.transform(program))
+      val result = OverflowChecksTransform.transform(program)
       config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
       Right(result)
     } else {
-      val Transform = InferTerminationMeasureTransform(inferenceState.current, inferenceState.mapToHeuristic)
-      val result = Transform.transform(program)
-      config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
-      Right(result)
+      Right(program)
     }
   }
 

@@ -24,7 +24,6 @@ func (m *Mutex) SetInv(ghost inv pred())
 
 requires acc(m.LockP(), _)
 ensures m.LockP() && m.UnlockP() && m.LockInv()()
-decreases
 func (m *Mutex) Lock()
 
 requires acc(m.LockP(), _) && m.UnlockP() && m.LockInv()()

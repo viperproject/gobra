@@ -31,7 +31,7 @@ type UDPAddr struct {
 }
 
 pred (a *UDPAddr) mem() {
-    acc(a)
+    acc(a) && (forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i]))
 }
 
 (*UDPAddr) implements Addr {

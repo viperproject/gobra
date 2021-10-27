@@ -38,25 +38,27 @@ RUN curl -L $BOOGIE_URL --output /boogie.zip && \
     unzip /boogie.zip -d /boogie/ && \
     rm /boogie.zip
 
-ARG VIPER_BRANCH=tags/v.21.07-release
+ARG SILVER_REF=tags/v.21.07-release
+ARG CARBON_REF=tags/v.21.07-release
+ARG SILICON_REF=tags/v.21.07-release
 
 # Setup silver
 RUN git clone https://github.com/viperproject/silver.git ./silver && \
 	cd silver && \
-	git checkout $VIPER_BRANCH && \
+	git checkout $SILVER_REF && \
 	cd ..
 
 # Setup carbon
 RUN git clone https://github.com/viperproject/carbon.git ./carbon && \
 	cd carbon && \
-	git checkout $VIPER_BRANCH && \
+	git checkout $CARBON_REF && \
 	ln -s ../silver silver && \
 	cd ..
 
 # Setup Silicon
 RUN git clone https://github.com/viperproject/silicon.git ./silicon && \
 	cd silicon && \
-	git checkout $VIPER_BRANCH && \
+	git checkout $SILICON_REF && \
 	ln -s ../silver silver && \
 	cd ..
 

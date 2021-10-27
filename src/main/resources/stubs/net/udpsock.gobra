@@ -31,7 +31,7 @@ type UDPAddr struct {
 }
 
 pred (a *UDPAddr) Mem() {
-    acc(a)
+    acc(a) && (forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i]))
 }
 
 /* (joao) commented due to issue 341 (https://github.com/viperproject/gobra/issues/341)

@@ -117,7 +117,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     def measureDoc(m: PTerminationMeasure): Doc = m match {
       case PTupleTerminationMeasure(tuple, cond) => showExprList(tuple) <+> showCond(cond)
       case PWildcardMeasure(cond) => "_" <+> showCond(cond)
-      case _: PStarMeasure => "*"
     }
     "decreases" <+> measureDoc(measure)
   }

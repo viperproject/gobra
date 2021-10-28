@@ -192,7 +192,6 @@ object Nodes {
         case _: LabelProxy => Seq.empty
       }
       case m: TerminationMeasure => m match {
-        case _: StarMeasure => Seq.empty
         case m: WildcardMeasure => m.cond.toSeq
         case t: TupleTerminationMeasure => t.cond.toSeq ++ t.tuple
       }

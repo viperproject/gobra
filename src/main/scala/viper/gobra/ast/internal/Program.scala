@@ -353,11 +353,9 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
 }
 
 sealed trait TerminationMeasure extends Node
-case class StarMeasure()(val info: Source.Parser.Info) extends TerminationMeasure
 case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
 case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
-  // TODO: add support for predicate instances too
-  require(tuple.forall(_.isInstanceOf[Expr]))
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
 }
 
 sealed trait Accessible extends Node {

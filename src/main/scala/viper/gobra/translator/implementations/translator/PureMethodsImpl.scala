@@ -10,8 +10,6 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.translator.interfaces.translator.PureMethods
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
-import viper.gobra.util.Violation.violation
 
 class PureMethodsImpl extends PureMethods {
 

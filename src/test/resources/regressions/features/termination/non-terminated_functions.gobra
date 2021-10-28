@@ -6,7 +6,6 @@ package termination
 decreases x
 func f_e(x int) int {
 	if x > 2 {
-	
 		//:: ExpectedOutput(method_termination_error)
 		return f_e(f_e(0)+3)
 	} else {
@@ -51,7 +50,6 @@ func is_even(x int) bool {
 	if x == 0 {
 		return true
 	} else {
-	 
 		//:: ExpectedOutput(method_termination_error)
 		return is_odd(x)
 	}
@@ -71,7 +69,6 @@ func is_odd(y int) bool {
 ghost
 decreases x if 1 <= x
 decreases _ if x <= -1
-decreases *
 func sign(x int) int {
 	if x == 0 {
 		return sign(x)
@@ -79,7 +76,7 @@ func sign(x int) int {
 		if 1 < x {
 			//:: ExpectedOutput(method_termination_error)
 			return sign(x)
-		} else { 
+		} else {
 			if x < -1 {
 				return sign(x + 1)
 			} else {
@@ -126,8 +123,8 @@ ghost
 requires n >= 0
 decreases
 pure func factorial2(n int) int {
-	 //:: ExpectedOutput(function_termination_error)
-	 return n == 0 ? 1 :  1 * factorial2(n-1)
+	//:: ExpectedOutput(function_termination_error)
+	return n == 0 ? 1 :  1 * factorial2(n-1)
 }
 
 

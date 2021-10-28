@@ -31,8 +31,6 @@ class TerminationMeasuresImpl extends TerminationMeasures {
         for {
           c <- cl.option(cond map ctx.expr.translateF(ctx))
         } yield termination.DecreasesWildcard(c)(pos, info, errT)
-      case in.StarMeasure() =>
-        cl.unit(termination.DecreasesStar()(pos, info, errT))
     }
   }
 

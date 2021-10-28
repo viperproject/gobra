@@ -452,7 +452,6 @@ object Parser {
 
     lazy val terminationMeasure: Parser[PTerminationMeasure] =
       "_" ~> ("if" ~> expression).? ^^ PWildcardMeasure |
-        ("*") ^^^ PStarMeasure() |
         repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =

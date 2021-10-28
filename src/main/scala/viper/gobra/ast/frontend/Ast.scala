@@ -768,7 +768,6 @@ object PGhostifier {
   */
 
 sealed trait PTerminationMeasure extends PNode
-case class PStarMeasure() extends PTerminationMeasure
 case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
 case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
 

@@ -135,7 +135,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showTerminationMeasure(measure: TerminationMeasure): Doc = {
     def showCond(cond: Option[Expr]): Doc = opt(cond)("if" <+> showExpr(_))
     measure match {
-      case _: StarMeasure => "*"
       case WildcardMeasure(cond) => "_" <+> showCond(cond)
       case TupleTerminationMeasure(tuple, cond) =>
         hcat(tuple map {

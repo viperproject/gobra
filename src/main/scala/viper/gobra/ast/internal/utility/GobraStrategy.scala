@@ -196,7 +196,6 @@ object GobraStrategy {
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
         // Termination Measures
-      case (_: StarMeasure, Seq()) => StarMeasure()(meta)
       case (_: WildcardMeasure, Seq(cond: Option[Expr@unchecked])) => WildcardMeasure(cond)(meta)
       case (_: TupleTerminationMeasure, Seq(tuple: Vector[Node@unchecked], cond: Option[Expr@unchecked])) => TupleTerminationMeasure(tuple, cond)(meta)
     }

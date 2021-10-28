@@ -2914,7 +2914,6 @@ object Desugar {
       }
 
       measure match {
-        case PStarMeasure() => unit(in.StarMeasure()(src))
         case PWildcardMeasure(cond) =>
           for { c <- option(cond map exprD(ctx)) } yield in.WildcardMeasure(c)(src)
         case PTupleTerminationMeasure(tuple, cond) =>

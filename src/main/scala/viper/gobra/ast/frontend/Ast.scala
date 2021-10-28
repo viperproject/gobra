@@ -764,18 +764,17 @@ object PGhostifier {
 }
 
 /**
+  * Termination Measures
+  */
+
+sealed trait PTerminationMeasure extends PNode
+case class PStarMeasure() extends PTerminationMeasure
+case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
+
+/**
   * Specification
   */
-sealed trait PTerminationMeasure extends PNode
-sealed trait PUnconditionalTerminationMeasure extends PTerminationMeasure
-sealed trait PConditionalTerminationMeasureClause extends PNode
-
-case class PConditionalTerminationMeasureIfClause(measure: PUnconditionalTerminationMeasure, cond: PExpression) extends PConditionalTerminationMeasureClause
-
-case class PStarMeasure() extends PUnconditionalTerminationMeasure with PConditionalTerminationMeasureClause
-case class PWildcardMeasure() extends PUnconditionalTerminationMeasure
-case class PTupleTerminationMeasure(tuple: Vector[PExpression]) extends PUnconditionalTerminationMeasure
-case class PConditionalTerminationMeasures(clauses: Vector[PConditionalTerminationMeasureClause]) extends PTerminationMeasure
 
 sealed trait PSpecification extends PGhostNode
 
@@ -783,7 +782,7 @@ case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
-                      terminationMeasure: Option[PTerminationMeasure],
+                      terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 

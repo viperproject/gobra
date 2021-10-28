@@ -58,7 +58,7 @@ func collatz(n int) int {
 }
 
 ghost
-decreases *
+decreases *;
 func nonterm() int {
  return 1 + nonterm()
 }
@@ -88,7 +88,7 @@ func is_odd(y int) bool {
 ghost
 decreases x if 1 <= x
 decreases _ if x <= -1
-decreases *
+decreases *;
 func sign(x int) int {
   if x == 0 {
     return sign(x)
@@ -106,7 +106,7 @@ func sign(x int) int {
 }
 
 ghost
-decreases *
+decreases *;
 func caller(x int) int {
  return sign(x)
 }

@@ -47,7 +47,6 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case n: PStructClause => showStructClause(n)
     case n: PInterfaceClause => showInterfaceClause(n)
     case n: PBodyParameterInfo => showBodyParameterInfo(n)
-    case n: PTerminationMeasure => showTerminationMeasure(Some(n))
     case PPos(_) => emptyDoc
     case _ => emptyDoc
   }
@@ -113,36 +112,27 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showPreserves(preserves: PExpression): Doc = "preserves" <+> showExpr(preserves)
   def showPost(post: PExpression): Doc = "ensures" <+> showExpr(post)
   def showInv(inv: PExpression): Doc = "invariant" <+> showExpr(inv)
-  
-   
-  def showConditionalMeasure(n: PConditionalTerminationMeasures): Doc = showList(n.clauses)(showClause)
-  def showClause(clause: PConditionalTerminationMeasureClause) : Doc = clause match {
-    case PStarMeasure() => "decreases" <+> "*"
-    case PConditionalTerminationMeasureIfClause(measure, cond) =>
-      showTerminationMeasure(Some(measure)) <+> showExpr(cond)
-  }
-  
-  def showTerminationMeasure(ter: Option[PTerminationMeasure]): Doc = ter match {
-    case Some(terminationMeasure) => terminationMeasure match {
-      case PTupleTerminationMeasure(tuple) => "decreases" <+> showExprList(tuple)
-      case PStarMeasure() => "decreases" <+> "*"
-      case PWildcardMeasure() => "decreases" <+> "_"
-      case x: PConditionalTerminationMeasures => showConditionalMeasure(x)
+  def showTerminationMeasure(measure: PTerminationMeasure): Doc = {
+    def showCond(cond: Option[PExpression]): Doc = opt(cond)("if" <+> showExpr(_))
+    def measureDoc(m: PTerminationMeasure): Doc = m match {
+      case PTupleTerminationMeasure(tuple, cond) => showExprList(tuple) <+> showCond(cond)
+      case PWildcardMeasure(cond) => "_" <+> showCond(cond)
+      case _: PStarMeasure => "*"
     }
-    case None => ""
+    "decreases" <+> measureDoc(measure)
   }
 
   def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure) =>
       (if (isPure) showPure else emptyDoc) <>
       hcat(pres map (showPre(_) <> line)) <>
         hcat(preserves map (showPreserves(_) <> line)) <>
         hcat(posts map (showPost(_) <> line)) <>
-          showTerminationMeasure(terminationMeasure) <> line
+        hcat(measures map (showTerminationMeasure(_) <> line)) <>
+        line
 
-    case PLoopSpec(inv,terminationMeasure) =>
-      hcat(inv map (showInv(_) <> line)) <>
-        showTerminationMeasure(terminationMeasure) <> line
+    case PLoopSpec(inv, measure) =>
+      hcat(inv map (showInv(_) <> line)) <> opt(measure)(showTerminationMeasure) <> line
   }
 
   def showBodyParameterInfoWithBlock(info: PBodyParameterInfo, block: PBlock): Doc = {

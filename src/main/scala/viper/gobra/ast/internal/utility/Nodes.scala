@@ -26,14 +26,14 @@ object Nodes {
   def subnodes(n: Node): Seq[Node] = { // TODO: maybe can be solved generally
     val subnodesWithoutType: Seq[Node] = n match {
       case Program(_, members, _) => members
-        case Method(receiver, name, args, results, pres, posts, terminationMeasure, body) => 
-          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ terminationMeasure ++ body
-        case PureMethod(receiver, name, args, results, pres, posts, terminationMeasure, body) => 
-          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ terminationMeasure ++ body
-        case Function(name, args, results, pres, posts, terminationMeasure, body) => 
-          Seq(name) ++ args ++ results ++ pres ++ posts++ terminationMeasure ++ body
-        case PureFunction(name, args, results, pres, posts, terminationMeasure, body) =>
-          Seq(name) ++ args ++ results ++ pres ++ posts++ terminationMeasure ++ body
+        case Method(receiver, name, args, results, pres, posts, measures, body) =>
+          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case PureMethod(receiver, name, args, results, pres, posts, measures, body) =>
+          Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case Function(name, args, results, pres, posts, measures, body) =>
+          Seq(name) ++ args ++ results ++ pres ++ posts++ measures ++ body
+        case PureFunction(name, args, results, pres, posts, measures, body) =>
+          Seq(name) ++ args ++ results ++ pres ++ posts++ measures ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b
@@ -47,7 +47,7 @@ object Nodes {
         case Seqn(stmts) => stmts
         case Label(label) => Seq(label)
         case If(cond, thn, els) => Seq(cond, thn, els)
-        case While(cond, invs, terminationMeasure, body) => Seq(cond) ++ invs ++ terminationMeasure ++ Seq(body)
+        case While(cond, invs, measure, body) => Seq(cond) ++ invs ++ measure ++ Seq(body)
         case New(target, typ) => Seq(target, typ)
         case MakeSlice(target, _, lenArg, capArg) => Seq(target, lenArg) ++ capArg.toSeq
         case MakeChannel(target, _, bufferSizeArg, _, _) => target +: bufferSizeArg.toSeq
@@ -83,12 +83,6 @@ object Nodes {
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
         case Access(e, p) => Seq(e, p)
-        case TupleTerminationMeasure(vector) => vector
-        case WildcardMeasure() => Seq.empty
-        case StarMeasure() => Seq.empty
-        case InferTerminationMeasure() => Seq.empty
-        case ConditionalTerminationMeasures(clauses) => clauses
-        case ConditionalTerminationMeasureIfClause(measure, cond) => Seq(measure) ++ Seq(cond)
       }
       case a: Accessible => Seq(a.op)
       case p: PredicateAccess => p match {
@@ -196,6 +190,11 @@ object Nodes {
         case MPredicateProxy(_, _) => Seq.empty
         case _: DomainFuncProxy => Seq.empty
         case _: LabelProxy => Seq.empty
+      }
+      case m: TerminationMeasure => m match {
+        case _: StarMeasure => Seq.empty
+        case m: WildcardMeasure => m.cond.toSeq
+        case t: TupleTerminationMeasure => t.cond.toSeq ++ t.tuple
       }
     }
 //    n match {

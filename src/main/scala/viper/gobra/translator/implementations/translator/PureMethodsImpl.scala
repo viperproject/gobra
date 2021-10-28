@@ -46,10 +46,7 @@ class PureMethodsImpl extends PureMethods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ meth.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
-      terminationMeasure = meth.terminationMeasure match {
-        case Some(measure) => translateTerminationMeasure(measure)(ctx)
-        case None => Seq.empty
-      }
+      measures <- sequence(meth.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       body <- option(meth.body map { b =>
         pure(
@@ -63,7 +60,7 @@ class PureMethodsImpl extends PureMethods {
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         typ = resultType,
-        pres = pres ++ terminationMeasure,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
@@ -91,10 +88,7 @@ class PureMethodsImpl extends PureMethods {
     for {
       pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ func.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
-      terminationMeasure = func.terminationMeasure match {
-        case Some(measure) => translateTerminationMeasure(measure)(ctx)
-        case None => Seq.empty
-      }
+      measures <- sequence(func.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       body <- option(func.body map { b =>
         pure(
@@ -108,58 +102,11 @@ class PureMethodsImpl extends PureMethods {
         name = func.name.name,
         formalArgs = vArgs,
         typ = resultType,
-        pres = pres ++ terminationMeasure,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
 
     } yield function
-  }
-
-  def translateTerminationMeasure(x: in.Assertion)(ctx: Context): Vector[vpr.Exp] = {
-    val (pos, info, errT) = x.vprMeta
-    x match {
-      case in.TupleTerminationMeasure(vector) =>
-        val res = vector.map(n => n match {
-          case e: in.Expr => ctx.expr.translate(e)(ctx).res
-          case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
-          case _ => violation("invalid tuple measure argument")
-        })
-        //val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
-        Vector(termination.DecreasesTuple(res, None)(pos, info, errT))
-      case in.WildcardMeasure() =>
-        Vector(termination.DecreasesWildcard(None)(pos, info, errT))
-      case in.InferTerminationMeasure() =>
-        violation("Infer measure should already be handled by internal transformation")
-      case in.StarMeasure() =>
-        Vector(termination.DecreasesStar()(pos, info, errT))
-      case in.ConditionalTerminationMeasures(clauses) => //violation("Conditional measure should not be handled here")
-        clauses.map(translateClause(_)(x)(ctx))
-      case _ => violation("assertion not subtype of TerminationMeasure")
-    }
-  }
-
-
-  def translateClause(x: in.ConditionalTerminationMeasureClause)(ass: in.Assertion)(ctx: Context): vpr.Exp = {
-    val(pos, info, errT) = ass.vprMeta
-    x match {
-      case in.ConditionalTerminationMeasureIfClause(measure, cond) =>
-        measure match {
-          case in.WildcardMeasure() =>
-            termination.DecreasesWildcard(Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
-          case in.TupleTerminationMeasure(vector) =>
-            val res = vector.map(n => n match {
-              case e: in.Expr => ctx.expr.translate(e)(ctx).res
-              case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
-              case _ => violation("invalid tuple measure argument")
-            })
-            // val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
-            termination.DecreasesTuple(res, Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
-          case in.StarMeasure() => violation("Star measure occurs in if clause")
-          case in.InferTerminationMeasure() => violation("Infer measure occurs in if clause")
-        }
-      case in.StarMeasure() =>
-        termination.DecreasesStar()(pos, info, errT)
-    }
   }
 }

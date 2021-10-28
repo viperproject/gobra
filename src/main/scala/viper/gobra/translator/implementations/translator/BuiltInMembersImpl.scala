@@ -204,7 +204,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(isChannelInst, in.WildcardPerm(src))(src),
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), None, None)(src)
+        in.PureMethod(recvParam, x.name, Vector(), Vector(kParam), pres, Vector(), Vector(), None)(src)
 
       case (tag: ChannelInvariantMethodTag, recv: in.ChannelT) =>
         /**
@@ -230,7 +230,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
         val pres: Vector[in.Assertion] = Vector(
           in.Access(chanPredicate, in.WildcardPerm(src))(src)
         )
-        in.PureMethod(recvParam, x.name, Vector(), Vector(resParam), pres, Vector(), None, None)(src)
+        in.PureMethod(recvParam, x.name, Vector(), Vector(resParam), pres, Vector(), Vector(), None)(src)
 
       case (InitChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -239,6 +239,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           * ensures c.SendChannel() && c.RecvChannel()
           * ensures c.SendGivenPerm() == A && c.SendGotPerm() == B
           * ensures c.RecvGivenPerm() == B && c.RecvGotPerm() == A
+          * decreases _
           * ghost func (c chan T).Init(A pred(T), B pred())
           *
           * note that B is only of type pred() instead of pred(T) as long as we cannot deal with view shifts in Gobra.
@@ -284,7 +285,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.ExprAssertion(sendChannelInvEq)(src),
           in.ExprAssertion(recvChannelInvEq)(src),
         )
-        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
+        in.Method(recvParam, x.name, Vector(aParam, bParam), Vector(), pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
 
       case (CreateDebtChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -314,7 +315,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.Access(closureDebtInst, in.FullPerm(src))(src),
           in.Access(tokenInst, in.FullPerm(src))(src),
         )
-        in.Method(recvParam, x.name, Vector(dividendParam, divisorParam /* permissionAmountParam */, predicateParam), Vector(), pres, posts, None, None)(src)
+        in.Method(recvParam, x.name, Vector(dividendParam, divisorParam /* permissionAmountParam */, predicateParam), Vector(), pres, posts, Vector(), None)(src)
 
       case (RedeemChannelMethodTag, recv: in.ChannelT) =>
         /**
@@ -337,7 +338,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.Access(closedInst, in.FullPerm(src))(src),
           in.Access(in.Accessible.PredExpr(in.PredExprInstance(predicateParam, Vector())(src)), in.FullPerm(src))(src)
         )
-        in.Method(recvParam, x.name, Vector(predicateParam), Vector(), pres, posts, None, None)(src)
+        in.Method(recvParam, x.name, Vector(predicateParam), Vector(), pres, posts, Vector(), None)(src)
 
       case (tag, recv) => violation(s"no method generation defined for tag $tag and receiver $recv")
     }
@@ -423,7 +424,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
           in.Access(closedInst, in.FullPerm(src))(src)
         )
 
-        in.Function(x.name, args, Vector(), pres, posts, None, None)(src)
+        in.Function(x.name, args, Vector(), pres, posts, Vector(), None)(src)
 
       /* João, 18/08/2021:
        *  The spec for `append` currently does not allow the first and second non-ghost arguments to be the same. The go
@@ -499,7 +500,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         val posts: Vector[in.Assertion] = Vector(postLen, postRes, postVariadic, postCmpSlice, postCmpVariadic)
 
-        in.Function(x.name, args, results, pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
 
       case (CopyFunctionTag, Vector(t1, t2, _)) =>
         /**
@@ -623,7 +624,7 @@ class BuiltInMembersImpl extends BuiltInMembers {
 
         val posts = Vector(postRes1, postRes2, postDst, postSrc, postDistinct, postUpdate, postSame)
 
-        in.Function(x.name, args, results, pres, posts, Some(in.WildcardMeasure()(src)), None)(src)
+        in.Function(x.name, args, results, pres, posts, Vector(in.WildcardMeasure(None)(src)), None)(src)
 
       case (tag, args) => violation(s"no function generation defined for tag $tag and arguments $args")
     }

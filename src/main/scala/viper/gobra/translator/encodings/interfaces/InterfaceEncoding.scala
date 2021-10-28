@@ -723,7 +723,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
-      terminationMeasure = Option.empty,
+      terminationMeasures = Vector.empty,
       body = Some(body)
     )(p.info))(ctx)
 
@@ -761,7 +761,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
       results = p.results,
       pres = Vector.empty,
       posts = Vector.empty,
-      terminationMeasure = Option.empty,
+      terminationMeasures = Vector.empty,
       body = Some(body)
     )(p.info))(ctx)
 

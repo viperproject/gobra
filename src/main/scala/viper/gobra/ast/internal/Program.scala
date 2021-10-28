@@ -79,7 +79,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
-  def terminationMeasure: Option[Assertion]
+  def terminationMeasures: Vector[TerminationMeasure]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -92,7 +92,7 @@ sealed trait FunctionMember extends FunctionLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
-  def terminationMeasure: Option[Assertion]
+  def terminationMeasures: Vector[TerminationMeasure]
 }
 
 sealed trait Location extends Expr
@@ -111,7 +111,7 @@ case class Method(
                  override val results: Vector[Parameter.Out],
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
-                 override val terminationMeasure: Option[Assertion],
+                 override val terminationMeasures: Vector[TerminationMeasure],
                  body: Option[Block]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -122,7 +122,7 @@ case class PureMethod(
                        override val results: Vector[Parameter.Out],
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
-                       override val terminationMeasure: Option[Assertion],
+                       override val terminationMeasures: Vector[TerminationMeasure],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
@@ -167,17 +167,17 @@ case class Function(
                      override val results: Vector[Parameter.Out],
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
-                     override val terminationMeasure: Option[Assertion],
+                     override val terminationMeasures: Vector[TerminationMeasure],
                      body: Option[Block]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
                          override val name: FunctionProxy,
-                         override val  args: Vector[Parameter.In],
-                         override val  results: Vector[Parameter.Out],
-                         override val  pres: Vector[Assertion],
-                         override val  posts: Vector[Assertion],
-                         override val terminationMeasure: Option[Assertion],
+                         override val args: Vector[Parameter.In],
+                         override val results: Vector[Parameter.Out],
+                         override val pres: Vector[Assertion],
+                         override val posts: Vector[Assertion],
+                         override val terminationMeasures: Vector[TerminationMeasure],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -252,7 +252,7 @@ case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
 
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
-case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[TerminationMeasure], body: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 
@@ -352,16 +352,13 @@ case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends 
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
 }
 
-sealed trait TerminationMeasure extends Assertion
-sealed trait UnconditionalTerminationMeasure extends TerminationMeasure
-sealed trait ConditionalTerminationMeasureClause extends Assertion
-
-case class ConditionalTerminationMeasureIfClause(measure: UnconditionalTerminationMeasure, cond: Expr)(val info: Source.Parser.Info) extends ConditionalTerminationMeasureClause
-case class StarMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure with ConditionalTerminationMeasureClause
-case class WildcardMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
-case class TupleTerminationMeasure(tuple: Vector[Node])(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
-case class ConditionalTerminationMeasures(clauses: Vector[ConditionalTerminationMeasureClause])(val info: Source.Parser.Info) extends TerminationMeasure
-case class InferTerminationMeasure()(val info: Source.Parser.Info) extends UnconditionalTerminationMeasure
+sealed trait TerminationMeasure extends Node
+case class StarMeasure()(val info: Source.Parser.Info) extends TerminationMeasure
+case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
+case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
+  // TODO: add support for predicate instances too
+  require(tuple.forall(_.isInstanceOf[Expr]))
+}
 
 sealed trait Accessible extends Node {
   def op: Node

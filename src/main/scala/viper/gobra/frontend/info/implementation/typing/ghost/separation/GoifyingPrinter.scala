@@ -73,50 +73,16 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure) =>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
       hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
       hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
-      (terminationMeasure match {
-        case Some(measure) => {
-          measure match {
-            case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
-            case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
-            case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
-            case PConditionalTerminationMeasures(clauses) => hcat(clauses map(p => p match {
-              case PStarMeasure() => emptyDoc
-              case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
-                case PWildcardMeasure() => specComment <+> showPre(cond) <> line
-                case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
-                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-              }
-            }))
-          }
-        }
-        case None => emptyDoc
-      })
-   
-    case PLoopSpec(inv, terminationMeasure) =>
+      hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line))
+
+    case PLoopSpec(inv, measure) =>
       hcat(inv map (p => specComment <+> showInv(p) <> line)) <>
-      (terminationMeasure match {
-        case Some(measure) => {
-          measure match {
-            case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line))
-            case PStarMeasure() => specComment <+> "decreases" <+> "*" <> line
-            case PWildcardMeasure() => specComment <+> "decreases" <+> "_" <> line
-            case PConditionalTerminationMeasures(clauses) => hcat(clauses map (p => p match {
-              case PStarMeasure() => emptyDoc
-              case PConditionalTerminationMeasureIfClause(measure, cond) => measure match {
-                case PWildcardMeasure() => specComment <+> showPre(cond) <> line
-                case PTupleTerminationMeasure(tuple) => hcat(tuple map (p => specComment <+> "decreases" <+> showExpr(p) <> line)) <> specComment <+> showPre(cond) <> line
-                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-              }
-            }))
-          }
-        }
-        case None => emptyDoc
-      })
+      opt(measure)(p => specComment <+> showTerminationMeasure(p) <> line)
   }
 
   /**
@@ -150,7 +116,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Option.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -162,7 +128,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Option.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )

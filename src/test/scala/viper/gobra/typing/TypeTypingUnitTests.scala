@@ -362,7 +362,7 @@ class TypeTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         stubParams(ts),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), Option.empty, true),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), true),
         None
       ))
     )

@@ -2636,16 +2636,9 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
-  test("Parser: should be able to parse star termination measure") {
-    frontend.parseMember("decreases * func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PStarMeasure()), false), None)) =>
-    }
-  }
-
   test("Parser: should be able to parse conditional termination measure" ) {
-    frontend.parseMember("decreases n if n>1; decreases _ if n<2; decreases * func factorial (n int) int") should matchPattern {
-      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(),
-      Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal)))), PStarMeasure()), false), None)) if one == 1 && two == 2 =>
+    frontend.parseMember("decreases n if n>1; decreases _ if n<2; func factorial (n int) int") should matchPattern {
+      case Vector(PFunctionDecl(PIdnDef("factorial"), Vector(PNamedParameter(PIdnDef("n"), PIntType())), PResult(Vector(PUnnamedParameter(PIntType()))), PFunctionSpec(Vector(), Vector(), Vector(), Vector(PTupleTerminationMeasure(Vector(PNamedOperand(PIdnUse("n"))), Some(PGreater(PNamedOperand(PIdnUse("n")), PIntLit(one, Decimal)))), PWildcardMeasure(Some(PLess(PNamedOperand(PIdnUse("n")), PIntLit(two, Decimal))))), false), None)) if one == 1 && two == 2 =>
     }
   }    
   

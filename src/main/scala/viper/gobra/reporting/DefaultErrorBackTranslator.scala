@@ -6,7 +6,7 @@
 
 package viper.gobra.reporting
 
-import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation, InferTerminationMeasureAnnotation}
+import viper.gobra.reporting.Source.{AutoImplProofAnnotation, CertainSource, CertainSynthesized, OverflowCheckAnnotation}
 import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
@@ -72,27 +72,18 @@ object DefaultErrorBackTranslator {
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
       case termination.TerminationConditionFalse(CertainSource(info)) =>
          TerminationConditionFalseError(info)
-
       case termination.TupleConditionFalse(CertainSource(info)) =>
          TupleConditionFalseError(info)
-
       case termination.TupleSimpleFalse(CertainSource(info)) =>
          TupleSimpleFalseError(info)
-
       case termination.TupleDecreasesFalse(CertainSource(info)) =>
          TupleDecreasesFalseError(info)
-
       case termination.TupleBoundedFalse(CertainSource(info)) =>
          TupleBoundedFalseError(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
       case AssertionFalseError(info / OverflowCheckAnnotation) => OverflowErrorReason(info)
-      case TerminationConditionFalseError(info / InferTerminationMeasureAnnotation) => InferTerminationMeasureFailedReason(info)
-      case TupleConditionFalseError(info / InferTerminationMeasureAnnotation) => InferTerminationMeasureFailedReason(info)
-      case TupleSimpleFalseError(info / InferTerminationMeasureAnnotation) => InferTerminationMeasureFailedReason(info)
-      case TupleDecreasesFalseError(info / InferTerminationMeasureAnnotation) => InferTerminationMeasureFailedReason(info)
-      case TupleBoundedFalseError(info / InferTerminationMeasureAnnotation) => InferTerminationMeasureFailedReason(info)
       case x => x
     }
 
@@ -155,7 +146,7 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
-       case termination.FunctionTerminationError( Source(info) , reason, _) =>
+       case termination.FunctionTerminationError(Source(info) , reason, _) =>
          FunctionTerminationError(info) dueTo translate(reason)
        case termination.MethodTerminationError(Source(info), reason, _) =>
          MethodTerminationError(info) dueTo translate(reason)
@@ -169,9 +160,6 @@ class DefaultErrorBackTranslator(
 
       case _ / AutoImplProofAnnotation(subT, superT) =>
         GeneratedImplementationProofError(subT, superT, x)
-
-      case _ / InferTerminationMeasureAnnotation =>
-        x.reasons.foldLeft(InferTerminationFailed(x.info): VerificationError){ case (err, reason) => err dueTo reason }
 
       case _ => x
     }

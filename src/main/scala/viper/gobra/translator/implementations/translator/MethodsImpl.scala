@@ -13,8 +13,6 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.{ViperUtil => vu}
 import viper.silver.ast.Method
 import viper.silver.{ast => vpr}
-import viper.silver.plugin.standard.termination
-import viper.gobra.util.Violation.violation
 
 class MethodsImpl extends Methods {
 
@@ -39,10 +37,7 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      terminationMeasure = x.terminationMeasure match {
-        case Some(measure) => translateTerminationMeasure(measure)(ctx)
-        case None => Seq.empty
-      }
+      measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -58,7 +53,7 @@ class MethodsImpl extends Methods {
         name = x.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         formalReturns = vResults,
-        pres = pres ++ terminationMeasure,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
@@ -82,10 +77,7 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-      terminationMeasure = x.terminationMeasure match {
-        case Some(measure) => translateTerminationMeasure(measure)(ctx)
-        case None => Seq.empty
-      }
+      measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
       
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -101,60 +93,11 @@ class MethodsImpl extends Methods {
         name = x.name.name,
         formalArgs = vArgs,
         formalReturns = vResults,
-        pres = pres ++ terminationMeasure,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
 
     } yield method
   }
-
-  def translateTerminationMeasure(x: in.Assertion)(ctx: Context): Vector[vpr.Exp] = {
-    val (pos, info, errT) = x.vprMeta
-    x match {
-      case in.TupleTerminationMeasure(vector) =>
-        val res = vector.map(n => n match {
-          case e: in.Expr => ctx.expr.translate(e)(ctx).res
-          case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
-          case _ => violation("invalid tuple measure argument")
-        })
-        //val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
-        Vector(termination.DecreasesTuple(res, None)(pos, info, errT))
-      case in.WildcardMeasure() =>
-        Vector(termination.DecreasesWildcard(None)(pos, info, errT))
-      case in.InferTerminationMeasure() =>
-        violation("Infer measure should already be handled by internal transformation")
-      case in.StarMeasure() =>
-        Vector(termination.DecreasesStar()(pos, info, errT))
-      case in.ConditionalTerminationMeasures(clauses) =>
-        clauses.map(translateClause(_)(x)(ctx))
-      case _ => violation("assertion not subtype of TerminationMeasure")
-    }
-  }
-
-  def translateClause(x: in.ConditionalTerminationMeasureClause)(ass: in.Assertion)(ctx: Context): vpr.Exp = {
-    val(pos, info, errT) = ass.vprMeta
-    x match {
-      case in.ConditionalTerminationMeasureIfClause(measure, cond) =>
-        measure match {
-          case in.WildcardMeasure() =>
-            termination.DecreasesWildcard(Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
-          case in.TupleTerminationMeasure(vector) =>
-            val res = vector.map(n => n match {
-              case e: in.Expr => ctx.expr.translate(e)(ctx).res
-              case p: in.PredicateAccess => ctx.predicate.predicate(ctx)(p).res
-              case _ => violation("invalid tuple measure argument")
-            })
-           // val res = (vector.map(ctx.ass.translate(_)(ctx))) map getExprs
-            termination.DecreasesTuple(res, Some(ctx.expr.translate(cond)(ctx).res))(pos, info, errT)
-          case in.StarMeasure() => violation("Star measure occurs in if clause")
-          case in.InferTerminationMeasure() => violation("Infer measure occurs in if clause")
-        }
-      case in.StarMeasure() =>
-        termination.DecreasesStar()(pos, info, errT)
-    }
-  }
-
-  def getExprs(x: CodeWriter[vpr.Exp]): vpr.Exp = x.res
-
 }

@@ -93,7 +93,6 @@ requires g.WaitMode()
 requires forall i int :: 0 <= i && i < len(P) ==> g.TokenById(P[i], i) 
 ensures forall i int :: 0 <= i && i < len(P) ==> InjEval(P[i], i)
 ensures acc(g.WaitGroupP(), p)
-decreases
 func (g *WaitGroup) Wait(ghost p perm, ghost P seq[pred()])
 
 pred (g *WaitGroup) TokenById(ghost P pred(), ghost i int) {

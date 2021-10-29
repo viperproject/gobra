@@ -258,52 +258,39 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   implicit lazy val wellDefSpec: WellDefinedness[PSpecification] = createWellDef {
-    case PFunctionSpec(pres, preserves, posts, terminationMeasure, _) =>
+    case n@ PFunctionSpec(pres, preserves, posts, terminationMeasures, _) =>
       pres.flatMap(assignableToSpec) ++ preserves.flatMap(assignableToSpec) ++ posts.flatMap(assignableToSpec) ++
-      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++ 
-      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++ 
-      (terminationMeasure match {
-        case Some(measure) =>
-          measure match {
-            case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
-            case PWildcardMeasure() => noMessages
-            case PStarMeasure() => noMessages
-            case PInferTerminationMeasure() => noMessages
-            case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
-              case PConditionalTerminationMeasureIfClause(measure, cond) =>
-                measure match {
-                  case PWildcardMeasure() => assignableToSpec(cond)
-                  case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
-                  case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-                  case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
-                }
-              case PStarMeasure() => noMessages
-            })
-          }
-        case None => noMessages
-      })
+      preserves.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      pres.flatMap(e => allChildren(e).flatMap(illegalPreconditionNode)) ++
+      terminationMeasures.flatMap(wellDefTerminationMeasure) ++
+      // if has conditional clause, all clauses must be conditional
+      // can only have one non-conditional clause
+      error(n, "Specificaions can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
+      // measures must have the same type
+      error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
 
-    case PLoopSpec(invariants, terminationMeasure) => invariants.flatMap(assignableToSpec) ++
-    (terminationMeasure match {
-      case Some(measure) =>
-        measure match {
-          case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p))
-          case PWildcardMeasure() => noMessages
-          case PStarMeasure() => noMessages
-          case PInferTerminationMeasure() => noMessages
-          case PConditionalTerminationMeasures(tuple) => tuple.flatMap(p => p match {
-            case PConditionalTerminationMeasureIfClause(measure, cond) =>
-              measure match {
-                case PWildcardMeasure() => assignableToSpec(cond)
-                case PTupleTerminationMeasure(tuple) => tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++ assignableToSpec(cond)
-                case PStarMeasure() => Violation.violation("Star measure occurs in if clause")
-                case PInferTerminationMeasure() => Violation.violation("Infer measure occurs in if clause")
-              }
-            case PStarMeasure() => noMessages
-          })
-        }
-      case None => noMessages
-    })
+    case PLoopSpec(invariants, terminationMeasure) =>
+      invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure)
+  }
+
+  private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
+    case PTupleTerminationMeasure(tuple, cond) =>
+      tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
+        cond.toVector.flatMap(p => assignableToSpec(p) ++ isWeaklyPureExpr(p))
+    case PWildcardMeasure(cond) =>
+      cond.toVector.flatMap(p => assignableToSpec(p) ++ isWeaklyPureExpr(p))
+  }
+
+  private def isConditional(measure: PTerminationMeasure): Boolean = measure match {
+    case PTupleTerminationMeasure(_, cond) => cond.nonEmpty
+    case PWildcardMeasure(cond) => cond.nonEmpty
+  }
+
+  private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
+    val tupleTerminationMeasures =
+      measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
+              .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
+    tupleTerminationMeasures forall (_.equals(tupleTerminationMeasures.head))
   }
 
   def assignableToSpec(e: PExpression): Messages = {

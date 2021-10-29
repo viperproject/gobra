@@ -13,9 +13,10 @@ import viper.gobra.reporting.BackTranslator.RichErrorMessage
 import viper.gobra.reporting.{DefaultErrorBackTranslator, LoopInvariantNotWellFormedError, MethodContractNotWellFormedError, Source}
 import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.interfaces.translator.Assertions
-import viper.gobra.translator.util.ViperWriter.{ CodeWriter, MemberWriter}
+import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
 import viper.gobra.util.Violation
 import viper.silver.{ast => vpr}
+
 
 class AssertionsImpl extends Assertions {
 
@@ -61,9 +62,10 @@ class AssertionsImpl extends Assertions {
           triggeredForall = desugaredForall.map(_.autoTrigger)
           reducedForall = triggeredForall.reduce[vpr.Exp] { (a, b) => vpr.And(a, b)(pos, info, errT) }
         } yield reducedForall
-      
+
       case _ => Violation.violation(s"Assertion $ass did not match with any implemented case.")
     }
+
     ret
   }
 
@@ -98,5 +100,4 @@ class AssertionsImpl extends Assertions {
   override def precondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
 
   override def postcondition(x: in.Assertion)(ctx: Context): MemberWriter[vpr.Exp] = MemL.pure(contract(x)(ctx))(ctx)
-
 }

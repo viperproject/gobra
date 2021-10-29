@@ -119,7 +119,6 @@ class PredicatesImpl extends Predicates {
       } yield predicateinstance.PredicateInstance(vRecv +: vArgs, pred.uniqueName)(pos, info, errT)
   }
 
-
   /** Returns proxy(args) */
   override def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate] = {
     val predicateInstance = proxy match {

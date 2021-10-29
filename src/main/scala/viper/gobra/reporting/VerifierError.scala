@@ -417,11 +417,6 @@ case class TupleBoundedFalseError(info: Source.Verifier.Info) extends Verificati
   override def message: String = s"Termination measure ${info.origin.tag.trim} might not be bounded."
 }
 
-case class InferTerminationMeasureFailedReason(node: Source.Verifier.Info) extends VerificationErrorReason {
-  override def id: String = "infer_termination_measure_failed"
-  override def message: String = s"Inferred measures cannot verify the termination. Please provide one by yourself"
-}
-
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

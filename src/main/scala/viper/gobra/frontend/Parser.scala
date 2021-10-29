@@ -443,7 +443,6 @@ object Parser {
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
           val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
-          // TODO: add well formedness checks to termination measures
           val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
           PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)

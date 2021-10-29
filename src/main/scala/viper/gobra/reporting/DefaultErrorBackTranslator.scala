@@ -72,16 +72,12 @@ object DefaultErrorBackTranslator {
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
       case termination.TerminationConditionFalse(CertainSource(info)) =>
          TerminationConditionFalseError(info)
-
       case termination.TupleConditionFalse(CertainSource(info)) =>
          TupleConditionFalseError(info)
-
       case termination.TupleSimpleFalse(CertainSource(info)) =>
          TupleSimpleFalseError(info)
-
       case termination.TupleDecreasesFalse(CertainSource(info)) =>
          TupleDecreasesFalseError(info)
-
       case termination.TupleBoundedFalse(CertainSource(info)) =>
          TupleBoundedFalseError(info)
     }
@@ -150,7 +146,7 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
-       case termination.FunctionTerminationError( Source(info) , reason, _) =>
+       case termination.FunctionTerminationError(Source(info) , reason, _) =>
          FunctionTerminationError(info) dueTo translate(reason)
        case termination.MethodTerminationError(Source(info), reason, _) =>
          MethodTerminationError(info) dueTo translate(reason)

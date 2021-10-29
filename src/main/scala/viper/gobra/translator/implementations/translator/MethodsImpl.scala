@@ -100,7 +100,4 @@ class MethodsImpl extends Methods {
 
     } yield method
   }
-
-  def getExprs(x: CodeWriter[vpr.Exp]): vpr.Exp = x.res
-
 }

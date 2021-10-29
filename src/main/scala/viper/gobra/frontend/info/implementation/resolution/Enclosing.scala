@@ -149,7 +149,4 @@ trait Enclosing { this: TypeInfoImpl =>
 
     aux(nil)
   }
-
-  lazy val tryEnclosingMember: PNode => Option[PMember] =
-    down[Option[PMember]](None) { case x: PMember => Some(x) }
 }

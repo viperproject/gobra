@@ -766,11 +766,6 @@ object Desugar {
       blockV(dStatements)(meta(block))
     }
 
-     def getMeasureStmts(ctx: FunctionContext)(ass:PExpression):Vector[in.Stmt]={
-      val measure=exprD(ctx)(ass)
-      measure.stmts
-    }
-
     def stmtD(ctx: FunctionContext)(stmt: PStatement): Writer[in.Stmt] = {
 
       def goS(s: PStatement): Writer[in.Stmt] = stmtD(ctx)(s)

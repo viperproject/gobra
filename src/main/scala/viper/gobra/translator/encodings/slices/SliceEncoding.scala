@@ -418,7 +418,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.fullSliceFromArray}_${Names.freshName}",
         Seq(aDecl, iDecl, jDecl, kDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3, pre4,pre5),
+        Seq(pre1, pre2, pre3, pre4, pre5),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()
@@ -478,7 +478,7 @@ class SliceEncoding(arrayEmb : SharedArrayEmbedding) extends LeafTypeEncoding {
         s"${Names.fullSliceFromSlice}_${Names.freshName}",
         Seq(sDecl, iDecl, jDecl, kDecl),
         ctx.slice.typ(typ),
-        Seq(pre1, pre2, pre3, pre4,pre5),
+        Seq(pre1, pre2, pre3, pre4, pre5),
         Seq(post1, post2, post3, post4),
         if (generateFunctionBodies) Some(body) else None
       )()

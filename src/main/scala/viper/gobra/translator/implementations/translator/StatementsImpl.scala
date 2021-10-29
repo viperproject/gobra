@@ -190,6 +190,5 @@ class StatementsImpl extends Statements {
     }
   }
 
-  def getExprs(x: CodeWriter[vpr.Exp]): vpr.Exp = x.res
 
 }

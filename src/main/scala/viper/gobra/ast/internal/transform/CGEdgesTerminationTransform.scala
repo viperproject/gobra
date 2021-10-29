@@ -9,7 +9,10 @@ import viper.gobra.ast.{internal => in}
 import viper.gobra.theory.Addressability
 import viper.gobra.util.Violation
 
-/* TODO: doc, header */
+/**
+  * Transformation responsible for generating call-graph edges from interface methods to their implementations' methods.
+  * This is necessary to soundly verify termination in the presence of dynamic method binding.
+  */
 object CGEdgesTerminationTransform extends InternalTransform {
   override def name(): String = "add_cg_edges_for_termination_checking"
 

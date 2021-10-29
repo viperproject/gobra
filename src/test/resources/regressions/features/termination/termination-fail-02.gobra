@@ -1,0 +1,76 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+type FactEven interface {
+	requires n >= 0
+	decreases n
+	factEven(n int) int
+}
+
+type FactOdd interface {
+	requires n >= 0
+	decreases n
+	factOdd(n int) int
+}
+
+type FactEvenImplNotTer struct {}
+
+type IsEven interface {
+	requires n >= 0
+	decreases n
+	isEven(n int) bool
+}
+
+type IsOdd interface {
+	requires n >= 0
+	decreases n
+	isOdd(n int) bool
+}
+
+
+type IsEvenImpl struct {}
+
+requires n >= 0
+decreases n
+func (y IsEvenImpl) isEven(n int) bool {
+	if n == 0 {
+		return true
+	} else {
+		var y IsOdd = IsOddImpl{}
+		//:: ExpectedOutput(function_termination_error)
+		return !y.isOdd(n)
+	}
+}
+
+type IsOddImpl struct {}
+
+requires n >= 0
+decreases n
+func (y IsOddImpl) isOdd(n int) bool {
+	if n == 0 {
+		return false
+	} else if n == 1 {
+		return true
+	} else {
+		var y IsEven = IsEvenImpl{}
+		//:: ExpectedOutput(function_termination_error)
+		return !y.isEven(n)
+	}
+}
+
+type Finite interface {
+	decreases n
+	infinite(n int) int
+}
+
+type BadFiniteImpl struct {}
+
+func (y BadFiniteImpl) infinite(n int) int {
+	return y.infinite(n)
+}
+
+// func BadFiniteImplClient(b BadFiniteImpl) {
+//	var i Finite = b
+//}

@@ -1,0 +1,99 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+type FactEven interface {
+	requires n >= 0
+	decreases n
+	factEven(n int) int
+}
+
+type FactOdd interface {
+	requires n >= 0
+	decreases n
+	factOdd(n int) int
+}
+
+type FactEvenImpl struct {}
+
+requires v >= 0
+decreases v
+func(x FactEvenImpl) factEven(v int) int {
+	if v == 0 {
+		return 0
+	} else {
+		var y FactOdd = FactOddImpl{}
+		return v * y.factOdd(v-1)
+	}
+}
+
+type FactOddImpl struct {}
+
+requires v >= 0
+decreases v
+func(y FactOddImpl) factOdd(v int) int {
+	if v == 0 {
+		return 0
+	} else if v == 1 {
+		return 1
+	} else {
+		var y FactEven = FactEvenImpl{}
+		return v * y.factEven(v-1)
+	}
+}
+
+type IsEven interface {
+	requires n >= 0
+	decreases n
+	isEven(n int) bool
+}
+
+type IsOdd interface {
+	requires n >= 0
+	decreases n
+	isOdd(n int) bool
+}
+
+type IsEvenImpl struct {}
+
+requires n >= 0
+decreases n
+func(y IsEvenImpl) isEven(n int) bool {
+	if n == 0 {
+		return true
+	} else {
+		var y IsOdd = IsOddImpl{}
+		return y.isOdd(n-1)
+	}
+}
+
+type IsOddImpl struct {}
+
+requires n >= 0
+decreases n
+func (y IsOddImpl) isOdd(n int) bool {
+	if n == 0 {
+		return true
+	} else {
+		var y IsEven = IsEvenImpl{}
+		return y.isEven(n-1)
+	}
+}
+
+type Infinite interface {
+	decreases _
+	infinite(n int) int
+}
+
+type InfiniteImpl struct {}
+
+func (y InfiniteImpl) infinite(n int) int {
+	return y.infinite(n)
+}
+
+(InfiniteImpl) implements Infinite {
+	(i InfiniteImpl) infinite(n int) int {
+		return i.infinite(n)
+	}
+}

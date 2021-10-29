@@ -17,7 +17,6 @@ import viper.gobra.reporting.Source.AutoImplProofAnnotation
 import viper.gobra.reporting.{DesugaredMessage, Source}
 import viper.gobra.theory.Addressability
 import viper.gobra.translator.Names
-import viper.gobra.util.TypeBounds.UnboundedInteger
 import viper.gobra.util.Violation.violation
 import viper.gobra.util.{DesugarWriter, TypeBounds, Violation}
 
@@ -1858,30 +1857,6 @@ object Desugar {
       }}
     }
 
-    def typeAsExpr(t: in.Type)(src: Source.Parser.Info): Writer[in.Expr] = {
-      t match {
-        case in.BoolT(_) => unit(in.BoolTExpr()(src))
-        case in.IntT(_, kind) => unit(in.IntTExpr(kind)(src))
-        case in.StringT(_) => unit(in.StringTExpr()(src))
-        case in.PermissionT(_) => unit(in.PermTExpr()(src))
-        case in.ArrayT(length, elems, _) => unit(in.ArrayTExpr(in.IntLit(length, UnboundedInteger)(src), typeAsExpr(elems)(src).res)(src))
-        case in.SliceT(elems, _) => unit(in.SliceTExpr(typeAsExpr(elems)(src).res)(src))
-        case in.MapT(keys, values, _) => unit(in.MapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
-        case in.SequenceT(t, _) => unit(in.SequenceTExpr(typeAsExpr(t)(src).res)(src))
-        case in.SetT(t, _) => unit(in.SetTExpr(typeAsExpr(t)(src).res)(src))
-        case in.MultisetT(t, _) => unit(in.MultisetTExpr(typeAsExpr(t)(src).res)(src))
-        case in.MathMapT(keys, values, _) => unit(in.MathMapTExpr(typeAsExpr(keys)(src).res, typeAsExpr(values)(src).res)(src))
-        case in.OptionT(t, _) => unit(in.OptionTExpr(typeAsExpr(t)(src).res)(src))
-        case in.DefinedT(name, _) => unit(in.DefinedTExpr(name)(src))
-        case in.PointerT(t, _) => unit(in.PointerTExpr(typeAsExpr(t)(src).res)(src))
-        case in.TupleT(ts, _) => unit(in.TupleTExpr(sequence(ts map(typeAsExpr(_)(src))).res)(src))
-        case in.StructT(_, fields: Vector[in.Field], _) => unit(in.StructTExpr(fields.map (field => transformField(field)(src)))(src))
-        case _ => Violation.violation(s"no corresponding type expression matched: $t")
-      }
-    }
-
-    def transformField(field: in.Field)(src: Source.Parser.Info): (String, in.Expr, Boolean) = (field.name, typeAsExpr(field.typ)(src).res, field.ghost)
-
     def exprAndTypeAsExpr(ctx: FunctionContext)(expr: PExpressionOrType): Writer[in.Expr] = {
 
       def go(x: PExpressionOrType): Writer[in.Expr] = exprAndTypeAsExpr(ctx)(x)
@@ -2176,77 +2151,7 @@ object Desugar {
             in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           }
           definedMethods += (proxy -> mem)
-          AdditionalMembers.addFinalizingComputation(() => {
-            //Todo: Remove mem and readd with a body
-            definedMethods -= proxy
-            val proxies = computeMemberProxies(definedMethods.values, interfaceImplementations, definedTypes)
-            if (m.spec.isPure) {
-              val helperProxy = in.MethodProxy(proxy.name, proxy.uniqueName + "_helper" )(src)
-              val helperFunction = in.PureMethod(recv, helperProxy, args, returns, pres, posts, terminationMeasures, None)(src)
-              val default = in.PureMethodCall(recv, helperProxy, args, returns.head.typ)(src)
-              definedMethods += (helperProxy -> helperFunction)
-              def helper(list: List[in.Type]): in.Expr = {
-                list match {
-                  case x::xs => {
-                    val implProxy = proxies.get(x) match {
-                      case Some(set) =>
-                        val setfiltered = set.filter(_.name == mem.name.name)
-                        Violation.violation(setfiltered.size == 1, s"None unique method proxy for implementation found")
-                        Violation.violation(setfiltered.head.isInstanceOf[in.MethodProxy], s"Unexpected proxy type for implementation")
-                        setfiltered.head.asInstanceOf[in.MethodProxy]
-                      case None => Violation.violation(s"Method proxies not found for the type $x")
-                    }
-                    in.Conditional(in.EqCmp(in.TypeOf(recv)(src), typeAsExpr(x)(src).res)(src),
-                      in.PureMethodCall(recv, implProxy, args, returns.head.typ)(src), helper(xs), returns.head.typ)(src)
-                  }
-                  case Nil => default
-                }
-              }
-              val impls = interfaceImplementations.get(dT)
-              val expr: in.Expr = impls match {
-                case Some(set) => {
-                  val list = set.toList
-                  in.Conditional(in.BoolLit(true)(src), default, helper(list), returns.head.typ)(src)
-                }
-                case None => in.Conditional(in.BoolLit(true)(src), default, default, returns.head.typ)(src)
-              }
-              val newMem = in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, Some(expr))(src)
-              definedMethods += (proxy -> newMem)
-              AdditionalMembers.addMember(newMem)
-            } else {
-              val firstStatement: Vector[in.Stmt] = Vector(in.Assume(in.ExprAssertion(in.BoolLit(false)(src))(src))(src))
-              val impls = interfaceImplementations.get(dT)
-              val caseSplit = impls match {
-                case Some(set) => {
-                  var statements: Vector[in.Stmt] = Vector(in.Seqn(Vector())(src))
-                  val iterator = set.iterator
-                  while (iterator.hasNext) {
-                    val typ = iterator.next()
-                    val implProxy = proxies.get(typ) match {
-                      case Some(set) => val setfiltered = set.filter(_.name == mem.name.name)
-                        Violation.violation(setfiltered.size == 1, s"None unique method proxy for implementation found $setfiltered")
-                        Violation.violation(setfiltered.head.isInstanceOf[in.MethodProxy], s"Unexpected proxy type for implementation")
-                        setfiltered.head.asInstanceOf[in.MethodProxy]
-                      case None => Violation.violation(s"Method proxies not found for the type $typ")
-                    }
-                    val statement = in.If(in.EqCmp(in.TypeOf(recv)(src), typeAsExpr(typ)(src).res)(src),
-                      in.MethodCall(returns map parameterAsLocalValVar, recv, implProxy, args)(src),
-                      in.Seqn(Vector())(src))(src)
-                    statements = statements :+ statement
-                  }
-                  statements
-                }
-                case None => {
-                  Vector(in.Seqn(Vector())(src))
-                }
-              }
-              val allStatements = firstStatement ++ caseSplit
-              val body = in.Block(Vector.empty, allStatements)(src)
-              val newMem = in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, Some(body))(src)
-              definedMethods += (proxy -> newMem)
-              AdditionalMembers.addMember(newMem)
-            }
-          })
+          AdditionalMembers.addMember(mem)
         }
       }
     }

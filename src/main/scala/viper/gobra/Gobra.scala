@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.OverflowChecksTransform
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
@@ -173,12 +173,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+    val transformed = CGEdgesTerminationTransform.transform(program)
+
     if (config.checkOverflows) {
-      val result = OverflowChecksTransform.transform(program)
+      val result = OverflowChecksTransform.transform(transformed)
       config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
       Right(result)
     } else {
-      Right(program)
+      Right(transformed)
     }
   }
 

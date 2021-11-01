@@ -34,7 +34,6 @@ pred (a *UDPAddr) Mem() {
     acc(a) && (forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i]))
 }
 
-/* (joao) commented due to issue 341 (https://github.com/viperproject/gobra/issues/341)
 (*UDPAddr) implements Addr {
 	(e *UDPAddr) Network() string {
 		return e.Network()
@@ -44,7 +43,6 @@ pred (a *UDPAddr) Mem() {
 		return e.String()
 	}
 }
-*/
 
 // Network returns the address's network name, "udp".
 ensures res == "udp"

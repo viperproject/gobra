@@ -33,7 +33,24 @@ object CGEdgesTerminationTransform extends InternalTransform {
           proxies.foreach {
             case proxy: in.MethodProxy =>
               table.lookup(proxy) match {
-                case m: in.Method if m.terminationMeasures.nonEmpty && m.body.isEmpty =>
+                /**
+                  * Transforms the abstract methods from interface declarations into non-abstract methods containing calls
+                  * to all implementations' corresponding methods. The new body has the form
+                  *   {
+                  *     assume false
+                  *     if typeOf(recv) == impl1 {
+                  *       call implementation method from impl1 on recv
+                  *     }
+                  *     if typeOf(recv) == impl2 {
+                  *       call implementation method from impl2 on recv
+                  *     }
+                  *     ...
+                  *     if typeOf(recv) == implN {
+                  *       call implementation method from implN on recv
+                  *     }
+                  *   }
+                  */
+                case m: in.Method if m.terminationMeasures.nonEmpty =>
                   // only performs transformation if method has termination measures
                   val src = m.getMeta
                   val assumeFalse = in.Assume(in.ExprAssertion(in.BoolLit(b = false)(src))(src))(src)
@@ -45,7 +62,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                           case implProxy: in.MethodProxy =>
                             in.If(
                               in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(t)(src))(src),
-                              in.Seqn(Vector(in.MethodCall(m.results map parameterAsLocalValVar, m.receiver, implProxy, m.args)(src), in.Return()(src)))(src),
+                              in.Seqn(Vector(in.MethodCall(m.results map parameterAsLocalValVar, in.Parameter.In(m.receiver.id, t)(src), implProxy, m.args)(src), in.Return()(src)))(src),
                               in.Seqn(Vector())(src)
                             )(src)
                           case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
@@ -58,6 +75,21 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember
 
+                /**
+                  * Transforms the abstract pure methods from interface declarations into non-abstract pure methods containing calls
+                  * to all implementations' corresponding methods. The new body has the form
+                  *   {
+                  *      false?
+                  *       (typeOf(recv) == impl1 ? call method from impl1 on recv :
+                  *         (typeOf(recv) == impl2 ? call method from impl2 on recv :
+                  *           (...  :
+                  *             typeOf(recv) == implN ? call implementation method from implN on recv : call fallbackFunction on recv))):
+                  *        call fallbackFunction on recv
+                  *   }
+                  *
+                  *   This transformation generates a fallbackFunction, an abstract function which receives the receiver and parameters
+                  *   of the original method and has the same return type and spec.
+                  */
                 case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.body.isEmpty =>
                   // only performs transformation if method has termination measures
                   val src = m.getMeta
@@ -74,19 +106,15 @@ object CGEdgesTerminationTransform extends InternalTransform {
                     } else {
                       Violation.violation("Expected at least one out-parameter, but got 0 instead.")
                     }
-                  val newBody = implementations.toVector.foldLeft[in.Expr](
-                    in.PureFunctionCall(
-                      fallbackProxy,
-                      m.receiver +: m.args,
-                      returnType
-                    )(src)
-                  ) {
+
+                  val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
+                  val bodyTrueBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
                     case (accum: in.Expr, impl: in.Type) =>
                       table.lookup(impl, proxy.name) match {
                         case Some(implProxy: in.MethodProxy) =>
                           in.Conditional(
                             in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                            in.PureMethodCall(m.receiver, implProxy, m.args, returnType)(src),
+                            in.PureMethodCall(in.Parameter.In(m.receiver.id, impl)(src), implProxy, m.args, returnType)(src),
                             accum,
                             returnType
                           )(src)
@@ -94,6 +122,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                         case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
                       }
                   }
+                  val newBody = in.Conditional(in.BoolLit(b = false)(src), bodyTrueBranch, fallbackProxyCall, returnType)(src)
                   val newMember = in.PureMethod(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
 
                   methodsToRemove += m

@@ -3,20 +3,6 @@
 
 package termination
 
-type FactEven interface {
-	requires n >= 0
-	decreases n
-	factEven(n int) int
-}
-
-type FactOdd interface {
-	requires n >= 0
-	decreases n
-	factOdd(n int) int
-}
-
-type FactEvenImplNotTer struct {}
-
 type IsEven interface {
 	requires n >= 0
 	decreases n
@@ -28,7 +14,6 @@ type IsOdd interface {
 	decreases n
 	isOdd(n int) bool
 }
-
 
 type IsEvenImpl struct {}
 

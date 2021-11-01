@@ -41,7 +41,6 @@ pred (a *IPAddr) Mem() {
     acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i])
 }
 
-/* (joao) commented due to issue 341 (https://github.com/viperproject/gobra/issues/341)
 (*IPAddr) implements Addr {
 	(e *IPAddr) Network() string {
 		return e.Network()
@@ -51,7 +50,6 @@ pred (a *IPAddr) Mem() {
 		return e.String()
 	}
 }
-*/
 
 // Network returns the address's network name, "ip".
 ensures res == "ip"

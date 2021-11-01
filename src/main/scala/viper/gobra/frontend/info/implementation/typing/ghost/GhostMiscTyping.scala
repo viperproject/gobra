@@ -269,16 +269,17 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
 
-    case PLoopSpec(invariants, terminationMeasure) =>
-      invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure)
+    case n@ PLoopSpec(invariants, terminationMeasure) =>
+      invariants.flatMap(assignableToSpec) ++ terminationMeasure.toVector.flatMap(wellDefTerminationMeasure) ++
+        error(n, "Termination measures of loops cannot be conditional.", terminationMeasure.exists(isConditional))
   }
 
   private def wellDefTerminationMeasure(measure: PTerminationMeasure): Messages = measure match {
     case PTupleTerminationMeasure(tuple, cond) =>
       tuple.flatMap(p => comparableType.errors(exprType(p))(p) ++ isWeaklyPureExpr(p)) ++
-        cond.toVector.flatMap(p => assignableToSpec(p) ++ isWeaklyPureExpr(p))
+        cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
     case PWildcardMeasure(cond) =>
-      cond.toVector.flatMap(p => assignableToSpec(p) ++ isWeaklyPureExpr(p))
+      cond.toVector.flatMap(p => assignableToSpec(p) ++ isPureExpr(p))
   }
 
   private def isConditional(measure: PTerminationMeasure): Boolean = measure match {

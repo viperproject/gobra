@@ -689,13 +689,14 @@ class InterfaceEncoding extends LeafTypeEncoding {
 
     for {
       vPres <- ml.sequence(p.pres map (ctx.ass.precondition(_)(ctx)))
+      body  <- ml.option(p.body.map(p => ml.pure(ctx.expr.translate(p)(ctx))(ctx)))
       func = vpr.Function(
         name = p.name.uniqueName,
         formalArgs = recvDecl +: argDecls,
         typ = resultType,
         pres = vPres,
         posts = cases.toVector map { case (impl, implProxy) => clause(impl, implProxy) },
-        body = None
+        body = body
       )()
     } yield Vector(func)
   }

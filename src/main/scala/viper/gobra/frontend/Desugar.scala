@@ -89,7 +89,10 @@ object Desugar {
     val combinedDefinedT = combineTableField(_.definedTypes)
     val combinedMethods = combineTableField(_.definedMethods)
     val combinedMPredicates = combineTableField(_.definedMPredicates)
-    val combinedImplementations = combineTableField(_.interfaceImplementations)
+    val combinedImplementations = {
+      val interfaceImplMaps = desugarers.flatMap(_.interfaceImplementations.toSeq)
+      interfaceImplMaps.groupMapReduce[in.InterfaceT, Set[in.Type]](_._1)(_._2)(_ ++ _)
+    }
     val combinedMemberProxies = computeMemberProxies(combinedMethods.values ++ combinedMPredicates.values, combinedImplementations, combinedDefinedT)
     val combineImpProofPredAliases = combineTableField(_.implementationProofPredicateAliases)
     val table = new in.LookupTable(

@@ -265,7 +265,7 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
       terminationMeasures.flatMap(wellDefTerminationMeasure) ++
       // if has conditional clause, all clauses must be conditional
       // can only have one non-conditional clause
-      error(n, "Specificaions can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
+      error(n, "Specifications can either contain one non-conditional termination measure or multiple conditional-termination measures.", terminationMeasures.length > 1 && !terminationMeasures.forall(isConditional)) ++
       // measures must have the same type
       error(n, "Termination measures must all have the same type.", !hasSameMeasureType(terminationMeasures))
 
@@ -287,10 +287,10 @@ trait GhostMiscTyping extends BaseTyping { this: TypeInfoImpl =>
   }
 
   private def hasSameMeasureType(measures: Vector[PTerminationMeasure]): Boolean = {
-    val tupleTerminationMeasures =
+    val tupleMeasureTypes =
       measures.filter(_.isInstanceOf[PTupleTerminationMeasure])
               .map(_.asInstanceOf[PTupleTerminationMeasure].tuple.map(typ))
-    tupleTerminationMeasures forall (_.equals(tupleTerminationMeasures.head))
+    tupleMeasureTypes forall (_.equals(tupleMeasureTypes.head))
   }
 
   def assignableToSpec(e: PExpression): Messages = {

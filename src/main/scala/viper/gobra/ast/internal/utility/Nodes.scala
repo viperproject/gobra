@@ -28,8 +28,8 @@ object Nodes {
       case Program(_, members, _) => members
         case Method(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
         case PureMethod(receiver, name, args, results, pres, posts, measures, body) => Seq(receiver, name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
-        case Function(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts++ measures ++ body
-        case PureFunction(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts++ measures ++ body
+        case Function(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
+        case PureFunction(name, args, results, pres, posts, measures, body) => Seq(name) ++ args ++ results ++ pres ++ posts ++ measures ++ body
       case FPredicate(name, args, body) => Seq(name) ++ args ++ body
       case MPredicate(recv, name, args, body) => Seq(recv, name) ++ args ++ body
       case MethodSubtypeProof(subProxy, _, superProxy, rec, args, res, b) => Seq(subProxy, superProxy, rec) ++ args ++ res ++ b

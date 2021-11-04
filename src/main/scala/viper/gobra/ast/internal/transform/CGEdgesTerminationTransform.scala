@@ -90,39 +90,46 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *   This transformation generates a fallbackFunction, an abstract function which receives the receiver and parameters
                   *   of the original method and has the same return type and spec.
                   */
-                case m: in.PureMethod if m.terminationMeasures.nonEmpty && m.body.isEmpty =>
+                case m: in.PureMethod if m.terminationMeasures.nonEmpty =>
+                  Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
+                  Violation.violation(m.posts.isEmpty, s"Expected no postcondition, but got ${m.posts}.")
                   // only performs transformation if method has termination measures
                   val src = m.getMeta
 
                   // the fallback function is called if no comparison succeeds
+                  val returnType = m.results.head.typ
                   val fallbackName = s"${m.name}$$fallback"
                   val fallbackProxy = in.FunctionProxy(fallbackName)(src)
-                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, m.posts, m.terminationMeasures, None)(src)
-                  val returnType =
-                    if (m.results.length == 1) {
-                      m.results.head.typ
-                    } else if (m.results.length > 1) {
-                      in.TupleT(m.results.map(_.typ), Addressability.outParameter)
-                    } else {
-                      Violation.violation("Expected at least one out-parameter, but got 0 instead.")
-                    }
+                  val fallbackPosts = implementations.toVector.map(impl => table.lookup(impl, proxy.name) match {
+                    case Some(implProxy: in.MethodProxy) =>
+                      in.Implication(
+                        in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
+                        in.ExprAssertion(in.EqCmp(m.results.head, in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src))(src))(src)
+                      )(src)
+                    case None => in.ExprAssertion(in.BoolLit(b = true)(src))(src)
+                  })
+                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, Vector(in.WildcardMeasure(None)(src)), None)(src)
+                  println(s"posts: ${fallbackPosts}")
 
                   val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
-                  val bodyTrueBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
-                    case (accum: in.Expr, impl: in.Type) =>
-                      table.lookup(impl, proxy.name) match {
-                        case Some(implProxy: in.MethodProxy) =>
-                          in.Conditional(
-                            in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                            in.PureMethodCall(in.Parameter.In(m.receiver.id, impl)(src), implProxy, m.args, returnType)(src),
-                            accum,
-                            returnType
-                          )(src)
-                        case None => accum
-                        case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                      }
-                  }
-                  val newBody = in.Conditional(in.BoolLit(b = false)(src), bodyTrueBranch, fallbackProxyCall, returnType)(src)
+                  val newBody = in.Conditional(
+                    in.BoolLit(b = true)(src),
+                    fallbackProxyCall,
+                    implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
+                      case (accum: in.Expr, impl: in.Type) =>
+                        table.lookup(impl, proxy.name) match {
+                          case Some(implProxy: in.MethodProxy) =>
+                            in.Conditional(
+                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
+                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
+                              accum,
+                              returnType
+                            )(src)
+                          case None => accum
+                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                        }
+                    },
+                    returnType)(src)
                   val newMember = in.PureMethod(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
 
                   methodsToRemove += m

@@ -12,6 +12,7 @@ import viper.gobra.reporting.Source
 import viper.gobra.translator.interfaces.Context
 import viper.silver.{ast => vpr}
 import viper.gobra.translator.util.ViperWriter.{CodeWriter, MemberWriter}
+import viper.silver.plugin.standard.predicateinstance
 
 abstract class Predicates extends Generator {
 
@@ -19,6 +20,8 @@ abstract class Predicates extends Generator {
   def fpredicate(pred: in.FPredicate)(ctx: Context): MemberWriter[vpr.Predicate]
 
   def predicateAccess(ctx: Context): (in.PredicateAccess, in.Expr) ==> CodeWriter[vpr.PredicateAccessPredicate]
+
+  def predicate(ctx: Context): in.PredicateAccess ==> CodeWriter[predicateinstance.PredicateInstance]
 
   /** Returns proxy(args) */
   def proxyAccess(proxy: in.PredicateProxy, args: Vector[in.Expr], perm: in.Expr)(src: Source.Parser.Info)(ctx: Context): CodeWriter[vpr.PredicateAccessPredicate]

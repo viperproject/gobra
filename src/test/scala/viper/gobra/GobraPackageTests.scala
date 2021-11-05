@@ -12,7 +12,6 @@ import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.backend.ViperVerifierConfig
 import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}

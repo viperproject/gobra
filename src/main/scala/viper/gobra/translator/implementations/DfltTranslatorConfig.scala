@@ -36,6 +36,7 @@ class DfltTranslatorConfig(
   val condition: Conditions = new ConditionsImpl,
   val unknownValue: UnknownValues = new UnknownValuesImpl,
   val ass : Assertions = new AssertionsImpl,
+  val measures : TerminationMeasures = new TerminationMeasuresImpl,
   val expr : Expressions = new ExpressionsImpl,
   val method : Methods = new MethodsImpl,
   val pureMethod : PureMethods = new PureMethodsImpl,

@@ -463,9 +463,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
+      val terminationMeasures = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
       // p1' := p1; ... ; pn' := pn
       val argInits = argsWithSubs.flatMap{
@@ -502,7 +503,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Function(name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.Function(name, args, returns, pres, posts, terminationMeasures, bodyOpt)(fsrc)
     }
 
     def pureFunctionD(decl: PFunctionDecl): in.PureFunction = {
@@ -533,9 +534,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = decl.spec.pres map preconditionD(ctx)
       val posts = decl.spec.posts map postconditionD(ctx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -546,10 +548,8 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureFunction(name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.PureFunction(name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
-
-
 
     def methodD(decl: PMethodDecl): in.MethodMember =
       if (decl.spec.isPure) pureMethodD(decl) else {
@@ -612,9 +612,10 @@ object Desugar {
         case _ =>
       }
 
-      // translate pre- and postconditions
+      // translate pre- and postconditions and termination measures
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(specCtx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(specCtx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
       // s' := s
       val recvInits = (recvWithSubs match {
@@ -663,7 +664,7 @@ object Desugar {
         in.Block(vars, body)(meta(s))
       }
 
-      in.Method(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.Method(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
 
     def pureMethodD(decl: PMethodDecl): in.PureMethod = {
@@ -705,6 +706,7 @@ object Desugar {
       // translate pre- and postconditions
       val pres = (decl.spec.pres ++ decl.spec.preserves) map preconditionD(ctx)
       val posts = (decl.spec.preserves ++ decl.spec.posts) map postconditionD(ctx)
+      val terminationMeasure = sequence(decl.spec.terminationMeasures map terminationMeasureD(ctx)).res
 
       val bodyOpt = decl.body.map {
         case (_, b: PBlock) =>
@@ -715,7 +717,7 @@ object Desugar {
           implicitConversion(res.typ, returns.head.typ, res)
       }
 
-      in.PureMethod(recv, name, args, returns, pres, posts, bodyOpt)(fsrc)
+      in.PureMethod(recv, name, args, returns, pres, posts, terminationMeasure, bodyOpt)(fsrc)
     }
 
     def fpredicateD(decl: PFPredicateDecl): in.FPredicate = {
@@ -838,13 +840,15 @@ object Desugar {
                 dPre <- maybeStmtD(ctx)(pre)(src)
                 (dCondPre, dCond) <- prelude(exprD(ctx)(cond))
                 (dInvPre, dInv) <- prelude(sequence(spec.invariants map assertionD(ctx)))
+                (dTerPre, dTer) <- prelude(option(spec.terminationMeasure map terminationMeasureD(ctx)))
+
                 dBody = blockD(ctx)(body)
                 dPost <- maybeStmtD(ctx)(post)(src)
 
                 wh = in.Seqn(
-                  Vector(dPre) ++ dCondPre ++ dInvPre ++ Vector(
-                    in.While(dCond, dInv, in.Seqn(
-                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre
+                  Vector(dPre) ++ dCondPre ++ dInvPre ++ dTerPre ++ Vector(
+                    in.While(dCond, dInv, dTer, in.Seqn(
+                      Vector(dBody, dPost) ++ dCondPre ++ dInvPre ++ dTerPre
                     )(src))(src)
                   )
                 )(src)
@@ -2193,8 +2197,6 @@ object Desugar {
       in.DefinedT(name, addrMod)
     }
 
-
-
     def registerInterface(t: Type.InterfaceT, dT: in.InterfaceT): Unit = {
       Violation.violation(t.decl.embedded.isEmpty, "embeddings in interfaces are currently not supported")
 
@@ -2228,13 +2230,13 @@ object Desugar {
           val specCtx = new FunctionContext(_ => _ => in.Seqn(Vector.empty)(src)) // dummy assign
           val pres = (m.spec.pres ++ m.spec.preserves) map preconditionD(specCtx)
           val posts = (m.spec.preserves ++ m.spec.posts) map postconditionD(specCtx)
+          val terminationMeasures = sequence(m.spec.terminationMeasures map terminationMeasureD(specCtx)).res
 
           val mem = if (m.spec.isPure) {
-            in.PureMethod(recv, proxy, args, returns, pres, posts, None)(src)
+            in.PureMethod(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           } else {
-            in.Method(recv, proxy, args, returns, pres, posts, None)(src)
+            in.Method(recv, proxy, args, returns, pres, posts, terminationMeasures, None)(src)
           }
-
           definedMethods += (proxy -> mem)
           AdditionalMembers.addMember(mem)
         }
@@ -2891,6 +2893,29 @@ object Desugar {
 
     def postconditionD(ctx: FunctionContext)(ass: PExpression): in.Assertion = {
       specificationD(ctx)(ass)
+    }
+
+    def terminationMeasureD(ctx: FunctionContext)(measure: PTerminationMeasure): Writer[in.TerminationMeasure] = {
+      val src: Meta = meta(measure)
+
+      def goE(expr: PExpression): Writer[in.Node] = expr match {
+        case p: PInvoke => info.resolve(p) match {
+          case Some(x: ap.PredicateCall) => predicateCallAccD(ctx)(x)(src)
+          case Some(_: ap.FunctionCall) => exprD(ctx)(p)
+          case _ => violation(s"Unexpected expression $expr")
+        }
+        case _ => exprD(ctx)(expr)
+      }
+
+      measure match {
+        case PWildcardMeasure(cond) =>
+          for { c <- option(cond map exprD(ctx)) } yield in.WildcardMeasure(c)(src)
+        case PTupleTerminationMeasure(tuple, cond) =>
+          for {
+            t <- sequence(tuple map goE)
+            c <- option(cond map exprD(ctx))
+          } yield in.TupleTerminationMeasure(t, c)(src)
+      }
     }
 
     def assertionD(ctx: FunctionContext)(n: PExpression): Writer[in.Assertion] = {

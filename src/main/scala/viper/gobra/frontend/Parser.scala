@@ -421,12 +421,10 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-    lazy val outline: Parser[POutline] = 
+    lazy val outline: Parser[POutline] =
       (functionSpec <~ "outline") ~ ("(" ~> repsep(statement, eos) <~ eos.? <~ ")") ^^ {
         case spec ~ body => POutline(body, spec)
       }
-
-
 
     lazy val functionSpec: Parser[PFunctionSpec] = {
 
@@ -434,12 +432,14 @@ object Parser {
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
       case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
         "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
         "pure" <~ eos ^^^ PureClause
       }
 
@@ -448,10 +448,15 @@ object Parser {
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
           val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, preserves, posts, isPure)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
       }
     }
+
+    lazy val terminationMeasure: Parser[PTerminationMeasure] =
+      "_" ~> ("if" ~> expression).? ^^ PWildcardMeasure |
+        repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
@@ -464,8 +469,9 @@ object Parser {
 
     lazy val statement: Parser[PStatement] =
       ghostStatement |
-      outline |
-      declarationStmt |
+        outline |
+        declarationStmt |
+        declarationStmt |
         goStmt |
         deferStmt |
         returnStmt |
@@ -677,9 +683,10 @@ object Parser {
           case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
         }
 
-
     lazy val loopSpec: Parser[PLoopSpec] =
-      ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
+      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> terminationMeasure <~ eos).? ^^ {
+        case invariants ~ terminationMeasure => PLoopSpec(invariants, terminationMeasure)
+      }
 
     lazy val assForRange: Parser[PAssForRange] =
       ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^

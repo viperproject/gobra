@@ -37,6 +37,7 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
+      measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
@@ -52,7 +53,7 @@ class MethodsImpl extends Methods {
         name = x.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         formalReturns = vResults,
-        pres = pres,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
@@ -76,7 +77,8 @@ class MethodsImpl extends Methods {
     for {
       pres <- sequence(vArgPres ++ x.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ x.posts.map(ctx.ass.postcondition(_)(ctx)))
-
+      measures <- sequence(x.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
+      
       returnLabel = vpr.Label(Names.returnLabel, Vector.empty)(pos, info, errT)
 
       body <- option(x.body.map{ b => block{
@@ -91,7 +93,7 @@ class MethodsImpl extends Methods {
         name = x.name.name,
         formalArgs = vArgs,
         formalReturns = vResults,
-        pres = pres,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)

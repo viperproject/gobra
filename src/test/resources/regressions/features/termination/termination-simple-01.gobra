@@ -1,0 +1,185 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package termination
+
+ghost
+requires n >= 0
+decreases n
+func factorial(n int) int {
+	if n == 0 {
+		return 1
+	} else {
+		return n * factorial(n-1)
+	}
+}
+
+ghost
+requires m >= 0
+requires n >= 0
+ensures result >= 0
+decreases m, n
+func ack(m int, n int) (result int) {
+	if m == 0 {
+		return n+1
+	} else {
+		if n == 0 {
+			ack(m-1, 1)
+		} else {
+			ack(m-1, ack(m, n-1))
+		}
+	}
+}
+
+decreases
+func facade(i int) int {
+	return compute(i, 0)
+}
+
+decreases
+func compute(i int, j int) int {
+	return i + j
+}
+
+requires 1 <= n
+decreases _
+func collatz(n int) int {
+	if n == 1 {
+		return n
+	} else {
+		if n%2 == 0 {
+			return collatz(n/2)
+		} else {
+			return collatz(3*n + 1)
+		}
+	}
+}
+
+requires x >= 0
+decreases x
+func is_even(x int) bool {
+	if x == 0 {
+		return true
+	} else {
+		return is_odd(x-1)
+	}
+}
+
+requires y >= 0
+decreases y
+func is_odd(y int) bool {
+	if y == 0 {
+		return false
+	} else {
+		return is_even(y-1)
+	}
+}
+
+decreases x if 1 <= x
+decreases _ if x <= -1
+func sign(x int) int {
+	if x == 0 {
+		return sign(x)
+	} else if 1 < x {
+		return sign(x-1)
+	} else if x < -1 {
+		return sign(x + 1)
+	} else {
+		return x
+	}
+}
+
+requires 0 <= n
+ensures res == n * (n+1)/2
+decreases
+func sum(n int) (res int) {
+	res := 0
+	invariant i <= n+1
+	invariant res == (i-1) * i/2
+	decreases n-i
+	for i := 0; i <= n; i++ {
+		res = res+i
+	}
+	return res
+}
+
+ghost
+decreases s
+func sum2(ghost s seq[int]) int {
+	ghost res := 0
+	invariant i >= 0
+	invariant len(s) >= i
+	decreases len(s)-i
+	for i := 0; i < len(s); i++ {
+		res += s[i]
+	}
+}
+
+decreases n if n >= 0
+decreases _ if n < 0
+func test2(n int) int {
+	if n > 0 {
+		return test2(n-1)
+	} else {
+		return n
+	}
+}
+
+requires n >= 0
+decreases n
+func fib(n int) int {
+	if n == 0 {
+		return 0
+	} else if n == 1 {
+		return 1
+	} else {
+		return fib(n-1) + fib(n-2)
+	}
+}
+
+type list struct {
+	next *list
+	value int
+}
+
+pred List(self *list) {
+	acc(&self.value) && acc(&self.next) && (self.next != nil ==> List(self.next))
+}
+
+requires List(x)
+ensures List(x)
+decreases List(x)
+func length(x *list) int {
+	unfold List(x)
+	if x.next == nil {
+		fold List(x)
+		return 1
+	} else {
+		var y int = 1 + length(x.next)
+		fold List(x)
+		return y
+	}
+}
+
+ghost
+requires n >= 0
+decreases n
+pure func factorialPure(n int) int {
+	return n == 0? 1 : n * factorialPure(n-1)
+}
+
+ghost
+requires m >= 0
+requires n >= 0
+ensures result >= 0
+decreases m, n
+pure func ackPure(m int, n int) (result int) {
+	return m == 0? n + 1: n == 0 ? ackPure(m-1, 1) : ackPure(m-1, ackPure(m, n-1))
+}
+
+ghost
+requires forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], _)
+decreases len(s)
+pure func SumPure(ghost s ghost []int) int {
+	return len(s) == 0? 0 : 1 + SumPure(s[:len(s)-1])
+}

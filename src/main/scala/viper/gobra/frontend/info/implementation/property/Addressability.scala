@@ -36,7 +36,9 @@ trait Addressability extends BaseProperty { this: TypeInfoImpl =>
   lazy val goAddressable: Property[PExpression] = createBinaryProperty("addressable") {
     case PNamedOperand(id) => entity(id).isInstanceOf[Variable]
     case n: PDeref => resolve(n).exists(_.isInstanceOf[ap.Deref])
-    case PIndexedExp(b, _) => val bt = exprType(b); bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (b.isInstanceOf[ArrayT] && goAddressable(b))
+    case PIndexedExp(b, _) =>
+      val bt = underlyingType(exprType(b))
+      bt.isInstanceOf[SliceT] || bt.isInstanceOf[GhostSliceT] || (bt.isInstanceOf[ArrayT] && goAddressable(b))
     case n: PDot => resolve(n) match {
       case Some(s: ap.FieldSelection) => goAddressable(s.base)
       case _ => false

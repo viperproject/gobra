@@ -121,24 +121,21 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
                   val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
                   val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
-                  val newBody = in.Conditional(
-                    in.BoolLit(b = true)(src),
-                    fallbackProxyCall,
-                    implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
-                      case (accum: in.Expr, impl: in.Type) =>
-                        table.lookup(impl, proxy.name) match {
-                          case Some(implProxy: in.MethodProxy) =>
-                            in.Conditional(
-                              in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                              in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
-                              accum,
-                              returnType
-                            )(src)
-                          case None => accum
-                          case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
-                        }
-                    },
-                    returnType)(src)
+                  val bodyFalseBranch = implementations.toVector.foldLeft[in.Expr](fallbackProxyCall) {
+                    case (accum: in.Expr, impl: in.Type) =>
+                      table.lookup(impl, proxy.name) match {
+                        case Some(implProxy: in.MethodProxy) =>
+                          in.Conditional(
+                            in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
+                            in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src),
+                            accum,
+                            returnType
+                          )(src)
+                        case None => accum
+                        case v => Violation.violation(s"Expected a MethodProxy but got $v instead.")
+                      }
+                  }
+                  val newBody = in.Conditional(in.BoolLit(b = true)(src), fallbackProxyCall, bodyFalseBranch, returnType)(src)
                   val newMember = in.PureMethod(m.receiver, m.name, m.args, m.results, m.pres, m.posts, m.terminationMeasures, Some(newBody))(src)
 
                   methodsToRemove += m

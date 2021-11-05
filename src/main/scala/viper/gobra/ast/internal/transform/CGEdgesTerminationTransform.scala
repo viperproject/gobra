@@ -98,7 +98,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   *     decreases _
                   *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
                   *
-                  *   Notice that the postcondition `res == r.N(x1, ..., xN)` is required, because the interface encoding
+                  *   Notice that the postcondition `res == r.m(x1, ..., xN)` is required, because the interface encoding
                   *   generates postconditions of the `M` method at the Viper level (which must be satisfied by the generated body)
                   *   that are not easily reproducible via a transformation at the level of the internal code.
                   *

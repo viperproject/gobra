@@ -6,7 +6,6 @@
 
 package viper.gobra.ast.internal.transform
 import viper.gobra.ast.{internal => in}
-import viper.gobra.theory.Addressability
 import viper.gobra.util.Violation
 
 /**
@@ -75,7 +74,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember
 
-                /**
+                /** TODO: change
                   * Transforms the abstract pure methods from interface declarations into non-abstract pure methods containing calls
                   * to all implementations' corresponding methods. The new body has the form
                   *   {
@@ -100,6 +99,7 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val returnType = m.results.head.typ
                   val fallbackName = s"${m.name}$$fallback"
                   val fallbackProxy = in.FunctionProxy(fallbackName)(src)
+                  /*
                   val fallbackPosts = implementations.toVector.map(impl => table.lookup(impl, proxy.name) match {
                     case Some(implProxy: in.MethodProxy) =>
                       in.Implication(
@@ -108,6 +108,15 @@ object CGEdgesTerminationTransform extends InternalTransform {
                       )(src)
                     case None => in.ExprAssertion(in.BoolLit(b = true)(src))(src)
                   })
+                   */
+                  val fallbackPosts = Vector(
+                    in.ExprAssertion(
+                      in.EqCmp(
+                        m.results.head,
+                        in.PureMethodCall(m.receiver, proxy, m.args, returnType)(src)
+                      )(src)
+                    )(src)
+                  )
                   val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, Vector(in.WildcardMeasure(None)(src)), None)(src)
                   println(s"posts: ${fallbackPosts}")
 

@@ -15,7 +15,17 @@ const (
 
 type IP []byte
 
+pred (ip IP) Mem() {
+	(len(ip) == IPv4len || len(ip) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
+}
+
 type IPMask []byte
+
+pred (ipmask IPMask) Mem() {
+	(len(ipmaske) == IPv4len || len(ipmask) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(ipmask) ==> acc(&ipmask[i])
+}
 
 type IPNet struct {
 	IP   IP
@@ -24,18 +34,18 @@ type IPNet struct {
 
 // IPv4 returns the IP address (in 16-byte form) of the
 // IPv4 address a.b.c.d.
-ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures res.Mem()
 func IPv4(a, b, c, d byte) (res IP)
 
 // IPv4Mask returns the IP mask (in 4-byte form) of the
 // IPv4 mask a.b.c.d.
-ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures res.Mem()
 func IPv4Mask(a, b, c, d byte) (res IPMask)
 
 // CIDRMask returns an IPMask consisting of 'ones' 1 bits
 // followed by 0s up to a total length of 'bits' bits.
 requires bits >= 0
-ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+ensures res.Mem()
 func CIDRMask(ones, bits int) (res IPMask)
 
 // Well-known IPv4 addresses
@@ -64,13 +74,13 @@ var (
 
 // IsUnspecified reports whether ip is an unspecified address, either
 // the IPv4 address "0.0.0.0" or the IPv6 address "::".
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsUnspecified() bool /*{
 	return ip.Equal(IPv4zero) || ip.Equal(IPv6unspecified)
 }*/
 
 // IsLoopback reports whether ip is a loopback address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsLoopback() bool // {
 //	if ip4 := ip.To4(); ip4 != nil {
 //		return ip4[0] == 127
@@ -79,19 +89,19 @@ func (ip IP) IsLoopback() bool // {
 //}
 
 // IsMulticast reports whether ip is a multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsMulticast() bool
 
 // IsInterfaceLocalMulticast reports whether ip is an interface-local multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsInterfaceLocalMulticast() bool
 
 // IsLinkLocalMulticast reports whether ip is a link-local multicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsLinkLocalMulticast() bool 
 
 // IsLinkLocalUnicast reports whether ip is a link-local unicast address.
-preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+preserves acc(ip.Mem(), 1/10000)
 func (ip IP) IsLinkLocalUnicast() bool 
 
 // IsGlobalUnicast reports whether ip is a global unicast

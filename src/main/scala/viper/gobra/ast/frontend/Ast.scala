@@ -763,6 +763,13 @@ object PGhostifier {
   def unapply[T <: PNode](arg: PGhostifier[T]): Option[T] = Some(arg.actual)
 }
 
+/**
+  * Termination Measures
+  */
+
+sealed trait PTerminationMeasure extends PNode
+case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
 
 /**
   * Specification
@@ -774,6 +781,7 @@ case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
+                      terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
@@ -788,7 +796,8 @@ case class PBodyParameterInfo(
 
 
 case class PLoopSpec(
-                    invariants: Vector[PExpression]
+                    invariants: Vector[PExpression],
+                    terminationMeasure: Option[PTerminationMeasure],
                     ) extends PSpecification
 
 

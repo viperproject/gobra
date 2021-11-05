@@ -51,6 +51,13 @@ class LookupTable(
   def getMPredicates: Iterable[MPredicateLikeMember] = definedMPredicates.values
   def getFPredicates: Iterable[FPredicateLikeMember] = definedFPredicates.values
 
+  def getDefinedTypes: Map[(String, Addressability), Type] = definedTypes
+  def getDefinedMethods: Map[MethodProxy, MethodLikeMember] = definedMethods
+  def getDefinedFunctions: Map[FunctionProxy, FunctionLikeMember] = definedFunctions
+  def getDefinedMPredicates: Map[MPredicateProxy, MPredicateLikeMember] = definedMPredicates
+  def getDefinedFPredicates: Map[FPredicateProxy, FPredicateLikeMember] = definedFPredicates
+  def getImplementationProofPredicateAliases: Map[(Type, InterfaceT, String), FPredicateProxy] = implementationProofPredicateAliases
+
   def implementations(t: InterfaceT): Set[Type] = interfaceImplementations.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def members(t: Type): Set[MemberProxy] = memberProxies.getOrElse(t.withAddressability(Addressability.Exclusive), Set.empty)
   def lookup(t: Type, name: String): Option[MemberProxy] = members(t).find(_.name == name)
@@ -79,6 +86,7 @@ sealed trait MethodMember extends MethodLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
+  def terminationMeasures: Vector[TerminationMeasure]
 }
 
 sealed trait FunctionLikeMember extends Member {
@@ -91,6 +99,7 @@ sealed trait FunctionMember extends FunctionLikeMember {
   def results: Vector[Parameter.Out]
   def pres: Vector[Assertion]
   def posts: Vector[Assertion]
+  def terminationMeasures: Vector[TerminationMeasure]
 }
 
 sealed trait Location extends Expr
@@ -109,6 +118,7 @@ case class Method(
                  override val results: Vector[Parameter.Out],
                  override val pres: Vector[Assertion],
                  override val posts: Vector[Assertion],
+                 override val terminationMeasures: Vector[TerminationMeasure],
                  body: Option[Block]
                  )(val info: Source.Parser.Info) extends Member with MethodMember
 
@@ -119,6 +129,7 @@ case class PureMethod(
                        override val results: Vector[Parameter.Out],
                        override val pres: Vector[Assertion],
                        override val posts: Vector[Assertion],
+                       override val terminationMeasures: Vector[TerminationMeasure],
                        body: Option[Expr]
                      )(val info: Source.Parser.Info) extends Member with MethodMember {
   require(results.size <= 1)
@@ -163,15 +174,17 @@ case class Function(
                      override val results: Vector[Parameter.Out],
                      override val pres: Vector[Assertion],
                      override val posts: Vector[Assertion],
+                     override val terminationMeasures: Vector[TerminationMeasure],
                      body: Option[Block]
                    )(val info: Source.Parser.Info) extends Member with FunctionMember
 
 case class PureFunction(
                          override val name: FunctionProxy,
-                         override val  args: Vector[Parameter.In],
-                         override val  results: Vector[Parameter.Out],
-                         override val  pres: Vector[Assertion],
-                         override val  posts: Vector[Assertion],
+                         override val args: Vector[Parameter.In],
+                         override val results: Vector[Parameter.Out],
+                         override val pres: Vector[Assertion],
+                         override val posts: Vector[Assertion],
+                         override val terminationMeasures: Vector[TerminationMeasure],
                          body: Option[Expr]
                        )(val info: Source.Parser.Info) extends Member with FunctionMember {
   require(results.size <= 1)
@@ -246,7 +259,7 @@ case class Label(id: LabelProxy)(val info: Source.Parser.Info) extends Stmt
 
 case class If(cond: Expr, thn: Stmt, els: Stmt)(val info: Source.Parser.Info) extends Stmt
 
-case class While(cond: Expr, invs: Vector[Assertion], body: Stmt)(val info: Source.Parser.Info) extends Stmt
+case class While(cond: Expr, invs: Vector[Assertion], terminationMeasure: Option[TerminationMeasure], body: Stmt)(val info: Source.Parser.Info) extends Stmt
 
 case class Initialization(left: AssignableVar)(val info: Source.Parser.Info) extends Stmt
 
@@ -344,6 +357,12 @@ case class Implication(left: Expr, right: Assertion)(val info: Source.Parser.Inf
 
 case class Access(e: Accessible, p: Expr)(val info: Source.Parser.Info) extends Assertion {
   require(p.typ.isInstanceOf[PermissionT], s"expected an expression of permission type but got $p.typ")
+}
+
+sealed trait TerminationMeasure extends Node
+case class WildcardMeasure(cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure
+case class TupleTerminationMeasure(tuple: Vector[Node], cond: Option[Expr])(val info: Source.Parser.Info) extends TerminationMeasure {
+  require(tuple.forall(x => x.isInstanceOf[Expr] || x.isInstanceOf[PredicateAccess]), s"Unexpected tuple $tuple")
 }
 
 sealed trait Accessible extends Node {

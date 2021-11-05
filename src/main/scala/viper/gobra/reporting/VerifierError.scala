@@ -271,7 +271,20 @@ case class ChannelSendError(info: Source.Verifier.Info) extends VerificationErro
   override def localMessage: String = s"The receive expression ${info.trySrc[PSendStmt](" ")}might fail"
 }
 
+case class FunctionTerminationError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "pure_function_termination_error"
+  override def localMessage: String = s"Pure function might not terminate"
+}
 
+case class MethodTerminationError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "function_termination_error"
+  override def localMessage: String = s"Function might not terminate"
+}
+
+case class LoopTerminationError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "loop_termination_error"
+  override def localMessage: String = s"The loop ${info.origin.tag.trim} might not terminate"
+}
 
 sealed trait VerificationErrorReason {
   def id: String
@@ -377,6 +390,31 @@ case class ReceiverNotInjectiveReason(info: Source.Verifier.Info) extends Verifi
 case class GoCallPreconditionReason(node: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "go_call_precondition_error"
   override def message: String = s"${node.origin.tag.trim} might not satisfy the precondition of the callee."
+}
+
+case class TerminationConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "termination_condition_false_error"
+  override def message: String = s"Required termination condition might not hold."
+}
+
+case class TupleConditionFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "tuple_condition_false_error"
+  override def message: String = s"Required tuple condition might not hold."
+}
+
+case class TupleSimpleFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "tuple_simple_false_error"
+  override def message: String = s"Termination measure might not decrease or might not be bounded."
+}
+
+case class TupleDecreasesFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "tuple_decreases_false_error"
+  override def message: String = s"Termination measure might not decrease."
+}
+
+case class TupleBoundedFalseError(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "tuple_bounded_false_error"
+  override def message: String = s"Termination measure might not be bounded."
 }
 
 sealed trait VerificationErrorClarification {

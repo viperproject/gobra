@@ -22,6 +22,7 @@ pure func (g *WaitGroup) WaitMode() bool
 ghost
 requires acc(g) && *g == WaitGroup{}
 ensures g.WaitGroupP() && !g.WaitMode()
+decreases
 func (g *WaitGroup) Init()
 
 ghost
@@ -34,6 +35,7 @@ requires p > 0
 requires acc(g.WaitGroupP(), p)
 requires !g.WaitMode() && g.UnitDebt(P)
 ensures g.UnitDebt(P) && acc(g.WaitGroupStarted(), p)
+decreases
 func (g *WaitGroup) Start(ghost p perm, ghost P pred())
 
 ghost
@@ -43,6 +45,7 @@ requires p + q == 1
 requires acc(g.WaitGroupP(), p)
 requires acc(g.WaitGroupStarted(), q)
 ensures g.WaitGroupP() && g.WaitMode()
+decreases
 func (g *WaitGroup) SetWaitMode(ghost p perm, ghost q perm)
 
 // Simplified version of the debt redistribution rule. The most general version cannot be written in Gobra
@@ -51,6 +54,7 @@ func (g *WaitGroup) SetWaitMode(ghost p perm, ghost q perm)
 ghost
 requires P() && g.UnitDebt(P)
 ensures g.UnitDebt(PredTrue!<!>)
+decreases
 func (g *WaitGroup) PayDebt(ghost P pred())
 
 // Simplified version of the debt redistribution rule, instantiated with P == { PredTrue!<!> } and Q == { R }.
@@ -58,6 +62,7 @@ func (g *WaitGroup) PayDebt(ghost P pred())
 ghost
 requires g.UnitDebt(PredTrue!<!>)
 ensures g.UnitDebt(R) && g.Token(R)
+decreases
 func (g *WaitGroup) GenerateTokenAndDebt(ghost R pred())
 
 ghost
@@ -75,9 +80,11 @@ ensures (n > 0 && p == 0) ==> g.UnitDebt(P)
 ensures n > 0 ==> acc(g.UnitDebt(PredTrue!<!>), n/1)
 // this is actually necessary, otherwise Gobra cannot prove that Add does not modify the wait mode
 ensures (n > 0 && p > 0) ==> g.WaitMode() == old(g.WaitMode())
+decreases
 func (g *WaitGroup) Add(n int, ghost p perm, ghost P pred())
 
 requires g.UnitDebt(PredTrue!<!>)
+decreases
 func (g *WaitGroup) Done()
 
 requires p > 0

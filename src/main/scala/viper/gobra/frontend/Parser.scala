@@ -684,7 +684,7 @@ object Parser {
           case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
         }
 
- lazy val loopSpec: Parser[PLoopSpec] =
+    lazy val loopSpec: Parser[PLoopSpec] =
       ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> terminationMeasure <~ eos).? ^^ {
         case invariants ~ terminationMeasure => PLoopSpec(invariants, terminationMeasure)
       }

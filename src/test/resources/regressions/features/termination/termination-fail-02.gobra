@@ -3,20 +3,6 @@
 
 package termination
 
-type FactEven interface {
-	requires n >= 0
-	decreases n
-	factEven(n int) int
-}
-
-type FactOdd interface {
-	requires n >= 0
-	decreases n
-	factOdd(n int) int
-}
-
-type FactEvenImplNotTer struct {}
-
 type IsEven interface {
 	requires n >= 0
 	decreases n
@@ -28,7 +14,6 @@ type IsOdd interface {
 	decreases n
 	isOdd(n int) bool
 }
-
 
 type IsEvenImpl struct {}
 
@@ -71,6 +56,24 @@ func (y BadFiniteImpl) infinite(n int) int {
 	return y.infinite(n)
 }
 
-// func BadFiniteImplClient(b BadFiniteImpl) {
-//	var i Finite = b
-//}
+type Func interface {
+	pure
+	decreases n
+	fun(n int, a Func) int
+}
+
+type FuncImpl struct {}
+
+(FuncImpl) implements Func {
+	pure (f FuncImpl) fun (n int, a Func) int {
+		//:: ExpectedOutput(pure_function_termination_error)
+		return f.fun(n, a)
+	}
+}
+
+pure
+decreases n
+func (f FuncImpl) fun (n int, a Func) int {
+	//:: ExpectedOutput(pure_function_termination_error)
+	return n * a.fun(n, f)
+}

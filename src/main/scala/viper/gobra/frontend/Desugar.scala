@@ -1143,8 +1143,9 @@ object Desugar {
             // translate pre- and postconditions
             val pres = n.spec.pres map preconditionD(ctx)
             val posts = n.spec.posts map postconditionD(specContext)
+            val terminationMeasures = sequence(n.spec.terminationMeasures map terminationMeasureD(ctx)).res
             // create function and add as member
-            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, Some(block))(src)
+            val function = in.Function(proxy, readArgs ++ modifiedArgs, returns, pres, posts, terminationMeasures, Some(block))(src)
             definedFunctions += proxy -> function
             AdditionalMembers.addMember(function)
             // write function call and result assignments

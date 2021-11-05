@@ -471,7 +471,6 @@ object Parser {
       ghostStatement |
         outline |
         declarationStmt |
-        declarationStmt |
         goStmt |
         deferStmt |
         returnStmt |
@@ -684,9 +683,7 @@ object Parser {
         }
 
     lazy val loopSpec: Parser[PLoopSpec] =
-      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> terminationMeasure <~ eos).? ^^ {
-        case invariants ~ terminationMeasure => PLoopSpec(invariants, terminationMeasure)
-      }
+      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> terminationMeasure <~ eos).? ^^ PLoopSpec
 
     lazy val assForRange: Parser[PAssForRange] =
       ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^

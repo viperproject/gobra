@@ -74,20 +74,34 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   methodsToAdd += newMember
                   definedMethodsDelta += proxy -> newMember
 
-                /** TODO: change
+                /**
                   * Transforms the abstract pure methods from interface declarations into non-abstract pure methods containing calls
                   * to all implementations' corresponding methods. The new body has the form
                   *   {
-                  *      false?
+                  *      true?
+                  *       call fallbackFunction on recv :
                   *       (typeOf(recv) == impl1 ? call method from impl1 on recv :
                   *         (typeOf(recv) == impl2 ? call method from impl2 on recv :
                   *           (...  :
-                  *             typeOf(recv) == implN ? call implementation method from implN on recv : call fallbackFunction on recv))):
-                  *        call fallbackFunction on recv
+                  *             typeOf(recv) == implN ? call implementation method from implN on recv : call fallbackFunction on recv)))
                   *   }
                   *
                   *   This transformation generates a fallbackFunction, an abstract function which receives the receiver and parameters
-                  *   of the original method and has the same return type and spec.
+                  *   of the original method and has the same return type and spec. For the pure method
+                  *     requires [PRE]
+                  *     decreases [MEASURE]
+                  *     pure func (r recv) M (x1 T1, ..., xN TN) (res TRes)
+                  *
+                  *   we generate the following fallback:
+                  *     requires [PRE]
+                  *     ensures res == r.N(x1, ..., xN)
+                  *     decreases _
+                  *     pure func (r recv) M_fallback(x1 T1, ... xN TN) (res TRes)
+                  *
+                  *   Notice that the postcondition `res == r.N(x1, ..., xN)` is required, because the interface encoding
+                  *   generates postconditions of the `M` method at the Viper level (which must be satisfied by the generated body)
+                  *   that are not easily reproducible via a transformation at the level of the internal code.
+                  *
                   */
                 case m: in.PureMethod if m.terminationMeasures.nonEmpty =>
                   Violation.violation(m.results.length == 1, "Expected one and only one out-parameter.")
@@ -99,27 +113,13 @@ object CGEdgesTerminationTransform extends InternalTransform {
                   val returnType = m.results.head.typ
                   val fallbackName = s"${m.name}$$fallback"
                   val fallbackProxy = in.FunctionProxy(fallbackName)(src)
-                  /*
-                  val fallbackPosts = implementations.toVector.map(impl => table.lookup(impl, proxy.name) match {
-                    case Some(implProxy: in.MethodProxy) =>
-                      in.Implication(
-                        in.EqCmp(in.TypeOf(m.receiver)(src), typeAsExpr(impl)(src))(src),
-                        in.ExprAssertion(in.EqCmp(m.results.head, in.PureMethodCall(in.TypeAssertion(m.receiver, impl)(src), implProxy, m.args, returnType)(src))(src))(src)
-                      )(src)
-                    case None => in.ExprAssertion(in.BoolLit(b = true)(src))(src)
-                  })
-                   */
                   val fallbackPosts = Vector(
                     in.ExprAssertion(
-                      in.EqCmp(
-                        m.results.head,
-                        in.PureMethodCall(m.receiver, proxy, m.args, returnType)(src)
-                      )(src)
+                      in.EqCmp(m.results.head, in.PureMethodCall(m.receiver, proxy, m.args, returnType)(src))(src)
                     )(src)
                   )
-                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, Vector(in.WildcardMeasure(None)(src)), None)(src)
-                  println(s"posts: ${fallbackPosts}")
-
+                  val fallbackTermMeasures = Vector(in.WildcardMeasure(None)(src))
+                  val fallbackFunction = in.PureFunction(fallbackProxy, m.receiver +: m.args, m.results, m.pres, fallbackPosts, fallbackTermMeasures, None)(src)
                   val fallbackProxyCall = in.PureFunctionCall(fallbackProxy, m.receiver +: m.args, returnType)(src)
                   val newBody = in.Conditional(
                     in.BoolLit(b = true)(src),

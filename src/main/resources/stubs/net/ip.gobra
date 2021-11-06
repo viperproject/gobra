@@ -15,37 +15,41 @@ const (
 
 type IP []byte
 
-pred (ip IP) Mem() {
-	(len(ip) == IPv4len || len(ip) == IPv6len) &&
-	forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
-}
-
 type IPMask []byte
-
-pred (ipmask IPMask) Mem() {
-	(len(ipmask) == IPv4len || len(ipmask) == IPv6len) &&
-	forall i int :: 0 <= i && i < len(ipmask) ==> acc(&ipmask[i])
-}
 
 type IPNet struct {
 	IP   IP
 	Mask IPMask
 }
 
+pred (ip IP) Mem() {
+	(len(ip) == IPv4len || len(ip) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
+}
+
+pred (mask IPMask) Mem() {
+	(len(mask) == IPv4len || len(mask) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(mask) ==> acc(&mask[i])
+}
+
+pred (ipnet *IPNet) Mem() {
+	acc(ipnet) && ipnet.IP.Mem() && ipnet.Mask.Mem()
+}
+
 // IPv4 returns the IP address (in 16-byte form) of the
 // IPv4 address a.b.c.d.
-ensures res.Mem()
+ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func IPv4(a, b, c, d byte) (res IP)
 
 // IPv4Mask returns the IP mask (in 4-byte form) of the
 // IPv4 mask a.b.c.d.
-ensures res.Mem()
+ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func IPv4Mask(a, b, c, d byte) (res IPMask)
 
 // CIDRMask returns an IPMask consisting of 'ones' 1 bits
 // followed by 0s up to a total length of 'bits' bits.
 requires bits >= 0
-ensures res.Mem()
+ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
 func CIDRMask(ones, bits int) (res IPMask)
 
 // Well-known IPv4 addresses
@@ -74,13 +78,13 @@ var (
 
 // IsUnspecified reports whether ip is an unspecified address, either
 // the IPv4 address "0.0.0.0" or the IPv6 address "::".
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsUnspecified() bool /*{
 	return ip.Equal(IPv4zero) || ip.Equal(IPv6unspecified)
 }*/
 
 // IsLoopback reports whether ip is a loopback address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsLoopback() bool // {
 //	if ip4 := ip.To4(); ip4 != nil {
 //		return ip4[0] == 127
@@ -89,24 +93,24 @@ func (ip IP) IsLoopback() bool // {
 //}
 
 // IsMulticast reports whether ip is a multicast address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsMulticast() bool
 
 // IsInterfaceLocalMulticast reports whether ip is an interface-local multicast address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsInterfaceLocalMulticast() bool
 
 // IsLinkLocalMulticast reports whether ip is a link-local multicast address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsLinkLocalMulticast() bool 
 
 // IsLinkLocalUnicast reports whether ip is a link-local unicast address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsLinkLocalUnicast() bool 
 
 // IsGlobalUnicast reports whether ip is a global unicast
 // address.
-preserves acc(ip.Mem(), 1/10000)
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) IsGlobalUnicast() bool /*{
 	return (len(ip) == IPv4len || len(ip) == IPv6len) &&
 		!ip.Equal(IPv4bcast) &&
@@ -117,31 +121,21 @@ func (ip IP) IsGlobalUnicast() bool /*{
 }*/
 
 // To4 converts the IPv4 address ip to a 4-byte representation.
-requires ip.Mem()
-// ensures len(ip) == IPv4len ==> forall i int :: 0 <= i && i < len(ip) ==> &ip[i] == &res[i]
-// ensures len(ip) == IPv6len && isZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255 ==> len(res) == IPv4len && forall i int :: 0 <= i && i < IPv4len ==> &ip[12+i] == &res[i]
-// ensures len(ip) != IPv4len && len(ip) != IPv6len ==> res == nil
-// ensures len(ip) == IPv4len ==> len(res) == IPv4len
-// ensures res != nil ==> len(res) == IPv4len
-ensures res == nil ==> ip.Mem()
-ensures res != nil ==> res.Mem()
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+ensures len(ip) == IPv4len ==> forall i int :: 0 <= i && i < len(ip) ==> &ip[i] == &res[i]
+ensures len(ip) == IPv6len && isZeros(ip[0:10]) && ip[10] == 255 && ip[11] == 255 ==> len(res) == IPv4len && forall i int :: 0 <= i && i < IPv4len ==> &ip[12+i] == &res[i]
+ensures len(ip) != IPv4len && len(ip) != IPv6len ==> res == nil
+ensures len(ip) == IPv4len ==> len(res) == IPv4len
+ensures res != nil ==> len(res) == IPv4len
 func (ip IP) To4() (res IP) {
 	if len(ip) == IPv4len {
 		return ip
 	}
-	unfold ip.Mem()
 	if len(ip) == IPv6len &&
 		isZeros(ip[0:10]) &&
 		ip[10] == 255 &&
 		ip[11] == 255 {
-		assert &ip[12:16][0] == &ip[12]
-		assert &ip[12:16][1] == &ip[13]
-		assert &ip[12:16][2] == &ip[14]
-		assert &ip[12:16][3] == &ip[15]
-		// (joao) introduced tmp to be able to fold before returning
-		tmp := ip[12:16]
-		fold tmp.Mem()
-		return tmp
+		return ip[12:16]
 	}
 	return nil
 }
@@ -151,18 +145,12 @@ preserves forall i int :: 0 <= i && i < len(s) ==> acc(&s[i], 1/100000)
 func isZeros(s []byte) bool
 
 // To16 converts the IP address ip to a 16-byte representation.
-// ensures len(ip) == IPv4len ==> (len(res) == IPv4len && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i]))
-// ensures len(ip) == IPv6len ==> (len(res) == IPv6len && forall i int :: 0 <= i && i < len(res) ==> &ip[i] == &res[i])
-requires ip.Mem()
-ensures res == nil ==> ip.Mem()
-ensures res != nil ==> res.Mem()
+preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+ensures len(ip) == IPv4len ==> (len(res) == IPv4len && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i]))
+ensures len(ip) == IPv6len ==> (len(res) == IPv6len && forall i int :: 0 <= i && i < len(res) ==> &ip[i] == &res[i])
 func (ip IP) To16() (res IP) {
 	if len(ip) == IPv4len {
-		unfold ip.Mem()
-		// (joao) introduced tmp
-		tmp := IPv4(ip[0], ip[1], ip[2], ip[3])
-		fold tmp.Mem()
-		return tmp
+		return IPv4(ip[0], ip[1], ip[2], ip[3])
 	}
 	if len(ip) == IPv6len {
 		return ip

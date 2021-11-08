@@ -206,6 +206,11 @@ case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends 
   override def localMessage: String = "Method contract is not well-formed"
 }
 
+case class PackageFailedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "package_failed"
+  override def localMessage: String = "Packaging wand might fail"
+}
+
 case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "predicate_not_well_defined"
   override def localMessage: String = "Predicate body is not well-formed"

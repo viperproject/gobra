@@ -2599,6 +2599,10 @@ object Desugar {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case PPackageWand(wand, blockOpt) => for {
+          w <- goA(wand)
+          b <- option(blockOpt map stmtD(ctx))
+        } yield in.PackageWand(w, b)(src)
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }

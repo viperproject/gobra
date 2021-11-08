@@ -60,6 +60,7 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
+        case PackageWand(wand, block) => Seq(wand) ++ block.toSeq
         case PredExprFold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case PredExprUnfold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)

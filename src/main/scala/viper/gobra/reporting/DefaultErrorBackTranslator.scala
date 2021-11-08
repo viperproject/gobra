@@ -132,6 +132,8 @@ class DefaultErrorBackTranslator(
         LoopInvariantEstablishmentError(info) dueTo translate(reason)
       case vprerr.MagicWandNotWellformed(CertainSource(info), reason, _) =>
         MagicWandNotWellformedError(info) dueTo translate(reason)
+      case vprerr.PackageFailed(CertainSource(info), reason, _) =>
+        PackageFailedError(info) dueTo translate(reason)
 
       // Wytse (2020-05-22):
       // It appears that Viper sometimes negates conditions

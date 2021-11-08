@@ -331,6 +331,10 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
+case class PackageWand(wand: Assertion, block: Option[Stmt])(val info: Source.Parser.Info) extends Stmt {
+  require(wand.isInstanceOf[MagicWand])
+}
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**

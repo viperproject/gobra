@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# Copyright (c) 2011-2020 ETH Zurich.
+# Copyright (c) 2011-2021 ETH Zurich.
 
 name: test
 
@@ -162,6 +162,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          load: true # make the built image available in docker (locally)
           file: workflow-container/Dockerfile
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"
@@ -170,9 +171,9 @@ jobs:
             type=local,src=/tmp/.buildx-cache
             type=local,dest=/tmp/.buildx-cache-new
           cache-to: type=local,dest=/tmp/.buildx-cache-new
-        # run: docker build . --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
 
-      # TODO verify a tutorial example to double-check image
+      - name: Test final container by verifying a file
+        run: docker run ${{ env.IMAGE_TAG }} -i tutorial-examples/basicAnnotations.gobra
 
       # TODO only do this for branches master and verified-scion-preview-without-selective, and tags starting with "v"
       - name: Login to Github Packages

@@ -61,6 +61,7 @@ object GobraStrategy {
       case (_: Fold, Seq(acc: Access)) => Fold(acc)(meta)
       case (_: Unfold, Seq(acc: Access)) => Unfold(acc)(meta)
       case (_: PackageWand, Seq(wand: MagicWand, body: Option[Stmt@unchecked])) => PackageWand(wand, body)(meta)
+      case (_: ApplyWand, Seq(wand: MagicWand)) => ApplyWand(wand)(meta)
       case (_: PredExprFold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprFold(base, args, p)(meta)
       case (_: PredExprUnfold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprUnfold(base, args, p)(meta)
       case (s: SafeTypeAssertion, Seq(resTarget: LocalVar, successTarget: LocalVar, expr: Expr)) => SafeTypeAssertion(resTarget, successTarget, expr, s.typ)(meta)

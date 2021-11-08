@@ -24,6 +24,7 @@ trait GhostStmtTyping extends BaseTyping { this: TypeInfoImpl =>
     case PUnfold(acc) => wellDefFoldable(acc)
     case n@PPackageWand(wand, optBlock) => assignableToSpec(wand) ++
       error(n, "ghost error: expected ghostifiable statement", !optBlock.forall(_.isInstanceOf[PGhostifiableStatement]))
+    case PApplyWand(wand) => assignableToSpec(wand)
   }
 
   private def wellDefFoldable(acc: PPredicateAccess): Messages =

@@ -211,6 +211,11 @@ case class PackageFailedError(info: Source.Verifier.Info) extends VerificationEr
   override def localMessage: String = "Packaging wand might fail"
 }
 
+case class ApplyFailed(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "apply_failed"
+  override def localMessage: String = "Applying wand might fail"
+}
+
 case class PredicateNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "predicate_not_well_defined"
   override def localMessage: String = "Predicate body is not well-formed"

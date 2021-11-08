@@ -335,6 +335,8 @@ case class PackageWand(wand: Assertion, block: Option[Stmt])(val info: Source.Pa
   require(wand.isInstanceOf[MagicWand])
 }
 
+case class ApplyWand(wand: Assertion)(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**

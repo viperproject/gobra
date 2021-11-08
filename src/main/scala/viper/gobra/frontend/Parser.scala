@@ -469,6 +469,7 @@ object Parser {
         deferStmt |
         returnStmt |
         packageStmt |
+        applyStmt |
         controlStmt |
         ifStmt |
         anyForStmt |
@@ -545,6 +546,12 @@ object Parser {
     lazy val packageStmt: Parser[PPackageWand] =
       ("package" ~> expression ~ opt(block)) into {
         case (w: PMagicWand) ~ b => success(PPackageWand(w, b))
+        case e => failure(s"expected a magic wand but instead got $e")
+      }
+
+    lazy val applyStmt: Parser[PApplyWand] =
+      "apply" ~> expression into {
+        case w: PMagicWand => success(PApplyWand(w))
         case e => failure(s"expected a magic wand but instead got $e")
       }
 

@@ -865,6 +865,8 @@ case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
 
+case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
 /**
   * Ghost Expressions and Assertions
   */

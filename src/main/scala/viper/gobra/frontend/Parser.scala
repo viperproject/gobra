@@ -60,7 +60,12 @@ object Parser {
   }
 
   // cache maps file path and file content to the parse result
-  var sourceCache: Map[(String, String), (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+  private var sourceCache: Map[(String, String), (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+
+  def flushCache(): Unit = {
+    sourceCache = Map.empty
+  }
+
   private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)

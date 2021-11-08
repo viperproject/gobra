@@ -65,7 +65,7 @@ jobs:
       - name: Test image
         run: |
           mkdir -p $PWD/sync
-          docker run --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync ${{ env.IMAGE_TAG }} $PWD/.github/test-and-measure-ram.sh
+          docker run --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync ${{ env.IMAGE_TAG }} -c "$(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}

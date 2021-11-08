@@ -802,7 +802,7 @@ object Parser {
       "&" ~> unaryExp ^^ PReference
 
     lazy val dereference: Parser[PDeref] =
-      "*" ~> unaryExp ^^ {case e => println("AQUI"); PDeref(e)}
+      "*" ~> unaryExp ^^ PDeref
 
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive

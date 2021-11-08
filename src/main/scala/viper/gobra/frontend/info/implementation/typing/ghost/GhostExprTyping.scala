@@ -61,6 +61,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
+    case n: PMagicWand =>
+      isExpr(n.left).out ++ isExpr(n.right).out ++
+        // check whether the left operand is a Boolean expression
+        assignableToSpec(n.left) ++
+        // check whether the right operand is either Boolean or an assertion
+        assignableToSpec(n.right)
+
     case n: PAccess =>
       val permWellDef = error(n.perm, s"expected perm or integer division expression, but got ${n.perm}",
         !assignableTo(typ(n.perm), PermissionT))
@@ -199,7 +206,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
-    case _: PAccess | _: PPredicateAccess => AssertionT
+    case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
 
     case _: PTypeOf => SortT
     case _: PIsComparable => BooleanT
@@ -302,6 +309,8 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       case PNamedOperand(id) => isPureId(id, strong)
 
       case PBlankIdentifier() => true
+
+      case PMagicWand(left, right) => Seq(left, right).forall(go)
 
       case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 

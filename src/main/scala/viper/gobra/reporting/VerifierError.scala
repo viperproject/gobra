@@ -196,6 +196,11 @@ case class LoopInvariantNotWellFormedError(info: Source.Verifier.Info) extends V
   override def localMessage: String = "Loop invariant is not well-formed"
 }
 
+case class MagicWandNotWellformedError(info: Source.Verifier.Info) extends VerificationError {
+  override def localId: String = "wand_not_wellformed"
+  override def localMessage: String = "Magic wand might not be well-formed."
+}
+
 case class MethodContractNotWellFormedError(info: Source.Verifier.Info) extends VerificationError {
   override def localId: String = "contract_not_well_formed"
   override def localMessage: String = "Method contract is not well-formed"
@@ -375,6 +380,11 @@ case class ComparisonOnIncomparableInterfaces(node: Source.Verifier.Info) extend
 case class SynthesizedAssertionFalseReason(info: Source.Verifier.Info) extends VerificationErrorReason {
   override def id: String = "assertion_error"
   override def message: String = info.comment.reduce[String] { case (l, r) => s"$l; $r" }
+}
+
+case class MagicWandChunkNotFound(info: Source.Verifier.Info) extends VerificationErrorReason {
+  override def id: String = "wand.not.found"
+  override def message: String = "Magic wand instance not found."
 }
 
 case class NegativePermissionReason(info: Source.Verifier.Info) extends VerificationErrorReason {

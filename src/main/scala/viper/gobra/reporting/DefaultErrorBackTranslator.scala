@@ -64,9 +64,8 @@ object DefaultErrorBackTranslator {
       case vprrea.NegativePermission(CertainSource(info)) =>
         NegativePermissionReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
-      //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
+      case vprrea.MagicWandChunkNotFound(CertainSource(info)) =>
+        MagicWandChunkNotFound(info)
       case vprrea.ReceiverNotInjective(CertainSource(info)) =>
         ReceiverNotInjectiveReason(info)
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
@@ -131,6 +130,8 @@ class DefaultErrorBackTranslator(
         LoopInvariantPreservationError(info) dueTo translate(reason)
       case vprerr.LoopInvariantNotEstablished(CertainSource(info), reason, _) =>
         LoopInvariantEstablishmentError(info) dueTo translate(reason)
+      case vprerr.MagicWandNotWellformed(CertainSource(info), reason, _) =>
+        MagicWandNotWellformedError(info) dueTo translate(reason)
 
       // Wytse (2020-05-22):
       // It appears that Viper sometimes negates conditions

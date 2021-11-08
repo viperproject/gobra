@@ -734,7 +734,9 @@ object Parser {
         precedence5
 
     lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+      // magic wands are left-associative, just as in Viper
+      precedence5 ~ ("--*" ~> precedence6) ^^ PMagicWand |
+        precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
@@ -800,7 +802,7 @@ object Parser {
       "&" ~> unaryExp ^^ PReference
 
     lazy val dereference: Parser[PDeref] =
-      "*" ~> unaryExp ^^ PDeref
+      "*" ~> unaryExp ^^ {case e => println("AQUI"); PDeref(e)}
 
     lazy val receiveExp: Parser[PReceive] =
       "<-" ~> unaryExp ^^ PReceive

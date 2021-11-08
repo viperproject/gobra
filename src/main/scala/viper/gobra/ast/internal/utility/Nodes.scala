@@ -78,6 +78,7 @@ object Nodes {
         case SepForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
+        case MagicWand(left, right) => Seq(left, right)
         case Access(e, p) => Seq(e, p)
       }
       case a: Accessible => Seq(a.op)

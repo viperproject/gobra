@@ -459,6 +459,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
         case n: PExpression if perm == PFullPerm() => "acc" <> parens(showExpr(n))
         case n: PExpression => "acc" <> parens(showExpr(n) <> "," <+> showExpr(perm))
       }
+      case PMagicWand(left, right) => showSubExpr(expr, left) <+> "--*" <+> showSubExpr(expr, right)
 
       case PTypeOf(exp) => "typeOf" <> parens(showExpr(exp))
       case PIsComparable(exp) => "isComparable" <> parens(showExprOrType(exp))

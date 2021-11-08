@@ -2843,6 +2843,9 @@ object Desugar {
             els <- goA(n.els)
           } yield in.SepAnd(in.Implication(cnd, thn)(src), in.Implication(in.Negation(cnd)(src), els)(src))(src)
 
+        case PMagicWand(left, right) =>
+          for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
+
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
         case n: PAccess => for {e <- accessibleD(ctx)(n.exp); p <- permissionD(ctx)(n.perm)} yield in.Access(e, p)(src)

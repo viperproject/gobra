@@ -20,13 +20,52 @@ jobs:
       - name: Checkout Gobra
         uses: actions/checkout@v2
 
+      - name: Create image tag
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+
+          # Change all uppercase to lowercase
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          # Strip "v" prefix from tag name
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v\.?//')
+          # Use Docker `latest` tag convention
+          [ "$VERSION" == "master" ] && VERSION=latest
+          echo "IMAGE_TAG=$IMAGE_ID:$VERSION" >> $GITHUB_ENV
+
+      # used to enable Docker caching (see https://github.com/docker/build-push-action)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      # Docker caching (see https://evilmartians.com/chronicles/build-images-on-github-actions-with-docker-layer-caching)
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
       # TODO add caching of Docker container
       - name: Build image up to including stage 'build'
-        run: docker build . --target build --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+        # note that the action's name is misleading: this step does NOT push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          load: true # make the built image available in docker (locally)
+          target: build # only build up to and including stage 'build'
+          file: workflow-container/Dockerfile
+          tags: ${{ env.IMAGE_TAG }}
+          labels: "runnumber=${{ github.run_id }}"
+          push: false
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
 
       - name: Test image
-        run: docker run --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync $IMAGE_NAME ./.github/test-and-measure-ram.sh
-        # run: docker run --entrypoint /bin/bash --volume sync:/build/gobra/sync $IMAGE_NAME ./.github/test-and-measure-ram.sh
+        run: |
+          mkdir -p $PWD/sync
+          docker run --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync ${{ env.IMAGE_TAG }} ./.github/test-and-measure-ram.sh
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}
@@ -120,33 +159,44 @@ jobs:
 
       # TODO add caching of Docker container
       - name: Build entire image
-        run: docker build . --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: workflow-container/Dockerfile
+          tags: ${{ env.IMAGE_TAG }}
+          labels: "runnumber=${{ github.run_id }}"
+          push: false
+          cache-from: |
+            type=local,src=/tmp/.buildx-cache
+            type=local,dest=/tmp/.buildx-cache-new
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+        # run: docker build . --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
 
       # TODO verify a tutorial example to double-check image
 
-      # Push image to GitHub Packages.
-      # See also https://docs.docker.com/docker-hub/builds/
       # TODO only do this for branches master and verified-scion-preview-without-selective, and tags starting with "v"
-#      - name: Log in to GitHub registry
-#        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-#
-#      - name: Push image to GitHub registry
-#        run: |
-#          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
-#
-#          # Change all uppercase to lowercase
-#          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-#          # Strip git ref prefix from version
-#          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-#          # Strip "v" prefix from tag name
-#          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v\.?//')
-#          # Use Docker `latest` tag convention
-#          [ "$VERSION" == "master" ] && VERSION=latest
-#          echo IMAGE_ID=$IMAGE_ID
-#          echo VERSION=$VERSION
-#          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-#          docker push $IMAGE_ID:$VERSION
+      - name: Login to Github Packages
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Push entire image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: workflow-container/Dockerfile
+          tags: ${{ env.IMAGE_TAG }}
+          labels: "runnumber=${{ github.run_id }}"
+          push: ${{ github.ref == 'refs/heads/master' }}
+          cache-from: type=local,dest=/tmp/.buildx-cache-new
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - name: Move cache
+        run:
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
 
 #  setup-and-test:

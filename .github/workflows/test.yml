@@ -10,112 +10,23 @@ on:
   push: # run this workflow on every push
   pull_request: # run this workflow on every pull_request
 
+env:
+  IMAGE_NAME: gobra
+
 jobs:
-  setup-and-test:
+  build-test-deploy-container:
     runs-on: ubuntu-latest
-    container: gobraverifier/gobra-base:v6_z3_4.8.7
-    env:
-      SILVER_REF: "v.21.07-release"
-      SILICON_REF: "v.21.07-release"
-      CARBON_REF: "v.21.07-release"
-      CONCLUSION_SUCCESS: "success"
-      CONCLUSION_FAILURE: "failure"
-      # Output levels according to severity.
-      # They identify the kinds of annotations to be printed by Github.
-      NOTICE_LEVEL: "info"
-      WARNING_LEVEL: "warning"
-      FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2
-        with:
-          path: gobra
 
-      # clone Viper dependencies
-      - name: Checkout Silver
-        uses: actions/checkout@v2
-        with:
-          repository: viperproject/silver
-          ref: ${{ env.SILVER_REF }}
-          path: silver
-      - name: Checkout Silicon
-        uses: actions/checkout@v2
-        with:
-          repository: viperproject/silicon
-          ref: ${{ env.SILICON_REF }}
-          path: silicon
-      - name: Checkout Carbon
-        uses: actions/checkout@v2
-        with:
-          repository: viperproject/carbon
-          ref: ${{ env.CARBON_REF }}
-          path: carbon
+      # TODO add caching of Docker container
+      - name: Build image up to including stage 'build'
+        run: docker build . --target build --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
 
-      - name: Java Version
-        run: java --version
-      - name: Z3 Version
-        run: z3 -version
-      - name: Silver Commit
-        run: echo "Silver commit:" $(git -C silver rev-parse HEAD)
-      - name: Silicon Commit
-        run: echo "Silicon commit:" $(git -C silicon rev-parse HEAD)
-      - name: Carbon Commit
-        run: echo "Carbon commit:" $(git -C carbon rev-parse HEAD)
-
-      # create symlinks between and to Viper dependencies:
-      - name: Create Silicon's sym links
-        run: ln --symbolic ../silver
-        working-directory: silicon
-      - name: Create Carbon's sym links
-        run: ln --symbolic ../silver
-        working-directory: carbon
-      - name: Create Gobra's sym links
-        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
-        working-directory: gobra
-
-      - name: Set sbt cache variables
-        run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy" >> $GITHUB_ENV
-        # note that the cache path is relative to the directory in which sbt is invoked.
-
-      - name: Cache SBT
-        uses: actions/cache@v2
-        with:
-          path: |
-            gobra/sbt-cache/.sbtboot
-            gobra/sbt-cache/.boot
-            gobra/sbt-cache/.ivy/cache
-          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'silicon', are intentionally not
-          # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
-          # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
-          # disabled caching of compiled source files altogether
-          key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
-
-      # compilation of gobra-test.jar is only necessary when tests should be executed independently of sbt
-      # - name: Compile tests
-      #   run: sbt test:assembly
-      #   working-directory: gobra
-
-      - name: Start pidstat and execute it in the background
-        # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
-        # terminate it
-        run: |
-          pidstat 1 -r -p ALL > pidstat.txt &
-          echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
-        working-directory: gobra
-
-      # the following step executes the tests independently of sbt:
-      # - name: Execute precompiled tests
-      #   run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
-      #   # run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
-      #   working-directory: gobra
-
-      - name: Execute all tests
-        run: sbt test
-        working-directory: gobra
-
-      - name: Terminate pidstat
-        if: ${{ always() }}
-        run: kill -INT $PIDSTAT_PID
+      - name: Test image
+        run: docker run --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync $IMAGE_NAME ./.github/test-and-measure-ram.sh
+        # run: docker run --entrypoint /bin/bash --volume sync:/build/gobra/sync $IMAGE_NAME ./.github/test-and-measure-ram.sh
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}
@@ -139,7 +50,7 @@ jobs:
             # - `$8` refers to the 8th column in the file which corresponds to the column storing RAM (in kb)
             # - `java$` matches only lines that end in the string 'java'
             # - variable `max` is printed after processing the entire file
-            local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 'processName~$10 {if(curTimestamp==$1){curCount=curCount+$8}else{curTimestamp=$1; curCount=$8}; if(curCount>max){max=curCount}}END{print max}' pidstat.txt)
+            local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 'processName~$10 {if(curTimestamp==$1){curCount=curCount+$8}else{curTimestamp=$1; curCount=$8}; if(curCount>max){max=curCount}}END{print max}' sync/pidstat.txt)
             echo $result
           }
           function convertKbToGb {
@@ -172,7 +83,6 @@ jobs:
           echo "JAVA_LEVEL=$JAVA_LEVEL" >> $GITHUB_ENV
           echo "Z3_LEVEL=$Z3_LEVEL" >> $GITHUB_ENV
           echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
-        working-directory: gobra
 
       - name: Create annotations
         if: ${{ always() }}
@@ -185,7 +95,7 @@ jobs:
             echo "$JAVA_MESSAGE"
           else
             echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
-          fi 
+          fi
 
           Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
           if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
@@ -193,7 +103,7 @@ jobs:
             echo "$Z3_MESSAGE"
           else
             echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
-          fi 
+          fi
 
           if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
           then
@@ -206,4 +116,232 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: pidstat.txt
-          path: gobra/pidstat.txt
+          path: sync/pidstat.txt
+
+      # TODO add caching of Docker container
+      - name: Build entire image
+        run: docker build . --file workflow-container/Dockerfile --tag $IMAGE_NAME --label "runnumber=${GITHUB_RUN_ID}"
+
+      # TODO verify a tutorial example to double-check image
+
+      # Push image to GitHub Packages.
+      # See also https://docs.docker.com/docker-hub/builds/
+      # TODO only do this for branches master and verified-scion-preview-without-selective, and tags starting with "v"
+#      - name: Log in to GitHub registry
+#        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+#
+#      - name: Push image to GitHub registry
+#        run: |
+#          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+#
+#          # Change all uppercase to lowercase
+#          IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+#          # Strip git ref prefix from version
+#          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+#          # Strip "v" prefix from tag name
+#          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v\.?//')
+#          # Use Docker `latest` tag convention
+#          [ "$VERSION" == "master" ] && VERSION=latest
+#          echo IMAGE_ID=$IMAGE_ID
+#          echo VERSION=$VERSION
+#          docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
+#          docker push $IMAGE_ID:$VERSION
+
+
+
+#  setup-and-test:
+#    runs-on: ubuntu-latest
+#    container: gobraverifier/gobra-base:v6_z3_4.8.7
+#    env:
+#      SILVER_REF: "v.21.07-release"
+#      SILICON_REF: "v.21.07-release"
+#      CARBON_REF: "v.21.07-release"
+#      CONCLUSION_SUCCESS: "success"
+#      CONCLUSION_FAILURE: "failure"
+#      # Output levels according to severity.
+#      # They identify the kinds of annotations to be printed by Github.
+#      NOTICE_LEVEL: "info"
+#      WARNING_LEVEL: "warning"
+#      FAILURE_LEVEL: "error"
+#    steps:
+#      - name: Checkout Gobra
+#        uses: actions/checkout@v2
+#        with:
+#          path: gobra
+#
+#      # clone Viper dependencies
+#      - name: Checkout Silver
+#        uses: actions/checkout@v2
+#        with:
+#          repository: viperproject/silver
+#          ref: ${{ env.SILVER_REF }}
+#          path: silver
+#      - name: Checkout Silicon
+#        uses: actions/checkout@v2
+#        with:
+#          repository: viperproject/silicon
+#          ref: ${{ env.SILICON_REF }}
+#          path: silicon
+#      - name: Checkout Carbon
+#        uses: actions/checkout@v2
+#        with:
+#          repository: viperproject/carbon
+#          ref: ${{ env.CARBON_REF }}
+#          path: carbon
+#
+#      - name: Java Version
+#        run: java --version
+#      - name: Z3 Version
+#        run: z3 -version
+#      - name: Silver Commit
+#        run: echo "Silver commit:" $(git -C silver rev-parse HEAD)
+#      - name: Silicon Commit
+#        run: echo "Silicon commit:" $(git -C silicon rev-parse HEAD)
+#      - name: Carbon Commit
+#        run: echo "Carbon commit:" $(git -C carbon rev-parse HEAD)
+#
+#      # create symlinks between and to Viper dependencies:
+#      - name: Create Silicon's sym links
+#        run: ln --symbolic ../silver
+#        working-directory: silicon
+#      - name: Create Carbon's sym links
+#        run: ln --symbolic ../silver
+#        working-directory: carbon
+#      - name: Create Gobra's sym links
+#        run: ln --symbolic ../silver; ln --symbolic ../silicon; ln --symbolic ../carbon
+#        working-directory: gobra
+#
+#      - name: Set sbt cache variables
+#        run: echo "SBT_OPTS=-Dsbt.global.base=sbt-cache/.sbtboot -Dsbt.boot.directory=sbt-cache/.boot -Dsbt.ivy.home=sbt-cache/.ivy" >> $GITHUB_ENV
+#        # note that the cache path is relative to the directory in which sbt is invoked.
+#
+#      - name: Cache SBT
+#        uses: actions/cache@v2
+#        with:
+#          path: |
+#            gobra/sbt-cache/.sbtboot
+#            gobra/sbt-cache/.boot
+#            gobra/sbt-cache/.ivy/cache
+#          # <x>/project/target and <x>/target, where <x> is e.g. 'gobra' or 'silicon', are intentionally not
+#          # included as several occurrences of NoSuchMethodError exceptions have been observed during CI runs. It seems
+#          # like sbt is unable to correctly compute source files that require a recompilation. Therefore, we have
+#          # disabled caching of compiled source files altogether
+#          key: ${{ runner.os }}-sbt-no-precompiled-sources-${{ hashFiles('**/build.sbt') }}
+#
+#      # compilation of gobra-test.jar is only necessary when tests should be executed independently of sbt
+#      # - name: Compile tests
+#      #   run: sbt test:assembly
+#      #   working-directory: gobra
+#
+#      - name: Start pidstat and execute it in the background
+#        # execute pidstat, redirect its output to a file, and store its PID in the env variable `PIDSTAT_PID` to later
+#        # terminate it
+#        run: |
+#          pidstat 1 -r -p ALL > pidstat.txt &
+#          echo "PIDSTAT_PID=$!" >> $GITHUB_ENV
+#        working-directory: gobra
+#
+#      # the following step executes the tests independently of sbt:
+#      # - name: Execute precompiled tests
+#      #   run: java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions -DGOBRATESTS_SAME_PACKAGE_DIR=src/test/resources/same_package org.scalatest.tools.Runner -R target/scala-2.13/test-classes -o
+#      #   # run: pidstat 1 -r -p ALL --human -e java -Xss128m -XshowSettings:vm -cp target/scala-2.13/gobra-test.jar -Dlogback.configurationFile=conf/logback.xml -DGOBRATESTS_REGRESSIONS_DIR=src/test/resources/regressions org.scalatest.run viper.gobra.GobraTests
+#      #   working-directory: gobra
+#
+#      - name: Execute all tests
+#        run: sbt test
+#        working-directory: gobra
+#
+#      - name: Terminate pidstat
+#        if: ${{ always() }}
+#        run: kill -INT $PIDSTAT_PID
+#
+#      - name: Get max RAM usage by Java and Z3
+#        if: ${{ always() }}
+#        shell: bash
+#        env:
+#          JAVA_WARNING_THRESHOLD_GB: 4.5
+#          JAVA_FAILURE_THRESHOLD_GB: 5.5
+#          Z3_WARNING_THRESHOLD_GB: 0.5
+#          Z3_FAILURE_THRESHOLD_GB: 1
+#        # awk is used to perform the computations such that the computations are performed with floating point precision
+#        # we transform bash variables into awk variables to not cause problems with bash's variable substitution
+#        # after computing the memory usage (in KB) a few more computations are performed. At the very end, all (local)
+#        # environment variables are exported to `$GITHUB_ENV` such that they will be available in the next step as well.
+#        run: |
+#          function getMaxMemOfProcessInKb {
+#            # $1 is the regex used to filter lines by the 10th column
+#            # - we use variable `max` to keep track of the maximum
+#            # - `curCount` stores the sum of all processes with the given name for a particular timestamp
+#            # - note that looking at the timestamp is only an approximation: pidstat might report different timestamps in the
+#            #   same "block" of outputs (i.e. the report every second)
+#            # - `$8` refers to the 8th column in the file which corresponds to the column storing RAM (in kb)
+#            # - `java$` matches only lines that end in the string 'java'
+#            # - variable `max` is printed after processing the entire file
+#            local result=$(awk -v processName=$1 -v max=0 -v curCount=0 -v curTimestamp=0 'processName~$10 {if(curTimestamp==$1){curCount=curCount+$8}else{curTimestamp=$1; curCount=$8}; if(curCount>max){max=curCount}}END{print max}' pidstat.txt)
+#            echo $result
+#          }
+#          function convertKbToGb {
+#            # $1 is the value [KB] that should be converted
+#            local result=$(awk -v value=$1 'BEGIN {print value / 1000 / 1000}')
+#            echo $result
+#          }
+#          function getLevel {
+#            # $1 is the value that should be comparing against the thresholds
+#            # $2 is the threshold causing a warning
+#            # $3 is the threshold causing an error
+#            # writes ${{ env.NOTICE_LEVEL }}, ${{ env.WARNING_LEVEL}} or ${{ env.FAILURE_LEVEL }} to standard output
+#            local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
+#            echo $result
+#          }
+#          MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
+#          MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
+#          MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
+#          MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
+#          JAVA_LEVEL=$(getLevel $MAX_JAVA_GB ${{ env.JAVA_WARNING_THRESHOLD_GB }} ${{ env.JAVA_FAILURE_THRESHOLD_GB }})
+#          Z3_LEVEL=$(getLevel $MAX_Z3_GB ${{ env.Z3_WARNING_THRESHOLD_GB }} ${{ env.Z3_FAILURE_THRESHOLD_GB }})
+#          if [[ "$JAVA_LEVEL" = "${{ env.FAILURE_LEVEL }}" || "$Z3_LEVEL" = "${{ env.FAILURE_LEVEL }}" ]]
+#          then
+#            CONCLUSION="${{ env.CONCLUSION_FAILURE }}"
+#          else
+#            CONCLUSION="${{ env.CONCLUSION_SUCCESS }}"
+#          fi
+#          echo "MAX_JAVA_GB=$MAX_JAVA_GB" >> $GITHUB_ENV
+#          echo "MAX_Z3_GB=$MAX_Z3_GB" >> $GITHUB_ENV
+#          echo "JAVA_LEVEL=$JAVA_LEVEL" >> $GITHUB_ENV
+#          echo "Z3_LEVEL=$Z3_LEVEL" >> $GITHUB_ENV
+#          echo "CONCLUSION=$CONCLUSION" >> $GITHUB_ENV
+#        working-directory: gobra
+#
+#      - name: Create annotations
+#        if: ${{ always() }}
+#        # Outputs the memory consumption of JAVA and Z3. The message format is described in
+#        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
+#        run: |
+#          JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
+#          if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+#          then
+#            echo "$JAVA_MESSAGE"
+#          else
+#            echo "::${{ env.JAVA_LEVEL }} file=.github/workflows/test.yml,line=1::$JAVA_MESSAGE"
+#          fi
+#
+#          Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
+#          if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+#          then
+#            echo "$Z3_MESSAGE"
+#          else
+#            echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
+#          fi
+#
+#          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
+#          then
+#            # the whole step fails when this comparison fails
+#            exit 1
+#          fi
+#
+#      - name: Upload RAM usage
+#        if: ${{ always() }}
+#        uses: actions/upload-artifact@v2
+#        with:
+#          name: pidstat.txt
+#          path: gobra/pidstat.txt

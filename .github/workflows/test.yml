@@ -65,7 +65,11 @@ jobs:
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
           # `--tty` makes sure that the output is color the same way as when running Gobra directly
-          docker run --tty --entrypoint /bin/bash --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync ${{ env.IMAGE_TAG }} -c "$(cat .github/test-and-measure-ram.sh)"
+          docker run --interactive --tty \
+            --entrypoint /bin/bash \
+            --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
+            ${{ env.IMAGE_TAG }} \
+            -c "$(cat .github/test-and-measure-ram.sh)"
 
       - name: Get max RAM usage by Java and Z3
         if: ${{ always() }}
@@ -173,7 +177,10 @@ jobs:
 
       - name: Test final container by verifying a file
         # `--tty` makes sure that the output is color the same way as when running Gobra directly
-        run: docker run --tty ${{ env.IMAGE_TAG }} -i tutorial-examples/basicAnnotations.gobra
+        run: |
+          docker run --interactive --tty \
+            ${{ env.IMAGE_TAG }} \
+            -i tutorial-examples/basicAnnotations.gobra
 
       - name: Decide whether image should be deployed or not
         run: |

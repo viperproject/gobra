@@ -65,7 +65,8 @@ jobs:
           # create a directory to sync with the docker container and to store the created pidstats
           mkdir -p $PWD/sync
           # `--tty` makes sure that the output is color the same way as when running Gobra directly
-          docker run --interactive --tty \
+          docker run \ # --interactive --tty \
+            -e "TERM=xterm-256color" \
             --entrypoint /bin/bash \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ env.IMAGE_TAG }} \
@@ -184,15 +185,21 @@ jobs:
 
       - name: Decide whether image should be deployed or not
         run: |
+          # note that these GitHub expressions return the value '1' for 'true' (as opposed to bash)
           IS_GOBRA_REPO=${{ github.repository == 'viperproject/gobra' }}
           IS_MASTER=${{ github.ref == 'refs/heads/master' }}
           IS_VERIFIED_SCION=${{ github.ref == 'refs/heads/verified-scion-preview-without-selective' }}
           IS_PROPER_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
-          SHOULD_DEPLOY=$(($IS_GOBRA_REPO && ($IS_MASTER || $IS_VERIFIED_SCION || $IS_PROPER_TAG)))
+          if [[ $IS_GOBRA_REPO && ($IS_MASTER || $IS_VERIFIED_SCION || $IS_PROPER_TAG) ]]
+          then
+            SHOULD_DEPLOY='true'
+          else
+            SHOULD_DEPLOY='false'
+          fi
           echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
 
       - name: Login to Github Packages
-        if: env.SHOULD_DEPLOY
+        if: env.SHOULD_DEPLOY = 'true'
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
@@ -200,7 +207,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push entire image
-        if: env.SHOULD_DEPLOY
+        if: env.SHOULD_DEPLOY = 'true'
         uses: docker/build-push-action@v2
         with:
           context: .

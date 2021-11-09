@@ -6,7 +6,8 @@
 pidstat 1 -r -H -p ALL > /build/gobra/sync/pidstat.txt & PIDSTAT_PID=$!
 
 # execute sbt test and stop pidstat independent of outcome
-sbt test
+# sbt test
+sbt "testOnly *ExprTypingUnitTests"
 TEST_RES=$?
 kill -INT $PIDSTAT_PID
 

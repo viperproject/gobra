@@ -5,7 +5,7 @@ pidstat 1 -r -p ALL > /build/gobra/sync/pidstat.txt & PIDSTAT_PID=$!
 
 # execute sbt test and stop pidstat independent of outcome
 # sbt test
-java -Xss128m -jar /build/gobra/target/scala-2.13/gobra.jar -i /build/gobra/src/test/resources/regressions/examples/swap.gobra
+java -Xss128m -jar /build/gobra/target/scala-2.13/gobra.jar -i /build/gobra/src/test/resources/regressions/examples/tutorial-examples/basicAnnotations.gobra
 TEST_RES=$?
 kill -INT $PIDSTAT_PID
 

@@ -38,16 +38,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      # Docker caching (see https://evilmartians.com/chronicles/build-images-on-github-actions-with-docker-layer-caching)
-#      - name: Cache Docker layers
-#        uses: actions/cache@v2
-#        with:
-#          path: /tmp/.buildx-cache
-#          key: ${{ runner.os }}-buildx-${{ github.sha }}
-#          restore-keys: |
-#            ${{ runner.os }}-buildx-
-
-      # TODO add caching of Docker container
       - name: Build image up to including stage 'build'
         # note that the action's name is misleading: this step does NOT push
         uses: docker/build-push-action@v2
@@ -59,8 +49,7 @@ jobs:
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"
           push: false
-          # cache-from: type=local,src=/tmp/.buildx-cache
-          # cache-to: type=local,dest=/tmp/.buildx-cache-new
+          # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
 
@@ -107,7 +96,9 @@ jobs:
             local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
             echo $result
           }
+          cat sync/pidstat.txt
           MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
+          echo $MAX_JAVA_KB
           MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
           MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
           MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
@@ -159,7 +150,6 @@ jobs:
           name: pidstat.txt
           path: sync/pidstat.txt
 
-      # TODO add caching of Docker container
       - name: Build entire image
         uses: docker/build-push-action@v2
         with:
@@ -169,10 +159,7 @@ jobs:
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"
           push: false
-          # cache-from: |
-          #   type=local,src=/tmp/.buildx-cache
-          #   type=local,dest=/tmp/.buildx-cache-new
-          # cache-to: type=local,dest=/tmp/.buildx-cache-new
+          # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
 
@@ -195,15 +182,9 @@ jobs:
           tags: ${{ env.IMAGE_TAG }}
           labels: "runnumber=${{ github.run_id }}"
           push: ${{ github.ref == 'refs/heads/master' }}
-          # cache-from: type=local,dest=/tmp/.buildx-cache-new
-          # cache-to: type=local,dest=/tmp/.buildx-cache-new
+          # use GitHub cache:
           cache-from: type=gha, scope=${{ github.workflow }}
           cache-to: type=gha, scope=${{ github.workflow }}
-
-#      - name: Move cache
-#        run:
-#          rm -rf /tmp/.buildx-cache
-#          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
 
 #  setup-and-test:

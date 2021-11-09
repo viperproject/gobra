@@ -97,9 +97,7 @@ jobs:
             local result=$(awk -v value=$1 -v warnThres=$2 -v errThres=$3 'BEGIN { print (value>errThres) ? "${{ env.FAILURE_LEVEL }}" : (value>warnThres) ? "${{ env.WARNING_LEVEL }}" : "${{ env.NOTICE_LEVEL}}" }')
             echo $result
           }
-          cat sync/pidstat.txt
           MAX_JAVA_KB=$(getMaxMemOfProcessInKb 'java$')
-          echo $MAX_JAVA_KB
           MAX_Z3_KB=$(getMaxMemOfProcessInKb 'z3$')
           MAX_JAVA_GB=$(convertKbToGb $MAX_JAVA_KB)
           MAX_Z3_GB=$(convertKbToGb $MAX_Z3_KB)
@@ -123,7 +121,7 @@ jobs:
         # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions .
         run: |
           JAVA_MESSAGE="Java used up to ${{ env.MAX_JAVA_GB }}GB of RAM"
-          if [ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+          if [[ "${{ env.JAVA_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]]
           then
             echo "$JAVA_MESSAGE"
           else
@@ -131,14 +129,14 @@ jobs:
           fi
 
           Z3_MESSAGE="Z3 used up to ${{ env.MAX_Z3_GB }}GB of RAM"
-          if [ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]
+          if [[ "${{ env.Z3_LEVEL }}" = "${{ env.NOTICE_LEVEL }}" ]]
           then
             echo "$Z3_MESSAGE"
           else
             echo "::${{ env.Z3_LEVEL }} file=.github/workflows/test.yml,line=1::$Z3_MESSAGE"
           fi
 
-          if [ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]
+          if [[ $CONCLUSION = "${{ env.CONCLUSION_FAILURE }}" ]]
           then
             # the whole step fails when this comparison fails
             exit 1

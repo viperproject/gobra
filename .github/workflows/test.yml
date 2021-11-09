@@ -10,12 +10,18 @@ on:
   push: # run this workflow on every push
   pull_request: # run this workflow on every pull_request
 
-env:
-  IMAGE_NAME: gobra
-
 jobs:
   build-test-deploy-container:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: gobra
+      CONCLUSION_SUCCESS: "success"
+      CONCLUSION_FAILURE: "failure"
+      # Output levels according to severity.
+      # They identify the kinds of annotations to be printed by Github.
+      NOTICE_LEVEL: "info"
+      WARNING_LEVEL: "warning"
+      FAILURE_LEVEL: "error"
     steps:
       - name: Checkout Gobra
         uses: actions/checkout@v2

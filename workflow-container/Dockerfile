@@ -82,6 +82,9 @@ RUN sbt assembly
 
 FROM openjdk:11-jre-slim
 
+# note that only stuff copied from "build" will be present.
+# in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
+
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie
 ENV BOOGIE_EXE=/boogie/Boogie

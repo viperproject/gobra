@@ -70,7 +70,6 @@ jobs:
           # --entrypoint /bin/bash \
           # --entrypoint /bin/sh \
           docker run \
-            --tty \
             --mount type=volume,dst=/build/gobra/sync,volume-driver=local,volume-opt=type=none,volume-opt=o=bind,volume-opt=device=$PWD/sync \
             ${{ env.IMAGE_TAG }} \
             /bin/sh -c "$(cat .github/test-and-measure-ram.sh)"
@@ -182,7 +181,7 @@ jobs:
       - name: Test final container by verifying a file
         # `--tty` makes sure that the output is color the same way as when running Gobra directly
         run: |
-          docker run --interactive --tty \
+          docker run \
             ${{ env.IMAGE_TAG }} \
             -i tutorial-examples/basicAnnotations.gobra
 

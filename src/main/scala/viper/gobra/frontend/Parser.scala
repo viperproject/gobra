@@ -1250,6 +1250,11 @@ object Parser {
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
+    lazy val oldLabelUse: Parser[PLabelUse] = labelUse | wandLhsLabel
+    lazy val wandLhsLabel: Parser[PLabelUse] = {
+      val lhs = "#lhs"
+      lhs ^^^ PLabelUse(lhs)
+    }
 
     lazy val pkgDef: Parser[PPkgDef] = identifier ^^ PPkgDef
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
@@ -1367,7 +1372,7 @@ object Parser {
       ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     lazy val old : Parser[PGhostExpression] =
-      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+      (("old" ~> ("[" ~> oldLabelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
         case Some(l) ~ e => PLabeledOld(l, e)
         case None ~ e => POld(e)
       }

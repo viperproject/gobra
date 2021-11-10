@@ -3196,7 +3196,10 @@ object Desugar {
       s"$DOMAIN_PREFIX$$$domainName"
     }
 
-    def label(n: String): String = s"${n}_$LABEL_PREFIX"
+    def label(n: String): String = n match {
+      case "#lhs" => ???
+      case _ => s"${n}_$LABEL_PREFIX"
+    }
   }
 }
 

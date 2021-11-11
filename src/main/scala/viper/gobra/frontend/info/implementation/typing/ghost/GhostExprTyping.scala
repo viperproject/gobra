@@ -64,7 +64,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PMagicWand =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
-        // check whether the left operand is a Boolean expression
+        // check whether the left operand is a Boolean or an assertion
         assignableToSpec(n.left) ++
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
@@ -311,7 +311,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
-      case PMagicWand(left, right) => Seq(left, right).forall(go)
+      case _: PMagicWand => !strong
 
       case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 

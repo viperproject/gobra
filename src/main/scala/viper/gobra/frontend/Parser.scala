@@ -1251,10 +1251,7 @@ object Parser {
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
     lazy val oldLabelUse: Parser[PLabelUse] = labelUse | wandLhsLabel
-    lazy val wandLhsLabel: Parser[PLabelUse] = {
-      val lhs = "#lhs"
-      lhs ^^^ PLabelUse(lhs)
-    }
+    lazy val wandLhsLabel: Parser[PLabelUse] = PLabelNode.lhsLabel ^^^ PLabelUse(PLabelNode.lhsLabel)
 
     lazy val pkgDef: Parser[PPkgDef] = identifier ^^ PPkgDef
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse

@@ -8,7 +8,7 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
@@ -30,6 +30,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(op).out ++ isPureExpr(op) ++ (
           label(l) match {
             case _: Label => noMessages
+            case WandLhsLabel => noMessages
             case _ => error(l, s"$l is not a label in scope")
           }
         )

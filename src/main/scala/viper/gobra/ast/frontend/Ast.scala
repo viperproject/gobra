@@ -872,6 +872,10 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
+case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
+
+case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
 /**
   * Ghost Expressions and Assertions
   */
@@ -914,6 +918,7 @@ case class PTypeOf(exp: PExpression) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
+case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */
 

@@ -70,15 +70,17 @@ object DefaultErrorBackTranslator {
         ReceiverNotInjectiveReason(info)
       //      case vprrea.LabelledStateNotReached(offendingNode) =>
       case termination.TerminationConditionFalse(CertainSource(info)) =>
-         TerminationConditionFalseError(info)
+        TerminationConditionFalseError(info)
       case termination.TupleConditionFalse(CertainSource(info)) =>
-         TupleConditionFalseError(info)
+        TupleConditionFalseError(info)
       case termination.TupleSimpleFalse(CertainSource(info)) =>
-         TupleSimpleFalseError(info)
+        TupleSimpleFalseError(info)
       case termination.TupleDecreasesFalse(CertainSource(info)) =>
-         TupleDecreasesFalseError(info)
+        TupleDecreasesFalseError(info)
       case termination.TupleBoundedFalse(CertainSource(info)) =>
-         TupleBoundedFalseError(info)
+        TupleBoundedFalseError(info)
+      case vprrea.LabelledStateNotReached(CertainSource(info)) =>
+        LabelledStateNotReached(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {

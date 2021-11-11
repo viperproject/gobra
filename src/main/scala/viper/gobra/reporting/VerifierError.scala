@@ -437,6 +437,11 @@ case class TupleBoundedFalseError(info: Source.Verifier.Info) extends Verificati
   override def message: String = s"Termination measure might not be bounded."
 }
 
+case class LabelledStateNotReached(info: Source.Verifier.Info) extends VerificationErrorReason  {
+  override def id: String = "labelled_state_not_reached"
+  override def message: String = s"Did not reach labelled state required to evaluate ${info.origin.tag.trim}"
+}
+
 sealed trait VerificationErrorClarification {
   def message: String
   override def toString: String = message

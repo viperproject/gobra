@@ -104,4 +104,6 @@ COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .
 COPY src/test/resources/regressions/examples/evaluation ./evaluation
 COPY src/test/resources/regressions/examples/tutorial-examples ./tutorial-examples
 
+ENV FORCE_REPUSH 1
+
 ENTRYPOINT ["java", "-Xss128m", "-jar", "gobra.jar"]

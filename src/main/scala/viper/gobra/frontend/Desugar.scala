@@ -2603,8 +2603,17 @@ object Desugar {
           for {
             w <- goA(wand)
             b <- option(blockOpt map stmtD(ctx))
-          } yield in.PackageWand(w, b)(src)
-        case PApplyWand(wand) => for {w <- goA(wand)} yield in.ApplyWand(w)(src)
+          } yield w match {
+            case w: in.MagicWand => in.PackageWand(w, b)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
+        case PApplyWand(wand) =>
+          for {
+            w <- goA(wand)
+          } yield w match {
+            case w: in.MagicWand => in.ApplyWand(w)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }

@@ -685,12 +685,15 @@ sealed trait PLabelNode extends PNode {
   def name: String
 }
 
+object PLabelNode {
+  val lhsLabel: String = "#lhs"
+}
+
 trait PDefLikeLabel extends PLabelNode
 trait PUseLikeLabel extends PLabelNode
 
 case class PLabelDef(name: String) extends PDefLikeLabel
 case class PLabelUse(name: String) extends PUseLikeLabel
-
 
 sealed trait PPackageNode extends PNode {
   def name: PPkg
@@ -863,6 +866,10 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
+case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
+
+case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
 /**
   * Ghost Expressions and Assertions
   */
@@ -905,6 +912,7 @@ case class PTypeOf(exp: PExpression) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
+case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */
 

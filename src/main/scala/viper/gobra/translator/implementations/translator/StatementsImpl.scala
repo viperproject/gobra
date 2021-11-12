@@ -156,6 +156,14 @@ class StatementsImpl extends Statements {
       case fold: in.Fold => for {a <- ctx.ass.translate(fold.acc)(ctx) } yield vpr.Fold(a.asInstanceOf[vpr.PredicateAccessPredicate])(pos, info, errT)
       case unfold: in.Unfold => for { a <- ctx.ass.translate(unfold.acc)(ctx) } yield vpr.Unfold(a.asInstanceOf[vpr.PredicateAccessPredicate])(pos, info, errT)
 
+      case in.PackageWand(wand, blockOpt) => for {
+        w <- goA(wand)
+        s <- sequence(blockOpt.toVector.map(goS))
+      } yield vpr.Package(w.asInstanceOf[vpr.MagicWand], vu.seqn(s)(pos, info, errT))(pos, info, errT)
+
+      case in.ApplyWand(wand) =>
+        for {w <- goA(wand)} yield vpr.Apply(w.asInstanceOf[vpr.MagicWand])(pos, info, errT)
+
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 
       case _ => Violation.violation(s"Statement $x did not match with any implemented case.")

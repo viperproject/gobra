@@ -60,6 +60,8 @@ object Nodes {
         case Assume(ass) => Seq(ass)
         case Fold(acc) => Seq(acc)
         case Unfold(acc) => Seq(acc)
+        case PackageWand(wand, block) => Seq(wand) ++ block.toSeq
+        case ApplyWand(wand) => Seq(wand)
         case PredExprFold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case PredExprUnfold(base, args, p) => Seq(base) ++ args ++ Seq(p)
         case SafeTypeAssertion(resTarget, successTarget, expr, _) => Seq(resTarget, successTarget, expr)
@@ -78,6 +80,7 @@ object Nodes {
         case SepForall(vars, triggers, body) => vars ++ triggers ++ Seq(body)
         case ExprAssertion(exp) => Seq(exp)
         case Implication(left, right) => Seq(left, right)
+        case MagicWand(left, right) => Seq(left, right)
         case Access(e, p) => Seq(e, p)
       }
       case a: Accessible => Seq(a.op)

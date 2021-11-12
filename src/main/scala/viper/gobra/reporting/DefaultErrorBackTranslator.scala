@@ -64,22 +64,22 @@ object DefaultErrorBackTranslator {
       case vprrea.NegativePermission(CertainSource(info)) =>
         NegativePermissionReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
-      //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
+      case vprrea.MagicWandChunkNotFound(CertainSource(info)) =>
+        MagicWandChunkNotFound(info)
       case vprrea.ReceiverNotInjective(CertainSource(info)) =>
         ReceiverNotInjectiveReason(info)
-      //      case vprrea.LabelledStateNotReached(offendingNode) =>
+      case vprrea.LabelledStateNotReached(CertainSource(info)) =>
+        LabelledStateNotReached(info)
       case termination.TerminationConditionFalse(CertainSource(info)) =>
-         TerminationConditionFalseError(info)
+        TerminationConditionFalseError(info)
       case termination.TupleConditionFalse(CertainSource(info)) =>
-         TupleConditionFalseError(info)
+        TupleConditionFalseError(info)
       case termination.TupleSimpleFalse(CertainSource(info)) =>
-         TupleSimpleFalseError(info)
+        TupleSimpleFalseError(info)
       case termination.TupleDecreasesFalse(CertainSource(info)) =>
-         TupleDecreasesFalseError(info)
+        TupleDecreasesFalseError(info)
       case termination.TupleBoundedFalse(CertainSource(info)) =>
-         TupleBoundedFalseError(info)
+        TupleBoundedFalseError(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
@@ -131,6 +131,12 @@ class DefaultErrorBackTranslator(
         LoopInvariantPreservationError(info) dueTo translate(reason)
       case vprerr.LoopInvariantNotEstablished(CertainSource(info), reason, _) =>
         LoopInvariantEstablishmentError(info) dueTo translate(reason)
+      case vprerr.MagicWandNotWellformed(CertainSource(info), reason, _) =>
+        MagicWandNotWellformedError(info) dueTo translate(reason)
+      case vprerr.PackageFailed(CertainSource(info), reason, _) =>
+        PackageFailedError(info) dueTo translate(reason)
+      case vprerr.ApplyFailed(CertainSource(info), reason, _) =>
+        ApplyFailed(info) dueTo translate(reason)
 
       // Wytse (2020-05-22):
       // It appears that Viper sometimes negates conditions

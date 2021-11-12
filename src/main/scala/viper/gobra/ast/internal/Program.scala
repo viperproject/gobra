@@ -331,6 +331,10 @@ case class Unfold(acc: Access)(val info: Source.Parser.Info) extends Stmt {
   lazy val op: PredicateAccess = acc.e.asInstanceOf[Accessible.Predicate].op
 }
 
+case class PackageWand(wand: MagicWand, block: Option[Stmt])(val info: Source.Parser.Info) extends Stmt
+
+case class ApplyWand(wand: MagicWand)(val info: Source.Parser.Info) extends Stmt
+
 case class Send(channel: Expr, expr: Expr, sendChannel: MPredicateProxy, sendGivenPerm: MethodProxy, sendGotPerm: MethodProxy)(val info: Source.Parser.Info) extends Stmt
 
 /**
@@ -419,6 +423,8 @@ case class PureForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: E
 }
 
 case class SepForall(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Assertion)(val info: Source.Parser.Info) extends Assertion
+
+case class MagicWand(left: Assertion, right: Assertion)(val info: Source.Parser.Info) extends Assertion
 
 case class Exists(vars: Vector[BoundVar], triggers: Vector[Trigger], body: Expr)(val info: Source.Parser.Info) extends Expr {
   override def typ: Type = BoolT(Addressability.rValue)

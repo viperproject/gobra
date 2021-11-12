@@ -295,6 +295,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case PackageWand(wand, block) => "package" <+> showAss(wand) <+> opt(block)(showStmt)
+    case ApplyWand(wand) => "apply" <+> showAss(wand)
     case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)
@@ -358,6 +360,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
   def showAss(a: Assertion): Doc = updatePositionStore(a) <> (a match {
     case SepAnd(left, right) => showAss(left) <+> "&&" <+> showAss(right)
     case ExprAssertion(exp) => showExpr(exp)
+    case MagicWand(left, right) => showAss(left) <+> "--*" <+> showAss(right)
     case Implication(left, right) => showExpr(left) <+> "==>" <+> showAss(right)
     case Access(e, FullPerm(_)) => "acc" <> parens(showAcc(e))
     case Access(e, p) => "acc" <> parens(showAcc(e) <> "," <+> showExpr(p))
@@ -687,6 +690,8 @@ class ShortPrettyPrinter extends DefaultPrettyPrinter {
     case Exhale(ass) => "exhale" <+> showAss(ass)
     case Fold(acc)   => "fold" <+> showAss(acc)
     case Unfold(acc) => "unfold" <+> showAss(acc)
+    case PackageWand(wand, _) => "package" <+> showAss(wand)
+    case ApplyWand(wand) => "apply" <+> showAss(wand)
     case Send(channel, msg, _, _, _) => showExpr(channel) <+> "<-" <+> showExpr(msg)
     case SafeReceive(resTarget, successTarget, channel, _, _, _, _) =>
       showVar(resTarget) <> "," <+> showVar(successTarget) <+> "=" <+> "<-" <+> showExpr(channel)

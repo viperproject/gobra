@@ -2599,6 +2599,21 @@ object Desugar {
             } yield in.PredExprUnfold(predExpInstance.base.asInstanceOf[in.PredicateConstructor],  predExpInstance.args, access.p)(src)
             case _ => for {e <- goA(exp)} yield in.Unfold(e.asInstanceOf[in.Access])(src)
           }
+        case PPackageWand(wand, blockOpt) =>
+          for {
+            w <- goA(wand)
+            b <- option(blockOpt map stmtD(ctx))
+          } yield w match {
+            case w: in.MagicWand => in.PackageWand(w, b)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
+        case PApplyWand(wand) =>
+          for {
+            w <- goA(wand)
+          } yield w match {
+            case w: in.MagicWand => in.ApplyWand(w)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -2842,6 +2857,9 @@ object Desugar {
             thn <- goA(n.thn)
             els <- goA(n.els)
           } yield in.SepAnd(in.Implication(cnd, thn)(src), in.Implication(in.Negation(cnd)(src), els)(src))(src)
+
+        case PMagicWand(left, right) =>
+          for {l <- goA(left); r <- goA(right)} yield in.MagicWand(l, r)(src)
 
         case n: PAnd => for {l <- goA(n.left); r <- goA(n.right)} yield in.SepAnd(l, r)(src)
 
@@ -3187,7 +3205,10 @@ object Desugar {
       s"$DOMAIN_PREFIX$$$domainName"
     }
 
-    def label(n: String): String = s"${n}_$LABEL_PREFIX"
+    def label(n: String): String = n match {
+      case "#lhs" => "lhs"
+      case _ => s"${n}_$LABEL_PREFIX"
+    }
   }
 }
 

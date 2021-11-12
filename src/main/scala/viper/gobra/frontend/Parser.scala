@@ -468,6 +468,8 @@ object Parser {
         goStmt |
         deferStmt |
         returnStmt |
+        packageStmt |
+        applyStmt |
         controlStmt |
         ifStmt |
         anyForStmt |
@@ -540,6 +542,18 @@ object Parser {
 
     lazy val returnStmt: Parser[PReturn] =
       "return" ~> repsep(expression, ",") ^^ PReturn
+
+    lazy val packageStmt: Parser[PPackageWand] =
+      ("package" ~> expression ~ opt(block)) into {
+        case (w: PMagicWand) ~ b => success(PPackageWand(w, b))
+        case e => failure(s"expected a magic wand but instead got $e")
+      }
+
+    lazy val applyStmt: Parser[PApplyWand] =
+      "apply" ~> expression into {
+        case w: PMagicWand => success(PApplyWand(w))
+        case e => failure(s"expected a magic wand but instead got $e")
+      }
 
     lazy val goStmt: Parser[PGoStmt] =
       "go" ~> expression ^^ PGoStmt
@@ -734,7 +748,9 @@ object Parser {
         precedence5
 
     lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+      // magic wands are left-associative, just as in Viper
+      precedence5 ~ ("--*" ~> precedence6) ^^ PMagicWand |
+        precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
@@ -1234,6 +1250,8 @@ object Parser {
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
+    lazy val oldLabelUse: Parser[PLabelUse] = labelUse | wandLhsLabel
+    lazy val wandLhsLabel: Parser[PLabelUse] = PLabelNode.lhsLabel ^^^ PLabelUse(PLabelNode.lhsLabel)
 
     lazy val pkgDef: Parser[PPkgDef] = identifier ^^ PPkgDef
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
@@ -1351,7 +1369,7 @@ object Parser {
       ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     lazy val old : Parser[PGhostExpression] =
-      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+      (("old" ~> ("[" ~> oldLabelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
         case Some(l) ~ e => PLabeledOld(l, e)
         case None ~ e => POld(e)
       }

@@ -22,6 +22,20 @@ type IPNet struct {
 	Mask IPMask
 }
 
+pred (ip IP) Mem() {
+	(len(ip) == IPv4len || len(ip) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i])
+}
+
+pred (mask IPMask) Mem() {
+	(len(mask) == IPv4len || len(mask) == IPv6len) &&
+	forall i int :: 0 <= i && i < len(mask) ==> acc(&mask[i])
+}
+
+pred (ipnet *IPNet) Mem() {
+	acc(ipnet) && ipnet.IP.Mem() && ipnet.Mask.Mem()
+}
+
 // IPv4 returns the IP address (in 16-byte form) of the
 // IPv4 address a.b.c.d.
 ensures len(res) == 4 && forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])

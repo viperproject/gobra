@@ -1,0 +1,13 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package builtin
+
+func test1() {
+	var a = []int{0, 1, 2, 3, 4, 5, 6, 7}
+	var b = []string{"hello", "world"}
+	
+	p := perm(1/2)
+	//:: ExpectedOutput(type_error)
+	n1 := copy(a, b, p)
+}

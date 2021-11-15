@@ -11,6 +11,7 @@ import viper.gobra.reporting.Source.Verifier./
 import viper.silver
 import viper.silver.ast.Not
 import viper.silver.verifier.{AbstractVerificationError, errors => vprerr, reasons => vprrea}
+import viper.silver.plugin.standard.termination
 
 object DefaultErrorBackTranslator {
 
@@ -63,12 +64,22 @@ object DefaultErrorBackTranslator {
       case vprrea.NegativePermission(CertainSource(info)) =>
         NegativePermissionReason(info)
       //      case vprrea.InvalidPermMultiplication(offendingNode) =>
-      //      case vprrea.MagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.NamedMagicWandChunkNotFound(offendingNode) =>
-      //      case vprrea.MagicWandChunkOutdated(offendingNode) =>
+      case vprrea.MagicWandChunkNotFound(CertainSource(info)) =>
+        MagicWandChunkNotFound(info)
       case vprrea.ReceiverNotInjective(CertainSource(info)) =>
         ReceiverNotInjectiveReason(info)
-      //      case vprrea.LabelledStateNotReached(offendingNode) =>
+      case vprrea.LabelledStateNotReached(CertainSource(info)) =>
+        LabelledStateNotReached(info)
+      case termination.TerminationConditionFalse(CertainSource(info)) =>
+        TerminationConditionFalseError(info)
+      case termination.TupleConditionFalse(CertainSource(info)) =>
+        TupleConditionFalseError(info)
+      case termination.TupleSimpleFalse(CertainSource(info)) =>
+        TupleSimpleFalseError(info)
+      case termination.TupleDecreasesFalse(CertainSource(info)) =>
+        TupleDecreasesFalseError(info)
+      case termination.TupleBoundedFalse(CertainSource(info)) =>
+        TupleBoundedFalseError(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {
@@ -120,6 +131,12 @@ class DefaultErrorBackTranslator(
         LoopInvariantPreservationError(info) dueTo translate(reason)
       case vprerr.LoopInvariantNotEstablished(CertainSource(info), reason, _) =>
         LoopInvariantEstablishmentError(info) dueTo translate(reason)
+      case vprerr.MagicWandNotWellformed(CertainSource(info), reason, _) =>
+        MagicWandNotWellformedError(info) dueTo translate(reason)
+      case vprerr.PackageFailed(CertainSource(info), reason, _) =>
+        PackageFailedError(info) dueTo translate(reason)
+      case vprerr.ApplyFailed(CertainSource(info), reason, _) =>
+        ApplyFailed(info) dueTo translate(reason)
 
       // Wytse (2020-05-22):
       // It appears that Viper sometimes negates conditions
@@ -135,6 +152,12 @@ class DefaultErrorBackTranslator(
         IfError(info) dueTo translate(reason)
       case vprerr.IfFailed(CertainSource(info), reason, _) =>
         IfError(info) dueTo translate(reason)
+       case termination.FunctionTerminationError(Source(info) , reason, _) =>
+         FunctionTerminationError(info) dueTo translate(reason)
+       case termination.MethodTerminationError(Source(info), reason, _) =>
+         MethodTerminationError(info) dueTo translate(reason)
+       case termination.LoopTerminationError(Source(info), reason, _) =>
+         LoopTerminationError(info) dueTo translate(reason)
     }
 
     val transformAnnotatedError: VerificationError => VerificationError = x => x.info match {
@@ -165,7 +188,6 @@ class DefaultErrorBackTranslator(
     }
     DefaultErrorBackTranslator.translateWithTransformer(transformedViperError, errorTransformer)
   }
-
 
   override def translate(viperReason: silver.verifier.ErrorReason): VerificationErrorReason = {
     DefaultErrorBackTranslator.translateWithTransformer(viperReason, reasonTransformer)

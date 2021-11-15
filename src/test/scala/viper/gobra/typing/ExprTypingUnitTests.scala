@@ -3342,6 +3342,22 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
     assert (!frontend.wellDefExpr(expr)().valid)
   }
 
+  test("TypeChecker: should correctly type an old expression") {
+    val expr = POld(PBoolLit(true))
+
+    frontend.exprType(expr)(Vector()) should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
+  test("TypeChecker: should correctly type a labeled old expression") {
+    val expr = PLabeledOld(PLabelUse("#lhs"), PBoolLit(true))
+
+    frontend.exprType(expr)(Vector()) should matchPattern {
+      case Type.BooleanT =>
+    }
+  }
+
 
   /* * Stubs, mocks, and other test setup  */
 
@@ -3354,7 +3370,7 @@ class ExprTypingUnitTests extends AnyFunSuite with Matchers with Inside {
         PUnnamedReceiver(PMethodReceiveName(PNamedOperand(PIdnUse("self")))),
         inArgs.map(_._1),
         PResult(Vector()),
-        PFunctionSpec(Vector(), Vector(), Vector(), true),
+        PFunctionSpec(Vector(), Vector(), Vector(), Vector(), true),
         Some(PBodyParameterInfo(inArgs.collect{ case (n: PNamedParameter, true) => PIdnUse(n.id.name) }), PBlock(Vector(body)))
       ))
     )

@@ -39,6 +39,7 @@ trait Context {
   def predicate: Predicates
   def builtInMembers: BuiltInMembers
   def stmt: Statements
+  def measures: TerminationMeasures
 
   // lookup
   def table: LookupTable
@@ -58,6 +59,11 @@ trait Context {
   def lookup(p: in.FPredicateProxy): in.FPredicate = table.lookup(p) match {
     case fp: FPredicate => fp
     case bfp: BuiltInFPredicate => builtInMembers.fpredicate(bfp)(this)
+  }
+
+  def underlyingType(t: in.Type): in.Type = t match {
+    case t: in.DefinedT => underlyingType(lookup(t))
+    case t => t
   }
 
   // mapping
@@ -81,6 +87,7 @@ trait Context {
           unknownValueN: UnknownValues = unknownValue,
           typeEncodingN: TypeEncoding = typeEncoding,
           assN: Assertions = ass,
+          measuresN: TerminationMeasures = measures,
           exprN: Expressions = expr,
           methodN: Methods = method,
           pureMethodN: PureMethods = pureMethod,
@@ -109,6 +116,7 @@ trait Context {
     // translators
     typeEncoding.finalize(col)
     ass.finalize(col)
+    measures.finalize(col)
     expr.finalize(col)
     method.finalize(col)
     pureMethod.finalize(col)

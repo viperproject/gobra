@@ -685,12 +685,15 @@ sealed trait PLabelNode extends PNode {
   def name: String
 }
 
+object PLabelNode {
+  val lhsLabel: String = "#lhs"
+}
+
 trait PDefLikeLabel extends PLabelNode
 trait PUseLikeLabel extends PLabelNode
 
 case class PLabelDef(name: String) extends PDefLikeLabel
 case class PLabelUse(name: String) extends PUseLikeLabel
-
 
 sealed trait PPackageNode extends PNode {
   def name: PPkg
@@ -763,6 +766,13 @@ object PGhostifier {
   def unapply[T <: PNode](arg: PGhostifier[T]): Option[T] = Some(arg.actual)
 }
 
+/**
+  * Termination Measures
+  */
+
+sealed trait PTerminationMeasure extends PNode
+case class PWildcardMeasure(cond: Option[PExpression]) extends PTerminationMeasure
+case class PTupleTerminationMeasure(tuple: Vector[PExpression], cond: Option[PExpression]) extends PTerminationMeasure
 
 /**
   * Specification
@@ -774,6 +784,7 @@ case class PFunctionSpec(
                       pres: Vector[PExpression],
                       preserves: Vector[PExpression],
                       posts: Vector[PExpression],
+                      terminationMeasures: Vector[PTerminationMeasure],
                       isPure: Boolean = false,
                       ) extends PSpecification
 
@@ -788,7 +799,8 @@ case class PBodyParameterInfo(
 
 
 case class PLoopSpec(
-                    invariants: Vector[PExpression]
+                    invariants: Vector[PExpression],
+                    terminationMeasure: Option[PTerminationMeasure],
                     ) extends PSpecification
 
 
@@ -854,6 +866,10 @@ case class PFold(exp: PPredicateAccess) extends PGhostStatement
 
 case class PUnfold(exp: PPredicateAccess) extends PGhostStatement
 
+case class PPackageWand(wand: PMagicWand, proofScript: Option[PBlock]) extends PGhostStatement
+
+case class PApplyWand(wand: PMagicWand) extends PGhostStatement
+
 /**
   * Ghost Expressions and Assertions
   */
@@ -896,6 +912,7 @@ case class PTypeOf(exp: PExpression) extends PGhostExpression
 
 case class PIsComparable(exp: PExpressionOrType) extends PGhostExpression
 
+case class PMagicWand(left: PExpression, right: PExpression) extends PGhostExpression
 
 /* ** Option types */
 

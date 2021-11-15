@@ -8,13 +8,14 @@ package viper.gobra.frontend.info.implementation.typing.ghost
 
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, noMessages}
 import viper.gobra.ast.frontend._
-import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable}
+import viper.gobra.frontend.info.base.SymbolTable.{BuiltInFPredicate, BuiltInFunction, BuiltInMPredicate, BuiltInMethod, Constant, DomainFunction, Embbed, Field, Function, Label, Method, Predicate, Variable, WandLhsLabel}
 import viper.gobra.frontend.info.base.Type.{ArrayT, AssertionT, BooleanT, GhostCollectionType, GhostUnorderedCollectionType, IntT, MultisetT, OptionT, PermissionT, SequenceT, SetT, Single, SortT, Type}
 import viper.gobra.ast.frontend.{AstPattern => ap}
 import viper.gobra.frontend.info.base.Type
 import viper.gobra.frontend.info.base.Type._
 import viper.gobra.frontend.info.implementation.TypeInfoImpl
 import viper.gobra.frontend.info.implementation.typing.BaseTyping
+import viper.gobra.util.TypeBounds
 import viper.gobra.util.Violation.violation
 
 import scala.annotation.unused
@@ -29,6 +30,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(op).out ++ isPureExpr(op) ++ (
           label(l) match {
             case _: Label => noMessages
+            case WandLhsLabel => noMessages
             case _ => error(l, s"$l is not a label in scope")
           }
         )
@@ -57,6 +59,13 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
       isExpr(n.left).out ++ isExpr(n.right).out ++
         // check whether the left operand is a Boolean expression
         assignableTo.errors(exprType(n.left), BooleanT)(expr) ++
+        // check whether the right operand is either Boolean or an assertion
+        assignableToSpec(n.right)
+
+    case n: PMagicWand =>
+      isExpr(n.left).out ++ isExpr(n.right).out ++
+        // check whether the left operand is a Boolean or an assertion
+        assignableToSpec(n.left) ++
         // check whether the right operand is either Boolean or an assertion
         assignableToSpec(n.right)
 
@@ -198,7 +207,7 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case n: PImplication => exprType(n.right) // implication is assertion or boolean iff its right side is
 
-    case _: PAccess | _: PPredicateAccess => AssertionT
+    case _: PAccess | _: PPredicateAccess | _: PMagicWand => AssertionT
 
     case _: PTypeOf => SortT
     case _: PIsComparable => BooleanT
@@ -302,11 +311,21 @@ trait GhostExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
       case PBlankIdentifier() => true
 
+      case _: PMagicWand => !strong
+
       case _: PBoolLit | _: PIntLit | _: PNilLit | _: PStringLit => true
 
       // Might change at some point
       case n: PInvoke => (exprOrType(n.base), resolve(n)) match {
-        case (Right(_), Some(p: ap.Conversion)) => go(p.arg)
+        case (Right(_), Some(p: ap.Conversion)) =>
+          val dstTyp = symbType(p.typ)
+          val exprTyp = typ(p.arg)
+          (underlyingType(dstTyp), underlyingType(exprTyp)) match {
+            case (SliceT(IntT(TypeBounds.Byte)), StringT) =>
+              // this is an effectful conversion which produces permissions to the resulting slice
+              false
+            case _ => go(p.arg)
+          }
         case (Left(callee), Some(p: ap.FunctionCall)) => go(callee) && p.args.forall(go)
         case (Left(_), Some(_: ap.PredicateCall)) => !strong
         case (Left(_), Some(_: ap.PredExprInstance)) => !strong

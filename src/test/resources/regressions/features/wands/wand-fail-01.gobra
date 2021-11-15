@@ -1,0 +1,22 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package wands
+
+pred P(x *int) {
+	acc(x) && *x > 0
+}
+
+pred Q(x *int) {
+	acc(x)
+}
+
+ensures P(res) --* Q(res)
+ensures P(res)
+func ret() (res *int) {
+	x@ := 1
+	//:: ExpectedOutput(package_failed)
+	package P(&x) --* Q(&x)
+	fold P(&x)
+	return &x
+}

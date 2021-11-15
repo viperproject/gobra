@@ -80,10 +80,11 @@ RUN ln -s ../silver silver && ln -s ../silicon silicon && ln -s ../carbon carbon
 RUN sbt assembly
 
 
-FROM openjdk:11-jre-slim
-
-# note that only stuff copied from "build" will be present.
+# a second build stage starts here that is based of a fresh image.
+# note that only stuff explicitly copied from "build" will be present.
 # in particular, `sbt`, the Gobra sources or the Viper dependencies are not part of this image
+# environment variables are not carried over either and need to be redeclared.
+FROM openjdk:11-jre-slim
 
 # copy downloaded & unzipped boogie
 COPY --from=build /boogie/binaries-linux /boogie
@@ -92,10 +93,9 @@ ENV BOOGIE_EXE=/boogie/Boogie
 # To fix boogie exception
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
-
-# copy downloaded & unziped z3
+# copy downloaded & unzipped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
-# ENV Z3_EXE /usr/bin/z3
+ENV Z3_EXE /usr/bin/z3
 
 WORKDIR /gobra
 COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .

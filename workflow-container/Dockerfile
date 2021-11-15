@@ -95,7 +95,7 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
 # copy downloaded & unziped z3
 COPY --from=build /usr/bin/z3 /usr/bin/
-ENV Z3_EXE /usr/bin/z3
+# ENV Z3_EXE /usr/bin/z3
 
 WORKDIR /gobra
 COPY --from=build /build/gobra/target/scala-2.13/gobra.jar .

@@ -1,5 +1,5 @@
-// Generated from /home/nico/Documents/repositories/projects/eth/BA/gobraHome/gobra-one/src/main/antlr4/GoParser.g4 by ANTLR 4.9.1
-package viper.gobra.frontend;
+// Generated from /home/nico/Documents/repositories/projects/eth/BA/gobraHome/gobra/src/main/antlr4/GoParser.g4 by ANTLR 4.9.1
+package viper.gobra.frontend.old;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**

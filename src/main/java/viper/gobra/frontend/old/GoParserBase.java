@@ -1,12 +1,15 @@
-package viper.gobra.frontend;
-import java.util.List;
+package viper.gobra.frontend.old;
+
 import org.antlr.v4.runtime.*;
+import viper.gobra.frontend.old.GoLexer;
+
+import java.util.List;
 
 /**
  * All parser methods that used in grammar (p, prev, notLineTerminator, etc.)
  * should start with lower case char similar to parser rules.
  */
-public abstract class GoParserBase extends org.antlr.v4.runtime.Parser
+public abstract class GoParserBase extends Parser
 {
     protected GoParserBase(TokenStream input) {
         super(input);

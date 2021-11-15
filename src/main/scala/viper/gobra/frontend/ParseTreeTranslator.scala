@@ -20,6 +20,28 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
 
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitUnaryExpr(ctx: GobraParser.UnaryExprContext): PExpression = {
+    if (ctx.primaryExpr() != null) {
+      visitPrimaryExpr(ctx.primaryExpr())
+    } else if (ctx.unary_op != null) {
+      val e = visitExpression(ctx.expression())
+      ctx.unary_op.getType match {
+        case GobraParser.PLUS => PAdd(PIntLit(0).newpos(ctx), e).newpos(ctx)
+        case GobraParser.MINUS => PSub(PIntLit(0).newpos(ctx), e).newpos(ctx)
+        case GobraParser.EXCLAMATION => PNegation(e).newpos(ctx)
+        case GobraParser.CARET => PBitNegation(e).newpos(ctx)
+      }
+    } else {
+      null
+    }
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -32,23 +54,50 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     if(ctx.primaryExpr() != null){
       visitPrimaryExpr(ctx.primaryExpr()).newpos(ctx)
     } else if(ctx.unaryExpr() != null){
-      null
+      visitUnaryExpr(ctx.unaryExpr())
     } else {
       val left = visitExpression(ctx.expression(0))
       val right = visitExpression(ctx.expression(1))
       if (ctx.rel_op != null) {
         ctx.rel_op.getType match {
-          case GobraParser.EQUALS =>
-            PEquals(left, right).newpos(ctx)
+          case GobraParser.EQUALS => PEquals(left, right).newpos(ctx)
+          case GobraParser.NOT_EQUALS => PUnequals(left,right).newpos(ctx)
+          case GobraParser.LESS => PLess(left,right).newpos(ctx)
+          case GobraParser.LESS_OR_EQUALS => PAtMost(left, right).newpos(ctx)
+          case GobraParser.GREATER => PGreater(left, right).newpos(ctx)
+          case GobraParser.GREATER_OR_EQUALS => PAtLeast(left, right).newpos(ctx)
         }
       } else if (ctx.add_op != null) {
         ctx.add_op.getType match {
-          case GobraParser.PLUS =>
-            PAdd(left, right).newpos(ctx)
+          case GobraParser.PLUS => PAdd(left, right).newpos(ctx)
+          case GobraParser.MINUS => PSub(left, right).newpos(ctx)
         }
-      } else {
-        null
+      } else if (ctx.mul_op != null) {
+        ctx.mul_op.getType match {
+          case GobraParser.STAR => PMul(left, right).newpos(ctx)
+          case GobraParser.DIV => PDiv(left, right).newpos(ctx)
+          case GobraParser.MOD => PMod(left, right).newpos(ctx)
+        }
+      } else if (ctx.LOGICAL_AND() != null) {
+        PAnd(left, right).newpos(ctx)
+      } else { // We have OR
+        POr(left,right).newpos(ctx)
       }
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitArguments(ctx: GobraParser.ArgumentsContext): Vector[PExpression] = {
+    val exprs : Vector[PExpression] = if (ctx.expressionList() != null) visitExpressionList(ctx.expressionList()) else Vector.empty
+    if (ctx.ELLIPSIS() != null) {
+      exprs.init.appended(PUnpackSlice(exprs.last).newpos(ctx))
+    } else {
+      exprs
     }
   }
 
@@ -59,7 +108,18 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @return the visitor result
     */
   override def visitPrimaryExpr(ctx: GobraParser.PrimaryExprContext): PExpression ={
-    visitOperand(ctx.operand()).newpos(ctx)
+    if(ctx.operand() != null){
+      visitOperand(ctx.operand())
+    } else if (ctx.primaryExpr() != null) {
+      val pe = visitPrimaryExpr(ctx.primaryExpr())
+      if(ctx.arguments() != null) {
+        PInvoke(pe,visitArguments(ctx.arguments())).newpos(ctx)
+      } else {
+        null
+      }
+    } else {
+      null
+    }
   }
 
   override def visitInteger(ctx: GobraParser.IntegerContext): PIntLit = {
@@ -98,9 +158,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     */
   override def visitOperand(ctx: GobraParser.OperandContext): PExpression = {
     if(ctx.operandName() != null) {
-      visitOperandName(ctx.operandName()).newpos(ctx)
+      visitOperandName(ctx.operandName())
     } else if (ctx.literal() != null) {
-      visitLiteral(ctx.literal()).newpos(ctx)
+      visitLiteral(ctx.literal())
     } else {
       null
     }
@@ -112,8 +172,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitOperandName(ctx: GobraParser.OperandNameContext): PNamedOperand = {
-    PNamedOperand(PIdnUse(ctx.IDENTIFIER(0).getSymbol.getText)).newpos(ctx)
+  override def visitOperandName(ctx: GobraParser.OperandNameContext): PNameOrDot = {
+    if (ctx.DOT() != null){
+      // TODO: Fix this
+      PDot(PNamedOperand(PIdnUse(ctx.IDENTIFIER(0).getText).newpos(ctx)), PIdnUse(ctx.IDENTIFIER(1).getText).newpos(ctx)).newpos(ctx)
+    } else {
+      PNamedOperand(PIdnUse(ctx.IDENTIFIER(0).getSymbol.getText).newpos(ctx.IDENTIFIER(0))).newpos(ctx)
+    }
   }
 
   def visitUnkIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PIdnUnk] = {
@@ -163,7 +228,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     val functionDecls = for (funcDecl <- ctx.functionDecl().asScala.toVector) yield visitFunctionDecl(funcDecl)
     val methodDecls = for (methodDecl <- ctx.methodDecl().asScala.toVector) yield visitMethodDecl(methodDecl)
     val decls = for (decl <- ctx.declaration().asScala.toVector) yield visitDeclaration(decl)
-    PProgram(packageClause, importDecls, functionDecls ++ methodDecls ++ decls.flatten).newpos(ctx)
+    PProgram(packageClause, importDecls.flatten, functionDecls ++ methodDecls ++ decls.flatten).newpos(ctx)
   }
 
   /**
@@ -177,12 +242,48 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitString_(ctx: GobraParser.String_Context): PStringLit = {
+    var str : String = null
+    if (ctx.RAW_STRING_LIT() != null){
+      str = ctx.RAW_STRING_LIT().getText
+    } else {
+      str = ctx.INTERPRETED_STRING_LIT().getText
+    }
+    println(str)
+    PStringLit(str.substring(1,str.length-1)).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitImportSpec(ctx: GobraParser.ImportSpecContext): PImport = {
+    val path = visitString_(ctx.importPath().string_()).lit
+    if(ctx.DOT() != null){
+      PUnqualifiedImport(path).newpos(ctx)
+    } else if (ctx.IDENTIFIER() != null) {
+      PExplicitQualifiedImport(PIdnDef(ctx.IDENTIFIER().getText).newpos(ctx), path).newpos(ctx)
+    } else {
+      PImplicitQualifiedImport(path).newpos(ctx)
+    }
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitImportDecl(ctx: GobraParser.ImportDeclContext): PImport = super.visitImportDecl(ctx).asInstanceOf[PImport]
+  override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
+    for (imp <- ctx.importSpec().asScala.toVector) yield visitImportSpec(imp)
+  }
 
   /**
     * {@inheritDoc  }
@@ -210,6 +311,52 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeSpec(ctx: GobraParser.TypeSpecContext): PTypeDecl = {
+    val left = PIdnDef(ctx.IDENTIFIER().getText).newpos(ctx.IDENTIFIER())
+    val right = visitType_(ctx.type_())
+    if (ctx.ASSIGN() != null) {
+      PTypeAlias(right, left).newpos(ctx)
+    } else {
+      PTypeDef(right, left).newpos(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeDecl(ctx: GobraParser.TypeDeclContext): Vector[PDeclaration] = {
+    for (spec <- ctx.typeSpec().asScala.toVector) yield visitTypeSpec(spec)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
+    null
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitVarDecl(ctx: GobraParser.VarDeclContext): Vector[PVarDecl] = {
+    for (spec <- ctx.varSpec().asScala.toVector) yield visitVarSpec(spec)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -218,6 +365,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   override def visitDeclaration(ctx: GobraParser.DeclarationContext): Vector[PDeclaration] = {
     if(ctx.constDecl() != null){
       visitConstDecl(ctx.constDecl())
+    } else if(ctx.typeDecl() != null){
+      visitTypeDecl(ctx.typeDecl())
+    } else if(ctx.varDecl() != null) {
+      visitVarDecl(ctx.varDecl())
     } else {
       null
     }
@@ -257,10 +408,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     */
   override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
     val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
-    val id = PIdnDef(ctx.IDENTIFIER().getText)
+    val id = PIdnDef(ctx.IDENTIFIER().getText).newpos(ctx.IDENTIFIER())
     val sig = visitSignature(ctx.signature())
-    val paramInfo = PBodyParameterInfo(Vector.empty)
-    val block = visitBlock(ctx.block())
+    val paramInfo = PBodyParameterInfo(Vector.empty).newpos(ctx)
+    val block = if (ctx.block() == null) PBlock(Vector.empty).newpos(ctx) else visitBlock(ctx.block())
     val body = (paramInfo, block)
     PFunctionDecl(id, sig._1, sig._2, spec, Some(body)).newpos(ctx)
   }
@@ -276,7 +427,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   }
 
   override def visitSimpleStmt(ctx: GobraParser.SimpleStmtContext): PSimpleStmt = {
-    visitShortVarDecl(ctx.shortVarDecl()).newpos(ctx)
+    if (ctx.shortVarDecl() != null){
+      visitShortVarDecl(ctx.shortVarDecl())
+    } else if (ctx.assignment() != null) {
+      visitAssignment(ctx.assignment())
+    } else {
+      null
+    }
+
   }
 
   /**
@@ -289,11 +447,27 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     PReturn(visitExpressionList(ctx.expressionList())).newpos(ctx)
   }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitGhostStatement(ctx: GobraParser.GhostStatementContext): PGhostStatement = {
+    if (ctx.ASSERT() != null) {
+      PAssert(visitExpression(ctx.expression())).newpos(ctx)
+    } else {
+      null
+    }
+  }
+
   override def visitStatement(ctx: GobraParser.StatementContext): PStatement = {
     if(ctx.simpleStmt() != null){
-      visitSimpleStmt(ctx.simpleStmt()).newpos(ctx)
+      visitSimpleStmt(ctx.simpleStmt())
     } else if (ctx.returnStmt() != null){
-      visitReturnStmt(ctx.returnStmt()).newpos(ctx)
+      visitReturnStmt(ctx.returnStmt())
+    } else if (ctx.ghostStatement() != null) {
+      visitGhostStatement(ctx.ghostStatement())
     } else {
       null
     }
@@ -316,9 +490,50 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @return the visitor result
     */
   override def visitAssignment(ctx: GobraParser.AssignmentContext): PAssignment = {
-    PAssignment(left = visitExpressionList(ctx.expressionList(0)).asInstanceOf[Vector[PAssignee]],
-      right = visitExpressionList(ctx.expressionList(1)))
+    val left =  visitExpressionList(ctx.expressionList(0)).asInstanceOf[Vector[PAssignee]]
+    val right =  visitExpressionList(ctx.expressionList(1))
+    PAssignment(right, left)
       .newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
+    val id = PIdnDef(ctx.IDENTIFIER().getText).newpos(ctx)
+    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).newpos(ctx)
+    PMethodSig(id, args.flatten, result, PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty).newpos(ctx), isGhost = false).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
+    val methodDecls = for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).newpos(ctx)
+    val embedded = Vector[PInterfaceName]()
+    val predicateDecls = Vector[PMPredicateSig]()
+    PInterfaceType(embedded, methodDecls, predicateDecls).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTypeLit(ctx: GobraParser.TypeLitContext): PTypeLit = {
+    if(ctx.interfaceType() != null){
+      visitInterfaceType(ctx.interfaceType())
+    } else {
+      null
+    }
   }
 
   /**
@@ -328,8 +543,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @return the visitor result
     */
   override def visitType_(ctx: GobraParser.Type_Context): PType = {
-    if (ctx.typeName() != null){
-      visitTypeName(ctx.typeName()).newpos(ctx)
+    if (ctx.typeLit() != null) {
+      visitTypeLit(ctx.typeLit())
+    } else if (ctx.typeName() != null){
+      visitTypeName(ctx.typeName())
     } else {
       null
     }
@@ -352,7 +569,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @return the visitor result
     */
   override def visitResult(ctx: GobraParser.ResultContext): PResult = {
-    PResult(Vector(PUnnamedParameter(visitType_(ctx.type_())).newpos(ctx))).newpos(ctx)
+    if (ctx.parameters() != null) {
+      val results = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+      PResult(results.flatten).newpos(ctx)
+    } else {
+      PResult(Vector(PUnnamedParameter(visitType_(ctx.type_())).newpos(ctx))).newpos(ctx)
+    }
   }
 
   /**

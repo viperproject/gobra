@@ -6,7 +6,7 @@
 
 package viper.gobra.frontend.info
 
-import org.bitbucket.inkytonik.kiama.relation.Tree
+import org.bitbucket.inkytonik.kiama.relation.{CheckTree, Tree}
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.PackageResolver.AbstractImport

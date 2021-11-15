@@ -2,6 +2,8 @@ lexer grammar GobraLexer;
 import GoLexer;
 
 // BEGIN GOBRA
+TRUE        : 'true';
+FALSE       : 'false';
 ASSERT      : 'assert';
 ASSUME      : 'assume';
 PRE         : 'requires';

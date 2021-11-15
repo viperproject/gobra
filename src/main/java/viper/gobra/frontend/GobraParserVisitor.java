@@ -11,6 +11,24 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#ghostStatement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitGhostStatement(GobraParser.GhostStatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#statement}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitStatement(GobraParser.StatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#basicLit}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBasicLit(GobraParser.BasicLitContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#specification}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -142,12 +160,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitStatementList(GobraParser.StatementListContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#statement}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitStatement(GobraParser.StatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#simpleStmt}.
 	 * @param ctx the parse tree
@@ -484,12 +496,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLiteral(GobraParser.LiteralContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#basicLit}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitBasicLit(GobraParser.BasicLitContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#integer}.
 	 * @param ctx the parse tree

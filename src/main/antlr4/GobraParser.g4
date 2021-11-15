@@ -8,6 +8,39 @@ options {
 
 // BEGIN GOBRA
 
+ghostStatement:
+    ASSERT expression
+    ;
+
+statement:
+    ghostStatement
+	| declaration
+	| labeledStmt
+	| simpleStmt
+	| goStmt
+	| returnStmt
+	| breakStmt
+	| continueStmt
+	| gotoStmt
+	| fallthroughStmt
+	| block
+	| ifStmt
+	| switchStmt
+	| selectStmt
+	| forStmt
+	| deferStmt;
+
+basicLit:
+    TRUE
+	| FALSE
+	| NIL_LIT
+	| integer
+	| string_
+	| FLOAT_LIT
+	| IMAGINARY_LIT
+	| RUNE_LIT;
+
+
 specification
     : specStatement (specStatement)*
     ;

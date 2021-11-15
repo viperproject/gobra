@@ -65,7 +65,7 @@ object Info {
   }
 
   def check(pkg: PPackage, context: Context = new Context, isMainContext: Boolean = false)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
-    val tree = new GoTree(pkg)
+    val tree = new GoTree(pkg, CheckTree)
     //    println(program.declarations.head)
     //    println("-------------------")
     //    println(tree)

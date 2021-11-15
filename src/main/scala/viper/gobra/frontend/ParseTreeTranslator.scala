@@ -73,6 +73,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {
     if (ctx.integer()!=null){
       visitInteger(ctx.integer()).newpos(ctx)
+    } else if (ctx.TRUE() != null) {
+      PBoolLit(true).newpos(ctx)
+    } else if (ctx.FALSE() != null) {
+      PBoolLit(false).newpos(ctx)
     } else {
       null
     }

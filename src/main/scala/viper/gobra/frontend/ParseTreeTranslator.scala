@@ -1,3 +1,10 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+// Copyright (c) 2011-2020 ETH Zurich.
+
+
 package viper.gobra.frontend
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
@@ -235,7 +242,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     val pres = for (pre <- ctx.specStatement().asScala.toVector if pre.PRE() != null) yield visitExpression(pre.assertion().expression())
     val posts  = for(post <- ctx.specStatement().asScala.toVector if post.POST()!= null) yield visitExpression(post.assertion().expression())
 
-    PFunctionSpec(pres, Vector.empty, posts).newpos(ctx)
+    PFunctionSpec(pres, Vector.empty, posts, Vector.empty).newpos(ctx)
   }
 
   /**
@@ -245,7 +252,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @return the visitor result
     */
   override def visitFunctionDecl(ctx: GobraParser.FunctionDeclContext): PFunctionDecl = {
-    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty)
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
     val id = PIdnDef(ctx.IDENTIFIER().getText)
     val sig = visitSignature(ctx.signature())
     val paramInfo = PBodyParameterInfo(Vector.empty)

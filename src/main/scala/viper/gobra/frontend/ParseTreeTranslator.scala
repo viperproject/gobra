@@ -105,12 +105,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     PNamedOperand(PIdnUse(ctx.IDENTIFIER(0).getSymbol.getText)).newpos(ctx)
   }
 
-  override def visitIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PIdnUnk] = {
+  def visitUnkIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PIdnUnk] = {
     for (id <- ctx.IDENTIFIER().asScala.toVector) yield PIdnUnk(id.getSymbol.getText).newpos(ctx)
   }
 
+  def visitDefIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PIdnDef] = {
+    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PIdnDef(id.getSymbol.getText).newpos(ctx)
+  }
+
   override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
-    val left = visitIdentifierList(ctx.identifierList())
+    val left = visitUnkIdentifierList(ctx.identifierList())
     val right = visitExpressionList(ctx.expressionList())
     val addressable = Vector.fill(left.length)(true)
     PShortVarDecl(right, left, addressable).newpos(ctx)
@@ -175,7 +179,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = ???
+  override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
+    val typ = if (ctx.type_() != null) Some(visitType_(ctx.type_())) else None
+
+    val left = visitDefIdentifierList(ctx.identifierList())
+    val right = visitExpressionList(ctx.expressionList())
+
+    PConstDecl(typ, right, left).newpos(ctx)
+  }
 
   /**
     * {@inheritDoc  }
@@ -183,7 +194,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = ???
+  override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
+    for (spec <- ctx.constSpec().asScala.toVector) yield visitConstSpec(spec)
+  }
 
   /**
     * Visit a parse tree produced by `GobraParser`.
@@ -191,7 +204,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * @param ctx the parse tree
     * @return the visitor result
     */
-  override def visitDeclaration(ctx: GobraParser.DeclarationContext): Vector[PDeclaration] = ???
+  override def visitDeclaration(ctx: GobraParser.DeclarationContext): Vector[PDeclaration] = {
+    if(ctx.constDecl() != null){
+      visitConstDecl(ctx.constDecl())
+    } else {
+      null
+    }
+  }
 
 
   /**

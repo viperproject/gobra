@@ -19,6 +19,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
+import java.security.MessageDigest
 import scala.io.BufferedSource
 import scala.util.matching.Regex
 
@@ -59,8 +60,13 @@ object Parser {
     FromFileSource(path, content)
   }
 
-  // cache maps file path and file content to the parse result
-  private var sourceCache: Map[(String, String), (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+  // cache maps a key (obtained by hasing file path and file content) to the parse result
+  private var sourceCache: Map[Array[Byte], (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+
+  private def getCacheKey(filePath: String, fileContent: String): Array[Byte] = {
+    val key = filePath ++ fileContent
+    MessageDigest.getInstance("MD5").digest(key.getBytes)
+  }
 
   def flushCache(): Unit = {
     sourceCache = Map.empty
@@ -100,10 +106,10 @@ object Parser {
       def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += (source.path.toString, source.content) -> (res, positions)
+        sourceCache += getCacheKey(source.path.toString, source.content) -> (res, positions)
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse((source.path.toString, source.content), parseAndStore())
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.path.toString, source.content), parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information

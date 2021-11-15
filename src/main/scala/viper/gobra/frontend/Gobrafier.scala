@@ -7,6 +7,9 @@
 package viper.gobra.frontend
 
 import viper.gobra.frontend.Parser.FromFileSource
+import viper.gobra.util.Constants
+
+import scala.util.matching.Regex
 
 object Gobrafier {
 
@@ -38,19 +41,20 @@ object Gobrafier {
   private val vars = "(.*?)"
   private val predicate = "(.*?)"
   private val assignment = s"$vars\\s*(:=|=)\\s*$vars"
-  private val goifiedComment = s"([;]\\s*(.*?))?"
+  private val goifiedComment = s"(?:[;]\\s*(.*?))?"
 
 
   // "(?s)" means that `.` matches even new-line characters
   // "(?m)" means that `^` and `$` will match beginning and end of a line, respectively
   private val ghostParamsRegex = s"(?s)${singlelineComment(s"$ghost_parameters(.*?)\\n$spec$functionDecl")}".r
   private val ghostResultsRegex = s"(?s)${singlelineComment(s"$ghost_results\\s*(.*?)\\n$spec$functionDecl")}".r
-  private val returnGhostRegex = s"(?m)$return_keyword\\s*$args${singlelineComment(s"$with_keyword\\s*$args")}$$".r
+  private val returnGhostRegex = s"(?m)$return_keyword\\s*$args\\s*${singlelineComment(s"$with_keyword\\s*$args")}$$".r
   private val pureKeywordRegex = s"(?m)${singlelineComment(s"$pure_keyword$spec")}$$".r
   private val assignGhostRegex = s"(?m)$assignment\\s*${singlelineComment(s"$with_keyword\\s*$assignment\\s*$goifiedComment")}$$".r
 
   private val addressableVariablesRegex = s"(?m)(^.*?)\\s*${singlelineComment(addressable_variables)}$vars$$".r
-  private val ghostInvocationRegex = s"(?m)$functionInvocation\\s*${multilineComment(s"$with_keyword\\s*$args")}".r
+  private val ghostInvocationSinglelineRegex = s"(?m)$functionInvocation\\s*${singlelineComment(s"$with_keyword\\s*$args")}$$".r
+  private val ghostInvocationMultilineRegex = s"(?m)$functionInvocation\\s*${multilineComment(s"$with_keyword\\s*$args")}".r
   private val unfoldingAccessRegex = s"(?m)${multilineComment(s"$unfolding_keyword$predicate\\s*")}".r
   
   private val non_newline = "[\t\r\f]"
@@ -99,15 +103,21 @@ object Gobrafier {
       * back to the function parameters.
       */
     var newFileContents = ghostParamsRegex.replaceAllIn(content, m => {
+      val ghostParamsList = m.group(1)
+      val functionSpec = m.group(2)
+      val functionName = m.group(3)
+      val actualParams = m.group(4)
+      val returns = m.group(5)
+
       "\n" + // added to maintain line consistency
-      m.group(2) +
+      functionSpec +
       "func " +
-      m.group(3) +
-      parens(m.group(4) +
-      (if (m.group(4) == "") "" else ", ") +
-      addGhostKeywordToParamsList(m.group(1))) +
+      functionName +
+      parens(actualParams +
+      (if (actualParams == "") "" else ", ") +
+      addGhostKeywordToParamsList(ghostParamsList)) +
       " " +
-        (if (m.group(5) == null) "" else m.group(5))
+        (if (returns == null) "" else returns)
     })
 
     /**
@@ -115,27 +125,36 @@ object Gobrafier {
       * back to the function results.
       */
     newFileContents = ghostResultsRegex.replaceAllIn(newFileContents, m => {
+      val ghostReturns = m.group(1)
+      val functionSpec = m.group(2)
+      val functionName = m.group(3)
+      val params = m.group(4)
+      val actualReturns = m.group(5)
+
       "\n" + // added to maintain line consistency
-      m.group(2) +
+        functionSpec +
       "func " +
-      m.group(3) +
-      parens(m.group(4)) +
+        functionName +
+      parens(params) +
       " " +
       parens(
-        (if (m.group(5) == null) "" else m.group(5)) +
-        (if (m.group(5) == null || m.group(5) == "" || m.group(1) == null || m.group(1) == "") "" else ", ") +
-        addGhostKeywordToParamsList(m.group(1))) +
-      (if (m.group(5) == null) " " else "") // add an additional space if no returns have existed before
+        (if (actualReturns == null) "" else actualReturns) +
+        (if (actualReturns == null || actualReturns == "" || ghostReturns == null || ghostReturns == "") "" else ", ") +
+        addGhostKeywordToParamsList(ghostReturns)) +
+      (if (actualReturns == null) " " else "") // add an additional space if no returns have existed before
     })
 
     /**
       * Add Ghost parameter list to the end of the return statement.
       */
     newFileContents = returnGhostRegex.replaceAllIn(newFileContents, m => {
+      val actualValues = m.group(1)
+      val ghostValues = m.group(2)
+
       "return " +
-      m.group(1) +
-      (if (m.group(1) == "") "" else ", ") +
-      m.group(2)
+      actualValues +
+      (if (actualValues == null || actualValues == "" || ghostValues == null || ghostValues == "") "" else ", ") +
+      ghostValues
     })
     
 
@@ -143,22 +162,32 @@ object Gobrafier {
       * Add pure keyword to function declaration.
       */
     newFileContents = pureKeywordRegex.replaceAllIn(newFileContents, m => {
+      val spec = m.group(1)
+
       "pure" +
-      m.group(1)
+      spec
     })
 
     /**
       * Add ghost variables back to both sides of assignment.
       */
     newFileContents = assignGhostRegex.replaceAllIn(newFileContents, m => {
-      m.group(1) +
-      (if (m.group(1) == "") "" else ", ") +
-      m.group(4) + " " +
-      m.group(2) + " " +
-      m.group(3) +
-      (if (m.group(3) == "" || m.group(6) == "" || m.group(6) == null) "" else ", ") +
-      (if (m.group(6) == "" || m.group(6) == null) "" else  m.group(6)) +
-      (if (m.group(8) == "" || m.group(8) == null) "" else "//@ " + m.group(8))
+      val actualLhs = m.group(1)
+      val actualOperator = m.group(2)
+      val actualRhs = m.group(3)
+      val ghostLhs = m.group(4)
+      // val ghostOperator = m.group(5) // unused
+      val ghostRhs = m.group(6)
+      val comment = m.group(7)
+
+      actualLhs +
+      (if (actualLhs == "") "" else ", ") +
+      ghostLhs + " " +
+      actualOperator + " " +
+      actualRhs +
+      (if (actualRhs == null || actualRhs == "" || ghostRhs == "" || ghostRhs == null) "" else ", ") +
+      (if (ghostRhs == "" || ghostRhs == null) "" else ghostRhs) +
+      (if (comment == "" || comment == null) "" else "//@ " + comment)
     })
 
     /**
@@ -172,7 +201,7 @@ object Gobrafier {
         // remove all control characters
         val variable = addrVar.filter(_ >= ' ')
 
-        code = code.replaceAll(variable, variable + "!")
+        code = code.replaceAll(variable, variable + Constants.ADDRESSABILITY_MODIFIER)
       })
 
       code
@@ -181,18 +210,28 @@ object Gobrafier {
     /**
       * Add ghost parameters back to method invocations.
       */
-    newFileContents = ghostInvocationRegex.replaceAllIn(newFileContents, m => {
-      m.group(1) +
-      parens(m.group(2) +
-      (if (m.group(2) == "") "" else ", ") +
-      m.group(3))
-    })
+    val ghostInvocationTransformer: Regex.Match => String = m => {
+      val functionName = m.group(1)
+      val actualArgs = m.group(2)
+      val ghostArgs = m.group(3)
+      println(s"ghostArgs: $ghostArgs")
+
+      functionName +
+      parens(
+        actualArgs +
+        (if (actualArgs == null || actualArgs == "" || ghostArgs == null || ghostArgs == "") "" else ", ") +
+        ghostArgs)
+    }
+    newFileContents = ghostInvocationSinglelineRegex.replaceAllIn(newFileContents, ghostInvocationTransformer)
+    newFileContents = ghostInvocationMultilineRegex.replaceAllIn(newFileContents, ghostInvocationTransformer)
 
     /**
       * Put unfolding expressions back.
       */
     newFileContents = unfoldingAccessRegex.replaceAllIn(newFileContents, m => {
-      "unfolding" + m.group(1) + " in "
+      val predInst = m.group(1)
+
+      "unfolding" + predInst + " in"
     })
 
     removeGoifyingComments(newFileContents)

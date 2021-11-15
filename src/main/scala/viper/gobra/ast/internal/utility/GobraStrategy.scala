@@ -23,10 +23,10 @@ object GobraStrategy {
     val node: Node = (x, args) match {
         // Members
       case (p: Program, Seq(t: Vector[TopType@unchecked], m: Vector[Member@unchecked])) => Program(t, m, p.table)(meta)
-      case (_: Method, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Method(rec, name, arg, res, pre, post, b)(meta)
-      case (_: PureMethod, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, name, arg, res, pre, post, b)(meta)
-      case (_: Function, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Block@unchecked])) => Function(name, arg, res, pre, post, b)(meta)
-      case (_: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, post, b)(meta)
+      case (_: Method, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Block@unchecked])) => Method(rec, name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: PureMethod, Seq(rec: Parameter.In, name: MethodProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureMethod(rec, name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: Function, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Block@unchecked])) => Function(name, arg, res, pre, post, terminationMeasures, b)(meta)
+      case (_: PureFunction, Seq(name: FunctionProxy, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], pre: Vector[Assertion@unchecked], post: Vector[Assertion@unchecked], terminationMeasures: Vector[TerminationMeasure@unchecked], b: Option[Expr@unchecked])) => PureFunction(name, arg, res, pre, post, terminationMeasures, b)(meta)
       case (_: MPredicate, Seq(recv: Parameter.In, name: MPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => MPredicate(recv, name, args, b)(meta)
       case (_: FPredicate, Seq(name: FPredicateProxy, args: Vector[Parameter.In@unchecked], b: Option[Assertion@unchecked])) => FPredicate(name, args, b)(meta)
       case (n: MethodSubtypeProof, Seq(subProxy: MethodProxy, superProxy: MethodProxy, rec: Parameter.In, arg: Vector[Parameter.In@unchecked], res: Vector[Parameter.Out@unchecked], b: Option[Block@unchecked])) => MethodSubtypeProof(subProxy, n.superT, superProxy, rec, arg, res, b)(meta)
@@ -40,7 +40,7 @@ object GobraStrategy {
       case (_: Seqn, Seq(stmts: Vector[Stmt@unchecked])) => Seqn(stmts)(meta)
       case (_: Label, Seq(label: LabelProxy)) => Label(label)(meta)
       case (_: If, Seq(cond: Expr, thn: Stmt, els: Stmt)) => If(cond, thn, els)(meta)
-      case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], body: Stmt)) => While(cond, invs, body)(meta)
+      case (_: While, Seq(cond: Expr, invs: Vector[Assertion@unchecked], terminationMeasure: Option[TerminationMeasure@unchecked], body: Stmt)) => While(cond, invs, terminationMeasure, body)(meta)
       case (_: New, Seq(target: LocalVar, expr: Expr)) => New(target, expr)(meta)
       case (_: MakeSlice, Seq(target: LocalVar, typeParam: SliceT, lenArg: Expr, capArg: Option[Expr@unchecked])) => MakeSlice(target, typeParam, lenArg, capArg)(meta)
       case (_: MakeChannel, Seq(target: LocalVar, typeParam: ChannelT, bufferSizeArg: Option[Expr@unchecked], isChannel: MPredicateProxy, bufferSize: MethodProxy)) => MakeChannel(target, typeParam, bufferSizeArg, isChannel, bufferSize)(meta)
@@ -60,14 +60,18 @@ object GobraStrategy {
       case (_: Exhale, Seq(ass: Assertion)) => Exhale(ass)(meta)
       case (_: Fold, Seq(acc: Access)) => Fold(acc)(meta)
       case (_: Unfold, Seq(acc: Access)) => Unfold(acc)(meta)
+      case (_: PackageWand, Seq(wand: MagicWand, body: Option[Stmt@unchecked])) => PackageWand(wand, body)(meta)
+      case (_: ApplyWand, Seq(wand: MagicWand)) => ApplyWand(wand)(meta)
       case (_: PredExprFold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprFold(base, args, p)(meta)
       case (_: PredExprUnfold, Seq(base: PredicateConstructor, args: Vector[Expr@unchecked], p: Permission)) => PredExprUnfold(base, args, p)(meta)
       case (s: SafeTypeAssertion, Seq(resTarget: LocalVar, successTarget: LocalVar, expr: Expr)) => SafeTypeAssertion(resTarget, successTarget, expr, s.typ)(meta)
       case (_: SafeMapLookup, Seq(resTarget: LocalVar, successTarget: LocalVar, mapLookup: IndexedExp)) => SafeMapLookup(resTarget, successTarget, mapLookup)(meta)
+      case (_: EffectfulConversion, Seq(target: LocalVar, newType: Type, expr: Expr)) => EffectfulConversion(target, newType, expr)(meta)
         // Assertions
       case (_: SepAnd, Seq(l: Assertion, r: Assertion)) => SepAnd(l, r)(meta)
       case (_: ExprAssertion, Seq(exp: Expr)) => ExprAssertion(exp)(meta)
       case (_: Implication, Seq(l: Expr, r: Assertion)) => Implication(l, r)(meta)
+      case (_: MagicWand, Seq(l: Assertion, r: Assertion)) => MagicWand(l, r)(meta)
       case (_: Access, Seq(acc: Accessible, perm: Permission)) => Access(acc, perm)(meta)
       case (_: Accessible.Address, Seq(d: Deref)) => Accessible.Address(d)
       case (_: Accessible.Predicate, Seq(p: PredicateAccess)) => Accessible.Predicate(p)
@@ -194,6 +198,9 @@ object GobraStrategy {
       case (f: FPredicateProxy, Seq()) => FPredicateProxy(f.name)(meta)
       case (m: MPredicateProxy, Seq()) => MPredicateProxy(m.name, m.uniqueName)(meta)
       case (l: LabelProxy, Seq()) => LabelProxy(l.name)(meta)
+        // Termination Measures
+      case (_: WildcardMeasure, Seq(cond: Option[Expr@unchecked])) => WildcardMeasure(cond)(meta)
+      case (_: TupleTerminationMeasure, Seq(tuple: Vector[Node@unchecked], cond: Option[Expr@unchecked])) => TupleTerminationMeasure(tuple, cond)(meta)
     }
 
     node.asInstanceOf[N]

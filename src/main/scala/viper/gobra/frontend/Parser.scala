@@ -421,29 +421,37 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
-
-
     lazy val functionSpec: Parser[PFunctionSpec] = {
 
       sealed trait FunctionSpecClause
       case class RequiresClause(exp: PExpression) extends FunctionSpecClause
+      case class PreservesClause(exp: PExpression) extends FunctionSpecClause
       case class EnsuresClause(exp: PExpression) extends FunctionSpecClause
+      case class DecreasesClause(measure: PTerminationMeasure) extends FunctionSpecClause
       case object PureClause extends FunctionSpecClause
 
       lazy val functSpecClause: Parser[FunctionSpecClause] = {
         "requires" ~> expression <~ eos ^^ RequiresClause |
+        "preserves" ~> expression <~ eos ^^ PreservesClause |
         "ensures" ~> expression <~ eos ^^ EnsuresClause |
+        "decreases" ~> terminationMeasure <~ eos  ^^ DecreasesClause |
         "pure" <~ eos ^^^ PureClause
       }
 
       functSpecClause.* ~ "pure".? ^^ {
         case clauses ~ pure =>
           val pres = clauses.collect{ case x: RequiresClause => x.exp }
+          val preserves = clauses.collect{ case x: PreservesClause => x.exp }
           val posts = clauses.collect{ case x: EnsuresClause => x.exp }
+          val terminationMeasure = clauses.collect{ case x: DecreasesClause => x.measure}
           val isPure = pure.nonEmpty || clauses.contains(PureClause)
-          PFunctionSpec(pres, posts, isPure)
+          PFunctionSpec(pres, preserves, posts, terminationMeasure, isPure)
       }
     }
+
+    lazy val terminationMeasure: Parser[PTerminationMeasure] =
+      "_" ~> ("if" ~> expression).? ^^ PWildcardMeasure |
+        repsep(expression, ",") ~ ("if" ~> expression).? ^^ PTupleTerminationMeasure
 
     lazy val methodDecl: Parser[PMethodDecl] =
       functionSpec ~ ("func" ~> receiver) ~ idnDef ~ signature ~ specOnlyParser(blockWithBodyParameterInfo) ^^ {
@@ -456,10 +464,12 @@ object Parser {
 
     lazy val statement: Parser[PStatement] =
       ghostStatement |
-      declarationStmt |
+        declarationStmt |
         goStmt |
         deferStmt |
         returnStmt |
+        packageStmt |
+        applyStmt |
         controlStmt |
         ifStmt |
         anyForStmt |
@@ -532,6 +542,18 @@ object Parser {
 
     lazy val returnStmt: Parser[PReturn] =
       "return" ~> repsep(expression, ",") ^^ PReturn
+
+    lazy val packageStmt: Parser[PPackageWand] =
+      ("package" ~> expression ~ opt(block)) into {
+        case (w: PMagicWand) ~ b => success(PPackageWand(w, b))
+        case e => failure(s"expected a magic wand but instead got $e")
+      }
+
+    lazy val applyStmt: Parser[PApplyWand] =
+      "apply" ~> expression into {
+        case w: PMagicWand => success(PApplyWand(w))
+        case e => failure(s"expected a magic wand but instead got $e")
+      }
 
     lazy val goStmt: Parser[PGoStmt] =
       "go" ~> expression ^^ PGoStmt
@@ -668,9 +690,8 @@ object Parser {
           case spec ~ cond ~ body => PForStmt(None, cond, None, spec, body)
         }
 
-
     lazy val loopSpec: Parser[PLoopSpec] =
-      ("invariant" ~> expression <~ eos).* ^^ PLoopSpec
+      ("invariant" ~> expression <~ eos).* ~ ("decreases" ~> terminationMeasure <~ eos).? ^^ PLoopSpec
 
     lazy val assForRange: Parser[PAssForRange] =
       loopSpec ~ ("for" ~> rep1sep(assignee, ",") <~ "=") ~ ("range" ~> expression) ~ block ^^
@@ -727,7 +748,9 @@ object Parser {
         precedence5
 
     lazy val precedence5 : PackratParser[PExpression] = /* Left-associative */
-      precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
+      // magic wands are left-associative, just as in Viper
+      precedence5 ~ ("--*" ~> precedence6) ^^ PMagicWand |
+        precedence5 ~ ("++" ~> precedence6) ^^ PSequenceAppend |
         precedence5 ~ ("+" ~> precedence6) ^^ PAdd |
         precedence5 ~ ("-" ~> precedence6) ^^ PSub |
         precedence5 ~ (not("||") ~> "|" ~> precedence6) ^^ PBitOr |
@@ -1227,6 +1250,8 @@ object Parser {
 
     lazy val labelDef: Parser[PLabelDef] = identifier ^^ PLabelDef
     lazy val labelUse: Parser[PLabelUse] = identifier ^^ PLabelUse
+    lazy val oldLabelUse: Parser[PLabelUse] = labelUse | wandLhsLabel
+    lazy val wandLhsLabel: Parser[PLabelUse] = PLabelNode.lhsLabel ^^^ PLabelUse(PLabelNode.lhsLabel)
 
     lazy val pkgDef: Parser[PPkgDef] = identifier ^^ PPkgDef
     lazy val pkgUse: Parser[PPkgUse] = identifier ^^ PPkgUse
@@ -1344,7 +1369,7 @@ object Parser {
       ("exists" ~> boundVariables <~ "::") ~ triggers ~ expression ^^ PExists
 
     lazy val old : Parser[PGhostExpression] =
-      (("old" ~> ("[" ~> labelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
+      (("old" ~> ("[" ~> oldLabelUse <~ "]").?) ~ ("(" ~> expression <~ ")")) ^^ {
         case Some(l) ~ e => PLabeledOld(l, e)
         case None ~ e => POld(e)
       }

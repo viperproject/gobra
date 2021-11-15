@@ -20,7 +20,7 @@ class Carbon(commandLineArguments: Seq[String]) extends ViperVerifier {
     // directly declaring the parameter implicit somehow does not work as the compiler is unable to spot the inheritance
     implicit val _executor: GobraExecutionContext = executor
     Future {
-      val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
+      val backend: carbon.CarbonVerifier = carbon.CarbonVerifier(reporter, List("startedBy" -> s"Unit test ${this.getClass.getSimpleName}"))
       backend.parseCommandLine(commandLineArguments ++ Seq("--ignoreFile", "dummy.sil"))
 
       val startTime = System.currentTimeMillis()

@@ -69,18 +69,20 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
     PResult(aOuts)
   }
 
-
   /**
     * Shows the Goified version of the function / method specification
     */
   override def showSpec(spec: PSpecification): Doc = spec match {
-    case PFunctionSpec(pres, posts, isPure) =>
+    case PFunctionSpec(pres, preserves, posts, measures, isPure) =>
       (if (isPure) specComment <+> showPure else emptyDoc) <>
       hcat(pres map (p => specComment <+> showPre(p) <> line)) <>
-      hcat(posts map (p => specComment <+> showPost(p) <> line))
+      hcat(preserves map (p => specComment <+> showPreserves(p) <> line)) <>
+      hcat(posts map (p => specComment <+> showPost(p) <> line)) <>
+      hcat(measures map (p => specComment <+> showTerminationMeasure(p) <> line))
 
-    case PLoopSpec(inv) =>
-      hcat(inv map (p => specComment <+> showInv(p) <> line))
+    case PLoopSpec(inv, measure) =>
+      hcat(inv map (p => specComment <+> showInv(p) <> line)) <>
+      opt(measure)(p => specComment <+> showTerminationMeasure(p) <> line)
   }
 
   /**
@@ -114,7 +116,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           rec,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )
@@ -126,7 +128,7 @@ class GoifyingPrinter(info: TypeInfoImpl) extends DefaultPrettyPrinter {
           id,
           getActualParams(args),
           getActualResult(res),
-          PFunctionSpec(Vector.empty, Vector.empty),
+          PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty),
           body
         )
       )

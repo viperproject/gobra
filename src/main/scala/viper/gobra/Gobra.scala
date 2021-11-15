@@ -12,11 +12,11 @@ import java.util.concurrent.ExecutionException
 import com.typesafe.scalalogging.StrictLogging
 import viper.gobra.ast.frontend.PPackage
 import viper.gobra.ast.internal.Program
-import viper.gobra.ast.internal.transform.OverflowChecksTransform
+import viper.gobra.ast.internal.transform.{CGEdgesTerminationTransform, OverflowChecksTransform}
 import viper.gobra.backend.BackendVerifier
 import viper.gobra.frontend.info.{Info, TypeInfo}
 import viper.gobra.frontend.{Config, Desugar, Parser, ScallopGobraConfig}
-import viper.gobra.reporting.{AppliedInternalTransformsMessage, BackTranslator, CopyrightReport, VerifierError, VerifierResult}
+import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -24,7 +24,6 @@ import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-
 
 object GoVerifier {
 
@@ -174,12 +173,14 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     * be easily extended to perform more transformations
     */
   private def performInternalTransformations(program: Program, config: Config): Either[Vector[VerifierError], Program] = {
+    val transformed = CGEdgesTerminationTransform.transform(program)
+
     if (config.checkOverflows) {
-      val result = OverflowChecksTransform.transform(program)
+      val result = OverflowChecksTransform.transform(transformed)
       config.reporter report AppliedInternalTransformsMessage(config.inputFiles.head, () => result)
       Right(result)
     } else {
-      Right(program)
+      Right(transformed)
     }
   }
 
@@ -219,6 +220,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
       val verifier = createVerifier()
       val resultFuture = verifier.verify(config)(executor)
       val result = Await.result(resultFuture, Duration.Inf)
+      executor.terminate()
 
       result match {
         case VerifierResult.Success =>

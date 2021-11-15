@@ -44,6 +44,7 @@ class PureMethodsImpl extends PureMethods {
     for {
       pres <- sequence((vRecvPres ++ vArgPres) ++ meth.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ meth.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
+      measures <- sequence(meth.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       body <- option(meth.body map { b =>
         pure(
@@ -57,7 +58,7 @@ class PureMethodsImpl extends PureMethods {
         name = meth.name.uniqueName,
         formalArgs = vRecv +: vArgs,
         typ = resultType,
-        pres = pres,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
@@ -85,6 +86,7 @@ class PureMethodsImpl extends PureMethods {
     for {
       pres <- sequence(vArgPres ++ func.pres.map(ctx.ass.precondition(_)(ctx)))
       posts <- sequence(vResultPosts ++ func.posts.map(ctx.ass.postcondition(_)(ctx).map(fixResultvar(_))))
+      measures <- sequence(func.terminationMeasures.map(ctx.measures.decreases(_)(ctx)))
 
       body <- option(func.body map { b =>
         pure(
@@ -98,12 +100,11 @@ class PureMethodsImpl extends PureMethods {
         name = func.name.name,
         formalArgs = vArgs,
         typ = resultType,
-        pres = pres,
+        pres = pres ++ measures,
         posts = posts,
         body = body
       )(pos, info, errT)
 
     } yield function
   }
-
 }

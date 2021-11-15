@@ -308,6 +308,23 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           val lowOpt = low.map(intConstantEval)
           error(n, s"index $low is negative", !lowOpt.forall(_.forall(i => 0 <= i)))
 
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) =>
+          // slice expressions of string type cannot have a third argument
+          val (lenOpt, lowOpt, highOpt) = (
+            stringConstantEval(base) map (_.length),
+            low flatMap intConstantEval,
+            high flatMap intConstantEval
+          )
+          val lowError = error(n, s"index $low is out of bounds", !lowOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val highError = error(n, s"index $high is out of bounds", !highOpt.forall(i => i >= 0 && lenOpt.forall(i < _)))
+          val lowLessHighError = (lowOpt, highOpt) match {
+            case (Some(l), Some(h)) =>
+              // this error message is the same shown by the go compiler
+              error(n, s"invalid slice index: $l > $h", l > h)
+            case _ => noMessages
+          }
+          return lowError ++ highError ++ lowLessHighError
+
         case (bt, lt, ht, ct) => error(n, s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       })
 
@@ -451,7 +468,10 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
 
     case PBlankIdentifier() => noMessages
 
-    case PUnpackSlice(elem) => error(expr, "only slices can be unpacked", !exprType(elem).isInstanceOf[SliceT])
+    case PUnpackSlice(elem) => underlyingType(exprType(elem)) match {
+      case _: SliceT => noMessages
+      case t => error(expr, s"Tried to unpack value of type $t, which is not a slice type")
+    }
 
     case p@PPredConstructor(base, _) => {
       def wellTypedApp(base: PPredConstructorBase): Messages = miscType(base) match {
@@ -517,9 +537,15 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
     }
   }
 
-  lazy val exprType: Typing[PExpression] = createTyping {
-    case expr: PActualExpression => actualExprType(expr)
-    case expr: PGhostExpression => ghostExprType(expr)
+  lazy val exprType: Typing[PExpression] = {
+    def handleTypeAlias(t: Type): Type = t match {
+      case DeclaredT(PTypeAlias(right, _), context) => context.symbType(right)
+      case _ => t
+    }
+    createTyping {
+      case expr: PActualExpression => handleTypeAlias(actualExprType(expr))
+      case expr: PGhostExpression => handleTypeAlias(ghostExprType(expr))
+    }
   }
 
   private def actualExprType(expr: PActualExpression): Type = expr match {
@@ -543,7 +569,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
           case FunctionT(_, res) => res
           case t: AbstractType =>
             val argTypes = n.args map exprType
-            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes)
+            if (t.typing.isDefinedAt(argTypes)) t.typing(argTypes).result
             else violation(s"expected typing function in AbstractType to be defined for $argTypes")
           case t => violation(s"expected function type or AbstractType but got $t")
         }
@@ -572,6 +598,7 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         case (SequenceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
         case (SliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
         case (GhostSliceT(_), None | Some(IntT(_)), None | Some(IntT(_)), None | Some(IntT(_))) => baseType
+        case (StringT, None | Some(IntT(_)), None | Some(IntT(_)), None) => baseType
         case (bt, lt, ht, ct) => violation(s"invalid slice with base $bt and indexes $lt, $ht, and $ct")
       }
 
@@ -653,10 +680,11 @@ trait ExprTyping extends BaseTyping { this: TypeInfoImpl =>
         }
       }
 
-    case PUnpackSlice(exp) => exprType(exp) match {
-      case SliceT(elem) => VariadicT(elem)
-      case e => violation(s"expression $e cannot be unpacked")
-    }
+    case PUnpackSlice(exp) =>
+      underlyingType(exprType(exp)) match {
+        case SliceT(elem) => VariadicT(elem)
+        case e => violation(s"expression $e cannot be unpacked")
+      }
 
     case e => violation(s"unexpected expression $e")
   }

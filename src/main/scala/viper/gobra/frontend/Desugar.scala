@@ -1135,7 +1135,8 @@ object Desugar {
                         case p => violation(s"unexptected pattern $p encountered")
                       }
 
-                      wh = in.Seqn(Vector(initStmt, in.While(loopCond, currIdxInv +: dInv, in.Seqn(Vector(iterationBegin, dBody, iterationEnd))(src))(src)))(src)
+                      // TODO: add termination measure later
+                      wh = in.Seqn(Vector(initStmt, in.While(loopCond, currIdxInv +: dInv, None, in.Seqn(Vector(iterationBegin, dBody, iterationEnd))(src))(src)))(src)
 
                     } yield wh
 

@@ -694,12 +694,15 @@ sealed trait PLabelNode extends PNode {
   def name: String
 }
 
+object PLabelNode {
+  val lhsLabel: String = "#lhs"
+}
+
 trait PDefLikeLabel extends PLabelNode
 trait PUseLikeLabel extends PLabelNode
 
 case class PLabelDef(name: String) extends PDefLikeLabel
 case class PLabelUse(name: String) extends PUseLikeLabel
-
 
 sealed trait PPackageNode extends PNode {
   def name: PPkg

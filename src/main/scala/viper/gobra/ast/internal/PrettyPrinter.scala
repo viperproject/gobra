@@ -381,7 +381,11 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case MemoryPredicateAccess(arg) => "memory" <> parens(showExpr(arg))
   }
 
-  def showTrigger(trigger: Trigger) : Doc = showExprList(trigger.exprs)
+  def showTriggerExpr(expr: TriggerExpr): Doc = expr match {
+    case Accessible.Predicate(op) => showPredicateAcc(op)
+    case e: Expr => showExpr(e)
+  }
+  def showTrigger(trigger: Trigger) : Doc = showList(trigger.exprs)(showTriggerExpr)
   def showTriggers(triggers: Vector[Trigger]) : Doc = "{" <+> showList(triggers)(showTrigger) <+> "}"
 
   // expressions

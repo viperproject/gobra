@@ -158,15 +158,11 @@ class StatementsImpl extends Statements {
 
       case in.PackageWand(wand, blockOpt) => for {
         w <- goA(wand)
-        _ = Violation.violation(w.isInstanceOf[vpr.MagicWand], s"Expected a MagicWand but got $w instead.")
         s <- sequence(blockOpt.toVector.map(goS))
       } yield vpr.Package(w.asInstanceOf[vpr.MagicWand], vu.seqn(s)(pos, info, errT))(pos, info, errT)
 
       case in.ApplyWand(wand) =>
-        for {
-          w <- goA(wand)
-          _ = Violation.violation(w.isInstanceOf[vpr.MagicWand], s"Expected a MagicWand but got a $w instead.")
-        } yield vpr.Apply(w.asInstanceOf[vpr.MagicWand])(pos, info, errT)
+        for {w <- goA(wand)} yield vpr.Apply(w.asInstanceOf[vpr.MagicWand])(pos, info, errT)
 
       case in.Return() => unit(vpr.Goto(Names.returnLabel)(pos, info, errT))
 

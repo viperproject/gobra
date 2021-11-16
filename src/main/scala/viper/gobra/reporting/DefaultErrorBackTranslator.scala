@@ -68,7 +68,8 @@ object DefaultErrorBackTranslator {
         MagicWandChunkNotFound(info)
       case vprrea.ReceiverNotInjective(CertainSource(info)) =>
         ReceiverNotInjectiveReason(info)
-      //      case vprrea.LabelledStateNotReached(offendingNode) =>
+      case vprrea.LabelledStateNotReached(CertainSource(info)) =>
+        LabelledStateNotReached(info)
       case termination.TerminationConditionFalse(CertainSource(info)) =>
         TerminationConditionFalseError(info)
       case termination.TupleConditionFalse(CertainSource(info)) =>

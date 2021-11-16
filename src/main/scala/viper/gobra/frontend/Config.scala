@@ -26,33 +26,38 @@ object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
 }
 case class Config(
-                   inputFiles: Vector[Path],
-                   includeDirs: Vector[Path] = Vector(),
-                   reporter: GobraReporter = StdIOReporter(),
-                   backend: ViperBackend = ViperBackends.SiliconBackend,
-                   isolate: Option[Vector[SourcePosition]] = None,
-                   // backendConfig is used for the ViperServer
-                   backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
-                   z3Exe: Option[String] = None,
-                   boogieExe: Option[String] = None,
-                   logLevel: Level = LoggerDefaults.DefaultLevel,
-                   shouldParse: Boolean = true,
-                   shouldTypeCheck: Boolean = true,
-                   shouldDesugar: Boolean = true,
-                   shouldViperEncode: Boolean = true,
-                   checkOverflows: Boolean = false,
-                   checkConsistency: Boolean = false,
-                   shouldVerify: Boolean = true,
-                   shouldChop: Boolean = false,
-                   // The go language specification states that int and uint variables can have either 32bit or 64, as long
-                   // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
-                   // 64 bit otherwise.
-                   int32bit: Boolean = false
+                 inputFiles: Vector[Path],
+                 moduleName: String = "",
+                 includeDirs: Vector[Path] = Vector(),
+                 reporter: GobraReporter = StdIOReporter(),
+                 backend: ViperBackend = ViperBackends.SiliconBackend,
+                 isolate: Option[Vector[SourcePosition]] = None,
+                 // backendConfig is used for the ViperServer
+                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
+                 z3Exe: Option[String] = None,
+                 boogieExe: Option[String] = None,
+                 logLevel: Level = LoggerDefaults.DefaultLevel,
+                 shouldParse: Boolean = true,
+                 shouldTypeCheck: Boolean = true,
+                 shouldDesugar: Boolean = true,
+                 shouldViperEncode: Boolean = true,
+                 checkOverflows: Boolean = false,
+                 checkConsistency: Boolean = false,
+                 shouldVerify: Boolean = true,
+                 shouldChop: Boolean = false,
+                 // The go language specification states that int and uint variables can have either 32bit or 64, as long
+                 // as they have the same size. This flag allows users to pick the size of int's and uints's: 32 if true,
+                 // 64 bit otherwise.
+                 int32bit: Boolean = false,
+                 // the following option is currently not controllable via CLI as it is meaningless without a constantly
+                 // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
+                 cacheParser: Boolean = false
             ) {
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     Config(
       inputFiles = (inputFiles ++ other.inputFiles).distinct,
+      moduleName = moduleName,
       includeDirs = (includeDirs ++ other.includeDirs).distinct,
       reporter = reporter,
       backend = backend,
@@ -111,6 +116,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   val input: ScallopOption[List[String]] = opt[List[String]](
     name = "input",
     descr = "List of Gobra programs or a single package name to verify"
+  )
+
+  val module: ScallopOption[String] = opt[String](
+    name = "module",
+    descr = "Name of current module that should be used for resolving imports",
+    default = Some("")
   )
 
   val include: ScallopOption[List[File]] = opt[List[File]](
@@ -260,16 +271,17 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
+                    moduleOption: ScallopOption[String],
                     includeOption: ScallopOption[List[File]]): Unit = validateOpt(inputOption, includeOption) { (inputOpt, includeOpt) =>
 
-    def checkConversion(input: List[String], includeDirs: Vector[Path]): Either[String, Vector[Path]] = {
+    def checkConversion(input: List[String], moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Path]] = {
       val msgs = InputConverter.validate(input)
-      if (msgs.isEmpty) Right(InputConverter.convert(input, includeDirs))
+      if (msgs.isEmpty) Right(InputConverter.convert(input, moduleName, includeDirs))
       else Left(s"The following errors have occurred: ${msgs.map(_.label).mkString(",")}")
     }
 
     def atLeastOneFile(files: Vector[Path]): Either[String, Unit] = {
-      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.extension}' as file extension?")
+      if (files.nonEmpty || isInputOptional) Right(()) else Left(s"Package resolution has not found any files for verification - are you using '.${PackageResolver.gobraExtension}' or '.${PackageResolver.goExtension}' as file extension?")
     }
 
     def filesExist(files: Vector[Path]): Either[String, Unit] = {
@@ -293,7 +305,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     //  - result should be non-empty, exist, be files and be readable
     val input: List[String] = inputOpt.getOrElse(List())
     for {
-      convertedFiles <- checkConversion(input, includeOpt.map(_.map(_.toPath).toVector).getOrElse(Vector()))
+      convertedFiles <- checkConversion(input, moduleOption.getOrElse(""), includeOpt.map(_.map(_.toPath).toVector).getOrElse(Vector()))
       _ <- atLeastOneFile(convertedFiles)
       _ <- filesExist(convertedFiles)
       _ <- filesAreFiles(convertedFiles)
@@ -305,12 +317,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesExist(include)
     validateFilesIsDirectory(include)
   }
-  validateInput(input, include)
+  validateInput(input, module, include)
 
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), includeDirs)
+  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), module.getOrElse(""), includeDirs)
   lazy val isolated: Option[Vector[SourcePosition]] = isolatedPosition(isolate.toOption, input.toOption).map(_.toVector)
 
   /** set log level */
@@ -328,8 +340,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   private object InputConverter {
 
-    private val goFileRgx = s"""(.*\\.${PackageResolver.extension})$$""".r // without Scala string interpolation escapes: """(.*\.go)$""".r
-
     def validate(input: List[String]): Messages = {
       val files = input map isGoFilePath
       files.partition(_.isLeft) match {
@@ -346,7 +356,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       }
     }
 
-    def convert(input: List[String], includeDirs: Vector[Path]): Vector[Path] = {
+    def convert(input: List[String], moduleName: String, includeDirs: Vector[Path]): Vector[Path] = {
       val res = for {
         i <- identifyInput(input).toRight("invalid input")
         files <- i match {
@@ -354,7 +364,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
           case Left(_) =>
             for {
               // look for files in the current directory, i.e. use an empty importPath
-              resolvedResources <- PackageResolver.resolve(RegularImport(""), includeDirs)
+              resolvedResources <- PackageResolver.resolve(RegularImport(""), moduleName, includeDirs)
               resolvedFiles = resolvedResources.flatMap({
                 case fileResource: FileResource => Some(fileResource.path)
                 case _ => None
@@ -373,7 +383,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
       * @return Right with the string converted to a File if the condition is met, otherwise Left containing `input`
       */
     private def isGoFilePath(input: String): Either[String, File] = input match {
-      case goFileRgx(filename) => Right(new File(filename))
+      case PackageResolver.inputFileRegex(filename) => Right(new File(filename))
       case pkgName => Left(pkgName)
     }
 
@@ -401,6 +411,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   lazy val config: Config = Config(
     inputFiles = inputFiles,
+    moduleName = module(),
     includeDirs = includeDirs,
     reporter = FileWriterReporter(
       unparse = unparse(),

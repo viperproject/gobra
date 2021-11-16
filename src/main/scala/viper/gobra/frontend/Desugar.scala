@@ -2695,8 +2695,17 @@ object Desugar {
           for {
             w <- goA(wand)
             b <- option(blockOpt map stmtD(ctx))
-          } yield in.PackageWand(w, b)(src)
-        case PApplyWand(wand) => for {w <- goA(wand)} yield in.ApplyWand(w)(src)
+          } yield w match {
+            case w: in.MagicWand => in.PackageWand(w, b)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
+        case PApplyWand(wand) =>
+          for {
+            w <- goA(wand)
+          } yield w match {
+            case w: in.MagicWand => in.ApplyWand(w)(src)
+            case e => Violation.violation(s"Expected a magic wand, but got $e")
+          }
         case PExplicitGhostStatement(actual) => stmtD(ctx)(actual)
         case _ => ???
       }
@@ -3113,7 +3122,12 @@ object Desugar {
 
     def triggerD(ctx: FunctionContext)(trigger: PTrigger) : Writer[in.Trigger] = {
       val src: Meta = meta(trigger)
-      for { exprs <- sequence(trigger.exps map exprD(ctx)) } yield in.Trigger(exprs)(src)
+      for { exprs <- sequence(trigger.exps map triggerExprD(ctx)) } yield in.Trigger(exprs)(src)
+    }
+
+    def triggerExprD(ctx: FunctionContext)(triggerExp: PExpression): Writer[in.TriggerExpr] = info.resolve(triggerExp) match {
+      case Some(p: ap.PredicateCall) => for { pa <- predicateCallAccD(ctx)(p)(meta(triggerExp)) } yield in.Accessible.Predicate(pa)
+      case _ => exprD(ctx)(triggerExp)
     }
 
 

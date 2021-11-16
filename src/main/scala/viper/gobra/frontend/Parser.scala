@@ -18,15 +18,14 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-
-import org.antlr.v4.runtime.{BailErrorStrategy, CharStreams, CommonTokenStream}
-import org.antlr.v4.runtime.ConsoleErrorListener
-import org.antlr.v4.runtime.DefaultErrorStrategy
+import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, RecognitionException, Recognizer}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 
 import viper.gobra.frontend.old.{GoLexer, GoParser}
+import viper.silver.ast.SourcePosition
 
+import scala.collection.mutable.ListBuffer
 import scala.io.BufferedSource
 import scala.util.matching.Regex
 
@@ -53,6 +52,7 @@ object Parser {
       .map{ getSource }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
+      //parseAst <- time("GOBRA", input{0}.getFileName().toString()) {parseSources(preprocessedSources, specOnly)(config)}
       parseAst <- time("ANTLR_FULL", input{0}.getFileName().toString()) {antlrParseSources(input, specOnly)(config)}
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
@@ -77,14 +77,21 @@ object Parser {
   private def antlrParseSources(sources: Vector[Path], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
-    println("Inititalized")
+    lazy val rewriter = new PRewriter(pom.positions)
+
+
+    class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
+
+    }
 
     def parseSource(source: Path): Either[Vector[VerifierError], PProgram] = {
       val charStream = CharStreams.fromPath(source)
       val lexer = new GobraLexer(charStream)
       val tokens = new CommonTokenStream(lexer)
       val parser = new GobraParser(tokens)
+      val errors = ListBuffer.empty[ParserError]
+      val errorListener = new ErrorListener(errors, source)
+      parser.specOnly = specOnly
       parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
       parser.removeErrorListeners()
       parser.setErrorHandler(new BailErrorStrategy)
@@ -96,17 +103,22 @@ object Parser {
           // rewind input stream
           parser.reset()
           // back to standard listeners/handlers
-          parser.addErrorListener(ConsoleErrorListener.INSTANCE)
+          parser.addErrorListener(errorListener)
           parser.setErrorHandler(new DefaultErrorStrategy)
           // full now with full LL(*)
           parser.getInterpreter.setPredictionMode(PredictionMode.LL)
           time ("ANTLR_PARSE_LLS", source.getFileName().toString()) { parser.sourceFile() }
       }
-      if(true) {
+      if(errors.isEmpty) {
         val translator = new ParseTreeTranslator(pom, getSource(source))
-        Right(translator.visitSourceFile(tree))
+        val parseAst = try translator.visitSourceFile(tree)
+        catch {
+          case e: TranslationException =>
+            return Left(Vector(ParserError(e.msg , Some(SourcePosition(source, e.start.line, e.start.column)))))
+        }
+        Right(parseAst)
       } else {
-        Left(Vector.empty[VerifierError])
+        Left(errors.toVector)
       }
     }
 
@@ -130,7 +142,7 @@ object Parser {
     }
 
     parsedPrograms.map(programs => {
-      val clause = parsers.rewriter.deepclone(programs.head.packageClause)
+      val clause = rewriter.deepclone(programs.head.packageClause)
       val parsedPackage = PPackage(clause, programs, pom)
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
@@ -199,7 +211,6 @@ object Parser {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
-    println("Inititalized")
 
     def parseSource(source: Path): Either[Vector[VerifierError], PProgram] = {
       val charStream = CharStreams.fromPath(source)
@@ -209,8 +220,6 @@ object Parser {
       val parser = new GoParser(tokens)
       parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
       parser.setErrorHandler(new BailErrorStrategy)
-      //parser.setProfile(true)
-      println("Initialized parser")
       var tree = try time ("ANTLR", source.getFileName().toString()) { parser.sourceFile() }
       catch {
         case _: ParseCancellationException =>
@@ -228,7 +237,6 @@ object Parser {
         //
         //println("b")
       }
-      println("Done parsing")
       if(true) {
         val translator = new ParseTreeTranslator(pom, getSource(source))
         Right(null)
@@ -430,6 +438,21 @@ object Parser {
       // check whether an error has occurred
       if (failedNodes.isEmpty) Right(updatedPkg)
       else Left(failedNodes)
+    }
+  }
+
+  private class ErrorListener(val messages: ListBuffer[ParserError], val source: Path) extends BaseErrorListener {
+
+    override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
+      if(e != null){
+        val rule = recognizer.getRuleNames.array(e.getCtx.getRuleIndex)
+        rule match {
+          case "eos" => messages.append(ParserError(msg+" at end of line", Some(SourcePosition(source, line, charPositionInLine) )))
+          case _ => messages.append(ParserError(msg+" in rule "+rule, Some(SourcePosition(source, line, charPositionInLine) )))
+        }
+      } else {
+        messages.append(ParserError(msg, Some(SourcePosition(source, line, charPositionInLine) )))
+      }
     }
   }
 

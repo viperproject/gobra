@@ -7,6 +7,7 @@ options {
 }
 
 // BEGIN GOBRA
+@members {boolean specOnly = false;}
 
 ghostStatement:
     ASSERT expression

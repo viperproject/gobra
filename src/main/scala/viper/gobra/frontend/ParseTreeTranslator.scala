@@ -35,9 +35,12 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
         case GobraParser.MINUS => PSub(PIntLit(0).newpos(ctx), e).newpos(ctx)
         case GobraParser.EXCLAMATION => PNegation(e).newpos(ctx)
         case GobraParser.CARET => PBitNegation(e).newpos(ctx)
+        case op =>
+          val (start, finish) = getStartFinish(ctx)
+          throw TranslationException("Unsupported unary expression: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
       }
-    } else {
-      null
+    } else { // should not be reachable
+      fail(ctx)
     }
   }
 
@@ -66,17 +69,26 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
           case GobraParser.LESS_OR_EQUALS => PAtMost(left, right).newpos(ctx)
           case GobraParser.GREATER => PGreater(left, right).newpos(ctx)
           case GobraParser.GREATER_OR_EQUALS => PAtLeast(left, right).newpos(ctx)
+          case op =>
+            val (start, finish) = getStartFinish(ctx)
+            throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
         }
       } else if (ctx.add_op != null) {
         ctx.add_op.getType match {
           case GobraParser.PLUS => PAdd(left, right).newpos(ctx)
           case GobraParser.MINUS => PSub(left, right).newpos(ctx)
+          case op =>
+            val (start, finish) = getStartFinish(ctx)
+            throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
         }
       } else if (ctx.mul_op != null) {
         ctx.mul_op.getType match {
           case GobraParser.STAR => PMul(left, right).newpos(ctx)
           case GobraParser.DIV => PDiv(left, right).newpos(ctx)
           case GobraParser.MOD => PMod(left, right).newpos(ctx)
+          case op =>
+            val (start, finish) = getStartFinish(ctx)
+            throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
         }
       } else if (ctx.LOGICAL_AND() != null) {
         PAnd(left, right).newpos(ctx)
@@ -115,10 +127,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
       if(ctx.arguments() != null) {
         PInvoke(pe,visitArguments(ctx.arguments())).newpos(ctx)
       } else {
-        null
+        fail(ctx)
       }
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -126,7 +138,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     if(ctx.DECIMAL_LIT() != null){
       PIntLit(BigInt(ctx.DECIMAL_LIT().getText)).newpos(ctx)
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -138,7 +150,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else if (ctx.FALSE() != null) {
       PBoolLit(false).newpos(ctx)
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -146,7 +158,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     if(ctx.basicLit() != null) {
       visitBasicLit(ctx.basicLit()).newpos(ctx)
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -162,7 +174,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else if (ctx.literal() != null) {
       visitLiteral(ctx.literal())
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -254,7 +266,6 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else {
       str = ctx.INTERPRETED_STRING_LIT().getText
     }
-    println(str)
     PStringLit(str.substring(1,str.length-1)).newpos(ctx)
   }
 
@@ -343,7 +354,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
-    null
+    fail(ctx)
   }
 
   /**
@@ -370,7 +381,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else if(ctx.varDecl() != null) {
       visitVarDecl(ctx.varDecl())
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -432,7 +443,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else if (ctx.assignment() != null) {
       visitAssignment(ctx.assignment())
     } else {
-      null
+      fail(ctx)
     }
 
   }
@@ -457,7 +468,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     if (ctx.ASSERT() != null) {
       PAssert(visitExpression(ctx.expression())).newpos(ctx)
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -469,7 +480,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     } else if (ctx.ghostStatement() != null) {
       visitGhostStatement(ctx.ghostStatement())
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -532,7 +543,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     if(ctx.interfaceType() != null){
       visitInterfaceType(ctx.interfaceType())
     } else {
-      null
+      fail(ctx)
     }
   }
 
@@ -596,17 +607,16 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
   implicit class PositionedPAstNode[N <: PNode](node: N) {
 
     def newpos(term: TerminalNode): N = {
-      val tok = term.getSymbol
-      pom.positions.setStart(node, Position(tok.getLine, tok.getCharPositionInLine+1, source))
-      // Possibly wrong end index
-      pom.positions.setFinish(node, Position(tok.getLine, tok.getCharPositionInLine+term.getText.length+1, source))
+      val (start, finish) = getStartFinish(term)
+      pom.positions.setStart(node, start)
+      pom.positions.setFinish(node, finish)
       node
     }
 
     def newpos(ctx: ParserRuleContext): N = {
-      pom.positions.setStart(node, Position(ctx.start.getLine, ctx.start.getCharPositionInLine+1, source))
-      // Possibly wrong end index
-      pom.positions.setFinish(node, Position(ctx.stop.getLine, ctx.stop.getCharPositionInLine+ctx.stop.getText.length+1, source))
+      val (start, finish) = getStartFinish(ctx)
+      pom.positions.setStart(node, start)
+      pom.positions.setFinish(node, finish)
       node
     }
 
@@ -621,8 +631,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source) extends GobraPar
     def copy: N = rewriter.deepclone(node)
   }
 
+  def getStartFinish(term: TerminalNode): (Position, Position) = {
+    val tok = term.getSymbol
+    val start = Position(tok.getLine, tok.getCharPositionInLine+1, source)
+    val end = Position(tok.getLine, tok.getCharPositionInLine+term.getText.length+1, source)
+    (start, end)
+  }
+
+  def getStartFinish(ctx: ParserRuleContext): (Position, Position) = {
+    val start = Position(ctx.start.getLine, ctx.start.getCharPositionInLine+1, source)
+    val end = Position(ctx.stop.getLine, ctx.stop.getCharPositionInLine+ctx.stop.getText.length+1, source)
+    (start, end)
+  }
+
+  private def fail(ctx: ParserRuleContext) = {
+    val (start, finish) = getStartFinish(ctx)
+    val rule = GobraParser.ruleNames.array(ctx.getRuleIndex)
+    throw TranslationException("Translation of " + rule + " " +  ctx.getText + " failed", start, finish)
+  }
+
   class PRewriter(override val positions: Positions) extends PositionedRewriter with Cloner {
 
   }
 
 }
+
+case class TranslationException(msg: String, start: Position, finish : Position)  extends Exception(msg)
+

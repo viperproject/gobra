@@ -14,7 +14,8 @@
       "viperserver/**",
       "project/project/**",
       "project/target/**",
-      "target/**"
+      "target/**",
+      "src/test/resources/**/*.go"
     ],
     "license": "./.github/license-check/headers/MPLv2-ETH.txt"
   },
@@ -48,7 +49,8 @@
   },
   {
     "include": [
-      "**/*.gobra"
+      "**/*.gobra",
+      "src/test/resources/**/*.go"
     ],
     "exclude": [
       "project/project/**",

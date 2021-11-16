@@ -45,9 +45,13 @@ ENV BOOGIE_EXE=/boogie/binaries-linux/Boogie
 # To fix boogie exception
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
 
-ARG SILVER_REF=tags/v.21.07-release
-ARG CARBON_REF=tags/v.21.07-release
-ARG SILICON_REF=tags/v.21.07-release
+ARG SILVER_REF
+ARG CARBON_REF
+ARG SILICON_REF
+# Check build arguments:
+RUN if [ -z "$SILVER_REF" ]; then echo "SILVER_REF is required" && exit 1 ; fi
+RUN if [ -z "$CARBON_REF" ]; then echo "CARBON_REF is required" && exit 1 ; fi
+RUN if [ -z "$SILICON_REF" ]; then echo "SILICON_REF is required" && exit 1 ; fi
 
 # Setup silver
 RUN git clone https://github.com/viperproject/silver.git ./silver && \

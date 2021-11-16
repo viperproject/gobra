@@ -1,0 +1,48 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package main
+
+type Decoded struct {
+	Base
+    InfoFields []*InfoField
+   	HopFields []*HopField
+}
+
+type HopField struct {
+	IngressRouterAlert bool
+	EgressRouterAlert bool
+	ExpTime uint8
+	ConsIngress uint16
+	ConsEgress uint16
+	Mac []byte
+}
+
+type InfoField struct {
+	Peer bool
+	ConsDir bool
+	SegID uint16
+	Timestamp uint32
+}
+
+type Base struct {
+	PathMeta MetaHdr
+	NumINF int
+	NumHops int
+}
+
+type MetaHdr struct {
+	CurrINF uint8
+	CurrHF  uint8
+	SegLen  [3]uint8
+}
+
+func (s *Base) IncPath() int {
+  return 4
+}
+
+func foo() {
+    x := &Decoded{}
+    assert x.NumHops == 0
+    x.IncPath()
+}

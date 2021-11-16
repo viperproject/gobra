@@ -27,7 +27,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   val regressionsDir: String = System.getProperty(regressionsPropertyName, "regressions")
   val testDirectories: Seq[String] = Vector(regressionsDir)
-  override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
+  override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
   var gobraInstance: Gobra = _
 

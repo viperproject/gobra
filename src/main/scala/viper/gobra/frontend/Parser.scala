@@ -6,21 +6,19 @@
 
 package viper.gobra.frontend
 
-import java.io.Reader
-import java.nio.file.{Files, Path}
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
 import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
 import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
-import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
+import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
+import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
 import java.security.MessageDigest
-import scala.io.BufferedSource
 import scala.util.matching.Regex
 
 object Parser {
@@ -41,23 +39,14 @@ object Parser {
     *
     */
 
-  def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  def parse(input: Vector[Source], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
-      .map{ getSource }
       .map{ Gobrafier.gobrafy }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
       parseAst <- parseSources(preprocessedSources, specOnly)(config)
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
-  }
-
-  private def getSource(path: Path): FromFileSource = {
-    val inputStream = Files.newInputStream(path)
-    val bufferedSource = new BufferedSource(inputStream)
-    val content = bufferedSource.mkString
-    bufferedSource.close()
-    FromFileSource(path, content)
   }
 
   // cache maps a key (obtained by hasing file path and file content) to the parse result
@@ -72,15 +61,15 @@ object Parser {
     sourceCache = Map.empty
   }
 
-  private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-    def parseSource(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
-          config.reporter report ParsedInputMessage(source.path, () => ast)
+          config.reporter report ParsedInputMessage(source.name, () => ast)
           Right(ast)
 
         case ns@NoSuccess(label, next) =>
@@ -101,15 +90,15 @@ object Parser {
       }
     }
 
-    def parseSourceCached(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+    def parseSourceCached(source: Source): Either[Vector[VerifierError], PProgram] = {
       var cacheHit = true
       def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += getCacheKey(source.path.toString, source.content) -> (res, positions)
+        sourceCache += getCacheKey(source.name, source.content) -> (res, positions)
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.path.toString, source.content), parseAndStore())
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.name, source.content), parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
@@ -158,8 +147,8 @@ object Parser {
     })
   }
 
-  def parseProgram(source: Source, specOnly: Boolean = false): Either[Messages, PProgram] = {
-    val preprocessedSource = SemicolonPreprocessor.preprocess(source)
+  def parseProgram(source: Source, specOnly: Boolean = false)(config: Config): Either[Messages, PProgram] = {
+    val preprocessedSource = SemicolonPreprocessor.preprocess(source)(config)
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
@@ -220,15 +209,10 @@ object Parser {
     /**
       * Assumes that source corresponds to an existing file
       */
-    def preprocess(source: FromFileSource)(config: Config): FromFileSource = {
+    def preprocess(source: Source)(config: Config): Source = {
       val translatedContent = translate(source.content)
-      config.reporter report PreprocessedInputMessage(source.path, () => translatedContent)
-      FromFileSource(source.path, translatedContent)
-    }
-
-    def preprocess(source: Source): Source = {
-      val translatedContent = translate(source.content)
-      StringSource(translatedContent)
+      config.reporter report PreprocessedInputMessage(source.name, () => translatedContent)
+      source.transformContent(translatedContent)
     }
 
     private def translate(content: String): String =
@@ -259,20 +243,6 @@ object Parser {
     }
   }
 
-  case class FromFileSource(path: Path, content: String) extends Source {
-    override val name: String = path.getFileName.toString
-    val shortName : Option[String] = Some(Filenames.dropCurrentPath(name))
-    def reader : Reader = IO.stringreader(content)
-
-    def useAsFile[T](fn : String => T) : T = {
-      // copied from StringSource
-      val filename = Filenames.makeTempFilename(name)
-      IO.createFile(filename, content)
-      val t = fn(filename)
-      IO.deleteFile(filename)
-      t
-    }
-  }
 
   private class ImportPostprocessor(override val positions: Positions) extends PositionedRewriter {
     /**

@@ -100,7 +100,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     private val parsing = InitialStep("parsing", () => {
       assert(config.isDefined)
       val c = config.get
-      Parser.parse(c.inputFiles)(c)
+      Parser.parse(c.inputs)(c)
     })
 
     private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =
@@ -120,7 +120,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
-        c.reporter report AppliedInternalTransformsMessage(c.inputFiles.head, () => result)
+        c.reporter report AppliedInternalTransformsMessage(c.inputs.map(_.name), () => result)
         Right(result)
       } else {
         Right(program)

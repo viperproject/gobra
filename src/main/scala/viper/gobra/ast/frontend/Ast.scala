@@ -7,12 +7,11 @@
 package viper.gobra.ast.frontend
 
 import java.nio.file.Paths
-
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
-import viper.gobra.frontend.Parser.FromFileSource
+import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
@@ -76,7 +75,7 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
     val path = start.source match {
       case FileSource(filename, _) => Paths.get(filename)
       case FromFileSource(path, _) => path
-      case _ => ???
+      case StringSource(_, _) => null // StringSource stores some name but there is no guarantee that it corresponds to a valid file path
     }
     new SourcePosition(
       path,

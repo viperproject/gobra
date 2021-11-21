@@ -18,10 +18,10 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, RecognitionException, Recognizer}
+import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext, RecognitionException, Recognizer, Token}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-
+import viper.gobra.frontend.GobraParser.{ExpressionContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StatementContext, Type_Context}
 import viper.gobra.frontend.old.{GoLexer, GoParser}
 import viper.silver.ast.SourcePosition
 
@@ -51,9 +51,10 @@ object Parser {
     val preprocessedSources = input
       .map{ getSource }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
+    val sources = input.map(getSource)
     for {
       //parseAst <- time("GOBRA", input{0}.getFileName().toString()) {parseSources(preprocessedSources, specOnly)(config)}
-      parseAst <- time("ANTLR_FULL", input{0}.getFileName().toString()) {antlrParseSources(input, specOnly)(config)}
+      parseAst <- time("ANTLR_FULL", sources.map(_.name).mkString(", ")) {antlrParseSources(sources, specOnly)(config)}
       postprocessedAst <- new ImportPostprocessor(parseAst.positions.positions).postprocess(parseAst)(config)
     } yield postprocessedAst
   }
@@ -74,7 +75,7 @@ object Parser {
     FromFileSource(path, content)
   }
 
-  private def antlrParseSources(sources: Vector[Path], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def antlrParseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     lazy val rewriter = new PRewriter(pom.positions)
@@ -84,41 +85,19 @@ object Parser {
 
     }
 
-    def parseSource(source: Path): Either[Vector[VerifierError], PProgram] = {
-      val charStream = CharStreams.fromPath(source)
-      val lexer = new GobraLexer(charStream)
-      val tokens = new CommonTokenStream(lexer)
-      val parser = new GobraParser(tokens)
+    def parseSource(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
       val errors = ListBuffer.empty[ParserError]
-      val errorListener = new ErrorListener(errors, source)
-      parser.specOnly = specOnly
-      parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
-      parser.removeErrorListeners()
-      parser.setErrorHandler(new BailErrorStrategy)
-      var tree = try time ("ANTLR_PARSE", source.getFileName().toString()) { parser.sourceFile() }
-      catch {
-        case _: ParseCancellationException =>
-          // thrown by BailErrorStrategy
-          tokens.seek(0)
-          // rewind input stream
-          parser.reset()
-          // back to standard listeners/handlers
-          parser.addErrorListener(errorListener)
-          parser.setErrorHandler(new DefaultErrorStrategy)
-          // full now with full LL(*)
-          parser.getInterpreter.setPredictionMode(PredictionMode.LL)
-          time ("ANTLR_PARSE_LLS", source.getFileName().toString()) { parser.sourceFile() }
-      }
-      if(errors.isEmpty) {
-        val translator = new ParseTreeTranslator(pom, getSource(source))
-        val parseAst = try translator.visitSourceFile(tree)
-        catch {
-          case e: TranslationException =>
-            return Left(Vector(ParserError(e.msg , Some(SourcePosition(source, e.start.line, e.start.column)))))
-        }
-        Right(parseAst)
-      } else {
-        Left(errors.toVector)
+      val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, errors, pom, specOnly)
+      parser.parse(parser.sourceFile) match {
+        case Right(ast) =>
+          config.reporter report ParsedInputMessage(source.path, () => ast)
+          Right(ast)
+        case Left(errors) =>
+          val groupedErrors = errors.groupBy{ _.position.get.file }
+          groupedErrors.foreach{ case (p, pErrors) =>
+            config.reporter report ParserErrorMessage(p, pErrors)
+          }
+          Left(errors)
       }
     }
 
@@ -220,7 +199,7 @@ object Parser {
       val parser = new GoParser(tokens)
       parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
       parser.setErrorHandler(new BailErrorStrategy)
-      var tree = try time ("ANTLR", source.getFileName().toString()) { parser.sourceFile() }
+      var tree = try time ("ANTLR", source.getFileName.toString) { parser.sourceFile() }
       catch {
         case _: ParseCancellationException =>
           // thrown by BailErrorStrategy
@@ -232,7 +211,7 @@ object Parser {
           parser.setErrorHandler(new DefaultErrorStrategy)
           // full now with full LL(*)
           parser.getInterpreter.setPredictionMode(PredictionMode.LL)
-          time ("ANTLR", source.getFileName().toString()) { parser.sourceFile() }
+          time ("ANTLR", source.getFileName.toString) { parser.sourceFile() }
         //println("a")
         //
         //println("b")
@@ -274,47 +253,46 @@ object Parser {
   }
 
 
-  def parseProgram(source: Source, specOnly: Boolean = false): Either[Messages, PProgram] = {
-    val preprocessedSource = SemicolonPreprocessor.preprocess(source)
+  def parseProgram(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PProgram] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
-    translateParseResult(pom)(parsers.parseAll(parsers.program, preprocessedSource))
+    val parser = new antlrSyntaxAnalyzer[SourceFileContext, PProgram](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    parser.parse(parser.sourceFile())
   }
 
-  def parseMember(source: Source, specOnly: Boolean = false): Either[Messages, Vector[PMember]] = {
+  def parseFunction(source: Source, specOnly: Boolean = false): Either[Vector[ParserError], PMember] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom, specOnly)
-    translateParseResult(pom)(parsers.parseAll(parsers.member, source))
+    val parser = new antlrSyntaxAnalyzer[FunctionDeclContext, PMember](source, ListBuffer.empty[ParserError],  pom, specOnly)
+    parser.parse(parser.functionDecl())
   }
 
-  def parseStmt(source: Source): Either[Messages, PStatement] = {
+  def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom)
-    translateParseResult(pom)(parsers.parseAll(parsers.statement, source))
+    val parser = new antlrSyntaxAnalyzer[StatementContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.statement())
   }
 
-  def parseExpr(source: Source): Either[Messages, PExpression] = {
+  def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom)
-    translateParseResult(pom)(parsers.parseAll(parsers.expression, source))
+    val parser = new antlrSyntaxAnalyzer[ExpressionContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.expression())
   }
 
-  def parseImportDecl(source: Source): Either[Messages, Vector[PImport]] = {
+  def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom)
-    translateParseResult(pom)(parsers.parseAll(parsers.importDecl, source))
+    val parser = new antlrSyntaxAnalyzer[ImportDeclContext, Vector[PImport]](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.importDecl())
   }
 
-  def parseType(source : Source) : Either[Messages, PType] = {
+  def parseType(source : Source) : Either[Vector[ParserError], PType] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parsers = new SyntaxAnalyzer(pom)
-    translateParseResult(pom)(parsers.parseAll(parsers.typ, source))
+    val parser = new antlrSyntaxAnalyzer[Type_Context, PType](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.type_())
   }
 
   private def translateParseResult[T](pom: PositionManager)(r: ParseResult[T]): Either[Messages, T] = {
@@ -441,18 +419,101 @@ object Parser {
     }
   }
 
-  private class ErrorListener(val messages: ListBuffer[ParserError], val source: Path) extends BaseErrorListener {
+  private class ErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
     override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-      if(e != null){
+      val pos = source match {
+        case source : FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
+        case _ => None
+      }
+      if((e != null) && (offendingSymbol != null)){
         val rule = recognizer.getRuleNames.array(e.getCtx.getRuleIndex)
         rule match {
-          case "eos" => messages.append(ParserError(msg+" at end of line", Some(SourcePosition(source, line, charPositionInLine) )))
-          case _ => messages.append(ParserError(msg+" in rule "+rule, Some(SourcePosition(source, line, charPositionInLine) )))
+          case "eos" => messages.append(ParserError(msg+" at end of line"+"\n" + underlineError(recognizer, offendingSymbol.asInstanceOf[Token], line, charPositionInLine), pos))
+          case _ => messages.append(ParserError(msg+" in rule: "+rule+"\n" + underlineError(recognizer, offendingSymbol.asInstanceOf[Token], line, charPositionInLine), pos))
         }
       } else {
-        messages.append(ParserError(msg, Some(SourcePosition(source, line, charPositionInLine) )))
+        messages.append(ParserError(msg, pos))
       }
+    }
+
+    protected def underlineError(recognizer: Recognizer[_, _], offendingToken: Token, line: Int, charPositionInLine: Int): String = {
+      val tokens = recognizer.getInputStream.asInstanceOf[CommonTokenStream]
+      val input = tokens.getTokenSource.getInputStream.toString
+      val lines = input.split("\n")
+      var message = lines(line - 1)
+      message += "\n"
+      print(charPositionInLine)
+      for (i <- 0 until charPositionInLine) {
+        message += " "
+      }
+      val start = offendingToken.getStartIndex
+      val stop = offendingToken.getStopIndex
+      if (start >= 0 && stop >= 0) for (i <- start to stop) {
+        message += "^"
+      }
+      message += "\n"
+      message
+    }
+  }
+
+  private class antlrSyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
+
+
+    def this(source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean) = {
+      this({
+        val charStream = CharStreams.fromReader(source.reader)
+        val lexer = new GobraLexer(charStream)
+        lexer.removeErrorListeners()
+        lexer.addErrorListener(new ErrorListener(errors, source))
+        new CommonTokenStream(lexer)
+      },
+        source, errors, pom, specOnly)
+      getInterpreter.setPredictionMode(PredictionMode.SLL)
+      removeErrorListeners()
+      setErrorHandler(new BailErrorStrategy)
+    }
+
+
+    def parse(rule : => Rule): Either[Vector[ParserError], Node] = {
+      val name = source match {
+        case source : FromFileSource => source.name
+        case source  => source.content.take(15)
+      }
+      val tree = try time ("ANTLR_PARSE_SLL", name) { rule }
+      catch {
+        case _: ParseCancellationException =>
+          // thrown by BailErrorStrategy
+          tokens.seek(0)
+          // rewind input stream
+          reset()
+          // back to standard listeners/handlers
+          addErrorListener(new ErrorListener(errors, source))
+          setErrorHandler(new DefaultErrorStrategy)
+          // full now with full LL(*)
+          getInterpreter.setPredictionMode(PredictionMode.LL)
+          try time ("ANTLR_PARSE_LL", name) { rule }
+          catch {
+            case e : Exception => errors.append(ParserError(e.getMessage, None))
+              new ParserRuleContext()
+          }
+      }
+      if(errors.isEmpty) {
+        val translator = new ParseTreeTranslator(pom, source, specOnly)
+        val parseAst : Node = try translator.translate(tree)
+        catch {
+          case e: TranslationException =>
+            val pos = source match {
+              case fileSource : FromFileSource => Some(SourcePosition(fileSource.path, e.start.line, e.start.column))
+              case _ => None
+            }
+            return Left(Vector(ParserError(e.msg , pos)))
+        }
+        Right(parseAst)
+      } else {
+        Left(errors.toVector)
+      }
+
     }
   }
 

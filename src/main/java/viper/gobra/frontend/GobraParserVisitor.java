@@ -53,6 +53,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFunctionDecl(GobraParser.FunctionDeclContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#eos}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEos(GobraParser.EosContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#sourceFile}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -622,10 +628,4 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitReceiverType(GobraParser.ReceiverTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#eos}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitEos(GobraParser.EosContext ctx);
 }

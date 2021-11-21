@@ -303,6 +303,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
+
+
   /**
     * Visit a parse tree produced by `GobraParser`.
     *
@@ -310,6 +312,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitImportDecl(ctx: GobraParser.ImportDeclContext): Vector[PImport] = {
+    /*if (ctx.importSpec() != null) {
+      Vector(visitImportSpec(ctx.importSpec()))
+    } else {
+      for (imp <- ctx.importList().importSpec().asScala.toVector) yield visitImportSpec(imp)
+    }*/
     for (imp <- ctx.importSpec().asScala.toVector) yield visitImportSpec(imp)
   }
 

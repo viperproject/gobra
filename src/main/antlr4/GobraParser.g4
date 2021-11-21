@@ -60,4 +60,10 @@ assertion:
 
 functionDecl: specification? FUNC IDENTIFIER (signature block?);
 
+eos:
+	SEMI
+	| EOF
+	| {lineTerminatorAhead()}?
+	| {checkPreviousTokenText("}")}?
+	| {checkPreviousTokenText(")")}?;
 // END GOBRA

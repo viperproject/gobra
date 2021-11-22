@@ -202,15 +202,13 @@ jobs:
           IS_VERIFIED_SCION=${{ github.ref == 'refs/heads/verified-scion-preview-without-selective' }}
           IS_PROPER_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
 
-          # calculate the conjunction / disjunction as GitHub expressions (returning 1 as true)
-          CONDITION = ${{ $IS_GOBRA_REPO && ($IS_MASTER || $IS_VERIFIED_SCION || $IS_PROPER_TAG) }}
-          # then, the result is inverted such that 1 becomes 0, i.e., that the if branch is executed
-          if [[ ! $CONDITION ]]
+          if [[ $IS_GOBRA_REPO == 1 && ($IS_MASTER == 1 || $IS_VERIFIED_SCION == 1 || $IS_PROPER_TAG == 1) ]]
           then
             SHOULD_DEPLOY='true'
           else
             SHOULD_DEPLOY='false'
           fi
+          echo "TEST=$(($IS_GOBRA_REPO == 1))" >> $GITHUB_ENV
           echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
 
       - name: Login to Github Packages

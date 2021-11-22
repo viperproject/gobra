@@ -12,7 +12,7 @@ import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
 import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{Positions, Source}
-import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
+import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, error, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.frontend.Source.TransformableSource
 import viper.gobra.reporting.{Source => _, _}
@@ -50,7 +50,7 @@ object Parser {
   }
 
   // cache maps a key (obtained by hasing file path and file content) to the parse result
-  private var sourceCache: Map[Array[Byte], (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+  private var sourceCache: Map[Array[Byte], (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
 
   private def getCacheKey(filePath: String, fileContent: String): Array[Byte] = {
     val key = filePath ++ fileContent
@@ -61,12 +61,12 @@ object Parser {
     sourceCache = Map.empty
   }
 
-  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
+  private def parseSources(sources: Vector[Source], specOnly: Boolean)(config: Config): Either[Vector[ParserError], PPackage] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
     val parsers = new SyntaxAnalyzer(pom, specOnly)
 
-    def parseSource(source: Source): Either[Vector[VerifierError], PProgram] = {
+    def parseSource(source: Source): Either[Vector[ParserError], PProgram] = {
       parsers.parseAll(parsers.program, source) match {
         case Success(ast, _) =>
           config.reporter report ParsedInputMessage(source.name, () => ast)
@@ -78,21 +78,15 @@ object Parser {
           pom.positions.setFinish(ns, pos)
           val messages = message(ns, label)
           val errors = pom.translate(messages, ParserError)
-          
-          val groupedErrors = errors.groupBy{ _.position.get.file }
-          groupedErrors.foreach{ case (p, pErrors) =>
-            config.reporter report ParserErrorMessage(p, pErrors)
-          }
-
           Left(errors)
 
         case c => Violation.violation(s"This case should be unreachable, but got $c")
       }
     }
 
-    def parseSourceCached(source: Source): Either[Vector[VerifierError], PProgram] = {
+    def parseSourceCached(source: Source): Either[Vector[ParserError], PProgram] = {
       var cacheHit = true
-      def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
+      def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
         sourceCache += getCacheKey(source.name, source.content) -> (res, positions)
@@ -107,8 +101,8 @@ object Parser {
           case n: PNode =>
             val start = pos.getStart(n)
             val finish = pos.getFinish(n)
-            start.map(positions.setStart(n, _))
-            finish.map(positions.setFinish(n, _))
+            start.foreach(positions.setStart(n, _))
+            finish.foreach(positions.setFinish(n, _))
             Some(n): Option[Any]
           case n => Some(n)
         })
@@ -118,32 +112,48 @@ object Parser {
       }
     }
 
-    val parsedPrograms = {
-      val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
-      val parserResults = sources.map(parsingFn)
+    def isErrorFree(parserResults: Vector[Either[Vector[ParserError], PProgram]]): Either[Vector[ParserError], Vector[PProgram]] = {
       val (errors, programs) = parserResults.partitionMap(identity)
-
-      if (errors.nonEmpty) {
-        Left(errors.flatten)
-      } else {
-        // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
-        // of the same package has failed
-        assert(programs.nonEmpty)
-        assert{
-          val packageName = programs.head.packageClause.id.name
-          programs.forall(_.packageClause.id.name == packageName)
-        }
-
-        Right(programs)
-      }
+      if (errors.isEmpty) Right(programs) else Left(errors.flatten)
     }
 
-    parsedPrograms.map(programs => {
+    def samePackage(programs: Vector[PProgram]): Either[Vector[ParserError], Vector[PProgram]] = {
+      require(programs.nonEmpty)
+      val pkgName = programs.head.packageClause.id.name
+      val differingPkgNameMsgs = programs.flatMap(p =>
+        error(
+          p.packageClause,
+          s"Files have differing package clauses, expected $pkgName but got ${p.packageClause.id.name}",
+          p.packageClause.id.name != pkgName))
+      println(s"samePackage msgs: ${differingPkgNameMsgs}")
+      if (differingPkgNameMsgs.isEmpty) Right(programs) else Left(pom.translate(differingPkgNameMsgs, ParserError))
+    }
+
+    def makePackage(programs: Vector[PProgram]): Either[Vector[ParserError], PPackage] = {
       val clause = parsers.rewriter.deepclone(programs.head.packageClause)
       val parsedPackage = PPackage(clause, programs, pom)
       // The package parse tree node gets the position of the package clause:
       pom.positions.dupPos(clause, parsedPackage)
-      parsedPackage
+      Right(parsedPackage)
+    }
+
+    val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
+    val parserResults = sources.map(parsingFn)
+    val res = for {
+      // check that each of the parsed programs has the same package clause. If not, the algorithm collecting all files
+      // of the same package has failed or users have entered an invalid collection of inputs
+      programs <- isErrorFree(parserResults)
+      programs <- samePackage(programs)
+      pkg <- makePackage(programs)
+    } yield pkg
+    // report potential errors:
+    res.left.map(errors => {
+      println(s"errors: ${errors}")
+      val groupedErrors = errors.groupBy{ _.position.get.file }
+      groupedErrors.foreach { case (p, pErrors) =>
+        config.reporter report ParserErrorMessage(p, pErrors)
+      }
+      errors
     })
   }
 

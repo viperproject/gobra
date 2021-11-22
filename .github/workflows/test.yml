@@ -211,6 +211,9 @@ jobs:
           echo "TEST=$(($IS_GOBRA_REPO == 1))" >> $GITHUB_ENV
           echo "SHOULD_DEPLOY=$SHOULD_DEPLOY" >> $GITHUB_ENV
 
+      - name: Dummy step
+        run: echo ${{ env.SHOULD_DEPLOY }}
+
       - name: Login to Github Packages
         if: env.SHOULD_DEPLOY == 'true'
         uses: docker/login-action@v1

@@ -49,12 +49,16 @@ object Parser {
     } yield postprocessedAst
   }
 
+  type SourceCacheKey = String
   // cache maps a key (obtained by hasing file path and file content) to the parse result
-  private var sourceCache: Map[Array[Byte], (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
+  private var sourceCache: Map[SourceCacheKey, (Either[Vector[ParserError], PProgram], Positions)] = Map.empty
 
-  private def getCacheKey(filePath: String, fileContent: String): Array[Byte] = {
-    val key = filePath ++ fileContent
-    MessageDigest.getInstance("MD5").digest(key.getBytes)
+  /** computes the key for caching a particular source. This takes the name as well as content into account */
+  private def getCacheKey(source: Source): SourceCacheKey = {
+    val key = source.name ++ source.content
+    val bytes = MessageDigest.getInstance("MD5").digest(key.getBytes)
+    // convert `bytes` to a hex string representation such that we get equality on the key while performing cache lookups
+    bytes.map { "%02x".format(_) }.mkString
   }
 
   def flushCache(): Unit = {
@@ -89,10 +93,10 @@ object Parser {
       def parseAndStore(): (Either[Vector[ParserError], PProgram], Positions) = {
         cacheHit = false
         val res = parseSource(source)
-        sourceCache += getCacheKey(source.name, source.content) -> (res, positions)
+        sourceCache += getCacheKey(source) -> (res, positions)
         (res, positions)
       }
-      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.name, source.content), parseAndStore())
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source), parseAndStore())
       if (cacheHit) {
         // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
         // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
@@ -125,7 +129,6 @@ object Parser {
           p.packageClause,
           s"Files have differing package clauses, expected $pkgName but got ${p.packageClause.id.name}",
           p.packageClause.id.name != pkgName))
-      println(s"samePackage msgs: ${differingPkgNameMsgs}")
       if (differingPkgNameMsgs.isEmpty) Right(programs) else Left(pom.translate(differingPkgNameMsgs, ParserError))
     }
 
@@ -148,7 +151,6 @@ object Parser {
     } yield pkg
     // report potential errors:
     res.left.map(errors => {
-      println(s"errors: ${errors}")
       val groupedErrors = errors.groupBy{ _.position.get.file }
       groupedErrors.foreach { case (p, pErrors) =>
         config.reporter report ParserErrorMessage(p, pErrors)

@@ -242,6 +242,7 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
       case PDeferStmt(exp) => "defer" <+> showExpr(exp)
       case PBlock(stmts) => block(showStmtList(stmts))
       case PSeq(stmts) => showStmtList(stmts)
+      case POutline(body, spec) => showSpec(spec) <> "outline" <+> parens(nest(line <> showStmtList(body)) <> line)
     }
     case statement: PGhostStatement => statement match {
       case PExplicitGhostStatement(actual) => "ghost" <+> showStmt(actual)
@@ -550,6 +551,8 @@ class DefaultPrettyPrinter extends PrettyPrinter with kiama.output.PrettyPrinter
     case PUInt32Type() => "uint32"
     case PUInt64Type() => "uint64"
     case PUIntPtr() => "uintptr"
+    case PFloat32() => "float32"
+    case PFloat64() => "float64"
     case PArrayType(len, elem) => brackets(showExpr(len)) <> showType(elem)
     case PSliceType(elem) => brackets(emptyDoc) <> showType(elem)
     case PVariadicType(elem) => "..." <> showType(elem)

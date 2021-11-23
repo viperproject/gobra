@@ -465,6 +465,11 @@ object Parser {
           PFunctionDecl(name, sig._1, sig._2, spec, body)
       }
 
+    lazy val outline: Parser[POutline] =
+      (functionSpec <~ "outline") ~ ("(" ~> repsep(statement, eos) <~ eos.? <~ ")") ^^ {
+        case spec ~ body => POutline(body, spec)
+      }
+
     lazy val functionSpec: Parser[PFunctionSpec] = {
 
       sealed trait FunctionSpecClause
@@ -508,6 +513,7 @@ object Parser {
 
     lazy val statement: Parser[PStatement] =
       ghostStatement |
+        outline |
         declarationStmt |
         goStmt |
         deferStmt |
@@ -964,12 +970,17 @@ object Parser {
         "false" ^^^ PBoolLit(false) |
         nilLit |
         intLit |
+        // TODO
+        // floatLit |
         stringLit
 
     lazy val nilLit: Parser[PNilLit] = "nil" ^^^ PNilLit()
 
     lazy val intLit: Parser[PIntLit] =
       octalLit | binaryLit | hexLit | decimalLit
+
+    // TODO
+    // lazy val floatLit: Parser[PFloatLit] = ???
 
     lazy val binaryLit: Parser[PIntLit] =
       "0" ~> ("b"|"B") ~> regex("[01]+".r) ^^ (lit => PIntLit(BigInt(lit, 2), Binary))
@@ -1166,7 +1177,10 @@ object Parser {
         exactWord("uint16") ^^^ PUInt16Type() |
         exactWord("uint32") ^^^ PUInt32Type() |
         exactWord("uint64") ^^^ PUInt64Type() |
-        exactWord("uintptr") ^^^ PUIntPtr()
+        exactWord("uintptr") ^^^ PUIntPtr() |
+        // floats
+        exactWord("float32") ^^^ PFloat32() |
+        exactWord("float64") ^^^ PFloat64()
 
     lazy val predeclaredTypeSeparate: Parser[PPredeclaredType] =
       exactWord("bool") ~ not("(" | ".") ^^^ PBoolType() |

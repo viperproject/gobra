@@ -1,0 +1,38 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+func outline_readonly() {
+	x := 42
+	y := 3
+	b := true
+	outline (
+		stub(x, y, b)
+	)
+	assert x == 42 && y == 3 && b == true
+}
+
+func stub(x int, y int, b bool)
+
+func outline_modify() {
+	x := 1
+	y := 2
+	ensures x == 9
+	ensures y == 98
+	outline (
+		x = 9
+		y = 98
+	)
+	assert x == 9 && y == 98
+}
+
+func outline_declare() {
+	ensures x == 1 && y == 2
+	outline (
+		x := 1
+		y := 2
+	)
+	sum := x + y
+	assert sum == 3
+}

@@ -38,7 +38,7 @@ type IPAddr struct {
 }
 
 pred (a *IPAddr) Mem() {
-    acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i])
+    acc(a) && forall i int :: 0 <= i && i < len(a.IP) ==> acc(&(a.IP)[i]) // a.IP.Mem()
 }
 
 (*IPAddr) implements Addr {

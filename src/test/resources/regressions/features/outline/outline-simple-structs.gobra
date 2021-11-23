@@ -1,0 +1,45 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+package pkg;
+
+type myStruct struct {
+	myField int
+}
+
+func outline_struct_by_value() {
+	s := myStruct{}
+	ensures s.myField == 3
+	outline (
+		s.myField = 3
+	)
+	assert s.myField == 3
+}
+
+func outline_struct_by_reference() {
+	s := &myStruct{}
+	s.myField = 0
+	requires acc(s)
+	ensures acc(s)
+	ensures s.myField == 3
+	outline (
+		s.myField = 3
+	)
+	assert s.myField == 3
+}
+
+type myWrapper struct {
+	s myStruct
+}
+
+func outline_wrapped_struct() {
+	w := myWrapper{}
+	s := myStruct{}
+	s.myField = 3
+	w.s = s
+	ensures w.s.myField == 0
+	outline (
+		w.s.myField = 0
+	)
+	assert w.s.myField == 0
+}

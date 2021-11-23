@@ -80,6 +80,8 @@ object DefaultErrorBackTranslator {
         TupleDecreasesFalseError(info)
       case termination.TupleBoundedFalse(CertainSource(info)) =>
         TupleBoundedFalseError(info)
+      case vprrea.LabelledStateNotReached(CertainSource(info)) =>
+        LabelledStateNotReached(info)
     }
 
     val transformVerificationErrorReason: VerificationErrorReason => VerificationErrorReason = {

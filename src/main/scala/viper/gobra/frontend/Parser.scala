@@ -21,7 +21,7 @@ import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext, RecognitionException, Recognizer, Token}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExpressionContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StatementContext, Type_Context}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context}
 import viper.gobra.frontend.old.{GoLexer, GoParser}
 import viper.silver.ast.SourcePosition
 
@@ -270,15 +270,15 @@ object Parser {
   def parseStmt(source: Source): Either[Vector[ParserError], PStatement] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[StatementContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
-    parser.parse(parser.statement())
+    val parser = new antlrSyntaxAnalyzer[StmtOnlyContext, PStatement](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.stmtOnly())
   }
 
   def parseExpr(source: Source): Either[Vector[ParserError], PExpression] = {
     val positions = new Positions
     val pom = new PositionManager(positions)
-    val parser = new antlrSyntaxAnalyzer[ExpressionContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
-    parser.parse(parser.expression())
+    val parser = new antlrSyntaxAnalyzer[ExprOnlyContext, PExpression](source, ListBuffer.empty[ParserError],  pom, false)
+    parser.parse(parser.exprOnly())
   }
 
   def parseImportDecl(source: Source): Either[Vector[ParserError], Vector[PImport]] = {
@@ -507,7 +507,7 @@ object Parser {
               case fileSource : FromFileSource => Some(SourcePosition(fileSource.path, e.start.line, e.start.column))
               case _ => None
             }
-            return Left(Vector(ParserError(e.msg , pos)))
+            return Left(Vector(ParserError(e.msg +  e.getStackTrace.toVector(2), pos)))
         }
         Right(parseAst)
       } else {

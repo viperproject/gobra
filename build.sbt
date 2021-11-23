@@ -55,7 +55,7 @@ lazy val gobra = (project in file("."))
       "-Dfile.encoding=UTF-8"
     ),
 
-    fork := true,
+    run / fork := true,
 
 
     // Test settings

@@ -577,6 +577,13 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse a simple sequence range expression with spaces") {
+    frontend.parseExpOrFail("seq[1 .. 5]") should matchPattern {
+      case PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal))
+        if low == BigInt(1) && high == BigInt(5) =>
+    }
+  }
+
   test("Parser: should parse a slightly more complex sequence range expression") {
     frontend.parseExpOrFail("seq[x + y .. len(seq[bool] { true })]") should matchPattern {
       case PRangeSequence(

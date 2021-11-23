@@ -9,7 +9,8 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
-import viper.gobra.frontend.{Config, PackageResolver, Source}
+import viper.gobra.frontend.Source.FromFileSource
+import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.reporting.{NoopReporter, VerifierError}
 import viper.silver.testing.{AbstractOutput, AnnotatedTestInput, ProjectInfo, SystemUnderTest}
@@ -47,7 +48,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputs = Vector(Source.getSource(input.file)),
+          inputs = Vector(FromFileSource(input.file)),
           // TODO: enable consistency checks as soon as inconsistencies have been fixed
           // checkConsistency = true,
           z3Exe = z3Exe

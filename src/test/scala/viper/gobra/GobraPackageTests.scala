@@ -12,7 +12,8 @@ import ch.qos.logback.classic.Level
 import org.bitbucket.inkytonik.kiama.util.Source
 import org.rogach.scallop.exceptions.ValidationFailure
 import org.rogach.scallop.throwError
-import viper.gobra.frontend.{Config, ScallopGobraConfig, Source}
+import viper.gobra.frontend.Source.FromFileSource
+import viper.gobra.frontend.{Config, ScallopGobraConfig}
 import viper.gobra.reporting.{NoopReporter, ParserError}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -65,7 +66,7 @@ class GobraPackageTests extends GobraTests {
         val config = Config(
           logLevel = Level.INFO,
           reporter = NoopReporter,
-          inputs = input.files.toVector.map(Source.getSource),
+          inputs = input.files.toVector.map(FromFileSource(_)),
           includeDirs = Vector(currentDir),
           checkConsistency = true,
           z3Exe = z3Exe

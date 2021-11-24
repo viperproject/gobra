@@ -10,8 +10,7 @@ import org.bitbucket.inkytonik.kiama.util.{FileSource, Filenames, IO, Source, St
 import viper.gobra.util.Violation
 
 import java.io.Reader
-import java.net.URI
-import java.nio.file.{FileSystem, Files, LinkOption, Path, Paths, WatchEvent, WatchKey, WatchService}
+import java.nio.file.{Files, Path, Paths}
 import scala.io.BufferedSource
 
 /**

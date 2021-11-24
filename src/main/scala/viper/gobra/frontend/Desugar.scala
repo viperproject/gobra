@@ -1062,9 +1062,138 @@ object Desugar {
               }
             } yield in.Seqn(Vector(dPre, exprAss, clauseBody))(src)
 
-          case _: PAssForRange => ???
+          case PAssForRange(range, ass, spec, body) =>
+            // TODO: extract this to a function and call this in both places
+            unit(block(
+              for {
+                // According to the Go spec,
+                //  "The expression len(s) is constant if s is a string constant.
+                //   The expressions len(s) and cap(s) are constants if the type of s is an array or pointer
+                //   to an array and the expression s does not contain channel receives or (non-constant) function calls;
+                //   in this case s is not evaluated. Otherwise, invocations of len and cap are not constant
+                //   and s is evaluated."
+                // However, we always evaluate the expression. This is sound because no effectful operations can
+                // be executed during the evaluation
+                rangeExp <- goE(range.exp)
+                rangeTyp = typeD(info.typ(range.exp), Addressability.rValue)(src)
+                rangeExpVar <- freshDeclaredExclusiveVar(rangeTyp)(src)
+                rangeExpAss = singleAss(in.Assignee.Var(rangeExpVar), rangeExp)(src)
+                _ <- write(rangeExpAss)
+                dInvs <- sequence(spec.invariants map assertionD(ctx))
+                dBody = blockD(ctx)(body)
 
-          case PShortForRange(range, shorts, spec, body) =>
+                assignees <- sequence(ass.map(assigneeD(ctx)))
+
+                res = rangeTyp match {
+                  case t@ (_: in.SliceT | _: in.ArrayT) =>
+                    val fstAssigneeTyp = in.IntT(Addressability.Exclusive)
+                    val sndAssigneeTyp = t match {
+                      case in.SliceT(elem, _) => elem
+                      case in.ArrayT(_, elem, _) => elem
+                    }
+
+                    val fstAssignee = assignees.headOption.getOrElse(in.Assignee(freshExclusiveVar(fstAssigneeTyp)(src)))
+                    val sndAssignee = assignees.tail.headOption.getOrElse(in.Assignee(freshExclusiveVar(sndAssigneeTyp)(src)))
+
+                    in.Seqn(Vector(
+                      in.If(
+                        cond = in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
+                        thn =
+                          in.Seqn(Vector(
+                            in.SingleAss(fstAssignee, in.IntLit(0)(src))(src),
+                            in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, in.IntLit(0)(src), rangeTyp)(src))(src)
+                          ))(src),
+                        els = in.Seqn(Vector())(src)
+                      )(src),
+                      in.While(
+                        cond =
+                          in.And(
+                            // collection not empty
+                            in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
+                            in.LessCmp(fstAssignee.op, in.Length(rangeExpVar)(src))(src)
+                          )(src),
+                        invs = dInvs,
+                        terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(rangeExpVar)(src), fstAssignee.op)(src)), None)(src)),
+                        body = in.Seqn(
+                          Vector(
+                            dBody,
+                            in.SingleAss(fstAssignee, in.Add(fstAssignee.op, in.IntLit(1)(src))(src))(src),
+                            in.SingleAss(
+                              sndAssignee,
+                              in.Conditional(
+                                in.LessCmp(fstAssignee.op, in.Length(rangeExpVar)(src))(src),
+                                in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src),
+                                fstAssignee.op,
+                                fstAssigneeTyp
+                              )(src)
+                            )(src)
+                          ))(src)
+                      )(src)
+                    ))(src)
+
+                  case t: in.MapT =>
+                    /*
+                    block(
+                    for {
+                      // this translation relies on the fact that this fresh variable is uninitialized!
+                      rangeExpVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.Exclusive))(src)
+                      assert = in.Assert(in.ExprAssertion(in.EqCmp(rangeExpVar, in.IntLit(0)(src))(src))(src))(src)
+                    } yield assert
+                    )
+                    */
+                    val fstAssigneeTyp = t.keys
+                    val sndAssigneeTyp = t.values
+                    val fstAssignee = assignees.headOption.getOrElse(in.Assignee(freshExclusiveVar(fstAssigneeTyp)(src)))
+                    val sndAssignee = assignees.tail.headOption.getOrElse(in.Assignee(freshExclusiveVar(sndAssigneeTyp)(src)))
+                    val visitedKeysW = freshDeclaredExclusiveVar(in.SetT(fstAssigneeTyp, Addressability.mathDataStructureElement))(src)
+
+                    block(for {
+                      visitedKeys <- visitedKeysW
+                      ret = in.Seqn(Vector(
+                        in.Initialization(visitedKeys)(src),
+                        in.If(
+                          cond = in.LessCmp(in.IntLit(0) (src), in.Length(rangeExpVar)(src))(src),
+                          thn =
+                            in.Seqn(Vector(
+                              in.Inhale(in.ExprAssertion(in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeTyp)(src))(src))(src))(src),
+                              in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src))(src),
+                            ))(src),
+                          els = in.Seqn(Vector())(src)
+                        ) (src),
+                        in.While(
+                          cond =
+                            in.And(
+                              // collection not empty
+                              in.LessCmp(in.IntLit(0) (src), in.Length(rangeExpVar)(src))(src),
+                              in.LessCmp(in.Length(visitedKeys) (src), in.Length(rangeExpVar)(src))(src)
+                            )(src),
+                          invs = dInvs :+ in.ExprAssertion(in.AtMostCmp(in.Length(visitedKeys)(src), in.Length(in.MapKeys(rangeExp, rangeTyp)(src))(src))(src))(src),
+                          terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(rangeExpVar)(src), in.Length(visitedKeys)(src))(src)), None)(src)),
+                          body = in.Seqn(Vector(
+                            in.Inhale(
+                              in.ExprAssertion(
+                                in.And(
+                                  in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeTyp)(src))(src),
+                                  in.Negation(in.Negation(in.Contains(fstAssignee.op, visitedKeys)(src))(src))(src)
+                                )(src)
+                              )(src))(src),
+                            in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src))(src),
+                            singleAss(in.Assignee(visitedKeys), in.Union(visitedKeys, in.SetLit(fstAssigneeTyp, Vector(fstAssignee.op))(src))(src))(src),
+                            dBody,
+                          ))(src)
+                        )(src)
+                      ))(src)
+                    } yield ret)
+
+                  case _: in.StringT => ???
+                  case _: in.ChannelT => ???
+                  case t => violation(s"unexpected type of range expression")
+                }
+
+              } yield res))
+
+          case PShortForRange(range, shorts, spec, body) => ??? /*
+          // TODO: use the same code for the PAssForRange in a new block
             // is a block because 'shorts' always defines new variables, unlike
             // regular short variable declaration
             violation(shorts.nonEmpty, "unexpected empty list of identifiers")
@@ -1072,7 +1201,7 @@ object Desugar {
             unit(block(
               // TODO: do proper type checking
               for {
-                // TODO: unlike the spec, we always evaluate the exp
+                // TODO: unlike the spec, we always evaluate the exp (once)
                 rangeExp <- goE(range.exp)
                 rangeTyp = typeD(info.typ(range.exp), Addressability.rValue)(src)
                 rangeExpVar <- freshDeclaredExclusiveVar(rangeTyp)(src)
@@ -1145,7 +1274,7 @@ object Desugar {
                   case _: in.MapT => ???
                   case _: in.ChannelT => ???
                 }
-              } yield res))
+              } yield res)) */
 
           case _ => ???
         }

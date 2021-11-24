@@ -251,7 +251,7 @@ case class PForStmt(pre: Option[PSimpleStmt], cond: PExpression, post: Option[PS
 
 case class PAssForRange(range: PRange, ass: Vector[PAssignee], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
-case class PShortForRange(range: PRange, shorts: Vector[PIdnUnk], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
+case class PShortForRange(range: PRange, shorts: Vector[PUnkLikeId], spec: PLoopSpec, body: PBlock) extends PActualStatement with PScope with PGhostifiableStatement
 
 case class PGoStmt(exp: PExpression) extends PActualStatement
 

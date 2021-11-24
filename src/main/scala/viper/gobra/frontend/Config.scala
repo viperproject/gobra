@@ -120,12 +120,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     default = Some(List())
   )(listArgConverter(dir => new File(dir)))
 
-  val isolate: ScallopOption[List[String]] = opt[List[String]](
-    name = "isolate",
-    descr = "Work in progress", // TODO
-    default = None
-  )
-
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
     descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
@@ -241,22 +235,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     requireAtLeastOne(input)
   }
 
-  def isolatedPosition(isolateOption: Option[List[String]], inputOption: Option[List[String]]): Option[List[SourcePosition]] = {
-    isolateOption.map{ isolatedArgs =>
-      val singlePath = inputOption.flatMap(inputs => InputConverter.identifyInput(inputs).collect{ case Right(Vector(f)) => f })
 
-      singlePath match {
-        case Some(f) =>
-          // all isolated arguments are line numbers
-          val lineNumbers = isolatedArgs.flatMap(_.toIntOption)
-          lineNumbers.map(lineNumber => SourcePosition(f, lineNumber, 0))
 
-        case None =>
-          // all isolated arguments are pairs of path and line number
-          ???
-      }
-    }
-  }
 
   /** File Validation */
   def validateInput(inputOption: ScallopOption[List[String]],
@@ -305,13 +285,25 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesExist(include)
     validateFilesIsDirectory(include)
   }
-  validateInput(input, include)
+
+  val cutInputWithIdxs = input.map(_.map{ arg =>
+    val pattern = """(.*)@(\d+(?:,\d+)*)""".r
+    arg match {
+      case pattern(prefix, idxs) =>
+        (prefix, idxs.split(',').toList.map(_.toInt))
+
+      case _ => (arg, List.empty[Int])
+    }
+  })
+  val cutInput = cutInputWithIdxs.map(_.map(_._1))
+
+  validateInput(cutInput, include)
 
   verify()
 
   lazy val includeDirs: Vector[Path] = include.toOption.map(_.map(_.toPath).toVector).getOrElse(Vector())
-  lazy val inputFiles: Vector[Path] = InputConverter.convert(input.toOption.getOrElse(List()), includeDirs)
-  lazy val isolated: Option[Vector[SourcePosition]] = isolatedPosition(isolate.toOption, input.toOption).map(_.toVector)
+  lazy val inputFiles: Vector[Path] = InputConverter.convert(cutInput.toOption.getOrElse(List()), includeDirs)
+  lazy val isolated: Option[Vector[SourcePosition]] = InputConverter.isolatedPosition(cutInputWithIdxs.toOption).map(_.toVector)
 
   /** set log level */
 
@@ -324,7 +316,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   def shouldDesugar: Boolean = shouldTypeCheck
   def shouldViperEncode: Boolean = shouldDesugar
   def shouldVerify: Boolean = shouldViperEncode
-  def shouldChop: Boolean = doChop.getOrElse(false) || isolate.isDefined
+  def shouldChop: Boolean = doChop.getOrElse(false) || isolated.exists(_.nonEmpty)
 
   private object InputConverter {
 
@@ -396,6 +388,15 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
         case (pkgs, files) if pkgs.isEmpty && files.nonEmpty => Some(Right(for(Right(s) <- files.toVector) yield s.toPath))
         case _ => None
       }
+    }
+
+    def isolatedPosition(cutInputWithIdxs: Option[List[(String, List[Int])]]): Option[List[SourcePosition]] = {
+      cutInputWithIdxs.map(_.flatMap { case (input, idxs) =>
+        isGoFilePath(input) match { // only go files can have a position
+          case Right(file) => idxs.map(idx => SourcePosition(file.toPath, idx, 0))
+          case _ => List.empty
+        }
+      })
     }
   }
 

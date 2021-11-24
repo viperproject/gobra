@@ -18,6 +18,7 @@ import viper.gobra.translator.interfaces.{Collector, Context}
 import viper.gobra.translator.util.FunctionGenerator
 import viper.gobra.translator.util.ViperWriter.CodeWriter
 import viper.gobra.util.{Algorithms, Violation}
+import viper.silver.plugin.standard.termination
 import viper.silver.verifier.ErrorReason
 import viper.silver.{ast => vpr}
 
@@ -455,6 +456,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
     * function typeOfFunc_I(itf: [itf{}]): Type
     *   ensures result == typeOf(itf)
     *   ensures behaviouralSubtype(result, [I])
+    *   decreases
     */
   private def typeOfWithSubtypeFactFunc(itfT: in.InterfaceT)(ctx: Context): vpr.Function = {
     typeOfWithSubtypeFactFuncMap.getOrElse(itfT.name, {
@@ -466,7 +468,7 @@ class InterfaceEncoding extends LeafTypeEncoding {
         name = s"${Names.typeOfFunc}_${itfT.name}",
         formalArgs = Seq(formal),
         typ = resT,
-        pres = Seq.empty,
+        pres = Seq(termination.DecreasesWildcard(None)()),
         posts = Seq(
           vpr.EqCmp(vpr.Result(resT)(), typeOf(formal.localVar)()(ctx))(),
           types.behavioralSubtype(vpr.Result(resT)(), types.typeToExpr(itfT)()(ctx))()(ctx)

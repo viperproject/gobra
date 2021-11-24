@@ -7,6 +7,7 @@
 package viper.gobra.frontend.info
 
 import org.bitbucket.inkytonik.kiama.relation.Tree
+import org.bitbucket.inkytonik.kiama.util.Source
 import viper.gobra.ast.frontend.{PNode, PPackage}
 import viper.gobra.frontend.Config
 import viper.gobra.frontend.PackageResolver.AbstractImport
@@ -64,7 +65,7 @@ object Info {
     def getExternalErrors: Vector[VerifierError] = contextMap.values.collect { case Left(errs) => errs }.flatten.toVector
   }
 
-  def check(pkg: PPackage, context: Context = new Context, isMainContext: Boolean = false)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
+  def check(pkg: PPackage, sources: Vector[Source], context: Context = new Context, isMainContext: Boolean = false)(config: Config): Either[Vector[VerifierError], TypeInfo with ExternalTypeInfo] = {
     val tree = new GoTree(pkg)
     //    println(program.declarations.head)
     //    println("-------------------")
@@ -72,9 +73,10 @@ object Info {
     val info = new TypeInfoImpl(tree, context, isMainContext)(config: Config)
 
     val errors = info.errors
-    config.reporter report TypeCheckDebugMessage(config.inputFiles.head, () => pkg, () => getDebugInfo(pkg, info))
+    // use `sources` instead of `context.inputs` for reporting such that the message is correctly attributed in case of imports
+    config.reporter report TypeCheckDebugMessage(sources.map(_.name), () => pkg, () => getDebugInfo(pkg, info))
     if (errors.isEmpty) {
-      config.reporter report TypeCheckSuccessMessage(config.inputFiles.head, () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
+      config.reporter report TypeCheckSuccessMessage(sources.map(_.name), () => pkg, () => getErasedGhostCode(pkg, info), () => getGoifiedGhostCode(pkg, info))
       Right(info)
     } else {
       // remove duplicates as errors related to imported packages might occur multiple times
@@ -84,7 +86,7 @@ object Info {
       // however, the duplicate removal should happen after translation so that the error position is correctly
       // taken into account for the equality check.
       val typeErrors = pkg.positions.translate(errors, TypeError).distinct
-      config.reporter report TypeCheckFailureMessage(config.inputFiles.head, pkg.packageClause.id.name, () => pkg, typeErrors)
+      config.reporter report TypeCheckFailureMessage(sources.map(_.name), pkg.packageClause.id.name, () => pkg, typeErrors)
       Left(typeErrors)
     }
   }

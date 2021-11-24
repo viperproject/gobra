@@ -38,7 +38,7 @@ object Desugar {
     val mainDesugarer = new Desugarer(pkg.positions, info)
     // combine all desugared results into one Viper program:
     val internalProgram = combine(mainDesugarer, mainDesugarer.packageD(pkg), importedPrograms)
-    config.reporter report DesugaredMessage(config.inputFiles.head, () => internalProgram)
+    config.reporter report DesugaredMessage(config.inputs.map(_.name), () => internalProgram)
     internalProgram
   }
 

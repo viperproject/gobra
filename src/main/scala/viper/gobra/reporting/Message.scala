@@ -10,7 +10,6 @@ import java.nio.file.Path
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PPackage, PProgram}
 import viper.gobra.ast.{internal => in}
-import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}

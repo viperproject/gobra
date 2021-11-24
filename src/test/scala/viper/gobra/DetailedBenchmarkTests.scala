@@ -106,7 +106,8 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =
       NextStep("type-checking", parsing, (parsedPackage: PPackage) => {
         assert(config.isDefined)
-        Info.check(parsedPackage)(config.get).map(typeInfo => (parsedPackage, typeInfo))
+        val c = config.get
+        Info.check(parsedPackage, c.inputs)(c).map(typeInfo => (parsedPackage, typeInfo))
       })
 
     private val desugaring: NextStep[(PPackage, TypeInfo), Program, Vector[VerifierError]] =

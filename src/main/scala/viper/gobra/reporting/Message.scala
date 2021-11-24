@@ -7,10 +7,10 @@
 package viper.gobra.reporting
 
 import java.nio.file.Path
-
 import viper.gobra.ast.frontend.PNode.PPkg
 import viper.gobra.ast.frontend.{PPackage, PProgram}
 import viper.gobra.ast.{internal => in}
+import viper.gobra.reporting.Source.Verifier
 import viper.gobra.reporting.VerifierResult.Success
 import viper.silver
 import viper.silver.{ast => vpr}
@@ -46,7 +46,12 @@ case class GobraOverallFailureMessage(verifier: String, result: VerifierResult) 
     s"failure=${result.toString})"
 }
 
-case class GobraEntitySuccessMessage(verifier: String, concerning: Source.Verifier.Info) extends GobraVerificationResultMessage {
+sealed trait GobraEntityResultMessage extends GobraVerificationResultMessage {
+  val entity: vpr.Member
+  val concerning: Source.Verifier.Info
+}
+
+case class GobraEntitySuccessMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info) extends GobraEntityResultMessage {
   override val name: String = s"entity_success_message"
   val result: VerifierResult = Success
 
@@ -55,7 +60,7 @@ case class GobraEntitySuccessMessage(verifier: String, concerning: Source.Verifi
     s"concerning=${concerning.toString})"
 }
 
-case class GobraEntityFailureMessage(verifier: String, concerning: Source.Verifier.Info, result: VerifierResult) extends GobraVerificationResultMessage {
+case class GobraEntityFailureMessage(verifier: String, entity: vpr.Member, concerning: Source.Verifier.Info, result: VerifierResult) extends GobraEntityResultMessage {
   override val name: String = s"entity_failure_message"
 
   override def toString: String = s"entity_failure_message(" +

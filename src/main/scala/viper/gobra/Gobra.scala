@@ -73,7 +73,7 @@ class Gobra extends GoVerifier with GoIdeVerifier {
 
       for {
         parsedPackage <- performParsing(input, finalConfig)
-        typeInfo <- performTypeChecking(parsedPackage, finalConfig)
+        typeInfo <- performTypeChecking(parsedPackage, input, finalConfig)
         program <- performDesugaring(parsedPackage, typeInfo, finalConfig)
         program <- performInternalTransformations(program, finalConfig)
         viperTask <- performViperEncoding(program, finalConfig)
@@ -152,9 +152,9 @@ class Gobra extends GoVerifier with GoIdeVerifier {
     }
   }
 
-  private def performTypeChecking(parsedPackage: PPackage, config: Config): Either[Vector[VerifierError], TypeInfo] = {
+  private def performTypeChecking(parsedPackage: PPackage, input: Vector[Source], config: Config): Either[Vector[VerifierError], TypeInfo] = {
     if (config.shouldTypeCheck) {
-      Info.check(parsedPackage, isMainContext = true)(config)
+      Info.check(parsedPackage, input, isMainContext = true)(config)
     } else {
       Left(Vector())
     }

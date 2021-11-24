@@ -233,7 +233,7 @@ trait MemberResolution { this: TypeInfoImpl =>
         // TODO maybe don't check whole file but only members that are actually used/imported
         // By parsing only declarations and their specification, there shouldn't be much left to type check anyways
         // Info.check would probably need some restructuring to type check only certain members
-        info <- Info.check(parsedProgram, context)(config)
+        info <- Info.check(parsedProgram, nonEmptyPkgSources, context)(config)
       } yield info
       res.fold(
         errs => context.addErrenousPackage(importTarget, errs),

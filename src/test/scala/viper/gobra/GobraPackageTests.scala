@@ -42,7 +42,7 @@ class GobraPackageTests extends GobraTests {
         .sortBy(_.toString)
         .toSeq
     } yield DefaultTestInput(s"$prefix/$pkgName (${file.getFileName.toString})", prefix, samePkgFiles, Seq())
-    DefaultAnnotatedTestInput(input.get)
+    GobraAnnotatedTestInput(input.get)
   }
 
   override val gobraInstanceUnderTest: SystemUnderTest =

@@ -29,7 +29,7 @@ trait BenchmarkTests extends StatisticalTestSuite {
 
   val timeoutSec: Int = System.getProperty(timeoutPropertyName, "600").toInt /* timeout in seconds */
 
-  override val defaultTestPattern: String = s".*\\.${PackageResolver.extension}"
+  override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
   // the frontend will internally use Gobra as verifier
   val verifier: Verifier = new NoVerifier

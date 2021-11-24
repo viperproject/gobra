@@ -20,7 +20,10 @@ import scala.jdk.CollectionConverters._
 
 object PackageResolver {
 
-  val extension = """gobra"""
+  val gobraExtension = """gobra"""
+  val goExtension = """go"""
+  val inputFilePattern = s"""(.*\\.(?:${PackageResolver.gobraExtension}|${PackageResolver.goExtension}))$$"""
+  val inputFileRegex = inputFilePattern.r // without Scala string interpolation escapes: """(.*\.(?:gobra|go))$""".r
   /** directory containing the package of built-in members that are automatically unqualifiedly imported */
   val builtInDirectory = "builtin"
   /** directory paths containing stubs relative to src/main/resources */
@@ -39,14 +42,15 @@ object PackageResolver {
   /**
     * Resolves a package name (i.e. import path) to specific input files
     * @param importTarget
+    * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  def resolve(importTarget: AbstractImport, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
+  def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, includeDirs)
+      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
       sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
@@ -59,15 +63,16 @@ object PackageResolver {
     * The returned package name can be used as qualifier for the implicitly qualified import.
     *
     * @param n implicitely qualified import for which a qualifier should be resolved
+    * @param moduleName name of the module under verification
     * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
     * @return qualifier with which members of the imported package can be accessed (right) or an error message (left)
     *         if no directory could be found or the directory contains input files having different package clauses
     */
-  def getQualifier(n: PImplicitQualifiedImport, includeDirs: Vector[Path]): Either[String, String] = {
+  def getQualifier(n: PImplicitQualifiedImport, moduleName: String, includeDirs: Vector[Path]): Either[String, String] = {
     val importTarget = RegularImport(n.importPath)
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, includeDirs)
+      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
       sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
@@ -122,13 +127,16 @@ object PackageResolver {
   /**
     * Resolves import target using includeDirs to a directory which exists and from which source files should be retrieved
     */
-  private def getLookupPath(importTarget: AbstractImport, includeDirs: Vector[Path]): Either[String, InputResource] = {
+  private def getLookupPath(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, InputResource] = {
+    val moduleNameWithTrailingSlash = if (moduleName.nonEmpty && !moduleName.endsWith("/")) s"$moduleName/" else moduleName
     importTarget match {
       case BuiltInImport => getBuiltInResource.toRight(s"Loading builtin package has failed")
       case RegularImport(importPath) =>
+        // if importPath starts with current module name then only consider the remainder
+        val moduleImportPath = if (importPath.startsWith(moduleNameWithTrailingSlash)) importPath.substring(moduleNameWithTrailingSlash.length) else importPath
         val resources = getIncludeResources(includeDirs) ++ getStubResources ++ getGoPathResources
         // the desired package should now be located in a subdirectory named after the package name:
-        val packageDirs = resources.map(_.resolve(importPath))
+        val packageDirs = resources.map(_.resolve(moduleImportPath))
         // take first one that exists:
         val pkgDirOpt = packageDirs.collectFirst { case p if p.exists() => p }
         // close all resources that we no longer need:
@@ -141,14 +149,16 @@ object PackageResolver {
   }
 
   /**
-    * Returns all source files with file extension 'extension' in the input resource
+    * Returns all source files with file extension 'gobraExtension' or 'goExtension in the input resource
     */
   private def getSourceFiles(input: InputResource): Vector[InputResource] = {
     val dirContent = input.listContent()
     val res = dirContent
       .filter(resource => Files.isRegularFile(resource.path))
       // only consider files with the particular extension
-      .filter(resource => FilenameUtils.getExtension(resource.path.toString) == extension)
+      .filter(resource =>
+        FilenameUtils.getExtension(resource.path.toString) == gobraExtension ||
+          FilenameUtils.getExtension(resource.path.toString) == goExtension)
     (dirContent :+ input).foreach({
       case resource if !res.contains(resource) => resource.close()
       case _ =>

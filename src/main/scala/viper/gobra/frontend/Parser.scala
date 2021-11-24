@@ -8,9 +8,10 @@ package viper.gobra.frontend
 
 import java.io.Reader
 import java.nio.file.{Files, Path}
-
 import org.apache.commons.text.StringEscapeUtils
 import org.bitbucket.inkytonik.kiama.parsing.{NoSuccess, ParseResult, Parsers, Success}
+import org.bitbucket.inkytonik.kiama.rewriting.Cloner.{rewrite, topdown}
+import org.bitbucket.inkytonik.kiama.rewriting.PositionedRewriter.strategyWithName
 import org.bitbucket.inkytonik.kiama.rewriting.{Cloner, PositionedRewriter, Strategy}
 import org.bitbucket.inkytonik.kiama.util.{Filenames, IO, Positions, Source, StringSource}
 import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
@@ -18,6 +19,7 @@ import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
 
+import java.security.MessageDigest
 import scala.io.BufferedSource
 import scala.util.matching.Regex
 
@@ -42,6 +44,7 @@ object Parser {
   def parse(input: Vector[Path], specOnly: Boolean = false)(config: Config): Either[Vector[VerifierError], PPackage] = {
     val preprocessedSources = input
       .map{ getSource }
+      .map{ Gobrafier.gobrafy }
       .map{ source => SemicolonPreprocessor.preprocess(source)(config) }
     for {
       parseAst <- parseSources(preprocessedSources, specOnly)(config)
@@ -55,6 +58,18 @@ object Parser {
     val content = bufferedSource.mkString
     bufferedSource.close()
     FromFileSource(path, content)
+  }
+
+  // cache maps a key (obtained by hasing file path and file content) to the parse result
+  private var sourceCache: Map[Array[Byte], (Either[Vector[VerifierError], PProgram], Positions)] = Map.empty
+
+  private def getCacheKey(filePath: String, fileContent: String): Array[Byte] = {
+    val key = filePath ++ fileContent
+    MessageDigest.getInstance("MD5").digest(key.getBytes)
+  }
+
+  def flushCache(): Unit = {
+    sourceCache = Map.empty
   }
 
   private def parseSources(sources: Vector[FromFileSource], specOnly: Boolean)(config: Config): Either[Vector[VerifierError], PPackage] = {
@@ -86,8 +101,37 @@ object Parser {
       }
     }
 
+    def parseSourceCached(source: FromFileSource): Either[Vector[VerifierError], PProgram] = {
+      var cacheHit = true
+      def parseAndStore(): (Either[Vector[VerifierError], PProgram], Positions) = {
+        cacheHit = false
+        val res = parseSource(source)
+        sourceCache += getCacheKey(source.path.toString, source.content) -> (res, positions)
+        (res, positions)
+      }
+      val (res, pos) = sourceCache.getOrElse(getCacheKey(source.path.toString, source.content), parseAndStore())
+      if (cacheHit) {
+        // a cached AST has been found in the cache. The position manager does not yet have any positions for nodes in
+        // this AST. Therefore, the following strategy iterates over the entire AST and copies positional information
+        // from the cached positions to the position manager
+        val copyPosStrategy = strategyWithName[Any]("copyPositionInformation", {
+          case n: PNode =>
+            val start = pos.getStart(n)
+            val finish = pos.getFinish(n)
+            start.map(positions.setStart(n, _))
+            finish.map(positions.setFinish(n, _))
+            Some(n): Option[Any]
+          case n => Some(n)
+        })
+        res.map(prog => rewrite(topdown(copyPosStrategy))(prog))
+      } else {
+        res
+      }
+    }
+
     val parsedPrograms = {
-      val parserResults = sources.map(parseSource)
+      val parsingFn = if (config.cacheParser) { parseSourceCached _ } else { parseSource _ }
+      val parserResults = sources.map(parsingFn)
       val (errors, programs) = parserResults.partitionMap(identity)
 
       if (errors.nonEmpty) {
@@ -245,7 +289,7 @@ object Parser {
 
       def replace(n: PImplicitQualifiedImport): Option[PExplicitQualifiedImport] = {
         val qualifier = for {
-          qualifierName <- PackageResolver.getQualifier(n, config.includeDirs)
+          qualifierName <- PackageResolver.getQualifier(n, config.moduleName, config.includeDirs)
           // create a new PIdnDef node and set its positions according to the old node (PositionedRewriter ensures that
           // the same happens for the newly created PExplicitQualifiedImport)
           idnDef = PIdnDef(qualifierName)
@@ -1272,7 +1316,8 @@ object Parser {
     lazy val idnImportPath: Parser[String] =
       // this allows for seemingly meaningless paths such as ".......". It is not problematic that Gobra parses these
       // paths given that it will throw an error if they do not exist in the filesystem
-      "\"" ~> "[.a-zA-Z0-9_/]*".r <~ "\""
+      // the following regex matches an arbitrary string start and ending with double quotes
+      "\"" ~> "[^\"]*".r <~ "\""
       // """[^\P{L}\P{M}\P{N}\P{P}\P{S}!\"#$%&'()*,:;<=>?[\\\]^{|}\x{FFFD}]+""".r // \P resp. \p is currently not supported
 
     /**

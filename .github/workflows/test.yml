@@ -203,7 +203,8 @@ jobs:
           IS_PROPER_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
           # for testing only:
           IS_CURRENT_BRANCH=${{ github.ref == 'refs/heads/issue-363' }}
-          if [[ "$IS_GOBRA_REPO" == ${{ true }} && ("$IS_MASTER" == ${{ true }} || "$IS_VERIFIED_SCION" == ${{ true }} || "$IS_PROPER_TAG" == ${{ true }} || $"IS_CURRENT_BRANCH" == ${{ true }}) ]]
+          # we use `${{ true }}` to be able to compare against GitHub's truth value:
+          if [[ "$IS_GOBRA_REPO" == ${{ true }} && ("$IS_MASTER" == ${{ true }} || "$IS_VERIFIED_SCION" == ${{ true }} || "$IS_PROPER_TAG" == ${{ true }} || "$IS_CURRENT_BRANCH" == ${{ true }}) ]]
           then
             SHOULD_DEPLOY='true'
           else

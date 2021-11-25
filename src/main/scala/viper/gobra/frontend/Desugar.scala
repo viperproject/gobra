@@ -1091,10 +1091,11 @@ object Desugar {
                       case in.SliceT(elem, _) => elem
                       case in.ArrayT(_, elem, _) => elem
                     }
-
                     val fstAssignee = assignees.headOption.getOrElse(in.Assignee(freshExclusiveVar(fstAssigneeTyp)(src)))
                     val sndAssignee = assignees.tail.headOption.getOrElse(in.Assignee(freshExclusiveVar(sndAssigneeTyp)(src)))
+                    forRangeSlicesArrays(fstAssignee, sndAssignee, rangeExpVar, dInvs, dBody)(src)
 
+                    /*
                     in.Seqn(Vector(
                       in.If(
                         cond = in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
@@ -1130,17 +1131,9 @@ object Desugar {
                           ))(src)
                       )(src)
                     ))(src)
+                     */
 
                   case t: in.MapT =>
-                    /*
-                    block(
-                    for {
-                      // this translation relies on the fact that this fresh variable is uninitialized!
-                      rangeExpVar <- freshDeclaredExclusiveVar(in.IntT(Addressability.Exclusive))(src)
-                      assert = in.Assert(in.ExprAssertion(in.EqCmp(rangeExpVar, in.IntLit(0)(src))(src))(src))(src)
-                    } yield assert
-                    )
-                    */
                     val fstAssigneeTyp = t.keys
                     val sndAssigneeTyp = t.values
                     val fstAssignee = assignees.headOption.getOrElse(in.Assignee(freshExclusiveVar(fstAssigneeTyp)(src)))
@@ -1168,7 +1161,9 @@ object Desugar {
                               in.LessCmp(in.Length(visitedKeys) (src), in.Length(rangeExpVar)(src))(src)
                             )(src),
                           invs = dInvs :+ in.ExprAssertion(in.AtMostCmp(in.Length(visitedKeys)(src), in.Length(in.MapKeys(rangeExp, rangeTyp)(src))(src))(src))(src),
-                          terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(rangeExpVar)(src), in.Length(visitedKeys)(src))(src)), None)(src)),
+                          // terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(in.MapKeys(rangeExpVar, rangeTyp)(src))(src), in.Length(visitedKeys)(src))(src)), None)(src)),
+                          // we know by construction that this must terminate
+                          terminationMeasure = Some(in.WildcardMeasure(None)(src)),
                           body = in.Seqn(Vector(
                             in.Inhale(
                               in.ExprAssertion(
@@ -1187,7 +1182,7 @@ object Desugar {
 
                   case _: in.StringT => ???
                   case _: in.ChannelT => ???
-                  case t => violation(s"unexpected type of range expression")
+                  case t => violation(s"unexpected range expression of type $t")
                 }
 
               } yield res))
@@ -1279,6 +1274,29 @@ object Desugar {
           case _ => ???
         }
       }
+    }
+
+    def forRangeSlicesArrays(fstAssignee: in.Assignee, sndAssignee: in.Assignee, rangeExp: in.LocalVar, invs: Vector[in.Assertion], body: in.Stmt)(src: Source.Parser.Info): in.Stmt = {
+      in.Seqn(Vector(
+        in.If(
+          cond = in.LessCmp(in.IntLit(0)(src), in.Length(rangeExp)(src))(src),
+          thn = in.Seqn(Vector(
+            in.SingleAss(fstAssignee, in.IntLit(0)(src))(src),
+            in.SingleAss(sndAssignee, in.IndexedExp(rangeExp, in.IntLit(0)(src), rangeExp.typ)(src))(src)))(src),
+          els = in.Seqn(Vector())(src)
+        )(src),
+        in.While(
+          cond = in.And(in.LessCmp(in.IntLit(0)(src), in.Length(rangeExp)(src))(src), in.LessCmp(fstAssignee.op, in.Length(rangeExp)(src))(src))(src),
+          invs = invs,
+          terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(rangeExp)(src), fstAssignee.op)(src)), None)(src)),
+          body = in.Seqn(
+            Vector(
+              body,
+              in.SingleAss(fstAssignee, in.Add(fstAssignee.op, in.IntLit(1)(src))(src))(src),
+              in.SingleAss(sndAssignee, in.Conditional(in.LessCmp(fstAssignee.op, in.Length(rangeExp)(src))(src), in.IndexedExp(rangeExp, fstAssignee.op, rangeExp.typ)(src), fstAssignee.op, fstAssignee.op.typ)(src))(src)
+            ))(src)
+        )(src)
+      ))(src)
     }
 
     def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {

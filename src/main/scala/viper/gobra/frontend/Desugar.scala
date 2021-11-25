@@ -1095,90 +1095,13 @@ object Desugar {
                     val sndAssignee = assignees.tail.headOption.getOrElse(in.Assignee(freshExclusiveVar(sndAssigneeTyp)(src)))
                     forRangeSlicesArrays(fstAssignee, sndAssignee, rangeExpVar, dInvs, dBody)(src)
 
-                    /*
-                    in.Seqn(Vector(
-                      in.If(
-                        cond = in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
-                        thn =
-                          in.Seqn(Vector(
-                            in.SingleAss(fstAssignee, in.IntLit(0)(src))(src),
-                            in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, in.IntLit(0)(src), rangeTyp)(src))(src)
-                          ))(src),
-                        els = in.Seqn(Vector())(src)
-                      )(src),
-                      in.While(
-                        cond =
-                          in.And(
-                            // collection not empty
-                            in.LessCmp(in.IntLit(0)(src), in.Length(rangeExpVar)(src))(src),
-                            in.LessCmp(fstAssignee.op, in.Length(rangeExpVar)(src))(src)
-                          )(src),
-                        invs = dInvs,
-                        terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(rangeExpVar)(src), fstAssignee.op)(src)), None)(src)),
-                        body = in.Seqn(
-                          Vector(
-                            dBody,
-                            in.SingleAss(fstAssignee, in.Add(fstAssignee.op, in.IntLit(1)(src))(src))(src),
-                            in.SingleAss(
-                              sndAssignee,
-                              in.Conditional(
-                                in.LessCmp(fstAssignee.op, in.Length(rangeExpVar)(src))(src),
-                                in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src),
-                                fstAssignee.op,
-                                fstAssigneeTyp
-                              )(src)
-                            )(src)
-                          ))(src)
-                      )(src)
-                    ))(src)
-                     */
-
                   case t: in.MapT =>
                     val fstAssigneeTyp = t.keys
                     val sndAssigneeTyp = t.values
                     val fstAssignee = assignees.headOption.getOrElse(in.Assignee(freshExclusiveVar(fstAssigneeTyp)(src)))
                     val sndAssignee = assignees.tail.headOption.getOrElse(in.Assignee(freshExclusiveVar(sndAssigneeTyp)(src)))
                     val visitedKeysW = freshDeclaredExclusiveVar(in.SetT(fstAssigneeTyp, Addressability.mathDataStructureElement))(src)
-
-                    block(for {
-                      visitedKeys <- visitedKeysW
-                      ret = in.Seqn(Vector(
-                        in.Initialization(visitedKeys)(src),
-                        in.If(
-                          cond = in.LessCmp(in.IntLit(0) (src), in.Length(rangeExpVar)(src))(src),
-                          thn =
-                            in.Seqn(Vector(
-                              in.Inhale(in.ExprAssertion(in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeTyp)(src))(src))(src))(src),
-                              in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src))(src),
-                            ))(src),
-                          els = in.Seqn(Vector())(src)
-                        ) (src),
-                        in.While(
-                          cond =
-                            in.And(
-                              // collection not empty
-                              in.LessCmp(in.IntLit(0) (src), in.Length(rangeExpVar)(src))(src),
-                              in.LessCmp(in.Length(visitedKeys) (src), in.Length(rangeExpVar)(src))(src)
-                            )(src),
-                          invs = dInvs :+ in.ExprAssertion(in.AtMostCmp(in.Length(visitedKeys)(src), in.Length(in.MapKeys(rangeExp, rangeTyp)(src))(src))(src))(src),
-                          // terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(in.MapKeys(rangeExpVar, rangeTyp)(src))(src), in.Length(visitedKeys)(src))(src)), None)(src)),
-                          // we know by construction that this must terminate
-                          terminationMeasure = Some(in.WildcardMeasure(None)(src)),
-                          body = in.Seqn(Vector(
-                            in.Inhale(
-                              in.ExprAssertion(
-                                in.And(
-                                  in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeTyp)(src))(src),
-                                  in.Negation(in.Negation(in.Contains(fstAssignee.op, visitedKeys)(src))(src))(src)
-                                )(src)
-                              )(src))(src),
-                            in.SingleAss(sndAssignee, in.IndexedExp(rangeExpVar, fstAssignee.op, rangeTyp)(src))(src),
-                            singleAss(in.Assignee(visitedKeys), in.Union(visitedKeys, in.SetLit(fstAssigneeTyp, Vector(fstAssignee.op))(src))(src))(src),
-                            dBody,
-                          ))(src)
-                        )(src)
-                      ))(src)
-                    } yield ret)
+                    block(for { visitedKeys <- visitedKeysW } yield forRangeMaps(visitedKeys, fstAssignee, sndAssignee, rangeExpVar, dInvs, dBody)(src))
 
                   case _: in.StringT => ???
                   case _: in.ChannelT => ???
@@ -1297,6 +1220,37 @@ object Desugar {
             ))(src)
         )(src)
       ))(src)
+    }
+
+    def forRangeMaps(visitedKeys: in.LocalVar, fstAssignee: in.Assignee, sndAssignee: in.Assignee, rangeExp: in.LocalVar, invs: Vector[in.Assertion], body: in.Stmt)(src: Source.Parser.Info): in.Stmt = {
+      in.Seqn(Vector(
+        in.Initialization(visitedKeys)(src),
+        in.If(
+          cond = in.LessCmp(in.IntLit(0) (src), in.Length(rangeExp)(src))(src),
+          thn = in.Seqn(Vector(in.Inhale(in.ExprAssertion(in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeExp.typ)(src))(src))(src))(src), in.SingleAss(sndAssignee, in.IndexedExp(rangeExp, fstAssignee.op, rangeExp.typ)(src))(src)))(src),
+          els = in.Seqn(Vector())(src)
+        )(src),
+        in.While(
+          cond = in.And(in.LessCmp(in.IntLit(0) (src), in.Length(rangeExp)(src))(src), in.LessCmp(in.Length(visitedKeys) (src), in.Length(rangeExp)(src))(src))(src),
+          invs = invs :+ in.ExprAssertion(in.AtMostCmp(in.Length(visitedKeys)(src), in.Length(in.MapKeys(rangeExp, rangeExp.typ)(src))(src))(src))(src),
+          // terminationMeasure = Some(in.TupleTerminationMeasure(Vector(in.Sub(in.Length(in.MapKeys(rangeExpVar, rangeTyp)(src))(src), in.Length(visitedKeys)(src))(src)), None)(src)),
+          // we know by construction that this must terminate
+          terminationMeasure = Some(in.WildcardMeasure(None)(src)),
+          body = in.Seqn(Vector(
+            in.Inhale(
+              in.ExprAssertion(
+                in.And(
+                  in.Contains(fstAssignee.op, in.MapKeys(rangeExp, rangeExp.typ)(src))(src),
+                  in.Negation(in.Negation(in.Contains(fstAssignee.op, visitedKeys)(src))(src))(src)
+                )(src)
+              )(src))(src),
+            in.SingleAss(sndAssignee, in.IndexedExp(rangeExp, fstAssignee.op, rangeExp.typ)(src))(src),
+            singleAss(in.Assignee(visitedKeys), in.Union(visitedKeys, in.SetLit(fstAssignee.op.typ, Vector(fstAssignee.op))(src))(src))(src),
+            body,
+          ))(src)
+        )(src)
+      ))(src)
+
     }
 
     def switchCaseD(switchCase: PExprSwitchCase, scrutinee: in.LocalVar)(ctx: FunctionContext): Writer[(in.Expr, in.Stmt)] = {

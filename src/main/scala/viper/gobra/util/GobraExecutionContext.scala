@@ -6,12 +6,9 @@
 
 package viper.gobra.util
 
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService}
+import viper.server.core.{DefaultVerificationExecutionContext, VerificationExecutionContext}
 
-trait GobraExecutionContext extends ExecutionContext {
-  /** terminate executor */
-  def terminate(timeoutMSec: Long = 1000): Unit
+trait GobraExecutionContext extends VerificationExecutionContext {
   /**
     * In contrast to `terminate`, this function terminates the context but also checks whether it was successfully
     * shutdown meaning that no timeout has occurred while doing so.
@@ -19,39 +16,8 @@ trait GobraExecutionContext extends ExecutionContext {
   def terminateAndAssertInexistanceOfTimeout(): Unit
 }
 
-object DefaultGobraExecutionContext {
-  val minimalThreadPoolSize: Int = 1
-}
-
-class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors()),
-                                   threadNamePrefix: String = "thread") extends GobraExecutionContext {
-  // this is quite redundant to the code in ViperServer but since Gobra should not have a dependency on ViperServer,
-  // there is no other way than to duplicate the code
-  protected lazy val threadStackSize: Long = 128L * 1024L * 1024L // 128M seems to consistently be recommended by Silicon and Carbon
-  protected lazy val service: ExecutorService = Executors.newFixedThreadPool(
-    threadPoolSize, new ThreadFactory() {
-
-      import java.util.concurrent.atomic.AtomicInteger
-
-      private val mCount = new AtomicInteger(1)
-      override def newThread(runnable: Runnable): Thread = {
-        val threadName = s"$threadNamePrefix-${mCount.getAndIncrement()}"
-        new Thread(null, runnable, threadName, threadStackSize)
-      }
-    })
-
-  private lazy val context: ExecutionContextExecutorService = ExecutionContext.fromExecutorService(service)
-
-  override def execute(runnable: Runnable): Unit = context.execute(runnable)
-
-  override def reportFailure(cause: Throwable): Unit = context.reportFailure(cause)
-
-  @throws(classOf[InterruptedException])
-  override def terminate(timeoutMSec: Long = 1000): Unit = {
-    context.shutdown()
-    context.awaitTermination(timeoutMSec, TimeUnit.MILLISECONDS)
-  }
-
+class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultVerificationExecutionContext.minNumberOfThreads, Runtime.getRuntime.availableProcessors())
+                                  ) extends DefaultVerificationExecutionContext with GobraExecutionContext {
   /**
     * In contrast to `terminate`, this function terminates the context but also checks whether it was successfully
     * shutdown meaning that no timeout has occurred while doing so.

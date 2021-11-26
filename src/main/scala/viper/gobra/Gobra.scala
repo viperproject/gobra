@@ -20,6 +20,7 @@ import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
+import viper.server.core.DefaultVerificationExecutionContext
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration
@@ -215,7 +216,7 @@ object GobraRunner extends GobraFrontend with StrictLogging {
     try {
       val scallopGobraconfig = new ScallopGobraConfig(args.toSeq)
       val config = scallopGobraconfig.config
-      val nThreads = Math.max(DefaultGobraExecutionContext.minimalThreadPoolSize, Runtime.getRuntime.availableProcessors())
+      val nThreads = Math.max(DefaultVerificationExecutionContext.minNumberOfThreads, Runtime.getRuntime.availableProcessors())
       val executor: GobraExecutionContext = new DefaultGobraExecutionContext(nThreads)
       val verifier = createVerifier()
       val resultFuture = verifier.verify(config)(executor)

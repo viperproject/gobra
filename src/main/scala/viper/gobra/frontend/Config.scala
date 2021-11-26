@@ -14,7 +14,7 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
+import viper.gobra.backend.{ViperBackend, ViperBackends, ViperServerConfig, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
@@ -30,11 +30,11 @@ case class Config(
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
-                 // backendConfig is used for the ViperServer
-                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
+                 useViperServer: Boolean = true,
+                 cacheFile: Option[String] = None,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
                  shouldDesugar: Boolean = true,
@@ -50,6 +50,15 @@ case class Config(
                  // running JVM. It is targeted in particular to Gobra Server and Gobra IDE
                  cacheParser: Boolean = false
             ) {
+
+  // Used for ViperServer
+  val backendConfig: ViperVerifierConfig =
+    if(backend == ViperBackends.CarbonBackend) {
+      ViperServerConfig.ConfigWithCarbon(List("--logLevel", "ERROR"))
+    } else {
+      ViperServerConfig.ConfigWithSilicon(List("--logLevel", "ERROR"))
+    }
+
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     Config(
@@ -62,6 +71,8 @@ case class Config(
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
+      useViperServer = useViperServer && other.useViperServer,
+      cacheFile = cacheFile orElse other.cacheFile,
       shouldParse = shouldParse,
       shouldTypeCheck = shouldTypeCheck,
       shouldDesugar = shouldDesugar,
@@ -211,6 +222,20 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
+  val useViperServer: ScallopOption[Boolean] = toggle(
+    name = "viperServer",
+    descrYes = "Use viper server as a backend",
+    default = Some(false),
+    noshort = false
+  )
+
+  val cacheFile: ScallopOption[String] = opt[String](
+    name = "cacheFile",
+    descr = "Cache file to be used, only usable if using viper server as a backend",
+    default = None,
+    noshort = true
+  )
+
   val int32Bit: ScallopOption[Boolean] = toggle(
     name = "int32",
     descrYes = "Run with 32-bit sized integers",
@@ -294,6 +319,12 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     validateFilesIsDirectory(include)
   }
   validateInput(input, module, include)
+
+  // cache file should only be usable when using viper server
+  validateOpt (useViperServer, cacheFile) {
+    case (Some(false), Some(_)) => Left("Config file option only works with viper server as a backend")
+    case _ => Right(())
+  }
 
   verify()
 
@@ -388,6 +419,8 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
+    useViperServer = useViperServer(),
+    cacheFile = cacheFile.toOption,
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,
     shouldDesugar = shouldDesugar,

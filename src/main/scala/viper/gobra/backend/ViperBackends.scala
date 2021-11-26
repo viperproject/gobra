@@ -6,6 +6,9 @@
 
 package viper.gobra.backend
 
+import viper.gobra.util.GobraExecutionContext
+import viper.server.core.ViperCoreServer
+
 trait ViperBackend {
   def create(exePaths: Vector[String]): ViperVerifier
 }
@@ -33,5 +36,32 @@ object ViperBackends {
 
       new Carbon(options)
     }
+  }
+
+  object ViperServerBackend extends ViperBackend {
+    var executor: GobraExecutionContext = _
+    var server: ViperCoreServer = _
+
+    def setExecutor(executionContext: GobraExecutionContext): Unit = {
+      require(executor == null)
+      executor = executionContext
+    }
+
+    def setServer(coreServer: ViperCoreServer): Unit = {
+      require(server == null, "ViperCoreServer is already set.")
+      server = coreServer
+    }
+
+    def create(exePaths: Vector[String]): ViperServer = {
+      require(executor != null, "ExecutionContext has to be set before creation.")
+      require(server != null, "ViperCoreServer needs to be set before creation.")
+      new ViperServer(server)(executor)
+    }
+
+    def resetExecutor(): Unit =
+      executor = null
+
+    def resetServer(): Unit =
+      server = null
   }
 }

@@ -77,7 +77,6 @@ RUN git clone https://github.com/viperproject/silicon.git ./silicon && \
 	cd ..
 
 # Setup Viperserver
-COPY viperserver viperserver
 RUN git clone https://github.com/jogasser/viperserver.git ./viperserver && \
 	git checkout $VIPERSERVER_REF && \
 	ln -s ../silver silver && \

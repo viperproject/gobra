@@ -16,6 +16,7 @@ const fastSmalls = true // enable fast path for small integers
 // for digit values >= 10.
 requires i >= 0
 requires 2 <= base && base <= 36
+decreases
 func FormatUint(i uint64, base int) string {
 	if fastSmalls && i < nSmalls && base == 10 {
 		return small(int(i))
@@ -28,6 +29,7 @@ func FormatUint(i uint64, base int) string {
 // for 2 <= base <= 36. The result uses the lower-case letters 'a' to 'z'
 // for digit values >= 10.
 requires 2 <= base && base <= 36
+decreases
 func FormatInt(i int64, base int) string {
 	if fastSmalls && 0 <= i && i < nSmalls && base == 10 {
 		return small(int(i))
@@ -37,6 +39,7 @@ func FormatInt(i int64, base int) string {
 }
 
 // Itoa is equivalent to FormatInt(int64(i), 10).
+decreases
 func Itoa(i int) string {
 	return FormatInt(int64(i), 10)
 }
@@ -46,6 +49,7 @@ func Itoa(i int) string {
 requires 2 <= base && base <= len(digits)
 requires forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i])
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases
 func AppendInt(dst []byte, i int64, base int) (res []byte) {
 	if fastSmalls && 0 <= i && i < nSmalls && base == 10 {
 		// (Gobra) unpacking strings is not yet supported. The conversion
@@ -61,6 +65,7 @@ func AppendInt(dst []byte, i int64, base int) (res []byte) {
 requires 2 <= base && base <= len(digits)
 requires forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i])
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases
 func AppendUint(dst []byte, i uint64, base int) (res []byte) {
 	// valid assumption, i is of type uint64. Currently, Gobra
 	// does not prove this.
@@ -76,6 +81,7 @@ func AppendUint(dst []byte, i uint64, base int) (res []byte) {
 
 // small returns the string for an i with 0 <= i < nSmalls.
 requires 0 <= i && i < nSmalls
+decreases
 func small(i int) string {
 	if i < 10 {
 		return digits[i : i+1]
@@ -109,6 +115,7 @@ const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
 requires append_ ==> forall i int :: 0 <= i && i < len(dst) ==> acc(&dst[i])
 requires 2 <= base && base <= len(digits)
 ensures append_ ==> forall i int :: 0 <= i && i < len(d) ==> acc(&d[i])
+decreases
 func formatBits(dst []byte, u uint64, base int, neg, append_ bool) (d []byte, s string) // {
 //	if base < 2 || base > len(digits) {
 //		panic("strconv: illegal AppendInt/FormatInt base")
@@ -224,6 +231,7 @@ func formatBits(dst []byte, u uint64, base int, neg, append_ bool) (d []byte, s 
 //	return
 //}
 
+decreases
 func isPowerOfTwo(x int) bool {
 	return x&(x-1) == 0
 }

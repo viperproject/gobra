@@ -55,14 +55,28 @@ object BackendVerifier {
       var serverConfig = List("--logLevel", config.logLevel.levelStr)
 
       if(config.cacheFile.isDefined) {
-        println("With cache file " + config.cacheFile.get)
         serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get))
       }
 
-      val server: ViperCoreServer = new ViperCoreServer(new ViperConfig(serverConfig))
-      ViperBackends.ViperServerBackend.setServer(server)
-      ViperBackends.ViperServerBackend.setExecutor(executor)
-      Await.ready(server.start(), Duration.Inf)
+      var server: ViperCoreServer = null
+
+      // Set server and executor only if they haven't been set before
+      if(ViperBackends.ViperServerBackend.server == null) {
+        server = new ViperCoreServer(new ViperConfig(serverConfig))
+        ViperBackends.ViperServerBackend.setServer(server)
+      } else {
+        server = ViperBackends.ViperServerBackend.server
+      }
+
+      if(ViperBackends.ViperServerBackend.executor == null) {
+        ViperBackends.ViperServerBackend.setExecutor(executor)
+      }
+
+      // Start & wait for server if it is not started
+      if(!server.isRunning) {
+        Await.ready(server.start(), Duration.Inf)
+      }
+
       ViperBackends.ViperServerBackend.create(exePaths)
     } else {
       config.backend.create(exePaths)

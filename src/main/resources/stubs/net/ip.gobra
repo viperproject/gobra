@@ -128,6 +128,7 @@ ensures (len(ip) == IPv6len && res != nil) ==> (len(res) == IPv4len && forall i 
 ensures len(ip) != IPv4len && len(ip) != IPv6len ==> res == nil
 ensures len(ip) == IPv4len ==> len(res) == IPv4len
 ensures res != nil ==> len(res) == IPv4len
+decreases
 func (ip IP) To4() (res IP) {
 	if len(ip) == IPv4len {
 		return ip
@@ -168,6 +169,7 @@ preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 func (ip IP) Mask(mask IPMask) IP
 
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
+decreases _
 func (ip IP) String() string
 
 // MarshalText implements the encoding.TextMarshaler interface.
@@ -201,6 +203,7 @@ func (ip *IP) UnmarshalText(text []byte) error
 // considered to be equal.
 preserves forall i int :: 0 <= i && i < len(ip) ==> acc(&ip[i], 1/10000)
 preserves forall i int :: 0 <= i && i < len(x) ==> acc(&x[i], 1/10000)
+decreases _
 func (ip IP) Equal(x IP) bool // {
 //	if len(ip) == len(x) {
 //		return bytealg.Equal(ip, x)
@@ -239,6 +242,7 @@ func (n *IPNet) String() string
 
 // ParseIP parses s as an IP address, returning the result.
 ensures forall i int :: 0 <= i && i < len(res) ==> acc(&res[i])
+decreases _
 func ParseIP(s string) (res IP)
 
 // ParseCIDR parses s as a CIDR notation IP address and prefix length,

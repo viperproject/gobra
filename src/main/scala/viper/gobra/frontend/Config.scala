@@ -33,7 +33,7 @@ case class Config(
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
-                 useViperServer: Boolean = true,
+                 useViperServer: Boolean = false,
                  cacheFile: Option[String] = None,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,

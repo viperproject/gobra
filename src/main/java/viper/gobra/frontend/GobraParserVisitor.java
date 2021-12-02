@@ -89,6 +89,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFunctionDecl(GobraParser.FunctionDeclContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#methodDecl}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodDecl(GobraParser.MethodDeclContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#assertion}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -130,6 +136,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPrimaryExpr(GobraParser.PrimaryExprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#interfaceType}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitInterfaceType(GobraParser.InterfaceTypeContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#predicateSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPredicateSpec(GobraParser.PredicateSpecContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#type_}.
 	 * @param ctx the parse tree
@@ -238,12 +256,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTypeSpec(GobraParser.TypeSpecContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#methodDecl}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitMethodDecl(GobraParser.MethodDeclContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#receiver}.
 	 * @param ctx the parse tree
@@ -490,12 +502,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitPointerType(GobraParser.PointerTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#interfaceType}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitInterfaceType(GobraParser.InterfaceTypeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#sliceType}.
 	 * @param ctx the parse tree

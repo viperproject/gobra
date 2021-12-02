@@ -46,6 +46,8 @@ specStatement
 
 functionDecl: specification? FUNC IDENTIFIER (signature block?);
 
+methodDecl: specification? FUNC receiver IDENTIFIER ( signature block?);
+
 assertion:
     | expression
     | kind=EXCLAMATION assertion
@@ -131,6 +133,11 @@ primaryExpr:
 		| arguments
 	);
 
+// Added predicate spec
+interfaceType:
+	INTERFACE L_CURLY ((methodSpec | typeName| predicateSpec) eos)* R_CURLY;
+
+predicateSpec: PRED IDENTIFIER parameters;
 
 // Added ghostTypeLiterals
 type_: typeName | typeLit | ghostTypeLit | L_PAREN type_ R_PAREN;

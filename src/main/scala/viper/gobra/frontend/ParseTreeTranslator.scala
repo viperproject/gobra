@@ -424,6 +424,36 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     (params.flatten, result)
   }
 
+  def visitMethodRecvType(ctx: Type_Context) = {
+    visitType_(ctx) match {
+      case name@PNamedOperand(_) => PMethodReceiveName(name)
+      case PDeref(name@PNamedOperand(_)) => PMethodReceivePointer(name)
+      case _ => fail(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitReceiver(ctx: ReceiverContext): PReceiver = {
+    if (ctx.parameters().parameterDecl().size() != 1) fail_msg(ctx, "receivers must be a single non-variadic parameter")
+
+    val decl = ctx.parameters().parameterDecl(0)
+
+    if (decl.ELLIPSIS() != null) fail_msg(ctx, "receivers must be a single non-variadic parameter")
+
+    val recvType = visitMethodRecvType(decl.type_())
+    if (decl.identifierList().IDENTIFIER() != null) {
+      if (decl.identifierList().IDENTIFIER().size() != 1) fail_msg(ctx, "receivers must be a single non-variadic parameter")
+      PNamedReceiver(idnDef(decl.identifierList().IDENTIFIER(0)).newpos(decl.identifierList()), recvType, false).newpos(ctx)
+    } else {
+      PUnnamedReceiver(recvType).newpos(ctx)
+    }
+  }
+
   /**
     * ``
     *
@@ -431,7 +461,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * `#` on `ctx`.</p>
     */
   override def visitMethodDecl(ctx: GobraParser.MethodDeclContext): PMethodDecl = {
-    fail(ctx)
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
+    val receiver = visitReceiver(ctx.receiver())
+
+    val id = withWildcards{
+      idnDef(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER())
+    }
+    val sig = visitSignature(ctx.signature())
+    val paramInfo = PBodyParameterInfo(Vector.empty).newpos(ctx)
+    val block = if (ctx.block() == null || specOnly) PBlock(Vector.empty) else visitBlock(ctx.block())
+    val body = if (ctx.block() == null || specOnly) None else Some((paramInfo, block))
+    PMethodDecl(id, receiver,sig._1, sig._2, spec, body).newpos(ctx)
   }
 
   /**
@@ -873,10 +913,22 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitPredicateSpec(ctx: PredicateSpecContext): PMPredicateSig = {
+    val id = idnDef(ctx.IDENTIFIER())
+    val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
+    PMPredicateSig(id, args.flatten).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).newpos(ctx)
     val embedded = Vector[PInterfaceName]()
-    val predicateDecls = Vector[PMPredicateSig]()
+    val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
     PInterfaceType(embedded, methodDecls, predicateDecls).newpos(ctx)
   }
 

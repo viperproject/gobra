@@ -25,6 +25,7 @@ RANGE       : 'range';
 SEQ         : 'seq';
 SET         : 'set';
 MSET        : 'mset';
+PRED       : 'pred';
 DOT_DOT     : '..';
 SHARED      : 'shared';
 EXCLUSIVE   : 'exclusive';

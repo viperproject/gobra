@@ -18,15 +18,16 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message}
 import viper.gobra.ast.frontend._
 import viper.gobra.reporting.{Source => _, _}
 import viper.gobra.util.{Binary, Constants, Hexadecimal, Octal, Violation}
-import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, ParserRuleContext, RecognitionException, Recognizer, Token}
+import org.antlr.v4.runtime.{BailErrorStrategy, BaseErrorListener, CharStreams, CommonTokenStream, ConsoleErrorListener, DefaultErrorStrategy, DiagnosticErrorListener, ParserRuleContext, RecognitionException, Recognizer, Token}
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
-import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context}
+import viper.gobra.frontend.GobraParser.{ExprOnlyContext, FunctionDeclContext, ImportDeclContext, SourceFileContext, StmtOnlyContext, Type_Context, VOCABULARY}
 import viper.gobra.frontend.old.{GoLexer, GoParser}
 import viper.silver.ast.SourcePosition
 
 import scala.collection.mutable.ListBuffer
 import scala.io.BufferedSource
+import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.util.matching.Regex
 
 object Parser {
@@ -419,43 +420,7 @@ object Parser {
     }
   }
 
-  private class ErrorListener(val messages: ListBuffer[ParserError], val source: Source) extends BaseErrorListener {
 
-    override def syntaxError(recognizer: Recognizer[_, _], offendingSymbol: Any, line: Int, charPositionInLine: Int, msg: String, e: RecognitionException): Unit = {
-      val pos = source match {
-        case source : FromFileSource => Some(SourcePosition(source.path, line, charPositionInLine))
-        case _ => None
-      }
-      if((e != null) && (offendingSymbol != null)){
-        val rule = recognizer.getRuleNames.array(e.getCtx.getRuleIndex)
-        rule match {
-          case "eos" => messages.append(ParserError(msg+" at end of line"+"\n" + underlineError(recognizer, offendingSymbol.asInstanceOf[Token], line, charPositionInLine), pos))
-          case _ => messages.append(ParserError(msg+" in rule: "+rule+"\n" + underlineError(recognizer, offendingSymbol.asInstanceOf[Token], line, charPositionInLine), pos))
-        }
-      } else {
-        messages.append(ParserError(msg, pos))
-      }
-    }
-
-    protected def underlineError(recognizer: Recognizer[_, _], offendingToken: Token, line: Int, charPositionInLine: Int): String = {
-      val tokens = recognizer.getInputStream.asInstanceOf[CommonTokenStream]
-      val input = tokens.getTokenSource.getInputStream.toString
-      val lines = input.split("\n")
-      var message = lines(line - 1)
-      message += "\n"
-      print(charPositionInLine)
-      for (i <- 0 until charPositionInLine) {
-        message += " "
-      }
-      val start = offendingToken.getStartIndex
-      val stop = offendingToken.getStopIndex
-      if (start >= 0 && stop >= 0) for (i <- start to stop) {
-        message += "^"
-      }
-      message += "\n"
-      message
-    }
-  }
 
   private class antlrSyntaxAnalyzer[Rule <: ParserRuleContext, Node <: AnyRef](tokens: CommonTokenStream, source: Source, errors: ListBuffer[ParserError], pom: PositionManager, specOnly: Boolean = false) extends GobraParser(tokens){
 
@@ -465,7 +430,7 @@ object Parser {
         val charStream = CharStreams.fromReader(source.reader)
         val lexer = new GobraLexer(charStream)
         lexer.removeErrorListeners()
-        lexer.addErrorListener(new ErrorListener(errors, source))
+        lexer.addErrorListener(new InformativeErrorListener(errors, source))
         new CommonTokenStream(lexer)
       },
         source, errors, pom, specOnly)
@@ -488,7 +453,7 @@ object Parser {
           // rewind input stream
           reset()
           // back to standard listeners/handlers
-          addErrorListener(new ErrorListener(errors, source))
+          addErrorListener(new InformativeErrorListener(errors, source))
           setErrorHandler(new DefaultErrorStrategy)
           // full now with full LL(*)
           getInterpreter.setPredictionMode(PredictionMode.LL)
@@ -500,14 +465,25 @@ object Parser {
       }
       if(errors.isEmpty) {
         val translator = new ParseTreeTranslator(pom, source, specOnly)
-        val parseAst : Node = try translator.translate(tree)
-        catch {
-          case e: TranslationException =>
-            val pos = source match {
-              case fileSource : FromFileSource => Some(SourcePosition(fileSource.path, e.start.line, e.start.column))
-              case _ => None
-            }
-            return Left(Vector(ParserError(e.msg +  e.getStackTrace.toVector(2), pos)))
+        val parseAst : Node = time("ANTLR_TRANSLATE", source.name) {
+          try translator.translate(tree)
+          catch {
+            case e: TranslationException =>
+              val pos = source match {
+                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, e.start.line, e.start.column))
+                case _ => None
+              }
+              return Left(Vector(ParserError(e.msg + e.getStackTrace.toVector(2), pos)))
+            case e =>
+              val pos = source match {
+                case fileSource: FromFileSource => Some(SourcePosition(fileSource.path, 0, 0))
+                case _ => None
+              }
+              return Left(Vector(ParserError(e.getMessage + e.getStackTrace.take(4).mkString("Array(", ", ", ")"), pos)))
+          }
+        }
+        if (translator.warnings.nonEmpty){
+          println(translator.warnings.mkString("Warnings: (", ", ", ")"))
         }
         Right(parseAst)
       } else {

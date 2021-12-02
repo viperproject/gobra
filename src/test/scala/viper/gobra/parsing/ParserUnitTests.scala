@@ -358,7 +358,7 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
   }
 
   test("Parser: expressions of the form '++e' should be parsed to '0 + 0 + e'") {
-    frontend.parseExp("++ x") should matchPattern {
+    frontend.parseExp("+ + x") should matchPattern {
       case Right(PAdd(PIntLit(a, Decimal), PAdd(PIntLit(b, Decimal), PNamedOperand(PIdnUse("x")))))
         if a == BigInt(0) && b == BigInt(0) =>
     }
@@ -805,8 +805,23 @@ class ParserUnitTests extends AnyFunSuite with Matchers with Inside {
     }
   }
 
+  test("Parser: should parse indexed expression with sequence range expressions with spaces") {
+    frontend.parseExpOrFail("seq[1 .. 10][2]") should matchPattern {
+      case PIndexedExp(
+      PRangeSequence(PIntLit(low, Decimal), PIntLit(high, Decimal)),
+      PIntLit(i, Decimal)
+      ) if low == BigInt(1) && high == BigInt(10) && i == BigInt(2) =>
+    }
+  }
+
   test("Parser: shouldn't parse a chain of sequence range operations") {
     frontend.parseExp("seq[1..10][11..20]") should matchPattern {
+      case Left(_) =>
+    }
+  }
+
+  test("Parser: shouldn't parse a chain of sequence range operations with spaces") {
+    frontend.parseExp("seq[1 .. 10][11 .. 20]") should matchPattern {
       case Left(_) =>
     }
   }

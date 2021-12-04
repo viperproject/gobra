@@ -10,15 +10,12 @@ import viper.gobra.backend.ViperBackends.{CarbonBackend => Carbon}
 import viper.gobra.frontend.Config
 import viper.gobra.reporting.BackTranslator.BackTrackInfo
 import viper.gobra.reporting.{BackTranslator, BacktranslatingReporter}
-import viper.server.ViperConfig
 import viper.gobra.util.GobraExecutionContext
-import viper.server.core.ViperCoreServer
 import viper.silver
 import viper.silver.verifier.VerificationResult
 import viper.silver.{ast => vpr}
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 
 object BackendVerifier {
 
@@ -50,38 +47,7 @@ object BackendVerifier {
       case _ =>
     }
 
-    val verifier = if(config.useViperServer) {
-      // Create & start viper server instance
-      var serverConfig = List("--logLevel", config.logLevel.levelStr)
-
-      if(config.cacheFile.isDefined) {
-        serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get))
-      }
-
-      var server: ViperCoreServer = null
-
-      // Set server and executor only if they haven't been set before
-      if(ViperBackends.ViperServerBackend.server == null) {
-        server = new ViperCoreServer(new ViperConfig(serverConfig))
-        ViperBackends.ViperServerBackend.setServer(server)
-      } else {
-        server = ViperBackends.ViperServerBackend.server
-      }
-
-      if(ViperBackends.ViperServerBackend.executor == null) {
-        ViperBackends.ViperServerBackend.setExecutor(executor)
-      }
-
-      // Start & wait for server if it is not started
-      if(!server.isRunning) {
-        Await.ready(server.start(), Duration.Inf)
-      }
-
-      ViperBackends.ViperServerBackend.create(exePaths)
-    } else {
-      config.backend.create(exePaths)
-    }
-
+    val verifier = config.backend.create(exePaths, config)
     val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
 
     val verificationResult = verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor)
@@ -91,7 +57,6 @@ object BackendVerifier {
       result => {
         convertVerificationResult(result, task.backtrack)
       })
-
   }
 
   /**

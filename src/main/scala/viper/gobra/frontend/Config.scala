@@ -14,12 +14,11 @@ import org.bitbucket.inkytonik.kiama.util.Messaging.{Messages, message, noMessag
 import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import org.rogach.scallop.{ScallopConf, ScallopOption, listArgConverter, singleArgConverter}
 import org.slf4j.LoggerFactory
-import viper.gobra.backend.{ViperBackend, ViperBackends, ViperServerConfig, ViperVerifierConfig}
+import viper.gobra.backend.{ViperBackend, ViperBackends, ViperVerifierConfig}
 import viper.gobra.GoVerifier
 import viper.gobra.frontend.PackageResolver.RegularImport
 import viper.gobra.reporting.{FileWriterReporter, GobraReporter, StdIOReporter}
 import viper.gobra.util.{TypeBounds, Violation}
-
 
 object LoggerDefaults {
   val DefaultLevel: Level = Level.INFO
@@ -30,10 +29,10 @@ case class Config(
                  includeDirs: Vector[Path] = Vector(),
                  reporter: GobraReporter = StdIOReporter(),
                  backend: ViperBackend = ViperBackends.SiliconBackend,
+                 backendConfig: ViperVerifierConfig = ViperVerifierConfig.EmptyConfig,
                  z3Exe: Option[String] = None,
                  boogieExe: Option[String] = None,
                  logLevel: Level = LoggerDefaults.DefaultLevel,
-                 useViperServer: Boolean = false,
                  cacheFile: Option[String] = None,
                  shouldParse: Boolean = true,
                  shouldTypeCheck: Boolean = true,
@@ -51,14 +50,6 @@ case class Config(
                  cacheParser: Boolean = false
             ) {
 
-  // Used for ViperServer
-  val backendConfig: ViperVerifierConfig =
-    if(backend == ViperBackends.CarbonBackend) {
-      ViperServerConfig.ConfigWithCarbon(List("--logLevel", "ERROR"))
-    } else {
-      ViperServerConfig.ConfigWithSilicon(List("--logLevel", "ERROR"))
-    }
-
   def merge(other: Config): Config = {
     // this config takes precedence over other config
     Config(
@@ -71,7 +62,6 @@ case class Config(
       boogieExe = boogieExe orElse other.boogieExe,
       logLevel = if (logLevel.isGreaterOrEqual(other.logLevel)) other.logLevel else logLevel, // take minimum
       // TODO merge strategy for following properties is unclear (maybe AND or OR)
-      useViperServer = useViperServer && other.useViperServer,
       cacheFile = cacheFile orElse other.cacheFile,
       shouldParse = shouldParse,
       shouldTypeCheck = shouldTypeCheck,
@@ -136,12 +126,14 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
 
   val backend: ScallopOption[ViperBackend] = opt[ViperBackend](
     name = "backend",
-    descr = "Specifies the used Viper backend, one of SILICON, CARBON (default: SILICON)",
+    descr = "Specifies the used Viper backend, one of VSWITHSILICON, VSWITHCARBON, SILICON, CARBON (default: SILICON)",
     default = Some(ViperBackends.SiliconBackend),
     noshort = true
   )(singleArgConverter({
     case "SILICON" => ViperBackends.SiliconBackend
     case "CARBON" => ViperBackends.CarbonBackend
+    case "VSWITHSILICON" => ViperBackends.ViperServerWithSilicon
+    case "VSWITHCARBON" => ViperBackends.ViperServerWithCarbon
     case _ => ViperBackends.SiliconBackend
   }))
 
@@ -321,9 +313,11 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
   validateInput(input, module, include)
 
   // cache file should only be usable when using viper server
-  validateOpt (useViperServer, cacheFile) {
-    case (Some(false), Some(_)) => Left("Config file option only works with viper server as a backend")
-    case _ => Right(())
+  validateOpt (backend, cacheFile) {
+    case (Some(ViperBackends.ViperServerWithSilicon), Some(_)) => Right()
+    case (Some(ViperBackends.ViperServerWithCarbon), Some(_)) => Right()
+    case (_, None) => Right()
+    case (_, Some(_)) => Left("Config file option only works with viper server as a backend")
   }
 
   verify()
@@ -419,7 +413,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     z3Exe = z3Exe.toOption,
     boogieExe = boogieExe.toOption,
     logLevel = logLevel(),
-    useViperServer = useViperServer(),
     cacheFile = cacheFile.toOption,
     shouldParse = shouldParse,
     shouldTypeCheck = shouldTypeCheck,

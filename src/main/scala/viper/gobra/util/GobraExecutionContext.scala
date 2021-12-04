@@ -16,8 +16,7 @@ trait GobraExecutionContext extends VerificationExecutionContext {
   def terminateAndAssertInexistanceOfTimeout(): Unit
 }
 
-class DefaultGobraExecutionContext(val threadPoolSize: Int = Math.max(DefaultVerificationExecutionContext.minNumberOfThreads, Runtime.getRuntime.availableProcessors())
-                                  ) extends DefaultVerificationExecutionContext with GobraExecutionContext {
+class DefaultGobraExecutionContext extends DefaultVerificationExecutionContext with GobraExecutionContext {
   /**
     * In contrast to `terminate`, this function terminates the context but also checks whether it was successfully
     * shutdown meaning that no timeout has occurred while doing so.

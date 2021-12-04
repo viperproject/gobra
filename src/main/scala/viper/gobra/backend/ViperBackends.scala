@@ -6,17 +6,19 @@
 
 package viper.gobra.backend
 
+import viper.gobra.frontend.Config
 import viper.gobra.util.GobraExecutionContext
-import viper.server.core.ViperCoreServer
+import viper.server.ViperConfig
+import viper.server.core.{VerificationExecutionContext, ViperCoreServer}
 
 trait ViperBackend {
-  def create(exePaths: Vector[String]): ViperVerifier
+  def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperVerifier
 }
 
 object ViperBackends {
 
   object SiliconBackend extends ViperBackend {
-    def create(exePaths: Vector[String]): Silicon = {
+    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Silicon = {
 
       var options: Vector[String] = Vector.empty
       options ++= Vector("--logLevel", "ERROR")
@@ -29,7 +31,7 @@ object ViperBackends {
   }
 
   object CarbonBackend extends ViperBackend {
-    def create(exePaths: Vector[String]): Carbon = {
+    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): Carbon = {
       var options: Vector[String] = Vector.empty
       // options ++= Vector("--logLevel", "ERROR")
       options ++= exePaths
@@ -38,24 +40,25 @@ object ViperBackends {
     }
   }
 
-  object ViperServerBackend extends ViperBackend {
-    var executor: GobraExecutionContext = _
+  object ViperServerBackend  {
+    var executor: VerificationExecutionContext = _
     var server: ViperCoreServer = _
 
-    def setExecutor(executionContext: GobraExecutionContext): Unit = {
+    def setExecutor(executionContext: VerificationExecutionContext): Unit = {
       require(executor == null)
       executor = executionContext
     }
 
-    def setServer(coreServer: ViperCoreServer): Unit = {
+    def initServer(config: Config): Unit = {
       require(server == null, "ViperCoreServer is already set.")
-      server = coreServer
-    }
+      require(executor != null, "Executor is not set.")
 
-    def create(exePaths: Vector[String]): ViperServer = {
-      require(executor != null, "ExecutionContext has to be set before creation.")
-      require(server != null, "ViperCoreServer needs to be set before creation.")
-      new ViperServer(server)(executor)
+      var serverConfig = List("--logLevel", config.logLevel.levelStr)
+      if(config.cacheFile.isDefined) {
+        serverConfig = serverConfig.appendedAll(List("--cacheFile", config.cacheFile.get))
+      }
+
+      server = new ViperCoreServer(new ViperConfig(serverConfig))(executor)
     }
 
     def resetExecutor(): Unit =
@@ -63,5 +66,40 @@ object ViperBackends {
 
     def resetServer(): Unit =
       server = null
+  }
+
+  object ViperServerWithSilicon extends ViperBackend {
+    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
+      if(ViperServerBackend.executor == null) {
+        ViperServerBackend.setExecutor(executor)
+      }
+
+      if(ViperServerBackend.server == null) {
+        ViperServerBackend.initServer(config)
+      }
+
+      var options: Vector[String] = Vector.empty
+      options ++= Vector("--logLevel", "ERROR")
+      options ++= Vector("--disableCatchingExceptions")
+      options ++= Vector("--enableMoreCompleteExhale")
+      options ++= exePaths
+
+      new ViperServer(ViperServerBackend.server, ViperServerConfig.ConfigWithSilicon(options.toList))(ViperServerBackend.executor)
+    }
+  }
+
+  object ViperServerWithCarbon extends ViperBackend {
+    def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
+      if(ViperServerBackend.executor == null) {
+        ViperServerBackend.setExecutor(executor)
+      }
+
+      if(ViperServerBackend.server == null) {
+        ViperServerBackend.initServer(config)
+      }
+
+
+      new ViperServer(ViperServerBackend.server, ViperServerConfig.ConfigWithCarbon(List("--logLevel", "ERROR")))(ViperServerBackend.executor)
+    }
   }
 }

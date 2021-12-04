@@ -11,9 +11,11 @@ import viper.silver.reporter.{ExceptionReport, Message, OverallFailureMessage, O
 import viper.silver.verifier.{Success, VerificationResult}
 import akka.actor.{Actor, Props, Status}
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{Await, Future, Promise}
 import viper.gobra.util.GobraExecutionContext
-import viper.server.core.{CarbonConfig, SiliconConfig, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
+import viper.server.core.{CarbonConfig, SiliconConfig, VerificationExecutionContext, ViperBackendConfig, ViperCoreServer, ViperServerBackendNotFoundException}
+
+import scala.concurrent.duration.Duration
 
 object ViperServer {
 
@@ -58,16 +60,19 @@ object ViperServerConfig {
 trait ViperServerWithSilicon extends ViperVerifierConfig
 trait ViperServerWithCarbon extends ViperVerifierConfig
 
-class ViperServer(server: ViperCoreServer)(implicit executor: GobraExecutionContext) extends ViperVerifier {
-
+class ViperServer(server: ViperCoreServer, backendConfig: ViperVerifierConfig)(implicit executor: VerificationExecutionContext) extends ViperVerifier {
   import ViperServer._
 
   override def verify(programID: String, config: ViperVerifierConfig, reporter: Reporter, program: Program)(_ctx: GobraExecutionContext): Future[VerificationResult] = {
     // convert ViperVerifierConfig to ViperBackendConfig:
 
-    val serverConfig: ViperBackendConfig = config match {
-      case _: ViperServerWithSilicon => SiliconConfig(config.partialCommandLine)
-      case _: ViperServerWithCarbon => CarbonConfig(config.partialCommandLine)
+    if(!server.isRunning) {
+      Await.ready(server.start(), Duration.Inf)
+    }
+
+    val serverConfig: ViperBackendConfig = backendConfig match {
+      case _: ViperServerWithSilicon => SiliconConfig(backendConfig.partialCommandLine)
+      case _: ViperServerWithCarbon => CarbonConfig(backendConfig.partialCommandLine)
       case c => throw ViperServerBackendNotFoundException(s"unknown backend config $c")
     }
     val handle = server.verify(programID, serverConfig, program)

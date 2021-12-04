@@ -9,6 +9,7 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
+import viper.gobra.backend.ViperBackends.ViperServerBackend
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}
@@ -29,12 +30,17 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
   override val defaultTestPattern: String = PackageResolver.inputFilePattern
 
   var gobraInstance: Gobra = _
+  var executor: GobraExecutionContext = _
 
   override def beforeAll(): Unit = {
+    executor = new DefaultGobraExecutionContext()
     gobraInstance = new Gobra()
   }
 
   override def afterAll(): Unit = {
+    executor.terminateAndAssertInexistanceOfTimeout()
+    ViperServerBackend.resetServer();
+    ViperServerBackend.resetExecutor();
     gobraInstance = null
   }
 
@@ -54,9 +60,7 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
           z3Exe = z3Exe
         )
 
-        val executor: GobraExecutionContext = new DefaultGobraExecutionContext()
         val (result, elapsedMilis) = time(() => Await.result(gobraInstance.verify(config)(executor), Duration.Inf))
-        executor.terminateAndAssertInexistanceOfTimeout()
 
         info(s"Time required: $elapsedMilis ms")
 

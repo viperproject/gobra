@@ -214,13 +214,6 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     noshort = false
   )
 
-  val useViperServer: ScallopOption[Boolean] = toggle(
-    name = "viperServer",
-    descrYes = "Use viper server as a backend",
-    default = Some(false),
-    noshort = false
-  )
-
   val cacheFile: ScallopOption[String] = opt[String](
     name = "cacheFile",
     descr = "Cache file to be used, only usable if using viper server as a backend",
@@ -317,7 +310,7 @@ class ScallopGobraConfig(arguments: Seq[String], isInputOptional: Boolean = fals
     case (Some(ViperBackends.ViperServerWithSilicon), Some(_)) => Right()
     case (Some(ViperBackends.ViperServerWithCarbon), Some(_)) => Right()
     case (_, None) => Right()
-    case (_, Some(_)) => Left("Config file option only works with viper server as a backend")
+    case (_, Some(_)) => Left("Cache file option only works with viper server as a backend")
   }
 
   verify()

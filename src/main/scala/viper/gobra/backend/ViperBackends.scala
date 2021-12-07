@@ -72,6 +72,8 @@ object ViperBackends {
 
   object ViperServerWithSilicon extends ViperBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
+
+      // Initialize viperserver if it wasn't already or if the execution context was shut down
       if(ViperServerBackend.executor == null || ViperServerBackend.executor.executorService.isShutdown) {
         ViperServerBackend.setExecutor(executor)
       }
@@ -92,6 +94,8 @@ object ViperBackends {
 
   object ViperServerWithCarbon extends ViperBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
+
+      // Initialize viperserver if it wasn't already or if the execution context was shut down
       if(ViperServerBackend.executor == null || ViperServerBackend.executor.executorService.isShutdown) {
         ViperServerBackend.setExecutor(executor)
       }

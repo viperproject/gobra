@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Signatures for the public declarations in file
+// https://github.com/golang/go/blob/master/src/errors/wrap.go
+
 package errors
 
 // (tlino) the methods aren't verified yet

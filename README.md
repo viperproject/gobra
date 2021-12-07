@@ -20,6 +20,7 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
     - [silver](https://github.com/viperproject/silver) (tag `v.21.07-release`)
     - [silicon](https://github.com/viperproject/silicon) (tag `v.21.07-release`)
     - [carbon](https://github.com/viperproject/carbon) (tag `v.21.07-release`)
+    - [viperserver](https://github.com/viperproject/viperserver) (commit `5907ce1744501b7949d25cc0d5356145431ab6f7`)
     - Gobra
     > To switch to tag `X`, execute the command ```git checkout X``` inside the cloned repository.
 3. Add symbolic links
@@ -30,6 +31,10 @@ We call annotated Go programs Gobra programs and use the file extension `.gobra`
         - silver -> ..\silver
     - Change directory to `gobraHome/carbon` and create the symbolic links:
         - silver -> ..\silver
+    - Change directory to `gobraHome/viperserver` and create the symbolic links:
+        - silver -> ..\silver
+        - silicon -> ..\silicon
+        - carbon -> ..\carbon
     - Change to `gobraHome/gobra-one` and create the links:
         - silver -> ..\silver
         - silicon -> ..\silicon

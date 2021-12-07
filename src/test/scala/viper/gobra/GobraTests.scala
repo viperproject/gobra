@@ -9,7 +9,6 @@ package viper.gobra
 import java.nio.file.Path
 import ch.qos.logback.classic.Level
 import org.scalatest.BeforeAndAfterAll
-import viper.gobra.backend.ViperBackends.ViperServerBackend
 import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.VerifierResult.{Failure, Success}

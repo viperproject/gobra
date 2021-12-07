@@ -68,7 +68,7 @@ object BackendVerifier {
       }
       val programs: Vector[vpr.Program] = if (isolate.isDefined) ViperChopper.chop(task.program)(isolate = isolate) else Vector(task.program)
       programs.zipWithIndex.foreach{ case (chopped, idx) =>
-        config.reporter report ChoppedViperMessage(config.inputs.head.name, idx, () => chopped, () => task.backtrack)
+        config.reporter report ChoppedViperMessage(config.inputFiles.head, idx, () => chopped, () => task.backtrack)
       }
 
       val verifier = config.backend.create(exePaths)
@@ -79,7 +79,7 @@ object BackendVerifier {
       // }
 
       programs.zipWithIndex.foldLeft(Future.successful(Vector(silver.verifier.Success)): Future[Vector[VerificationResult]]){ case (res, (program, idx)) =>
-        val programID = s"_programID_${config.inputs.map(_.name).mkString("_")}"
+        val programID = s"_programID_${config.inputFiles.head.getFileName}_$idx"
         for {
           acc <- res
           next <- verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), program)(executor)
@@ -88,11 +88,12 @@ object BackendVerifier {
     } else {
       val verifier = config.backend.create(exePaths)
 
-      val programID = s"_programID_${config.inputs.head}"
+      val programID = s"_programID_${config.inputFiles.head}"
 
       verifier.verify(programID, config.backendConfig, BacktranslatingReporter(config.reporter, task.backtrack, config), task.program)(executor).map(Vector(_))
     }
 
+    
     verificationResults.map{ results =>
       val result = results.foldLeft(silver.verifier.Success: VerificationResult){
         case (acc, silver.verifier.Success) => acc

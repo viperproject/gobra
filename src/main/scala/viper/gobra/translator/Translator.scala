@@ -37,7 +37,7 @@ object Translator {
       case (t, transformer) => transformer.transform(t)
     }
 
-    config.reporter report GeneratedViperMessage(config.inputs.map(_.name), () => transformedTask.program, () => transformedTask.backtrack)
+    config.reporter report GeneratedViperMessage(config.inputFiles.head, () => transformedTask.program, () => transformedTask.backtrack)
     transformedTask
   }
 

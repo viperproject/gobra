@@ -6,11 +6,13 @@
 
 package viper.gobra.ast.frontend
 
+import java.nio.file.Paths
+
 import org.bitbucket.inkytonik.kiama.rewriting.Rewritable
 import org.bitbucket.inkytonik.kiama.util.Messaging.Messages
 import org.bitbucket.inkytonik.kiama.util._
 import viper.gobra.ast.frontend.PNode.PPkg
-import viper.gobra.frontend.Source.TransformableSource
+import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.reporting.VerifierError
 import viper.gobra.util.{Decimal, NumBase}
 import viper.silver.ast.{LineColumnPosition, SourcePosition}
@@ -71,7 +73,11 @@ class PositionManager(val positions: Positions) extends Messaging(positions) {
   }
 
   def translate(start: Position, end: Position): SourcePosition = {
-    val path = start.source.toPath
+    val path = start.source match {
+      case FileSource(filename, _) => Paths.get(filename)
+      case FromFileSource(path, _) => path
+      case _ => ???
+    }
     new SourcePosition(
       path,
       LineColumnPosition(start.line, start.column),

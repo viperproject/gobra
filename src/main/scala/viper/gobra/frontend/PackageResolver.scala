@@ -9,11 +9,10 @@ package viper.gobra.frontend
 import java.io.{Closeable, InputStream}
 import java.nio.file.{FileSystem, FileSystemAlreadyExistsException, FileSystems, Files, Path, Paths}
 import java.util.Collections
+
 import org.apache.commons.io.FilenameUtils
 import org.apache.commons.lang3.SystemUtils
-import org.bitbucket.inkytonik.kiama.util.{FileSource, Source}
 import viper.gobra.ast.frontend.PImplicitQualifiedImport
-import viper.gobra.frontend.Source.FromFileSource
 
 import scala.io.BufferedSource
 import scala.util.Properties
@@ -41,23 +40,6 @@ object PackageResolver {
   }
 
   /**
-    * Resolves a package name (i.e. import path) to specific input sources
-    * @param importTarget
-    * @param moduleName name of the module under verification
-    * @param includeDirs list of directories that will be used for package resolution before falling back to $GOPATH
-    * @return list of sources belonging to the package (right) or an error message (left) if no directory could be found
-    *         or the directory contains input files having different package clauses
-    */
-  def resolveSources(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[Source]] = {
-    for {
-      resources <- resolve(importTarget, moduleName, includeDirs)
-      sources = resources.map(_.asSource())
-      // we do no longer need the resources, so we close them:
-      _ = resources.foreach(_.close())
-    } yield sources
-  }
-
-  /**
     * Resolves a package name (i.e. import path) to specific input files
     * @param importTarget
     * @param moduleName name of the module under verification
@@ -65,27 +47,14 @@ object PackageResolver {
     * @return list of files belonging to the package (right) or an error message (left) if no directory could be found
     *         or the directory contains input files having different package clauses
     */
-  private def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
-    val sourceFiles = for {
-      // pkgDir stores the path to the directory that should contain source files belonging to the desired package
-      pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
-      sourceFiles = getSourceFiles(pkgDir)
-    } yield sourceFiles
-
-    sourceFiles.foreach(checkPackageClauses(_, importTarget))
-
+  def resolve(importTarget: AbstractImport, moduleName: String, includeDirs: Vector[Path]): Either[String, Vector[InputResource]] = {
     for {
       // pkgDir stores the path to the directory that should contain source files belonging to the desired package
       pkgDir <- getLookupPath(importTarget, moduleName, includeDirs)
       sourceFiles = getSourceFiles(pkgDir)
       // check whether all found source files belong to the same package (the name used in the package clause can
       // be absolutely independent of the import path)
-      // in case of error, iterate over all resources and close them
       _ <- checkPackageClauses(sourceFiles, importTarget)
-        .left.map(err => {
-          sourceFiles.foreach(_.close())
-          err
-        })
     } yield sourceFiles
   }
 
@@ -254,7 +223,7 @@ object PackageResolver {
     private var stream: Option[InputStream] = None
     /**
       * stream has to be closed after use either by calling `close` on the resource or directly on the stream.
-      * In case the resource (if applicable incl. its file system) is continued to be used but the stream is no
+      * In case the resource (if applicable incl. its file system) is continued to be used by the stream is no
       * longer needed, it is recommended to directly call `close` on the stream as soon as possible and call `close`
       * on the resource when it is no longer needed.
       */
@@ -274,8 +243,6 @@ object PackageResolver {
         stream = None
       case _ =>
     }
-
-    def asSource(): Source
   }
 
   case class FileResource(path: Path) extends InputResource {
@@ -287,8 +254,6 @@ object PackageResolver {
       Files.newDirectoryStream(path).asScala.toVector
         .map(p => FileResource(p))
     }
-
-    override def asSource(): FileSource = FileSource(path.toString)
   }
 
   case class JarResource(filesystem: FileSystem, pathString: String) extends InputResource {
@@ -299,12 +264,5 @@ object PackageResolver {
       Files.newDirectoryStream(path).asScala.toVector.map(p => JarResource(filesystem, p.toString))
 
     override val path: Path = filesystem.getPath(pathString)
-
-    override def asSource(): FromFileSource = {
-      val bufferedSource = new BufferedSource(asStream())
-      val content = bufferedSource.mkString
-      bufferedSource.close()
-      FromFileSource(path, content)
-    }
   }
 }

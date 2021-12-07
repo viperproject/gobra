@@ -6,8 +6,7 @@
 
 package viper.gobra.frontend
 
-import org.bitbucket.inkytonik.kiama.util.Source
-import viper.gobra.frontend.Source.TransformableSource
+import viper.gobra.frontend.Parser.FromFileSource
 import viper.gobra.util.Constants
 
 import scala.util.matching.Regex
@@ -92,11 +91,9 @@ object Gobrafier {
     * Converts a .go program with annotations in comments to a .gobra program.
     * Does not apply any transformations if a .gobra program is provided.
     */
-  def gobrafy(source: Source): Source = {
-    def isGoFile(path: String): Boolean = path.endsWith(s".${PackageResolver.goExtension}")
-
-    if (isGoFile(source.name)) source.transformContent(gobrafy(source.content))
-    else source // is not a go file, keep the source unchanged
+  def gobrafy(source: FromFileSource): FromFileSource = source match {
+    case source if source.path.toString.endsWith(s".${PackageResolver.goExtension}") => FromFileSource(source.path, gobrafy(source.content))
+    case source => source
   }
 
   def gobrafy(content: String): String = {
@@ -217,6 +214,7 @@ object Gobrafier {
       val functionName = m.group(1)
       val actualArgs = m.group(2)
       val ghostArgs = m.group(3)
+      println(s"ghostArgs: $ghostArgs")
 
       functionName +
       parens(

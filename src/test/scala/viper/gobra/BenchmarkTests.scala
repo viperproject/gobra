@@ -8,7 +8,6 @@ package viper.gobra
 
 import java.nio.file.Path
 import org.scalatest.{ConfigMap, DoNotDiscover}
-import viper.gobra.frontend.Source.FromFileSource
 import viper.gobra.frontend.{Config, PackageResolver}
 import viper.gobra.reporting.{NoopReporter, VerifierError, VerifierResult}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
@@ -62,7 +61,7 @@ trait GobraFrontendForTesting extends Frontend {
   override def init(verifier: Verifier): Unit = () // ignore verifier argument as we reuse the Gobra / Parser / TypeChecker / etc. instances for all tests
 
   override def reset(files: Seq[Path]): Unit =
-    config = Some(Config(inputs = files.toVector.map(FromFileSource(_)), reporter = NoopReporter, z3Exe = z3Exe))
+    config = Some(Config(inputFiles = files.toVector, reporter = NoopReporter, z3Exe = z3Exe))
 
   def gobraResult: VerifierResult
 

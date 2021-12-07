@@ -100,14 +100,13 @@ class DetailedBenchmarkTests extends BenchmarkTests {
     private val parsing = InitialStep("parsing", () => {
       assert(config.isDefined)
       val c = config.get
-      Parser.parse(c.inputs)(c)
+      Parser.parse(c.inputFiles)(c)
     })
 
     private val typeChecking: NextStep[PPackage, (PPackage, TypeInfo), Vector[VerifierError]] =
       NextStep("type-checking", parsing, (parsedPackage: PPackage) => {
         assert(config.isDefined)
-        val c = config.get
-        Info.check(parsedPackage, c.inputs)(c).map(typeInfo => (parsedPackage, typeInfo))
+        Info.check(parsedPackage)(config.get).map(typeInfo => (parsedPackage, typeInfo))
       })
 
     private val desugaring: NextStep[(PPackage, TypeInfo), Program, Vector[VerifierError]] =
@@ -121,7 +120,7 @@ class DetailedBenchmarkTests extends BenchmarkTests {
       val c = config.get
       if (c.checkOverflows) {
         val result = OverflowChecksTransform.transform(program)
-        c.reporter report AppliedInternalTransformsMessage(c.inputs.map(_.name), () => result)
+        c.reporter report AppliedInternalTransformsMessage(c.inputFiles.head, () => result)
         Right(result)
       } else {
         Right(program)

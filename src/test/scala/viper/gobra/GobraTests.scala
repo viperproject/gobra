@@ -39,8 +39,6 @@ class GobraTests extends AbstractGobraTests with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     executor.terminateAndAssertInexistanceOfTimeout()
-    ViperServerBackend.resetServer();
-    ViperServerBackend.resetExecutor();
     gobraInstance = null
   }
 

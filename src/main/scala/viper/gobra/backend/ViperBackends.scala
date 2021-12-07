@@ -45,8 +45,10 @@ object ViperBackends {
     var server: ViperCoreServer = _
 
     def setExecutor(executionContext: VerificationExecutionContext): Unit = {
-      require(executor == null)
+      require(executor == null || executor.executorService.isShutdown)
       executor = executionContext
+      // reset server since it depends on the execution context
+      resetServer()
     }
 
     def initServer(config: Config): Unit = {
@@ -70,7 +72,7 @@ object ViperBackends {
 
   object ViperServerWithSilicon extends ViperBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
-      if(ViperServerBackend.executor == null) {
+      if(ViperServerBackend.executor == null || ViperServerBackend.executor.executorService.isShutdown) {
         ViperServerBackend.setExecutor(executor)
       }
 
@@ -90,7 +92,7 @@ object ViperBackends {
 
   object ViperServerWithCarbon extends ViperBackend {
     def create(exePaths: Vector[String], config: Config)(implicit executor: GobraExecutionContext): ViperServer = {
-      if(ViperServerBackend.executor == null) {
+      if(ViperServerBackend.executor == null || ViperServerBackend.executor.executorService.isShutdown) {
         ViperServerBackend.setExecutor(executor)
       }
 

@@ -20,7 +20,6 @@ import viper.gobra.reporting._
 import viper.gobra.translator.Translator
 import viper.gobra.util.Violation.{KnownZ3BugException, LogicException, UglyErrorMessage}
 import viper.gobra.util.{DefaultGobraExecutionContext, GobraExecutionContext}
-import viper.server.core.DefaultVerificationExecutionContext
 import viper.silver.{ast => vpr}
 
 import scala.concurrent.duration.Duration

@@ -12,6 +12,7 @@ package errors
 // 	"internal/reflectlite"
 // )
 
+// (tlino) TODO: verify this method
 // Unwrap returns the result of calling the Unwrap method on err, if err's
 // type contains an Unwrap method returning error.
 // Otherwise, Unwrap returns nil.
@@ -26,6 +27,9 @@ func Unwrap(err error) error //{
 // 	return u.Unwrap()
 // }
 
+// (tlino) For now, we do not require any predicate to hold.
+// (tlino) We assume that we have read permission to target.
+// (tlino) TODO: verify this method, depends on the internal/reflectlite package
 // Is reports whether any error in err's chain matches target.
 //
 // The chain consists of err itself followed by the sequence of errors obtained by
@@ -65,6 +69,9 @@ func Is(err, target error) bool //{
 // 	}
 // }
 
+// (tlino) For now, we do not require any predicate to hold.
+// (tlino) We assume that we have read permission to target and write permission to err.
+// (tlino) TODO: verify this method, depends on the internal/reflectlite package
 // As finds the first error in err's chain that matches target, and if one is found, sets
 // target to that error value and returns true. Otherwise, it returns false.
 //

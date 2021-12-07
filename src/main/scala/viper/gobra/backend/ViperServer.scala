@@ -19,8 +19,6 @@ import scala.concurrent.duration.Duration
 
 object ViperServer {
 
-  case object Result
-
   class GlueActor(reporter: Reporter, verificationPromise: Promise[VerificationResult]) extends Actor {
     override def receive: Receive = {
 

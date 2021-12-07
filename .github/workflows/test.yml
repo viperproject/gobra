@@ -201,7 +201,8 @@ jobs:
           IS_MASTER=${{ github.ref == 'refs/heads/master' }}
           IS_VERIFIED_SCION=${{ github.ref == 'refs/heads/verified-scion-preview-without-selective' }}
           IS_PROPER_TAG=${{ startsWith(github.ref, 'refs/tags/v') }}
-          if [[ $IS_GOBRA_REPO && ($IS_MASTER || $IS_VERIFIED_SCION || $IS_PROPER_TAG) ]]
+          # we use `${{ true }}` to be able to compare against GitHub's truth value:
+          if [[ "$IS_GOBRA_REPO" == ${{ true }} && ("$IS_MASTER" == ${{ true }} || "$IS_VERIFIED_SCION" == ${{ true }} || "$IS_PROPER_TAG" == ${{ true }}) ]]
           then
             SHOULD_DEPLOY='true'
           else

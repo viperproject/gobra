@@ -108,41 +108,60 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       disableWildcards {
         val left = visitExpression(ctx.expression(0))
         val right = visitExpression(ctx.expression(1))
-        if (ctx.rel_op != null) {
+
+        val operationType : (PExpression, PExpression) => PExpression = if (ctx.rel_op != null) {
           ctx.rel_op.getType match {
-            case GobraParser.EQUALS => PEquals(left, right).newpos(ctx)
-            case GobraParser.NOT_EQUALS => PUnequals(left, right).newpos(ctx)
-            case GobraParser.LESS => PLess(left, right).newpos(ctx)
-            case GobraParser.LESS_OR_EQUALS => PAtMost(left, right).newpos(ctx)
-            case GobraParser.GREATER => PGreater(left, right).newpos(ctx)
-            case GobraParser.GREATER_OR_EQUALS => PAtLeast(left, right).newpos(ctx)
+            case GobraParser.EQUALS => PEquals
+            case GobraParser.NOT_EQUALS => PUnequals
+            case GobraParser.LESS => PLess
+            case GobraParser.LESS_OR_EQUALS => PAtMost
+            case GobraParser.GREATER => PGreater
+            case GobraParser.GREATER_OR_EQUALS => PAtLeast
             case op =>
               val (start, finish) = getStartFinish(ctx)
               throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
           }
         } else if (ctx.add_op != null) {
           ctx.add_op.getType match {
-            case GobraParser.PLUS => PAdd(left, right).newpos(ctx)
-            case GobraParser.MINUS => PSub(left, right).newpos(ctx)
-            case GobraParser.PLUS_PLUS => PSequenceAppend(left, right).newpos(ctx)
+            case GobraParser.PLUS => PAdd
+            case GobraParser.MINUS => PSub
+            case GobraParser.PLUS_PLUS => PSequenceAppend
             case op =>
               val (start, finish) = getStartFinish(ctx)
               throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
           }
         } else if (ctx.mul_op != null) {
           ctx.mul_op.getType match {
-            case GobraParser.STAR => PMul(left, right).newpos(ctx)
-            case GobraParser.DIV => PDiv(left, right).newpos(ctx)
-            case GobraParser.MOD => PMod(left, right).newpos(ctx)
+            case GobraParser.STAR => PMul
+            case GobraParser.DIV => PDiv
+            case GobraParser.MOD => PMod
             case op =>
               val (start, finish) = getStartFinish(ctx)
               throw TranslationException("Unsupported binary operator: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
           }
+        } else if (ctx.p41_op != null) {
+          ctx.p41_op.getType match {
+            case GobraParser.IN => PIn
+            case GobraParser.MULTI => PMultiplicity
+            case GobraParser.SUBSET => PSubset
+          }
+        } else if (ctx.p42_op != null) {
+          ctx.p42_op.getType match {
+            case GobraParser.UNION =>  PUnion
+            case GobraParser.INTERSECTION => PIntersection
+            case GobraParser.SETMINUS => PSetMinus
+          }
         } else if (ctx.LOGICAL_AND() != null) {
-          PAnd(left, right).newpos(ctx)
-        } else { // We have OR
-          POr(left, right).newpos(ctx)
-        }
+          PAnd
+        } else if (ctx.LOGICAL_OR() != null){
+          POr
+        } else if (ctx.IMPLIES() != null) {
+          PImplication
+        } else if (ctx.QMARK() != null) {
+          val els = visitExpression(ctx.expression(2))
+          (l, r) => PConditional(l,r, els)
+        } else fail(ctx)
+        operationType(left, right).newpos(ctx)
       }
     }
   }
@@ -179,7 +198,68 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     } else if (ctx.expression(1) != null) {
       val perm  = visitExpression(ctx.expression(1))
       PAccess(expr, perm).newpos(ctx)
-    } else fail(ctx)
+    } else {
+      PAccess(expr, PFullPerm().at(expr)).newpos(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitOld(ctx: OldContext): PGhostExpression = {
+    val expr = visitExpression(ctx.expression())
+    if (has(ctx.oldLabelUse())) {
+      val label = if (has(ctx.oldLabelUse().labelUse()))
+        PLabelUse(ctx.oldLabelUse().labelUse().IDENTIFIER().getText).newpos(ctx) else
+        PLabelUse(PLabelNode.lhsLabel).newpos(ctx)
+      PLabeledOld(label, expr).newpos(ctx)
+    } else {
+      POld(expr).newpos(ctx)
+    }
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBoundVariableDecl(ctx: BoundVariableDeclContext): Vector[PBoundVariable] = {
+    val typ = visitType_(ctx.elementType().type_())
+    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PBoundVariable(idnDef(id).newpos(ctx), typ.copy).newpos(id)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitBoundVariables(ctx: BoundVariablesContext): Vector[PBoundVariable] = {
+    (for (v <- ctx.boundVariableDecl().asScala.toVector) yield visitBoundVariableDecl(v)).flatten
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTriggers(ctx: TriggersContext): Vector[PTrigger] = {
+    for (trigger <- ctx.trigger().asScala.toVector) yield visitTrigger(trigger)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitTrigger(ctx: TriggerContext): PTrigger = {
+    PTrigger(for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)).newpos(ctx)
   }
 
   /**
@@ -198,6 +278,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       }
     } else  if (ctx.access() != null) {
       visitAccess(ctx.access())
+    } else if (has(ctx.typeOf())) {
+      PTypeOf(visitExpression(ctx.typeOf().expression())).newpos(ctx.typeOf())
+    } else if (has(ctx.isComparable)) {
+      PIsComparable(visitExpression(ctx.isComparable().expression())).newpos(ctx.isComparable)
+    } else if (has(ctx.old())) {
+      visitOld(ctx.old())
+    } else if (has(ctx.FORALL())) {
+      val vars = visitBoundVariables(ctx.boundVariables())
+      val triggers = visitTriggers(ctx.triggers())
+      val body = visitExpression(ctx.expression())
+      PForall(vars, triggers, body).newpos(ctx)
     } else fail(ctx)
   }
 
@@ -224,9 +315,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       } else if (ctx.index() != null) {
         PIndexedExp(pe, visitExpression(ctx.index().expression())).newpos(ctx)
       } else if (ctx.slice_() != null) {
-        val low = if (ctx.slice_().expression(0) != null) Some(visitExpression(ctx.slice_().expression(0))) else None
-        val high = if (ctx.slice_().expression(1) != null) Some(visitExpression(ctx.slice_().expression(1))) else None
-        val cap = if (ctx.slice_().expression(2) != null) Some(visitExpression(ctx.slice_().expression(2))) else None
+        val low = if (ctx.slice_().low() != null) Some(visitExpression(ctx.slice_().low().expression())) else None
+        val high = if (ctx.slice_().high() != null) Some(visitExpression(ctx.slice_().high().expression())) else None
+        val cap = if (ctx.slice_().cap() != null) Some(visitExpression(ctx.slice_().cap().expression())) else None
         PSliceExp(pe, low, high, cap).newpos(ctx)
       } else if (ctx.seqUpdExp() != null) {
         val updates = for (upd <- ctx.seqUpdExp().seqUpdClause().asScala.toVector) yield {
@@ -249,7 +340,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   override def visitBasicLit(ctx: GobraParser.BasicLitContext): PBasicLiteral = {
-    if (ctx.integer()!=null){
+    if (has(ctx.NIL_LIT())) {
+      PNilLit().newpos(ctx)
+    }else if (ctx.integer()!=null){
       visitInteger(ctx.integer()).newpos(ctx)
     } else if (ctx.TRUE() != null) {
       PBoolLit(true).newpos(ctx)
@@ -266,6 +359,30 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitArrayType(ctx: ArrayTypeContext): PArrayType = {
+    val typ = visitType_(ctx.elementType().type_())
+    val length = visitExpression(ctx.arrayLength().expression())
+
+    PArrayType(length, typ).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitSliceType(ctx: SliceTypeContext): PSliceType = {
+    val typ = visitType_(ctx.elementType().type_())
+    PSliceType(typ).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitLiteralType(ctx: LiteralTypeContext): PLiteralType = {
     if (ctx.typeName() != null) {
       visitTypeNameNoPredeclared(ctx.typeName())
@@ -273,6 +390,10 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitStructType(ctx.structType())
     } else if(ctx.ghostTypeLit() != null) {
       visitGhostTypeLit(ctx.ghostTypeLit())
+    } else if (has(ctx.sliceType())) {
+      visitSliceType(ctx.sliceType())
+    } else if (has(ctx.arrayType())) {
+      visitArrayType(ctx.arrayType())
     } else fail_msg(ctx, "This literal type is not supported")
 
   }
@@ -395,20 +516,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     }
   }
 
-  def visitUnkIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PIdnUnk] = {
-    for (id <- ctx.IDENTIFIER().asScala.toVector) yield PIdnUnk(id.getSymbol.getText).newpos(ctx)
+  def visitUnkIdentifierList(list: Vector[TerminalNode]): Vector[PIdnUnk] = {
+    for (id <- list) yield PIdnUnk(id.getSymbol.getText).newpos(id)
   }
 
-  def visitDefLikeIdentifierList(ctx: GobraParser.IdentifierListContext): Vector[PDefLikeId] = {
-    for (id <- ctx.IDENTIFIER().asScala.toVector) yield idnDefOrWildcard(id).newpos(ctx)
+  def visitDefLikeIdentifierList(list : Vector[TerminalNode]): Vector[PDefLikeId] = {
+    for (id <- list) yield idnDefOrWildcard(id).newpos(id)
   }
 
   override def visitShortVarDecl(ctx: GobraParser.ShortVarDeclContext): PShortVarDecl = {
-    val left = visitUnkIdentifierList(ctx.identifierList())
+    val (ids, addressable) = ctx.maybeAddressableIdentifierList().maybeAddressableIdentifier().asScala.toVector.map(ctx => (ctx.IDENTIFIER(), has(ctx.ADDR_MOD()))).unzip
+    val vars = visitUnkIdentifierList(ids)
     val right = visitExpressionList(ctx.expressionList())
-    // TODO: implement addressable
-    val addressable = Vector.fill(left.length)(false)
-    PShortVarDecl(right, left, addressable).newpos(ctx)
+    PShortVarDecl(right, vars, addressable).newpos(ctx)
   }
 
   /**
@@ -438,20 +558,24 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  def visitMaybeAddressableIdnDef(ctx: MaybeAddressableIdentifierContext): (PIdnDef, Boolean) = {
+    (idnDef(ctx.IDENTIFIER()), has(ctx.ADDR_MOD()))
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitReceiver(ctx: ReceiverContext): PReceiver = {
-    if (ctx.parameters().parameterDecl().size() != 1) fail_msg(ctx, "receivers must be a single non-variadic parameter")
+    val typeName = PNamedOperand(idnUse(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER())).newpos(ctx.IDENTIFIER())
+    val recvType = if (has(ctx.STAR())) PMethodReceiveName(typeName).newpos(ctx) else PMethodReceivePointer(typeName).newpos(ctx)
 
-    val decl = ctx.parameters().parameterDecl(0)
-
-    if (decl.ELLIPSIS() != null) fail_msg(ctx, "receivers must be a single non-variadic parameter")
-
-    val recvType = visitMethodRecvType(decl.type_())
-    if (decl.identifierList().IDENTIFIER() != null) {
-      if (decl.identifierList().IDENTIFIER().size() != 1) fail_msg(ctx, "receivers must be a single non-variadic parameter")
-      PNamedReceiver(idnDef(decl.identifierList().IDENTIFIER(0)).newpos(decl.identifierList()), recvType, false).newpos(ctx)
-    } else {
-      PUnnamedReceiver(recvType).newpos(ctx)
-    }
+    if (has(ctx.maybeAddressableIdentifier())) {
+      val (id, addr) = visitMaybeAddressableIdnDef(ctx.maybeAddressableIdentifier())
+      PNamedReceiver(id, recvType, addr).newpos(ctx)
+    } else PUnnamedReceiver(recvType).newpos(ctx)
   }
 
   /**
@@ -557,7 +681,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitConstSpec(ctx: GobraParser.ConstSpecContext): PConstDecl = {
     val typ = if (ctx.type_() != null) Some(visitType_(ctx.type_())) else None
 
-    val left = visitDefLikeIdentifierList(ctx.identifierList())
+    val left = visitDefLikeIdentifierList(ctx.identifierList().IDENTIFIER().asScala.toVector)
     val right = visitExpressionList(ctx.expressionList())
 
     PConstDecl(typ, right, left).newpos(ctx)
@@ -608,10 +732,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitVarSpec(ctx: GobraParser.VarSpecContext): PVarDecl = {
-    val left = visitDefLikeIdentifierList(ctx.identifierList())
+    val (ids, addressable) = ctx.maybeAddressableIdentifierList().maybeAddressableIdentifier().asScala.toVector.map(ctx => (ctx.IDENTIFIER(), has(ctx.ADDR_MOD()))).unzip
+    val vars = visitDefLikeIdentifierList(ids)
     val typ = if(has(ctx.type_())) Some(visitType_(ctx.type_())) else None
-    val right = visitExpressionList(ctx.expressionList())
-    PVarDecl(typ, right, left, Vector.fill(left.length)(false)).newpos(ctx)
+    val right = if (has(ctx.expressionList())) visitExpressionList(ctx.expressionList()) else Vector.empty
+    PVarDecl(typ, right, vars, addressable).newpos(ctx)
 
   }
 
@@ -765,7 +890,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         case GobraParser.FOLD => PFold(predicateAccess).newpos(ctx)
         case GobraParser.UNFOLD => PUnfold(predicateAccess).newpos(ctx)
       }
-    } else (fail(ctx))
+    }  else fail(ctx)
   }
 
   /**
@@ -829,7 +954,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val expr = visitExpression(ctx.rangeClause().expression())
       val range = PRange(expr).newpos(ctx.rangeClause())
       if (has(ctx.rangeClause().DECLARE_ASSIGN())) {
-        val idList = visitUnkIdentifierList(ctx.rangeClause().identifierList())
+        val idList = visitUnkIdentifierList(ctx.rangeClause().identifierList().IDENTIFIER().asScala.toVector)
         PShortForRange(range, idList, block).newpos(ctx)
       } else {
         val assignees = visitExpressionList(ctx.rangeClause().expressionList()) match {
@@ -901,10 +1026,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitMethodSpec(ctx: GobraParser.MethodSpecContext): PMethodSig = {
+    val spec = if (ctx.specification() != null) visitSpecification(ctx.specification()) else PFunctionSpec(Vector.empty,Vector.empty,Vector.empty, Vector.empty)
     val id = idnDef(ctx.IDENTIFIER()).newpos(ctx)
     val args = for (param <- ctx.parameters().parameterDecl().asScala.toVector) yield visitParameterDecl(param)
     val result = if (ctx.result() != null) visitResult(ctx.result()) else PResult(Vector.empty).newpos(ctx)
-    PMethodSig(id, args.flatten, result, PFunctionSpec(Vector.empty,Vector.empty,Vector.empty,Vector.empty).newpos(ctx), isGhost = false).newpos(ctx)
+    PMethodSig(id, args.flatten, result, spec, isGhost = false).newpos(ctx)
   }
 
   /**
@@ -927,7 +1053,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     */
   override def visitInterfaceType(ctx: GobraParser.InterfaceTypeContext): PInterfaceType = {
     val methodDecls = for (meth <- ctx.methodSpec().asScala.toVector) yield visitMethodSpec(meth).newpos(ctx)
-    val embedded = Vector[PInterfaceName]()
+    val embedded = for (typ <- ctx.typeName().asScala.toVector) yield
+      PInterfaceName(PNamedOperand(idnUse(typ.IDENTIFIER()).newpos(typ)).newpos(typ)).newpos(typ)
     val predicateDecls = for (pred <- ctx.predicateSpec().asScala.toVector) yield visitPredicateSpec(pred)
     PInterfaceType(embedded, methodDecls, predicateDecls).newpos(ctx)
   }
@@ -957,7 +1084,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       val et = visitEmbeddedField(ctx.embeddedField())
       PEmbeddedDecl(et, PIdnDef(et.name).at(et)).newpos(ctx)
     } else {
-      val ids = visitDefLikeIdentifierList(ctx.identifierList())
+      val ids = visitDefLikeIdentifierList(ctx.identifierList().IDENTIFIER().asScala.toVector)
       val t = visitType_(ctx.type_())
       PFieldDecls(ids map (id => PFieldDecl(id.asInstanceOf[PIdnDef], t.copy).at(id))).newpos(ctx)
     }
@@ -987,9 +1114,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitStructType(ctx.structType())
     }else if(ctx.interfaceType() != null){
       visitInterfaceType(ctx.interfaceType())
-    } else {
-      fail(ctx)
-    }
+    } else if (has(ctx.sliceType())) {
+      visitSliceType(ctx.sliceType())
+    } else  if (has(ctx.arrayType())) {
+      visitArrayType(ctx.arrayType())
+    } else fail(ctx)
   }
 
   /**
@@ -998,9 +1127,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitSequenceType(ctx: SequenceTypeContext): PSequenceType = {
+  override def visitSType(ctx: STypeContext): PGhostLiteralType = {
     val typ = visitType_(ctx.type_())
-    PSequenceType(typ).newpos(ctx)
+    ctx.kind.getType match {
+      case GobraParser.SEQ => PSequenceType(typ).newpos(ctx)
+      case GobraParser.SET => PSetType(typ).newpos(ctx)
+      case GobraParser.MSET => PMultisetType(typ).newpos(ctx)
+    }
+
   }
 
   /**
@@ -1010,8 +1144,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitGhostTypeLit(ctx: GhostTypeLitContext): PGhostLiteralType = {
-    if(ctx.sequenceType() != null) {
-      visitSequenceType(ctx.sequenceType())
+    if(ctx.sType() != null) {
+      visitSType(ctx.sType())
     } else fail(ctx)
   }
 
@@ -1054,6 +1188,13 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   def visitTypeIdentifier(typ: TerminalNode): Either[PPredeclaredType, PNamedOperand] = {
     typ.getSymbol.getText match {
       case "int" => Left(PIntType().newpos(typ))
+      case "int16" => Left(PInt16Type().newpos(typ))
+      case "int32" => Left(PInt32Type().newpos(typ))
+      case "int64" => Left(PInt64Type().newpos(typ))
+      case "uint" => Left(PUIntType().newpos(typ))
+      case "uint16" => Left(PUInt16Type().newpos(typ))
+      case "uint32" => Left(PUInt32Type().newpos(typ))
+      case "uint64" => Left(PUInt64Type().newpos(typ))
       case "bool" => Left(PBoolType().newpos(typ))
       case "string" => Left(PStringType().newpos(typ))
       case _ => Right(PNamedOperand(idnUse(typ).newpos(typ)).newpos(typ))

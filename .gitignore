@@ -16,3 +16,4 @@ logger.log
 /src/main/java/viper/gobra/frontend/GobraLexer.tokens
 /src/main/java/viper/gobra/frontend/GobraParser.interp
 /src/main/java/viper/gobra/frontend/GobraParser.tokens
+/gen/

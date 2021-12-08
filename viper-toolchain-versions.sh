@@ -6,5 +6,5 @@
 # Copyright (c) 2011-2021 ETH Zurich.
 
 SILVER_REF="f645539a04e76d70337d7b5b108e7f9a9de9bc7a"
-SILICON_REF="v.21.07-release"
+SILICON_REF="edb5d079f327c2d9e7eebea9719032c9e70dea37"
 CARBON_REF="v.21.07-release"

@@ -257,6 +257,18 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitParameterDecl(GobraParser.ParameterDeclContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#unaryExpr}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnaryExpr(GobraParser.UnaryExprContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#unfolding}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitUnfolding(GobraParser.UnfoldingContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#expression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -712,12 +724,6 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitParameters(GobraParser.ParametersContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link GobraParser#unaryExpr}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitUnaryExpr(GobraParser.UnaryExprContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#conversion}.
 	 * @param ctx the parse tree

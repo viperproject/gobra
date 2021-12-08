@@ -45,6 +45,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitUnfolding(ctx: UnfoldingContext): PUnfolding = {
+    val pred = visitPredicateAccess(ctx.predicateAccess())
+    val op = visitExpression(ctx.expression())
+
+    PUnfolding(pred, op).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitUnaryExpr(ctx: GobraParser.UnaryExprContext): PExpression = {
     if (ctx.primaryExpr() != null) {
       visitPrimaryExpr(ctx.primaryExpr())
@@ -61,9 +74,9 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
           val (start, finish) = getStartFinish(ctx)
           throw TranslationException("Unsupported unary expression: " + GobraParser.VOCABULARY.getDisplayName(op), start, finish)
       }
-    } else { // should not be reachable
-      fail(ctx)
-    }
+    } else if (has(ctx.unfolding())) {
+      visitUnfolding(ctx.unfolding())
+    } else fail(ctx)
   }
 
   /**
@@ -855,7 +868,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * `#` on `ctx`.</p>
     */
   override def visitReturnStmt(ctx: GobraParser.ReturnStmtContext): PReturn = {
-    PReturn(visitExpressionList(ctx.expressionList())).newpos(ctx)
+    val exprs = if (ctx.expressionList() != null) visitExpressionList(ctx.expressionList()) else Vector.empty
+    PReturn(exprs).newpos(ctx)
   }
 
   /**

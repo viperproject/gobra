@@ -148,6 +148,21 @@ receiver: 	L_PAREN maybeAddressableIdentifier? STAR? IDENTIFIER R_PAREN;
 // Added ghost parameters
 parameterDecl: GHOST? identifierList? ELLIPSIS? type_;
 
+// Added unfolding
+unaryExpr:
+	primaryExpr
+	| unary_op = (
+		PLUS
+		| MINUS
+		| EXCLAMATION
+		| CARET
+		| STAR
+		| AMPERSAND
+		| RECEIVE
+	) expression
+	| unfolding ;
+
+unfolding: UNFOLDING predicateAccess IN expression;
 
 // Added ++ operator
 expression:

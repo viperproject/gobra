@@ -22,6 +22,7 @@ EXISTS      : 'exists';
 ACCESS      : 'acc';
 FOLD        : 'fold';
 UNFOLD      : 'unfold';
+UNFOLDING   : 'unfolding';
 GHOST       : 'ghost';
 IN          : 'in';
 MULTI       : '#';

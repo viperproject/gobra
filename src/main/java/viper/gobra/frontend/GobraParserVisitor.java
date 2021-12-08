@@ -71,6 +71,12 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitGhostPrimaryExpr(GobraParser.GhostPrimaryExprContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link GobraParser#sConversion}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSConversion(GobraParser.SConversionContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link GobraParser#triggers}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -262,6 +268,24 @@ public interface GobraParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitStatement(GobraParser.StatementContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#specForStmt}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitSpecForStmt(GobraParser.SpecForStmtContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#loopSpec}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLoopSpec(GobraParser.LoopSpecContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GobraParser#terminationMeasure}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTerminationMeasure(GobraParser.TerminationMeasureContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link GobraParser#basicLit}.
 	 * @param ctx the parse tree

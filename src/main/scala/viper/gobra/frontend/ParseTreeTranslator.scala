@@ -799,12 +799,14 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * `#` on `ctx`.</p>
     */
   override def visitSpecification(ctx: GobraParser.SpecificationContext): PFunctionSpec = {
-    val pres = for (pre <- ctx.specStatement().asScala.toVector if pre.PRE() != null) yield visitExpression(pre.assertion().expression())
-    val preserves = for (presv <- ctx.specStatement().asScala.toVector if presv.PRESERVES() != null) yield visitExpression(presv.assertion().expression())
-    val posts  = for(post <- ctx.specStatement().asScala.toVector if post.POST()!= null) yield visitExpression(post.assertion().expression())
-    val isPure = ctx.PURE() != null
+    val groups = ctx.specStatement().asScala.toVector.groupBy(_.kind.getType)
+    val pres = groups.getOrElse(GobraParser.PRE, Vector.empty).map(s => visitExpression(s.assertion().expression()))
+    val preserves = groups.getOrElse(GobraParser.PRESERVES, Vector.empty).map(s => visitExpression(s.assertion().expression()))
+    val posts = groups.getOrElse(GobraParser.POST, Vector.empty).map(s => visitExpression(s.assertion().expression()))
+    val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).map(s => visitTerminationMeasure(s.terminationMeasure()))
+    val isPure = groups.getOrElse(GobraParser.PURE, Vector.empty).nonEmpty || has(ctx.PURE)
 
-    PFunctionSpec(pres, preserves, posts, Vector.empty, isPure = isPure).newpos(ctx)
+    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure).newpos(ctx)
   }
 
   /**
@@ -936,11 +938,39 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
-  override def visitForStmt(ctx: ForStmtContext): PStatement = {
-    val spec = if (false/*has(ctx.loopSpec())*/) {
-      PLoopSpec(Vector.empty, None)
-    } else PLoopSpec(Vector.empty, None)
+  override def visitTerminationMeasure(ctx: TerminationMeasureContext): PTerminationMeasure = {
+    val cond = if (has(ctx.expression())) Some(visitExpression(ctx.expression())) else None
+    enableWildcards {
+      visitExpressionList(ctx.expressionList())
+    } match {
+        case Vector(PNamedOperand(PIdnUse("_"))) => PWildcardMeasure(cond)
+        case exprs => PTupleTerminationMeasure(exprs, cond)
+    }
+  }
 
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitLoopSpec(ctx: LoopSpecContext): PLoopSpec = {
+    val invs = for (inv <- ctx.expression().asScala.toVector) yield visitExpression(inv)
+    val decs = if (has(ctx.terminationMeasure())) Some(visitTerminationMeasure(ctx.terminationMeasure())) else None
+
+    PLoopSpec(invs, decs)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitSpecForStmt(specCtx: SpecForStmtContext): PStatement = {
+    val spec = visitLoopSpec(specCtx.loopSpec())
+
+    val ctx = specCtx.forStmt()
     val block = visitBlock(ctx.block())
 
     if (has(ctx.expression())) {
@@ -978,8 +1008,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitGhostStatement(ctx.ghostStatement())
     } else if (ctx.ifStmt() != null) {
       visitIfStmt(ctx.ifStmt())
-    } else if (has(ctx.forStmt())) {
-      visitForStmt(ctx.forStmt())
+    } else if (has(ctx.specForStmt())) {
+      visitSpecForStmt(ctx.specForStmt())
     } else fail(ctx)
   }
 

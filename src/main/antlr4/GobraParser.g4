@@ -70,13 +70,15 @@ seqUpdExp: L_BRACKET (seqUpdClause (COMMA seqUpdClause)*) R_BRACKET;
 seqUpdClause: expression ASSIGN expression;
 
 specification
-    : (specStatement eos)+ PURE?
+    : (specStatement eos)+? PURE?
     ;
 
 specStatement
     : kind=PRE assertion
     | kind=PRESERVES assertion
     | kind=POST assertion
+    | kind=DEC terminationMeasure
+    | kind=PURE
     ;
 
 functionDecl: specification? FUNC IDENTIFIER (signature block?);
@@ -200,8 +202,14 @@ statement:
 	| ifStmt
 	| switchStmt
 	| selectStmt
-	| forStmt
+	| specForStmt
 	| deferStmt;
+
+specForStmt: loopSpec forStmt;
+
+loopSpec: (INV expression eos)* (DEC terminationMeasure eos)?;
+
+terminationMeasure: expressionList (IF expression);
 
 // Added true, false as literals
 basicLit:

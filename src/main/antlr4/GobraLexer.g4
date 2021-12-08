@@ -12,6 +12,7 @@ PRE         : 'requires';
 PRESERVES   : 'preserves';
 POST        : 'ensures';
 INV         : 'invariant';
+DEC         : 'decreases';
 PURE        : 'pure';
 IMPL        : 'implements';
 OLD         : 'old';

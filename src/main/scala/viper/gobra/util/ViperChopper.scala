@@ -154,7 +154,7 @@ object ViperChopper {
 
       } while(performedUpdate)
 
-      println(s"Chopped verification condition into ${x.size} parts. Maximum number of parts is ${start.size}.")
+      println(s"Chopped verification condition into ${x.size} parts. Maximum number of parts is ${filtered.size}.")
 
       x.toVector
     }

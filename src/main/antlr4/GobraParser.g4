@@ -88,9 +88,6 @@ methodDecl: specification FUNC receiver IDENTIFIER ( signature block?);
 
 assertion:
     | expression
-    | kind=EXCLAMATION assertion
-    | assertion kind=LOGICAL_AND assertion
-    | assertion kind=LOGICAL_OR assertion
     ;
 
 range: kind=(SEQ | SET | MSET) L_BRACKET expression DOT_DOT expression R_BRACKET;
@@ -107,7 +104,7 @@ sourceFile:
 ghostMember: fpredicateDecl
             | mpredicateDecl
             | implementationProof
-            | GHOST eos (
+            | (GHOST | (GHOST eos)) (
             methodDecl 
             | functionDecl 
             | constDecl

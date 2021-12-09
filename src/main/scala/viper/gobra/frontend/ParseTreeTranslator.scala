@@ -213,7 +213,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   override def visitAccess(ctx: AccessContext): PAccess = {
     val expr = visitExpression(ctx.expression(0))
     if(ctx.IDENTIFIER() != null){
-      idnUseOrWildcard(ctx.IDENTIFIER()) match {
+      idnUseOrWildcard(ctx.IDENTIFIER()).newpos(ctx.IDENTIFIER()) match {
         case id : PIdnUse => PAccess(expr, PNamedOperand(id).newpos(ctx.IDENTIFIER())).newpos(ctx.IDENTIFIER())
         case PWildcard() => PAccess(expr, PWildcardPerm().newpos(ctx.IDENTIFIER())).newpos(ctx.IDENTIFIER())
         case _ => fail(ctx.IDENTIFIER())
@@ -316,6 +316,19 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
   }
 
   /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
+  override def visitConversion(ctx: ConversionContext): PInvoke= {
+    val typ = visitType_(ctx.type_())
+    val exp = visitExpression(ctx.expression())
+
+    PInvoke(typ, Vector(exp)).newpos(ctx)
+  }
+
+  /**
     * Visit a parse tree produced by `GobraParser`.
     *
     * @param ctx the parse tree
@@ -351,6 +364,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
         val typ = visitType_(ctx.typeAssertion().type_())
         PTypeAssertion(pe, typ).newpos(ctx)
       } else fail(ctx)
+    } else if (has(ctx.conversion())) {
+      visitConversion(ctx.conversion())
     } else fail(ctx)
   }
 
@@ -841,7 +856,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * {@link #visitChildren} on {@code ctx}.</p>
     */
   override def visitConstDecl(ctx: GobraParser.ConstDeclContext): Vector[PConstDecl] = {
-    for (spec <- ctx.constSpec().asScala.toVector) yield visitConstSpec(spec)
+    (for (spec <- ctx.constSpec().asScala.toVector) yield visitConstSpec(spec)) match {
+      // Make sure the first expression list is not empty
+      case Vector(PConstDecl(_, Vector(), _), _*) => fail(ctx)
+      case decls => decls
+    }
   }
 
   /**
@@ -934,6 +953,7 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * @return the visitor result
     */
   override def visitExpressionList(ctx: GobraParser.ExpressionListContext): Vector[PExpression] = {
+    if (!has(ctx)) Vector.empty else
     for (expr <- ctx.expression().asScala.toVector) yield visitExpression(expr)
   }
 
@@ -953,7 +973,11 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     val terms = groups.getOrElse(GobraParser.DEC, Vector.empty).map(s => visitTerminationMeasure(s.terminationMeasure()))
     val isPure = has(ctx.PURE()) && !ctx.PURE().isEmpty
 
-    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure).newpos(ctx)
+    PFunctionSpec(pres, preserves, posts, terms, isPure = isPure) match {
+      // If we have empty specification, we can't get a position, for it.
+      case PFunctionSpec(Vector(), Vector(), Vector(), Vector(), false) => PFunctionSpec(Vector.empty, Vector.empty, Vector.empty, Vector.empty, false).newpos(ctx.parent.asInstanceOf[ParserRuleContext])
+      case spec => spec.newpos(ctx)
+    }
   }
 
   /**
@@ -1285,6 +1309,17 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
     * <p>The default implementation returns the result of calling
     * {@link #visitChildren} on {@code ctx}.</p>
     */
+  override def visitFunctionType(ctx: FunctionTypeContext): PFunctionType = {
+    val (args, result) = visitSignature(ctx.signature())
+    PFunctionType(args, result).newpos(ctx)
+  }
+
+  /**
+    * {@inheritDoc  }
+    *
+    * <p>The default implementation returns the result of calling
+    * {@link #visitChildren} on {@code ctx}.</p>
+    */
   override def visitTypeLit(ctx: GobraParser.TypeLitContext): PTypeLit = {
     if (has(ctx.pointerType())) {
       PDeref(visitType_(ctx.pointerType().type_())).newpos(ctx)
@@ -1296,6 +1331,8 @@ class ParseTreeTranslator(pom: PositionManager, source: Source, specOnly : Boole
       visitSliceType(ctx.sliceType())
     } else  if (has(ctx.arrayType())) {
       visitArrayType(ctx.arrayType())
+    } else if (has(ctx.functionType())) {
+      visitFunctionType(ctx.functionType())
     } else fail(ctx)
   }
 
